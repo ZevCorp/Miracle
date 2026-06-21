@@ -10,13 +10,16 @@ export default function PlantillasPage() {
   const { showToast } = useStore();
   const [items, setItems] = useState<Template[]>(seedTemplates);
   const [selected, setSelected] = useState<string>(seedTemplates[0].id);
+  const [copyCounter, setCopyCounter] = useState(0);
 
   const actual = items.find((t) => t.id === selected) ?? items[0];
 
   function duplicate(t: Template) {
+    const nextCopy = copyCounter + 1;
+    setCopyCounter(nextCopy);
     const copy: Template = {
       ...t,
-      id: `t-${Date.now()}`,
+      id: `${t.id}-copy-${nextCopy}`,
       nombre: `${t.nombre} (copia)`,
       predeterminada: false,
       creadaPor: "Usuario",

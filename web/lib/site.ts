@@ -3,6 +3,8 @@
  * Centraliza navegación, contacto y CTAs para mantener consistencia.
  */
 
+import type { AppRole } from "@/lib/auth/roles";
+
 export const SITE = {
   name: "Miracle",
   tagline: "Inteligencia clínica-operativa para hospitales",
@@ -33,14 +35,21 @@ export const marketingNav = [
 ] as const;
 
 /** Navegación de la app privada (futura). Iconos resueltos en AppSidebar. */
-export const appNav = [
-  { label: "Inicio", href: "/app/dashboard", icon: "dashboard" },
-  { label: "Consultas", href: "/app/consultas", icon: "consultas" },
-  { label: "Pacientes", href: "/app/pacientes", icon: "pacientes" },
-  { label: "Notas", href: "/app/notas", icon: "notas" },
-  { label: "Auditoría", href: "/app/auditoria", icon: "auditoria" },
-  { label: "Reportes", href: "/app/reportes", icon: "reportes" },
-  { label: "Plantillas", href: "/app/plantillas", icon: "plantillas" },
-  { label: "Configuración", href: "/app/configuracion", icon: "configuracion" },
-  { label: "Usuarios", href: "/app/usuarios", icon: "usuarios" },
-] as const;
+const allRoles: AppRole[] = ["admin", "supervisor", "medico"];
+
+export const appNav: Array<{
+  label: string;
+  href: string;
+  icon: string;
+  roles: AppRole[];
+}> = [
+  { label: "Inicio", href: "/app/dashboard", icon: "dashboard", roles: allRoles },
+  { label: "Consultas", href: "/app/consultas", icon: "consultas", roles: allRoles },
+  { label: "Pacientes", href: "/app/pacientes", icon: "pacientes", roles: allRoles },
+  { label: "Notas", href: "/app/notas", icon: "notas", roles: allRoles },
+  { label: "Auditoría", href: "/app/auditoria", icon: "auditoria", roles: ["admin", "supervisor"] },
+  { label: "Reportes", href: "/app/reportes", icon: "reportes", roles: ["admin", "supervisor"] },
+  { label: "Plantillas", href: "/app/plantillas", icon: "plantillas", roles: allRoles },
+  { label: "Configuración", href: "/app/configuracion", icon: "configuracion", roles: ["admin"] },
+  { label: "Usuarios", href: "/app/usuarios", icon: "usuarios", roles: ["admin"] },
+];

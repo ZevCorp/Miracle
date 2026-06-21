@@ -1,6 +1,8 @@
 // Modelo de datos de la plataforma Miracle (demo con datos ficticios).
 
-export type Role = "medico" | "auditor" | "gerencia";
+import { APP_ROLE_LABEL, type AppRole } from "@/lib/auth/roles";
+
+export type Role = AppRole;
 
 export type ConsultationStatus =
   | "en_curso"
@@ -113,8 +115,4 @@ export const TYPE_LABEL: Record<ConsultationType, string> = {
   audio: "Audio cargado",
 };
 
-export const ROLE_LABEL: Record<Role, string> = {
-  medico: "Médico",
-  auditor: "Auditoría / Calidad",
-  gerencia: "Gerencia",
-};
+export const ROLE_LABEL: Record<Role, string> = APP_ROLE_LABEL;

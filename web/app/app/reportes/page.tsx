@@ -9,10 +9,12 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { MetricCard } from "@/components/marketing/MetricCard";
 import { BarList, Donut, GroupedBars, MiniLine } from "@/components/app/Charts";
+import { requireRole } from "@/lib/auth/server";
 
 export const metadata = { title: "Reportes" };
 
-export default function ReportesPage() {
+export default async function ReportesPage() {
+  await requireRole("admin", "supervisor");
   const k = managementKpis;
   return (
     <div>

@@ -96,14 +96,14 @@ export const doctors: Doctor[] = [
     id: "d3",
     nombre: "Dr. Mauricio Lozano",
     especialidad: "Auditoría médica",
-    rol: "auditor",
+    rol: "supervisor",
     iniciales: "ML",
   },
   {
     id: "d4",
     nombre: "Dra. Patricia Núñez",
     especialidad: "Dirección médica",
-    rol: "gerencia",
+    rol: "admin",
     iniciales: "PN",
   },
 ];

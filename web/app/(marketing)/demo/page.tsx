@@ -5,7 +5,7 @@ import { Section } from "@/components/ui/Section";
 import { Button } from "@/components/ui/Button";
 import { ProductMockup } from "@/components/marketing/ProductMockup";
 import { CTASection } from "@/components/marketing/CTA";
-import { CTA, whatsappLink } from "@/lib/site";
+import { whatsappLink } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Demo",

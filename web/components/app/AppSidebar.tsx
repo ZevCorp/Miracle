@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { appNav } from "@/lib/site";
+import type { AppRole } from "@/lib/auth/roles";
 
 const icons: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -30,7 +31,13 @@ const icons: Record<string, LucideIcon> = {
 };
 
 /** Contenido de navegación de la app (sidebar oscuro). Reutilizado en el drawer móvil. */
-export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
+export function AppSidebar({
+  role,
+  onNavigate,
+}: {
+  role: AppRole;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
 
   return (
@@ -39,7 +46,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void }) {
         <Logo onDark size={28} />
       </div>
       <nav aria-label="Navegación de la app" className="flex-1 space-y-1 p-3">
-        {appNav.map((item) => {
+        {appNav.filter((item) => item.roles.includes(role)).map((item) => {
           const Icon = icons[item.icon] ?? LayoutDashboard;
           const active =
             pathname === item.href || pathname.startsWith(item.href + "/");

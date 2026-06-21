@@ -18,6 +18,7 @@ import {
   type ConsultationStatus,
   type Role,
 } from "@/lib/mock";
+import type { AppRole } from "@/lib/auth/roles";
 
 const STORAGE_KEY = "miracle-store-v2";
 
@@ -31,7 +32,6 @@ interface Toast {
 interface StoreValue {
   consultations: Consultation[];
   role: Role;
-  setRole: (r: Role) => void;
   getConsultation: (id: string) => Consultation | undefined;
   approveNote: (id: string) => void;
   exportNote: (id: string) => void;
@@ -49,46 +49,53 @@ const StoreContext = createContext<StoreValue | null>(null);
 function currentUserName(role: Role): string {
   const map: Record<Role, string> = {
     medico: "Dra. Daniela Rincón",
-    auditor: "Dr. Mauricio Lozano",
-    gerencia: "Dra. Patricia Núñez",
+    supervisor: "Dr. Mauricio Lozano",
+    admin: "Dra. Patricia Núñez",
   };
   return map[role] ?? doctors[0].nombre;
 }
 
-export function MiracleProvider({ children }: { children: ReactNode }) {
+export function MiracleProvider({
+  children,
+  role,
+}: {
+  children: ReactNode;
+  role: AppRole;
+}) {
   const [consultations, setConsultations] =
     useState<Consultation[]>(seedConsultations);
-  const [role, setRole] = useState<Role>("medico");
   const [toast, setToast] = useState<Toast | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
   // Hidratar desde localStorage tras el montaje (evita desajuste SSR).
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw) as {
-          consultations?: Consultation[];
-          role?: Role;
-        };
-        if (saved.consultations?.length) setConsultations(saved.consultations);
-        if (saved.role) setRole(saved.role);
+    const frame = requestAnimationFrame(() => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw) as {
+            consultations?: Consultation[];
+          };
+          if (saved.consultations?.length) setConsultations(saved.consultations);
+        }
+      } catch {
+        /* almacenamiento no disponible */
       }
-    } catch {
-      /* almacenamiento no disponible */
-    }
-    setHydrated(true);
+      setHydrated(true);
+    });
+
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   // Persistir cambios.
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ consultations, role }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ consultations }));
     } catch {
       /* ignore */
     }
-  }, [consultations, role, hydrated]);
+  }, [consultations, hydrated]);
 
   const showToast = useCallback((message: string, tone: ToastTone = "success") => {
     const id = Date.now();
@@ -194,7 +201,6 @@ export function MiracleProvider({ children }: { children: ReactNode }) {
 
   const resetDemo = useCallback(() => {
     setConsultations(seedConsultations);
-    setRole("medico");
     showToast("Demo reiniciada.", "info");
   }, [showToast]);
 
@@ -207,7 +213,6 @@ export function MiracleProvider({ children }: { children: ReactNode }) {
     () => ({
       consultations,
       role,
-      setRole,
       getConsultation,
       approveNote,
       exportNote,

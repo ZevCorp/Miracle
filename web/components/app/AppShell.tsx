@@ -3,19 +3,30 @@
 import { useState, type ReactNode } from "react";
 import { Bell, Menu, Search } from "lucide-react";
 import { AppSidebar } from "./AppSidebar";
-import { RoleSwitcher } from "./RoleSwitcher";
+import type { AuthenticatedProfile } from "@/lib/auth/server";
+import { APP_ROLE_LABEL } from "@/lib/auth/roles";
+import { signOut } from "@/app/login/actions";
 
-export function AppShell({ children }: { children: ReactNode }) {
+function initials(profile: AuthenticatedProfile) {
+  const words = (profile.fullName ?? profile.email).trim().split(/\s+/);
+  return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase();
+}
+
+export function AppShell({
+  children,
+  profile,
+}: {
+  children: ReactNode;
+  profile: AuthenticatedProfile;
+}) {
   const [drawer, setDrawer] = useState(false);
 
   return (
     <div className="flex min-h-screen bg-pearl">
-      {/* Sidebar desktop */}
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 md:block">
-        <AppSidebar />
+        <AppSidebar role={profile.role} />
       </aside>
 
-      {/* Drawer móvil */}
       {drawer ? (
         <div className="fixed inset-0 z-50 md:hidden">
           <div
@@ -23,7 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => setDrawer(false)}
           />
           <div className="absolute left-0 top-0 h-full w-64 shadow-[var(--shadow-xl)]">
-            <AppSidebar onNavigate={() => setDrawer(false)} />
+            <AppSidebar role={profile.role} onNavigate={() => setDrawer(false)} />
           </div>
         </div>
       ) : null}
@@ -45,7 +56,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="ml-auto flex items-center gap-3">
-            <RoleSwitcher />
+            <span className="hidden rounded-full bg-ice px-3 py-1.5 text-xs font-semibold text-deep sm:inline-flex">
+              {APP_ROLE_LABEL[profile.role]}
+            </span>
             <button
               type="button"
               aria-label="Notificaciones"
@@ -54,9 +67,17 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Bell size={18} />
               <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-accent" />
             </button>
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-deep text-sm font-semibold text-white">
-              DR
-            </span>
+            <form action={signOut} className="flex items-center gap-2">
+              <span
+                title={profile.fullName ?? profile.email}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-deep text-sm font-semibold text-white"
+              >
+                {initials(profile)}
+              </span>
+              <button type="submit" className="hidden text-sm font-medium text-muted hover:text-deep lg:inline">
+                Salir
+              </button>
+            </form>
           </div>
         </header>
 
