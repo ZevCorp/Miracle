@@ -1,0 +1,158 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Miracle · Design System (Tailwind v4 tokens)
+   Paleta clínica premium — fondo claro, Deep Blue para jerarquía,
+   Ice Blue superficies, Soft Mint acentos positivos.
+   ============================================================ */
+@theme {
+  /* Marca / superficies */
+  --color-pearl: #f8fafc; /* fondo base */
+  --color-ice: #dceffd; /* superficies suaves */
+  --color-ice-soft: #eef6fe;
+  --color-mint: #b7f0d8; /* acento clínico positivo */
+  --color-mint-soft: #e4f8ef;
+  --color-mist: #cbd5e1; /* bordes / neutros */
+  --color-deep: #0f172a; /* Clinical Deep Blue */
+  --color-deep-2: #111c30;
+
+  /* Tinta / texto */
+  --color-ink: #0f172a;
+  --color-ink-soft: #334155;
+  --color-muted: #64748b;
+  --color-line: #e2e8f0;
+  --color-line-strong: #cbd5e1;
+  --color-surface: #ffffff;
+
+  /* Acento (azul confianza) */
+  --color-accent: #1f6feb;
+  --color-accent-hover: #1a5fd0;
+  --color-accent-soft: #e8f1fe;
+  --color-accent-ink: #0a3a8c;
+
+  /* Estados semánticos */
+  --color-success: #13795b;
+  --color-success-soft: #d8f3e7;
+  --color-warning: #b45309;
+  --color-warning-soft: #fdeecf;
+  --color-danger: #c0392b;
+  --color-danger-soft: #fbe3df;
+  --color-info: #1f6feb;
+  --color-info-soft: #e8f1fe;
+
+  /* Radios */
+  --radius-sm: 14px;
+  --radius-md: 18px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+
+  /* Sombras */
+  --shadow-sm: 0 4px 14px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 12px 28px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 20px 54px rgba(15, 23, 42, 0.1);
+  --shadow-xl: 0 32px 90px rgba(15, 23, 42, 0.12);
+
+  /* Tipografía: Geist (display/marca) + Inter (UI/cuerpo) */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: var(--font-geist), var(--font-inter), ui-sans-serif,
+    system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  background:
+    radial-gradient(
+      ellipse at 0% 12%,
+      rgb(220 239 253 / 0.78),
+      transparent 42%
+    ),
+    radial-gradient(
+      ellipse at 100% 22%,
+      rgb(203 213 225 / 0.6),
+      transparent 40%
+    ),
+    linear-gradient(
+      115deg,
+      #dceffd 0%,
+      #f8fafc 38%,
+      #f8fafc 62%,
+      #e8edf3 100%
+    );
+  background-attachment: fixed;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  font-family: var(--font-display);
+  color: var(--color-deep);
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  margin: 0;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+/* Animación sutil de entrada para secciones */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
