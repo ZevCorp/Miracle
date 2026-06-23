@@ -1,9 +1,23 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
-function appUrl() {
+async function appUrl() {
+  const requestHeaders = await headers();
+  const origin = requestHeaders.get("origin");
+
+  if (origin) {
+    return origin.replace(/\/$/, "");
+  }
+
+  const forwardedHost = requestHeaders.get("x-forwarded-host");
+  if (forwardedHost) {
+    const protocol = requestHeaders.get("x-forwarded-proto") ?? "https";
+    return `${protocol}://${forwardedHost}`;
+  }
+
   return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 }
 
@@ -23,7 +37,7 @@ export async function signInWithGoogle() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${appUrl()}/auth/callback?next=/app/dashboard`,
+      redirectTo: `${await appUrl()}/auth/callback?next=/app/dashboard`,
     },
   });
 
