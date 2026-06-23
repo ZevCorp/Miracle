@@ -1,10 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import {
-  formatFechaRelativa,
-  patientById,
-  TYPE_LABEL,
-  type Consultation,
-} from "@/lib/mock";
+import { formatFechaRelativa, TYPE_LABEL, type Consultation } from "@/lib/mock";
+import { useStore } from "@/app/app/providers";
 import { StatusBadge } from "./StatusBadge";
 
 export function ConsultationCard({
@@ -14,7 +12,8 @@ export function ConsultationCard({
   consultation: Consultation;
   active?: boolean;
 }) {
-  const patient = patientById(consultation.pacienteId);
+  const { getPatient } = useStore();
+  const patient = getPatient(consultation.pacienteId);
   return (
     <Link
       href={`/app/consultas/${consultation.id}`}
@@ -25,7 +24,7 @@ export function ConsultationCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate font-semibold text-deep">
-            {patient?.nombre ?? "Paciente"}
+            {patient?.nombre ?? "Paciente sin identificar"}
           </div>
           <div className="truncate text-xs text-muted">
             {consultation.especialidad} · {TYPE_LABEL[consultation.tipo]}

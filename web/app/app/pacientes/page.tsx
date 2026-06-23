@@ -4,10 +4,9 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
 import { useStore } from "@/app/app/providers";
-import { patients } from "@/lib/mock";
 
 export default function PacientesPage() {
-  const { consultations } = useStore();
+  const { consultations, patients } = useStore();
   const [query, setQuery] = useState("");
 
   const filtrados = useMemo(() => {

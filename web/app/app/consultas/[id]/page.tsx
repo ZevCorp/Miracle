@@ -18,7 +18,6 @@ import {
   completitud,
   doctorById,
   formatFechaRelativa,
-  patientById,
   ripsChecklist,
   ripsListo,
   suggestedCodes,
@@ -39,6 +38,7 @@ export default function ConsultaDetallePage() {
   const id = String(params.id);
   const {
     getConsultation,
+    getPatient,
     approveNote,
     exportNote,
     markReviewed,
@@ -63,7 +63,7 @@ export default function ConsultaDetallePage() {
     );
   }
 
-  const patient = patientById(c.pacienteId);
+  const patient = getPatient(c.pacienteId);
   const doctor = doctorById(c.medicoId);
   const sugeridos = suggestedCodes(c);
 
@@ -85,17 +85,20 @@ export default function ConsultaDetallePage() {
       <div className="mt-3 flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-deep text-sm font-semibold text-white">
-            {patient?.nombre.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+            {patient
+              ? patient.nombre.split(" ").map((p) => p[0]).slice(0, 2).join("")
+              : "?"}
           </span>
           <div>
             <div className="flex items-center gap-2.5">
               <h1 className="text-xl font-semibold text-deep">
-                {patient?.nombre}
+                {patient?.nombre ?? "Paciente sin identificar"}
               </h1>
               <StatusBadge estado={c.estado} />
             </div>
             <p className="mt-0.5 text-sm text-muted">
-              {patient?.edad} años · {c.especialidad} · {TYPE_LABEL[c.tipo]} ·{" "}
+              {patient && patient.edad > 0 ? `${patient.edad} años · ` : ""}
+              {c.especialidad} · {TYPE_LABEL[c.tipo]} ·{" "}
               {formatFechaRelativa(c.fecha)}
             </p>
             <p className="text-sm text-muted">

@@ -6,7 +6,6 @@ import { FileText } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import {
   formatFechaRelativa,
-  patientById,
   STATUS_LABEL,
   type ConsultationStatus,
 } from "@/lib/mock";
@@ -22,7 +21,7 @@ const estados: (ConsultationStatus | "todas")[] = [
 ];
 
 export default function NotasPage() {
-  const { consultations } = useStore();
+  const { consultations, getPatient } = useStore();
   const [estado, setEstado] = useState<ConsultationStatus | "todas">("todas");
 
   const filtradas = useMemo(
@@ -69,7 +68,7 @@ export default function NotasPage() {
       {filtradas.length ? (
         <div className="mt-5 overflow-hidden rounded-lg border border-line bg-white">
           {filtradas.map((c, i) => {
-            const patient = patientById(c.pacienteId);
+            const patient = getPatient(c.pacienteId);
             return (
               <Link
                 key={c.id}

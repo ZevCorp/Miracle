@@ -8,13 +8,12 @@ import {
   FileAudio,
   Monitor,
   Search,
+  UserPlus,
   Video,
+  X,
 } from "lucide-react";
-import {
-  patients,
-  templates,
-  type ConsultationType,
-} from "@/lib/mock";
+import { useStore } from "@/app/app/providers";
+import { templates, type ConsultationType } from "@/lib/mock";
 
 const tipos: { id: ConsultationType; label: string; icon: typeof Monitor }[] = [
   { id: "presencial", label: "Presencial", icon: Monitor },
@@ -27,33 +26,54 @@ const inputClass =
 
 export default function NuevaConsultaPage() {
   const router = useRouter();
+  const { patients, addPatient, getPatient } = useStore();
+
   const [query, setQuery] = useState("");
   const [pacienteId, setPacienteId] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const [tipo, setTipo] = useState<ConsultationType>("presencial");
   const [plantillaId, setPlantillaId] = useState(templates[0].id);
-  const [consent, setConsent] = useState(false);
+
+  const seleccionado = getPatient(pacienteId);
 
   const resultados = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return patients.slice(0, 4);
-    return patients.filter(
-      (p) =>
-        p.nombre.toLowerCase().includes(q) ||
-        p.documento.toLowerCase().includes(q),
-    );
-  }, [query]);
+    if (!q) return patients.slice(0, 6);
+    return patients
+      .filter(
+        (p) =>
+          p.nombre.toLowerCase().includes(q) ||
+          p.documento.toLowerCase().includes(q),
+      )
+      .slice(0, 6);
+  }, [query, patients]);
 
   const plantilla = templates.find((t) => t.id === plantillaId)!;
-  const paciente = patients.find((p) => p.id === pacienteId);
-  const puedeIniciar = Boolean(pacienteId && consent);
+  const nombreNuevo = query.trim();
+  const existeExacto = patients.some(
+    (p) => p.nombre.toLowerCase() === nombreNuevo.toLowerCase(),
+  );
+
+  function elegir(id: string, nombre: string) {
+    setPacienteId(id);
+    setQuery(nombre);
+    setOpen(false);
+  }
+
+  function crear() {
+    if (!nombreNuevo) return;
+    const p = addPatient(nombreNuevo);
+    elegir(p.id, p.nombre);
+  }
+
+  function limpiar() {
+    setPacienteId(null);
+    setQuery("");
+  }
 
   function empezar() {
-    if (!puedeIniciar) return;
-    const sp = new URLSearchParams({
-      paciente: pacienteId!,
-      tipo,
-      plantilla: plantillaId,
-    });
+    const sp = new URLSearchParams({ tipo, plantilla: plantillaId });
+    if (pacienteId) sp.set("paciente", pacienteId);
     router.push(`/app/consultas/en-vivo?${sp.toString()}`);
   }
 
@@ -61,52 +81,111 @@ export default function NuevaConsultaPage() {
     <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-semibold text-deep">Nueva consulta</h1>
       <p className="mt-1 text-sm text-muted">
-        Seleccione el paciente, el tipo de consulta y la plantilla antes de
-        iniciar la captura.
+        Inicie la captura. Puede asociar un paciente o crear uno nuevo — o
+        hacerlo después.
       </p>
 
       <div className="mt-6 space-y-6">
         {/* Paciente */}
         <section className="rounded-lg border border-line bg-white p-5">
           <h2 className="font-display text-base font-semibold text-deep">
-            1 · Paciente
+            1 · Paciente{" "}
+            <span className="font-normal text-muted">(opcional)</span>
           </h2>
-          <div className="mt-3 flex items-center gap-2 rounded-md border border-line px-3 py-2">
-            <Search size={16} className="text-muted" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar por nombre o documento…"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
-            />
-          </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {resultados.map((p) => {
-              const active = p.id === pacienteId;
-              return (
+
+          <div className="relative mt-3">
+            <div className="flex items-center gap-2 rounded-md border border-line px-3 py-2 focus-within:border-accent">
+              <Search size={16} className="text-muted" />
+              <input
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPacienteId(null);
+                  setOpen(true);
+                }}
+                onFocus={() => setOpen(true)}
+                placeholder="Buscar paciente por nombre o documento…"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
+              />
+              {seleccionado ? (
                 <button
-                  key={p.id}
                   type="button"
-                  onClick={() => setPacienteId(p.id)}
-                  className={`flex items-center justify-between rounded-md border px-3 py-2.5 text-left transition-colors ${
-                    active
-                      ? "border-accent bg-accent-soft"
-                      : "border-line hover:border-mist"
-                  }`}
+                  onClick={limpiar}
+                  aria-label="Quitar paciente"
+                  className="text-muted hover:text-deep"
                 >
-                  <span>
-                    <span className="block text-sm font-medium text-deep">
-                      {p.nombre}
-                    </span>
-                    <span className="block text-xs text-muted">
-                      {p.edad} años · {p.documento}
-                    </span>
-                  </span>
-                  {active ? <Check size={16} className="text-accent" /> : null}
+                  <X size={16} />
                 </button>
-              );
-            })}
+              ) : null}
+            </div>
+
+            {open ? (
+              <>
+                {/* overlay para cerrar al hacer clic afuera */}
+                <button
+                  type="button"
+                  aria-hidden
+                  tabIndex={-1}
+                  onClick={() => setOpen(false)}
+                  className="fixed inset-0 z-10 cursor-default"
+                />
+                <div className="absolute z-20 mt-1.5 w-full overflow-hidden rounded-xl border border-line bg-white p-1.5 shadow-[var(--shadow-lg)]">
+                  {resultados.length ? (
+                    <ul className="max-h-64 overflow-auto">
+                      {resultados.map((p) => (
+                        <li key={p.id}>
+                          <button
+                            type="button"
+                            onClick={() => elegir(p.id, p.nombre)}
+                            className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-ice-soft"
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium text-deep">
+                                {p.nombre}
+                              </span>
+                              <span className="block truncate text-xs text-muted">
+                                {p.edad > 0
+                                  ? `${p.edad} años · ${p.documento}`
+                                  : "Datos por completar"}
+                              </span>
+                            </span>
+                            {pacienteId === p.id ? (
+                              <Check size={16} className="text-accent" />
+                            ) : null}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="px-3 py-2 text-sm text-muted">
+                      {nombreNuevo
+                        ? "Sin coincidencias."
+                        : "Escribe un nombre o documento para buscar."}
+                    </p>
+                  )}
+
+                  {nombreNuevo && !existeExacto ? (
+                    <button
+                      type="button"
+                      onClick={crear}
+                      className="mt-1 flex w-full items-center gap-2.5 rounded-lg border border-dashed border-accent/50 bg-accent-soft/40 px-3 py-2.5 text-sm font-semibold text-accent-ink hover:bg-accent-soft"
+                    >
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-accent text-white">
+                        <UserPlus size={14} />
+                      </span>
+                      Crear paciente «{nombreNuevo}»
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
           </div>
+
+          {seleccionado ? (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-mint-soft px-3 py-1.5 text-sm font-medium text-success">
+              <Check size={15} /> {seleccionado.nombre}
+            </div>
+          ) : null}
         </section>
 
         {/* Tipo */}
@@ -165,37 +244,17 @@ export default function NuevaConsultaPage() {
           </div>
         </section>
 
-        {/* Consentimiento */}
-        <section className="rounded-lg border border-line bg-white p-5">
-          <h2 className="font-display text-base font-semibold text-deep">
-            4 · Consentimiento
-          </h2>
-          <label className="mt-3 flex cursor-pointer items-start gap-3">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
-            />
-            <span className="text-sm text-ink-soft">
-              El paciente otorgó su consentimiento informado para el uso de
-              asistencia de documentación clínica con IA.
-            </span>
-          </label>
-        </section>
-
         {/* Acción */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted">
-            {paciente
-              ? `Listo para iniciar con ${paciente.nombre}.`
-              : "Seleccione un paciente para continuar."}
+            {seleccionado
+              ? `Listo para iniciar con ${seleccionado.nombre}.`
+              : "Puede iniciar sin paciente identificado."}
           </p>
           <button
             type="button"
-            disabled={!puedeIniciar}
             onClick={empezar}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
           >
             Empezar consulta <ArrowRight size={17} />
           </button>

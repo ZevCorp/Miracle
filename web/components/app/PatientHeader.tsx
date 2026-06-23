@@ -20,8 +20,9 @@ export function PatientHeader({
       <div className="min-w-0">
         <div className="truncate font-semibold text-deep">{patient.nombre}</div>
         <div className="truncate text-xs text-muted">
-          {patient.edad} años · {patient.sexo === "F" ? "Femenino" : "Masculino"}
-          {compact ? "" : ` · ${patient.documento} · ${patient.eps}`}
+          {patient.edad > 0
+            ? `${patient.edad} años · ${patient.sexo === "F" ? "Femenino" : "Masculino"}${compact ? "" : ` · ${patient.documento} · ${patient.eps}`}`
+            : "Datos demográficos por completar"}
         </div>
       </div>
     </div>

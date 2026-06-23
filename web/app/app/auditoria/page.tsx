@@ -7,7 +7,6 @@ import {
   acceptedCodes,
   completitud,
   formatFechaRelativa,
-  patientById,
   type AuditEvent,
 } from "@/lib/mock";
 import { Card } from "@/components/ui/Card";
@@ -15,7 +14,7 @@ import { MetricCard } from "@/components/marketing/MetricCard";
 import { StatusBadge } from "@/components/app/StatusBadge";
 
 export default function AuditoriaPage() {
-  const { consultations } = useStore();
+  const { consultations, getPatient } = useStore();
 
   const porRevisar = consultations.filter(
     (c) => c.estado === "borrador" || c.estado === "revisada",
@@ -36,7 +35,7 @@ export default function AuditoriaPage() {
         c.auditoria.map((e) => ({
           ...e,
           consultaId: c.id,
-          paciente: patientById(c.pacienteId)?.nombre,
+          paciente: getPatient(c.pacienteId)?.nombre,
         })),
       )
       .sort((a, b) => (a.fecha < b.fecha ? 1 : -1))
@@ -80,7 +79,7 @@ export default function AuditoriaPage() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium text-deep">
-                        {patientById(c.pacienteId)?.nombre} · {c.motivo}
+                        {getPatient(c.pacienteId)?.nombre} · {c.motivo}
                       </div>
                       <div className="text-xs text-muted">
                         Completitud {pct}% · {formatFechaRelativa(c.fecha)}

@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { PageHero } from "@/components/marketing/PageHero";
 import { Section } from "@/components/ui/Section";
-import { Card } from "@/components/ui/Card";
-import { Steps } from "@/components/marketing/Steps";
-import { ProductMockup } from "@/components/marketing/ProductMockup";
+import { StepFlow } from "@/components/marketing/StepFlow";
 import { CTASection } from "@/components/marketing/CTA";
 
 export const metadata: Metadata = {
@@ -22,7 +20,7 @@ export default function ComoFuncionaPage() {
       />
 
       <Section>
-        <Steps
+        <StepFlow
           steps={[
             {
               title: "El médico atiende",
@@ -49,31 +47,26 @@ export default function ComoFuncionaPage() {
       </Section>
 
       <Section tone="surface">
-        <div className="grid gap-10 lg:grid-cols-[1.05fr_1fr] lg:items-center">
-          <div>
-            <h2 className="text-3xl font-semibold text-deep">
-              Lo que ve el médico
-            </h2>
-            <ul className="mt-6 space-y-4">
-              <Detail title="Transcripción a la vista">
-                El texto de la consulta se puede revisar y editar, con identificación
-                de quién habla.
-              </Detail>
-              <Detail title="Nota estructurada">
-                Formato SOAP o evolución, con campos editables y lenguaje clínico.
-              </Detail>
-              <Detail title="Codificación sugerida">
-                CIE-10 y CUPS propuestos con su nivel de confianza, para revisión.
-              </Detail>
-              <Detail title="Estado y trazabilidad">
-                Borrador, revisado, aprobado y exportado — siempre con responsable.
-              </Detail>
-            </ul>
-          </div>
-          <Card className="p-2 sm:p-3">
-            <ProductMockup />
-          </Card>
+        <div className="max-w-2xl">
+          <h2 className="text-3xl font-semibold text-deep">
+            Lo que ve el médico
+          </h2>
         </div>
+        <ul className="mt-8 grid gap-5 sm:grid-cols-2">
+          <Detail title="Transcripción a la vista">
+            El texto de la consulta se puede revisar y editar, con identificación
+            de quién habla.
+          </Detail>
+          <Detail title="Nota estructurada">
+            Formato SOAP o evolución, con campos editables y lenguaje clínico.
+          </Detail>
+          <Detail title="Codificación sugerida">
+            CIE-10 y CUPS propuestos con su nivel de confianza, para revisión.
+          </Detail>
+          <Detail title="Estado y trazabilidad">
+            Borrador, revisado, aprobado y exportado — siempre con responsable.
+          </Detail>
+        </ul>
       </Section>
 
       <CTASection

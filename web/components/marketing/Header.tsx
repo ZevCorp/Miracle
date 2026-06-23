@@ -12,29 +12,32 @@ export function Header() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-line/80 bg-pearl/80 backdrop-blur-md">
-      <Container className="flex h-16 items-center justify-between gap-4">
+    <header className="sticky top-0 z-50 border-b border-line/60 bg-canvas/75 backdrop-blur-xl">
+      <Container className="flex h-[72px] items-center justify-between gap-6">
         <Logo />
 
         <nav
           aria-label="Principal"
-          className="hidden items-center gap-1 lg:flex"
+          className="hidden items-center gap-0.5 lg:flex"
         >
           {marketingNav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-full px-3.5 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-ice-soft hover:text-deep"
+              className="rounded-full px-4 py-2 text-[0.92rem] font-medium text-ink-soft transition-colors hover:text-deep"
             >
               {item.label}
             </Link>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 lg:flex">
-          <Button href="/login" variant="ghost" size="md">
+        <div className="hidden items-center gap-1.5 lg:flex">
+          <Link
+            href="/login"
+            className="rounded-full px-4 py-2 text-[0.92rem] font-medium text-ink-soft transition-colors hover:text-deep"
+          >
             Ingresar
-          </Button>
+          </Link>
           <Button href={CTA.primary.href} variant="primary" size="md">
             {CTA.primary.label}
           </Button>
@@ -42,7 +45,7 @@ export function Header() {
 
         <button
           type="button"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-md text-deep hover:bg-ice-soft lg:hidden"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-deep hover:bg-ice-soft lg:hidden"
           aria-label={open ? "Cerrar menú" : "Abrir menú"}
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
@@ -52,13 +55,13 @@ export function Header() {
       </Container>
 
       {open ? (
-        <div className="border-t border-line bg-pearl lg:hidden">
-          <Container className="flex flex-col gap-1 py-4">
+        <div className="border-t border-line bg-canvas lg:hidden">
+          <Container className="flex flex-col gap-1 py-5">
             {marketingNav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-md px-3 py-2.5 text-base font-medium text-ink-soft hover:bg-ice-soft hover:text-deep"
+                className="rounded-lg px-3 py-2.5 text-base font-medium text-ink-soft hover:bg-ice-soft hover:text-deep"
                 onClick={() => setOpen(false)}
               >
                 {item.label}

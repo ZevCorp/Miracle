@@ -12,8 +12,8 @@ const legalNav = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-line bg-white/60 backdrop-blur-sm">
-      <Container className="py-12">
+    <footer className="border-t border-line bg-canvas">
+      <Container className="py-16">
         <div className="flex flex-col gap-10 md:flex-row md:justify-between">
           <div className="max-w-sm">
             <Logo />

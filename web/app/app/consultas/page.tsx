@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ClipboardList, Plus, Search } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import {
-  patientById,
   SERVICIOS,
   STATUS_LABEL,
   type ConsultationStatus,
@@ -22,7 +21,7 @@ const estados: (ConsultationStatus | "todas")[] = [
 ];
 
 export default function ConsultasPage() {
-  const { consultations } = useStore();
+  const { consultations, getPatient } = useStore();
   const [estado, setEstado] = useState<ConsultationStatus | "todas">("todas");
   const [servicio, setServicio] = useState<string>("todos");
   const [query, setQuery] = useState("");
@@ -33,7 +32,7 @@ export default function ConsultasPage() {
       if (estado !== "todas" && c.estado !== estado) return false;
       if (servicio !== "todos" && c.servicio !== servicio) return false;
       if (q) {
-        const nombre = patientById(c.pacienteId)?.nombre.toLowerCase() ?? "";
+        const nombre = getPatient(c.pacienteId)?.nombre.toLowerCase() ?? "";
         if (!nombre.includes(q) && !c.motivo.toLowerCase().includes(q))
           return false;
       }

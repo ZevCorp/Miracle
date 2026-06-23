@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-type Variant = "primary" | "secondary" | "ghost" | "onDark";
+type Variant = "primary" | "secondary" | "ghost" | "onDark" | "onDarkGhost";
 type Size = "md" | "lg";
 
 type ButtonProps = {
@@ -25,6 +25,7 @@ const variants: Record<Variant, string> = {
     "bg-white text-deep border border-line hover:border-mist hover:bg-ice-soft",
   ghost: "text-deep hover:bg-ice-soft",
   onDark: "bg-white text-deep hover:bg-ice",
+  onDarkGhost: "text-white hover:bg-white/10",
 };
 
 const sizes: Record<Size, string> = {

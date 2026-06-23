@@ -1,158 +1,180 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Miracle · Design System (Tailwind v4 tokens)
-   Paleta clínica premium — fondo claro, Deep Blue para jerarquía,
-   Ice Blue superficies, Soft Mint acentos positivos.
+   Miracle · Design System (Tailwind v4)
+   Premium clínico: fondo casi blanco, mucho aire, un acento azul,
+   mint sutil y una banda navy para momentos "statement".
    ============================================================ */
 @theme {
-  /* Marca / superficies */
-  --color-pearl: #f8fafc; /* fondo base */
-  --color-ice: #dceffd; /* superficies suaves */
-  --color-ice-soft: #eef6fe;
+  /* Lienzo / superficies */
+  --color-canvas: #fbfcfe; /* fondo base, casi blanco */
+  --color-pearl: #f6f8fb;
+  --color-ice: #e7f0fe; /* superficies suaves */
+  --color-ice-soft: #f1f6fe;
   --color-mint: #b7f0d8; /* acento clínico positivo */
-  --color-mint-soft: #e4f8ef;
-  --color-mist: #cbd5e1; /* bordes / neutros */
-  --color-deep: #0f172a; /* Clinical Deep Blue */
-  --color-deep-2: #111c30;
+  --color-mint-soft: #e6f8ef;
+  --color-mist: #cbd5e1;
+  --color-deep: #0c1424; /* navy profundo (statement) */
+  --color-deep-2: #131e33;
 
   /* Tinta / texto */
-  --color-ink: #0f172a;
-  --color-ink-soft: #334155;
-  --color-muted: #64748b;
-  --color-line: #e2e8f0;
-  --color-line-strong: #cbd5e1;
+  --color-ink: #0e1726;
+  --color-ink-soft: #44546b;
+  --color-muted: #6b7a8f;
+  --color-line: #e6eaf0;
+  --color-line-strong: #d4dbe6;
   --color-surface: #ffffff;
 
   /* Acento (azul confianza) */
   --color-accent: #1f6feb;
-  --color-accent-hover: #1a5fd0;
-  --color-accent-soft: #e8f1fe;
+  --color-accent-hover: #185ed0;
+  --color-accent-soft: #e9f1fe;
   --color-accent-ink: #0a3a8c;
 
   /* Estados semánticos */
   --color-success: #13795b;
-  --color-success-soft: #d8f3e7;
+  --color-success-soft: #dcf4ea;
   --color-warning: #b45309;
   --color-warning-soft: #fdeecf;
   --color-danger: #c0392b;
   --color-danger-soft: #fbe3df;
   --color-info: #1f6feb;
-  --color-info-soft: #e8f1fe;
+  --color-info-soft: #e9f1fe;
 
-  /* Radios */
-  --radius-sm: 14px;
-  --radius-md: 18px;
-  --radius-lg: 24px;
-  --radius-xl: 32px;
+  /* Radios (premium, generosos) */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 30px;
+  --radius-2xl: 40px;
 
-  /* Sombras */
-  --shadow-sm: 0 4px 14px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 12px 28px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 20px 54px rgba(15, 23, 42, 0.1);
-  --shadow-xl: 0 32px 90px rgba(15, 23, 42, 0.12);
+  /* Sombras (suaves, elevación premium) */
+  --shadow-xs: 0 1px 2px rgba(14, 23, 38, 0.04);
+  --shadow-sm: 0 4px 16px rgba(14, 23, 38, 0.05);
+  --shadow-md: 0 10px 30px rgba(14, 23, 38, 0.07);
+  --shadow-lg: 0 24px 60px rgba(14, 23, 38, 0.09);
+  --shadow-xl: 0 40px 100px rgba(14, 23, 38, 0.12);
 
-  /* Tipografía: Geist (display/marca) + Inter (UI/cuerpo) */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+  /* Tipografía: Schibsted Grotesk (display) + Inter (cuerpo) */
+  --font-sans: var(--ff-sans), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-display: var(--font-geist), var(--font-inter), ui-sans-serif,
-    system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
-    monospace;
+  --font-display: var(--ff-display), var(--ff-sans), ui-sans-serif, system-ui,
+    sans-serif;
+  --font-mono: var(--ff-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* ============================================================
-   Base
+   Base — dentro de @layer base para que las utilidades de color
+   (text-white, text-deep, …) siempre ganen sobre estos defaults.
    ============================================================ */
-* {
-  box-sizing: border-box;
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100%;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background:
+      radial-gradient(
+        55rem 36rem at 50% -8%,
+        rgb(31 111 235 / 0.06),
+        transparent 60%
+      ),
+      radial-gradient(
+        44rem 30rem at 100% 2%,
+        rgb(183 240 216 / 0.14),
+        transparent 55%
+      ),
+      var(--color-canvas);
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5 {
+    font-family: var(--font-display);
+    color: var(--color-deep);
+    letter-spacing: -0.025em;
+    line-height: 1.08;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  p {
+    margin: 0;
+    text-wrap: pretty;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: #fff;
+  }
 }
 
-html {
-  scroll-behavior: smooth;
-  -webkit-text-size-adjust: 100%;
+/* ============================================================
+   Utilidades premium
+   ============================================================ */
+
+/* Eyebrow: pequeña etiqueta sobre los titulares */
+.eyebrow {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-accent);
 }
 
-body {
-  margin: 0;
-  min-height: 100%;
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-  font-size: 16px;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  background:
-    radial-gradient(
-      ellipse at 0% 12%,
-      rgb(220 239 253 / 0.78),
-      transparent 42%
-    ),
-    radial-gradient(
-      ellipse at 100% 22%,
-      rgb(203 213 225 / 0.6),
-      transparent 40%
-    ),
-    linear-gradient(
-      115deg,
-      #dceffd 0%,
-      #f8fafc 38%,
-      #f8fafc 62%,
-      #e8edf3 100%
-    );
-  background-attachment: fixed;
-}
-
-h1,
-h2,
-h3,
-h4,
-h5 {
-  font-family: var(--font-display);
-  color: var(--color-deep);
-  letter-spacing: -0.02em;
-  line-height: 1.12;
-  margin: 0;
-  text-wrap: balance;
-}
-
-p {
-  margin: 0;
-  text-wrap: pretty;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button,
-input,
-textarea,
-select {
-  font: inherit;
-  color: inherit;
-}
-
-:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
-
-::selection {
-  background: var(--color-accent);
-  color: #fff;
-}
-
-/* Animación sutil de entrada para secciones */
+/* Entrada sutil al hacer scroll */
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+.rise {
+  animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
   }
 }

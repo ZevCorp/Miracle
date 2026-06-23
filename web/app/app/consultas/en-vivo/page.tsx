@@ -4,13 +4,13 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Pause, ShieldCheck, Sparkles, Square } from "lucide-react";
 import {
-  patientById,
   templates,
   TYPE_LABEL,
   type ClinicalCode,
   type Consultation,
   type ConsultationType,
   type NoteSection,
+  type Patient,
   type SpeakerTurn,
 } from "@/lib/mock";
 import { useStore } from "@/app/app/providers";
@@ -27,21 +27,23 @@ const SCRIPT: SpeakerTurn[] = [
 ];
 
 function buildDraft(
-  pacienteId: string,
+  patient: Patient | undefined,
   tipo: ConsultationType,
   plantillaNombre: string,
   segundos: number,
 ): Consultation {
-  const patient = patientById(pacienteId);
   const id = `c-${Date.now()}`;
   const note: NoteSection[] = [
     {
       id: "identificacion",
       titulo: "Identificación",
       kind: "texto",
-      texto: patient
-        ? `Paciente ${patient.sexo === "F" ? "femenina" : "masculino"} de ${patient.edad} años.`
-        : "Paciente de ejemplo.",
+      texto:
+        patient && patient.edad > 0
+          ? `Paciente ${patient.sexo === "F" ? "femenina" : "masculino"} de ${patient.edad} años.`
+          : patient
+            ? `Paciente: ${patient.nombre}. Datos demográficos por completar.`
+            : "Paciente sin identificar.",
     },
     { id: "motivo", titulo: "Motivo de consulta", kind: "texto", texto: "Cefalea de 3 días de evolución." },
     {
@@ -88,7 +90,7 @@ function buildDraft(
   ];
   return {
     id,
-    pacienteId,
+    pacienteId: patient?.id ?? "",
     medicoId: "d1",
     servicio: "Consulta externa",
     especialidad: "Medicina interna",
@@ -124,13 +126,13 @@ function mmss(s: number) {
 function EnVivoInner() {
   const router = useRouter();
   const sp = useSearchParams();
-  const { addConsultation } = useStore();
+  const { addConsultation, getPatient } = useStore();
 
-  const pacienteId = sp.get("paciente") ?? "p1";
+  const pacienteId = sp.get("paciente") ?? "";
   const tipo = (sp.get("tipo") as ConsultationType) ?? "presencial";
   const plantillaId = sp.get("plantilla") ?? templates[0].id;
   const plantilla = templates.find((t) => t.id === plantillaId) ?? templates[0];
-  const patient = useMemo(() => patientById(pacienteId), [pacienteId]);
+  const patient = useMemo(() => getPatient(pacienteId), [getPatient, pacienteId]);
 
   const [seconds, setSeconds] = useState(0);
   const [revealed, setRevealed] = useState(1);
@@ -152,7 +154,7 @@ function EnVivoInner() {
 
   function finalizar() {
     setGenerating(true);
-    const c = buildDraft(pacienteId, tipo, plantilla.nombre, seconds);
+    const c = buildDraft(patient, tipo, plantilla.nombre, seconds);
     addConsultation(c);
     setTimeout(() => router.push(`/app/consultas/${c.id}`), 1500);
   }
@@ -255,7 +257,18 @@ function EnVivoInner() {
         {/* Paciente */}
         <aside className="h-fit space-y-4">
           <div className="rounded-lg border border-line bg-white p-5">
-            {patient ? <PatientHeader patient={patient} /> : null}
+            {patient ? (
+              <PatientHeader patient={patient} />
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-ice font-semibold text-muted">
+                  ?
+                </span>
+                <div className="text-sm font-semibold text-deep">
+                  Paciente sin identificar
+                </div>
+              </div>
+            )}
             <dl className="mt-4 space-y-3 text-sm">
               <ClinicalRow label="Antecedentes" values={patient?.antecedentes} />
               <ClinicalRow label="Alergias" values={patient?.alergias} />
@@ -270,8 +283,7 @@ function EnVivoInner() {
           </div>
           <p className="flex items-start gap-2 px-1 text-xs text-muted">
             <ShieldCheck size={14} className="mt-0.5 shrink-0 text-success" />
-            Consentimiento registrado. El audio no se conserva tras generar la
-            nota.
+            El audio no se conserva tras generar la nota.
           </p>
         </aside>
       </div>

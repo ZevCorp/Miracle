@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { useStore } from "@/app/app/providers";
-import { formatFechaRelativa, patientById } from "@/lib/mock";
+import { formatFechaRelativa } from "@/lib/mock";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { EmptyState } from "@/components/app/EmptyState";
@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/Button";
 export default function PacienteDetallePage() {
   const params = useParams();
   const id = String(params.id);
-  const { consultations } = useStore();
-  const patient = patientById(id);
+  const { consultations, getPatient } = useStore();
+  const patient = getPatient(id);
 
   if (!patient) {
     return (

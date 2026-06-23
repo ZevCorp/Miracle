@@ -17,9 +17,9 @@ import {
   esDeHoy,
   formatFechaRelativa,
   managementKpis,
-  patientById,
   weeklyNotes,
   type Consultation,
+  type Patient,
 } from "@/lib/mock";
 import { Card } from "@/components/ui/Card";
 import { MetricCard } from "@/components/marketing/MetricCard";
@@ -52,7 +52,8 @@ function MedicoView({
   pendientes: Consultation[];
   consultations: Consultation[];
 }) {
-  const recientes = recentPatients(consultations, 4);
+  const { getPatient } = useStore();
+  const recientes = recentPatients(consultations, 4, getPatient);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -125,7 +126,7 @@ function MedicoView({
                     >
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium text-deep">
-                          {patientById(c.pacienteId)?.nombre}
+                          {getPatient(c.pacienteId)?.nombre}
                         </span>
                         <span className="block truncate text-xs text-muted">
                           {formatFechaRelativa(c.fecha)}
@@ -270,14 +271,18 @@ function AdminView() {
 
 /* ---------- helpers ---------- */
 
-function recentPatients(consultations: Consultation[], n: number) {
+function recentPatients(
+  consultations: Consultation[],
+  n: number,
+  getPatient: (id: string | null | undefined) => Patient | undefined,
+) {
   const sorted = [...consultations].sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
   const seen = new Set<string>();
-  const out = [];
+  const out: Patient[] = [];
   for (const c of sorted) {
     if (seen.has(c.pacienteId)) continue;
     seen.add(c.pacienteId);
-    const p = patientById(c.pacienteId);
+    const p = getPatient(c.pacienteId);
     if (p) out.push(p);
     if (out.length >= n) break;
   }

@@ -11,16 +11,18 @@ import {
 } from "react";
 import {
   consultations as seedConsultations,
+  patients as seedPatients,
   doctors,
   type ClinicalCode,
   type CodeStatus,
   type Consultation,
   type ConsultationStatus,
+  type Patient,
   type Role,
 } from "@/lib/mock";
 import type { AppRole } from "@/lib/auth/roles";
 
-const STORAGE_KEY = "miracle-store-v2";
+const STORAGE_KEY = "miracle-store-v3";
 
 type ToastTone = "success" | "info" | "warning";
 interface Toast {
@@ -31,8 +33,11 @@ interface Toast {
 
 interface StoreValue {
   consultations: Consultation[];
+  patients: Patient[];
   role: Role;
   getConsultation: (id: string) => Consultation | undefined;
+  getPatient: (id: string | null | undefined) => Patient | undefined;
+  addPatient: (nombre: string) => Patient;
   approveNote: (id: string) => void;
   exportNote: (id: string) => void;
   markReviewed: (id: string) => void;
@@ -64,6 +69,7 @@ export function MiracleProvider({
 }) {
   const [consultations, setConsultations] =
     useState<Consultation[]>(seedConsultations);
+  const [patients, setPatients] = useState<Patient[]>(seedPatients);
   const [toast, setToast] = useState<Toast | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
@@ -75,8 +81,10 @@ export function MiracleProvider({
         if (raw) {
           const saved = JSON.parse(raw) as {
             consultations?: Consultation[];
+            patients?: Patient[];
           };
           if (saved.consultations?.length) setConsultations(saved.consultations);
+          if (saved.patients?.length) setPatients(saved.patients);
         }
       } catch {
         /* almacenamiento no disponible */
@@ -91,11 +99,14 @@ export function MiracleProvider({
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ consultations }));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ consultations, patients }),
+      );
     } catch {
       /* ignore */
     }
-  }, [consultations, hydrated]);
+  }, [consultations, patients, hydrated]);
 
   const showToast = useCallback((message: string, tone: ToastTone = "success") => {
     const id = Date.now();
@@ -103,6 +114,29 @@ export function MiracleProvider({
     setTimeout(() => {
       setToast((t) => (t?.id === id ? null : t));
     }, 3200);
+  }, []);
+
+  const getPatient = useCallback(
+    (id: string | null | undefined) =>
+      id ? patients.find((p) => p.id === id) : undefined,
+    [patients],
+  );
+
+  const addPatient = useCallback((nombre: string): Patient => {
+    const nuevo: Patient = {
+      id: `p-${Date.now()}`,
+      nombre: nombre.trim(),
+      documento: "Por registrar",
+      edad: 0,
+      sexo: "F",
+      eps: "Por registrar",
+      telefono: "—",
+      antecedentes: [],
+      alergias: [],
+      medicamentos: [],
+    };
+    setPatients((list) => [nuevo, ...list]);
+    return nuevo;
   }, []);
 
   const patch = useCallback(
@@ -201,6 +235,7 @@ export function MiracleProvider({
 
   const resetDemo = useCallback(() => {
     setConsultations(seedConsultations);
+    setPatients(seedPatients);
     showToast("Demo reiniciada.", "info");
   }, [showToast]);
 
@@ -212,8 +247,11 @@ export function MiracleProvider({
   const value = useMemo<StoreValue>(
     () => ({
       consultations,
+      patients,
       role,
       getConsultation,
+      getPatient,
+      addPatient,
       approveNote,
       exportNote,
       markReviewed,
@@ -226,8 +264,11 @@ export function MiracleProvider({
     }),
     [
       consultations,
+      patients,
       role,
       getConsultation,
+      getPatient,
+      addPatient,
       approveNote,
       exportNote,
       markReviewed,

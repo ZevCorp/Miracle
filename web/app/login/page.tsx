@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BrandMark } from "@/components/brand/BrandMark";
+import { BrandSphere } from "@/components/brand/BrandSphere";
 import { signInWithGoogle, signInWithPassword } from "./actions";
 
 export const metadata: Metadata = {
@@ -31,7 +31,7 @@ export default async function LoginPage({
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
           <Link href="/" aria-label="Miracle — inicio">
-            <BrandMark size={44} />
+            <BrandSphere size={64} />
           </Link>
           <h1 className="mt-4 text-2xl font-semibold text-deep">
             Acceso a la plataforma
