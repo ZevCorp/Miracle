@@ -18,6 +18,9 @@ export default async function AppLayout({
   // navigation experience, but must never be the only protection for /app.
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login?error=account-not-ready");
+  if (profile.role === "medico" && !profile.onboardingCompletedAt) {
+    redirect("/onboarding");
+  }
 
   return (
     <MiracleProvider role={profile.role}>

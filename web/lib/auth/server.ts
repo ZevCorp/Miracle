@@ -10,6 +10,12 @@ export interface AuthenticatedProfile {
   fullName: string | null;
   avatarUrl: string | null;
   role: AppRole;
+  professionalType: "medico_general" | "medico_especialista" | null;
+  specialtyCode: string | null;
+  specialtyName: string | null;
+  professionalRegistration: string | null;
+  practiceCity: string | null;
+  onboardingCompletedAt: string | null;
 }
 
 export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> {
@@ -21,7 +27,7 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, email, full_name, avatar_url, role")
+    .select("id, email, full_name, avatar_url, role, professional_type, specialty_code, specialty_name, professional_registration, practice_city, onboarding_completed_at")
     .eq("id", userId)
     .maybeSingle();
 
@@ -33,6 +39,16 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
     fullName: profile.full_name,
     avatarUrl: profile.avatar_url,
     role: profile.role,
+    professionalType:
+      profile.professional_type === "medico_general" ||
+      profile.professional_type === "medico_especialista"
+        ? profile.professional_type
+        : null,
+    specialtyCode: profile.specialty_code,
+    specialtyName: profile.specialty_name,
+    professionalRegistration: profile.professional_registration,
+    practiceCity: profile.practice_city,
+    onboardingCompletedAt: profile.onboarding_completed_at,
   };
 }
 

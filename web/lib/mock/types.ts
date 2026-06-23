@@ -93,6 +93,7 @@ export interface Consultation {
 
 export interface Template {
   id: string;
+  especialidadCode?: string;
   nombre: string;
   especialidad: string;
   creadaPor: string;
