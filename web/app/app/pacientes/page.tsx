@@ -17,7 +17,7 @@ export default function PacientesPage() {
         p.nombre.toLowerCase().includes(q) ||
         p.documento.toLowerCase().includes(q),
     );
-  }, [query]);
+  }, [query, patients]);
 
   function countFor(id: string) {
     return consultations.filter((c) => c.pacienteId === id).length;

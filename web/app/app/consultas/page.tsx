@@ -38,7 +38,7 @@ export default function ConsultasPage() {
       }
       return true;
     });
-  }, [consultations, estado, servicio, query]);
+  }, [consultations, estado, servicio, query, getPatient]);
 
   return (
     <div>
