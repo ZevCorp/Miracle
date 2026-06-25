@@ -19,7 +19,7 @@ export async function completeClinicalOnboarding(
 
   const professionalType = String(formData.get("professionalType") ?? "").trim();
   const specialtyCode = String(formData.get("specialtyCode") ?? "").trim();
-  const registration = String(formData.get("registration") ?? "").trim();
+  const country = String(formData.get("country") ?? "").trim();
   const city = String(formData.get("city") ?? "").trim();
   const specialty = getClinicalSpecialty(specialtyCode);
 
@@ -44,11 +44,17 @@ export async function completeClinicalOnboarding(
     p_professional_type: professionalType,
     p_specialty_code: specialty.code,
     p_specialty_name: specialty.name,
-    p_registration_number: registration || null,
+    p_practice_country: country || null,
     p_practice_city: city || null,
   });
 
   if (error) {
+    console.error("[onboarding] complete_clinical_onboarding failed", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
     return { error: "No se pudieron guardar los datos. Inténtalo de nuevo." };
   }
 

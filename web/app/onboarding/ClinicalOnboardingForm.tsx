@@ -110,11 +110,8 @@ export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
         <p className="mt-1 text-sm text-muted">Opcionales; ayudan a preparar tu perfil institucional.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium text-deep">
-            Registro profesional <span className="font-normal text-muted">(opcional)</span>
-            <input name="registration" className={inputClass} placeholder="Ej. RM 12345" />
-            <span className="mt-1 block text-xs font-normal text-muted">
-              No es tu cédula ni tu contraseña. Puedes dejarlo vacío.
-            </span>
+            País de atención
+            <input name="country" className={inputClass} placeholder="Ej. Colombia" defaultValue="Colombia" />
           </label>
           <label className="block text-sm font-medium text-deep">
             Ciudad de atención
