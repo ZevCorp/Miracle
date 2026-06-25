@@ -40,6 +40,11 @@ export default function NuevaConsultaPage() {
   const [tipo, setTipo] = useState<ConsultationType>("presencial");
   const [plantillaId, setPlantillaId] = useState(catalogTemplates[0].id);
   const [customTemplates, setCustomTemplates] = useState<Template[]>([]);
+  const [showNewPatient, setShowNewPatient] = useState(false);
+  const [newPatientName, setNewPatientName] = useState("");
+  const [newPatientDocument, setNewPatientDocument] = useState("");
+  const [newPatientAge, setNewPatientAge] = useState("");
+  const [newPatientSex, setNewPatientSex] = useState<"F" | "M">("F");
 
   const seleccionado = getPatient(pacienteId);
 
@@ -109,6 +114,26 @@ export default function NuevaConsultaPage() {
     if (!nombreNuevo) return;
     const p = addPatient(nombreNuevo);
     elegir(p.id, p.nombre);
+  }
+
+  function crearPacienteNuevo() {
+    const nombre = newPatientName.trim() || nombreNuevo;
+    if (!nombre.trim()) return;
+
+    const edad = Number.parseInt(newPatientAge, 10);
+    const p = addPatient({
+      nombre,
+      documento: newPatientDocument,
+      edad: Number.isFinite(edad) ? edad : 0,
+      sexo: newPatientSex,
+    });
+
+    elegir(p.id, p.nombre);
+    setNewPatientName("");
+    setNewPatientDocument("");
+    setNewPatientAge("");
+    setNewPatientSex("F");
+    setShowNewPatient(false);
   }
 
   function limpiar() {
@@ -227,6 +252,85 @@ export default function NuevaConsultaPage() {
               </>
             ) : null}
           </div>
+
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => {
+                setShowNewPatient((show) => !show);
+                if (!newPatientName && nombreNuevo) setNewPatientName(nombreNuevo);
+              }}
+              className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent-soft/40 px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-soft"
+            >
+              <UserPlus size={16} />
+              Añadir paciente nuevo
+            </button>
+          </div>
+
+          {showNewPatient ? (
+            <div className="mt-4 rounded-lg border border-dashed border-accent/40 bg-ice-soft p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm font-medium text-deep sm:col-span-2">
+                  Nombre completo
+                  <input
+                    value={newPatientName}
+                    onChange={(event) => setNewPatientName(event.target.value)}
+                    className={`${inputClass} mt-1.5`}
+                    placeholder="Ej. María Gómez"
+                  />
+                </label>
+                <label className="block text-sm font-medium text-deep">
+                  Documento
+                  <input
+                    value={newPatientDocument}
+                    onChange={(event) => setNewPatientDocument(event.target.value)}
+                    className={`${inputClass} mt-1.5`}
+                    placeholder="Ej. CC 123456789"
+                  />
+                </label>
+                <label className="block text-sm font-medium text-deep">
+                  Edad
+                  <input
+                    value={newPatientAge}
+                    onChange={(event) => setNewPatientAge(event.target.value)}
+                    className={`${inputClass} mt-1.5`}
+                    inputMode="numeric"
+                    placeholder="Ej. 42"
+                  />
+                </label>
+                <label className="block text-sm font-medium text-deep">
+                  Sexo
+                  <select
+                    value={newPatientSex}
+                    onChange={(event) => setNewPatientSex(event.target.value as "F" | "M")}
+                    className={`${inputClass} mt-1.5`}
+                  >
+                    <option value="F">Femenino</option>
+                    <option value="M">Masculino</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNewPatient(false)}
+                  className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-deep hover:border-mist"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={crearPacienteNuevo}
+                  disabled={!newPatientName.trim() && !nombreNuevo}
+                  className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Check size={15} />
+                  Crear y seleccionar
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           {seleccionado ? (
             <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-mint-soft px-3 py-1.5 text-sm font-medium text-success">

@@ -31,13 +31,22 @@ interface Toast {
   tone: ToastTone;
 }
 
+interface NewPatientInput {
+  nombre: string;
+  documento?: string;
+  edad?: number;
+  sexo?: Patient["sexo"];
+  eps?: string;
+  telefono?: string;
+}
+
 interface StoreValue {
   consultations: Consultation[];
   patients: Patient[];
   role: Role;
   getConsultation: (id: string) => Consultation | undefined;
   getPatient: (id: string | null | undefined) => Patient | undefined;
-  addPatient: (nombre: string) => Patient;
+  addPatient: (patient: string | NewPatientInput) => Patient;
   approveNote: (id: string) => void;
   exportNote: (id: string) => void;
   markReviewed: (id: string) => void;
@@ -122,14 +131,15 @@ export function MiracleProvider({
     [patients],
   );
 
-  const addPatient = useCallback((nombre: string): Patient => {
+  const addPatient = useCallback((patient: string | NewPatientInput): Patient => {
+    const input = typeof patient === "string" ? { nombre: patient } : patient;
     const nuevo: Patient = {
       id: `p-${Date.now()}`,
-      nombre: nombre.trim(),
-      documento: "Por registrar",
-      edad: 0,
-      sexo: "F",
-      eps: "Por registrar",
+      nombre: input.nombre.trim(),
+      documento: input.documento?.trim() || "Por registrar",
+      edad: input.edad && input.edad > 0 ? input.edad : 0,
+      sexo: input.sexo ?? "F",
+      eps: input.eps?.trim() || "Por registrar",
       telefono: "—",
       antecedentes: [],
       alergias: [],
