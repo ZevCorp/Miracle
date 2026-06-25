@@ -12,6 +12,7 @@ import {
   type NoteSection,
   type Patient,
   type SpeakerTurn,
+  type Template,
 } from "@/lib/mock";
 import { useStore } from "@/app/app/providers";
 import { Waveform } from "@/components/app/Waveform";
@@ -131,7 +132,19 @@ function EnVivoInner() {
   const pacienteId = sp.get("paciente") ?? "";
   const tipo = (sp.get("tipo") as ConsultationType) ?? "presencial";
   const plantillaId = sp.get("plantilla") ?? templates[0].id;
-  const plantilla = templates.find((t) => t.id === plantillaId) ?? templates[0];
+  const plantillaNombre = sp.get("plantillaNombre");
+  const plantillaEspecialidad = sp.get("plantillaEspecialidad");
+  const plantilla =
+    templates.find((t) => t.id === plantillaId) ??
+    ({
+      id: plantillaId,
+      nombre: plantillaNombre ?? templates[0].nombre,
+      especialidad: plantillaEspecialidad ?? "Plantilla personalizada",
+      creadaPor: "Tú",
+      source: "personal",
+      secciones: [],
+      actualizada: new Date().toISOString(),
+    } satisfies Template);
   const patient = useMemo(() => getPatient(pacienteId), [getPatient, pacienteId]);
 
   const [seconds, setSeconds] = useState(0);

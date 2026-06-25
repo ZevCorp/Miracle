@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -13,7 +13,13 @@ import {
   X,
 } from "lucide-react";
 import { useStore } from "@/app/app/providers";
-import { templates, type ConsultationType } from "@/lib/mock";
+import { templates as catalogTemplates, type ConsultationType, type Template } from "@/lib/mock";
+import { createClient } from "@/lib/supabase/client";
+import {
+  customTemplateSelect,
+  customTemplateToTemplate,
+  type CustomClinicalTemplateRow,
+} from "@/lib/templates/custom";
 
 const tipos: { id: ConsultationType; label: string; icon: typeof Monitor }[] = [
   { id: "presencial", label: "Presencial", icon: Monitor },
@@ -32,7 +38,8 @@ export default function NuevaConsultaPage() {
   const [pacienteId, setPacienteId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [tipo, setTipo] = useState<ConsultationType>("presencial");
-  const [plantillaId, setPlantillaId] = useState(templates[0].id);
+  const [plantillaId, setPlantillaId] = useState(catalogTemplates[0].id);
+  const [customTemplates, setCustomTemplates] = useState<Template[]>([]);
 
   const seleccionado = getPatient(pacienteId);
 
@@ -48,7 +55,45 @@ export default function NuevaConsultaPage() {
       .slice(0, 6);
   }, [query, patients]);
 
-  const plantilla = templates.find((t) => t.id === plantillaId)!;
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadCustomTemplates() {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("clinical_templates")
+        .select(customTemplateSelect)
+        .order("updated_at", { ascending: false });
+
+      if (ignore) return;
+
+      if (error) {
+        console.error("[consultas/nueva] custom templates failed", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        return;
+      }
+
+      setCustomTemplates(
+        ((data ?? []) as CustomClinicalTemplateRow[]).map(customTemplateToTemplate),
+      );
+    }
+
+    loadCustomTemplates();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const availableTemplates = useMemo(
+    () => [...customTemplates, ...catalogTemplates],
+    [customTemplates],
+  );
+  const plantilla = availableTemplates.find((t) => t.id === plantillaId) ?? availableTemplates[0];
   const nombreNuevo = query.trim();
   const existeExacto = patients.some(
     (p) => p.nombre.toLowerCase() === nombreNuevo.toLowerCase(),
@@ -73,6 +118,8 @@ export default function NuevaConsultaPage() {
 
   function empezar() {
     const sp = new URLSearchParams({ tipo, plantilla: plantillaId });
+    sp.set("plantillaNombre", plantilla.nombre);
+    sp.set("plantillaEspecialidad", plantilla.especialidad);
     if (pacienteId) sp.set("paciente", pacienteId);
     router.push(`/app/consultas/en-vivo?${sp.toString()}`);
   }
@@ -226,7 +273,7 @@ export default function NuevaConsultaPage() {
             onChange={(e) => setPlantillaId(e.target.value)}
             className={`${inputClass} mt-3`}
           >
-            {templates.map((t) => (
+            {availableTemplates.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.nombre} — {t.especialidad}
               </option>

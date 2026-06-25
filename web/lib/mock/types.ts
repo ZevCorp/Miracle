@@ -97,6 +97,8 @@ export interface Template {
   nombre: string;
   especialidad: string;
   creadaPor: string;
+  descripcion?: string;
+  source?: "catalog" | "personal";
   predeterminada?: boolean;
   secciones: string[];
   actualizada: string;
