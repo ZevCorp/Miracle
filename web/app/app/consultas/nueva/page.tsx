@@ -40,6 +40,7 @@ export default function NuevaConsultaPage() {
   const [tipo, setTipo] = useState<ConsultationType>("presencial");
   const [plantillaId, setPlantillaId] = useState(catalogTemplates[0].id);
   const [customTemplates, setCustomTemplates] = useState<Template[]>([]);
+  const [profileSpecialtyCode, setProfileSpecialtyCode] = useState("medicina-general");
   const [showNewPatient, setShowNewPatient] = useState(false);
   const [newPatientName, setNewPatientName] = useState("");
   const [newPatientDocument, setNewPatientDocument] = useState("");
@@ -63,42 +64,72 @@ export default function NuevaConsultaPage() {
   useEffect(() => {
     let ignore = false;
 
-    async function loadCustomTemplates() {
+    async function loadTemplateContext() {
       const supabase = createClient();
-      const { data, error } = await supabase
-        .from("clinical_templates")
-        .select(customTemplateSelect)
-        .order("updated_at", { ascending: false });
+      const [userResult, templatesResult] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase
+          .from("clinical_templates")
+          .select(customTemplateSelect)
+          .order("updated_at", { ascending: false }),
+      ]);
 
       if (ignore) return;
 
-      if (error) {
+      const userId = userResult.data.user?.id;
+      if (userId) {
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("specialty_code")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (!ignore && !profileError && profile?.specialty_code) {
+          setProfileSpecialtyCode(profile.specialty_code);
+        }
+      }
+
+      if (templatesResult.error) {
         console.error("[consultas/nueva] custom templates failed", {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
+          code: templatesResult.error.code,
+          message: templatesResult.error.message,
+          details: templatesResult.error.details,
+          hint: templatesResult.error.hint,
         });
         return;
       }
 
       setCustomTemplates(
-        ((data ?? []) as CustomClinicalTemplateRow[]).map(customTemplateToTemplate),
+        ((templatesResult.data ?? []) as CustomClinicalTemplateRow[]).map(
+          customTemplateToTemplate,
+        ),
       );
     }
 
-    loadCustomTemplates();
+    loadTemplateContext();
 
     return () => {
       ignore = true;
     };
   }, []);
 
-  const availableTemplates = useMemo(
-    () => [...customTemplates, ...catalogTemplates],
-    [customTemplates],
+  const institutionalTemplates = useMemo(
+    () =>
+      catalogTemplates.filter(
+        (template) => template.especialidadCode === profileSpecialtyCode,
+      ),
+    [profileSpecialtyCode],
   );
-  const plantilla = availableTemplates.find((t) => t.id === plantillaId) ?? availableTemplates[0];
+  const availableTemplates = useMemo(
+    () => [...customTemplates, ...institutionalTemplates],
+    [customTemplates, institutionalTemplates],
+  );
+  const selectedTemplateId = availableTemplates.some((template) => template.id === plantillaId)
+    ? plantillaId
+    : (availableTemplates[0]?.id ?? "");
+  const plantilla =
+    availableTemplates.find((template) => template.id === selectedTemplateId) ??
+    availableTemplates[0];
   const nombreNuevo = query.trim();
   const existeExacto = patients.some(
     (p) => p.nombre.toLowerCase() === nombreNuevo.toLowerCase(),
@@ -142,7 +173,7 @@ export default function NuevaConsultaPage() {
   }
 
   function empezar() {
-    const sp = new URLSearchParams({ tipo, plantilla: plantillaId });
+    const sp = new URLSearchParams({ tipo, plantilla: selectedTemplateId });
     sp.set("plantillaNombre", plantilla.nombre);
     sp.set("plantillaEspecialidad", plantilla.especialidad);
     if (pacienteId) sp.set("paciente", pacienteId);
@@ -373,7 +404,7 @@ export default function NuevaConsultaPage() {
             3 · Plantilla de nota
           </h2>
           <select
-            value={plantillaId}
+            value={selectedTemplateId}
             onChange={(e) => setPlantillaId(e.target.value)}
             className={`${inputClass} mt-3`}
           >
