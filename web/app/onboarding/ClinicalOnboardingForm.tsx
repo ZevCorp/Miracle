@@ -16,6 +16,7 @@ export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
   const [professionalType, setProfessionalType] = useState<
     "medico_general" | "medico_especialista"
   >("medico_general");
+  const [specialtyCode, setSpecialtyCode] = useState("medicina-general");
   const [state, action, pending] = useActionState(
     completeClinicalOnboarding,
     initialState,
@@ -27,6 +28,8 @@ export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
 
   return (
     <form action={action} className="mt-8 space-y-6">
+      <input type="hidden" name="specialtyCode" value={specialtyCode} />
+
       {state.error ? (
         <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {state.error}
@@ -54,7 +57,10 @@ export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
               name="professionalType"
               value="medico_general"
               checked={professionalType === "medico_general"}
-              onChange={() => setProfessionalType("medico_general")}
+              onChange={() => {
+                setProfessionalType("medico_general");
+                setSpecialtyCode("medicina-general");
+              }}
             />
             <span className="block text-sm font-semibold text-deep">Médico general</span>
             <span className="mt-1 block text-xs text-muted">Atención integral y primer contacto.</span>
@@ -66,19 +72,25 @@ export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
               name="professionalType"
               value="medico_especialista"
               checked={professionalType === "medico_especialista"}
-              onChange={() => setProfessionalType("medico_especialista")}
+              onChange={() => {
+                setProfessionalType("medico_especialista");
+                setSpecialtyCode("");
+              }}
             />
             <span className="block text-sm font-semibold text-deep">Médico especialista</span>
             <span className="mt-1 block text-xs text-muted">Plantillas dirigidas a tu especialidad.</span>
           </label>
         </fieldset>
 
-        {professionalType === "medico_general" ? (
-          <input type="hidden" name="specialtyCode" value="medicina-general" />
-        ) : (
+        {professionalType === "medico_especialista" ? (
           <label className="mt-5 block text-sm font-medium text-deep">
             Especialidad
-            <select name="specialtyCode" required className={inputClass} defaultValue="">
+            <select
+              required
+              className={inputClass}
+              value={specialtyCode}
+              onChange={(event) => setSpecialtyCode(event.target.value)}
+            >
               <option value="" disabled>Selecciona tu especialidad</option>
               {specialistOptions.map((specialty) => (
                 <option key={specialty.code} value={specialty.code}>
@@ -87,7 +99,7 @@ export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
               ))}
             </select>
           </label>
-        )}
+        ) : null}
       </div>
 
       <div className="rounded-lg border border-line bg-white p-5 shadow-[var(--shadow-sm)]">
@@ -98,8 +110,11 @@ export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
         <p className="mt-1 text-sm text-muted">Opcionales; ayudan a preparar tu perfil institucional.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium text-deep">
-            Registro profesional
+            Registro profesional <span className="font-normal text-muted">(opcional)</span>
             <input name="registration" className={inputClass} placeholder="Ej. RM 12345" />
+            <span className="mt-1 block text-xs font-normal text-muted">
+              No es tu cédula ni tu contraseña. Puedes dejarlo vacío.
+            </span>
           </label>
           <label className="block text-sm font-medium text-deep">
             Ciudad de atención

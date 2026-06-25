@@ -17,20 +17,26 @@ export async function completeClinicalOnboarding(
     return { error: "Esta cuenta no puede completar un perfil clínico." };
   }
 
-  const professionalType = String(formData.get("professionalType") ?? "");
-  const specialtyCode = String(formData.get("specialtyCode") ?? "");
+  const professionalType = String(formData.get("professionalType") ?? "").trim();
+  const specialtyCode = String(formData.get("specialtyCode") ?? "").trim();
   const registration = String(formData.get("registration") ?? "").trim();
   const city = String(formData.get("city") ?? "").trim();
   const specialty = getClinicalSpecialty(specialtyCode);
 
-  if (
-    (professionalType !== "medico_general" &&
-      professionalType !== "medico_especialista") ||
-    !specialty ||
-    (professionalType === "medico_general" && specialty.code !== "medicina-general") ||
-    (professionalType === "medico_especialista" && specialty.code === "medicina-general")
-  ) {
-    return { error: "Selecciona el tipo de práctica y una especialidad válida." };
+  if (professionalType !== "medico_general" && professionalType !== "medico_especialista") {
+    return { error: "Escoge si eres médico general o médico especialista." };
+  }
+
+  if (!specialty) {
+    return { error: "Escoge una especialidad válida del menú." };
+  }
+
+  if (professionalType === "medico_general" && specialty.code !== "medicina-general") {
+    return { error: "Para médico general usa Medicina general." };
+  }
+
+  if (professionalType === "medico_especialista" && specialty.code === "medicina-general") {
+    return { error: "Si eliges médico especialista, escoge una especialidad del menú." };
   }
 
   const supabase = await createClient();
