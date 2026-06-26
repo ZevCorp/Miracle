@@ -23,6 +23,7 @@ import {
   suggestedCodes,
   TYPE_LABEL,
   type Consultation,
+  type NoteSection,
 } from "@/lib/mock";
 import { useStore } from "@/app/app/providers";
 import { Tabs } from "@/components/app/Tabs";
@@ -43,6 +44,7 @@ export default function ConsultaDetallePage() {
     exportNote,
     markReviewed,
     setCodeStatus,
+    updateNote,
     showToast,
   } = useStore();
   const [tab, setTab] = useState("historia");
@@ -165,7 +167,12 @@ export default function ConsultaDetallePage() {
 
       <div className="mt-6">
         {tab === "historia" ? (
-          <HistoriaTab consultation={c} onAiEdit={() => showToast("La edición asistida estará disponible en la versión conectada.", "info")} />
+          <HistoriaTab
+            consultation={c}
+            editable={c.estado !== "aprobada" && c.estado !== "exportada"}
+            onSectionChange={(sectionId, next) => updateNote(c.id, sectionId, next)}
+            onAiEdit={() => showToast("La edición asistida estará disponible en la versión conectada.", "info")}
+          />
         ) : null}
         {tab === "codificacion" ? (
           <CodificacionTab
@@ -201,9 +208,13 @@ function AiDisclaimer() {
 
 function HistoriaTab({
   consultation,
+  editable,
+  onSectionChange,
   onAiEdit,
 }: {
   consultation: Consultation;
+  editable: boolean;
+  onSectionChange: (sectionId: string, next: Partial<NoteSection>) => void;
   onAiEdit: () => void;
 }) {
   return (
@@ -211,7 +222,12 @@ function HistoriaTab({
       <AiDisclaimer />
       <div className="rounded-lg border border-line bg-white px-5 py-2">
         {consultation.note.map((s) => (
-          <NoteSectionView key={s.id} section={s} />
+          <NoteSectionView
+            key={s.id}
+            section={s}
+            editable={editable}
+            onChange={(next) => onSectionChange(s.id, next)}
+          />
         ))}
       </div>
 

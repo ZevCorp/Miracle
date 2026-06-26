@@ -17,6 +17,7 @@ import {
   type CodeStatus,
   type Consultation,
   type ConsultationStatus,
+  type NoteSection,
   type Patient,
   type Role,
 } from "@/lib/mock";
@@ -52,6 +53,7 @@ interface StoreValue {
   markReviewed: (id: string) => void;
   setCodeStatus: (id: string, codeId: string, estado: CodeStatus) => void;
   addCode: (id: string, code: Omit<ClinicalCode, "id" | "estado">) => void;
+  updateNote: (id: string, sectionId: string, next: Partial<NoteSection>) => void;
   addConsultation: (c: Consultation) => void;
   resetDemo: () => void;
   toast: Toast | null;
@@ -239,6 +241,25 @@ export function MiracleProvider({
     [patch, showToast],
   );
 
+  const updateNote = useCallback(
+    (id: string, sectionId: string, next: Partial<NoteSection>) => {
+      patch(id, (c) =>
+        addEvent(
+          {
+            ...c,
+            note: c.note.map((s) =>
+              s.id === sectionId ? { ...s, ...next } : s,
+            ),
+          },
+          "Nota editada",
+          next.titulo ? `Sección «${next.titulo}»` : undefined,
+        ),
+      );
+      showToast("Sección actualizada.", "success");
+    },
+    [patch, addEvent, showToast],
+  );
+
   const addConsultation = useCallback((c: Consultation) => {
     setConsultations((list) => [c, ...list]);
   }, []);
@@ -267,6 +288,7 @@ export function MiracleProvider({
       markReviewed,
       setCodeStatus,
       addCode,
+      updateNote,
       addConsultation,
       resetDemo,
       toast,
@@ -284,6 +306,7 @@ export function MiracleProvider({
       markReviewed,
       setCodeStatus,
       addCode,
+      updateNote,
       addConsultation,
       resetDemo,
       toast,
