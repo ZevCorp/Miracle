@@ -11,6 +11,7 @@ import {
   Info,
   Mic,
   Plus,
+  Printer,
   Send,
   Sparkles,
 } from "lucide-react";
@@ -34,6 +35,10 @@ import { CodeSuggestion } from "@/components/app/CodeSuggestion";
 import { Timeline } from "@/components/app/Timeline";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Button } from "@/components/ui/Button";
+
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 export default function ConsultaDetallePage() {
   const params = useParams();
@@ -74,6 +79,68 @@ export default function ConsultaDetallePage() {
   function copyResumen() {
     navigator.clipboard?.writeText(c!.resumen);
     showToast("Resumen copiado al portapapeles.", "info");
+  }
+
+  function descargarPDF() {
+    const w = window.open("", "_blank", "width=820,height=1000");
+    if (!w) {
+      showToast("Permita las ventanas emergentes para generar el PDF.", "warning");
+      return;
+    }
+    const aceptados = c!.codigos.filter((k) => k.estado === "aceptado");
+    const secciones = c!.note
+      .map((s) => {
+        const cuerpo =
+          s.kind === "lista" && s.items?.length
+            ? `<ul>${s.items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`
+            : `<p>${esc(s.texto ?? "")}</p>`;
+        return `<section><h2>${esc(s.titulo)}</h2>${cuerpo}</section>`;
+      })
+      .join("");
+    const codigos = aceptados.length
+      ? `<table><thead><tr><th>Sistema</th><th>Código</th><th>Descripción</th></tr></thead><tbody>${aceptados
+          .map(
+            (k) =>
+              `<tr><td>${esc(k.sistema)}</td><td>${esc(k.codigo)}</td><td>${esc(k.descripcion)}</td></tr>`,
+          )
+          .join("")}</tbody></table>`
+      : `<p class="muted">Sin códigos aceptados.</p>`;
+    const fecha = new Date(c!.fecha).toLocaleString("es-CO");
+    w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Nota clínica · ${esc(
+      patient?.nombre ?? "Paciente",
+    )}</title><style>
+      *{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#0e1726;margin:40px;line-height:1.5}
+      h1{font-size:20px;margin:0 0 2px}h2{font-size:14px;margin:18px 0 4px;color:#0c1424}
+      .muted{color:#64748b;font-size:12px}.head{border-bottom:2px solid #0c1424;padding-bottom:10px;margin-bottom:8px}
+      .grid{display:flex;flex-wrap:wrap;gap:4px 24px;font-size:13px;margin-top:6px}
+      section p,section ul{font-size:13px;margin:2px 0}ul{padding-left:18px}
+      table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+      th,td{border:1px solid #cbd5e1;padding:5px 8px;text-align:left}th{background:#f1f5f9}
+      .foot{margin-top:28px;border-top:1px solid #cbd5e1;padding-top:10px;font-size:11px;color:#64748b}
+      @media print{body{margin:18mm}}
+    </style></head><body>
+      <div class="head">
+        <h1>${esc(patient?.nombre ?? "Paciente sin identificar")}</h1>
+        <div class="grid">
+          ${
+            patient && patient.edad > 0
+              ? `<span>${patient.edad} años · ${patient.sexo === "F" ? "Femenino" : "Masculino"}</span>`
+              : ""
+          }
+          ${patient?.documento ? `<span>Doc: ${esc(patient.documento)}</span>` : ""}
+          <span>${esc(c!.especialidad)} · ${esc(c!.servicio)}</span>
+          <span>${esc(doctor?.nombre ?? "")}</span>
+          <span>${esc(fecha)}</span>
+        </div>
+      </div>
+      <h2>Resumen</h2><p>${esc(c!.resumen)}</p>
+      ${secciones}
+      <h2>Codificación</h2>${codigos}
+      <p class="foot">Documento generado con asistencia de IA y revisado por el profesional de salud. Miracle · Inteligencia clínica-operativa.</p>
+    </body></html>`);
+    w.document.close();
+    w.focus();
+    w.print();
   }
 
   return (
@@ -119,6 +186,13 @@ export default function ConsultaDetallePage() {
             aria-label="Copiar resumen"
           >
             <Copy size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={descargarPDF}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium text-deep hover:border-mist"
+          >
+            <Printer size={16} /> PDF
           </button>
           <button
             type="button"
