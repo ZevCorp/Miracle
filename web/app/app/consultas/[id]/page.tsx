@@ -22,6 +22,7 @@ import {
   ripsListo,
   suggestedCodes,
   TYPE_LABEL,
+  type ClinicalCode,
   type Consultation,
   type NoteSection,
 } from "@/lib/mock";
@@ -44,6 +45,7 @@ export default function ConsultaDetallePage() {
     exportNote,
     markReviewed,
     setCodeStatus,
+    addCode,
     updateNote,
     showToast,
   } = useStore();
@@ -179,7 +181,7 @@ export default function ConsultaDetallePage() {
             consultation={c}
             onAccept={(codeId) => setCodeStatus(c.id, codeId, "aceptado")}
             onDiscard={(codeId) => setCodeStatus(c.id, codeId, "descartado")}
-            onAddInfo={() => showToast("Agregar códigos manualmente estará disponible en la versión conectada.", "info")}
+            onAddCode={(code) => addCode(c.id, code)}
           />
         ) : null}
         {tab === "resumen" ? (
@@ -261,18 +263,34 @@ function CodificacionTab({
   consultation,
   onAccept,
   onDiscard,
-  onAddInfo,
+  onAddCode,
 }: {
   consultation: Consultation;
   onAccept: (codeId: string) => void;
   onDiscard: (codeId: string) => void;
-  onAddInfo: () => void;
+  onAddCode: (code: Omit<ClinicalCode, "id" | "estado">) => void;
 }) {
   const sugeridos = suggestedCodes(consultation);
   const aceptados = consultation.codigos.filter((k) => k.estado === "aceptado");
   const descartados = consultation.codigos.filter((k) => k.estado === "descartado");
   const rips = ripsChecklist(consultation);
   const listo = ripsListo(consultation);
+
+  const [showForm, setShowForm] = useState(false);
+  const [sistema, setSistema] = useState<ClinicalCode["sistema"]>("CIE-10");
+  const [codigo, setCodigo] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+
+  function submitCode() {
+    const cod = codigo.trim().toUpperCase();
+    const desc = descripcion.trim();
+    if (!cod || !desc) return;
+    onAddCode({ sistema, codigo: cod, descripcion: desc, confianza: 100 });
+    setCodigo("");
+    setDescripcion("");
+    setSistema("CIE-10");
+    setShowForm(false);
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
@@ -284,12 +302,60 @@ function CodificacionTab({
             </h2>
             <button
               type="button"
-              onClick={onAddInfo}
+              onClick={() => setShowForm((v) => !v)}
               className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
             >
               <Plus size={15} /> Agregar
             </button>
           </div>
+
+          {showForm ? (
+            <div className="mb-3 rounded-md border border-line bg-white p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={sistema}
+                  onChange={(e) =>
+                    setSistema(e.target.value as ClinicalCode["sistema"])
+                  }
+                  aria-label="Sistema de codificación"
+                  className="rounded-md border border-line bg-white px-2.5 py-2 text-sm outline-none focus:border-accent"
+                >
+                  <option value="CIE-10">CIE-10</option>
+                  <option value="CUPS">CUPS</option>
+                </select>
+                <input
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value)}
+                  placeholder="Código (ej. I10)"
+                  className="w-32 rounded-md border border-line px-3 py-2 text-sm uppercase outline-none focus:border-accent"
+                />
+                <input
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  placeholder="Descripción del diagnóstico o procedimiento"
+                  className="min-w-0 flex-1 rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+                />
+              </div>
+              <div className="mt-2.5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={submitCode}
+                  disabled={!codigo.trim() || !descripcion.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
+                >
+                  <Plus size={15} /> Agregar código
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-deep hover:border-mist"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {sugeridos.length ? (
             <div className="space-y-2.5">
               {sugeridos.map((k) => (
