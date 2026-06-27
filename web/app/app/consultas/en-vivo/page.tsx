@@ -118,6 +118,58 @@ function buildDraft(
   };
 }
 
+function aiToConsultation(
+  aiNote: {
+    resumen?: string;
+    secciones?: { titulo?: string; contenido?: string | string[] }[];
+    codigos?: {
+      sistema?: string;
+      codigo?: string;
+      descripcion?: string;
+      confianza?: number;
+    }[];
+  },
+  base: Consultation,
+): Consultation {
+  const secciones: NoteSection[] = (aiNote.secciones ?? []).map((s, i) => {
+    const id =
+      (s.titulo ?? `seccion-${i}`)
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "") || `seccion-${i}`;
+    if (Array.isArray(s.contenido)) {
+      return {
+        id,
+        titulo: s.titulo ?? "Sección",
+        kind: "lista",
+        items: s.contenido.map(String),
+      };
+    }
+    return {
+      id,
+      titulo: s.titulo ?? "Sección",
+      kind: "texto",
+      texto: String(s.contenido ?? ""),
+    };
+  });
+  const codigos: ClinicalCode[] = (aiNote.codigos ?? []).map((k, i) => ({
+    id: `k-ai-${i}-${Date.now()}`,
+    sistema: k.sistema === "CUPS" ? "CUPS" : "CIE-10",
+    codigo: String(k.codigo ?? ""),
+    descripcion: String(k.descripcion ?? ""),
+    confianza: Math.max(0, Math.min(100, Number(k.confianza) || 80)),
+    estado: "sugerido",
+  }));
+  return {
+    ...base,
+    note: secciones.length ? secciones : base.note,
+    resumen: aiNote.resumen ? String(aiNote.resumen) : base.resumen,
+    codigos: codigos.length ? codigos : base.codigos,
+  };
+}
+
 function mmss(s: number) {
   const m = Math.floor(s / 60);
   const ss = s % 60;
@@ -165,11 +217,32 @@ function EnVivoInner() {
     };
   }, [paused, generating]);
 
-  function finalizar() {
+  async function finalizar() {
     setGenerating(true);
-    const c = buildDraft(patient, tipo, plantilla.nombre, seconds);
-    addConsultation(c);
-    setTimeout(() => router.push(`/app/consultas/${c.id}`), 1500);
+    const base = buildDraft(patient, tipo, plantilla.nombre, seconds);
+    let final = base;
+    try {
+      const res = await fetch("/api/generate-note", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          transcript: SCRIPT,
+          plantillaNombre: plantilla.nombre,
+          secciones: plantilla.secciones,
+          paciente: patient
+            ? { nombre: patient.nombre, edad: patient.edad, sexo: patient.sexo }
+            : null,
+        }),
+      });
+      const data = await res.json();
+      if (data?.connected && data.note) {
+        final = aiToConsultation(data.note, base);
+      }
+    } catch {
+      /* sin conexión: se usa el borrador base */
+    }
+    addConsultation(final);
+    router.push(`/app/consultas/${final.id}`);
   }
 
   if (generating) {
