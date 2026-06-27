@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Bell, Menu, Search } from "lucide-react";
 import { AppSidebar } from "./AppSidebar";
+import { MedicalChat } from "./MedicalChat";
 import type { AuthenticatedProfile } from "@/lib/auth/server";
 import { APP_ROLE_LABEL } from "@/lib/auth/roles";
 import { signOut } from "@/app/login/actions";
@@ -83,6 +84,8 @@ export function AppShell({
 
         <main className="flex-1 p-5 md:p-8">{children}</main>
       </div>
+
+      <MedicalChat />
     </div>
   );
 }
