@@ -175,6 +175,12 @@ export default function ConsultaDetallePage() {
             <p className="text-sm text-muted">
               {c.servicio} · {doctor?.nombre} · {c.duracionMin} min
             </p>
+            {c.firma ? (
+              <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-mint-soft px-2.5 py-1 text-xs font-semibold text-success">
+                <CheckCircle2 size={13} /> Firmada por {c.firma.por} ·{" "}
+                {new Date(c.firma.fecha).toLocaleDateString("es-CO")}
+              </p>
+            ) : null}
           </div>
         </div>
 

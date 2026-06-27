@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Bell, Menu, Search } from "lucide-react";
 import { AppSidebar } from "./AppSidebar";
 import { MedicalChat } from "./MedicalChat";
+import { CommandPalette } from "./CommandPalette";
 import type { AuthenticatedProfile } from "@/lib/auth/server";
 import { APP_ROLE_LABEL } from "@/lib/auth/roles";
 import { signOut } from "@/app/login/actions";
@@ -21,6 +22,7 @@ export function AppShell({
   profile: AuthenticatedProfile;
 }) {
   const [drawer, setDrawer] = useState(false);
+  const [cmdk, setCmdk] = useState(false);
 
   return (
     <div className="flex min-h-screen bg-pearl">
@@ -51,10 +53,17 @@ export function AppShell({
             <Menu size={20} />
           </button>
 
-          <div className="hidden items-center gap-2 rounded-full border border-line bg-pearl px-3 py-1.5 text-sm text-muted sm:flex">
+          <button
+            type="button"
+            onClick={() => setCmdk(true)}
+            className="hidden items-center gap-2 rounded-full border border-line bg-pearl px-3 py-1.5 text-sm text-muted transition-colors hover:border-mist sm:flex"
+          >
             <Search size={15} />
             <span>Buscar paciente o consulta</span>
-          </div>
+            <kbd className="ml-2 rounded border border-line bg-white px-1.5 py-0.5 text-[10px] font-medium">
+              ⌘K
+            </kbd>
+          </button>
 
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden rounded-full bg-ice px-3 py-1.5 text-xs font-semibold text-deep sm:inline-flex">
@@ -86,6 +95,7 @@ export function AppShell({
       </div>
 
       <MedicalChat />
+      <CommandPalette open={cmdk} onOpenChange={setCmdk} />
     </div>
   );
 }

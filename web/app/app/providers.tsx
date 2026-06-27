@@ -74,10 +74,13 @@ function currentUserName(role: Role): string {
 export function MiracleProvider({
   children,
   role,
+  userName,
 }: {
   children: ReactNode;
   role: AppRole;
+  userName?: string;
 }) {
+  const actor = userName?.trim() || currentUserName(role);
   const [consultations, setConsultations] =
     useState<Consultation[]>(seedConsultations);
   const [patients, setPatients] = useState<Patient[]>(seedPatients);
@@ -168,13 +171,13 @@ export function MiracleProvider({
         {
           id: `a${c.auditoria.length + 1}-${Date.now()}`,
           fecha: new Date().toISOString(),
-          actor: currentUserName(role),
+          actor,
           accion,
           detalle,
         },
       ],
     }),
-    [role],
+    [actor],
   );
 
   const setStatus = useCallback(
@@ -186,10 +189,20 @@ export function MiracleProvider({
 
   const approveNote = useCallback(
     (id: string) => {
-      setStatus(id, "aprobada", "Nota aprobada");
-      showToast("Nota aprobada correctamente.", "success");
+      patch(id, (c) =>
+        addEvent(
+          {
+            ...c,
+            estado: "aprobada",
+            firma: { por: actor, fecha: new Date().toISOString() },
+          },
+          "Nota aprobada y firmada",
+          `Firmada por ${actor}`,
+        ),
+      );
+      showToast("Nota aprobada y firmada.", "success");
     },
-    [setStatus, showToast],
+    [patch, addEvent, actor, showToast],
   );
 
   const exportNote = useCallback(

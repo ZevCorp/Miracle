@@ -23,7 +23,7 @@ export default async function AppLayout({
   }
 
   return (
-    <MiracleProvider role={profile.role}>
+    <MiracleProvider role={profile.role} userName={profile.fullName ?? profile.email}>
       <AppShell profile={profile}>{children}</AppShell>
     </MiracleProvider>
   );

@@ -89,6 +89,8 @@ export interface Consultation {
   resumen: string;
   codigos: ClinicalCode[];
   auditoria: AuditEvent[];
+  /** Firma electrónica del profesional al aprobar la nota. */
+  firma?: { por: string; fecha: string };
 }
 
 export interface Template {
