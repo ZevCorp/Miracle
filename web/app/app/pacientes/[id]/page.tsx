@@ -43,7 +43,7 @@ export default function PacienteDetallePage() {
       </Link>
 
       <div className="mt-3 flex items-center gap-4">
-        <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-deep text-lg font-semibold text-white">
+        <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-night text-lg font-semibold text-white">
           {patient.nombre.split(" ").map((n) => n[0]).slice(0, 2).join("")}
         </span>
         <div>
@@ -78,7 +78,7 @@ export default function PacienteDetallePage() {
                 <Link
                   key={c.id}
                   href={`/app/consultas/${c.id}`}
-                  className="block rounded-lg border border-line bg-white p-4 hover:border-mist"
+                  className="block rounded-lg border border-line bg-surface p-4 hover:border-mist"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>

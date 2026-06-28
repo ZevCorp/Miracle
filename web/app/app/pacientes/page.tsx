@@ -28,7 +28,7 @@ export default function PacientesPage() {
       <h1 className="text-2xl font-semibold text-deep">Pacientes</h1>
       <p className="text-sm text-muted">{patients.length} pacientes registrados</p>
 
-      <div className="mt-5 flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2">
+      <div className="mt-5 flex items-center gap-2 rounded-md border border-line bg-surface px-3 py-2">
         <Search size={16} className="text-muted" />
         <input
           value={query}
@@ -38,7 +38,7 @@ export default function PacientesPage() {
         />
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-lg border border-line bg-white">
+      <div className="mt-5 overflow-hidden rounded-lg border border-line bg-surface">
         {filtrados.map((p, i) => (
           <Link
             key={p.id}
@@ -47,7 +47,7 @@ export default function PacientesPage() {
               i !== 0 ? "border-t border-line" : ""
             }`}
           >
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-deep text-sm font-semibold text-white">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-night text-sm font-semibold text-white">
               {p.nombre.split(" ").map((n) => n[0]).slice(0, 2).join("")}
             </span>
             <div className="min-w-0 flex-1">

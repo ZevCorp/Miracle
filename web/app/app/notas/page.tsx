@@ -54,7 +54,7 @@ export default function NotasPage() {
             className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
               estado === e
                 ? "border-accent bg-accent-soft text-accent-ink"
-                : "border-line bg-white text-ink-soft hover:border-mist"
+                : "border-line bg-surface text-ink-soft hover:border-mist"
             }`}
           >
             {e === "todas" ? "Todas" : STATUS_LABEL[e]}
@@ -66,7 +66,7 @@ export default function NotasPage() {
       </div>
 
       {filtradas.length ? (
-        <div className="mt-5 overflow-hidden rounded-lg border border-line bg-white">
+        <div className="mt-5 overflow-hidden rounded-lg border border-line bg-surface">
           {filtradas.map((c, i) => {
             const patient = getPatient(c.pacienteId);
             return (

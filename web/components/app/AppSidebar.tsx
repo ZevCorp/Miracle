@@ -41,7 +41,7 @@ export function AppSidebar({
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full flex-col bg-deep text-white">
+    <div className="flex h-full flex-col bg-night text-white">
       <div className="flex h-16 items-center border-b border-white/10 px-5">
         <Logo onDark size={28} />
       </div>

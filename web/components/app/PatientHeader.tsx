@@ -14,7 +14,7 @@ export function PatientHeader({
     .join("");
   return (
     <div className="flex items-center gap-3">
-      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-deep text-sm font-semibold text-white">
+      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-night text-sm font-semibold text-white">
         {initials}
       </span>
       <div className="min-w-0">

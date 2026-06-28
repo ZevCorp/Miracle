@@ -28,7 +28,7 @@ const tipos: { id: ConsultationType; label: string; icon: typeof Monitor }[] = [
 ];
 
 const inputClass =
-  "w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent";
+  "w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent";
 
 export default function NuevaConsultaPage() {
   const router = useRouter();
@@ -190,7 +190,7 @@ export default function NuevaConsultaPage() {
 
       <div className="mt-6 space-y-6">
         {/* Paciente */}
-        <section className="rounded-lg border border-line bg-white p-5">
+        <section className="rounded-lg border border-line bg-surface p-5">
           <h2 className="font-display text-base font-semibold text-deep">
             1 · Paciente{" "}
             <span className="font-normal text-muted">(opcional)</span>
@@ -232,7 +232,7 @@ export default function NuevaConsultaPage() {
                   onClick={() => setOpen(false)}
                   className="fixed inset-0 z-10 cursor-default"
                 />
-                <div className="absolute z-20 mt-1.5 w-full overflow-hidden rounded-xl border border-line bg-white p-1.5 shadow-[var(--shadow-lg)]">
+                <div className="absolute z-20 mt-1.5 w-full overflow-hidden rounded-xl border border-line bg-surface p-1.5 shadow-[var(--shadow-lg)]">
                   {resultados.length ? (
                     <ul className="max-h-64 overflow-auto">
                       {resultados.map((p) => (
@@ -371,7 +371,7 @@ export default function NuevaConsultaPage() {
         </section>
 
         {/* Tipo */}
-        <section className="rounded-lg border border-line bg-white p-5">
+        <section className="rounded-lg border border-line bg-surface p-5">
           <h2 className="font-display text-base font-semibold text-deep">
             2 · Tipo de consulta
           </h2>
@@ -399,7 +399,7 @@ export default function NuevaConsultaPage() {
         </section>
 
         {/* Plantilla */}
-        <section className="rounded-lg border border-line bg-white p-5">
+        <section className="rounded-lg border border-line bg-surface p-5">
           <h2 className="font-display text-base font-semibold text-deep">
             3 · Plantilla de nota
           </h2>

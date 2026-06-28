@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
 const inputClass =
-  "w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent";
+  "w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent";
 
 function Toggle({
   checked,
@@ -30,7 +30,7 @@ function Toggle({
       } ${disabled ? "opacity-60" : ""}`}
     >
       <span
-        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+        className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface shadow transition-all ${
           checked ? "left-[22px]" : "left-0.5"
         }`}
       />

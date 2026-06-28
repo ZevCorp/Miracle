@@ -63,7 +63,7 @@ export default function HomePage() {
               (chip) => (
                 <span
                   key={chip}
-                  className="rounded-full border border-line bg-white px-3.5 py-1.5 text-xs font-semibold text-ink-soft"
+                  className="rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-soft"
                 >
                   {chip}
                 </span>
@@ -103,7 +103,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== CÓMO FUNCIONA ===== */}
-      <section className="border-y border-line bg-white/60 py-20 md:py-28">
+      <section className="border-y border-line bg-surface/60 py-20 md:py-28">
         <Container>
           <div className="max-w-2xl">
             <span className="eyebrow">Cómo funciona</span>
@@ -206,7 +206,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== SEGURIDAD (fila de íconos) ===== */}
-      <section className="border-y border-line bg-white/60 py-20 md:py-28">
+      <section className="border-y border-line bg-surface/60 py-20 md:py-28">
         <Container>
           <div className="mx-auto max-w-2xl text-center">
             <span className="eyebrow">Confianza por diseño</span>
@@ -277,7 +277,7 @@ function BenefitCol({
   items: string[];
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-white p-8 shadow-[var(--shadow-sm)]">
+    <div className="rounded-2xl border border-line bg-surface p-8 shadow-[var(--shadow-sm)]">
       <span className="eyebrow">{eyebrow}</span>
       <h3 className="mt-3 text-2xl font-semibold text-deep">{title}</h3>
       <ul className="mt-6 space-y-3.5">

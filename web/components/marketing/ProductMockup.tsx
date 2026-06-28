@@ -15,7 +15,7 @@ import {
  */
 export function ProductMockup() {
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-white shadow-[var(--shadow-xl)]">
+    <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-xl)]">
       {/* Barra superior */}
       <div className="flex items-center gap-3 border-b border-line bg-deep px-4 py-3">
         <div className="flex gap-1.5">
@@ -91,7 +91,7 @@ export function ProductMockup() {
         </div>
 
         {/* Nota estructurada */}
-        <div className="bg-white p-4">
+        <div className="bg-surface p-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted">
               Nota clínica · SOAP
@@ -136,7 +136,7 @@ export function ProductMockup() {
             <button className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-white">
               <CheckCircle2 size={16} /> Aprobar
             </button>
-            <button className="inline-flex items-center justify-center gap-1.5 rounded-full border border-line bg-white px-4 py-2.5 text-sm font-semibold text-deep">
+            <button className="inline-flex items-center justify-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-deep">
               Exportar a HC
             </button>
           </div>

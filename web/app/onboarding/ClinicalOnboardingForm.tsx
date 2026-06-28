@@ -10,7 +10,7 @@ import {
 
 const initialState: OnboardingState = {};
 const inputClass =
-  "mt-1.5 w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm text-deep outline-none transition-colors focus:border-accent";
+  "mt-1.5 w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm text-deep outline-none transition-colors focus:border-accent";
 
 export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
   const [professionalType, setProfessionalType] = useState<
@@ -36,7 +36,7 @@ export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
         </p>
       ) : null}
 
-      <div className="rounded-lg border border-line bg-white p-5 shadow-[var(--shadow-sm)]">
+      <div className="rounded-lg border border-line bg-surface p-5 shadow-[var(--shadow-sm)]">
         <div className="flex items-start gap-3">
           <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-ice text-accent">
             <Stethoscope size={20} />
@@ -102,7 +102,7 @@ export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
         ) : null}
       </div>
 
-      <div className="rounded-lg border border-line bg-white p-5 shadow-[var(--shadow-sm)]">
+      <div className="rounded-lg border border-line bg-surface p-5 shadow-[var(--shadow-sm)]">
         <div className="flex items-center gap-2">
           <BadgeCheck size={18} className="text-accent" />
           <h2 className="font-semibold text-deep">Datos profesionales</h2>

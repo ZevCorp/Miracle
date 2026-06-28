@@ -97,10 +97,10 @@ export function CommandPalette({
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-center p-4 pt-[12vh]">
       <div
-        className="absolute inset-0 bg-deep/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-night/40 backdrop-blur-sm"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-line bg-white shadow-[var(--shadow-xl)]">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-xl)]">
         <div className="flex items-center gap-2 border-b border-line px-4">
           <Search size={18} className="text-muted" />
           <input

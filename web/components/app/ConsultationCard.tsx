@@ -17,7 +17,7 @@ export function ConsultationCard({
   return (
     <Link
       href={`/app/consultas/${consultation.id}`}
-      className={`block rounded-lg border bg-white p-4 transition-all hover:border-mist hover:shadow-[var(--shadow-sm)] ${
+      className={`block rounded-lg border bg-surface p-4 transition-all hover:border-mist hover:shadow-[var(--shadow-sm)] ${
         active ? "border-accent ring-1 ring-accent/30" : "border-line"
       }`}
     >

@@ -22,9 +22,9 @@ const variants: Record<Variant, string> = {
   primary:
     "bg-accent text-white hover:bg-accent-hover shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]",
   secondary:
-    "bg-white text-deep border border-line hover:border-mist hover:bg-ice-soft",
+    "bg-surface text-deep border border-line hover:border-mist hover:bg-ice-soft",
   ghost: "text-deep hover:bg-ice-soft",
-  onDark: "bg-white text-deep hover:bg-ice",
+  onDark: "bg-surface text-deep hover:bg-ice",
   onDarkGhost: "text-white hover:bg-white/10",
 };
 

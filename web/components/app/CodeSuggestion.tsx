@@ -21,7 +21,7 @@ export function CodeSuggestion({
           ? "border-success/30 bg-success-soft/40"
           : discarded
             ? "border-line bg-pearl opacity-70"
-            : "border-line bg-white"
+            : "border-line bg-surface"
       }`}
     >
       <div className="flex items-start justify-between gap-3">

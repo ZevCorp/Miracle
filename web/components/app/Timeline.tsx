@@ -10,7 +10,7 @@ export function Timeline({ events }: { events: AuditEvent[] }) {
       {events.map((ev) => (
         <li key={ev.id} className="relative">
           <span
-            className="absolute -left-6 top-1 h-3.5 w-3.5 rounded-full border-2 border-accent bg-white"
+            className="absolute -left-6 top-1 h-3.5 w-3.5 rounded-full border-2 border-accent bg-surface"
             aria-hidden
           />
           <div className="text-sm font-semibold text-deep">{ev.accion}</div>

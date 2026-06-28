@@ -153,7 +153,7 @@ export function NoteSectionView({
                             list.map((v, j) => (j === i ? e.target.value : v)),
                           )
                         }
-                        className="min-w-0 flex-1 rounded-md border border-line bg-white px-3 py-1.5 text-sm outline-none focus:border-accent"
+                        className="min-w-0 flex-1 rounded-md border border-line bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent"
                       />
                       <button
                         type="button"
@@ -180,7 +180,7 @@ export function NoteSectionView({
                   value={texto}
                   onChange={(e) => setTexto(e.target.value)}
                   rows={Math.max(3, Math.ceil(texto.length / 70))}
-                  className="w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
+                  className="w-full resize-y rounded-md border border-line bg-surface px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
                   autoFocus
                 />
               )}

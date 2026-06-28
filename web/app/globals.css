@@ -14,8 +14,9 @@
   --color-mint: #b7f0d8; /* acento clínico positivo */
   --color-mint-soft: #e6f8ef;
   --color-mist: #cbd5e1;
-  --color-deep: #0c1424; /* navy profundo (statement) */
+  --color-deep: #0c1424; /* navy profundo (statement) + texto fuerte */
   --color-deep-2: #131e33;
+  --color-night: #0c1424; /* superficies que SIEMPRE son oscuras (sidebar, avatares) */
 
   /* Tinta / texto */
   --color-ink: #0e1726;
@@ -61,6 +62,45 @@
   --font-display: var(--ff-display), var(--ff-sans), ui-sans-serif, system-ui,
     sans-serif;
   --font-mono: var(--ff-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ============================================================
+   Modo oscuro — se activa con la clase .dark en el contenedor de la
+   app. "deep" se aclara (sirve para texto/títulos); "night" queda
+   oscuro para superficies que deben seguir oscuras (sidebar, avatares).
+   ============================================================ */
+.dark {
+  --color-canvas: #0a1220;
+  --color-pearl: #0e1726;
+  --color-ice: #1a2740;
+  --color-ice-soft: #16213a;
+  --color-mint: #6ee7b7;
+  --color-mint-soft: #123026;
+  --color-mist: #3a4a63;
+  --color-deep: #eef2f8; /* texto fuerte / títulos → claro en oscuro */
+  --color-deep-2: #e2e8f2;
+  --color-night: #0a1322; /* superficies oscuras (igual en ambos modos) */
+
+  --color-ink: #e7ecf3;
+  --color-ink-soft: #b3c0d4;
+  --color-muted: #8b99ae;
+  --color-line: #243049;
+  --color-line-strong: #2f3d57;
+  --color-surface: #131d30;
+
+  --color-accent: #4f93f5;
+  --color-accent-hover: #6ba3f7;
+  --color-accent-soft: #16294a;
+  --color-accent-ink: #bcd6ff;
+
+  --color-success: #34d399;
+  --color-success-soft: #0f2e23;
+  --color-warning: #fbbf24;
+  --color-warning-soft: #34260b;
+  --color-danger: #f87171;
+  --color-danger-soft: #361a18;
+  --color-info: #4f93f5;
+  --color-info-soft: #16294a;
 }
 
 /* ============================================================

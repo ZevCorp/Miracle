@@ -41,7 +41,7 @@ export default async function LoginPage({
           </p>
         </div>
 
-        <div className="rounded-lg border border-line bg-white/90 p-6 shadow-[var(--shadow-lg)] backdrop-blur-sm">
+        <div className="rounded-lg border border-line bg-surface/90 p-6 shadow-[var(--shadow-lg)] backdrop-blur-sm">
           {message ? (
             <p role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-3 text-sm text-warning">
               {message}
@@ -51,7 +51,7 @@ export default async function LoginPage({
           <form action={signInWithGoogle}>
             <button
               type="submit"
-              className="inline-flex w-full items-center justify-center gap-3 rounded-full border border-line bg-white px-5 py-3 text-sm font-semibold text-deep shadow-[var(--shadow-sm)] transition-colors hover:bg-ice-soft"
+              className="inline-flex w-full items-center justify-center gap-3 rounded-full border border-line bg-surface px-5 py-3 text-sm font-semibold text-deep shadow-[var(--shadow-sm)] transition-colors hover:bg-ice-soft"
             >
               <GoogleIcon />
               Continuar con Google
@@ -76,7 +76,7 @@ export default async function LoginPage({
                 autoComplete="email"
                 required
                 placeholder="nombre@institucion.com"
-                className="w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent"
+                className="w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent"
               />
             </div>
             <div>
@@ -90,7 +90,7 @@ export default async function LoginPage({
                 autoComplete="current-password"
                 required
                 placeholder="••••••••"
-                className="w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent"
+                className="w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent"
               />
             </div>
             <button

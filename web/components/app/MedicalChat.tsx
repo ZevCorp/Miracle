@@ -66,8 +66,8 @@ export function MedicalChat() {
       ) : null}
 
       {open ? (
-        <div className="fixed bottom-5 left-5 z-50 flex h-[min(560px,calc(100vh-2.5rem))] w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-[var(--shadow-xl)]">
-          <div className="flex items-center justify-between gap-2 bg-deep px-4 py-3 text-white">
+        <div className="fixed bottom-5 left-5 z-50 flex h-[min(560px,calc(100vh-2.5rem))] w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-xl)]">
+          <div className="flex items-center justify-between gap-2 bg-night px-4 py-3 text-white">
             <div className="flex items-center gap-2">
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
                 <Sparkles size={16} />

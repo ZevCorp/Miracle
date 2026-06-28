@@ -25,7 +25,7 @@ const defaultSections = [
 ].join("\n");
 
 const fieldClass =
-  "mt-1.5 w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm text-deep outline-none transition-colors focus:border-accent";
+  "mt-1.5 w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm text-deep outline-none transition-colors focus:border-accent";
 
 export function TemplateCatalog({
   initialSpecialtyCode,
@@ -114,14 +114,14 @@ export function TemplateCatalog({
         </div>
       </div>
 
-      <section className="mt-6 rounded-lg border border-line bg-white p-4 shadow-[var(--shadow-sm)]">
+      <section className="mt-6 rounded-lg border border-line bg-surface p-4 shadow-[var(--shadow-sm)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <label className="flex flex-1 flex-col gap-1.5 text-sm font-medium text-deep lg:max-w-md">
             Especialidad o servicio
             <select
               value={specialtyCode}
               onChange={(event) => changeSpecialty(event.target.value)}
-              className="rounded-md border border-line bg-white px-3.5 py-2.5 text-sm font-normal outline-none transition-colors focus:border-accent"
+              className="rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm font-normal outline-none transition-colors focus:border-accent"
             >
               {clinicalSpecialties.map((item) => (
                 <option key={item.code} value={item.code}>
@@ -216,7 +216,7 @@ export function TemplateCatalog({
                 </label>
               </div>
 
-              <aside className="rounded-lg border border-line bg-white p-4">
+              <aside className="rounded-lg border border-line bg-surface p-4">
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted">
                   Vista previa rápida
                 </div>
@@ -275,7 +275,7 @@ export function TemplateCatalog({
           ))}
         </section>
 
-        <aside className="h-fit rounded-lg border border-line bg-white p-5 shadow-[var(--shadow-sm)]">
+        <aside className="h-fit rounded-lg border border-line bg-surface p-5 shadow-[var(--shadow-sm)]">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-muted">Vista previa</div>
@@ -329,7 +329,7 @@ export function TemplateCatalog({
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-line bg-white px-3.5 py-2 text-right shadow-[var(--shadow-sm)]">
+    <div className="rounded-md border border-line bg-surface px-3.5 py-2 text-right shadow-[var(--shadow-sm)]">
       <div className="text-lg font-semibold leading-none text-deep">{value}</div>
       <div className="mt-1 text-[11px] font-medium uppercase tracking-wide text-muted">{label}</div>
     </div>
@@ -349,7 +349,7 @@ function TemplateChoice({
     <button
       type="button"
       onClick={onSelect}
-      className={`flex w-full items-center gap-3 rounded-lg border bg-white p-4 text-left shadow-[var(--shadow-sm)] transition-colors ${
+      className={`flex w-full items-center gap-3 rounded-lg border bg-surface p-4 text-left shadow-[var(--shadow-sm)] transition-colors ${
         active ? "border-accent ring-1 ring-accent/25" : "border-line hover:border-mist"
       }`}
     >

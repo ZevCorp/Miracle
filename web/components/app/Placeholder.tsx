@@ -28,7 +28,7 @@ export function Placeholder({
       <p className="mt-6 max-w-2xl text-ink-soft">{description}</p>
 
       {points && points.length > 0 ? (
-        <div className="mt-6 max-w-2xl rounded-lg border border-line bg-white/80 p-5">
+        <div className="mt-6 max-w-2xl rounded-lg border border-line bg-surface/80 p-5">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
             Incluirá
           </h2>

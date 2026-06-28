@@ -48,7 +48,7 @@ export default async function UsuariosPage() {
         </span>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-lg border border-line bg-white">
+      <div className="mt-6 overflow-hidden rounded-lg border border-line bg-surface">
         <div className="hidden grid-cols-[1.4fr_1fr_auto] gap-4 border-b border-line px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted sm:grid">
           <span>Usuario</span>
           <span>Rol</span>
@@ -73,7 +73,7 @@ export default async function UsuariosPage() {
                 name="role"
                 defaultValue={user.role}
                 aria-label={`Rol de ${user.email}`}
-                className="rounded-md border border-line bg-white px-3 py-2 text-sm text-deep outline-none focus:border-accent"
+                className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-deep outline-none focus:border-accent"
               >
                 <option value="medico">Médico</option>
                 <option value="supervisor">Supervisor</option>

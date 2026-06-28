@@ -263,7 +263,7 @@ function EnVivoInner() {
     <div className="mx-auto max-w-5xl">
       <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         {/* Captura */}
-        <div className="rounded-lg border border-line bg-white p-6">
+        <div className="rounded-lg border border-line bg-surface p-6">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-2 rounded-full bg-danger/10 px-3 py-1.5 text-sm font-semibold text-danger">
               <span className="h-2 w-2 animate-pulse rounded-full bg-danger" />
@@ -342,7 +342,7 @@ function EnVivoInner() {
 
         {/* Paciente */}
         <aside className="h-fit space-y-4">
-          <div className="rounded-lg border border-line bg-white p-5">
+          <div className="rounded-lg border border-line bg-surface p-5">
             {patient ? (
               <PatientHeader patient={patient} />
             ) : (
@@ -361,7 +361,7 @@ function EnVivoInner() {
               <ClinicalRow label="Medicamentos" values={patient?.medicamentos} />
             </dl>
           </div>
-          <div className="rounded-lg border border-line bg-white p-5">
+          <div className="rounded-lg border border-line bg-surface p-5">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted">
               Plantilla
             </div>

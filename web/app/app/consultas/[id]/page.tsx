@@ -156,7 +156,7 @@ export default function ConsultaDetallePage() {
       {/* Header */}
       <div className="mt-3 flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
-          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-deep text-sm font-semibold text-white">
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-night text-sm font-semibold text-white">
             {patient
               ? patient.nombre.split(" ").map((p) => p[0]).slice(0, 2).join("")
               : "?"}
@@ -303,7 +303,7 @@ function HistoriaTab({
   return (
     <div>
       <AiDisclaimer />
-      <div className="rounded-lg border border-line bg-white px-5 py-2">
+      <div className="rounded-lg border border-line bg-surface px-5 py-2">
         {consultation.note.map((s) => (
           <NoteSectionView
             key={s.id}
@@ -320,7 +320,7 @@ function HistoriaTab({
           onAiEdit();
           (e.currentTarget.elements.namedItem("ai") as HTMLInputElement).value = "";
         }}
-        className="mt-3 flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 shadow-[var(--shadow-sm)]"
+        className="mt-3 flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 shadow-[var(--shadow-sm)]"
       >
         <Sparkles size={16} className="text-accent" />
         <input
@@ -391,7 +391,7 @@ function CodificacionTab({
           </div>
 
           {showForm ? (
-            <div className="mb-3 rounded-md border border-line bg-white p-3">
+            <div className="mb-3 rounded-md border border-line bg-surface p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={sistema}
@@ -399,7 +399,7 @@ function CodificacionTab({
                     setSistema(e.target.value as ClinicalCode["sistema"])
                   }
                   aria-label="Sistema de codificación"
-                  className="rounded-md border border-line bg-white px-2.5 py-2 text-sm outline-none focus:border-accent"
+                  className="rounded-md border border-line bg-surface px-2.5 py-2 text-sm outline-none focus:border-accent"
                 >
                   <option value="CIE-10">CIE-10</option>
                   <option value="CUPS">CUPS</option>
@@ -472,7 +472,7 @@ function CodificacionTab({
               ))}
             </div>
           ) : (
-            <p className="rounded-md border border-line bg-white px-4 py-3 text-sm text-muted">
+            <p className="rounded-md border border-line bg-surface px-4 py-3 text-sm text-muted">
               No hay códigos sugeridos pendientes. Revise los aceptados.
             </p>
           )}
@@ -506,7 +506,7 @@ function CodificacionTab({
       </div>
 
       {/* RIPS */}
-      <aside className="h-fit rounded-lg border border-line bg-white p-5">
+      <aside className="h-fit rounded-lg border border-line bg-surface p-5">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-base font-semibold text-deep">
             Preparación para RIPS
@@ -554,12 +554,12 @@ function ResumenTab({ texto, onCopy }: { texto: string; onCopy: () => void }) {
         <button
           type="button"
           onClick={onCopy}
-          className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1.5 text-sm font-medium text-deep hover:border-mist"
+          className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium text-deep hover:border-mist"
         >
           <Copy size={14} /> Copiar
         </button>
       </div>
-      <div className="rounded-lg border border-line bg-white p-6 text-[0.97rem] leading-relaxed text-ink">
+      <div className="rounded-lg border border-line bg-surface p-6 text-[0.97rem] leading-relaxed text-ink">
         {texto}
       </div>
     </div>
@@ -568,7 +568,7 @@ function ResumenTab({ texto, onCopy }: { texto: string; onCopy: () => void }) {
 
 function TranscripcionTab({ consultation }: { consultation: Consultation }) {
   return (
-    <div className="rounded-lg border border-line bg-white p-6">
+    <div className="rounded-lg border border-line bg-surface p-6">
       <div className="space-y-4">
         {consultation.transcript.map((turn, i) => (
           <div key={i} className="flex gap-3">
@@ -600,7 +600,7 @@ function AuditoriaTab({ consultation }: { consultation: Consultation }) {
   const pct = completitud(consultation);
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-      <div className="h-fit rounded-lg border border-line bg-white p-5 text-center">
+      <div className="h-fit rounded-lg border border-line bg-surface p-5 text-center">
         <div className="font-display text-4xl font-bold text-deep">{pct}%</div>
         <div className="mt-1 text-sm text-muted">Completitud documental</div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-ice">
@@ -610,7 +610,7 @@ function AuditoriaTab({ consultation }: { consultation: Consultation }) {
           />
         </div>
       </div>
-      <div className="rounded-lg border border-line bg-white p-5">
+      <div className="rounded-lg border border-line bg-surface p-5">
         <h2 className="mb-4 font-display text-base font-semibold text-deep">
           Trazabilidad
         </h2>

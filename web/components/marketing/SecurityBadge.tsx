@@ -10,7 +10,7 @@ export function SecurityBadge({
   children: ReactNode;
 }) {
   return (
-    <div className="flex gap-4 rounded-md border border-line bg-white/70 p-5 backdrop-blur-sm">
+    <div className="flex gap-4 rounded-md border border-line bg-surface/70 p-5 backdrop-blur-sm">
       <div className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-mint-soft text-success">
         {icon}
       </div>

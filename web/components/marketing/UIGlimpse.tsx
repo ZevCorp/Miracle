@@ -5,7 +5,7 @@
 export function UIGlimpse({ className = "" }: { className?: string }) {
   return (
     <div
-      className={`w-full max-w-md rounded-2xl border border-line bg-white p-6 shadow-[var(--shadow-lg)] ${className}`}
+      className={`w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-[var(--shadow-lg)] ${className}`}
     >
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted">
