@@ -20,6 +20,10 @@ export function NoteSectionView({
 
   const esLista = section.kind === "lista";
 
+  const [savedHint, setSavedHint] = useState(false);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   const [listening, setListening] = useState(false);
   const [dictSupported, setDictSupported] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -82,9 +86,27 @@ export function NoteSectionView({
     }
   }
 
+  // Autoguardado: si hay cambios sin guardar, se persisten solos tras una
+  // breve pausa al escribir (así no se pierden si se cierra el editor).
+  useEffect(() => {
+    if (!editing) return;
+    const limpios = items.map((i) => i.trim()).filter(Boolean);
+    const cambiado = esLista
+      ? JSON.stringify(limpios) !== JSON.stringify(section.items ?? [])
+      : texto.trim() !== (section.texto ?? "").trim();
+    if (!cambiado) return;
+    setSavedHint(false);
+    const h = setTimeout(() => {
+      onChangeRef.current?.(esLista ? { items: limpios } : { texto: texto.trim() });
+      setSavedHint(true);
+    }, 1200);
+    return () => clearTimeout(h);
+  }, [editing, texto, items, esLista, section.items, section.texto]);
+
   function startEdit() {
     setTexto(section.texto ?? "");
     setItems(section.items ?? []);
+    setSavedHint(false);
     setEditing(true);
     setOpen(true);
   }
@@ -200,6 +222,11 @@ export function NoteSectionView({
                 >
                   <X size={15} /> Cancelar
                 </button>
+                {savedHint ? (
+                  <span className="text-xs font-medium text-success">
+                    Guardado
+                  </span>
+                ) : null}
                 {!esLista && dictSupported ? (
                   <button
                     type="button"

@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Bell, Menu, Moon, Search, Sun } from "lucide-react";
+import { Menu, Moon, Search, Sun } from "lucide-react";
 import { AppSidebar } from "./AppSidebar";
 import { MedicalChat } from "./MedicalChat";
 import { CommandPalette } from "./CommandPalette";
+import { NotificationsBell } from "./NotificationsBell";
 import type { AuthenticatedProfile } from "@/lib/auth/server";
 import { APP_ROLE_LABEL } from "@/lib/auth/roles";
 import { signOut } from "@/app/login/actions";
@@ -25,20 +26,25 @@ export function AppShell({
   const [cmdk, setCmdk] = useState(false);
   const [dark, setDark] = useState(false);
 
+  // El script anti-flash del layout ya aplicó la clase en <html>; aquí solo
+  // sincronizamos el ícono del botón con ese estado.
   useEffect(() => {
-    setDark(localStorage.getItem("miracle-theme") === "dark");
+    setDark(document.documentElement.classList.contains("dark"));
   }, []);
 
-  useEffect(() => {
+  function toggleTheme() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
     try {
-      localStorage.setItem("miracle-theme", dark ? "dark" : "light");
+      localStorage.setItem("miracle-theme", next ? "dark" : "light");
     } catch {
       /* almacenamiento no disponible */
     }
-  }, [dark]);
+  }
 
   return (
-    <div className={`flex min-h-screen bg-pearl ${dark ? "dark" : ""}`}>
+    <div className="app-shell flex min-h-screen bg-pearl">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 md:block">
         <AppSidebar role={profile.role} />
       </aside>
@@ -81,7 +87,7 @@ export function AppShell({
           <div className="ml-auto flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setDark((d) => !d)}
+              onClick={toggleTheme}
               aria-label={dark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
               className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-ice-soft hover:text-deep"
             >
@@ -90,14 +96,7 @@ export function AppShell({
             <span className="hidden rounded-full bg-ice px-3 py-1.5 text-xs font-semibold text-deep sm:inline-flex">
               {APP_ROLE_LABEL[profile.role]}
             </span>
-            <button
-              type="button"
-              aria-label="Notificaciones"
-              className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-ice-soft hover:text-deep"
-            >
-              <Bell size={18} />
-              <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-accent" />
-            </button>
+            <NotificationsBell />
             <form action={signOut} className="flex items-center gap-2">
               <span
                 title={profile.fullName ?? profile.email}

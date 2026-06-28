@@ -73,9 +73,17 @@ export default function RootLayout({
   return (
     <html
       lang="es"
+      suppressHydrationWarning
       className={`${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('miracle-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}`,
+          }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -43,6 +43,7 @@ function esc(s: string): string {
 
 export default function ConsultaDetallePage() {
   const params = useParams();
+  const router = useRouter();
   const id = String(params.id);
   const {
     getConsultation,
@@ -203,7 +204,14 @@ export default function ConsultaDetallePage() {
           </button>
           <button
             type="button"
-            onClick={() => showToast("La regrabación estará disponible en la versión conectada.", "info")}
+            onClick={() => {
+              const sp = new URLSearchParams({
+                tipo: c.tipo,
+                plantillaNombre: c.plantilla,
+              });
+              if (c.pacienteId) sp.set("paciente", c.pacienteId);
+              router.push(`/app/consultas/en-vivo?${sp.toString()}`);
+            }}
             className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:text-deep"
             aria-label="Regrabar"
           >

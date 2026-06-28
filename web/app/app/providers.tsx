@@ -87,26 +87,23 @@ export function MiracleProvider({
   const [toast, setToast] = useState<Toast | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
-  // Hidratar desde localStorage tras el montaje (evita desajuste SSR).
+  // Hidratar desde localStorage tras el montaje (solo cliente; sin rAF para
+  // que también persista en pestañas en segundo plano).
   useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const saved = JSON.parse(raw) as {
-            consultations?: Consultation[];
-            patients?: Patient[];
-          };
-          if (saved.consultations?.length) setConsultations(saved.consultations);
-          if (saved.patients?.length) setPatients(saved.patients);
-        }
-      } catch {
-        /* almacenamiento no disponible */
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          consultations?: Consultation[];
+          patients?: Patient[];
+        };
+        if (saved.consultations?.length) setConsultations(saved.consultations);
+        if (saved.patients?.length) setPatients(saved.patients);
       }
-      setHydrated(true);
-    });
-
-    return () => cancelAnimationFrame(frame);
+    } catch {
+      /* almacenamiento no disponible */
+    }
+    setHydrated(true);
   }, []);
 
   // Persistir cambios.
@@ -268,9 +265,8 @@ export function MiracleProvider({
           next.titulo ? `Sección «${next.titulo}»` : undefined,
         ),
       );
-      showToast("Sección actualizada.", "success");
     },
-    [patch, addEvent, showToast],
+    [patch, addEvent],
   );
 
   const addConsultation = useCallback((c: Consultation) => {

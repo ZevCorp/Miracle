@@ -69,7 +69,7 @@
    app. "deep" se aclara (sirve para texto/títulos); "night" queda
    oscuro para superficies que deben seguir oscuras (sidebar, avatares).
    ============================================================ */
-.dark {
+.dark .app-shell {
   --color-canvas: #0a1220;
   --color-pearl: #0e1726;
   --color-ice: #1a2740;
@@ -82,8 +82,8 @@
   --color-night: #0a1322; /* superficies oscuras (igual en ambos modos) */
 
   --color-ink: #e7ecf3;
-  --color-ink-soft: #b3c0d4;
-  --color-muted: #8b99ae;
+  --color-ink-soft: #b9c5d8;
+  --color-muted: #9aa8be; /* contraste suficiente sobre superficies oscuras */
   --color-line: #243049;
   --color-line-strong: #2f3d57;
   --color-surface: #131d30;
