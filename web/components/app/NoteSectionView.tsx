@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Check, ChevronDown, Pencil, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Mic, Pencil, Plus, Trash2, X } from "lucide-react";
 import type { NoteSection } from "@/lib/mock";
 
 export function NoteSectionView({
@@ -20,6 +20,68 @@ export function NoteSectionView({
 
   const esLista = section.kind === "lista";
 
+  const [listening, setListening] = useState(false);
+  const [dictSupported, setDictSupported] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+    ) {
+      setDictSupported(true);
+    }
+    return () => {
+      try {
+        recRef.current?.stop();
+      } catch {
+        /* noop */
+      }
+    };
+  }, []);
+
+  function stopDictado() {
+    try {
+      recRef.current?.stop();
+    } catch {
+      /* noop */
+    }
+    setListening(false);
+  }
+
+  function toggleDictado() {
+    if (listening) {
+      stopDictado();
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    const rec = new SR();
+    rec.lang = "es-CO";
+    rec.continuous = true;
+    rec.interimResults = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (e: any) => {
+      let add = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) add += e.results[i][0].transcript;
+      }
+      if (add.trim()) setTexto((t) => (t ? `${t} ${add.trim()}` : add.trim()));
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recRef.current = rec;
+    try {
+      rec.start();
+      setListening(true);
+    } catch {
+      setListening(false);
+    }
+  }
+
   function startEdit() {
     setTexto(section.texto ?? "");
     setItems(section.items ?? []);
@@ -28,10 +90,12 @@ export function NoteSectionView({
   }
 
   function cancel() {
+    stopDictado();
     setEditing(false);
   }
 
   function save() {
+    stopDictado();
     if (esLista) {
       const limpios = items.map((i) => i.trim()).filter(Boolean);
       onChange?.({ items: limpios });
@@ -136,6 +200,19 @@ export function NoteSectionView({
                 >
                   <X size={15} /> Cancelar
                 </button>
+                {!esLista && dictSupported ? (
+                  <button
+                    type="button"
+                    onClick={toggleDictado}
+                    className={`ml-auto inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
+                      listening
+                        ? "border-danger/40 bg-danger/10 text-danger"
+                        : "border-line text-deep hover:border-mist"
+                    }`}
+                  >
+                    <Mic size={15} /> {listening ? "Detener" : "Dictar"}
+                  </button>
+                ) : null}
               </div>
             </div>
           ) : (

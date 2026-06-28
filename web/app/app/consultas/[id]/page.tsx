@@ -27,6 +27,7 @@ import {
   type Consultation,
   type NoteSection,
 } from "@/lib/mock";
+import { searchCodes } from "@/lib/clinical/codes";
 import { useStore } from "@/app/app/providers";
 import { Tabs } from "@/components/app/Tabs";
 import { StatusBadge } from "@/components/app/StatusBadge";
@@ -416,6 +417,29 @@ function CodificacionTab({
                   className="min-w-0 flex-1 rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-accent"
                 />
               </div>
+
+              {(codigo.trim() || descripcion.trim()) &&
+              searchCodes(sistema, codigo || descripcion).length ? (
+                <div className="mt-2 max-h-44 overflow-auto rounded-md border border-line">
+                  {searchCodes(sistema, codigo || descripcion).map((s) => (
+                    <button
+                      key={s.codigo}
+                      type="button"
+                      onClick={() => {
+                        setCodigo(s.codigo);
+                        setDescripcion(s.descripcion);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-ice-soft"
+                    >
+                      <span className="shrink-0 font-mono font-semibold text-deep">
+                        {s.codigo}
+                      </span>
+                      <span className="truncate text-muted">{s.descripcion}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
               <div className="mt-2.5 flex items-center gap-2">
                 <button
                   type="button"
