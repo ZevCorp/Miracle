@@ -33,7 +33,10 @@ function buildDraft(
   plantillaNombre: string,
   segundos: number,
 ): Consultation {
-  const id = `c-${Date.now()}`;
+  const id =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `c-${Date.now()}`;
   const note: NoteSection[] = [
     {
       id: "identificacion",
