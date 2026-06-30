@@ -49,6 +49,7 @@ interface StoreValue {
   loading: boolean;
   getConsultation: (id: string) => Consultation | undefined;
   getPatient: (id: string | null | undefined) => Patient | undefined;
+  getMedicoName: (id: string) => string | undefined;
   addPatient: (patient: string | NewPatientInput) => Patient;
   approveNote: (id: string) => void;
   exportNote: (id: string) => void;
@@ -132,6 +133,7 @@ export function MiracleProvider({
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [consultations, setConsultations] = useState<Consultation[]>([]);
+  const [medicos, setMedicos] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<Toast | null>(null);
 
@@ -148,11 +150,18 @@ export function MiracleProvider({
 
   // ---- Carga inicial desde Supabase ----------------------------------------
   const load = useCallback(async () => {
-    const [patRes, conRes, audRes] = await Promise.all([
+    const [patRes, conRes, audRes, profRes] = await Promise.all([
       supabase.from("patients").select("*").order("created_at", { ascending: false }),
       supabase.from("consultations").select("*").order("fecha", { ascending: false }),
       supabase.from("audit_events").select("*").order("fecha", { ascending: true }),
+      supabase.from("profiles").select("id, full_name, email"),
     ]);
+
+    const med: Record<string, string> = {};
+    for (const p of profRes.data ?? []) {
+      med[p.id] = p.full_name || p.email || "Médico";
+    }
+    setMedicos(med);
 
     setPatients((patRes.data ?? []).map(rowToPatient));
 
@@ -175,6 +184,12 @@ export function MiracleProvider({
   }, [supabase]);
 
   useEffect(() => {
+    // Limpieza: el store anterior guardaba en localStorage; ya no se usa.
+    try {
+      localStorage.removeItem("miracle-store-v3");
+    } catch {
+      /* ignore */
+    }
     let ignore = false;
     (async () => {
       try {
@@ -312,6 +327,8 @@ export function MiracleProvider({
     (id: string) => consultations.find((c) => c.id === id),
     [consultations],
   );
+
+  const getMedicoName = useCallback((id: string) => medicos[id], [medicos]);
 
   const addConsultation = useCallback(
     (c: Consultation) => {
@@ -457,6 +474,7 @@ export function MiracleProvider({
       loading,
       getConsultation,
       getPatient,
+      getMedicoName,
       addPatient,
       approveNote,
       exportNote,
@@ -476,6 +494,7 @@ export function MiracleProvider({
       loading,
       getConsultation,
       getPatient,
+      getMedicoName,
       addPatient,
       approveNote,
       exportNote,

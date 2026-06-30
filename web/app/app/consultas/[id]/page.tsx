@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import {
   completitud,
-  doctorById,
   formatFechaRelativa,
   ripsChecklist,
   ripsListo,
@@ -48,6 +47,7 @@ export default function ConsultaDetallePage() {
   const {
     getConsultation,
     getPatient,
+    getMedicoName,
     approveNote,
     exportNote,
     markReviewed,
@@ -75,7 +75,7 @@ export default function ConsultaDetallePage() {
   }
 
   const patient = getPatient(c.pacienteId);
-  const doctor = doctorById(c.medicoId);
+  const medicoNombre = getMedicoName(c.medicoId);
   const sugeridos = suggestedCodes(c);
 
   function copyResumen() {
@@ -131,7 +131,7 @@ export default function ConsultaDetallePage() {
           }
           ${patient?.documento ? `<span>Doc: ${esc(patient.documento)}</span>` : ""}
           <span>${esc(c!.especialidad)} · ${esc(c!.servicio)}</span>
-          <span>${esc(doctor?.nombre ?? "")}</span>
+          <span>${esc(medicoNombre ?? "")}</span>
           <span>${esc(fecha)}</span>
         </div>
       </div>
@@ -175,7 +175,7 @@ export default function ConsultaDetallePage() {
               {formatFechaRelativa(c.fecha)}
             </p>
             <p className="text-sm text-muted">
-              {c.servicio} · {doctor?.nombre} · {c.duracionMin} min
+              {c.servicio} · {medicoNombre ?? "—"} · {c.duracionMin} min
             </p>
             {c.firma ? (
               <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-mint-soft px-2.5 py-1 text-xs font-semibold text-success">
