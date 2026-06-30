@@ -6,6 +6,52 @@
 
 ---
 
+## ⚡ Resumen rápido (TL;DR)
+
+- **Qué es:** un *scribe clínico* web (estilo **Telepatía/Nabla/Heidi**). El médico atiende
+  → la IA arma la nota → el médico la edita y firma. Aparte está **Milagro** (extensión que
+  copia la nota al HIS del hospital).
+- **Negocio:** **B2C** = solo la web por mensualidad · **B2B** = web + Milagro a hospitales.
+- **Stack:** Next.js 16 + Supabase. Datos **multi-tenant por organización** (B2C = org de 1
+  persona; B2B = hospital).
+- **Ya hecho:** web sobre Supabase, auth + roles, nota editable, códigos CIE-10/CUPS, firma,
+  PDF, modo oscuro, Cmd+K, notificaciones, reportes reales.
+- **Falta:** encender la IA (API key), audio real, asegurar `/api/*`, flujos B2B, cobros, legal.
+- **Dónde:** repo `joseph1356k/Pagina-web-clientes-final` · Supabase `miracle-app` · Vercel `miracle-web`.
+- **Archivo más importante del código:** `app/app/providers.tsx` (el store, puente a Supabase).
+
+### Diagrama de arquitectura
+
+```text
+                 Milagro (extensión Chrome, B2B)
+                 lee la UI como clawbot y copia al HIS
+                                │ va ENCIMA
+                                ▼
+   ┌───────────────────────────────────────────────────┐
+   │  NAVEGADOR — Miracle web (Next.js 16 · React)       │
+   │                                                     │
+   │     pantallas ──► useStore (providers.tsx) ◄── el centro
+   │                        │              │             │
+   └────────────────────────┼──────────────┼─────────────┘
+                lee/escribe  │              │  fetch (server routes)
+                             ▼              ▼
+                 ┌────────────────────┐  ┌───────────────────────┐
+                 │  SUPABASE          │  │  /api/chat             │
+                 │  · auth + perfiles │  │  /api/generate-note    │
+                 │  · pacientes       │  │        │               │
+                 │  · consultas (nota │  │        ▼               │
+                 │    /códigos JSONB) │  │  API de Anthropic      │
+                 │  · auditoría       │  │  (falta ANTHROPIC_KEY) │
+                 │  RLS por ORGANIZACIÓN│ └───────────────────────┘
+                 └────────────────────┘
+   Aislamiento: cada organización (hospital o médico solo) ve únicamente lo suyo.
+```
+
+📚 **Documentos detallados:** ver carpeta [`docs/`](./docs/) (arquitectura, decisiones,
+roadmap, legal). Índice en [`docs/README.md`](./docs/README.md).
+
+---
+
 ## 1. Qué estamos construyendo (visión)
 
 **Miracle** = un **scribe clínico ("ambient scribe")** para profesionales de la salud en
