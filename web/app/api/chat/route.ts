@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { reportError } from "@/lib/observability";
 
 export const runtime = "nodejs";
 
@@ -66,8 +67,8 @@ export async function POST(req: Request) {
     });
 
     if (!res.ok) {
-      const detail = await res.text();
-      console.error("[chat] anthropic error", res.status, detail);
+      // No se registra el cuerpo de la respuesta (puede contener datos sensibles).
+      reportError(new Error("anthropic chat error"), { route: "chat", status: res.status });
       return NextResponse.json(
         { error: "No se pudo obtener respuesta del asistente." },
         { status: 502 },
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ reply, connected: true });
   } catch (e) {
-    console.error("[chat] request failed", e);
+    reportError(e, { route: "chat" });
     return NextResponse.json(
       { error: "Error de conexión con el asistente." },
       { status: 500 },

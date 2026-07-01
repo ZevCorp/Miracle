@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { reportError } from "@/lib/observability";
 
 export const runtime = "nodejs";
 
@@ -66,7 +67,10 @@ Reglas:
     });
 
     if (!res.ok) {
-      console.error("[generate-note] anthropic error", res.status, await res.text());
+      reportError(new Error("anthropic generate-note error"), {
+        route: "generate-note",
+        status: res.status,
+      });
       return NextResponse.json({ connected: true, error: "anthropic" }, { status: 502 });
     }
 
@@ -84,13 +88,17 @@ Reglas:
     try {
       note = JSON.parse(raw);
     } catch {
-      console.error("[generate-note] JSON parse failed:", raw.slice(0, 240));
+      // No se registra `raw` (contiene la nota/datos del paciente).
+      reportError(new Error("generate-note JSON parse failed"), {
+        route: "generate-note",
+        stage: "parse",
+      });
       return NextResponse.json({ connected: true, error: "parse" }, { status: 502 });
     }
 
     return NextResponse.json({ connected: true, note });
   } catch (e) {
-    console.error("[generate-note] request failed", e);
+    reportError(e, { route: "generate-note" });
     return NextResponse.json({ connected: true, error: "network" }, { status: 500 });
   }
 }

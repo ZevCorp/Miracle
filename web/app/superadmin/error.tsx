@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 import { reportError } from "@/lib/observability";
 
-export default function AppError({
+export default function SuperadminError({
   error,
   reset,
 }: {
@@ -12,7 +12,7 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
-    reportError(error, { boundary: "app", digest: error.digest });
+    reportError(error, { boundary: "superadmin", digest: error.digest });
   }, [error]);
 
   return (
@@ -20,10 +20,9 @@ export default function AppError({
       <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-warning-soft text-warning">
         <AlertTriangle size={24} />
       </span>
-      <h1 className="mt-4 text-xl font-semibold text-deep">Algo salió mal</h1>
+      <h1 className="mt-4 text-xl font-semibold text-deep">Algo salió mal en la consola</h1>
       <p className="mt-1 max-w-sm text-sm text-muted">
-        Ocurrió un error al cargar esta sección. Puedes reintentar; si el
-        problema persiste, recarga la página.
+        Ocurrió un error al cargar esta sección. Puedes reintentar; si persiste, recarga.
       </p>
       <button
         type="button"
