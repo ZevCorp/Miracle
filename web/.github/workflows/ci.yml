@@ -22,7 +22,10 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      # Se usa `npm install` (no `npm ci`) porque el lock se genera en Windows y
+      # el runner es Linux: `npm ci` exige coincidencia exacta por plataforma y
+      # falla por deps opcionales nativas (@emnapi/* del fallback wasm).
+      - run: npm install --no-audit --no-fund
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
