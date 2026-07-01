@@ -81,6 +81,12 @@ function uuid(): string {
     : `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+// Topes de la carga inicial del store (bounded load): se cargan las consultas y
+// los pacientes más recientes; el audit se trae solo de las consultas cargadas.
+// Las páginas de lista pesadas migran a paginación en servidor (RSC) aparte.
+const CONSULTATIONS_CAP = 300;
+const PATIENTS_CAP = 500;
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function rowToPatient(r: any): Patient {
   return {
@@ -151,10 +157,17 @@ export function MiracleProvider({
 
   // ---- Carga inicial desde Supabase ----------------------------------------
   const load = useCallback(async () => {
-    const [patRes, conRes, audRes, profRes] = await Promise.all([
-      supabase.from("patients").select("*").order("created_at", { ascending: false }),
-      supabase.from("consultations").select("*").order("fecha", { ascending: false }),
-      supabase.from("audit_events").select("*").order("fecha", { ascending: true }),
+    const [patRes, conRes, profRes] = await Promise.all([
+      supabase
+        .from("patients")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(PATIENTS_CAP),
+      supabase
+        .from("consultations")
+        .select("*")
+        .order("fecha", { ascending: false })
+        .limit(CONSULTATIONS_CAP),
       supabase.from("profiles").select("id, full_name, email"),
     ]);
 
@@ -166,20 +179,31 @@ export function MiracleProvider({
 
     setPatients((patRes.data ?? []).map(rowToPatient));
 
+    // Audit: dependiente de las consultas cargadas (por sus IDs), para conservar
+    // el timeline completo de cada una sin traer eventos huérfanos.
+    const consultRows = conRes.data ?? [];
+    const consultIds = consultRows.map((c) => c.id);
     const auditByCons = new Map<string, AuditEvent[]>();
-    for (const a of audRes.data ?? []) {
-      const list = auditByCons.get(a.consultation_id) ?? [];
-      list.push({
-        id: a.id,
-        fecha: a.fecha,
-        actor: a.actor_name ?? "Sistema",
-        accion: a.accion,
-        detalle: a.detalle ?? undefined,
-      });
-      auditByCons.set(a.consultation_id, list);
+    if (consultIds.length) {
+      const { data: audData } = await supabase
+        .from("audit_events")
+        .select("*")
+        .in("consultation_id", consultIds)
+        .order("fecha", { ascending: true });
+      for (const a of audData ?? []) {
+        const list = auditByCons.get(a.consultation_id) ?? [];
+        list.push({
+          id: a.id,
+          fecha: a.fecha,
+          actor: a.actor_name ?? "Sistema",
+          accion: a.accion,
+          detalle: a.detalle ?? undefined,
+        });
+        auditByCons.set(a.consultation_id, list);
+      }
     }
     setConsultations(
-      (conRes.data ?? []).map((c) => rowToConsultation(c, auditByCons.get(c.id) ?? [])),
+      consultRows.map((c) => rowToConsultation(c, auditByCons.get(c.id) ?? [])),
     );
     setLoading(false);
   }, [supabase]);

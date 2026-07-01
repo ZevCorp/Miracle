@@ -1,45 +1,65 @@
-"use client";
-
-import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Search } from "lucide-react";
-import { useStore } from "@/app/app/providers";
+import { ChevronRight } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { Pager } from "@/components/app/Pager";
+import { PacientesSearch } from "./PacientesSearch";
 
-export default function PacientesPage() {
-  const { consultations, patients } = useStore();
-  const [query, setQuery] = useState("");
+const PAGE_SIZE = 20;
 
-  const filtrados = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return patients;
-    return patients.filter(
-      (p) =>
-        p.nombre.toLowerCase().includes(q) ||
-        p.documento.toLowerCase().includes(q),
-    );
-  }, [query, patients]);
+type PatientRow = {
+  id: string;
+  nombre: string;
+  edad: number | null;
+  sexo: string | null;
+  documento: string | null;
+  eps: string | null;
+};
 
-  function countFor(id: string) {
-    return consultations.filter((c) => c.pacienteId === id).length;
+export default async function PacientesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; page?: string }>;
+}) {
+  const { q, page } = await searchParams;
+  const term = (q ?? "").trim();
+  const pageNum = Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
+  const from = (pageNum - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
+  const supabase = await createClient();
+
+  let query = supabase
+    .from("patients")
+    .select("id, nombre, edad, sexo, documento, eps", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (term) {
+    // Se limpian caracteres que rompen la sintaxis del filtro PostgREST.
+    const safe = term.replace(/[%,()*\\]/g, " ").trim();
+    if (safe) query = query.or(`nombre.ilike.%${safe}%,documento.ilike.%${safe}%`);
+  }
+
+  const { data, count } = await query;
+  const patients = (data ?? []) as PatientRow[];
+  const total = count ?? 0;
+
+  // Conteo de consultas por paciente (agregado en la base, no N+1 en cliente).
+  const { data: countsData } = await supabase.rpc("patient_consultation_counts");
+  const counts = new Map<string, number>();
+  for (const row of (countsData ?? []) as { patient_id: string; n: number }[]) {
+    counts.set(row.patient_id, Number(row.n));
   }
 
   return (
     <div>
       <h1 className="text-2xl font-semibold text-deep">Pacientes</h1>
-      <p className="text-sm text-muted">{patients.length} pacientes registrados</p>
+      <p className="text-sm text-muted">{total} pacientes registrados</p>
 
-      <div className="mt-5 flex items-center gap-2 rounded-md border border-line bg-surface px-3 py-2">
-        <Search size={16} className="text-muted" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar por nombre o documento…"
-          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
-        />
-      </div>
+      <PacientesSearch initialQuery={term} />
 
       <div className="mt-5 overflow-hidden rounded-lg border border-line bg-surface">
-        {filtrados.map((p, i) => (
+        {patients.map((p, i) => (
           <Link
             key={p.id}
             href={`/app/pacientes/${p.id}`}
@@ -53,17 +73,30 @@ export default function PacientesPage() {
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium text-deep">{p.nombre}</div>
               <div className="truncate text-xs text-muted">
-                {p.edad} años · {p.sexo === "F" ? "Femenino" : "Masculino"} ·{" "}
-                {p.documento} · {p.eps}
+                {p.edad ?? 0} años · {p.sexo === "M" ? "Masculino" : "Femenino"} ·{" "}
+                {p.documento || "Por registrar"} · {p.eps || "Por registrar"}
               </div>
             </div>
             <span className="hidden text-sm text-muted sm:block">
-              {countFor(p.id)} consultas
+              {counts.get(p.id) ?? 0} consultas
             </span>
             <ChevronRight size={18} className="text-muted" />
           </Link>
         ))}
+        {patients.length === 0 ? (
+          <div className="px-5 py-6 text-sm text-muted">
+            {term ? "Sin coincidencias." : "Aún no hay pacientes."}
+          </div>
+        ) : null}
       </div>
+
+      <Pager
+        basePath="/app/pacientes"
+        page={pageNum}
+        pageSize={PAGE_SIZE}
+        total={total}
+        params={{ q: term || undefined }}
+      />
     </div>
   );
 }

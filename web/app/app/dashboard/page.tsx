@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -30,9 +31,10 @@ import { BarList, MiniLine } from "@/components/app/Charts";
 export default function DashboardPage() {
   const { consultations, role } = useStore();
 
-  const hoy = consultations.filter((c) => esDeHoy(c.fecha));
-  const pendientes = consultations.filter(
-    (c) => c.estado === "borrador" || c.estado === "revisada",
+  const hoy = useMemo(() => consultations.filter((c) => esDeHoy(c.fecha)), [consultations]);
+  const pendientes = useMemo(
+    () => consultations.filter((c) => c.estado === "borrador" || c.estado === "revisada"),
+    [consultations],
   );
 
   if (role === "admin") return <AdminView />;
@@ -53,7 +55,10 @@ function MedicoView({
   consultations: Consultation[];
 }) {
   const { getPatient } = useStore();
-  const recientes = recentPatients(consultations, 4, getPatient);
+  const recientes = useMemo(
+    () => recentPatients(consultations, 4, getPatient),
+    [consultations, getPatient],
+  );
 
   return (
     <div className="mx-auto max-w-5xl">

@@ -5,8 +5,18 @@ import { APP_ROLE_LABEL, isAppRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { FlashBanner } from "@/components/superadmin/FlashBanner";
 
-type OrgRow = { id: string; name: string; kind: string; nit: string | null; created_at: string };
-type ProfileRow = { role: string; organization_id: string | null };
+type Overview = {
+  totals: { organizations: number; users: number; consultations: number; patients: number };
+  by_role: Record<string, number>;
+  organizations: {
+    id: string;
+    name: string;
+    kind: string;
+    nit: string | null;
+    members: number;
+    consultations: number;
+  }[];
+};
 
 export default async function SuperadminResumenPage({
   searchParams,
@@ -16,34 +26,24 @@ export default async function SuperadminResumenPage({
   const { ok, error } = await searchParams;
   const db = await createClient();
 
-  const [orgsRes, profilesRes, consultationsRes, patientsRes] = await Promise.all([
-    db.from("organizations").select("id, name, kind, nit, created_at").order("created_at"),
-    db.from("profiles").select("role, organization_id"),
-    db.from("consultations").select("organization_id"),
-    db.from("patients").select("organization_id"),
-  ]);
+  // Métricas agregadas en la base (no se cargan tablas enteras al cliente).
+  const { data, error: rpcError } = await db.rpc("superadmin_overview");
+  const overview = (data ?? null) as Overview | null;
 
-  const orgs = (orgsRes.data ?? []) as OrgRow[];
-  const profiles = (profilesRes.data ?? []) as ProfileRow[];
-  const consultations = (consultationsRes.data ?? []) as { organization_id: string | null }[];
-  const patients = (patientsRes.data ?? []) as { organization_id: string | null }[];
-
-  const loadError =
-    orgsRes.error || profilesRes.error || consultationsRes.error || patientsRes.error;
-
-  const byRole = profiles.reduce<Record<string, number>>((acc, p) => {
-    acc[p.role] = (acc[p.role] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  const membersByOrg = countBy(profiles.map((p) => p.organization_id));
-  const consultsByOrg = countBy(consultations.map((c) => c.organization_id));
+  const totals = overview?.totals ?? {
+    organizations: 0,
+    users: 0,
+    consultations: 0,
+    patients: 0,
+  };
+  const byRole = overview?.by_role ?? {};
+  const orgs = overview?.organizations ?? [];
 
   const metrics = [
-    { label: "Organizaciones", value: orgs.length, icon: Building2 },
-    { label: "Usuarios", value: profiles.length, icon: Users },
-    { label: "Consultas", value: consultations.length, icon: ClipboardList },
-    { label: "Pacientes", value: patients.length, icon: UserRound },
+    { label: "Organizaciones", value: totals.organizations, icon: Building2 },
+    { label: "Usuarios", value: totals.users, icon: Users },
+    { label: "Consultas", value: totals.consultations, icon: ClipboardList },
+    { label: "Pacientes", value: totals.patients, icon: UserRound },
   ];
 
   return (
@@ -57,10 +57,10 @@ export default async function SuperadminResumenPage({
 
       <FlashBanner ok={ok} error={error} />
 
-      {loadError ? (
+      {rpcError ? (
         <div className="rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
-          No fue posible cargar algunos datos. Verifica que la migración de super-admin esté
-          aplicada (políticas RLS) o configura la clave de servicio.
+          No fue posible cargar las métricas. Verifica que la migración de super-admin esté
+          aplicada (función <code>superadmin_overview</code> y políticas RLS).
         </div>
       ) : null}
 
@@ -120,12 +120,8 @@ export default async function SuperadminResumenPage({
                 {org.kind === "institution" ? "Hospital" : "Personal"}
               </Badge>
             </div>
-            <div className="text-sm text-deep sm:text-center">
-              {membersByOrg[org.id] ?? 0}
-            </div>
-            <div className="text-sm text-deep sm:text-center">
-              {consultsByOrg[org.id] ?? 0}
-            </div>
+            <div className="text-sm text-deep sm:text-center">{org.members}</div>
+            <div className="text-sm text-deep sm:text-center">{org.consultations}</div>
           </div>
         ))}
         {orgs.length === 0 ? (
@@ -134,11 +130,4 @@ export default async function SuperadminResumenPage({
       </div>
     </div>
   );
-}
-
-function countBy(values: Array<string | null>): Record<string, number> {
-  return values.reduce<Record<string, number>>((acc, v) => {
-    if (v) acc[v] = (acc[v] ?? 0) + 1;
-    return acc;
-  }, {});
 }

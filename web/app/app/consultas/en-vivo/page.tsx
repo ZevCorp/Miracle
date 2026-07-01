@@ -275,6 +275,10 @@ function EnVivoInner() {
             <span className="text-xs text-muted">{TYPE_LABEL[tipo]}</span>
           </div>
 
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-warning-soft px-3 py-1.5 text-xs font-medium text-warning">
+            Captura simulada (demostración) — la grabación y transcripción reales llegarán pronto.
+          </div>
+
           <div className="mt-5 rounded-md bg-pearl p-4">
             <Waveform active={!paused} />
           </div>

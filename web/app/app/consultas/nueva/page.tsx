@@ -21,10 +21,16 @@ import {
   type CustomClinicalTemplateRow,
 } from "@/lib/templates/custom";
 
-const tipos: { id: ConsultationType; label: string; icon: typeof Monitor }[] = [
+const tipos: {
+  id: ConsultationType;
+  label: string;
+  icon: typeof Monitor;
+  disabled?: boolean;
+}[] = [
   { id: "presencial", label: "Presencial", icon: Monitor },
   { id: "telemedicina", label: "Telemedicina", icon: Video },
-  { id: "audio", label: "Subir audio", icon: FileAudio },
+  // "Subir audio" queda deshabilitado hasta que exista transcripción real.
+  { id: "audio", label: "Subir audio", icon: FileAudio, disabled: true },
 ];
 
 const inputClass =
@@ -46,6 +52,8 @@ export default function NuevaConsultaPage() {
   const [newPatientDocument, setNewPatientDocument] = useState("");
   const [newPatientAge, setNewPatientAge] = useState("");
   const [newPatientSex, setNewPatientSex] = useState<"F" | "M">("F");
+  const [requireConsent, setRequireConsent] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(false);
 
   const seleccionado = getPatient(pacienteId);
 
@@ -80,12 +88,22 @@ export default function NuevaConsultaPage() {
       if (userId) {
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("specialty_code")
+          .select("specialty_code, organization_id")
           .eq("id", userId)
           .maybeSingle();
 
         if (!ignore && !profileError && profile?.specialty_code) {
           setProfileSpecialtyCode(profile.specialty_code);
+        }
+
+        // Si la organización exige consentimiento, se pedirá antes de iniciar.
+        if (!ignore && !profileError && profile?.organization_id) {
+          const { data: org } = await supabase
+            .from("organizations")
+            .select("require_consent")
+            .eq("id", profile.organization_id)
+            .maybeSingle();
+          if (!ignore && org) setRequireConsent(Boolean(org.require_consent));
         }
       }
 
@@ -173,6 +191,7 @@ export default function NuevaConsultaPage() {
   }
 
   function empezar() {
+    if (requireConsent && !consentGiven) return;
     const sp = new URLSearchParams({ tipo, plantilla: selectedTemplateId });
     sp.set("plantillaNombre", plantilla.nombre);
     sp.set("plantillaEspecialidad", plantilla.especialidad);
@@ -383,15 +402,22 @@ export default function NuevaConsultaPage() {
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => setTipo(t.id)}
+                  disabled={t.disabled}
+                  onClick={() => {
+                    if (!t.disabled) setTipo(t.id);
+                  }}
+                  title={t.disabled ? "Próximamente" : undefined}
                   className={`flex flex-col items-center gap-1.5 rounded-md border px-3 py-3 text-sm font-medium transition-colors ${
                     active
                       ? "border-accent bg-accent-soft text-accent-ink"
                       : "border-line text-ink-soft hover:border-mist"
-                  }`}
+                  } ${t.disabled ? "cursor-not-allowed opacity-50 hover:border-line" : ""}`}
                 >
                   <Icon size={18} />
                   {t.label}
+                  {t.disabled ? (
+                    <span className="text-[10px] font-normal text-muted">Próximamente</span>
+                  ) : null}
                 </button>
               );
             })}
@@ -427,19 +453,36 @@ export default function NuevaConsultaPage() {
         </section>
 
         {/* Acción */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted">
-            {seleccionado
-              ? `Listo para iniciar con ${seleccionado.nombre}.`
-              : "Puede iniciar sin paciente identificado."}
-          </p>
-          <button
-            type="button"
-            onClick={empezar}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
-          >
-            Empezar consulta <ArrowRight size={17} />
-          </button>
+        <div className="space-y-3">
+          {requireConsent ? (
+            <label className="flex items-start gap-3 rounded-lg border border-line bg-surface p-4 text-sm text-deep">
+              <input
+                type="checkbox"
+                checked={consentGiven}
+                onChange={(e) => setConsentGiven(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-accent"
+              />
+              <span>
+                Confirmo el <strong>consentimiento del paciente</strong> para registrar y
+                procesar la información de esta consulta.
+              </span>
+            </label>
+          ) : null}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted">
+              {seleccionado
+                ? `Listo para iniciar con ${seleccionado.nombre}.`
+                : "Puede iniciar sin paciente identificado."}
+            </p>
+            <button
+              type="button"
+              onClick={empezar}
+              disabled={requireConsent && !consentGiven}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Empezar consulta <ArrowRight size={17} />
+            </button>
+          </div>
         </div>
       </div>
     </div>

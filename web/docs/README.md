@@ -11,6 +11,7 @@ es **[`../CONTEXTO.md`](../CONTEXTO.md)** (visión + estado + diagrama).
 | [`arquitectura.md`](./arquitectura.md) | Cómo está construido por dentro: datos multi-tenant, tablas, RLS, el store, IA, auth. |
 | [`decisiones.md`](./decisiones.md) | Registro de **decisiones clave** y el porqué de cada una. |
 | [`roadmap.md`](./roadmap.md) | Qué falta, en orden, con detalle de cada pendiente. |
+| [`diagnostico.md`](./diagnostico.md) | **Auditoría verificada** del codebase: problemas y mejoras por categoría (A–H) y severidad. |
 | [`legal-colombia.md`](./legal-colombia.md) | Cumplimiento legal en Colombia (Habeas Data, historia clínica). |
 
 ## Documentos previos (estrategia / producto)

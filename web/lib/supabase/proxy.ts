@@ -44,13 +44,21 @@ export async function updateSession(request: NextRequest) {
     return redirectWithSession(url, supabaseResponse);
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .maybeSingle();
+  // Rol desde el JWT (custom access token hook), para no leer profiles en cada
+  // request. Fallback a la BD si el token aún no trae el claim (hook sin habilitar
+  // o sesión sin refrescar). Los chequeos autoritativos (layout, server actions)
+  // siguen leyendo la BD, así que la revocación de rol es inmediata pese al claim.
+  let role: unknown = claimsData?.claims?.app_role;
+  if (!isAppRole(role)) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+    role = profile?.role;
+  }
 
-  if (!profile || !isAppRole(profile.role)) {
+  if (!isAppRole(role)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("error", "account-not-ready");
@@ -61,7 +69,7 @@ export async function updateSession(request: NextRequest) {
 
   // El superadmin vive en su propia consola. Si entra a /app o /onboarding, se le
   // manda a /superadmin; dentro de /superadmin/* tiene paso libre.
-  if (profile.role === "superadmin") {
+  if (role === "superadmin") {
     if (!pathname.startsWith("/superadmin")) {
       const url = request.nextUrl.clone();
       url.pathname = "/superadmin";
@@ -79,7 +87,7 @@ export async function updateSession(request: NextRequest) {
     return redirectWithSession(url, supabaseResponse);
   }
 
-  if (!canAccessPath(profile.role, request.nextUrl.pathname)) {
+  if (!canAccessPath(role, request.nextUrl.pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/app/dashboard";
     url.searchParams.set("error", "forbidden");
