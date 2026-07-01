@@ -57,6 +57,28 @@ export async function updateSession(request: NextRequest) {
     return redirectWithSession(url, supabaseResponse);
   }
 
+  const pathname = request.nextUrl.pathname;
+
+  // El superadmin vive en su propia consola. Si entra a /app o /onboarding, se le
+  // manda a /superadmin; dentro de /superadmin/* tiene paso libre.
+  if (profile.role === "superadmin") {
+    if (!pathname.startsWith("/superadmin")) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/superadmin";
+      url.search = "";
+      return redirectWithSession(url, supabaseResponse);
+    }
+    return supabaseResponse;
+  }
+
+  // Cualquier otro rol que intente entrar a la consola de plataforma → dashboard.
+  if (pathname.startsWith("/superadmin")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/app/dashboard";
+    url.searchParams.set("error", "forbidden");
+    return redirectWithSession(url, supabaseResponse);
+  }
+
   if (!canAccessPath(profile.role, request.nextUrl.pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/app/dashboard";

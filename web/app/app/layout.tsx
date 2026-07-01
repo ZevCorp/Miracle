@@ -18,6 +18,8 @@ export default async function AppLayout({
   // navigation experience, but must never be the only protection for /app.
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login?error=account-not-ready");
+  // El superadmin no usa el panel del hospital; tiene su consola de plataforma.
+  if (profile.role === "superadmin") redirect("/superadmin");
   if (profile.role === "medico" && !profile.onboardingCompletedAt) {
     redirect("/onboarding");
   }

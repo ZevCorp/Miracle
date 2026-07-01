@@ -67,6 +67,7 @@ const StoreContext = createContext<StoreValue | null>(null);
 
 function currentUserName(role: Role): string {
   const map: Record<Role, string> = {
+    superadmin: "Miracle",
     medico: "Dra. Daniela Rincón",
     supervisor: "Dr. Mauricio Lozano",
     admin: "Dra. Patricia Núñez",
