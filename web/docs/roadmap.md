@@ -37,10 +37,11 @@ rate-limit básico.
   Organizaciones, Usuarios) que ve y gestiona todos los hospitales.
 - **Alta de médicos** en una organización: crear cuenta directa (super-admin en cualquier
   hospital; admin de hospital en el suyo, desde `/app/usuarios`) o asignar/mover existentes.
-- Migración `20260630000000_superadmin_and_membership.sql` (aplicada): rol `superadmin`,
-  `private.is_superadmin()`, RLS aditiva, `handle_new_user` lee `app_metadata`.
-- **Pendiente menor:** `SUPABASE_SERVICE_ROLE_KEY` en Vercel para poder **crear cuentas** en
-  producción (mover/asignar/leer ya funciona vía RLS sin la key).
+- Migraciones aplicadas: `20260630000000_superadmin_and_membership.sql` (rol `superadmin`,
+  `private.is_superadmin()`, RLS aditiva, `handle_new_user` lee `app_metadata`) y
+  `20260630010000_create_org_member_rpc.sql` (crea cuentas vía función SECURITY DEFINER).
+- **Sin dependencias externas:** crear cuentas NO requiere `SUPABASE_SERVICE_ROLE_KEY`
+  (se usa la RPC `create_org_member`); mover/asignar/leer funciona vía RLS del superadmin.
 
 ### 5. Cobros B2C  ·  después
 - Suscripción mensual (Stripe u otro), atada a la organización.

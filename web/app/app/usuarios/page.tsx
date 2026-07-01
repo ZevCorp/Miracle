@@ -4,7 +4,6 @@ import { Card } from "@/components/ui/Card";
 import { requireRole } from "@/lib/auth/server";
 import { APP_ROLE_LABEL, type AppRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
-import { hasServiceRole } from "@/lib/supabase/admin";
 import { FlashBanner } from "@/components/superadmin/FlashBanner";
 import { updateUserRole } from "./actions";
 import { createDoctorAccount } from "@/app/superadmin/actions";
@@ -62,13 +61,6 @@ export default async function UsuariosPage({
       </div>
 
       <FlashBanner ok={ok} error={flashError} />
-
-      {!hasServiceRole() ? (
-        <div className="rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
-          Para <strong>crear cuentas</strong> falta configurar <code>SUPABASE_SERVICE_ROLE_KEY</code>{" "}
-          en el servidor. Mientras tanto puedes ajustar el rol de los usuarios existentes.
-        </div>
-      ) : null}
 
       <Card>
         <h2 className="flex items-center gap-2 text-sm font-semibold text-deep">

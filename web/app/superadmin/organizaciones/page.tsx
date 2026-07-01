@@ -2,7 +2,6 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { APP_ROLE_LABEL, isAppRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient, hasServiceRole } from "@/lib/supabase/admin";
 import { FlashBanner } from "@/components/superadmin/FlashBanner";
 import { createOrganization } from "../actions";
 
@@ -21,7 +20,7 @@ export default async function OrganizacionesPage({
   searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
   const { ok, error } = await searchParams;
-  const db = hasServiceRole() ? createAdminClient() : await createClient();
+  const db = await createClient();
 
   const [orgsRes, membersRes] = await Promise.all([
     db.from("organizations").select("id, name, kind, nit, created_at").order("created_at"),

@@ -3,7 +3,6 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { APP_ROLE_LABEL, isAppRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient, hasServiceRole } from "@/lib/supabase/admin";
 import { FlashBanner } from "@/components/superadmin/FlashBanner";
 import { assignUserToOrg, createDoctorAccount } from "../actions";
 
@@ -26,7 +25,7 @@ export default async function SuperadminUsuariosPage({
   searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
   const { ok, error } = await searchParams;
-  const db = hasServiceRole() ? createAdminClient() : await createClient();
+  const db = await createClient();
 
   const [orgsRes, usersRes] = await Promise.all([
     db.from("organizations").select("id, name, kind").order("name"),
@@ -50,13 +49,6 @@ export default async function SuperadminUsuariosPage({
       </div>
 
       <FlashBanner ok={ok} error={error} />
-
-      {!hasServiceRole() ? (
-        <div className="rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
-          Para <strong>crear cuentas</strong> falta configurar <code>SUPABASE_SERVICE_ROLE_KEY</code>{" "}
-          en el servidor. Mientras tanto puedes asignar y mover usuarios existentes.
-        </div>
-      ) : null}
 
       <Card>
         <h2 className="flex items-center gap-2 text-sm font-semibold text-deep">

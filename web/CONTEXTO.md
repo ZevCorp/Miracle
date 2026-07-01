@@ -210,8 +210,8 @@ Todo agnóstico del modelo, vía **rutas server** (`fetch` a la API de Anthropic
 4. ✅ **B2B (hecho jun-2026):** **super-admin** de plataforma (consola propia en `/superadmin`,
    ve/gestiona todas las organizaciones y usuarios) + **alta de médicos** en una organización
    (crear cuenta directa o asignar/mover existentes). El admin de hospital agrega médicos a la
-   suya desde `/app/usuarios`. Falta solo poner `SUPABASE_SERVICE_ROLE_KEY` en Vercel para
-   **crear cuentas** en prod (mover/leer ya funciona sin ella).
+   suya desde `/app/usuarios`. Crear cuentas usa la función `create_org_member` (SECURITY
+   DEFINER) → **no requiere service-role key** ni configuración extra.
 5. **Cobros B2C** (Stripe u otro) — más adelante.
 6. **Cumplimiento legal Colombia** (antes de pacientes reales): consentimiento (datos + grabar
    audio), retención de historia clínica (mín. 15 años), contrato Responsable/Encargado con

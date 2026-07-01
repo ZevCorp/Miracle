@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient, hasServiceRole } from "@/lib/supabase/admin";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -27,8 +26,8 @@ function back(base: string, kind: "ok" | "error", message: string): never {
  * Crea una cuenta (médico/supervisor/admin) dentro de una organización.
  *  · superadmin  → puede elegir cualquier organización.
  *  · admin       → se fuerza a SU propia organización.
- * Necesita SUPABASE_SERVICE_ROLE_KEY (Admin API). El trigger deja el perfil en
- * la organización correcta; además lo confirmamos con el service-role.
+ * Usa la función SECURITY DEFINER public.create_org_member (no requiere la
+ * service-role key): la función revalida el rol del que llama y crea el usuario.
  */
 export async function createDoctorAccount(formData: FormData) {
   const profile = await getCurrentProfile();
@@ -58,43 +57,18 @@ export async function createDoctorAccount(formData: FormData) {
   if (!fullName) back(base, "error", "Escribe el nombre del profesional.");
   if (!UUID_RE.test(organizationId)) back(base, "error", "Selecciona una organización válida.");
 
-  if (!hasServiceRole()) {
-    back(
-      base,
-      "error",
-      "Falta configurar SUPABASE_SERVICE_ROLE_KEY en el servidor para crear cuentas.",
-    );
-  }
+  // Crea la cuenta vía función SECURITY DEFINER (sin service-role key). La función
+  // reverifica el rol del que llama y ata al admin a su propia organización.
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("create_org_member", {
+    p_email: email,
+    p_password: password,
+    p_full_name: fullName,
+    p_role: role,
+    p_organization_id: organizationId,
+  });
 
-  let errorMsg: string | null = null;
-  try {
-    const admin = createAdminClient();
-    const { data, error } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: fullName },
-      // app_metadata SOLO lo puede escribir el service-role → el trigger confía
-      // en él para ubicar el perfil en la organización correcta.
-      app_metadata: { organization_id: organizationId, role },
-    });
-
-    if (error || !data.user) {
-      errorMsg = error?.message ?? "No fue posible crear la cuenta.";
-    } else {
-      // Confirmación explícita: garantiza organización + rol aunque el trigger
-      // no estuviera actualizado todavía.
-      const { error: profileError } = await admin
-        .from("profiles")
-        .update({ organization_id: organizationId, role, full_name: fullName })
-        .eq("id", data.user.id);
-      if (profileError) errorMsg = profileError.message;
-    }
-  } catch (e) {
-    errorMsg = e instanceof Error ? e.message : "Error inesperado al crear la cuenta.";
-  }
-
-  if (errorMsg) back(base, "error", errorMsg);
+  if (error) back(base, "error", error.message);
 
   revalidatePath(base);
   revalidatePath("/superadmin");
@@ -119,9 +93,8 @@ export async function assignUserToOrg(formData: FormData) {
   if (!UUID_RE.test(userId)) back(base, "error", "Usuario inválido.");
   if (!UUID_RE.test(organizationId)) back(base, "error", "Organización inválida.");
 
-  // Con service-role si está disponible (a prueba de RLS); si no, cliente
-  // servidor apoyado en la política RLS del superadmin.
-  const db = hasServiceRole() ? createAdminClient() : await createClient();
+  // Cliente servidor: la política RLS del superadmin permite el update cross-org.
+  const db = await createClient();
   const { data, error } = await db
     .from("profiles")
     .update({ organization_id: organizationId, role })
@@ -160,7 +133,8 @@ export async function createOrganization(formData: FormData) {
 
   if (name.length < 2) back(base, "error", "El nombre es muy corto.");
 
-  const db = hasServiceRole() ? createAdminClient() : await createClient();
+  // Cliente servidor: la política RLS del superadmin permite el insert.
+  const db = await createClient();
   const { data, error } = await db
     .from("organizations")
     .insert({ name, kind, nit })
