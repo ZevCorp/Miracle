@@ -16,7 +16,8 @@
   persona; B2B = hospital).
 - **Ya hecho:** web sobre Supabase, auth + roles, nota editable, códigos CIE-10/CUPS, firma,
   PDF, modo oscuro, Cmd+K, notificaciones, reportes reales.
-- **Falta:** encender la IA (API key), audio real, asegurar `/api/*`, flujos B2B, cobros, legal.
+- **Falta:** encender la IA (API key), audio real, asegurar `/api/*`, cobros, legal.
+  (**B2B ✅ hecho jun-2026:** super-admin de plataforma + alta de médicos en organizaciones.)
 - **Dónde:** repo `joseph1356k/Pagina-web-clientes-final` · Supabase `miracle-app` · Vercel `miracle-web`.
 - **Archivo más importante del código:** `app/app/providers.tsx` (el store, puente a Supabase).
 
@@ -206,7 +207,11 @@ Todo agnóstico del modelo, vía **rutas server** (`fetch` a la API de Anthropic
    construir el **recomendador de diagnósticos** (mientras habla el médico).
 3. **Audio real**: grabar (MediaRecorder) + transcribir (proveedor por decidir: Deepgram/
    Whisper). Hoy la captura es **simulada** (guion fijo). "Subir audio" no abre selector aún.
-4. **B2B:** flujo de **invitar miembros** a un hospital; y un **super-admin** de plataforma.
+4. ✅ **B2B (hecho jun-2026):** **super-admin** de plataforma (consola propia en `/superadmin`,
+   ve/gestiona todas las organizaciones y usuarios) + **alta de médicos** en una organización
+   (crear cuenta directa o asignar/mover existentes). El admin de hospital agrega médicos a la
+   suya desde `/app/usuarios`. Falta solo poner `SUPABASE_SERVICE_ROLE_KEY` en Vercel para
+   **crear cuentas** en prod (mover/leer ya funciona sin ella).
 5. **Cobros B2C** (Stripe u otro) — más adelante.
 6. **Cumplimiento legal Colombia** (antes de pacientes reales): consentimiento (datos + grabar
    audio), retención de historia clínica (mín. 15 años), contrato Responsable/Encargado con

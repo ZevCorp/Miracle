@@ -32,10 +32,15 @@ rate-limit básico.
 - Transcribir con un proveedor (a decidir: **Deepgram** o **Whisper**; español médico).
 - Hoy la captura es **simulada** (guion fijo).
 
-### 4. B2B real  ·  cuando empieces a vender a hospitales
-- **Invitar miembros** a una organización (que un admin agregue médicos a su hospital en vez
-  de que cada quien cree su propia org).
-- **Super-admin de plataforma** (consola para que Miracle gestione todos los hospitales).
+### 4. ✅ B2B real  ·  hecho (jun-2026)
+- **Super-admin de plataforma**: rol `superadmin` con consola propia en `/superadmin` (Resumen,
+  Organizaciones, Usuarios) que ve y gestiona todos los hospitales.
+- **Alta de médicos** en una organización: crear cuenta directa (super-admin en cualquier
+  hospital; admin de hospital en el suyo, desde `/app/usuarios`) o asignar/mover existentes.
+- Migración `20260630000000_superadmin_and_membership.sql` (aplicada): rol `superadmin`,
+  `private.is_superadmin()`, RLS aditiva, `handle_new_user` lee `app_metadata`.
+- **Pendiente menor:** `SUPABASE_SERVICE_ROLE_KEY` en Vercel para poder **crear cuentas** en
+  producción (mover/asignar/leer ya funciona vía RLS sin la key).
 
 ### 5. Cobros B2C  ·  después
 - Suscripción mensual (Stripe u otro), atada a la organización.
