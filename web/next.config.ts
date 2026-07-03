@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  images: {
+    // Un sitio de marketing no necesita variantes de 2048/3840 px; capar aquí
+    // evita que next/image reescale las fotos a tamaños enormes (más rápido de
+    // optimizar y suficiente para retina).
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+  },
 };
 
 export default nextConfig;

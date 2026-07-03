@@ -1,7 +1,11 @@
+"use client";
+
 /**
  * Fragmento mínimo de UI (no el mockup recargado): una sola tarjeta elegante
  * que muestra la codificación sugerida con confianza. Usada una vez.
  */
+import { motion, useReducedMotion } from "motion/react";
+
 export function UIGlimpse({ className = "" }: { className?: string }) {
   return (
     <div
@@ -39,6 +43,10 @@ function CodeRow({
   desc: string;
   conf: number;
 }) {
+  const reduceMotion = useReducedMotion();
+  // El ancho inicial SIEMPRE es "0%" (servidor y cliente); solo la duración
+  // de la animación depende de reduceMotion, para no romper la hidratación.
+
   return (
     <div>
       <div className="flex items-center gap-2.5">
@@ -56,9 +64,15 @@ function CodeRow({
       </div>
       <div className="mt-2 flex items-center gap-2">
         <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-ice">
-          <span
+          <motion.span
             className="block h-full rounded-full bg-success"
-            style={{ width: `${conf}%` }}
+            initial={{ width: "0%" }}
+            whileInView={{ width: `${conf}%` }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{
+              duration: reduceMotion ? 0 : 0.9,
+              ease: [0.22, 1, 0.36, 1],
+            }}
           />
         </span>
         <span className="w-9 text-right text-xs font-medium text-muted">

@@ -16,7 +16,7 @@ export default function ComoFuncionaPage() {
       <PageHero
         eyebrow="Cómo funciona"
         title="Dentro del flujo del médico, no encima de él."
-        subtitle="Miracle acompaña la consulta y entrega documentación lista para revisar. El médico mantiene el control en cada paso."
+        subtitle="Miracle acompaña la consulta y entrega la nota lista para revisar, para que el médico se centre en el paciente y no en el computador. El control es suyo en cada paso."
       />
 
       <Section>
@@ -24,11 +24,11 @@ export default function ComoFuncionaPage() {
           steps={[
             {
               title: "El médico atiende",
-              text: "La consulta ocurre con normalidad y con consentimiento del paciente.",
+              text: "La consulta es una conversación: el médico mira y escucha al paciente, con su consentimiento.",
             },
             {
-              title: "Escucha o dictado",
-              text: "Miracle captura la conversación o recibe el dictado de forma segura.",
+              title: "Escucha en segundo plano",
+              text: "Miracle capta la conversación o el dictado de forma segura, sin que el médico teclee.",
             },
             {
               title: "Estructura la nota",

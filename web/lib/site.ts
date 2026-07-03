@@ -7,7 +7,7 @@ import type { AppRole } from "@/lib/auth/roles";
 
 export const SITE = {
   name: "Miracle",
-  tagline: "Inteligencia clínica-operativa para hospitales",
+  tagline: "Para que el médico mire al paciente, no la pantalla",
   // Número usado en el sitio previo para conversión (WhatsApp).
   whatsappNumber: "573172550953",
   email: "hola@miracle.health",

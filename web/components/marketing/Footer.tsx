@@ -18,9 +18,10 @@ export function Footer() {
           <div className="max-w-sm">
             <Logo />
             <p className="mt-4 text-sm leading-relaxed text-ink-soft">
-              Inteligencia clínica-operativa para hospitales, clínicas e IPS en
-              Colombia. Documenta, estructura, codifica y audita cada consulta
-              — con revisión médica y control humano.
+              Miracle escucha la consulta y prepara la nota clínica —
+              estructurada, codificada y auditable — para que el médico deje de
+              vivir frente al computador y vuelva a centrarse en el paciente.
+              Siempre con revisión y aprobación médica.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-2">

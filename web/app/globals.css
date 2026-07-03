@@ -213,8 +213,31 @@
   animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Flotado ambiental continuo, para la esfera de marca */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.float {
+  animation: float 6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .rise {
+  .rise,
+  .float {
     animation: none;
+  }
+
+  /* Los números "fantasma" de StepFlow llevan parallax por JS (motion);
+     se neutraliza aquí en CSS para no depender de useReducedMotion en el
+     render inicial (rompería la hidratación SSR). */
+  .parallax-num {
+    transform: none !important;
   }
 }

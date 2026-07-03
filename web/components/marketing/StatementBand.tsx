@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Container } from "@/components/ui/Container";
 import { BrandSphere } from "@/components/brand/BrandSphere";
+import { Reveal } from "@/components/motion/Reveal";
 
 /** Banda oscura full-bleed para un momento "statement" (premium, alto contraste). */
 export function StatementBand({
@@ -8,12 +9,17 @@ export function StatementBand({
   title,
   children,
   sphere = true,
+  media,
 }: {
   eyebrow?: string;
   title: ReactNode;
   children?: ReactNode;
+  /** Muestra la esfera de marca como visual (por defecto). Se ignora si se pasa `media`. */
   sphere?: boolean;
+  /** Visual a la derecha en lugar de la esfera (p. ej. una foto). */
+  media?: ReactNode;
 }) {
+  const visual = media ?? (sphere ? <BrandSphere size={320} className="float drop-shadow-2xl" /> : null);
   return (
     <section className="relative overflow-hidden bg-deep py-24 text-white md:py-32">
       <div aria-hidden className="pointer-events-none absolute inset-0">
@@ -22,7 +28,7 @@ export function StatementBand({
       </div>
       <Container className="relative">
         <div className="grid items-center gap-14 lg:grid-cols-[1.25fr_1fr]">
-          <div>
+          <Reveal>
             {eyebrow ? (
               <span className="text-sm font-semibold uppercase tracking-[0.14em] text-mint">
                 {eyebrow}
@@ -36,11 +42,11 @@ export function StatementBand({
                 {children}
               </div>
             ) : null}
-          </div>
-          {sphere ? (
-            <div className="flex justify-center lg:justify-end">
-              <BrandSphere size={320} className="drop-shadow-2xl" />
-            </div>
+          </Reveal>
+          {visual ? (
+            <Reveal className="flex justify-center lg:justify-end" delay={0.1}>
+              {visual}
+            </Reveal>
           ) : null}
         </div>
       </Container>
