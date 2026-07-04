@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
   BarChart3,
-  CalendarDays,
   CheckCircle2,
   ChevronRight,
   FileText,
@@ -16,7 +15,6 @@ import {
   adoptionByService,
   completitud,
   esDeHoy,
-  formatFechaRelativa,
   managementKpis,
   weeklyNotes,
   type Consultation,
@@ -24,8 +22,8 @@ import {
 } from "@/lib/mock";
 import { Card } from "@/components/ui/Card";
 import { MetricCard } from "@/components/marketing/MetricCard";
+import { AgendaHoy } from "@/components/app/AgendaHoy";
 import { ConsultationCard } from "@/components/app/ConsultationCard";
-import { StatusBadge } from "@/components/app/StatusBadge";
 import { BarList, MiniLine } from "@/components/app/Charts";
 
 export default function DashboardPage() {
@@ -59,6 +57,7 @@ function MedicoView({
     () => recentPatients(consultations, 4, getPatient),
     [consultations, getPatient],
   );
+  const [citasHoy, setCitasHoy] = useState(0);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -67,12 +66,14 @@ function MedicoView({
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-white md:text-3xl">
-              ¿Listo para atender?
+              Tu consulta, sin el papeleo.
             </h1>
             <p className="mt-1.5 text-mist">
-              {hoy.length > 0
-                ? `Tienes ${hoy.length} ${hoy.length === 1 ? "consulta" : "consultas"} hoy`
-                : "Aún no tienes consultas hoy"}
+              {citasHoy > 0
+                ? `Tienes ${citasHoy} ${citasHoy === 1 ? "cita agendada" : "citas agendadas"} hoy`
+                : hoy.length > 0
+                  ? `Tienes ${hoy.length} ${hoy.length === 1 ? "consulta" : "consultas"} hoy`
+                  : "Aún no tienes consultas hoy"}
               {pendientes.length > 0
                 ? ` · ${pendientes.length} por revisar`
                 : ""}
@@ -114,38 +115,9 @@ function MedicoView({
           )}
         </Card>
 
-        {/* Lateral: hoy + pacientes */}
+        {/* Lateral: agenda de hoy + pacientes */}
         <div className="space-y-5">
-          <Card>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-deep">Consultas de hoy</h2>
-              <CalendarDays size={18} className="text-muted" />
-            </div>
-            {hoy.length ? (
-              <ul className="divide-y divide-line">
-                {hoy.map((c) => (
-                  <li key={c.id}>
-                    <Link
-                      href={`/app/consultas/${c.id}`}
-                      className="flex items-center justify-between gap-3 py-3"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-deep">
-                          {getPatient(c.pacienteId)?.nombre}
-                        </span>
-                        <span className="block truncate text-xs text-muted">
-                          {formatFechaRelativa(c.fecha)}
-                        </span>
-                      </span>
-                      <StatusBadge estado={c.estado} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="py-2 text-sm text-muted">Sin consultas registradas hoy.</p>
-            )}
-          </Card>
+          <AgendaHoy onCountChange={setCitasHoy} />
 
           <Card>
             <div className="mb-3 flex items-center justify-between">

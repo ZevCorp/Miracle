@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   Check,
@@ -36,11 +36,13 @@ const tipos: {
 const inputClass =
   "w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent";
 
-export default function NuevaConsultaPage() {
+function NuevaConsultaForm() {
   const router = useRouter();
+  const sp = useSearchParams();
   const { patients, addPatient, getPatient } = useStore();
 
-  const [query, setQuery] = useState("");
+  // Prellenado desde la agenda ("Iniciar consulta" en una cita del día).
+  const [query, setQuery] = useState(() => sp.get("nombre")?.trim() ?? "");
   const [pacienteId, setPacienteId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [tipo, setTipo] = useState<ConsultationType>("presencial");
@@ -192,11 +194,11 @@ export default function NuevaConsultaPage() {
 
   function empezar() {
     if (requireConsent && !consentGiven) return;
-    const sp = new URLSearchParams({ tipo, plantilla: selectedTemplateId });
-    sp.set("plantillaNombre", plantilla.nombre);
-    sp.set("plantillaEspecialidad", plantilla.especialidad);
-    if (pacienteId) sp.set("paciente", pacienteId);
-    router.push(`/app/consultas/en-vivo?${sp.toString()}`);
+    const params = new URLSearchParams({ tipo, plantilla: selectedTemplateId });
+    params.set("plantillaNombre", plantilla.nombre);
+    params.set("plantillaEspecialidad", plantilla.especialidad);
+    if (pacienteId) params.set("paciente", pacienteId);
+    router.push(`/app/consultas/en-vivo?${params.toString()}`);
   }
 
   return (
@@ -486,5 +488,14 @@ export default function NuevaConsultaPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// useSearchParams exige un límite de Suspense en la página (mismo patrón que en-vivo).
+export default function NuevaConsultaPage() {
+  return (
+    <Suspense fallback={null}>
+      <NuevaConsultaForm />
+    </Suspense>
   );
 }
