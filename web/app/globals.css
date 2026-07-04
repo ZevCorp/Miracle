@@ -16,7 +16,7 @@
   --color-mist: #cbd5e1;
   --color-deep: #0c1424; /* navy profundo (statement) + texto fuerte */
   --color-deep-2: #131e33;
-  --color-night: #0c1424; /* superficies que SIEMPRE son oscuras (sidebar, avatares) */
+  --color-night: #1d3358; /* superficies que SIEMPRE son oscuras (sidebar, avatares) */
 
   /* Tinta / texto */
   --color-ink: #0e1726;
@@ -27,10 +27,10 @@
   --color-surface: #ffffff;
 
   /* Acento (azul confianza) */
-  --color-accent: #1f6feb;
-  --color-accent-hover: #185ed0;
-  --color-accent-soft: #e9f1fe;
-  --color-accent-ink: #0a3a8c;
+  --color-accent: #5b97f5;
+  --color-accent-hover: #3f7fee;
+  --color-accent-soft: #eef4fe;
+  --color-accent-ink: #1a4fa0;
 
   /* Estados semánticos */
   --color-success: #13795b;
