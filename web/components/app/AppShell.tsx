@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Menu, Moon, Search, Sun } from "lucide-react";
+import { CloudUpload, Menu, Moon, Search, Sun } from "lucide-react";
+import { useStore } from "@/app/app/providers";
 import { AppSidebar } from "./AppSidebar";
 import { MedicalChat } from "./MedicalChat";
 import { CommandPalette } from "./CommandPalette";
@@ -25,6 +26,7 @@ export function AppShell({
   const [drawer, setDrawer] = useState(false);
   const [cmdk, setCmdk] = useState(false);
   const [dark, setDark] = useState(false);
+  const { syncing } = useStore();
 
   // El script anti-flash del layout ya aplicó la clase en <html>; aquí solo
   // sincronizamos el ícono del botón con ese estado.
@@ -84,12 +86,31 @@ export function AppShell({
             </kbd>
           </button>
 
+          {/* En móvil no hay ⌘K: la lupa abre el mismo buscador. */}
+          <button
+            type="button"
+            aria-label="Buscar paciente o consulta"
+            onClick={() => setCmdk(true)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-deep hover:bg-ice-soft sm:hidden"
+          >
+            <Search size={19} />
+          </button>
+
           <div className="ml-auto flex items-center gap-3">
+            {syncing ? (
+              <span
+                role="status"
+                className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1.5 text-xs font-semibold text-warning"
+              >
+                <CloudUpload size={13} className="animate-pulse" />
+                <span className="hidden sm:inline">Guardando cambios…</span>
+              </span>
+            ) : null}
             <button
               type="button"
               onClick={toggleTheme}
               aria-label={dark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-ice-soft hover:text-deep"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-ice-soft hover:text-deep"
             >
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>

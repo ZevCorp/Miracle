@@ -73,7 +73,8 @@ export default async function PacientesPage({
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium text-deep">{p.nombre}</div>
               <div className="truncate text-xs text-muted">
-                {p.edad ?? 0} años · {p.sexo === "M" ? "Masculino" : "Femenino"} ·{" "}
+                {p.edad ?? 0} años
+                {p.sexo ? ` · ${p.sexo === "M" ? "Masculino" : "Femenino"}` : ""} ·{" "}
                 {p.documento || "Por registrar"} · {p.eps || "Por registrar"}
               </div>
             </div>

@@ -53,7 +53,8 @@ function NuevaConsultaForm() {
   const [newPatientName, setNewPatientName] = useState("");
   const [newPatientDocument, setNewPatientDocument] = useState("");
   const [newPatientAge, setNewPatientAge] = useState("");
-  const [newPatientSex, setNewPatientSex] = useState<"F" | "M">("F");
+  // "" = sin registrar: no se inventa un sexo por defecto.
+  const [newPatientSex, setNewPatientSex] = useState<"F" | "M" | "">("");
   const [requireConsent, setRequireConsent] = useState(false);
   const [consentGiven, setConsentGiven] = useState(false);
 
@@ -176,14 +177,14 @@ function NuevaConsultaForm() {
       nombre,
       documento: newPatientDocument,
       edad: Number.isFinite(edad) ? edad : 0,
-      sexo: newPatientSex,
+      sexo: newPatientSex || undefined,
     });
 
     elegir(p.id, p.nombre);
     setNewPatientName("");
     setNewPatientDocument("");
     setNewPatientAge("");
-    setNewPatientSex("F");
+    setNewPatientSex("");
     setShowNewPatient(false);
   }
 
@@ -229,6 +230,7 @@ function NuevaConsultaForm() {
                 }}
                 onFocus={() => setOpen(true)}
                 placeholder="Buscar paciente por nombre o documento…"
+                aria-label="Buscar paciente por nombre o documento"
                 className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
               />
               {seleccionado ? (
@@ -354,9 +356,12 @@ function NuevaConsultaForm() {
                   Sexo
                   <select
                     value={newPatientSex}
-                    onChange={(event) => setNewPatientSex(event.target.value as "F" | "M")}
+                    onChange={(event) =>
+                      setNewPatientSex(event.target.value as "F" | "M" | "")
+                    }
                     className={`${inputClass} mt-1.5`}
                   >
+                    <option value="">Sin registrar</option>
                     <option value="F">Femenino</option>
                     <option value="M">Masculino</option>
                   </select>

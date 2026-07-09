@@ -28,16 +28,30 @@ function configured() {
   );
 }
 
-export async function signInWithGoogle() {
+// Solo rutas internas: evita open redirects con ?next= manipulado.
+function safeNext(value: FormDataEntryValue | null): string {
+  const next = typeof value === "string" ? value : "";
+  return next.startsWith("/") && !next.startsWith("//") ? next : "/app/dashboard";
+}
+
+// Conserva el destino al volver a /login con error, para no perder el deep link.
+function loginErrorUrl(error: string, next: string): string {
+  const keepNext =
+    next !== "/app/dashboard" ? `&next=${encodeURIComponent(next)}` : "";
+  return `/login?error=${error}${keepNext}`;
+}
+
+export async function signInWithGoogle(formData: FormData) {
   if (!configured()) {
     redirect("/login?error=missing-configuration");
   }
 
+  const next = safeNext(formData.get("next"));
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${await appUrl()}/auth/callback?next=/app/dashboard`,
+      redirectTo: `${await appUrl()}/auth/callback?next=${encodeURIComponent(next)}`,
     },
   });
 
@@ -55,19 +69,39 @@ export async function signInWithPassword(formData: FormData) {
 
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const next = safeNext(formData.get("next"));
 
   if (!email || !password) {
-    redirect("/login?error=invalid-credentials");
+    redirect(loginErrorUrl("invalid-credentials", next));
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    redirect("/login?error=invalid-credentials");
+    redirect(loginErrorUrl("invalid-credentials", next));
   }
 
-  redirect("/app/dashboard");
+  redirect(next);
+}
+
+export async function requestPasswordReset(formData: FormData) {
+  if (!configured()) {
+    redirect("/login/recuperar?error=missing-configuration");
+  }
+
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) {
+    redirect("/login/recuperar?error=missing-email");
+  }
+
+  const supabase = await createClient();
+  await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${await appUrl()}/auth/callback?next=/auth/reset`,
+  });
+
+  // Confirmación genérica siempre: no se revela si el correo existe o no.
+  redirect("/login/recuperar?sent=1");
 }
 
 export async function signOut() {

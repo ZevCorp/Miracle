@@ -20,6 +20,7 @@ import {
   type Consultation,
   type Patient,
 } from "@/lib/mock";
+import { isDemoConsultation } from "@/lib/demo";
 import { Card } from "@/components/ui/Card";
 import { MetricCard } from "@/components/marketing/MetricCard";
 import { AgendaHoy } from "@/components/app/AgendaHoy";
@@ -27,18 +28,41 @@ import { ConsultationCard } from "@/components/app/ConsultationCard";
 import { BarList, MiniLine } from "@/components/app/Charts";
 
 export default function DashboardPage() {
-  const { consultations, role } = useStore();
+  const { consultations, role, loading } = useStore();
 
-  const hoy = useMemo(() => consultations.filter((c) => esDeHoy(c.fecha)), [consultations]);
-  const pendientes = useMemo(
-    () => consultations.filter((c) => c.estado === "borrador" || c.estado === "revisada"),
+  // Las consultas de demostración no cuentan para el trabajo real del día
+  // ni para la cola de firma.
+  const reales = useMemo(
+    () => consultations.filter((c) => !isDemoConsultation(c)),
     [consultations],
   );
+  const hoy = useMemo(() => reales.filter((c) => esDeHoy(c.fecha)), [reales]);
+  const pendientes = useMemo(
+    () => reales.filter((c) => c.estado === "borrador" || c.estado === "revisada"),
+    [reales],
+  );
+
+  if (loading) return <DashboardSkeleton />;
 
   if (role === "admin") return <AdminView />;
   if (role === "supervisor")
-    return <SupervisorView consultations={consultations} pendientes={pendientes} />;
-  return <MedicoView hoy={hoy} pendientes={pendientes} consultations={consultations} />;
+    return <SupervisorView consultations={reales} pendientes={pendientes} />;
+  return <MedicoView hoy={hoy} pendientes={pendientes} consultations={reales} />;
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="mx-auto max-w-5xl" aria-busy="true" aria-label="Cargando el panel">
+      <div className="h-32 animate-pulse rounded-xl bg-ice" />
+      <div className="mt-6 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+        <div className="h-64 animate-pulse rounded-lg bg-ice-soft" />
+        <div className="space-y-5">
+          <div className="h-40 animate-pulse rounded-lg bg-ice-soft" />
+          <div className="h-40 animate-pulse rounded-lg bg-ice-soft" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ============================ MÉDICO (limpio) ============================ */
@@ -100,9 +124,21 @@ function MedicoView({
           </div>
           {pendientes.length ? (
             <div className="space-y-3">
-              {pendientes.map((c) => (
-                <ConsultationCard key={c.id} consultation={c} />
-              ))}
+              {/* Las más antiguas primero: lo que lleva más tiempo esperando firma. */}
+              {[...pendientes]
+                .sort((a, b) => (a.fecha < b.fecha ? -1 : 1))
+                .slice(0, 5)
+                .map((c) => (
+                  <ConsultationCard key={c.id} consultation={c} />
+                ))}
+              {pendientes.length > 5 ? (
+                <Link
+                  href="/app/consultas?estado=borrador"
+                  className="block rounded-md border border-dashed border-line px-4 py-2.5 text-center text-sm font-medium text-accent hover:border-mist hover:bg-ice-soft"
+                >
+                  Ver las {pendientes.length - 5} restantes
+                </Link>
+              ) : null}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 py-8 text-center">
@@ -210,8 +246,16 @@ function AdminView() {
   const k = managementKpis;
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-deep">Panel institucional</h1>
-      <p className="text-sm text-muted">Adopción, tiempo y calidad documental.</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-semibold text-deep">Panel institucional</h1>
+        <span className="rounded-full bg-warning-soft px-3 py-1 text-xs font-semibold text-warning">
+          Datos de demostración
+        </span>
+      </div>
+      <p className="text-sm text-muted">
+        Adopción, tiempo y calidad documental. Las cifras de este panel son
+        ilustrativas; se conectarán a los datos reales de tu institución.
+      </p>
 
       <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard value={String(k.notasGeneradas)} label="Notas generadas" hint="Últimas 6 semanas" />

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/observability";
 import { normalizeHora, type ParsedCita } from "@/lib/agenda";
+import { rateLimit, requireApiUser } from "@/lib/api/guard";
 
 export const runtime = "nodejs";
 
@@ -50,6 +51,17 @@ function sanitizeCitas(value: unknown): ParsedCita[] {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export async function POST(req: Request) {
+  const userId = await requireApiUser();
+  if (!userId) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+  if (!rateLimit(`parse-schedule:${userId}`, 6)) {
+    return NextResponse.json(
+      { error: "Demasiadas solicitudes. Espera un momento e intenta de nuevo." },
+      { status: 429 },
+    );
+  }
+
   let body: { image?: string };
   try {
     body = await req.json();

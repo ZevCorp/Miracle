@@ -20,7 +20,7 @@ export function Waveform({
       {BARS.map((h, i) => (
         <span
           key={i}
-          className="w-[3px] rounded-full bg-accent/70"
+          className="waveform-bar w-[3px] rounded-full bg-accent/70"
           style={{
             height: `${Math.round(h * 100)}%`,
             animation: active
@@ -30,7 +30,12 @@ export function Waveform({
           }}
         />
       ))}
-      <style>{`@keyframes wave { from { transform: scaleY(0.35); } to { transform: scaleY(1); } }`}</style>
+      <style>{`
+        @keyframes wave { from { transform: scaleY(0.35); } to { transform: scaleY(1); } }
+        @media (prefers-reduced-motion: reduce) {
+          .waveform-bar { animation: none !important; }
+        }
+      `}</style>
     </div>
   );
 }

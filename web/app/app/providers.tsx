@@ -10,9 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Loader2 } from "lucide-react";
 import {
-  doctors,
   type AuditEvent,
   type ClinicalCode,
   type CodeStatus,
@@ -25,6 +23,7 @@ import {
 } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import type { AppRole } from "@/lib/auth/roles";
+import { signConsultationNote } from "@/app/app/consultas/actions";
 
 type ToastTone = "success" | "info" | "warning";
 interface Toast {
@@ -47,6 +46,10 @@ interface StoreValue {
   patients: Patient[];
   role: Role;
   loading: boolean;
+  /** true mientras haya escrituras pendientes de sincronizar con el servidor. */
+  syncing: boolean;
+  /** Carga bajo demanda la transcripción de una consulta (no viene en la carga inicial). */
+  ensureTranscript: (id: string) => Promise<void>;
   getConsultation: (id: string) => Consultation | undefined;
   getPatient: (id: string | null | undefined) => Patient | undefined;
   getMedicoName: (id: string) => string | undefined;
@@ -64,16 +67,6 @@ interface StoreValue {
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
-
-function currentUserName(role: Role): string {
-  const map: Record<Role, string> = {
-    superadmin: "Miracle",
-    medico: "Dra. Daniela Rincón",
-    supervisor: "Dr. Mauricio Lozano",
-    admin: "Dra. Patricia Núñez",
-  };
-  return map[role] ?? doctors[0].nombre;
-}
 
 function uuid(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -94,7 +87,7 @@ function rowToPatient(r: any): Patient {
     nombre: r.nombre,
     documento: r.documento || "Por registrar",
     edad: r.edad ?? 0,
-    sexo: (r.sexo as Patient["sexo"]) ?? "F",
+    sexo: (r.sexo as Patient["sexo"]) ?? null,
     eps: r.eps || "Por registrar",
     telefono: r.telefono || "—",
     antecedentes: r.antecedentes ?? [],
@@ -136,7 +129,8 @@ export function MiracleProvider({
   userName?: string;
 }) {
   const supabase = useMemo(() => createClient(), []);
-  const actor = userName?.trim() || currentUserName(role);
+  // El actor de auditoría es siempre el usuario real; nunca un nombre ficticio.
+  const actor = userName?.trim() || "Profesional de salud";
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [consultations, setConsultations] = useState<Consultation[]>([]);
@@ -156,24 +150,30 @@ export function MiracleProvider({
   }, []);
 
   // ---- Carga inicial desde Supabase ----------------------------------------
+  // Columnas explícitas: `transcript` (el campo más pesado) se carga bajo
+  // demanda con ensureTranscript; los perfiles no exponen el email al cliente.
   const load = useCallback(async () => {
     const [patRes, conRes, profRes] = await Promise.all([
       supabase
         .from("patients")
-        .select("*")
+        .select(
+          "id, nombre, documento, edad, sexo, eps, telefono, antecedentes, alergias, medicamentos",
+        )
         .order("created_at", { ascending: false })
         .limit(PATIENTS_CAP),
       supabase
         .from("consultations")
-        .select("*")
+        .select(
+          "id, patient_id, medico_id, servicio, especialidad, tipo, estado, fecha, duracion_min, plantilla, motivo, note, resumen, codigos, firma",
+        )
         .order("fecha", { ascending: false })
         .limit(CONSULTATIONS_CAP),
-      supabase.from("profiles").select("id, full_name, email"),
+      supabase.from("profiles").select("id, full_name"),
     ]);
 
     const med: Record<string, string> = {};
     for (const p of profRes.data ?? []) {
-      med[p.id] = p.full_name || p.email || "Médico";
+      med[p.id] = p.full_name || "Médico";
     }
     setMedicos(med);
 
@@ -230,26 +230,89 @@ export function MiracleProvider({
   }, [load]);
 
   // ---- Persistencia de mutaciones ------------------------------------------
+  // Reintenta con backoff y expone `syncing` para que la UI avise mientras
+  // haya cambios sin confirmar; en cada intento se toma la versión más
+  // reciente de la consulta para no pisar ediciones posteriores.
+  const [pendingWrites, setPendingWrites] = useState(0);
+
   const persist = useCallback(
     (c: Consultation) => {
-      supabase
-        .from("consultations")
-        .update({
-          estado: c.estado,
-          note: c.note,
-          codigos: c.codigos,
-          resumen: c.resumen,
-          firma: c.firma ?? null,
-        })
-        .eq("id", c.id)
-        .then(({ error }) => {
-          if (error) {
-            console.error("[store] persist consulta", error.message);
-            showToast("No se pudo sincronizar el cambio.", "warning");
+      setPendingWrites((n) => n + 1);
+      void (async () => {
+        const delays = [1_000, 3_000, 8_000];
+        try {
+          for (let attempt = 0; ; attempt++) {
+            const latest =
+              consultationsRef.current.find((x) => x.id === c.id) ?? c;
+            const { error } = await supabase
+              .from("consultations")
+              .update({
+                estado: latest.estado,
+                note: latest.note,
+                codigos: latest.codigos,
+                resumen: latest.resumen,
+                firma: latest.firma ?? null,
+              })
+              .eq("id", c.id);
+            if (!error) return;
+            if (attempt >= delays.length) {
+              console.error("[store] persist consulta", error.message);
+              showToast(
+                "No se pudo guardar el cambio. Revisa tu conexión e intenta de nuevo.",
+                "warning",
+              );
+              return;
+            }
+            await new Promise((r) => setTimeout(r, delays[attempt]));
           }
-        });
+        } finally {
+          setPendingWrites((n) => n - 1);
+        }
+      })();
     },
     [supabase, showToast],
+  );
+
+  // Aviso del navegador si se intenta cerrar con cambios sin sincronizar.
+  // Depende del booleano (no del contador) para no re-registrar el listener
+  // en cada escritura.
+  const hasPendingWrites = pendingWrites > 0;
+  useEffect(() => {
+    if (!hasPendingWrites) return;
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault();
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasPendingWrites]);
+
+  // ---- Transcripción bajo demanda -------------------------------------------
+  const transcriptFetched = useRef(new Set<string>());
+
+  const ensureTranscript = useCallback(
+    async (id: string) => {
+      const current = consultationsRef.current.find((c) => c.id === id);
+      if (!current || current.transcript.length > 0) return;
+      if (transcriptFetched.current.has(id)) return;
+      transcriptFetched.current.add(id);
+      const { data, error } = await supabase
+        .from("consultations")
+        .select("transcript")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) {
+        transcriptFetched.current.delete(id);
+        console.error("[store] transcript", error.message);
+        return;
+      }
+      const transcript = (data?.transcript as Consultation["transcript"]) ?? [];
+      if (transcript.length) {
+        setConsultations((list) =>
+          list.map((c) => (c.id === id ? { ...c, transcript } : c)),
+        );
+      }
+    },
+    [supabase],
   );
 
   const remoteAudit = useCallback(
@@ -317,7 +380,8 @@ export function MiracleProvider({
         nombre: input.nombre.trim(),
         documento: input.documento?.trim() || "Por registrar",
         edad: input.edad && input.edad > 0 ? input.edad : 0,
-        sexo: input.sexo ?? "F",
+        // Sin valor por defecto: un dato clínico no registrado queda como null.
+        sexo: input.sexo ?? null,
         eps: input.eps?.trim() || "Por registrar",
         telefono: input.telefono?.trim() || "—",
         antecedentes: [],
@@ -332,7 +396,7 @@ export function MiracleProvider({
           nombre: nuevo.nombre,
           documento: input.documento?.trim() || null,
           edad: nuevo.edad > 0 ? nuevo.edad : null,
-          sexo: nuevo.sexo,
+          sexo: nuevo.sexo ?? null,
           eps: input.eps?.trim() || null,
           telefono: input.telefono?.trim() || null,
         })
@@ -396,21 +460,42 @@ export function MiracleProvider({
     [supabase, showToast],
   );
 
+  // La firma se hace en el servidor (valida sesión, estado y deja hash del
+  // contenido en auditoría); aquí solo se refleja el resultado en el estado.
   const approveNote = useCallback(
     (id: string) => {
-      mutate(
-        id,
-        (c) => ({
-          ...c,
-          estado: "aprobada",
-          firma: { por: actor, fecha: new Date().toISOString() },
-        }),
-        "Nota aprobada y firmada",
-        `Firmada por ${actor}`,
-      );
-      showToast("Nota aprobada y firmada.", "success");
+      void (async () => {
+        const result = await signConsultationNote(id);
+        if (!result.ok || !result.firma) {
+          showToast(result.error ?? "No se pudo firmar la nota.", "warning");
+          return;
+        }
+        const { firma } = result;
+        setConsultations((list) =>
+          list.map((c) =>
+            c.id === id
+              ? {
+                  ...c,
+                  estado: "aprobada" as const,
+                  firma,
+                  auditoria: [
+                    ...c.auditoria,
+                    {
+                      id: `a-${Date.now()}`,
+                      fecha: firma.fecha,
+                      actor: firma.por,
+                      accion: "Nota aprobada y firmada",
+                      detalle: `Firmada por ${firma.por}`,
+                    },
+                  ],
+                }
+              : c,
+          ),
+        );
+        showToast("Nota aprobada y firmada.", "success");
+      })();
     },
-    [mutate, actor, showToast],
+    [showToast],
   );
 
   const exportNote = useCallback(
@@ -497,6 +582,8 @@ export function MiracleProvider({
       patients,
       role,
       loading,
+      syncing: pendingWrites > 0,
+      ensureTranscript,
       getConsultation,
       getPatient,
       getMedicoName,
@@ -517,6 +604,8 @@ export function MiracleProvider({
       patients,
       role,
       loading,
+      pendingWrites,
+      ensureTranscript,
       getConsultation,
       getPatient,
       getMedicoName,
@@ -534,14 +623,8 @@ export function MiracleProvider({
     ],
   );
 
-  if (loading) {
-    return (
-      <div className="app-shell flex min-h-screen items-center justify-center bg-pearl">
-        <Loader2 size={32} className="animate-spin text-accent" />
-      </div>
-    );
-  }
-
+  // Sin puerta de carga global: cada página decide su propio skeleton con
+  // `loading`, y la navegación queda usable desde el primer render.
   return (
     <StoreContext.Provider value={value}>
       {children}

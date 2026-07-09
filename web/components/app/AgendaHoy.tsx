@@ -143,6 +143,17 @@ export function AgendaHoy({
     [supabase, showToast],
   );
 
+  // ---- Confirmación de borrado ----------------------------------------------
+  // Primer toque: pide confirmar; se auto-cancela a los 4 s. Evita borrados
+  // accidentales en móvil (los botones de acción están contiguos).
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!confirmId) return;
+    const t = setTimeout(() => setConfirmId(null), 4000);
+    return () => clearTimeout(t);
+  }, [confirmId]);
+
   // ---- Importación por foto ----------------------------------------------------
   const [importOpen, setImportOpen] = useState(false);
 
@@ -258,44 +269,65 @@ export function AgendaHoy({
                     Atendida
                   </span>
                 ) : null}
-                {c.estado === "programada" ? (
+                {confirmId === c.id ? (
+                  <span className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmId(null);
+                        eliminar(c.id);
+                      }}
+                      className="rounded-full bg-danger px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90"
+                    >
+                      Eliminar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmId(null)}
+                      aria-label="Cancelar eliminación"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-ice-soft"
+                    >
+                      <X size={16} />
+                    </button>
+                  </span>
+                ) : c.estado === "programada" ? (
                   <span className="flex shrink-0 items-center gap-0.5">
                     <Link
                       href={`/app/consultas/nueva?nombre=${encodeURIComponent(c.pacienteNombre)}`}
                       title="Iniciar consulta"
                       aria-label={`Iniciar consulta con ${c.pacienteNombre}`}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-accent hover:bg-accent-soft"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-accent hover:bg-accent-soft"
                     >
-                      <Play size={15} />
+                      <Play size={16} />
                     </Link>
                     <button
                       type="button"
                       onClick={() => marcarAtendida(c.id)}
                       title="Marcar atendida"
                       aria-label={`Marcar atendida la cita de ${c.pacienteNombre}`}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-mint-soft hover:text-success"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-mint-soft hover:text-success"
                     >
-                      <Check size={15} />
+                      <Check size={16} />
                     </button>
                     <button
                       type="button"
-                      onClick={() => eliminar(c.id)}
+                      onClick={() => setConfirmId(c.id)}
                       title="Eliminar cita"
                       aria-label={`Eliminar la cita de ${c.pacienteNombre}`}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-danger-soft hover:text-danger"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-danger-soft hover:text-danger"
                     >
-                      <Trash2 size={15} />
+                      <Trash2 size={16} />
                     </button>
                   </span>
                 ) : (
                   <button
                     type="button"
-                    onClick={() => eliminar(c.id)}
+                    onClick={() => setConfirmId(c.id)}
                     title="Eliminar cita"
                     aria-label={`Eliminar la cita de ${c.pacienteNombre}`}
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted hover:bg-danger-soft hover:text-danger"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted hover:bg-danger-soft hover:text-danger"
                   >
-                    <Trash2 size={15} />
+                    <Trash2 size={16} />
                   </button>
                 )}
               </li>
@@ -336,12 +368,26 @@ function ImportarFotoModal({
   const supabase = useMemo(() => createClient(), []);
   const { showToast } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // Cache del último análisis: re-analizar la misma foto no debe volver a
+  // pagar la llamada de visión.
+  const lastAnalysisRef = useRef<{ img: string; citas: ParsedCita[] } | null>(null);
 
   const [img, setImg] = useState<string | null>(null);
   const [analizando, setAnalizando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [filas, setFilas] = useState<FilaRevision[] | null>(null);
   const [agregando, setAgregando] = useState(false);
+
+  // Accesibilidad del modal: foco inicial en el diálogo y cierre con Escape.
+  useEffect(() => {
+    dialogRef.current?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   function onFile(f: File | undefined) {
     if (!f) return;
@@ -364,6 +410,10 @@ function ImportarFotoModal({
 
   async function analizar() {
     if (!img) return;
+    if (lastAnalysisRef.current?.img === img) {
+      setFilas(lastAnalysisRef.current.citas.map((c) => ({ ...c, incluir: true })));
+      return;
+    }
     setAnalizando(true);
     setAviso(null);
     try {
@@ -390,6 +440,7 @@ function ImportarFotoModal({
         );
         return;
       }
+      lastAnalysisRef.current = { img, citas };
       setFilas(citas.map((c) => ({ ...c, incluir: true })));
     } catch {
       setAviso("Error de red al analizar la imagen. Intenta de nuevo.");
@@ -451,10 +502,12 @@ function ImportarFotoModal({
         className="absolute inset-0 bg-night/40 backdrop-blur-sm"
       />
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label="Importar horario desde foto"
-        className="relative z-10 flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-[var(--shadow-xl)]"
+        className="relative z-10 flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-[var(--shadow-xl)] outline-none"
       >
         <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
           <h3 className="text-base font-semibold text-deep">

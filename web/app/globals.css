@@ -21,23 +21,25 @@
   /* Tinta / texto */
   --color-ink: #0e1726;
   --color-ink-soft: #44546b;
-  --color-muted: #6b7a8f;
+  /* ≥4.5:1 sobre surface, pearl e ice-soft (WCAG AA texto normal) */
+  --color-muted: #5d6b80;
   --color-line: #e6eaf0;
   --color-line-strong: #d4dbe6;
   --color-surface: #ffffff;
 
-  /* Acento (azul confianza) */
-  --color-accent: #5b97f5;
-  --color-accent-hover: #3f7fee;
+  /* Acento (azul confianza). 4.7:1 con blanco en ambas direcciones:
+     válido como fondo de botón con texto blanco y como texto sobre blanco. */
+  --color-accent: #2f6fe0;
+  --color-accent-hover: #2559c4;
   --color-accent-soft: #eef4fe;
   --color-accent-ink: #1a4fa0;
 
-  /* Estados semánticos */
+  /* Estados semánticos (≥4.5:1 sobre sus fondos -soft) */
   --color-success: #13795b;
   --color-success-soft: #dcf4ea;
-  --color-warning: #b45309;
+  --color-warning: #a34a06;
   --color-warning-soft: #fdeecf;
-  --color-danger: #c0392b;
+  --color-danger: #b33224;
   --color-danger-soft: #fbe3df;
   --color-info: #1f6feb;
   --color-info-soft: #e9f1fe;

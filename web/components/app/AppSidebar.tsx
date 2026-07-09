@@ -8,6 +8,7 @@ import {
   FileText,
   LayoutDashboard,
   LayoutTemplate,
+  LogOut,
   Settings,
   ShieldCheck,
   UserCog,
@@ -17,6 +18,7 @@ import {
 import { Logo } from "@/components/brand/Logo";
 import { appNav } from "@/lib/site";
 import type { AppRole } from "@/lib/auth/roles";
+import { signOut } from "@/app/login/actions";
 
 const icons: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -71,7 +73,18 @@ export function AppSidebar({
           );
         })}
       </nav>
-      <div className="border-t border-white/10 p-3">
+      <div className="space-y-1 border-t border-white/10 p-3">
+        {/* Siempre visible (también en el drawer móvil): en equipos compartidos
+            debe poderse cerrar sesión desde cualquier tamaño de pantalla. */}
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm text-mist hover:bg-white/8 hover:text-white"
+          >
+            <LogOut size={16} />
+            Cerrar sesión
+          </button>
+        </form>
         <Link
           href="/"
           onClick={onNavigate}

@@ -1,17 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import { STATUS_LABEL } from "@/lib/mock";
+import { isDemoConsultation } from "@/lib/demo";
 
 export function NotificationsBell() {
   const { consultations, getPatient } = useStore();
   const [open, setOpen] = useState(false);
 
+  // Cierre estándar con Escape.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   const pendientes = consultations.filter(
-    (c) => c.estado === "borrador" || c.estado === "revisada",
+    (c) =>
+      (c.estado === "borrador" || c.estado === "revisada") &&
+      !isDemoConsultation(c),
   );
 
   return (
@@ -20,7 +33,7 @@ export function NotificationsBell() {
         type="button"
         aria-label={`Notificaciones${pendientes.length ? `: ${pendientes.length} pendientes` : ""}`}
         onClick={() => setOpen((v) => !v)}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-ice-soft hover:text-deep"
+        className="relative inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-ice-soft hover:text-deep"
       >
         <Bell size={18} />
         {pendientes.length ? (

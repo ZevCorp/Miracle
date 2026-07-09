@@ -1,166 +1,163 @@
-# Miracle — Architecture & Infrastructure Analysis
-
-> Scope: static analysis of the `Pagina-web-clientes-final` repository (the **Miracle web** product).
-> Method: every claim cites a file path and is tagged **Confirmed in `<file>`** (read directly) or **Inferred from `<file>`** (deduced from usage). Timing that cannot be measured from code is tagged `[estimate]`.
-> Safety: no `.env`/secret files were read. Environment variables are documented by **name and purpose only**; values are `[not analyzed — sensitive]`.
-
----
-
 # System Overview
 
-Miracle is a **clinical "ambient scribe" and clinical‑operational intelligence platform** for healthcare professionals in Colombia. A clinician runs a consultation, the app assembles a structured clinical note (with AI assistance), the clinician edits/codes (CIE‑10 / CUPS) and signs it, and everything is auditable for RIPS. (Confirmed in `app/api/generate-note/route.ts`, `CONTEXTO.md`, `docs/prd-miracle-v0.md`.)
+**Miracle** is a Spanish-language, Colombia-focused **clinical documentation SaaS** for healthcare professionals. It turns a medical consultation into a structured, coded (CIE-10 / CUPS), auditable clinical note, with AI assistance and human review. The codebase is a single **Next.js 16 (App Router) + React 19** application backed by **Supabase** (managed PostgreSQL + GoTrue auth + PostgREST + RLS), with two thin server-side API routes proxying **Anthropic's Messages API** for note generation and a clinical chat assistant.
 
-- **Type of system:** Multi‑tenant SaaS web application (B2C solo clinicians + B2B hospitals). (Confirmed in `supabase/migrations/20260628000000_multi_tenant_organizations.sql`.)
-- **Primary stack:** Next.js 16.2.9 (App Router) · React 19.2.4 · TypeScript 5 · Tailwind CSS v4 · Supabase (Postgres + Auth) · Anthropic Claude API. (Confirmed in `package.json`.)
-- **Two products, one repo:** only the **web** product lives here; the "Milagro" Chrome extension that copies notes into hospital HIS is out of scope. (Confirmed in `CONTEXTO.md`; no extension code in the tree.)
+- **Confirmed in `package.json`**: `next@16.2.9`, `react@19.2.4`, `@supabase/ssr@^0.12.0`, `@supabase/supabase-js@^2.108.2`, `motion@^12.42.2`, `lucide-react`, `tailwindcss@^4`, `vitest@^4`.
+- **Confirmed in `AGENTS.md`**: the project runs a *modified* Next.js — "This is NOT the Next.js you know … APIs, conventions, and file structure may all differ." A concrete symptom: the middleware file is named **`proxy.ts`** and exports a **`proxy()`** function (not `middleware.ts` / `middleware()`).
+- **Confirmed in `lib/observability.ts`** and `README.md`: intended deployment host is **Vercel** (`README.md` "Deploy on Vercel"; observability comment: "lo captura Vercel").
+
+The product is in a **pilot/demo maturity stage**: parts of the UI still render illustrative KPI constants from `lib/mock/`, while the interactive console reads and writes **real Supabase data**.
 
 ---
 
 # Architecture Summary
 
-**Style:** a **serverless modular monolith** on the Next.js App Router, backed by a **managed BaaS (Supabase)** and one external LLM (Anthropic). There is no separate backend service, message broker, queue, or container. (Confirmed in `package.json`, `next.config.ts`; **absence** of `Dockerfile`, `docker-compose.yml`, `vercel.json`, `.github/workflows/`, any queue/worker config — Confirmed by inventory scan.)
+**Style: Modular monolith / serverless-rendered full-stack app.** A single deployable Next.js application provides both the marketing site and the authenticated console. There are no separate services, queues, or workers. "Backend" logic lives in three places:
 
-Three tiers coexist inside one Next.js app:
+1. **Next.js Server Components & Server Actions** (in-process, per-request) that talk to Supabase over PostgREST.
+2. **Supabase PostgreSQL** — the real backend: schema, **Row-Level Security** for multi-tenant isolation, and **SECURITY DEFINER RPCs** that act as transactional application services (user provisioning, onboarding, aggregations).
+3. **Two Node.js API routes** that proxy to the Anthropic API.
 
-1. **Public marketing site** — statically renderable pages under the `(marketing)` route group. (Confirmed in `app/(marketing)/`.)
-2. **Authenticated platform** — the clinical app under `app/app/`, a **client‑heavy SPA‑style shell** whose single React context (`MiracleProvider`) is the *only* bridge to Supabase for clinical data. (Confirmed in `app/app/providers.tsx`.)
-3. **Platform console** — the super‑admin area under `app/superadmin/` (organizations & users across all tenants). (Confirmed in `app/superadmin/`.)
+**Rendering is hybrid** (Confirmed by directive scan across `app/**/page.tsx`):
 
-Cross‑cutting concerns:
+| Data/render style | Where | Data source |
+|---|---|---|
+| Static/SSG Server Components | all `app/(marketing)/*` pages | static content + `lib/site.ts` |
+| Dynamic Server Components (cookie auth) reading Supabase directly | `pacientes`, `consultas`, `notas`, `auditoria`, `usuarios`, `configuracion`, `plantillas` (lists), `superadmin/*` | Supabase `.from()` / `.rpc()` |
+| Client Components reading a React-Context store hydrated from Supabase | `dashboard`, `consultas/[id]`, `pacientes/[id]`, `consultas/nueva`, `consultas/en-vivo` (+ `ReportesView`, `CommandPalette`) | `useStore()` in `app/app/providers.tsx` → client-side Supabase load |
+| Static illustrative KPIs (not real) | `dashboard` `AdminView`, parts of `ReportesView` | `lib/mock/metrics.ts` |
 
-- **Auth & routing gate:** a Next.js *proxy* (middleware) validates the session and enforces role/path rules on every protected request. (Confirmed in `proxy.ts`, `lib/supabase/proxy.ts`.)
-- **Data + security:** all persistence and multi‑tenant isolation live in Postgres via **Row‑Level Security (RLS)** and `SECURITY DEFINER` helper functions. (Confirmed in `supabase/migrations/`.)
-- **AI:** two stateless Node route handlers proxy to the Anthropic Messages API, degrading gracefully when no key is present. (Confirmed in `app/api/chat/route.ts`, `app/api/generate-note/route.ts`.)
+**Security posture is defense-in-depth** (Confirmed): `proxy.ts` (edge/middleware) gates protected routes by JWT claim → layouts re-check server-side (`app/app/layout.tsx:19`) → server actions re-check role → PostgreSQL **RLS** enforces org/role isolation at the data layer.
 
 ---
 
 # Main Components
 
-| Component | Path | Responsibility | Notes |
+| Component | Path(s) | Responsibility | Evidence |
 |---|---|---|---|
-| Root layout + theming | `app/layout.tsx`, `app/globals.css` | HTML shell, fonts, anti‑flash dark‑mode script | Confirmed |
-| Marketing pages | `app/(marketing)/*` | Public landing + subpages (demo, seguridad, piloto, contacto…) | Confirmed; mostly static |
-| Platform layout + store | `app/app/layout.tsx`, `app/app/providers.tsx` | Server‑side auth check, then renders the client `MiracleProvider` store | `providers.tsx` is the architectural center — Confirmed |
-| Clinical feature pages | `app/app/{dashboard,consultas,pacientes,notas,plantillas,auditoria,reportes,usuarios,configuracion}/` | Screens consuming `useStore()` | Confirmed |
-| Super‑admin console | `app/superadmin/{page,organizaciones,usuarios}` + `actions.ts` | Cross‑tenant management | Confirmed |
-| AI route handlers | `app/api/chat/route.ts`, `app/api/generate-note/route.ts` | Proxy to Anthropic; fallback without key | Confirmed |
-| OAuth callback | `app/auth/callback/route.ts` | Exchange OAuth code → session | Confirmed |
-| Server actions | `app/*/actions.ts` (`login`, `onboarding`, `usuarios`, `plantillas`, `superadmin`) | Mutations + auth‑guarded operations | Confirmed |
-| Auth/RBAC library | `lib/auth/roles.ts`, `lib/auth/server.ts` | Role model, `canAccessPath`, `getCurrentProfile`, `requireRole` | Confirmed |
-| Supabase clients | `lib/supabase/{client,server,proxy}.ts` | Browser / server / middleware Supabase SSR clients | Confirmed |
-| Clinical domain data | `lib/clinical/{codes,specialties,template-catalog}.ts` | CIE‑10/CUPS catalog + search, 46 specialties, template catalog | Confirmed; framework‑agnostic |
-| Domain types + rules | `lib/mock/{types,index,metrics,people,consultations,templates}.ts` | Domain types + pure helper rules (`statusTone`, `ripsChecklist`, `completitud`) | Confirmed; note the `mock/` name is legacy — types are the live domain model |
-| Template adapter | `lib/templates/custom.ts` | Supabase row → `Template` mapper | Confirmed |
-| UI kit | `components/ui/*`, `components/app/*`, `components/marketing/*`, `components/brand/*`, `components/superadmin/*` | Presentational + interactive React components | Confirmed |
-| Database schema | `supabase/migrations/*.sql` (8 files) | Tables, RLS, triggers, RPCs | Confirmed |
-
-**Notably absent (Confirmed by scan):** unit/integration tests (`*.test.*`, `*.spec.*`, `__tests__/`), CI (`.github/workflows/`), containerization (`Dockerfile`), infra‑as‑code, and any `vercel.json`.
+| Marketing site | `app/(marketing)/**` | Public pages (home, cómo-funciona, seguridad, casos-de-uso, piloto, recursos, contacto, demo) | Confirmed |
+| Authenticated console | `app/app/**` | Consultations, patients, notes, templates, audit, reports, users, settings | Confirmed |
+| Platform console | `app/superadmin/**` | Cross-org super-admin (orgs, users, overview) | Confirmed |
+| Auth gate (middleware) | `proxy.ts`, `lib/supabase/proxy.ts` | Validate JWT, resolve role, redirect | Confirmed in `proxy.ts:9` matcher |
+| Auth domain | `lib/auth/roles.ts`, `lib/auth/server.ts` | Role enum + `canAccessPath`; `getCurrentProfile`, `requireRole` | Confirmed |
+| Supabase clients | `lib/supabase/{client,server,proxy}.ts` | Browser / RSC / middleware SSR clients | Confirmed |
+| Client data store | `app/app/providers.tsx` | React-Context store; loads from Supabase, persists mutations | Confirmed |
+| AI proxy routes | `app/api/chat/route.ts`, `app/api/generate-note/route.ts` | Proxy to Anthropic (chat, note generation) | Confirmed |
+| Server actions | `app/**/actions.ts` (login, onboarding, usuarios, superadmin, plantillas, configuracion) | Mutations + validation + authz | Confirmed |
+| Clinical domain | `lib/clinical/{codes,specialties,template-catalog}.ts` | CIE-10/CUPS catalog, 50 specialties, template generator | Confirmed |
+| Domain types + rules + fixtures | `lib/mock/**` | TS interfaces, pure helpers (`completitud`, `ripsChecklist`), illustrative KPIs, seed data | Confirmed |
+| Database | `supabase/migrations/*.sql` (16 files) | Schema, RLS, triggers, RPCs, JWT hook | Confirmed |
+| Observability | `lib/observability.ts` | Single `reportError`; Sentry-ready but inert | Confirmed |
+| Tests | `tests/*.test.ts` (4 files) | Unit tests of pure functions (Vitest) | Confirmed |
+| CI | `.github/workflows/ci.yml` | lint → typecheck → test → build | Confirmed |
 
 ---
 
 # Dependency Map
 
-**Production dependencies** (Confirmed in `package.json`):
+## External runtime dependencies
 
-| Package | Version | Purpose |
+| Dependency | Purpose | Cited |
 |---|---|---|
-| `next` | 16.2.9 | App Router framework, RSC, route handlers, middleware/proxy |
-| `react`, `react-dom` | 19.2.4 | UI runtime |
-| `@supabase/ssr` | ^0.12.0 | Cookie‑based Supabase clients for browser/server/middleware |
-| `@supabase/supabase-js` | ^2.108.2 | Supabase JS SDK (queries, auth, `rpc`) |
-| `lucide-react` | ^1.21.0 | Icon set |
+| **Supabase** (Postgres + GoTrue + PostgREST) | Auth, data, RLS, RPCs | `lib/supabase/*`, all `*/actions.ts`, RSC pages |
+| **Anthropic Messages API** | Clinical note generation + chat | `app/api/chat/route.ts:54`, `app/api/generate-note/route.ts:51` (`https://api.anthropic.com/v1/messages`) |
+| **Google OAuth** | Sign-in provider | `app/login/actions.ts:37` (`signInWithOAuth({ provider: "google" })`) |
+| **WhatsApp (wa.me)** | Marketing conversion link | `lib/site.ts:16` |
+| **Google Fonts** (Schibsted Grotesk, Geist Mono, Inter) | Typography via `next/font` | `app/layout.tsx:2` |
+| **Web Speech API** (browser) | Voice dictation of note sections | `components/app/NoteSectionView.tsx` |
+| **Sentry** | Error tracking (present but **inert**) | `lib/observability.ts:9,29` (gated on `NEXT_PUBLIC_SENTRY_DSN`, commented out) |
 
-**Dev dependencies:** `tailwindcss` ^4 + `@tailwindcss/postcss`, `typescript` ^5, `eslint` ^9 + `eslint-config-next` 16.2.9, `@types/*`. (Confirmed in `package.json`.)
+## Environment variables (names + purpose only)
 
-**External services:**
+Per safety constraints, values are **`[not analyzed — sensitive]`**. Names discovered by scanning source for `process.env.*`:
 
-| Service | How reached | Evidence |
+| Variable | Purpose | Source |
 |---|---|---|
-| Supabase Postgres + Auth | `@supabase/ssr` / `supabase-js` over HTTPS; cookies for session | Confirmed in `lib/supabase/*` |
-| Anthropic Claude Messages API | `fetch("https://api.anthropic.com/v1/messages")` | Confirmed in `app/api/chat/route.ts:53`, `app/api/generate-note/route.ts:50` |
-| Google OAuth | via Supabase Auth `signInWithOAuth({provider:"google"})` | Confirmed in `app/login/actions.ts` |
-| WhatsApp (deep link only) | `https://wa.me/<number>` URL builder | Confirmed in `lib/site.ts` |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (client + server) | `lib/supabase/{client,server,proxy}.ts`, `login/actions.ts:26` |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/publishable key | same files |
+| `NEXT_PUBLIC_SITE_URL` | Base URL fallback for OAuth redirect | `app/login/actions.ts:21` |
+| `ANTHROPIC_API_KEY` | Server-side Anthropic auth (secret) | `app/api/chat/route.ts:44`, `generate-note/route.ts:21` |
+| `ANTHROPIC_MODEL` | Overrides default model id | `app/api/chat/route.ts:62`, `generate-note/route.ts:59` |
+| `NEXT_PUBLIC_SENTRY_DSN` | Enable Sentry reporting (currently unused) | `lib/observability.ts:9,29` |
 
-**Internal dependency direction (high level):** `components/* → app/app/providers.tsx (useStore) → lib/supabase → Supabase`; and `lib/clinical`, `lib/mock`, `lib/auth/roles` are **leaf** modules with no framework imports. The dependency‑rule violation is that the store (`providers.tsx`) imports the Supabase client directly rather than through an abstraction (see Clean Architecture, CA‑2). (Confirmed in `app/app/providers.tsx`.)
+> Note: `.env.local` and `.env.example` exist on disk but were **not opened** (safety constraint). All variable names above are derived solely from source-code references.
+
+## Internal module dependencies (direction)
+
+- `app/**` (interface) → `lib/auth`, `lib/clinical`, `lib/templates`, `lib/supabase`, `lib/mock` (inner/support). ✅ inward.
+- `lib/mock/types.ts` → `lib/auth/roles.ts` (both pure). ✅
+- `lib/clinical/template-catalog.ts` → `lib/mock/types.ts` (type only). ✅
+- `lib/supabase/proxy.ts` → `lib/auth/roles.ts`. ✅
+- Pure modules (`lib/auth/roles`, `lib/clinical/*`, `lib/mock` helpers) import **no** framework or Supabase code. ✅ (see CA-2)
 
 ---
 
 # Execution Paths
 
-### A. Login → protected app (Confirmed in `app/login/actions.ts`, `app/auth/callback/route.ts`, `proxy.ts`, `lib/supabase/proxy.ts`, `app/app/layout.tsx`)
-1. `/login` → server action `signInWithGoogle()` or `signInWithPassword()`.
-2. Google path redirects to `/auth/callback?next=/app/dashboard`; the **GET** route handler calls `exchangeCodeForSession(code)` and redirects to a `safeNext()`‑validated path.
-3. Every `/app/*`, `/superadmin/*`, `/onboarding` request passes the **proxy**: `getClaims()` validates the JWT, then a `profiles.role` lookup drives redirects (no session → `/login`; superadmin → `/superadmin`; role/path mismatch → `/app/dashboard?error=forbidden`).
-4. `app/app/layout.tsx` re‑checks the profile server‑side and forces `medico` onboarding when incomplete.
+### 1. Public marketing request
+Browser → Vercel edge/CDN → static Server Component render (`app/(marketing)/*`) → HTML. No auth, no DB. **[estimate]** low ms.
 
-### B. App data load (Confirmed in `app/app/providers.tsx`)
-On mount, `MiracleProvider.load()` issues parallel reads — `patients`, `consultations`, `audit_events`, `profiles` — with `select("*")` (no pagination), maps rows via `rowToPatient`/`rowToConsultation`, indexes audit by `consultation_id`, and flips `loading:false`. **No realtime subscription or polling** exists (Confirmed: no `.on(`/`subscribe`/`setInterval` in the store beyond a 3.2 s toast timeout).
+### 2. Protected navigation (every `/app`, `/superadmin`, `/onboarding` request)
+Browser → **`proxy.ts` → `lib/supabase/proxy.ts:updateSession`** → `supabase.auth.getClaims()` (validate JWT) → read `app_role` claim (fallback: `SELECT role FROM profiles`) → allow / redirect by `canAccessPath`. Then the **route layout re-checks** via `getCurrentProfile()` (`app/app/layout.tsx:19`). Latency-critical; on the hot path of every protected page.
 
-### C. Mutations (Confirmed in `app/app/providers.tsx`)
-`mutate(id, fn, accion, detalle)` = optimistic local update → fire‑and‑forget `persist()` (`consultations.update`) → optional `remoteAudit()` (`audit_events.insert`). Errors are logged, not surfaced/rolled back.
+### 3. Server-rendered data page (e.g. patients list)
+Browser → RSC `app/app/pacientes/page.tsx` → `createClient()` (cookie-scoped) → `supabase.from("patients").select(..., {count:"exact"}).range()` + `supabase.rpc("patient_consultation_counts")` → RLS filters by org → HTML. Pagination in-DB (`PAGE_SIZE = 20`). Confirmed `pacientes/page.tsx:31-52`.
 
-### D. Note generation (Confirmed in `app/app/consultas/*`, `app/api/generate-note/route.ts`)
-`consultas/nueva` → `en-vivo` (capture is **simulated** today; dictation via Web Speech API in `components/app/NoteSectionView.tsx`) → client POSTs transcript + template to `/api/generate-note` → route calls Anthropic (or returns `{connected:false}` for a local fallback draft) → note persisted via the store.
+### 4. Client console session (dashboard / consultation detail)
+`app/app/layout.tsx` → `MiracleProvider` mounts → `providers.tsx:load()` runs **4 parallel Supabase reads** (`patients` ≤500, `consultations` ≤300, `profiles`, then `audit_events` for loaded ids) → hydrates context → UI renders. Mutations (approve/export/review/code/edit) update local state **and** fire-and-forget writes back to Supabase (`persist`, `remoteAudit`). Confirmed `providers.tsx:159-303`.
 
-### E. Account creation without a service‑role key (Confirmed in `app/superadmin/actions.ts`, `supabase/migrations/20260630010000_create_org_member_rpc.sql`)
-Server action `createDoctorAccount()` re‑checks the caller role, then `supabase.rpc("create_org_member", …)`. The `SECURITY DEFINER` function authorizes internally (superadmin → any org; admin → own org only; others → `No autorizado`), creates `auth.users` + `auth.identities` (bcrypt via `extensions.crypt`), and lets the `handle_new_user` trigger place the profile from `raw_app_meta_data`.
+### 5. AI note generation (the key async/AI path)
+`app/app/consultas/en-vivo/page.tsx:finalizar()` → `fetch("/api/generate-note", POST {transcript, plantilla, paciente})` → route builds prompt → `fetch https://api.anthropic.com/v1/messages` (model `ANTHROPIC_MODEL || "claude-sonnet-4-6"`, `max_tokens: 2000`, JSON-forced via assistant-prefill `"{"`) → parse JSON → `{connected, note}` → client maps to a consultation and persists. **Falls back to a local base draft** if `ANTHROPIC_API_KEY` is unset or the call fails. Confirmed `generate-note/route.ts`, `en-vivo/page.tsx:223-248`.
 
-### F. AI chat (Confirmed in `app/api/chat/route.ts`, `components/app/MedicalChat.tsx`)
-Floating chat → POST `/api/chat` (last 20 messages) → Anthropic single (non‑streaming) response → rendered.
+### 6. Clinical chat
+`components/app/MedicalChat.tsx` → `fetch("/api/chat", POST {messages})` (last 20 kept) → Anthropic (`max_tokens: 1024`, Spanish clinical system prompt) → `{reply, connected}`. Confirmed `chat/route.ts`.
+
+### 7. Privileged provisioning (create a doctor / org)
+`app/superadmin/actions.ts` or `app/app/usuarios/actions.ts` → validate → `supabase.rpc("create_org_member", …)` → **SECURITY DEFINER** function re-verifies caller role, inserts into `auth.users` + `auth.identities`, sets profile org/role — **without** a service-role key. Confirmed migration `20260630010000_create_org_member_rpc.sql`.
+
+### 8. Sign-in
+`app/login/actions.ts:signInWithPassword|signInWithGoogle` → GoTrue → OAuth returns to `app/auth/callback/route.ts` → `exchangeCodeForSession(code)` → redirect (open-redirect-guarded by `safeNext`). On first auth, trigger `on_auth_user_created → handle_new_user` provisions a personal org + admin profile (or joins an org from `app_metadata`). Confirmed `auth/callback/route.ts`, migration `20260630000000`.
 
 ---
 
 # Infrastructure Requirements
 
-Per significant component / execution path:
-
 | Component | Purpose | Runtime characteristics | Processing cost | Latency sensitivity | Deployment style | Special constraints | Recommended optimizations |
 |---|---|---|---|---|---|---|---|
-| Marketing pages `app/(marketing)/*` | Public site / lead gen | Stateless, ephemeral, I/O‑light | Low | Low | Serverless + CDN (static/prerender) | None significant | Ensure static generation; edge cache |
-| Proxy/middleware `lib/supabase/proxy.ts` | Session validation + RBAC gate | Stateless, ephemeral, I/O‑bound | Low–Medium | **High** (blocks every protected navigation) | Serverless middleware (per‑request) | Adds `getClaims()` + a `profiles` SELECT to **every** `/app`,`/superadmin`,`/onboarding` request | Carry role in JWT/`app_metadata` to drop the per‑request DB read; keep middleware minimal |
-| Client store `MiracleProvider` | In‑memory app state + data access | **Stateful** (per tab), always‑on while open, I/O‑bound | Medium | Medium | Browser (client component) | Loads full tables with `select("*")`, unbounded; fire‑and‑forget writes hide failures | Server‑side pagination/filtering; surface write errors; consider RSC data loading |
-| Server actions `app/*/actions.ts` | Guarded mutations | Stateless, ephemeral, I/O‑bound | Low | Medium | Serverless function | Must re‑check auth (they do) | Keep; add input validation tests |
-| `POST /api/chat` | Clinical Q&A via LLM | Stateless, ephemeral, I/O‑bound (waits on Anthropic) | Medium (≈1,024 out‑tokens) | **High** | Serverless (Node runtime) | **No auth, no rate limit, no streaming**; platform function timeout ~60 s `[estimate]` | Require session; rate‑limit; **stream**; set `maxDuration` |
-| `POST /api/generate-note` | Transcript → structured note | Stateless, ephemeral, I/O‑bound | Medium–High (≈2,000 out‑tokens) | **High/Critical** (blocks note creation) | Serverless (Node runtime) | Same gaps as `/api/chat`; JSON‑parse fragility on model output | Auth + rate limit; stream/prefill; schema‑validate response |
-| `GET /auth/callback` | OAuth code exchange | Stateless, ephemeral | Low | Medium | Serverless function | Open‑redirect guard present (`safeNext`) | None urgent |
-| Supabase Postgres | System of record + RLS + RPC | **Stateful**, always‑on (managed) | Medium (managed tier) | **Critical** (every query/auth) | Managed (external) | RLS + `SECURITY DEFINER` overhead; **US‑East region** vs Colombian health data (legal); unindexed FKs flagged by advisors | Add covering indexes (FKs); review data‑residency region; connection pooling (Supavisor) |
-| Anthropic Claude API | LLM inference | External, stateless per call, provider CPU/GPU‑heavy | **Very High** (relative $/latency) | High | External / managed | Token cost, provider rate limits, key not yet configured | Prompt caching; smaller/faster model for chat; streaming; budget alarms |
-| Web Speech API (dictation) | Voice → text in notes | Client‑side, ephemeral | Low (device) | Low | Browser | Chrome‑centric support; Spanish accuracy varies | Feature‑detect + graceful fallback (already component‑local) |
+| Marketing pages (`app/(marketing)/*`) | Public site | Stateless, ephemeral, I/O-light | **Low** | **Low** | Serverless / Static (CDN) | None | Ensure static generation + CDN cache; already caps `next/image` device sizes (`next.config.ts:13`) |
+| Auth gate `proxy.ts` | Route protection | Stateless, ephemeral, I/O-bound (JWT verify; occasional profiles read) | **Low** | **Critical** (every protected request) | Edge / Middleware | Must stay fast; DB fallback adds a round-trip when the JWT claim is absent | **Enable the custom access-token hook** so the role is always in-claim (removes fallback query); keep verification edge-local |
+| RSC data pages (`pacientes`,`consultas`,`notas`,`auditoria`,`usuarios`,`configuracion`,`plantillas`, `superadmin/*`) | Server-rendered data views | Stateless, ephemeral, I/O-bound (PostgREST) | **Low–Medium** | **Medium** | Serverless (Node) | Dynamic (cookies) → not cacheable; per-request DB | Keep in-DB pagination/aggregation (already done via RPCs); add per-request caching where safe |
+| Server actions (`*/actions.ts`) | Mutations/authz | Stateless, ephemeral, I/O-bound | **Low** | **Medium** | Serverless (Node) | Re-validate role; rely on RLS | Fine as-is; add structured audit |
+| **AI routes** (`/api/chat`, `/api/generate-note`) | LLM proxy | Stateless, ephemeral, **I/O-bound (outbound LLM)**, non-streaming | **High–Very High** (token inference; 1024–2000 out) | **High** (user waits for the note) | Serverless (Node, `runtime="nodejs"`) | **No auth guard**; **not in proxy matcher**; serverless **timeout** vs. multi-second LLM; no `maxDuration` set; no transcript size cap in generate-note | **Add session auth + rate limiting**; **stream** responses; set `export const maxDuration`; cap transcript length |
+| Client store (`providers.tsx`) | Console data cache | **Stateful (browser memory)**, always-on per session | **Medium** | **Medium** (blocks console with a spinner until loaded) | Client (browser) | Bulk-loads ≤300 consultations + ≤500 patients + all profiles on mount | Scope load by role/date; move to server-fetched, paginated reads or a query cache |
+| **Supabase** (Postgres + GoTrue + PostgREST) | System of record, auth, RLS, RPCs | **Stateful, always-on, managed** | **Medium** | **Medium** | Managed (external) | RLS on every table; JWT hook must be enabled in dashboard; `create_org_member` writes GoTrue internal tables | Monitor RLS query plans; FK indexes already added (`20260630020000`) |
+| Anthropic API | Note/chat inference | External, stateful upstream | **Very High** | **High** | External SaaS | Rate limits, cost, key secrecy | Cache/cap tokens; protect the key (see AI routes) |
+| Google OAuth / GoTrue | Identity | External/managed | **Low** | **Medium** | Managed | Redirect allow-list | Keep `safeNext` guard |
 
-**Environment variables (names + purpose only; values `[not analyzed — sensitive]`):**
-
-| Name | Scope | Purpose | Evidence |
-|---|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Public | Supabase project URL | Confirmed in `lib/supabase/client.ts`, `server.ts`, `proxy.ts` |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public | Supabase publishable (anon) key | Confirmed in same files |
-| `NEXT_PUBLIC_SITE_URL` | Public | App origin for OAuth redirect | Confirmed in `app/login/actions.ts` |
-| `ANTHROPIC_API_KEY` | Server‑only (sensitive) | Auth to Anthropic Messages API | Confirmed in `app/api/chat/route.ts:43`, `app/api/generate-note/route.ts:20` |
-| `ANTHROPIC_MODEL` | Server‑only | Override default model (`claude-sonnet-4-6`) | Confirmed in `app/api/*/route.ts` |
-
-> `SUPABASE_SERVICE_ROLE_KEY` appears only as a **commented placeholder** in `.env.example` and is **not read by any code path** (account creation uses the `create_org_member` RPC instead). (Confirmed in `.env.example`; no `process.env.SUPABASE_SERVICE_ROLE_KEY` in source.)
-
-**Deployment target:** Vercel (`miracle-web`) with auto‑deploy from `main`. **Inferred from** `CONTEXTO.md`/`docs/` (documentation) — there is **no `vercel.json` in the repo** to confirm build/runtime overrides.
+Timing values are **[estimate]** where noted; exact latencies are not measurable from static analysis.
 
 ---
 
 # Processing Cost and Runtime Notes
 
-- **LLM cost drivers** are the two `/api/*` routes. Chat caps output at `max_tokens: 1024`; note generation at `max_tokens: 2000` and prefills an assistant `"{"` to coerce JSON. Both are **non‑streaming** — the function holds the connection for the full model latency (`[estimate]` ~2–10 s per call) before returning. (Confirmed in `app/api/chat/route.ts:60`, `app/api/generate-note/route.ts:57`.)
-- **DB round‑trips per navigation:** the proxy performs a JWT validation plus one `profiles` SELECT on **every** protected request (Confirmed in `lib/supabase/proxy.ts`), and the app’s initial mount performs **four** unpaginated table reads (Confirmed in `app/app/providers.tsx`). This is the main latency/scaling concern as data grows.
-- **Compute profile:** overwhelmingly **I/O‑bound** (DB + LLM waits). No CPU/GPU‑heavy server work, no long‑lived connections, no background jobs. (Confirmed by absence of workers/cron/websockets.)
-- **Write durability:** clinical mutations are **fire‑and‑forget** with only console logging on failure (Confirmed in `app/app/providers.tsx` `persist`/`remoteAudit`) — a correctness risk for a system of record.
+- **Only the AI routes are cost/latency-significant.** Everything else is thin request/response over PostgREST. `generate-note` requests up to `max_tokens: 2000` and **awaits the full response** (no streaming), so wall-clock is dominated by Anthropic inference — **[estimate]** several seconds. This collides with serverless function timeouts (Vercel Hobby ≈10 s, Pro ≈60 s by default) and no `maxDuration` is declared. Confirmed `generate-note/route.ts:58-67`.
+- **`chat` bounds history to the last 20 messages** (`chat/route.ts:38`) — good cost control. **`generate-note` has no input-size cap** on `transcript` — an unbounded transcript inflates token cost. Confirmed.
+- **Client hydration cost**: the console shows a full-screen spinner until `load()` resolves 4 queries (`providers.tsx:537-543`); for large orgs the ≤300/≤500 caps bound memory but the initial payload can still be heavy. Confirmed.
+- **CPU-heavy work**: none server-side. Voice dictation (`NoteSectionView`) runs on the **client** via Web Speech API — zero server cost. No image/video/GPU processing anywhere.
+- **No always-on processes, cron jobs, queues, brokers, or WebSockets.** The "live" consultation (`en-vivo`) is a **simulation** driven by `setInterval` over a hardcoded `SCRIPT`, not a real audio/STT stream. Confirmed `en-vivo/page.tsx:210-221`.
 
 ---
 
 # Optimization Opportunities
 
-1. **Secure & stream the AI routes** — add session verification + rate limiting inside `app/api/chat/route.ts` and `app/api/generate-note/route.ts`; switch to streaming and set `maxDuration`. (High value: cost, abuse, latency.) — Confirmed gaps in both files.
-2. **Drop the per‑request `profiles` read** in the proxy by carrying `role` in the JWT/`app_metadata`. — `lib/supabase/proxy.ts`.
-3. **Paginate/scope the initial load** — replace `select("*")` full‑table reads with server‑side filtering/pagination or RSC loaders. — `app/app/providers.tsx`.
-4. **Make writes observable** — return/surface errors from `persist()`/`remoteAudit()` and consider retry, so a failed save to a legal record is not silent. — `app/app/providers.tsx`.
-5. **Add DB indexes** flagged by Supabase advisors (unindexed FKs on `audit_events.organization_id`, `consultations.medico_id`, `patients.created_by`, `profiles.organization_id`). — migration follow‑up.
-6. **Consolidate RLS policies** (multiple permissive policies per table/action after the superadmin migration) if query volume grows. — `supabase/migrations/20260630000000_*.sql`.
-7. **Introduce automated tests + CI** — none exist today (see CA‑7).
+1. **Secure the AI routes (highest priority).** `/api/chat` and `/api/generate-note` perform **no authentication** and are **excluded from the `proxy.ts` matcher** (which only covers `/app`, `/superadmin`, `/onboarding` — `proxy.ts:9`). Anyone can invoke them and burn the `ANTHROPIC_API_KEY`. Add a session check (`getCurrentProfile`) + rate limiting. **Confirmed** (no auth code in either route).
+2. **Stream AI responses & set `maxDuration`.** Convert both routes to streaming and declare `export const maxDuration` to avoid gateway timeouts and improve perceived latency.
+3. **Enable the custom access-token hook.** The function exists (`20260630050000`) but is **inert until enabled in the Supabase dashboard**; enabling it removes the per-request `profiles` fallback read in `proxy.ts:52-59`.
+4. **Reconcile the client store with server pagination.** List pages already moved to in-DB pagination/aggregation; the bulk client load in `providers.tsx` is now the odd one out. Scope it (by role/recent window) or replace with query-cache reads.
+5. **Single source of truth for the RIPS/completeness rule.** `completitud`/`ripsChecklist` (`lib/mock/index.ts:79-101`) is **re-implemented in SQL** (`consultation_audit_stats`, `20260630080000` — its header says "Replica la fórmula de `completitud`"). These will drift. Centralize.
+6. **Introduce a data-access layer (ports/repositories).** Supabase calls are scattered across RSC pages, server actions, and the client store. A repository seam would improve testability and decouple from PostgREST (see CA-5/CA-7).
+7. **Remove/relocate dead demo data.** The seed arrays `patients` (`lib/mock/people.ts`) and `consultations` (`lib/mock/consultations.ts`) are **not imported at runtime** (Inferred — no runtime import found; only types, helpers, `doctors`, `templates`, and static KPIs are used). Separate real domain types/helpers from demo fixtures, and rename `lib/mock` accordingly.
+8. **Enable Sentry.** `reportError` is Sentry-ready but commented out (`lib/observability.ts:28-29`).
 
 ---
 
@@ -170,284 +167,370 @@ Per significant component / execution path:
 
 | # | Principle | Score (0–4) | Compliance % | Status |
 |---|---|---|---|---|
-| CA‑1 | Layer Separation | 2 | 50% | 🟠 |
-| CA‑2 | Dependency Rule | 1 | 25% | 🔴 |
-| CA‑3 | Entities / Domain Model | 2 | 50% | 🟠 |
-| CA‑4 | Use Cases / Application Layer | 1 | 25% | 🔴 |
-| CA‑5 | Ports & Adapters | 1 | 25% | 🔴 |
-| CA‑6 | Frameworks at the Edge | 3 | 75% | 🟡 |
-| CA‑7 | Testability | 0 | 0% | 🔴 |
-| | **Overall** | **10 / 28** | **36%** | 🟠 |
+| CA-1 | Layer Separation | 2 | 50% | 🟠 |
+| CA-2 | Dependency Rule | 3 | 75% | 🟡 |
+| CA-3 | Entities / Domain Model | 2 | 50% | 🟠 |
+| CA-4 | Use Cases / Application Layer | 2 | 50% | 🟠 |
+| CA-5 | Ports & Adapters | 1 | 25% | 🔴 |
+| CA-6 | Frameworks at the Edge | 2 | 50% | 🟠 |
+| CA-7 | Testability | 2 | 50% | 🟠 |
+| | **Overall** | **14/28** | **50%** | 🟠 |
 
-Overall = (10 ÷ 28) × 100 = **36%**. Status legend: 🔴 0–25% · 🟠 26–50% · 🟡 51–75% · 🟢 76–100%.
+Status: 🔴 0–25% · 🟠 26–50% · 🟡 51–75% · 🟢 76–100%. Overall = (14 ÷ 28) × 100 = **50%**.
 
-### Per‑principle narrative
+> Interpretation: this is a **well-built but conventional** Next.js + Supabase app. It never sets out to implement formal Clean Architecture — it leans into framework idioms (RSC, Server Actions, RLS). Its pure modules are clean and correctly-directed; its data access is framework-coupled and port-less.
 
-**CA‑1 · Layer Separation — 2/4 (🟠).** Domain/clinical knowledge is cleanly isolated in `lib/`, but application logic is fused into React.
-- Compliant: `lib/mock/types.ts` (types outside the framework); `lib/auth/roles.ts` (RBAC rules); `lib/clinical/codes.ts` (framework‑agnostic catalog).
-- Violations: `app/app/providers.tsx` mixes state, persistence, auditing and UI feedback in one React context; `app/app/consultas/page.tsx` filters domain objects directly in the page; `components/app/NoteSectionView.tsx` owns editing + speech logic with no domain layer.
-- **Most impactful fix:** extract an application layer out of `providers.tsx` (see roadmap P3).
+---
 
-**CA‑2 · Dependency Rule — 1/4 (🔴).** Inner code mostly avoids framework imports, but the store hard‑couples to Supabase.
-- Compliant: `lib/mock/types.ts`, `lib/clinical/codes.ts`, `lib/auth/roles.ts` (zero React/Next/Supabase imports).
-- Violations: `app/app/providers.tsx` imports `createClient` from `@/lib/supabase/client` and calls `supabase.from(...)` throughout; `lib/templates/custom.ts` defines `CustomClinicalTemplateRow` (a Supabase row shape) alongside domain mapping.
-- **Most impactful fix:** put a repository/port between the store and Supabase (P1).
+### CA-1 — Layer Separation · Score 2 (50%) 🟠
+*Cohesive support modules exist, but business orchestration and data access are interleaved with the framework.*
 
-**CA‑3 · Entities / Domain Model — 2/4 (🟠).** Rich domain *data*, but anemic *entities*.
-- Compliant: `lib/mock/index.ts` pure rules (`statusTone`, `acceptedCodes`, `ripsChecklist`, `completitud`); `lib/clinical/specialties.ts` (46 structured specialties); `lib/clinical/codes.ts` (CIE‑10/CUPS + search).
-- Violations: types in `lib/mock/types.ts` (`Patient`, `Consultation`, `NoteSection`, `ClinicalCode`…) carry no behavior; state transitions (`approveNote`, `setCodeStatus`, `addCode`, `updateNote`) live in `app/app/providers.tsx`, not in domain objects; no domain services (e.g. a `ConsultationCoder`).
-- **Most impactful fix:** move state‑transition rules into domain services/entities (P5).
+**Compliant examples**
+- `lib/auth/roles.ts` — pure authorization policy (`canAccessPath`, `isAppRole`), no framework imports.
+- `lib/clinical/{codes,specialties,template-catalog}.ts` — self-contained clinical domain data + search.
+- `lib/supabase/*` isolates client construction from callers.
 
-**CA‑4 · Use Cases / Application Layer — 1/4 (🔴).** Server actions give partial structure; core flows are a fat controller.
-- Compliant: `app/app/plantillas/actions.ts` (`createCustomTemplate`), `app/app/usuarios/actions.ts` (`updateUserRole`), `app/superadmin/actions.ts` — validate → authorize → persist.
-- Violations: `app/app/providers.tsx` `mutate()` and mutation methods do state + persistence + audit + toast in one place; `load()` mixes fetching/transforming/indexing; `components/app/NoteSectionView.tsx` bundles editing/autosave/speech.
-- **Most impactful fix:** define use‑case functions that receive a repository port (P3).
+**Violations**
+- RSC pages call the data store directly: `app/app/pacientes/page.tsx:31` (`supabase.from("patients")...`) — persistence concerns inside an interface component.
+- Server actions mix validation + data access + framework primitives (`app/superadmin/actions.ts` uses `FormData`, `redirect`, `revalidatePath`, and `supabase.from(...)` together).
+- AI prompt/business logic lives inside the HTTP handler (`app/api/generate-note/route.ts:36-46`).
 
-**CA‑5 · Ports & Adapters — 1/4 (🔴).** A few mappers exist; no repository abstraction.
-- Compliant: `lib/templates/custom.ts` (`customTemplateToTemplate` mapper); `lib/auth/server.ts` (`getCurrentProfile` maps row → `AuthenticatedProfile` DTO); `lib/supabase/{server,client}.ts` (thin client wrappers).
-- Violations: direct `.from("…").select/insert/update` scattered across `app/app/providers.tsx` and `app/*/actions.ts`; `rowToPatient`/`rowToConsultation` live privately inside `providers.tsx` instead of an adapter module; no port interfaces.
-- **Most impactful fix:** introduce `PatientRepository`/`ConsultationRepository` ports with Supabase adapters (P1).
+**Most impactful improvement:** extract a data-access/service layer so pages and actions depend on it instead of PostgREST directly.
 
-**CA‑6 · Frameworks at the Edge — 3/4 (🟡).** Domain is largely framework‑free; the store and one DTO are the leaks.
-- Compliant: `lib/mock/types.ts`, `lib/clinical/*`, `lib/auth/roles.ts` (no framework imports).
-- Violations: `app/app/providers.tsx` pulls the Supabase client into would‑be domain code; `lib/templates/custom.ts` carries a Supabase schema type; all `components/app/*` are React‑locked (`"use client"`).
-- **Most impactful fix:** relocate Supabase row types into an infra/DTO module (P4).
+---
 
-**CA‑7 · Testability — 0/4 (🔴).** The pure functions are trivially testable, but **no tests exist and core logic is not testable in isolation**.
-- Compliant (testable but untested): `lib/clinical/codes.ts` `searchCodes`; `lib/mock/index.ts` helpers; `lib/auth/roles.ts` `isAppRole`/`canAccessPath`.
-- Violations: **zero** `*.test.*`/`*.spec.*` in the repo (Confirmed by scan); `app/app/providers.tsx` needs React + a live Supabase client; API routes call `fetch` to Anthropic with no seam to mock; no dependency injection.
-- **Most impactful fix:** add a test runner + tests for `lib/` pure functions immediately, then unlock core tests via P1/P3 (P2).
+### CA-2 — Dependency Rule · Score 3 (75%) 🟡
+*Dependencies point inward; inner modules import no framework/ORM. Partly satisfied by a thin domain, but genuinely clean.*
 
-### CA Improvement Roadmap (ordered: highest score gain first, then lowest effort)
+**Compliant examples**
+- `lib/auth/roles.ts`, `lib/clinical/*`, and `lib/mock` helpers import **no** Next.js or Supabase code.
+- `lib/mock/types.ts:3` depends only on `lib/auth/roles.ts` (inner → inner).
+- `server-only` guards prevent server modules leaking into client bundles (`lib/supabase/server.ts:1`, `lib/auth/server.ts:1`).
 
-| Priority | Action | Effort | Affected Files / Paths | CA Principles | Est. gain |
-|---|---|---|---|---|---|
-| P1 | Introduce repository **ports + Supabase adapters**; route all `.from(...)` through them; move `rowToPatient`/`rowToConsultation` into adapters | High | `app/app/providers.tsx`, `app/*/actions.ts`, new `lib/data/*` | CA‑2, CA‑5 | +4 |
-| P2 | Add a **test runner (Vitest/Jest) + CI**; unit‑test `lib/` pure functions first, then use cases | Medium | new `*.test.ts`, `.github/workflows/`, `lib/*` | CA‑7 | +3 |
-| P3 | Extract **use‑case/application functions** from `MiracleProvider` (mutations, load) that depend on ports, not Supabase | High | `app/app/providers.tsx` → `lib/application/*` | CA‑4, CA‑1 | +3 |
-| P4 | Move **Supabase row DTOs** out of domain into an infra module; map to clean types | Low | `lib/templates/custom.ts` | CA‑6 | +1 |
-| P5 | Give the **domain behavior** — encapsulate consultation/note/code state transitions in domain services or entity methods | Medium | `lib/mock/types.ts`, new `lib/domain/*` | CA‑3 | +1 |
+**Violations**
+- No *enforced* boundary (e.g. lint import rules); compliance is conventional.
+- The "domain" is thin, so the rule is easy to satisfy by omission rather than design.
+- `lib/mock` couples reusable types/helpers with demo fixtures, blurring what "inner" means.
 
-> Pragmatic note: P1 technically unblocks P2 (testing core logic) and P3 (use cases). If sequencing for momentum rather than raw score, start P2 on the already‑pure `lib/` functions in parallel with P1.
+**Most impactful improvement:** add ESLint import-boundary rules to make the inward rule intentional and durable.
+
+---
+
+### CA-3 — Entities / Domain Model · Score 2 (50%) 🟠
+*Framework-agnostic types, but anemic and duplicated across TS and SQL.*
+
+**Compliant examples**
+- `lib/mock/types.ts` — `Consultation`, `Patient`, `ClinicalCode` are plain interfaces, **no ORM decorators**, framework-free.
+- Enumerations/labels centralized (`STATUS_LABEL`, `TYPE_LABEL`, `lib/auth/roles.ts`).
+
+**Violations**
+- **Anemic model**: entities carry no behavior; rules live in free functions (`completitud`, `ripsChecklist` in `lib/mock/index.ts`).
+- **Rule duplication in the database**: `supabase/migrations/20260630080000_consultation_audit_stats.sql` re-implements the completeness formula (its own comment says so).
+- The domain model lives under a folder literally named **`mock`**, conflating model with fixtures.
+
+**Most impactful improvement:** promote the model to `lib/domain`, and make the completeness/RIPS rule one authority consumed by both TS and SQL.
+
+---
+
+### CA-4 — Use Cases / Application Layer · Score 2 (50%) 🟠
+*Each use case is centralized in one Server Action + often a SECURITY DEFINER RPC, but there is no framework-independent application layer and no DI.*
+
+**Compliant examples**
+- One action per use case, cohesive: `completeClinicalOnboarding` (`app/onboarding/actions.ts`), `createDoctorAccount` / `assignUserToOrg` / `createOrganization` (`app/superadmin/actions.ts`).
+- Privileged workflows delegated to transactional, self-authorizing RPCs: `create_org_member`, `complete_clinical_onboarding` (migrations).
+
+**Violations**
+- Actions are framework-bound (`FormData`, `redirect`, `revalidatePath`) — they *are* the controllers.
+- They instantiate infrastructure directly: `const supabase = await createClient()` (equivalent to `new`-ing an adapter), no injected ports — e.g. `app/app/plantillas/actions.ts:53`.
+- No application layer callable outside a Next.js request.
+
+**Most impactful improvement:** move orchestration into plain `use-case` functions that receive a repository port; let actions be thin adapters that call them.
+
+---
+
+### CA-5 — Ports & Adapters · Score 1 (25%) 🔴
+*No ports/interfaces; data access is direct-to-Supabase everywhere. The only redeeming trait is consistent DTO mapping.*
+
+**Compliant examples (partial)**
+- Explicit DB-row → domain **DTO mappers**: `rowToConsultation` / `rowToPatient` (`app/app/providers.tsx:91,106`) and `customTemplateToTemplate` (`lib/templates/custom.ts:17`).
+- Per-page row DTO types (e.g. `PatientRow` in `app/app/pacientes/page.tsx:9`).
+
+**Violations**
+- **No interface/port anywhere** — nothing abstracts Supabase; it cannot be swapped or faked.
+- Controllers/pages/store call PostgREST directly (`.from()`, `.rpc()`) across RSC pages, actions, and the client store.
+- No inversion of control: dependencies are concrete and imported, not injected.
+
+**Most impactful improvement:** define repository interfaces (e.g. `ConsultationRepository`) in the domain and implement a single Supabase adapter behind them.
+
+---
+
+### CA-6 — Frameworks at the Edge · Score 2 (50%) 🟠
+*Some framework confinement (server-only, centralized clients, AI HTTP in routes), but Next.js and Postgres permeate the logic.*
+
+**Compliant examples**
+- Supabase client creation confined to `lib/supabase/*`.
+- Outbound LLM HTTP confined to `app/api/*` route handlers.
+- Pure modules free of framework types (`lib/clinical/*`, `lib/auth/roles.ts`).
+
+**Violations**
+- Framework types drive core logic: `NextRequest`/`NextResponse` in `lib/supabase/proxy.ts`, `FormData`/`redirect` throughout actions.
+- Business rules pushed into **Postgres** (RLS policies, RPCs) — logic bound to a specific engine.
+- Supabase client is instantiated inline in pages/store rather than provided at the edge.
+
+**Most impactful improvement:** keep framework request/response types out of anything below the route/action boundary by translating to plain inputs immediately.
+
+---
+
+### CA-7 — Testability · Score 2 (50%) 🟠
+*The pure half is unit-tested with no DB; the data/orchestration half is untestable as written.*
+
+**Compliant examples**
+- `tests/roles.test.ts`, `tests/codes.test.ts`, `tests/clinical-rules.test.ts`, `tests/site.test.ts` run in a **`node` env with no DB/env** (`vitest.config.ts:6`).
+- Functions under test are pure (`canAccessPath`, `searchCodes`, `completitud`), so they need no mocks.
+- CI runs the suite on every push/PR (`.github/workflows/ci.yml`).
+
+**Violations**
+- **Zero tests** for server actions, RPCs, RLS, data access, or components.
+- Supabase-touching code can't be unit-tested without a live DB because there is no port to substitute (`getCurrentProfile`, the store, every action).
+- No dependency injection anywhere.
+
+**Most impactful improvement:** the CA-5 repository seam directly unlocks testing of use cases with in-memory fakes; add RLS integration tests against a disposable Supabase.
+
+---
+
+### CA Improvement Roadmap
+*Ordered by highest score gain first, then lowest effort.*
+
+| Priority | Action | Effort | Affected Files / Paths | CA Principles |
+|---|---|---|---|---|
+| P1 | Introduce repository **ports** + a single Supabase **adapter**; route all reads/writes through them | High | `lib/data/*` (new), `app/app/**/page.tsx`, `app/**/actions.ts`, `app/app/providers.tsx` | CA-5, CA-2, CA-6 |
+| P2 | Extract framework-free **use-case functions**; make Server Actions thin adapters that inject a repo | Medium | `app/**/actions.ts`, `lib/usecases/*` (new) | CA-4, CA-1 |
+| P3 | Add **unit tests** for use cases (in-memory repo) + **RLS integration tests** | Medium | `tests/**` | CA-7 |
+| P4 | Promote domain out of `lib/mock` → `lib/domain`; split fixtures; **de-dupe the completeness rule** (TS ↔ SQL) | Medium | `lib/mock/**`, `supabase/migrations/20260630080000_*.sql` | CA-3 |
+| P5 | Keep `NextRequest`/`FormData` at the edge; translate to plain DTOs before calling use cases | Low | `lib/supabase/proxy.ts`, `app/**/actions.ts` | CA-6, CA-1 |
+| P6 | Add ESLint **import-boundary** rules to enforce the dependency rule | Low | `eslint.config.mjs` | CA-2 |
 
 ---
 
 # Risks and Constraints
 
-| # | Risk / Constraint | Severity | Evidence |
+| # | Risk | Severity | Evidence |
 |---|---|---|---|
-| R1 | **Unauthenticated, unthrottled AI routes** — anyone who knows the URL can invoke `/api/chat` and `/api/generate-note` and burn the Anthropic budget once a key is set | High | Confirmed: no auth/rate‑limit in `app/api/*/route.ts` |
-| R2 | **Silent write failures** — clinical mutations are fire‑and‑forget; a failed save/audit only logs to console | High | Confirmed in `app/app/providers.tsx` (`persist`, `remoteAudit`) |
-| R3 | **No tests / no CI** — regressions in auth, RLS, or mutations are undetected pre‑deploy | High | Confirmed by scan (no `*.test.*`, no `.github/workflows/`) |
-| R4 | **Data residency / compliance** — Colombian clinical data on a US‑region Supabase; Habeas Data + 15‑yr retention obligations | High | `CONTEXTO.md`, `docs/legal-colombia.md`; region Inferred from docs |
-| R5 | **Live schema diverged from migration files** — `profiles.role` is TEXT (not the `app_role` enum in file 1); some helpers (`is_admin`) exist only in the live DB | Medium | Confirmed in `supabase/migrations/20260628000000_*.sql` comments; requires idempotent migrations |
-| R6 | **Full‑table client loads** — `select("*")` on `patients`/`consultations`/`audit_events` will not scale per tenant | Medium | Confirmed in `app/app/providers.tsx` |
-| R7 | **Model‑output fragility** — `/api/generate-note` depends on the LLM returning parseable JSON; only a try/catch guards it | Medium | Confirmed in `app/api/generate-note/route.ts:84` |
-| R8 | **Single points of failure** — hard dependency on Supabase and Anthropic; no queue/retry/backpressure | Medium | Inferred from architecture (no broker/worker) |
-| R9 | **Next.js 16 pre‑release conventions** — `proxy.ts` (not `middleware.ts`), async `cookies()`/`params`; `AGENTS.md` warns APIs differ from training data | Low–Medium | Confirmed in `AGENTS.md`, `proxy.ts` |
+| R1 | **Unauthenticated AI endpoints.** `/api/chat` & `/api/generate-note` have no session check and are outside the `proxy.ts` matcher → public LLM invocation = cost/DoS on `ANTHROPIC_API_KEY`. | **High** | `app/api/chat/route.ts` (no auth), `proxy.ts:9` (matcher excludes `/api`) |
+| R2 | **Migration ↔ live-DB drift.** RLS policies call `private.is_admin()` and assume `role` is TEXT, but the migration header states the helper "solo existe en la base viva" and the schema diverged. A fresh environment built from migrations alone would be missing objects. | **High** | `supabase/migrations/20260628000000_*.sql:83,94` (uses `private.is_admin()`); `20260630000000_*.sql:16-18` header (documents the drift) |
+| R3 | **Non-streaming LLM vs. serverless timeout.** `generate-note` awaits up to 2000 tokens with no `maxDuration`; may exceed function limits. | Medium | `app/api/generate-note/route.ts:58-67` |
+| R4 | **Hardcoded default model id** `claude-sonnet-4-6`. If invalid/unavailable, every AI call 4xx-fails (silently degrades to the local base draft). Value should be verified. | Medium | `app/api/{chat,generate-note}/route.ts` |
+| R5 | **Manual, out-of-code setup steps.** The JWT access-token hook must be enabled in the Supabase dashboard; the first super-admin is promoted by hand-run SQL. Undocumented in code → deploy runbook risk. | Medium | `20260630050000_*.sql` header; `20260630000000_*.sql:201-208` |
+| R6 | **GoTrue-internal coupling.** `create_org_member` inserts directly into `auth.users`/`auth.identities` — fragile across Supabase upgrades. | Medium | `20260630010000_create_org_member_rpc.sql:78-103` |
+| R7 | **Client bulk-load scalability.** Console hydrates ≤300 consultations + ≤500 patients + all profiles per session; large orgs strain memory/first-paint. | Medium | `app/app/providers.tsx:87-88,159-208` |
+| R8 | **PHI handling.** Real patient/clinical data flows to the browser store and to Anthropic. Consent is a per-org toggle (`require_consent`) but enforcement is UI-side; observability is careful to avoid PHI in logs (good), yet transport to a third-party LLM needs an explicit legal basis (Colombia). | Medium | `20260630030000_org_settings.sql`, `lib/observability.ts:11-12`, `docs/legal-colombia.md` |
+| R9 | **Modified Next.js.** Non-standard build (middleware renamed `proxy.ts`) → upgrades, docs, and third-party tooling may not apply. | Low–Medium | `AGENTS.md`, `proxy.ts` |
+| R10 | **Dead demo data shipped.** Unused seed arrays inflate the bundle/confuse contributors about the real data source. | Low | `lib/mock/people.ts`, `lib/mock/consultations.ts` (no runtime import found) |
 
 ---
 
 # Open Questions
 
-1. **Deployment specifics** — is Vercel the only target, and what function timeout/region is configured? No `vercel.json` in the repo to confirm. (Inferred from `CONTEXTO.md`.)
-2. **Real audio capture** — is `MediaRecorder`/real transcription implemented anywhere, or is capture still simulated? Static analysis shows Web Speech dictation only; audio recording not found in source.
-3. **PDF export mechanism** — `exportNote` implies print‑to‑PDF (`window.print`); not verified line‑by‑line here. (Inferred from `CONTEXTO.md` and store method names.)
-4. **RLS on `clinical_templates`** — is it org‑scoped or owner‑scoped only? Migration 4 shows `owner_id` CRUD; multi‑tenant sharing is unclear.
-5. **Rate‑limiting / WAF** — is any protection applied at the edge (Vercel) for the public AI routes? Not visible in code.
-6. **Observability** — no Sentry/logging platform detected; how are production errors monitored?
+1. **Are `/api/chat` and `/api/generate-note` meant to be public?** No auth exists in code; confirm intent. *(Cannot be resolved from static analysis.)*
+2. **Is the custom access-token hook enabled** in the production Supabase project? The code only provides the function; enablement is dashboard-side. *(Not visible in code.)*
+3. **Which is the source of truth — the migrations or the live DB?** The drift note in `20260630000000` implies the live DB leads. Where is `private.is_admin()` defined?
+4. **Is `claude-sonnet-4-6` the intended model id?** It is a hardcoded default; verify against the account's available models.
+5. **Deployment target = Vercel?** Inferred from `README.md` + `lib/observability.ts`; no `vercel.json` is present to confirm. *(Inferred.)*
+6. **Real ambient-audio capture roadmap?** Today `en-vivo` is a scripted simulation and dictation uses the browser Web Speech API — no server STT is integrated. Is a real audio→transcript pipeline planned (which would change the infra profile substantially)?
+7. **Is Sentry intended for launch?** It is wired but inert.
 
 ---
 
 # Infrastructure Recommendation Summary
 
-**Keep the current shape** — a serverless Next.js app on Vercel + managed Supabase + Anthropic is appropriate for the product’s stage and load profile (I/O‑bound, no heavy compute, modest concurrency). Do **not** add Kubernetes, queues, or microservices yet; there is no signal that justifies them. (Inferred from architecture.)
+**Keep the current stack — it fits the workload.** A single Next.js app on **Vercel** (serverless functions + edge middleware + CDN) plus **Supabase** (managed Postgres/Auth with RLS) is the right shape for a pilot-stage clinical SaaS: no queues, brokers, GPUs, or always-on workers are warranted by anything in the code.
 
-**Highest‑leverage infrastructure actions, in order:**
-1. **Harden the AI edge** — auth + rate limit + streaming + `maxDuration` on `/api/chat` and `/api/generate-note` **before** the Anthropic key goes live (prevents budget abuse and improves latency).
-2. **Guarantee write durability** — make clinical mutations observable (surface errors, add retry) given this is a legal system of record.
-3. **Add CI + tests** — a minimal Vitest suite over `lib/` pure functions plus a GitHub Actions pipeline (lint + build + test) to protect auth/RLS logic.
-4. **Tune the database** — add the advisor‑flagged FK indexes; revisit multiple‑permissive RLS policies; and **make a data‑residency decision** for Colombian health data.
-5. **Trim per‑request DB work** — carry role in the JWT so the proxy stops reading `profiles` on every navigation; paginate the store’s initial load.
-6. **Add observability** — error tracking (e.g. Sentry) and Supabase backups before onboarding real patients.
+**Before scaling / going to production, address in order:**
+1. **Authenticate and rate-limit the AI routes** (R1) — the single most urgent gap.
+2. **Make the AI path production-grade** — stream responses, set `maxDuration`, cap transcript size (R3).
+3. **Reconcile migrations with the live DB** — commit `private.is_admin()`, the `role`-as-TEXT change, and the enum handling as real migrations so environments are reproducible (R2); document the manual hook/super-admin steps (R5).
+4. **Enable the JWT access-token hook** to drop the per-request fallback query (perf).
+5. **Bound the client store** or move console reads server-side/paginated (R7).
+6. **Introduce a repository/ports layer** — the one change that most improves testability and long-term maintainability (CA-5 → CA-4 → CA-7).
+
+**Estimated infra tier for pilot:** Supabase Pro + Vercel Pro (for the 60 s function limit and to accommodate LLM latency), one Anthropic key with usage caps/alerts. No horizontal-scale infrastructure needed at current volumes. **[estimate]**
 
 ---
 
 # Appendix: Mermaid Diagrams
 
-### 1. High‑level system architecture (`flowchart TD`)
+## 1. High-level system architecture
 
 ```mermaid
 flowchart TD
-    U[Clinician / Admin / Super-admin] -->|HTTPS| B[Browser: Next.js 16 + React 19]
-    B --> MKT["Marketing pages (marketing) — static"]
-    B --> PX{{"Proxy / middleware (proxy.ts)"}}
-    PX -->|session + role OK| APP["Platform /app/* (MiracleProvider store)"]
-    PX -->|superadmin| SA["Console /superadmin/*"]
-    PX -->|no session| LOGIN[/login/]
-    APP -->|useStore reads/writes| SB[(Supabase Postgres + Auth + RLS)]
-    SA -->|server actions + rpc| SB
-    APP -->|fetch| AICHAT["/api/chat"]
-    APP -->|fetch| AINOTE["/api/generate-note"]
-    AICHAT -->|x-api-key| ANTH[[Anthropic Claude Messages API]]
-    AINOTE -->|x-api-key| ANTH
-    LOGIN -->|OAuth| CB["/auth/callback"]
-    CB --> SB
-    B -.WhatsApp deep link.-> WA[[wa.me]]
+    U["Clinician / Admin / Super-admin (browser)"]
+    subgraph Vercel["Vercel (Next.js 16)"]
+        MKT["Marketing pages (static RSC)"]
+        PROXY["proxy.ts (auth middleware)"]
+        RSC["Server Components (console + superadmin)"]
+        ACT["Server Actions"]
+        API["API routes /api/chat, /api/generate-note (Node)"]
+        STORE["Client store providers.tsx (browser context)"]
+    end
+    subgraph Supabase["Supabase (managed)"]
+        AUTH["GoTrue Auth + JWT hook"]
+        PG["PostgreSQL + RLS + RPCs"]
+    end
+    ANTH["Anthropic Messages API"]
+    GOO["Google OAuth"]
+
+    U --> MKT
+    U --> PROXY
+    PROXY --> RSC
+    RSC --> PG
+    ACT --> PG
+    U --> STORE
+    STORE --> PG
+    U --> API
+    API --> ANTH
+    PROXY --> AUTH
+    AUTH --> GOO
+    AUTH -. mints claims .-> PROXY
 ```
 
-### 2. Module / dependency graph (`graph TD`)
+## 2. Module / service dependency graph
 
 ```mermaid
 graph TD
-    subgraph UI[Presentation - React]
-        CMP_APP[components/app/*]
-        CMP_MKT[components/marketing/*]
-        CMP_UI[components/ui/*]
-        PAGES[app/**/page.tsx]
+    subgraph Interface["app/** (interface)"]
+        pages["RSC pages"]
+        actions["Server Actions"]
+        routes["API routes"]
+        providers["providers.tsx (client store)"]
     end
-    subgraph APPLAYER[App wiring]
-        STORE[app/app/providers.tsx - MiracleProvider]
-        ACTIONS[app/*/actions.ts - server actions]
-        PROXY[proxy.ts + lib/supabase/proxy.ts]
+    subgraph Support["lib/** (support/domain)"]
+        authRoles["lib/auth/roles.ts (pure)"]
+        authServer["lib/auth/server.ts"]
+        clinical["lib/clinical/* (pure)"]
+        templates["lib/templates/custom.ts"]
+        mock["lib/mock/* (types, helpers, fixtures)"]
+        sb["lib/supabase/*"]
+        obs["lib/observability.ts"]
     end
-    subgraph LIBLEAF[Leaf domain libs - framework free]
-        TYPES[lib/mock/types.ts]
-        RULES[lib/mock/index.ts]
-        CLIN[lib/clinical/*]
-        ROLES[lib/auth/roles.ts]
-    end
-    subgraph INFRA[Infrastructure]
-        SUPA[lib/supabase/*]
-        AUTHS[lib/auth/server.ts]
-        SBAPI[(Supabase)]
-        ANTHRO[[Anthropic]]
-        APIR[app/api/*]
-    end
-    PAGES --> STORE
-    CMP_APP --> STORE
-    STORE --> SUPA
-    STORE --> TYPES
-    STORE --> RULES
-    ACTIONS --> AUTHS
-    ACTIONS --> SUPA
-    PROXY --> ROLES
-    PROXY --> SUPA
-    AUTHS --> SUPA
-    SUPA --> SBAPI
-    APIR --> ANTHRO
-    CLIN --> TYPES
-    STORE -. dependency-rule violation .-> SUPA
+    DB[("Supabase")]
+    LLM(("Anthropic"))
+
+    pages --> sb --> DB
+    pages --> mock
+    actions --> authServer --> sb
+    actions --> clinical
+    actions --> templates --> mock
+    providers --> sb
+    providers --> mock
+    routes --> obs
+    routes --> LLM
+    authServer --> authRoles
+    sb -. proxy uses .-> authRoles
+    mock --> authRoles
 ```
 
-### 3. Primary request/data flow — generate & save a note (`sequenceDiagram`)
+## 3. Primary request/data flow — AI note generation
 
 ```mermaid
 sequenceDiagram
-    actor Med as Médico (browser)
-    participant Store as MiracleProvider
+    actor Doc as Clinician (browser)
+    participant Live as en-vivo/page.tsx
     participant API as /api/generate-note (Node)
-    participant Cl as Anthropic Claude
-    participant DB as Supabase (RLS)
-    Med->>Store: Finalizar consulta (transcript + template)
-    Store->>API: POST transcript, secciones, paciente
+    participant Anth as Anthropic API
+    participant Store as providers.tsx store
+    participant PG as Supabase (RLS)
+
+    Doc->>Live: Finalizar consulta
+    Live->>API: POST { transcript, plantilla, paciente }
     alt ANTHROPIC_API_KEY present
-        API->>Cl: POST /v1/messages (model, system, max_tokens 2000)
-        Cl-->>API: JSON note (buffered, non-streaming)
-        API-->>Store: { connected:true, note }
-    else no key
-        API-->>Store: { connected:false }
-        Store->>Store: use local fallback draft
+        API->>Anth: POST /v1/messages (model, max_tokens 2000, prefill "{")
+        Anth-->>API: JSON note { resumen, secciones, codigos }
+        API-->>Live: { connected:true, note }
+        Live->>Live: aiToConsultation(note, baseDraft)
+    else key missing / error
+        API-->>Live: { connected:false } or 5xx
+        Live->>Live: use local base draft (fallback)
     end
-    Store->>DB: consultations.insert/update (note, codigos)
-    Store->>DB: audit_events.insert (fire-and-forget)
-    DB-->>Store: ok / error (logged only)
-    Store-->>Med: navigate to /app/consultas/[id]
+    Live->>Store: addConsultation(final)
+    Store->>PG: insert consultations + audit_events (fire-and-forget)
+    Live->>Doc: redirect /app/consultas/{id}
 ```
 
-### 4. Infrastructure deployment topology (`flowchart LR`)
+## 4. Infrastructure deployment topology
 
 ```mermaid
 flowchart LR
-    subgraph Edge[Vercel - serverless + CDN]
-        MW[Proxy middleware]
-        RSC[RSC pages + server actions]
-        FN1[Fn: /api/chat]
-        FN2[Fn: /api/generate-note]
-        FN3[Fn: /auth/callback]
-        STATIC[Static marketing assets]
+    subgraph Client["Client"]
+        B["Browser (React 19 + Web Speech API)"]
     end
-    subgraph Managed[Supabase - managed]
-        PG[(Postgres + RLS)]
-        AUTH[GoTrue Auth]
-        RPC[SECURITY DEFINER RPCs]
+    subgraph Edge["Vercel Edge"]
+        CDN["CDN / static assets"]
+        MW["proxy.ts middleware"]
     end
-    EXT[[Anthropic Claude API]]
-    GOOG[[Google OAuth]]
-    Browser[Browser] --> STATIC
-    Browser --> MW --> RSC
-    Browser --> FN1 --> EXT
-    Browser --> FN2 --> EXT
-    RSC --> PG
-    RSC --> AUTH
-    RSC --> RPC
-    MW --> AUTH
-    FN3 --> AUTH
-    AUTH <--> GOOG
-    RPC --> PG
+    subgraph FaaS["Vercel Serverless (Node)"]
+        RSCF["RSC render + Server Actions"]
+        AIF["/api/chat · /api/generate-note"]
+    end
+    subgraph Managed["Managed services"]
+        SUPA["Supabase: Postgres + GoTrue + PostgREST"]
+        SENTRY["Sentry (inert)"]
+    end
+    EXT["Anthropic API"]
+    OAUTH["Google OAuth"]
+
+    B --> CDN
+    B --> MW --> RSCF --> SUPA
+    B --> AIF --> EXT
+    MW --> SUPA
+    RSCF -. reportError .-> SENTRY
+    SUPA --> OAUTH
 ```
 
-### 5. Clean Architecture layer diagram (`flowchart TD`)
+## 5. Clean Architecture layer map (dashed red = dependency-rule violation)
 
 ```mermaid
 flowchart TD
-    subgraph Entities[Entities - lib/mock/types.ts, lib/clinical/*]
-        E1[Domain types + CIE-10/CUPS + rules]
+    subgraph Entities["Entities / Domain (lib/mock types, lib/clinical, lib/auth/roles)"]
+        E["Consultation, Patient, ClinicalCode; completitud(); canAccessPath()"]
     end
-    subgraph UseCases[Use Cases - MOSTLY MISSING]
-        U1[Server actions app/*/actions.ts]
-        U2[Store mutations inside providers.tsx]
+    subgraph UseCases["Use Cases (Server Actions — framework-coupled)"]
+        UC["createDoctorAccount, completeClinicalOnboarding, createCustomTemplate"]
     end
-    subgraph Adapters[Interface Adapters]
-        A1[getCurrentProfile mapper lib/auth/server.ts]
-        A2[customTemplateToTemplate lib/templates/custom.ts]
-        A3[rowToPatient/rowToConsultation INSIDE store]
+    subgraph Interface["Interface Adapters (RSC pages, client store, DTO mappers)"]
+        IA["pages, providers.tsx, rowToConsultation()"]
     end
-    subgraph Frameworks[Frameworks & Drivers]
-        F1[Next.js / React components]
-        F2[lib/supabase/* + Supabase]
-        F3[Anthropic fetch in app/api/*]
+    subgraph Frameworks["Frameworks / Drivers (Next.js, Supabase, Anthropic)"]
+        FW["proxy.ts, lib/supabase/*, /api/* , PostgREST"]
     end
-    F1 -->|compliant| U1
-    U1 -->|compliant| A1
-    A1 -->|compliant| E1
-    A2 -->|compliant| E1
-    U2 -. violation: store imports Supabase .-> F2
-    U2 -. violation: business logic in framework .-> F1
-    A3 -. violation: adapter lives in store .-> U2
-    F2 -. violation: schema DTO in domain lib .-> E1
-    linkStyle 4,5,6,7 stroke:#e11,stroke-width:2px,stroke-dasharray:5 5
+
+    IA -->|compliant| UC
+    UC -->|compliant| E
+    FW -->|compliant| IA
+
+    IA -. "RSC pages call Supabase directly (no port)" .-> FW
+    UC -. "actions new Supabase client directly" .-> FW
+    E  -. "business rule duplicated in SQL (consultation_audit_stats)" .-> FW
+
+    linkStyle 3 stroke:#d33,stroke-dasharray:5 5
+    linkStyle 4 stroke:#d33,stroke-dasharray:5 5
+    linkStyle 5 stroke:#d33,stroke-dasharray:5 5
 ```
 
-### 6. Consultation / note lifecycle (`stateDiagram-v2`)
+## 6. Key async / event flow — consultation lifecycle
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Borrador: crear consulta
-    Borrador --> EnVivo: iniciar captura (simulada / Web Speech)
-    EnVivo --> GenerandoNota: Finalizar -> /api/generate-note
-    GenerandoNota --> EnRevision: nota IA (o borrador fallback)
-    EnRevision --> EnRevision: editar seccion + autoguardado (optimista)
-    EnRevision --> Codificada: aceptar codigos CIE-10 / CUPS
-    Codificada --> Aprobada: aprobar + firma electronica
-    Aprobada --> Exportada: exportar PDF (imprimir)
-    Exportada --> [*]
-    note right of GenerandoNota
-        Sin ANTHROPIC_API_KEY -> {connected:false}
-        y se usa un borrador base local
-    end note
-    note right of EnRevision
-        persist() y audit son fire-and-forget
-        (errores solo se registran en consola)
+    [*] --> en_curso: start (en-vivo simulation)
+    en_curso --> borrador: finalizar → generate-note → addConsultation
+    borrador --> revisada: markReviewed()
+    revisada --> aprobada: approveNote() (+ firma)
+    borrador --> aprobada: approveNote()
+    aprobada --> exportada: exportNote() → copied to HC
+    exportada --> [*]
+
+    note right of borrador
+        Each transition (mutate in providers.tsx):
+        local state -> Supabase update
+        -> audit_events insert
     end note
 ```

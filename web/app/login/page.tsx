@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BrandSphere } from "@/components/brand/BrandSphere";
 import { signInWithGoogle, signInWithPassword } from "./actions";
+import { SubmitButton } from "./SubmitButton";
 
 export const metadata: Metadata = {
   title: "Ingresar",
@@ -21,10 +22,12 @@ const messages: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
   const message = error ? messages[error] : undefined;
+  // Se propaga a las actions para volver a la página que pidió el login.
+  const nextPath = next?.startsWith("/") && !next.startsWith("//") ? next : "";
 
   return (
     <main className="flex min-h-screen items-center justify-center px-5 py-12">
@@ -49,13 +52,14 @@ export default async function LoginPage({
           ) : null}
 
           <form action={signInWithGoogle}>
-            <button
-              type="submit"
-              className="inline-flex w-full items-center justify-center gap-3 rounded-full border border-line bg-surface px-5 py-3 text-sm font-semibold text-deep shadow-[var(--shadow-sm)] transition-colors hover:bg-ice-soft"
+            {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
+            <SubmitButton
+              pendingLabel="Conectando con Google…"
+              className="inline-flex w-full items-center justify-center gap-3 rounded-full border border-line bg-surface px-5 py-3 text-sm font-semibold text-deep shadow-[var(--shadow-sm)] transition-colors hover:bg-ice-soft disabled:cursor-not-allowed disabled:opacity-60"
             >
               <GoogleIcon />
               Continuar con Google
-            </button>
+            </SubmitButton>
           </form>
 
           <div className="my-5 flex items-center gap-3 text-xs text-muted">
@@ -65,6 +69,7 @@ export default async function LoginPage({
           </div>
 
           <form action={signInWithPassword} className="space-y-3">
+            {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
             <div>
               <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-deep">
                 Correo
@@ -93,12 +98,20 @@ export default async function LoginPage({
                 className="w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent"
               />
             </div>
-            <button
-              type="submit"
-              className="inline-flex w-full items-center justify-center rounded-full bg-accent px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+            <SubmitButton
+              pendingLabel="Ingresando…"
+              className="inline-flex w-full items-center justify-center rounded-full bg-accent px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               Ingresar
-            </button>
+            </SubmitButton>
+            <div className="text-right">
+              <Link
+                href="/login/recuperar"
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
           </form>
 
           <p className="mt-5 border-t border-line pt-5 text-center text-sm text-ink-soft">

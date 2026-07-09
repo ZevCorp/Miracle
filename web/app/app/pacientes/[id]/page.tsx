@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import { formatFechaRelativa } from "@/lib/mock";
 import { Card } from "@/components/ui/Card";
@@ -13,10 +13,18 @@ import { Button } from "@/components/ui/Button";
 export default function PacienteDetallePage() {
   const params = useParams();
   const id = String(params.id);
-  const { consultations, getPatient } = useStore();
+  const { consultations, getPatient, loading } = useStore();
   const patient = getPatient(id);
 
   if (!patient) {
+    // Mientras el store carga, aún no se sabe si el paciente existe.
+    if (loading) {
+      return (
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Loader2 size={28} className="animate-spin text-accent" />
+        </div>
+      );
+    }
     return (
       <EmptyState
         title="Paciente no encontrado"
@@ -49,7 +57,8 @@ export default function PacienteDetallePage() {
         <div>
           <h1 className="text-2xl font-semibold text-deep">{patient.nombre}</h1>
           <p className="text-sm text-muted">
-            {patient.edad} años · {patient.sexo === "F" ? "Femenino" : "Masculino"} ·{" "}
+            {patient.edad} años
+            {patient.sexo ? ` · ${patient.sexo === "F" ? "Femenino" : "Masculino"}` : ""} ·{" "}
             {patient.documento} · {patient.eps}
           </p>
         </div>

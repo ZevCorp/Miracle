@@ -12,6 +12,24 @@ const nextConfig: NextConfig = {
     // optimizar y suficiente para retina).
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
   },
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          // La plataforma clínica nunca debe poder embeberse en un iframe ajeno.
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

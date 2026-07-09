@@ -18,7 +18,8 @@ export interface Patient {
   nombre: string;
   documento: string; // "CC 1.0xx.xxx.xxx"
   edad: number;
-  sexo: "F" | "M";
+  /** null = sin registrar; nunca se inventa un valor por defecto. */
+  sexo: "F" | "M" | null;
   eps: string;
   telefono: string;
   antecedentes: string[];

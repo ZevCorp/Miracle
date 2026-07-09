@@ -1,11 +1,23 @@
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/observability";
+import { rateLimit, requireApiUser } from "@/lib/api/guard";
 
 export const runtime = "nodejs";
 
 type Turn = { hablante?: string; texto?: string };
 
 export async function POST(req: Request) {
+  const userId = await requireApiUser();
+  if (!userId) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+  if (!rateLimit(`generate-note:${userId}`, 10)) {
+    return NextResponse.json(
+      { error: "Demasiadas solicitudes. Espera un momento e intenta de nuevo." },
+      { status: 429 },
+    );
+  }
+
   let body: {
     transcript?: Turn[];
     plantillaNombre?: string;
@@ -22,8 +34,11 @@ export async function POST(req: Request) {
   // Sin clave: el cliente usa su borrador base de respaldo.
   if (!apiKey) return NextResponse.json({ connected: false });
 
+  // Tope defensivo: una transcripción real puede ser larga, pero sin límite
+  // un cliente malicioso podría inflar el costo de cada llamada.
   const transcript = (body.transcript ?? [])
-    .map((t) => `${t.hablante ?? ""}: ${t.texto ?? ""}`)
+    .slice(-400)
+    .map((t) => `${String(t.hablante ?? "").slice(0, 40)}: ${String(t.texto ?? "").slice(0, 2_000)}`)
     .join("\n");
   const secciones = (body.secciones ?? []).filter(Boolean);
   const seccionesTxt = secciones.length

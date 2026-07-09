@@ -42,3 +42,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# credenciales de cuentas demo: nunca al repo
+docs/cuentas.md

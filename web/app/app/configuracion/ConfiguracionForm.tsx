@@ -59,13 +59,21 @@ export function ConfiguracionForm({
             title="Requerir consentimiento del paciente"
             desc="Solicitar confirmación antes de iniciar la captura."
           >
-            <Toggle checked={requireConsent} onChange={setRequireConsent} />
+            <Toggle
+              checked={requireConsent}
+              onChange={setRequireConsent}
+              ariaLabel="Requerir consentimiento del paciente"
+            />
           </SettingRow>
           <SettingRow
             title="Usar formatos internos del hospital"
             desc="Priorizar las plantillas propias de la institución."
           >
-            <Toggle checked={useHospitalTemplates} onChange={setUseHospitalTemplates} />
+            <Toggle
+              checked={useHospitalTemplates}
+              onChange={setUseHospitalTemplates}
+              ariaLabel="Usar formatos internos del hospital"
+            />
           </SettingRow>
         </div>
       </Card>
@@ -123,16 +131,19 @@ function Toggle({
   checked,
   onChange,
   disabled,
+  ariaLabel,
 }: {
   checked: boolean;
   onChange?: (v: boolean) => void;
   disabled?: boolean;
+  ariaLabel?: string;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={ariaLabel}
       disabled={disabled}
       onClick={() => onChange?.(!checked)}
       className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${

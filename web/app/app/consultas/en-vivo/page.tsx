@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Pause, ShieldCheck, Sparkles, Square } from "lucide-react";
+import { AlertTriangle, Loader2, Pause, ShieldCheck, Sparkles, Square } from "lucide-react";
+import { DEMO_AUDIT_ACCION } from "@/lib/demo";
 import {
   templates,
   TYPE_LABEL,
@@ -43,11 +44,13 @@ function buildDraft(
       titulo: "Identificación",
       kind: "texto",
       texto:
-        patient && patient.edad > 0
+        patient && patient.edad > 0 && patient.sexo
           ? `Paciente ${patient.sexo === "F" ? "femenina" : "masculino"} de ${patient.edad} años.`
-          : patient
-            ? `Paciente: ${patient.nombre}. Datos demográficos por completar.`
-            : "Paciente sin identificar.",
+          : patient && patient.edad > 0
+            ? `Paciente de ${patient.edad} años. Sexo por registrar.`
+            : patient
+              ? `Paciente: ${patient.nombre}. Datos demográficos por completar.`
+              : "Paciente sin identificar.",
     },
     { id: "motivo", titulo: "Motivo de consulta", kind: "texto", texto: "Cefalea de 3 días de evolución." },
     {
@@ -114,8 +117,10 @@ function buildDraft(
         id: "a1",
         fecha: new Date().toISOString(),
         actor: "Miracle IA",
-        accion: "Nota generada por IA",
-        detalle: "A partir de la captura de la consulta.",
+        // Marcador de demo: permite reconocer estas consultas y bloquear su
+        // firma/exportación mientras no exista captura real.
+        accion: DEMO_AUDIT_ACCION,
+        detalle: "A partir de una conversación simulada de demostración.",
       },
     ],
   };
@@ -220,6 +225,20 @@ function EnVivoInner() {
     };
   }, [paused, generating]);
 
+  // Aviso del navegador si se intenta cerrar/recargar con una captura en curso.
+  const secondsRef = useRef(0);
+  useEffect(() => {
+    secondsRef.current = seconds;
+  }, [seconds]);
+  useEffect(() => {
+    if (generating) return;
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (secondsRef.current > 0) e.preventDefault();
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [generating]);
+
   async function finalizar() {
     setGenerating(true);
     const base = buildDraft(patient, tipo, plantilla.nombre, seconds);
@@ -233,7 +252,11 @@ function EnVivoInner() {
           plantillaNombre: plantilla.nombre,
           secciones: plantilla.secciones,
           paciente: patient
-            ? { nombre: patient.nombre, edad: patient.edad, sexo: patient.sexo }
+            ? {
+                nombre: patient.nombre,
+                edad: patient.edad,
+                sexo: patient.sexo ?? undefined,
+              }
             : null,
         }),
       });
@@ -264,6 +287,23 @@ function EnVivoInner() {
 
   return (
     <div className="mx-auto max-w-5xl">
+      {/* Aviso imposible de ignorar: nada de esta pantalla es una atención real. */}
+      <div
+        role="alert"
+        className="mb-5 flex items-start gap-3 rounded-lg border-2 border-warning/50 bg-warning-soft px-4 py-3.5"
+      >
+        <AlertTriangle size={20} className="mt-0.5 shrink-0 text-warning" />
+        <div>
+          <p className="text-sm font-bold text-warning">
+            Esta es una demostración: la conversación es simulada.
+          </p>
+          <p className="mt-0.5 text-sm text-warning">
+            La nota que se genere quedará marcada como demostración y no podrá
+            firmarse ni exportarse como historia clínica real.
+          </p>
+        </div>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         {/* Captura */}
         <div className="rounded-lg border border-line bg-surface p-6">
@@ -272,11 +312,11 @@ function EnVivoInner() {
               <span className="h-2 w-2 animate-pulse rounded-full bg-danger" />
               {paused ? "En pausa" : "Grabando"} · {mmss(seconds)}
             </span>
+            {/* Anuncia solo los cambios de estado (no el contador) a lectores de pantalla. */}
+            <span className="sr-only" role="status" aria-live="polite">
+              {paused ? "Grabación en pausa" : "Grabación en curso"}
+            </span>
             <span className="text-xs text-muted">{TYPE_LABEL[tipo]}</span>
-          </div>
-
-          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-warning-soft px-3 py-1.5 text-xs font-medium text-warning">
-            Captura simulada (demostración) — la grabación y transcripción reales llegarán pronto.
           </div>
 
           <div className="mt-5 rounded-md bg-pearl p-4">

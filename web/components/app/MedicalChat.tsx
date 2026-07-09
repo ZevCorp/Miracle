@@ -38,10 +38,44 @@ export function MedicalChat() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ messages: next }),
       });
-      const data = await res.json();
-      const reply =
-        data.reply ?? data.error ?? "No pude responder en este momento.";
-      setMessages((m) => [...m, { role: "assistant", content: reply }]);
+
+      const contentType = res.headers.get("content-type") ?? "";
+
+      // Errores y modo sin conexión llegan como JSON.
+      if (contentType.includes("application/json")) {
+        const data = await res.json().catch(() => null);
+        const reply =
+          data?.reply ?? data?.error ?? "No pude responder en este momento.";
+        setMessages((m) => [...m, { role: "assistant", content: reply }]);
+        return;
+      }
+
+      if (!res.ok || !res.body) {
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", content: "No pude responder en este momento." },
+        ]);
+        return;
+      }
+
+      // Respuesta en streaming: se pinta a medida que llega.
+      setMessages((m) => [...m, { role: "assistant", content: "" }]);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        if (!chunk) continue;
+        setMessages((m) => {
+          const copy = [...m];
+          const last = copy[copy.length - 1];
+          if (last?.role === "assistant") {
+            copy[copy.length - 1] = { ...last, content: last.content + chunk };
+          }
+          return copy;
+        });
+      }
     } catch {
       setMessages((m) => [
         ...m,
@@ -157,13 +191,14 @@ export function MedicalChat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Escribe tu pregunta…"
+              aria-label="Pregunta para el asistente clínico"
               className="min-w-0 flex-1 rounded-full border border-line px-3.5 py-2 text-sm outline-none focus:border-accent"
             />
             <button
               type="submit"
               disabled={!input.trim() || loading}
-              aria-label="Enviar"
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-white hover:bg-accent-hover disabled:opacity-50"
+              aria-label="Enviar pregunta"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-white hover:bg-accent-hover disabled:opacity-50"
             >
               <Send size={16} />
             </button>

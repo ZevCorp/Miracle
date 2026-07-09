@@ -1,20 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   Copy,
   FileCheck2,
   Info,
+  Loader2,
   Mic,
   Plus,
   Printer,
   Send,
   Sparkles,
 } from "lucide-react";
+import { isDemoConsultation } from "@/lib/demo";
 import {
   completitud,
   formatFechaRelativa,
@@ -55,16 +58,26 @@ export default function ConsultaDetallePage() {
     addCode,
     updateNote,
     showToast,
+    loading,
+    ensureTranscript,
   } = useStore();
   const [tab, setTab] = useState("historia");
 
   const c = getConsultation(id);
 
   if (!c) {
+    // Mientras el store carga, aún no se sabe si la consulta existe.
+    if (loading) {
+      return (
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Loader2 size={28} className="animate-spin text-accent" />
+        </div>
+      );
+    }
     return (
       <EmptyState
         title="Consulta no encontrada"
-        description="Es posible que la consulta haya sido reiniciada en la demo."
+        description="Es posible que la consulta haya sido eliminada."
         action={
           <Button href="/app/consultas" variant="secondary">
             Ver consultas
@@ -77,6 +90,7 @@ export default function ConsultaDetallePage() {
   const patient = getPatient(c.pacienteId);
   const medicoNombre = getMedicoName(c.medicoId);
   const sugeridos = suggestedCodes(c);
+  const demo = isDemoConsultation(c);
 
   function copyResumen() {
     navigator.clipboard?.writeText(c!.resumen);
@@ -121,12 +135,17 @@ export default function ConsultaDetallePage() {
       .foot{margin-top:28px;border-top:1px solid #cbd5e1;padding-top:10px;font-size:11px;color:#64748b}
       @media print{body{margin:18mm}}
     </style></head><body>
+      ${
+        demo
+          ? `<div style="border:2px solid #a34a06;background:#fdeecf;color:#7c3a05;padding:8px 12px;margin-bottom:14px;font-weight:700;font-size:13px">DOCUMENTO DE DEMOSTRACIÓN — generado a partir de una conversación simulada. No válido como historia clínica.</div>`
+          : ""
+      }
       <div class="head">
         <h1>${esc(patient?.nombre ?? "Paciente sin identificar")}</h1>
         <div class="grid">
           ${
             patient && patient.edad > 0
-              ? `<span>${patient.edad} años · ${patient.sexo === "F" ? "Femenino" : "Masculino"}</span>`
+              ? `<span>${patient.edad} años${patient.sexo ? ` · ${patient.sexo === "F" ? "Femenino" : "Masculino"}` : ""}</span>`
               : ""
           }
           ${patient?.documento ? `<span>Doc: ${esc(patient.documento)}</span>` : ""}
@@ -218,28 +237,47 @@ export default function ConsultaDetallePage() {
             <Mic size={16} />
           </button>
 
-          {c.estado === "borrador" ? (
+          {/* Las consultas de demostración no se firman ni se exportan. */}
+          {!demo && c.estado === "borrador" ? (
             <Button variant="secondary" onClick={() => markReviewed(c.id)}>
               Marcar revisada
             </Button>
           ) : null}
-          {c.estado === "borrador" || c.estado === "revisada" ? (
+          {!demo && (c.estado === "borrador" || c.estado === "revisada") ? (
             <Button onClick={() => approveNote(c.id)}>
               <CheckCircle2 size={16} /> Aprobar
             </Button>
           ) : null}
-          {c.estado === "aprobada" ? (
+          {!demo && c.estado === "aprobada" ? (
             <Button onClick={() => exportNote(c.id)}>
               <FileCheck2 size={16} /> Exportar a HC
             </Button>
           ) : null}
-          {c.estado === "exportada" ? (
+          {!demo && c.estado === "exportada" ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-mint-soft px-3 py-2 text-sm font-semibold text-success">
               <CheckCircle2 size={16} /> Exportada a HC
             </span>
           ) : null}
         </div>
       </div>
+
+      {demo ? (
+        <div
+          role="alert"
+          className="mt-5 flex items-start gap-3 rounded-lg border-2 border-warning/50 bg-warning-soft px-4 py-3.5"
+        >
+          <AlertTriangle size={20} className="mt-0.5 shrink-0 text-warning" />
+          <div>
+            <p className="text-sm font-bold text-warning">
+              Consulta de demostración
+            </p>
+            <p className="mt-0.5 text-sm text-warning">
+              Esta nota proviene de una conversación simulada y no corresponde a
+              una atención real, por eso no puede firmarse ni exportarse.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {/* Tabs */}
       <div className="mt-5">
@@ -276,7 +314,9 @@ export default function ConsultaDetallePage() {
         {tab === "resumen" ? (
           <ResumenTab texto={c.resumen} onCopy={copyResumen} />
         ) : null}
-        {tab === "transcripcion" ? <TranscripcionTab consultation={c} /> : null}
+        {tab === "transcripcion" ? (
+          <TranscripcionTab consultation={c} ensureTranscript={ensureTranscript} />
+        ) : null}
         {tab === "auditoria" ? <AuditoriaTab consultation={c} /> : null}
       </div>
     </div>
@@ -574,7 +614,47 @@ function ResumenTab({ texto, onCopy }: { texto: string; onCopy: () => void }) {
   );
 }
 
-function TranscripcionTab({ consultation }: { consultation: Consultation }) {
+function TranscripcionTab({
+  consultation,
+  ensureTranscript,
+}: {
+  consultation: Consultation;
+  ensureTranscript: (id: string) => Promise<void>;
+}) {
+  // La transcripción no viene en la carga inicial (es el campo más pesado);
+  // se trae al abrir esta pestaña.
+  const [fetching, setFetching] = useState(consultation.transcript.length === 0);
+
+  useEffect(() => {
+    let ignore = false;
+    if (consultation.transcript.length === 0) {
+      ensureTranscript(consultation.id).finally(() => {
+        if (!ignore) setFetching(false);
+      });
+    } else {
+      setFetching(false);
+    }
+    return () => {
+      ignore = true;
+    };
+  }, [consultation.id, consultation.transcript.length, ensureTranscript]);
+
+  if (fetching) {
+    return (
+      <div className="flex justify-center rounded-lg border border-line bg-surface p-10">
+        <Loader2 size={22} className="animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  if (!consultation.transcript.length) {
+    return (
+      <p className="rounded-lg border border-line bg-surface p-6 text-sm text-muted">
+        Esta consulta no tiene transcripción registrada.
+      </p>
+    );
+  }
+
   return (
     <div className="rounded-lg border border-line bg-surface p-6">
       <div className="space-y-4">
