@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Check,
   FileAudio,
+  Loader2,
   Monitor,
   Search,
   UserPlus,
@@ -13,13 +14,17 @@ import {
   X,
 } from "lucide-react";
 import { useStore } from "@/app/app/providers";
-import { templates as catalogTemplates, type ConsultationType, type Template } from "@/lib/mock";
+import type { ConsultationType } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import {
-  customTemplateSelect,
-  customTemplateToTemplate,
-  type CustomClinicalTemplateRow,
-} from "@/lib/templates/custom";
+  createClinicalEncounter,
+  friendlyClinicalMessage,
+  getClinicalTemplates,
+  normalizeSpecialtyCode,
+  sortedTemplateSections,
+  toBackendConsultationType,
+  type ClinicalTemplate,
+} from "@/lib/api/clinical";
 
 const tipos: {
   id: ConsultationType;
@@ -46,17 +51,25 @@ function NuevaConsultaForm() {
   const [pacienteId, setPacienteId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [tipo, setTipo] = useState<ConsultationType>("presencial");
-  const [plantillaId, setPlantillaId] = useState(catalogTemplates[0].id);
-  const [customTemplates, setCustomTemplates] = useState<Template[]>([]);
-  const [profileSpecialtyCode, setProfileSpecialtyCode] = useState("medicina-general");
   const [showNewPatient, setShowNewPatient] = useState(false);
   const [newPatientName, setNewPatientName] = useState("");
   const [newPatientDocument, setNewPatientDocument] = useState("");
   const [newPatientAge, setNewPatientAge] = useState("");
   // "" = sin registrar: no se inventa un sexo por defecto.
   const [newPatientSex, setNewPatientSex] = useState<"F" | "M" | "">("");
-  const [requireConsent, setRequireConsent] = useState(false);
+
+  // Plantillas reales del backend clínico (institucionales + personales).
+  const [templates, setTemplates] = useState<ClinicalTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [profileSpecialtyCode, setProfileSpecialtyCode] = useState<string | null>(null);
+
+  // El backend exige consent: true para crear el encounter — siempre se pide.
   const [consentGiven, setConsentGiven] = useState(false);
+
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const seleccionado = getPatient(pacienteId);
 
@@ -76,81 +89,83 @@ function NuevaConsultaForm() {
     let ignore = false;
 
     async function loadTemplateContext() {
+      setTemplatesLoading(true);
+      setTemplatesError(null);
+
+      // La especialidad del perfil solo se usa para priorizar plantillas; si
+      // falla, se muestran todas. El catálogo clínico viene SOLO del backend.
       const supabase = createClient();
-      const [userResult, templatesResult] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase
-          .from("clinical_templates")
-          .select(customTemplateSelect)
-          .order("updated_at", { ascending: false }),
-      ]);
-
-      if (ignore) return;
-
-      const userId = userResult.data.user?.id;
-      if (userId) {
-        const { data: profile, error: profileError } = await supabase
+      const profilePromise = (async () => {
+        const { data: userData } = await supabase.auth.getUser();
+        const userId = userData.user?.id;
+        if (!userId) return null;
+        const { data: profile } = await supabase
           .from("profiles")
-          .select("specialty_code, organization_id")
+          .select("specialty_code")
           .eq("id", userId)
           .maybeSingle();
+        return profile?.specialty_code ?? null;
+      })();
 
-        if (!ignore && !profileError && profile?.specialty_code) {
-          setProfileSpecialtyCode(profile.specialty_code);
-        }
-
-        // Si la organización exige consentimiento, se pedirá antes de iniciar.
-        if (!ignore && !profileError && profile?.organization_id) {
-          const { data: org } = await supabase
-            .from("organizations")
-            .select("require_consent")
-            .eq("id", profile.organization_id)
-            .maybeSingle();
-          if (!ignore && org) setRequireConsent(Boolean(org.require_consent));
-        }
+      try {
+        const [list, specialtyCode] = await Promise.all([
+          getClinicalTemplates(),
+          profilePromise.catch(() => null),
+        ]);
+        if (ignore) return;
+        setProfileSpecialtyCode(specialtyCode);
+        setTemplates(list);
+      } catch (error) {
+        if (ignore) return;
+        setTemplates([]);
+        setTemplatesError(friendlyClinicalMessage(error));
+      } finally {
+        if (!ignore) setTemplatesLoading(false);
       }
-
-      if (templatesResult.error) {
-        console.error("[consultas/nueva] custom templates failed", {
-          code: templatesResult.error.code,
-          message: templatesResult.error.message,
-          details: templatesResult.error.details,
-          hint: templatesResult.error.hint,
-        });
-        return;
-      }
-
-      setCustomTemplates(
-        ((templatesResult.data ?? []) as CustomClinicalTemplateRow[]).map(
-          customTemplateToTemplate,
-        ),
-      );
     }
 
-    loadTemplateContext();
+    void loadTemplateContext();
 
     return () => {
       ignore = true;
     };
   }, []);
 
-  const institutionalTemplates = useMemo(
-    () =>
-      catalogTemplates.filter(
-        (template) => template.especialidadCode === profileSpecialtyCode,
-      ),
-    [profileSpecialtyCode],
+  // Personales del médico + institucionales de su especialidad (o todas si el
+  // perfil no tiene especialidad registrada o no hay coincidencias).
+  const personalTemplates = useMemo(
+    () => templates.filter((template) => template.scope === "personal"),
+    [templates],
   );
+  const institutionalTemplates = useMemo(() => {
+    const institutional = templates.filter(
+      (template) => template.scope !== "personal",
+    );
+    if (!profileSpecialtyCode) return institutional;
+    const wanted = normalizeSpecialtyCode(profileSpecialtyCode);
+    const matching = institutional.filter(
+      (template) => normalizeSpecialtyCode(template.specialty) === wanted,
+    );
+    return matching.length ? matching : institutional;
+  }, [templates, profileSpecialtyCode]);
+
   const availableTemplates = useMemo(
-    () => [...customTemplates, ...institutionalTemplates],
-    [customTemplates, institutionalTemplates],
+    () => [...personalTemplates, ...institutionalTemplates],
+    [personalTemplates, institutionalTemplates],
   );
-  const selectedTemplateId = availableTemplates.some((template) => template.id === plantillaId)
-    ? plantillaId
-    : (availableTemplates[0]?.id ?? "");
-  const plantilla =
-    availableTemplates.find((template) => template.id === selectedTemplateId) ??
-    availableTemplates[0];
+
+  // Selección con template.id REAL; si la selección quedó fuera de la lista,
+  // cae a la primera institucional (o a la primera disponible).
+  const effectiveTemplateId = availableTemplates.some(
+    (template) => template.id === selectedTemplateId,
+  )
+    ? selectedTemplateId
+    : (institutionalTemplates[0]?.id ?? availableTemplates[0]?.id ?? "");
+  const plantilla = availableTemplates.find(
+    (template) => template.id === effectiveTemplateId,
+  );
+  const plantillaSections = sortedTemplateSections(plantilla?.sections);
+
   const nombreNuevo = query.trim();
   const existeExacto = patients.some(
     (p) => p.nombre.toLowerCase() === nombreNuevo.toLowerCase(),
@@ -193,13 +208,28 @@ function NuevaConsultaForm() {
     setQuery("");
   }
 
-  function empezar() {
-    if (requireConsent && !consentGiven) return;
-    const params = new URLSearchParams({ tipo, plantilla: selectedTemplateId });
-    params.set("plantillaNombre", plantilla.nombre);
-    params.set("plantillaEspecialidad", plantilla.especialidad);
-    if (pacienteId) params.set("paciente", pacienteId);
-    router.push(`/app/consultas/en-vivo?${params.toString()}`);
+  const canStart = Boolean(effectiveTemplateId) && consentGiven && !creating;
+
+  async function empezar() {
+    if (!canStart) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const result = await createClinicalEncounter({
+        patient_id: pacienteId ?? null,
+        consultation_type: toBackendConsultationType(tipo),
+        template_id: effectiveTemplateId,
+        consent: true,
+      });
+      // El encounter_id es la llave de todo el flujo: viaja en la URL para
+      // sobrevivir recargas de la pantalla de consulta activa.
+      const params = new URLSearchParams({ encounter: result.encounter_id });
+      if (pacienteId) params.set("paciente", pacienteId);
+      router.push(`/app/consultas/en-vivo?${params.toString()}`);
+    } catch (error) {
+      setCreateError(friendlyClinicalMessage(error));
+      setCreating(false);
+    }
   }
 
   return (
@@ -436,58 +466,110 @@ function NuevaConsultaForm() {
           <h2 className="font-display text-base font-semibold text-deep">
             3 · Plantilla de nota
           </h2>
-          <select
-            value={selectedTemplateId}
-            onChange={(e) => setPlantillaId(e.target.value)}
-            className={`${inputClass} mt-3`}
-          >
-            {availableTemplates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.nombre} — {t.especialidad}
-              </option>
-            ))}
-          </select>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {plantilla.secciones.map((s) => (
-              <span
-                key={s}
-                className="rounded-full bg-ice px-2.5 py-1 text-xs text-ink-soft"
+
+          {templatesLoading ? (
+            <p className="mt-3 flex items-center gap-2 text-sm text-muted">
+              <Loader2 size={15} className="animate-spin text-accent" />
+              Cargando plantillas...
+            </p>
+          ) : templatesError ? (
+            <p
+              role="alert"
+              className="mt-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+            >
+              No se pudieron cargar las plantillas. {templatesError}
+            </p>
+          ) : availableTemplates.length === 0 ? (
+            <p className="mt-3 rounded-md border border-line bg-pearl px-3 py-2 text-sm text-muted">
+              No hay plantillas disponibles. Crea una en «Plantillas» antes de
+              iniciar la consulta.
+            </p>
+          ) : (
+            <>
+              <select
+                value={effectiveTemplateId}
+                onChange={(e) => setSelectedTemplateId(e.target.value)}
+                aria-label="Plantilla de nota"
+                className={`${inputClass} mt-3`}
               >
-                {s}
-              </span>
-            ))}
-          </div>
+                {personalTemplates.length ? (
+                  <optgroup label="Mis plantillas">
+                    {personalTemplates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                <optgroup label="Institucionales">
+                  {institutionalTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {plantillaSections.map((s) => (
+                  <span
+                    key={s.key}
+                    className="rounded-full bg-ice px-2.5 py-1 text-xs text-ink-soft"
+                  >
+                    {s.label}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </section>
 
         {/* Acción */}
         <div className="space-y-3">
-          {requireConsent ? (
-            <label className="flex items-start gap-3 rounded-lg border border-line bg-surface p-4 text-sm text-deep">
-              <input
-                type="checkbox"
-                checked={consentGiven}
-                onChange={(e) => setConsentGiven(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-accent"
-              />
-              <span>
-                Confirmo el <strong>consentimiento del paciente</strong> para registrar y
-                procesar la información de esta consulta.
-              </span>
-            </label>
+          <label className="flex items-start gap-3 rounded-lg border border-line bg-surface p-4 text-sm text-deep">
+            <input
+              type="checkbox"
+              checked={consentGiven}
+              onChange={(e) => setConsentGiven(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-accent"
+            />
+            <span>
+              Confirmo el <strong>consentimiento del paciente</strong> para registrar y
+              procesar la información de esta consulta.
+            </span>
+          </label>
+
+          {createError ? (
+            <p
+              role="alert"
+              className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
+            >
+              No se pudo iniciar la consulta. {createError}
+            </p>
           ) : null}
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted">
-              {seleccionado
-                ? `Listo para iniciar con ${seleccionado.nombre}.`
-                : "Puede iniciar sin paciente identificado."}
+              {!consentGiven
+                ? "Debes confirmar el consentimiento."
+                : seleccionado
+                  ? `Listo para iniciar con ${seleccionado.nombre}.`
+                  : "Puede iniciar sin paciente identificado."}
             </p>
             <button
               type="button"
-              onClick={empezar}
-              disabled={requireConsent && !consentGiven}
+              onClick={() => void empezar()}
+              disabled={!canStart}
               className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Empezar consulta <ArrowRight size={17} />
+              {creating ? (
+                <>
+                  <Loader2 size={17} className="animate-spin" /> Creando consulta...
+                </>
+              ) : (
+                <>
+                  Empezar consulta <ArrowRight size={17} />
+                </>
+              )}
             </button>
           </div>
         </div>

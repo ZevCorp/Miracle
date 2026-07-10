@@ -1,393 +1,436 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Loader2, Pause, ShieldCheck, Sparkles, Square } from "lucide-react";
-import { DEMO_AUDIT_ACCION } from "@/lib/demo";
 import {
-  templates,
-  TYPE_LABEL,
-  type ClinicalCode,
-  type Consultation,
-  type ConsultationType,
-  type NoteSection,
-  type Patient,
-  type SpeakerTurn,
-  type Template,
-} from "@/lib/mock";
+  AlertTriangle,
+  CheckCircle2,
+  FileText,
+  FlaskConical,
+  Loader2,
+  RefreshCw,
+  Save,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { useStore } from "@/app/app/providers";
-import { Waveform } from "@/components/app/Waveform";
 import { PatientHeader } from "@/components/app/PatientHeader";
+import { EncounterNote } from "@/components/app/EncounterNote";
+import {
+  friendlyClinicalMessage,
+  generateClinicalNote,
+  getClinicalEncounter,
+  saveClinicalTranscript,
+  saveEditedClinicalNote,
+  updateNoteSectionContent,
+  CLINICAL_ERROR_MESSAGES,
+  MAX_TRANSCRIPT_LENGTH,
+  type ClinicalEncounter,
+  type ClinicalNoteJson,
+} from "@/lib/api/clinical";
 
-const SCRIPT: SpeakerTurn[] = [
-  { t: "00:04", hablante: "Médico", texto: "Cuénteme, ¿qué la trae hoy a consulta?" },
-  { t: "00:09", hablante: "Paciente", texto: "He tenido dolor de cabeza los últimos tres días." },
-  { t: "00:18", hablante: "Médico", texto: "¿El dolor es constante? ¿Algo lo mejora o lo empeora?" },
-  { t: "00:25", hablante: "Paciente", texto: "Va y viene. Mejora si descanso y empeora con las pantallas." },
-  { t: "00:36", hablante: "Médico", texto: "¿Ha tenido fiebre, náuseas o visión borrosa?" },
-  { t: "00:41", hablante: "Paciente", texto: "Náuseas leves, lo demás no." },
-];
+const STATUS_LABEL: Record<string, string> = {
+  created: "Creada",
+  transcript_ready: "Transcripción lista",
+  note_generating: "Generando nota",
+  note_generated: "Nota generada",
+  completed: "Completada",
+  failed: "Con error",
+};
 
-function buildDraft(
-  patient: Patient | undefined,
-  tipo: ConsultationType,
-  plantillaNombre: string,
-  segundos: number,
-): Consultation {
-  const id =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `c-${Date.now()}`;
-  const note: NoteSection[] = [
-    {
-      id: "identificacion",
-      titulo: "Identificación",
-      kind: "texto",
-      texto:
-        patient && patient.edad > 0 && patient.sexo
-          ? `Paciente ${patient.sexo === "F" ? "femenina" : "masculino"} de ${patient.edad} años.`
-          : patient && patient.edad > 0
-            ? `Paciente de ${patient.edad} años. Sexo por registrar.`
-            : patient
-              ? `Paciente: ${patient.nombre}. Datos demográficos por completar.`
-              : "Paciente sin identificar.",
-    },
-    { id: "motivo", titulo: "Motivo de consulta", kind: "texto", texto: "Cefalea de 3 días de evolución." },
-    {
-      id: "enfermedad_actual",
-      titulo: "Enfermedad actual",
-      kind: "texto",
-      texto:
-        "Cuadro de 3 días de cefalea intermitente, que mejora con el reposo y empeora con la exposición a pantallas, asociada a náuseas leves. Niega fiebre y alteraciones visuales.",
-    },
-    {
-      id: "antecedentes",
-      titulo: "Antecedentes",
-      kind: "texto",
-      texto: patient?.antecedentes.join(". ") ?? "Sin antecedentes relevantes.",
-      colapsadaPorDefecto: true,
-    },
-    { id: "examen_fisico", titulo: "Examen físico", kind: "texto", texto: "Paciente en buenas condiciones generales, sin signos neurológicos focales. Signos vitales por confirmar." },
-    { id: "analisis", titulo: "Análisis", kind: "texto", texto: "Cefalea tensional probable, sin signos de alarma neurológicos en el momento." },
-    {
-      id: "plan",
-      titulo: "Plan",
-      kind: "lista",
-      items: [
-        "Analgesia según indicación médica.",
-        "Higiene del sueño y pausas de pantalla.",
-        "Control si no mejora o aparecen signos de alarma.",
-      ],
-    },
-    {
-      id: "recomendaciones",
-      titulo: "Recomendaciones",
-      kind: "lista",
-      items: [
-        "Descanse e hidrátese adecuadamente.",
-        "Limite el tiempo de exposición a pantallas.",
-        "Consulte si el dolor es intenso, súbito o se acompaña de fiebre o vómito.",
-      ],
-    },
-  ];
-  const codigos: ClinicalCode[] = [
-    { id: "k1", sistema: "CIE-10", codigo: "R51", descripcion: "Cefalea", confianza: 86, estado: "sugerido" },
-    { id: "k2", sistema: "CIE-10", codigo: "G44.2", descripcion: "Cefalea de tipo tensional", confianza: 71, estado: "sugerido" },
-    { id: "k3", sistema: "CUPS", codigo: "890201", descripcion: "Consulta de primera vez por medicina especializada", confianza: 93, estado: "sugerido" },
-  ];
-  return {
-    id,
-    pacienteId: patient?.id ?? "",
-    medicoId: "d1",
-    servicio: "Consulta externa",
-    especialidad: "Medicina interna",
-    tipo,
-    estado: "borrador",
-    fecha: new Date().toISOString(),
-    duracionMin: Math.max(1, Math.round(segundos / 60)),
-    plantilla: plantillaNombre,
-    motivo: "Cefalea de 3 días",
-    note,
-    transcript: SCRIPT,
-    resumen:
-      "Paciente que consulta por cefalea intermitente de 3 días, que mejora con reposo y empeora con pantallas, con náuseas leves y sin signos de alarma neurológicos. Se plantea cefalea tensional probable; se indica analgesia, higiene del sueño y control si no hay mejoría.",
-    codigos,
-    auditoria: [
-      {
-        id: "a1",
-        fecha: new Date().toISOString(),
-        actor: "Miracle IA",
-        // Marcador de demo: permite reconocer estas consultas y bloquear su
-        // firma/exportación mientras no exista captura real.
-        accion: DEMO_AUDIT_ACCION,
-        detalle: "A partir de una conversación simulada de demostración.",
-      },
-    ],
-  };
-}
+const TYPE_LABEL: Record<string, string> = {
+  presencial: "Presencial",
+  telemedicina: "Telemedicina",
+  audio_upload: "Audio cargado",
+};
 
-function aiToConsultation(
-  aiNote: {
-    resumen?: string;
-    secciones?: { titulo?: string; contenido?: string | string[] }[];
-    codigos?: {
-      sistema?: string;
-      codigo?: string;
-      descripcion?: string;
-      confianza?: number;
-    }[];
-  },
-  base: Consultation,
-): Consultation {
-  const secciones: NoteSection[] = (aiNote.secciones ?? []).map((s, i) => {
-    const id =
-      (s.titulo ?? `seccion-${i}`)
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/^_|_$/g, "") || `seccion-${i}`;
-    if (Array.isArray(s.contenido)) {
-      return {
-        id,
-        titulo: s.titulo ?? "Sección",
-        kind: "lista",
-        items: s.contenido.map(String),
-      };
-    }
-    return {
-      id,
-      titulo: s.titulo ?? "Sección",
-      kind: "texto",
-      texto: String(s.contenido ?? ""),
-    };
-  });
-  const codigos: ClinicalCode[] = (aiNote.codigos ?? []).map((k, i) => ({
-    id: `k-ai-${i}-${Date.now()}`,
-    sistema: k.sistema === "CUPS" ? "CUPS" : "CIE-10",
-    codigo: String(k.codigo ?? ""),
-    descripcion: String(k.descripcion ?? ""),
-    confianza: Math.max(0, Math.min(100, Number(k.confianza) || 80)),
-    estado: "sugerido",
-  }));
-  return {
-    ...base,
-    note: secciones.length ? secciones : base.note,
-    resumen: aiNote.resumen ? String(aiNote.resumen) : base.resumen,
-    codigos: codigos.length ? codigos : base.codigos,
-  };
-}
+type FlowPhase = "idle" | "saving_transcript" | "generating" | "saving_note";
 
-function mmss(s: number) {
-  const m = Math.floor(s / 60);
-  const ss = s % 60;
-  return `${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
-}
-
-function EnVivoInner() {
+function ConsultaActivaInner() {
   const router = useRouter();
   const sp = useSearchParams();
-  const { addConsultation, getPatient } = useStore();
-
+  const encounterId = sp.get("encounter");
   const pacienteId = sp.get("paciente") ?? "";
-  const tipo = (sp.get("tipo") as ConsultationType) ?? "presencial";
-  const plantillaId = sp.get("plantilla") ?? templates[0].id;
-  const plantillaNombre = sp.get("plantillaNombre");
-  const plantillaEspecialidad = sp.get("plantillaEspecialidad");
-  const plantilla =
-    templates.find((t) => t.id === plantillaId) ??
-    ({
-      id: plantillaId,
-      nombre: plantillaNombre ?? templates[0].nombre,
-      especialidad: plantillaEspecialidad ?? "Plantilla personalizada",
-      creadaPor: "Tú",
-      source: "personal",
-      secciones: [],
-      actualizada: new Date().toISOString(),
-    } satisfies Template);
-  const patient = useMemo(() => getPatient(pacienteId), [getPatient, pacienteId]);
+  const { getPatient } = useStore();
+  const patient = getPatient(pacienteId);
 
-  const [seconds, setSeconds] = useState(0);
-  const [revealed, setRevealed] = useState(1);
-  const [paused, setPaused] = useState(false);
-  const [generating, setGenerating] = useState(false);
-
+  // La consulta activa SIEMPRE trabaja sobre un encounter real del backend.
+  // Sin encounter_id no hay nada que capturar: el flujo nace en Nueva consulta.
   useEffect(() => {
-    if (paused || generating) return;
-    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
-    const r = setInterval(
-      () => setRevealed((n) => Math.min(n + 1, SCRIPT.length)),
-      2600,
-    );
+    if (!encounterId) router.replace("/app/consultas/nueva");
+  }, [encounterId, router]);
+
+  const [encounter, setEncounter] = useState<ClinicalEncounter | null>(null);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [transcriptDraft, setTranscriptDraft] = useState("");
+  // Última transcripción confirmada por el backend (para detectar cambios).
+  const [savedTranscript, setSavedTranscript] = useState("");
+
+  const [note, setNote] = useState<ClinicalNoteJson | null>(null);
+  const [noteDirty, setNoteDirty] = useState(false);
+  const [noteSaved, setNoteSaved] = useState(false);
+  const [showTranscriptPanel, setShowTranscriptPanel] = useState(true);
+
+  const [phase, setPhase] = useState<FlowPhase>("idle");
+  const [flowError, setFlowError] = useState<string | null>(null);
+
+  const status = encounter?.status ?? "created";
+  const completed = status === "completed";
+  const busy = phase !== "idle";
+
+  // Re-dispara la carga del encounter (botón Reintentar).
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // El estado "cargando" lo enciende quien dispara la carga (montaje inicial o
+  // Reintentar); aquí solo se resuelve el resultado. `ignore` descarta
+  // respuestas viejas si cambia el encounter mientras responde el backend.
+  useEffect(() => {
+    if (!encounterId) return;
+    let ignore = false;
+
+    async function load() {
+      try {
+        const data = await getClinicalEncounter(encounterId!);
+        if (ignore) return;
+        setEncounter(data);
+        setTranscriptDraft(data.transcript ?? "");
+        setSavedTranscript(data.transcript ?? "");
+        setNote(data.note_json ?? null);
+        setNoteDirty(false);
+        setNoteSaved(data.status === "completed");
+        setShowTranscriptPanel(!data.note_json);
+        setLoadState("ready");
+      } catch (error) {
+        if (ignore) return;
+        setLoadError(friendlyClinicalMessage(error));
+        setLoadState("error");
+      }
+    }
+
+    void load();
     return () => {
-      clearInterval(t);
-      clearInterval(r);
+      ignore = true;
     };
-  }, [paused, generating]);
+  }, [encounterId, reloadKey]);
 
-  // Aviso del navegador si se intenta cerrar/recargar con una captura en curso.
-  const secondsRef = useRef(0);
+  function retryLoad() {
+    setLoadState("loading");
+    setLoadError(null);
+    setReloadKey((key) => key + 1);
+  }
+
+  // Aviso del navegador si hay transcripción o edición de nota sin guardar.
+  const hasUnsaved =
+    noteDirty || transcriptDraft.trim() !== savedTranscript.trim();
   useEffect(() => {
-    secondsRef.current = seconds;
-  }, [seconds]);
-  useEffect(() => {
-    if (generating) return;
+    if (!hasUnsaved) return;
     function onBeforeUnload(e: BeforeUnloadEvent) {
-      if (secondsRef.current > 0) e.preventDefault();
+      e.preventDefault();
     }
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [generating]);
+  }, [hasUnsaved]);
 
-  async function finalizar() {
-    setGenerating(true);
-    const base = buildDraft(patient, tipo, plantilla.nombre, seconds);
-    let final = base;
-    try {
-      const res = await fetch("/api/generate-note", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          transcript: SCRIPT,
-          plantillaNombre: plantilla.nombre,
-          secciones: plantilla.secciones,
-          paciente: patient
-            ? {
-                nombre: patient.nombre,
-                edad: patient.edad,
-                sexo: patient.sexo ?? undefined,
-              }
-            : null,
-        }),
-      });
-      const data = await res.json();
-      if (data?.connected && data.note) {
-        final = aiToConsultation(data.note, base);
-      }
-    } catch {
-      /* sin conexión: se usa el borrador base */
-    }
-    addConsultation(final);
-    router.push(`/app/consultas/${final.id}`);
+  function applyStatus(nextStatus: string) {
+    setEncounter((prev) => (prev ? { ...prev, status: nextStatus } : prev));
   }
 
-  if (generating) {
+  /** Paso 1 + 2 del flujo: guardar transcripción y pedir la nota al backend. */
+  async function generarNota() {
+    if (!encounterId || busy) return;
+    const text = transcriptDraft.trim();
+    if (!text) {
+      setFlowError(CLINICAL_ERROR_MESSAGES.TRANSCRIPT_REQUIRED);
+      return;
+    }
+    if (text.length > MAX_TRANSCRIPT_LENGTH) {
+      setFlowError(CLINICAL_ERROR_MESSAGES.TRANSCRIPT_TOO_LONG);
+      return;
+    }
+    if (note && noteDirty) {
+      const confirmed = window.confirm(
+        "Regenerar la nota reemplaza las ediciones que no hayas guardado. ¿Continuar?",
+      );
+      if (!confirmed) return;
+    }
+
+    setFlowError(null);
+    try {
+      if (text !== savedTranscript.trim()) {
+        setPhase("saving_transcript");
+        const saved = await saveClinicalTranscript(encounterId, text);
+        setSavedTranscript(text);
+        applyStatus(saved.status);
+      }
+      setPhase("generating");
+      const generated = await generateClinicalNote(encounterId);
+      setNote(generated.note_json);
+      setNoteDirty(false);
+      setNoteSaved(false);
+      applyStatus(generated.status);
+      setShowTranscriptPanel(false);
+    } catch (error) {
+      setFlowError(friendlyClinicalMessage(error));
+    } finally {
+      setPhase("idle");
+    }
+  }
+
+  /** Paso final: guardar la nota revisada (deja el encounter en "completed"). */
+  async function guardarNota() {
+    if (!encounterId || !note || busy) return;
+    setPhase("saving_note");
+    setFlowError(null);
+    try {
+      const result = await saveEditedClinicalNote(encounterId, note);
+      setNote(result.note_json);
+      setNoteDirty(false);
+      setNoteSaved(true);
+      applyStatus(result.status);
+    } catch (error) {
+      setFlowError(friendlyClinicalMessage(error));
+    } finally {
+      setPhase("idle");
+    }
+  }
+
+  function editarSeccion(key: string, content: string) {
+    setNote((prev) => (prev ? updateNoteSectionContent(prev, key, content) : prev));
+    setNoteDirty(true);
+    setNoteSaved(false);
+  }
+
+  function editarResumen(summary: string) {
+    setNote((prev) => (prev ? { ...prev, summary } : prev));
+    setNoteDirty(true);
+    setNoteSaved(false);
+  }
+
+  if (!encounterId) return null;
+
+  if (loadState === "loading") {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
-        <Loader2 size={40} className="animate-spin text-accent" />
-        <h1 className="mt-4 text-xl font-semibold text-deep">
-          Generando la nota clínica…
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Miracle está estructurando la consulta y sugiriendo códigos.
-        </p>
+        <Loader2 size={36} className="animate-spin text-accent" />
+        <p className="mt-4 text-sm text-muted">Cargando la consulta…</p>
       </div>
     );
   }
 
-  return (
-    <div className="mx-auto max-w-5xl">
-      {/* Aviso imposible de ignorar: nada de esta pantalla es una atención real. */}
-      <div
-        role="alert"
-        className="mb-5 flex items-start gap-3 rounded-lg border-2 border-warning/50 bg-warning-soft px-4 py-3.5"
-      >
-        <AlertTriangle size={20} className="mt-0.5 shrink-0 text-warning" />
-        <div>
-          <p className="text-sm font-bold text-warning">
-            Esta es una demostración: la conversación es simulada.
-          </p>
-          <p className="mt-0.5 text-sm text-warning">
-            La nota que se genere quedará marcada como demostración y no podrá
-            firmarse ni exportarse como historia clínica real.
-          </p>
+  if (loadState === "error") {
+    return (
+      <div className="mx-auto max-w-xl">
+        <div
+          role="alert"
+          className="rounded-lg border border-danger/30 bg-danger/10 px-5 py-4 text-sm text-danger"
+        >
+          <p className="font-semibold">No pudimos cargar esta consulta.</p>
+          <p className="mt-1">{loadError}</p>
+        </div>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={retryLoad}
+            className="inline-flex items-center gap-2 rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-deep hover:border-mist"
+          >
+            <RefreshCw size={15} /> Reintentar
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/app/consultas/nueva")}
+            className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-hover"
+          >
+            Iniciar una consulta nueva
+          </button>
         </div>
       </div>
+    );
+  }
 
-      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-        {/* Captura */}
-        <div className="rounded-lg border border-line bg-surface p-6">
-          <div className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-2 rounded-full bg-danger/10 px-3 py-1.5 text-sm font-semibold text-danger">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-danger" />
-              {paused ? "En pausa" : "Grabando"} · {mmss(seconds)}
-            </span>
-            {/* Anuncia solo los cambios de estado (no el contador) a lectores de pantalla. */}
-            <span className="sr-only" role="status" aria-live="polite">
-              {paused ? "Grabación en pausa" : "Grabación en curso"}
-            </span>
-            <span className="text-xs text-muted">{TYPE_LABEL[tipo]}</span>
-          </div>
+  const snapshot = encounter?.template_snapshot;
+  const tipoLabel =
+    TYPE_LABEL[encounter?.consultation_type ?? ""] ?? encounter?.consultation_type;
+  const generateLabel = note ? "Regenerar nota" : "Generar nota clínica";
 
-          <div className="mt-5 rounded-md bg-pearl p-4">
-            <Waveform active={!paused} />
-          </div>
+  return (
+    <div className="mx-auto max-w-5xl">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-deep">Consulta activa</h1>
+          <p className="mt-1 text-sm text-muted">
+            {tipoLabel} · Plantilla: {snapshot?.name ?? "—"}
+          </p>
+        </div>
+        <span
+          className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ${
+            completed
+              ? "bg-mint-soft text-success"
+              : "bg-accent-soft text-accent-ink"
+          }`}
+        >
+          {completed ? <CheckCircle2 size={15} /> : <FileText size={15} />}
+          {STATUS_LABEL[status] ?? status}
+        </span>
+      </div>
 
-          <div className="mt-4 flex items-center gap-2 text-xs text-muted">
-            <span>Nivel de micrófono</span>
-            <span className="flex items-center gap-1">
-              {[0.4, 0.7, 1, 0.6, 0.85].map((h, i) => (
-                <span
-                  key={i}
-                  className="w-1 rounded-full bg-success"
-                  style={{
-                    height: `${8 + h * 10}px`,
-                    opacity: paused ? 0.3 : 1,
-                  }}
-                />
-              ))}
-            </span>
-          </div>
+      {flowError ? (
+        <div
+          role="alert"
+          className="mt-4 flex items-start gap-3 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
+        >
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <span>{flowError}</span>
+        </div>
+      ) : null}
 
-          <div className="mt-6">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-              Transcripción en vivo
-            </div>
-            <div className="mt-3 space-y-3">
-              {SCRIPT.slice(0, revealed).map((turn, i) => (
-                <div key={i} className="flex gap-3 text-sm">
-                  <span className="w-11 shrink-0 pt-0.5 font-mono text-xs text-muted">
-                    {turn.t}
-                  </span>
-                  <div>
-                    <span
-                      className={`mr-2 text-xs font-semibold ${
-                        turn.hablante === "Médico" ? "text-accent" : "text-success"
-                      }`}
-                    >
-                      {turn.hablante}
-                    </span>
-                    <span className="text-ink">{turn.texto}</span>
-                  </div>
+      <div className="mt-5 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+        <div className="space-y-5">
+          {/* Captura de transcripción (modo de prueba hasta conectar audio real) */}
+          {showTranscriptPanel ? (
+            <div className="rounded-lg border border-line bg-surface p-6">
+              <div className="flex items-start gap-3 rounded-md border border-warning/40 bg-warning-soft px-3.5 py-2.5 text-sm text-warning">
+                <FlaskConical size={17} className="mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-semibold">Modo de prueba: transcripción manual.</p>
+                  <p className="mt-0.5">
+                    La grabación con transcripción automática aún no está
+                    conectada. Pega o escribe la transcripción de la consulta
+                    para generar la nota.
+                  </p>
                 </div>
-              ))}
-              {revealed < SCRIPT.length ? (
-                <div className="flex items-center gap-2 pl-14 text-xs text-muted">
-                  <Sparkles size={13} className="text-accent" /> escuchando…
+              </div>
+
+              <label className="mt-4 block text-xs font-semibold uppercase tracking-wide text-muted">
+                Transcripción de la consulta
+                <textarea
+                  value={transcriptDraft}
+                  onChange={(e) => setTranscriptDraft(e.target.value)}
+                  disabled={completed || busy}
+                  rows={10}
+                  placeholder="Paciente consulta por…"
+                  className="mt-2 w-full resize-y rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm font-normal normal-case tracking-normal leading-relaxed text-ink outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+                />
+              </label>
+              <div className="mt-1 flex items-center justify-between text-xs text-muted">
+                <span>
+                  {completed
+                    ? "La consulta está completada; la transcripción ya no se puede modificar."
+                    : "La transcripción queda guardada en la consulta para trazabilidad."}
+                </span>
+                <span>{transcriptDraft.trim().length.toLocaleString("es-CO")} caracteres</span>
+              </div>
+
+              {!completed ? (
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void generarNota()}
+                    disabled={busy || !transcriptDraft.trim()}
+                    className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {phase === "saving_transcript" ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" /> Guardando
+                        transcripción…
+                      </>
+                    ) : phase === "generating" ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" /> Generando nota
+                        clínica…
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={16} /> {generateLabel}
+                      </>
+                    )}
+                  </button>
+                  {note ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowTranscriptPanel(false)}
+                      className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-deep hover:border-mist"
+                    >
+                      Volver a la nota
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
             </div>
-          </div>
+          ) : null}
 
-          <div className="mt-7 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setPaused((p) => !p)}
-              className="inline-flex items-center gap-2 rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-deep hover:border-mist"
-            >
-              <Pause size={16} /> {paused ? "Reanudar" : "Pausar"}
-            </button>
-            <button
-              type="button"
-              onClick={finalizar}
-              className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-hover"
-            >
-              <Square size={15} /> Finalizar y generar
-            </button>
-          </div>
+          {/* Nota clínica estructurada */}
+          {note ? (
+            <div>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-display text-lg font-semibold text-deep">
+                  Nota clínica
+                </h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  {!completed && !showTranscriptPanel ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowTranscriptPanel(true)}
+                      disabled={busy}
+                      className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-deep hover:border-mist disabled:opacity-60"
+                    >
+                      Editar transcripción
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => void guardarNota()}
+                    disabled={busy}
+                    className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {phase === "saving_note" ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" /> Guardando nota…
+                      </>
+                    ) : (
+                      <>
+                        <Save size={15} /> Guardar nota
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {noteSaved && !noteDirty ? (
+                <p className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-mint-soft px-3 py-1.5 text-xs font-semibold text-success">
+                  <CheckCircle2 size={13} /> Nota guardada.
+                </p>
+              ) : noteDirty ? (
+                <p className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1.5 text-xs font-semibold text-warning">
+                  Cambios sin guardar
+                </p>
+              ) : (
+                <p className="mb-3 text-xs text-muted">
+                  Revisa y edita las secciones; al guardar, la consulta queda
+                  completada.
+                </p>
+              )}
+
+              <EncounterNote
+                note={note}
+                editable={!busy}
+                onChangeSection={editarSeccion}
+                onChangeSummary={editarResumen}
+              />
+            </div>
+          ) : null}
+
+          {!note && !showTranscriptPanel ? (
+            <div className="rounded-lg border border-line bg-surface p-6 text-sm text-muted">
+              Aún no hay nota generada para esta consulta.
+            </div>
+          ) : null}
         </div>
 
-        {/* Paciente */}
+        {/* Contexto de la consulta */}
         <aside className="h-fit space-y-4">
           <div className="rounded-lg border border-line bg-surface p-5">
             {patient ? (
@@ -402,21 +445,32 @@ function EnVivoInner() {
                 </div>
               </div>
             )}
-            <dl className="mt-4 space-y-3 text-sm">
-              <ClinicalRow label="Antecedentes" values={patient?.antecedentes} />
-              <ClinicalRow label="Alergias" values={patient?.alergias} />
-              <ClinicalRow label="Medicamentos" values={patient?.medicamentos} />
-            </dl>
+            {patient ? (
+              <dl className="mt-4 space-y-3 text-sm">
+                <ClinicalRow label="Antecedentes" values={patient.antecedentes} />
+                <ClinicalRow label="Alergias" values={patient.alergias} />
+                <ClinicalRow label="Medicamentos" values={patient.medicamentos} />
+              </dl>
+            ) : null}
           </div>
+
           <div className="rounded-lg border border-line bg-surface p-5">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted">
               Plantilla
             </div>
-            <div className="mt-1 font-medium text-deep">{plantilla.nombre}</div>
+            <div className="mt-1 font-medium text-deep">{snapshot?.name ?? "—"}</div>
+            {snapshot?.sections?.length ? (
+              <p className="mt-1 text-xs text-muted">
+                {snapshot.sections.length} secciones · congelada al iniciar la
+                consulta
+              </p>
+            ) : null}
           </div>
+
           <p className="flex items-start gap-2 px-1 text-xs text-muted">
             <ShieldCheck size={14} className="mt-0.5 shrink-0 text-success" />
-            El audio no se conserva tras generar la nota.
+            La nota se genera en el servidor clínico de Miracle con la plantilla
+            congelada de esta consulta.
           </p>
         </aside>
       </div>
@@ -424,13 +478,7 @@ function EnVivoInner() {
   );
 }
 
-function ClinicalRow({
-  label,
-  values,
-}: {
-  label: string;
-  values?: string[];
-}) {
+function ClinicalRow({ label, values }: { label: string; values?: string[] }) {
   return (
     <div>
       <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -452,7 +500,7 @@ export default function EnVivoPage() {
         </div>
       }
     >
-      <EnVivoInner />
+      <ConsultaActivaInner />
     </Suspense>
   );
 }
