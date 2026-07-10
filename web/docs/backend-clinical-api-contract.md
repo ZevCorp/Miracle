@@ -1,9 +1,10 @@
 # Contrato API Clínica — Miracle Backend
 
-> Copia local del contrato publicado por el backend (`Backend Miracle/Graph@6c140d8`,
-> `docs/clinical-api-contract.md`). El backend es la fuente de verdad: si el contrato
-> cambia durante la reconciliación de su rama, actualizar esta copia y ajustar
-> `lib/api/clinical.ts` (ahí están centralizadas TODAS las rutas y campos).
+> Copia local del contrato definitivo del backend (`Backend Miracle/Graph`,
+> rama `feat/clinical-orchestration` @ `561826b`, PR #5 — `docs/clinical-api-contract.md`).
+> El backend es la fuente de verdad: si el contrato cambia durante la reconciliación
+> de su rama, actualizar esta copia y ajustar `lib/api/clinical.ts` (ahí están
+> centralizadas TODAS las rutas y campos).
 
 Motor de plantillas clínicas y notas estructuradas. La plantilla es el molde, la transcripción es la materia prima; el backend llena cada sección de la nota usando ambas.
 
