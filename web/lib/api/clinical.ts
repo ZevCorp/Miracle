@@ -101,12 +101,27 @@ export interface ClinicalEncounter {
   updated_at?: string;
 }
 
+/**
+ * Sección enviada al crear/editar plantilla. El backend acepta strings
+ * ("Motivo de consulta") u objetos. `key` es opcional: al editar una sección
+ * existente se envía para PRESERVARLA; en secciones nuevas se omite y el backend
+ * la genera desde el label.
+ */
+export interface ClinicalTemplateSectionInput {
+  key?: string;
+  label: string;
+  order?: number;
+  required?: boolean;
+  instruction?: string;
+}
+
+export type CreateTemplateSectionInput = string | ClinicalTemplateSectionInput;
+
 export interface CreateClinicalTemplatePayload {
   name: string;
   specialty: string;
   description?: string;
-  /** El backend acepta strings ("Motivo de consulta") u objetos con label/order. */
-  sections: (string | { label: string; order?: number; required?: boolean; instruction?: string })[];
+  sections: CreateTemplateSectionInput[];
 }
 
 export type UpdateClinicalTemplatePayload = Partial<CreateClinicalTemplatePayload>;
