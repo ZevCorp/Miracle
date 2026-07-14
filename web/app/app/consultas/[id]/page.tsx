@@ -224,12 +224,12 @@ export default function ConsultaDetallePage() {
           <button
             type="button"
             onClick={() => {
-              const sp = new URLSearchParams({
-                tipo: c.tipo,
-                plantillaNombre: c.plantilla,
-              });
-              if (c.pacienteId) sp.set("paciente", c.pacienteId);
-              router.push(`/app/consultas/en-vivo?${sp.toString()}`);
+              // La consulta activa exige un encounter del backend, así que una
+              // nueva captura siempre arranca desde "Nueva consulta".
+              const sp = new URLSearchParams();
+              if (patient?.nombre) sp.set("nombre", patient.nombre);
+              const qs = sp.toString();
+              router.push(`/app/consultas/nueva${qs ? `?${qs}` : ""}`);
             }}
             className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:text-deep"
             aria-label="Regrabar"
