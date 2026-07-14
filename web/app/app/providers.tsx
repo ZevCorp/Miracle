@@ -61,6 +61,12 @@ interface StoreValue {
   addCode: (id: string, code: Omit<ClinicalCode, "id" | "estado">) => void;
   updateNote: (id: string, sectionId: string, next: Partial<NoteSection>) => void;
   addConsultation: (c: Consultation) => void;
+  /**
+   * Inserta o actualiza (por id) una consulta. Lo usa el puente del backend
+   * clínico: al completar un encounter, su nota se espeja aquí para que aparezca
+   * en el historial y pueda firmarse/exportarse. Idempotente por id.
+   */
+  upsertConsultation: (c: Consultation) => void;
   resetDemo: () => void;
   toast: Toast | null;
   showToast: (message: string, tone?: ToastTone) => void;
@@ -460,6 +466,73 @@ export function MiracleProvider({
     [supabase, showToast],
   );
 
+  // Puente del backend clínico: espeja un encounter completado como consulta.
+  // Idempotente por id (upsert) para que re-guardar la nota no duplique filas;
+  // registra la auditoría solo en la primera creación.
+  const upsertConsultation = useCallback(
+    (c: Consultation) => {
+      const isNew = !consultationsRef.current.some((x) => x.id === c.id);
+      const audit = isNew
+        ? {
+            id: `a-${uuid()}`,
+            fecha: c.fecha,
+            actor,
+            accion: "Nota generada con Miracle",
+            detalle: "Generada desde la consulta activa.",
+          }
+        : null;
+
+      setConsultations((list) =>
+        isNew
+          ? [{ ...c, auditoria: audit ? [audit] : [] }, ...list]
+          : // Preserva la auditoría existente al actualizar el contenido.
+            list.map((x) =>
+              x.id === c.id ? { ...c, auditoria: x.auditoria } : x,
+            ),
+      );
+
+      void (async () => {
+        const { error } = await supabase.from("consultations").upsert(
+          {
+            id: c.id,
+            patient_id: c.pacienteId || null,
+            servicio: c.servicio,
+            especialidad: c.especialidad,
+            tipo: c.tipo,
+            estado: c.estado,
+            motivo: c.motivo,
+            fecha: c.fecha,
+            duracion_min: c.duracionMin,
+            plantilla: c.plantilla,
+            resumen: c.resumen,
+            note: c.note,
+            codigos: c.codigos,
+            transcript: c.transcript,
+            firma: c.firma ?? null,
+          },
+          { onConflict: "id" },
+        );
+        if (error) {
+          console.error("[store] upsert consulta (puente)", error.message);
+          showToast(
+            "La nota se generó, pero no se pudo guardar en tu historial. Reintenta.",
+            "warning",
+          );
+          return;
+        }
+        if (audit) {
+          await supabase.from("audit_events").insert({
+            consultation_id: c.id,
+            actor_name: audit.actor,
+            accion: audit.accion,
+            detalle: audit.detalle,
+          });
+        }
+      })();
+    },
+    [supabase, actor, showToast],
+  );
+
   // La firma se hace en el servidor (valida sesión, estado y deja hash del
   // contenido en auditoría); aquí solo se refleja el resultado en el estado.
   const approveNote = useCallback(
@@ -595,6 +668,7 @@ export function MiracleProvider({
       addCode,
       updateNote,
       addConsultation,
+      upsertConsultation,
       resetDemo,
       toast,
       showToast,
@@ -617,6 +691,7 @@ export function MiracleProvider({
       addCode,
       updateNote,
       addConsultation,
+      upsertConsultation,
       resetDemo,
       toast,
       showToast,

@@ -12,11 +12,8 @@ import {
 } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import {
-  adoptionByService,
   completitud,
   esDeHoy,
-  managementKpis,
-  weeklyNotes,
   type Consultation,
   type Patient,
 } from "@/lib/mock";
@@ -243,41 +240,85 @@ function SupervisorView({
 /* ============================ ADMIN ============================ */
 
 function AdminView() {
-  const k = managementKpis;
+  const { consultations } = useStore();
+
+  // Métricas calculadas desde las consultas REALES de la organización (RLS),
+  // excluyendo las de demostración. Reflejan la actividad reciente cargada
+  // (la carga del store está acotada), no cifras inventadas.
+  const reales = useMemo(
+    () => consultations.filter((c) => !isDemoConsultation(c)),
+    [consultations],
+  );
+
+  const notasGeneradas = reales.length;
+  const medicosActivos = useMemo(
+    () => new Set(reales.map((c) => c.medicoId).filter(Boolean)).size,
+    [reales],
+  );
+  const pacientesAtendidos = useMemo(
+    () => new Set(reales.map((c) => c.pacienteId).filter(Boolean)).size,
+    [reales],
+  );
+  const completitudProm = useMemo(() => {
+    if (!reales.length) return 0;
+    const suma = reales.reduce((acc, c) => acc + completitud(c), 0);
+    return Math.round(suma / reales.length);
+  }, [reales]);
+
+  const porSemana = useMemo(() => weeklyCounts(reales), [reales]);
+  const porServicio = useMemo(() => countByService(reales), [reales]);
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold text-deep">Panel institucional</h1>
-        <span className="rounded-full bg-warning-soft px-3 py-1 text-xs font-semibold text-warning">
-          Datos de demostración
+        <span className="rounded-full bg-mint-soft px-3 py-1 text-xs font-semibold text-success">
+          Datos de tu institución
         </span>
       </div>
       <p className="text-sm text-muted">
-        Adopción, tiempo y calidad documental. Las cifras de este panel son
-        ilustrativas; se conectarán a los datos reales de tu institución.
+        Actividad y calidad documental de tu organización, sobre las consultas
+        recientes registradas.
       </p>
 
-      <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard value={String(k.notasGeneradas)} label="Notas generadas" hint="Últimas 6 semanas" />
-        <MetricCard value={`${k.medicosActivos}/${k.medicosTotales}`} label="Médicos activos" hint="Adopción del equipo" />
-        <MetricCard value={`~${k.tiempoAhorradoHoras} h`} label="Tiempo ahorrado (est.)" hint="Acumulado ilustrativo" />
-        <MetricCard value={`${Math.round(k.completitudPromedio * 100)}%`} label="Completitud documental" hint="Promedio institucional" />
-      </div>
-      <div className="mt-8 grid gap-5 lg:grid-cols-2">
-        <Card>
-          <h2 className="mb-4 text-base font-semibold text-deep">
-            Notas generadas por semana
-          </h2>
-          <MiniLine points={weeklyNotes.map((w) => ({ label: w.semana, value: w.notas }))} height={90} />
-        </Card>
-        <Card>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-deep">Adopción por servicio</h2>
-            <BarChart3 size={18} className="text-muted" />
+      {notasGeneradas === 0 ? (
+        <div className="mt-6 rounded-lg border border-dashed border-line bg-surface p-8 text-center">
+          <p className="font-semibold text-deep">Aún no hay consultas registradas</p>
+          <p className="mt-1 text-sm text-muted">
+            Cuando el equipo genere notas, aquí verás la actividad de la
+            institución.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard value={String(notasGeneradas)} label="Notas registradas" hint="Consultas recientes" />
+            <MetricCard value={String(medicosActivos)} label="Médicos con actividad" hint="Generaron notas" />
+            <MetricCard value={String(pacientesAtendidos)} label="Pacientes atendidos" hint="Identificados" />
+            <MetricCard value={`${completitudProm}%`} label="Completitud documental" hint="Promedio de la organización" />
           </div>
-          <BarList data={adoptionByService.map((a) => ({ label: a.servicio, value: a.notas }))} />
-        </Card>
-      </div>
+          <div className="mt-8 grid gap-5 lg:grid-cols-2">
+            <Card>
+              <h2 className="mb-4 text-base font-semibold text-deep">
+                Notas por semana
+              </h2>
+              <MiniLine points={porSemana} height={90} />
+            </Card>
+            <Card>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-deep">Por servicio</h2>
+                <BarChart3 size={18} className="text-muted" />
+              </div>
+              {porServicio.length ? (
+                <BarList data={porServicio} />
+              ) : (
+                <p className="text-sm text-muted">Sin servicios registrados aún.</p>
+              )}
+            </Card>
+          </div>
+        </>
+      )}
+
       <div className="mt-5 flex flex-wrap gap-3">
         <Link href="/app/reportes" className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">
           Ver reportes completos <ArrowRight size={14} />
@@ -288,6 +329,41 @@ function AdminView() {
       </div>
     </div>
   );
+}
+
+/** Histograma de notas de las últimas `weeks` semanas, de más antigua a más reciente. */
+function weeklyCounts(
+  consultas: Consultation[],
+  weeks = 6,
+): { label: string; value: number }[] {
+  const now = Date.now();
+  const WEEK = 7 * 24 * 60 * 60 * 1000;
+  const buckets = Array.from({ length: weeks }, () => 0);
+  for (const c of consultas) {
+    const t = new Date(c.fecha).getTime();
+    if (Number.isNaN(t)) continue;
+    const ago = Math.floor((now - t) / WEEK);
+    if (ago >= 0 && ago < weeks) buckets[weeks - 1 - ago] += 1;
+  }
+  return buckets.map((value, i) => ({
+    label: i === weeks - 1 ? "Esta sem." : `-${weeks - 1 - i}`,
+    value,
+  }));
+}
+
+/** Conteo de consultas por servicio, top 6, de mayor a menor. */
+function countByService(
+  consultas: Consultation[],
+): { label: string; value: number }[] {
+  const map = new Map<string, number>();
+  for (const c of consultas) {
+    const key = c.servicio?.trim() || "Sin servicio";
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+  return [...map.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([label, value]) => ({ label, value }));
 }
 
 /* ---------- helpers ---------- */

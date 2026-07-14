@@ -3,11 +3,12 @@
 import { createHash } from "node:crypto";
 import { getCurrentProfile } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
+import { DEMO_AUDIT_ACCION } from "@/lib/demo";
 
 export interface SignNoteResult {
   ok: boolean;
   error?: string;
-  firma?: { por: string; fecha: string };
+  firma?: { por: string; fecha: string; hash?: string };
 }
 
 /**
@@ -36,6 +37,20 @@ export async function signConsultationNote(
     return { ok: false, error: "Esta nota ya fue aprobada." };
   }
 
+  // Re-verificación server-side: una nota de demostración nunca se firma como
+  // historia clínica real (el bloqueo en la UI no es suficiente por sí solo).
+  const { count: demoCount } = await supabase
+    .from("audit_events")
+    .select("id", { count: "exact", head: true })
+    .eq("consultation_id", consultationId)
+    .eq("accion", DEMO_AUDIT_ACCION);
+  if (demoCount && demoCount > 0) {
+    return {
+      ok: false,
+      error: "Esta es una consulta de demostración y no puede firmarse.",
+    };
+  }
+
   const por = profile.fullName ?? profile.email;
   const fecha = new Date().toISOString();
   const contentHash = createHash("sha256")
@@ -47,7 +62,9 @@ export async function signConsultationNote(
       }),
     )
     .digest("hex");
-  const firma = { por, fecha };
+  // El hash completo queda en la firma (atadura contenido↔firma), no solo un
+  // prefijo en auditoría.
+  const firma = { por, fecha, hash: contentHash };
 
   const { error: updateError } = await supabase
     .from("consultations")

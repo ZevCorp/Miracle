@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { BrandSphere } from "@/components/brand/BrandSphere";
 import { createClient } from "@/lib/supabase/client";
 
-const MIN_PASSWORD_LENGTH = 6;
+const MIN_PASSWORD_LENGTH = 8;
 
 /**
  * Destino del enlace de recuperación: el callback de auth ya intercambió el

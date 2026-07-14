@@ -53,7 +53,9 @@ export async function createDoctorAccount(formData: FormData) {
     : (profile.organizationId ?? "");
 
   if (!EMAIL_RE.test(email)) back(base, "error", "Correo inválido.");
-  if (password.length < 6) back(base, "error", "La contraseña debe tener al menos 6 caracteres.");
+  // Debe coincidir con la RPC create_org_member (exige ≥ 8), o el form valida
+  // 6-7 y luego la RPC falla con un error confuso.
+  if (password.length < 8) back(base, "error", "La contraseña debe tener al menos 8 caracteres.");
   if (!fullName) back(base, "error", "Escribe el nombre del profesional.");
   if (!UUID_RE.test(organizationId)) back(base, "error", "Selecciona una organización válida.");
 

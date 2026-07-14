@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   FileText,
   FlaskConical,
@@ -16,6 +17,7 @@ import {
 import { useStore } from "@/app/app/providers";
 import { PatientHeader } from "@/components/app/PatientHeader";
 import { EncounterNote } from "@/components/app/EncounterNote";
+import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
 import {
   friendlyClinicalMessage,
   generateClinicalNote,
@@ -51,7 +53,7 @@ function ConsultaActivaInner() {
   const sp = useSearchParams();
   const encounterId = sp.get("encounter");
   const pacienteId = sp.get("paciente") ?? "";
-  const { getPatient } = useStore();
+  const { getPatient, upsertConsultation } = useStore();
   const patient = getPatient(pacienteId);
 
   // La consulta activa SIEMPRE trabaja sobre un encounter real del backend.
@@ -191,6 +193,25 @@ function ConsultaActivaInner() {
       setNoteDirty(false);
       setNoteSaved(true);
       applyStatus(result.status);
+
+      // Puente: espeja la consulta en el historial local (tabla `consultations`)
+      // para que aparezca en la lista, el detalle del paciente, y pueda
+      // firmarse/exportarse. Idempotente: re-guardar actualiza la misma fila.
+      if (encounter) {
+        upsertConsultation(
+          encounterToConsultation({
+            encounter: {
+              id: encounterId,
+              consultation_type: encounter.consultation_type,
+              template_snapshot: encounter.template_snapshot,
+              created_at: encounter.created_at,
+            },
+            note: result.note_json,
+            patient,
+            now: new Date().toISOString(),
+          }),
+        );
+      }
     } catch (error) {
       setFlowError(friendlyClinicalMessage(error));
     } finally {
@@ -400,9 +421,18 @@ function ConsultaActivaInner() {
               </div>
 
               {noteSaved && !noteDirty ? (
-                <p className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-mint-soft px-3 py-1.5 text-xs font-semibold text-success">
-                  <CheckCircle2 size={13} /> Nota guardada.
-                </p>
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <p className="inline-flex items-center gap-1.5 rounded-full bg-mint-soft px-3 py-1.5 text-xs font-semibold text-success">
+                    <CheckCircle2 size={13} /> Nota guardada en tu historial.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/app/consultas/${encounterId}`)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-line px-3.5 py-1.5 text-xs font-semibold text-deep hover:border-mist"
+                  >
+                    Ver consulta y firmar <ArrowRight size={13} />
+                  </button>
+                </div>
               ) : noteDirty ? (
                 <p className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1.5 text-xs font-semibold text-warning">
                   Cambios sin guardar
