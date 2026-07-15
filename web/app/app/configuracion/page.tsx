@@ -6,7 +6,6 @@ import { ConfiguracionForm } from "./ConfiguracionForm";
 type OrgRow = {
   name: string | null;
   nit: string | null;
-  require_consent: boolean | null;
   use_hospital_templates: boolean | null;
 };
 
@@ -21,7 +20,7 @@ export default async function ConfiguracionPage({
   const supabase = await createClient();
   const { data } = await supabase
     .from("organizations")
-    .select("name, nit, require_consent, use_hospital_templates")
+    .select("name, nit, use_hospital_templates")
     .eq("id", profile.organizationId ?? "")
     .maybeSingle();
   const org = (data ?? null) as OrgRow | null;
@@ -39,7 +38,6 @@ export default async function ConfiguracionPage({
           initial={{
             name: org?.name ?? "",
             nit: org?.nit ?? "",
-            requireConsent: org?.require_consent ?? true,
             useHospitalTemplates: org?.use_hospital_templates ?? true,
           }}
         />

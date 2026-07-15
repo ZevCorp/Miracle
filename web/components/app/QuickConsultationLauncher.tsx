@@ -148,10 +148,6 @@ export function QuickConsultationLauncher() {
                 </p>
               ) : null}
 
-              <p className="text-[13px] leading-relaxed text-muted">
-                Al iniciar, confirmas que cuentas con el consentimiento correspondiente.
-              </p>
-
               {error ? (
                 <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-sm text-danger">
                   {error}

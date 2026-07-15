@@ -423,8 +423,7 @@ function NuevaConsultaForm() {
 
         <section className="mobile-bottom-sheet sticky bottom-0 z-20 rounded-b-[14px] border-t border-line bg-surface px-4 py-4 shadow-[0_-10px_24px_rgb(8_17_31/0.08)] sm:static sm:bg-accent-soft/25 sm:px-7 sm:py-5 sm:shadow-none">
           {createError ? <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">No se pudo iniciar la consulta. {createError}</p> : null}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-             <p className="max-w-md text-[13px] leading-relaxed text-muted">Al iniciar, confirmas que cuentas con el consentimiento correspondiente.</p>
+          <div className="flex justify-end">
              <button type="button" onClick={() => void startRecording()} disabled={!canStart} className="clinical-primary min-h-12 w-full px-6 py-3 sm:w-auto">
               {creating ? <><Loader2 size={18} className="animate-spin" /> Preparando grabación…</> : <><Mic size={18} /> Grabar ahora</>}
             </button>
