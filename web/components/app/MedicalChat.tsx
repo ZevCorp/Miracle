@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Send, Sparkles, X } from "lucide-react";
+import {
+  ClinicalApiError,
+  friendlyClinicalMessage,
+  sendAssistantChat,
+} from "@/lib/api/clinical";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -12,6 +18,7 @@ const SUGERENCIAS = [
 ];
 
 export function MedicalChat() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -25,62 +32,30 @@ export function MedicalChat() {
     });
   }, [messages, loading, open]);
 
+  // Habla directo con el asistente clínico del backend Miracle (token Supabase
+  // del médico). Respuesta completa (sin streaming): el indicador de "puntos"
+  // cubre la espera.
   async function send(text: string) {
     const content = text.trim();
     if (!content || loading) return;
-    const next: Msg[] = [...messages, { role: "user", content }];
-    setMessages(next);
+    const history = messages;
+    setMessages((m) => [...m, { role: "user", content }]);
     setInput("");
     setLoading(true);
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: next }),
+      const result = await sendAssistantChat({
+        message: content,
+        history,
+        screen_context: pathname ? { route: pathname } : undefined,
       });
-
-      const contentType = res.headers.get("content-type") ?? "";
-
-      // Errores y modo sin conexión llegan como JSON.
-      if (contentType.includes("application/json")) {
-        const data = await res.json().catch(() => null);
-        const reply =
-          data?.reply ?? data?.error ?? "No pude responder en este momento.";
-        setMessages((m) => [...m, { role: "assistant", content: reply }]);
-        return;
-      }
-
-      if (!res.ok || !res.body) {
-        setMessages((m) => [
-          ...m,
-          { role: "assistant", content: "No pude responder en este momento." },
-        ]);
-        return;
-      }
-
-      // Respuesta en streaming: se pinta a medida que llega.
-      setMessages((m) => [...m, { role: "assistant", content: "" }]);
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        if (!chunk) continue;
-        setMessages((m) => {
-          const copy = [...m];
-          const last = copy[copy.length - 1];
-          if (last?.role === "assistant") {
-            copy[copy.length - 1] = { ...last, content: last.content + chunk };
-          }
-          return copy;
-        });
-      }
-    } catch {
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", content: "Error de conexión. Intenta de nuevo." },
-      ]);
+      const reply = result.answer?.trim() || "No pude responder en este momento.";
+      setMessages((m) => [...m, { role: "assistant", content: reply }]);
+    } catch (error) {
+      const reply =
+        error instanceof ClinicalApiError && error.code === "LLM_NOT_CONFIGURED"
+          ? "El asistente todavía no está habilitado para tu institución. Mientras tanto puedes seguir registrando tus consultas con normalidad."
+          : friendlyClinicalMessage(error);
+      setMessages((m) => [...m, { role: "assistant", content: reply }]);
     } finally {
       setLoading(false);
     }

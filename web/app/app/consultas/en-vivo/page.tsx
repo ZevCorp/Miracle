@@ -7,18 +7,20 @@ import {
   ArrowRight,
   CheckCircle2,
   FileText,
-  FlaskConical,
   Loader2,
   RefreshCw,
   Save,
+  Send,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import { PatientHeader } from "@/components/app/PatientHeader";
 import { EncounterNote } from "@/components/app/EncounterNote";
+import { DictationPanel } from "@/components/app/DictationPanel";
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
 import {
+  adjustNoteWithAssistant,
   friendlyClinicalMessage,
   generateClinicalNote,
   getClinicalEncounter,
@@ -46,7 +48,12 @@ const TYPE_LABEL: Record<string, string> = {
   audio_upload: "Audio cargado",
 };
 
-type FlowPhase = "idle" | "saving_transcript" | "generating" | "saving_note";
+type FlowPhase =
+  | "idle"
+  | "saving_transcript"
+  | "generating"
+  | "saving_note"
+  | "adjusting";
 
 function ConsultaActivaInner() {
   const router = useRouter();
@@ -71,6 +78,8 @@ function ConsultaActivaInner() {
   const [transcriptDraft, setTranscriptDraft] = useState("");
   // Última transcripción confirmada por el backend (para detectar cambios).
   const [savedTranscript, setSavedTranscript] = useState("");
+  // true mientras la grabación con transcripción en vivo está activa.
+  const [dictando, setDictando] = useState(false);
 
   const [note, setNote] = useState<ClinicalNoteJson | null>(null);
   const [noteDirty, setNoteDirty] = useState(false);
@@ -79,6 +88,10 @@ function ConsultaActivaInner() {
 
   const [phase, setPhase] = useState<FlowPhase>("idle");
   const [flowError, setFlowError] = useState<string | null>(null);
+
+  // Ajuste de nota con IA (barra "Pídale a Miracle…").
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiExplanation, setAiExplanation] = useState<string | null>(null);
 
   const status = encounter?.status ?? "created";
   const completed = status === "completed";
@@ -125,9 +138,10 @@ function ConsultaActivaInner() {
     setReloadKey((key) => key + 1);
   }
 
-  // Aviso del navegador si hay transcripción o edición de nota sin guardar.
+  // Aviso del navegador si hay transcripción o edición de nota sin guardar,
+  // o una grabación en curso.
   const hasUnsaved =
-    noteDirty || transcriptDraft.trim() !== savedTranscript.trim();
+    noteDirty || dictando || transcriptDraft.trim() !== savedTranscript.trim();
   useEffect(() => {
     if (!hasUnsaved) return;
     function onBeforeUnload(e: BeforeUnloadEvent) {
@@ -192,6 +206,7 @@ function ConsultaActivaInner() {
       setNote(result.note_json);
       setNoteDirty(false);
       setNoteSaved(true);
+      setAiExplanation(null);
       applyStatus(result.status);
 
       // Puente: espeja la consulta en el historial local (tabla `consultations`)
@@ -229,6 +244,48 @@ function ConsultaActivaInner() {
     setNote((prev) => (prev ? { ...prev, summary } : prev));
     setNoteDirty(true);
     setNoteSaved(false);
+  }
+
+  // Cada segmento final de la dictación se agrega al texto acumulado.
+  // setState funcional: inmune a renders concurrentes durante la grabación.
+  const appendFinal = (text: string) =>
+    setTranscriptDraft((prev) =>
+      prev.trim() ? `${prev.replace(/\s+$/, "")} ${text}` : text,
+    );
+
+  /**
+   * Ajuste de la nota con IA. El backend calcula la propuesta sobre la ÚLTIMA
+   * nota guardada del encounter y NO la persiste: aquí se aplica al estado
+   * local marcándola como "cambios sin guardar" para que el médico revise y
+   * guarde con el flujo normal.
+   */
+  async function pedirAjuste() {
+    const instruction = aiInstruction.trim();
+    if (!encounterId || !note || busy || !instruction) return;
+    if (noteDirty) {
+      const confirmed = window.confirm(
+        "El ajuste se calcula sobre la última nota guardada y reemplazará tus cambios sin guardar. ¿Continuar?",
+      );
+      if (!confirmed) return;
+    }
+    setPhase("adjusting");
+    setFlowError(null);
+    setAiExplanation(null);
+    try {
+      const result = await adjustNoteWithAssistant({
+        encounter_id: encounterId,
+        instruction,
+      });
+      setNote(result.proposed_note_json);
+      setNoteDirty(true);
+      setNoteSaved(false);
+      setAiInstruction("");
+      setAiExplanation(result.explanation?.trim() || "Ajuste aplicado.");
+    } catch (error) {
+      setFlowError(friendlyClinicalMessage(error));
+    } finally {
+      setPhase("idle");
+    }
   }
 
   if (!encounterId) return null;
@@ -310,20 +367,22 @@ function ConsultaActivaInner() {
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         <div className="space-y-5">
-          {/* Captura de transcripción (modo de prueba hasta conectar audio real) */}
+          {/* Captura de la consulta: grabación con transcripción en vivo,
+              con edición/pegado manual como alternativa siempre disponible. */}
           {showTranscriptPanel ? (
             <div className="rounded-lg border border-line bg-surface p-6">
-              <div className="flex items-start gap-3 rounded-md border border-warning/40 bg-warning-soft px-3.5 py-2.5 text-sm text-warning">
-                <FlaskConical size={17} className="mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-semibold">Modo de prueba: transcripción manual.</p>
-                  <p className="mt-0.5">
-                    La grabación con transcripción automática aún no está
-                    conectada. Pega o escribe la transcripción de la consulta
-                    para generar la nota.
+              {!completed ? (
+                <>
+                  <DictationPanel
+                    disabled={busy}
+                    onAppendFinal={appendFinal}
+                    onActiveChange={setDictando}
+                  />
+                  <p className="mt-2 text-xs text-muted">
+                    También puedes escribir o pegar la transcripción manualmente.
                   </p>
-                </div>
-              </div>
+                </>
+              ) : null}
 
               <label className="mt-4 block text-xs font-semibold uppercase tracking-wide text-muted">
                 Transcripción de la consulta
@@ -331,9 +390,10 @@ function ConsultaActivaInner() {
                   value={transcriptDraft}
                   onChange={(e) => setTranscriptDraft(e.target.value)}
                   disabled={completed || busy}
+                  readOnly={dictando}
                   rows={10}
                   placeholder="Paciente consulta por…"
-                  className="mt-2 w-full resize-y rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm font-normal normal-case tracking-normal leading-relaxed text-ink outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-2 w-full resize-y rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm font-normal normal-case tracking-normal leading-relaxed text-ink outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-60 read-only:bg-pearl"
                 />
               </label>
               <div className="mt-1 flex items-center justify-between text-xs text-muted">
@@ -350,7 +410,8 @@ function ConsultaActivaInner() {
                   <button
                     type="button"
                     onClick={() => void generarNota()}
-                    disabled={busy || !transcriptDraft.trim()}
+                    disabled={busy || dictando || !transcriptDraft.trim()}
+                    title={dictando ? "Detén la grabación antes de generar la nota" : undefined}
                     className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {phase === "saving_transcript" ? (
@@ -450,6 +511,52 @@ function ConsultaActivaInner() {
                 onChangeSection={editarSeccion}
                 onChangeSummary={editarResumen}
               />
+
+              {/* Ajuste de la nota con IA: la propuesta se aplica localmente y
+                  el médico la revisa y guarda (nunca se persiste sola). */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void pedirAjuste();
+                }}
+                className="mt-3 flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 shadow-[var(--shadow-sm)]"
+              >
+                <Sparkles size={16} className="shrink-0 text-accent" />
+                <input
+                  value={aiInstruction}
+                  onChange={(e) => setAiInstruction(e.target.value)}
+                  placeholder="Pídale a Miracle un ajuste de la nota…"
+                  aria-label="Instrucción de ajuste para la IA"
+                  disabled={busy}
+                  maxLength={2000}
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted disabled:opacity-60"
+                />
+                <button
+                  type="submit"
+                  disabled={busy || !aiInstruction.trim()}
+                  aria-label="Pedir ajuste a la IA"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white hover:bg-accent-hover disabled:opacity-50"
+                >
+                  {phase === "adjusting" ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Send size={15} />
+                  )}
+                </button>
+              </form>
+
+              {aiExplanation ? (
+                <div
+                  role="status"
+                  className="mt-2 flex items-start gap-2 rounded-md border border-accent/20 bg-accent-soft/50 px-3.5 py-2.5 text-sm text-accent-ink"
+                >
+                  <Sparkles size={15} className="mt-0.5 shrink-0" />
+                  <span>
+                    <strong>Propuesta de la IA aplicada — revisa y guarda.</strong>{" "}
+                    {aiExplanation}
+                  </span>
+                </div>
+              ) : null}
             </div>
           ) : null}
 

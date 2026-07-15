@@ -19,6 +19,13 @@ import {
 } from "lucide-react";
 import { isDemoConsultation } from "@/lib/demo";
 import {
+  adjustNoteWithAssistant,
+  saveEditedClinicalNote,
+  friendlyClinicalMessage,
+  ClinicalApiError,
+} from "@/lib/api/clinical";
+import { noteJsonToSections } from "@/lib/clinical/encounter-to-consultation";
+import {
   completitud,
   formatFechaRelativa,
   ripsChecklist,
@@ -57,11 +64,13 @@ export default function ConsultaDetallePage() {
     setCodeStatus,
     addCode,
     updateNote,
+    upsertConsultation,
     showToast,
     loading,
     ensureTranscript,
   } = useStore();
   const [tab, setTab] = useState("historia");
+  const [aiEditing, setAiEditing] = useState(false);
 
   const c = getConsultation(id);
 
@@ -95,6 +104,43 @@ export default function ConsultaDetallePage() {
   function copyResumen() {
     navigator.clipboard?.writeText(c!.resumen);
     showToast("Resumen copiado al portapapeles.", "info");
+  }
+
+  // Edición asistida real: el backend calcula el ajuste sobre el encounter
+  // (mismo id que esta consulta, por el puente), lo persiste allí y aquí se
+  // refleja en el historial local.
+  async function aiEdit(instruction: string) {
+    const texto = instruction.trim();
+    if (!texto || aiEditing || !c) return;
+    setAiEditing(true);
+    showToast("Miracle está ajustando la nota…", "info");
+    try {
+      const proposal = await adjustNoteWithAssistant({
+        encounter_id: c.id,
+        instruction: texto,
+      });
+      const saved = await saveEditedClinicalNote(c.id, proposal.proposed_note_json);
+      upsertConsultation({
+        ...c,
+        note: noteJsonToSections(saved.note_json),
+        resumen: saved.note_json.summary || c.resumen,
+      });
+      showToast("Nota ajustada por Miracle. Revisa los cambios.", "success");
+    } catch (error) {
+      if (
+        error instanceof ClinicalApiError &&
+        error.code === "ENCOUNTER_NOT_FOUND"
+      ) {
+        showToast(
+          "La edición asistida está disponible solo para consultas creadas con el flujo nuevo.",
+          "info",
+        );
+      } else {
+        showToast(friendlyClinicalMessage(error), "warning");
+      }
+    } finally {
+      setAiEditing(false);
+    }
   }
 
   function descargarPDF() {
@@ -300,7 +346,8 @@ export default function ConsultaDetallePage() {
             consultation={c}
             editable={c.estado !== "aprobada" && c.estado !== "exportada"}
             onSectionChange={(sectionId, next) => updateNote(c.id, sectionId, next)}
-            onAiEdit={() => showToast("La edición asistida estará disponible en la versión conectada.", "info")}
+            onAiEdit={(instruction) => void aiEdit(instruction)}
+            aiBusy={aiEditing}
           />
         ) : null}
         {tab === "codificacion" ? (
@@ -342,11 +389,13 @@ function HistoriaTab({
   editable,
   onSectionChange,
   onAiEdit,
+  aiBusy,
 }: {
   consultation: Consultation;
   editable: boolean;
   onSectionChange: (sectionId: string, next: Partial<NoteSection>) => void;
-  onAiEdit: () => void;
+  onAiEdit: (instruction: string) => void;
+  aiBusy: boolean;
 }) {
   return (
     <div>
@@ -362,28 +411,37 @@ function HistoriaTab({
         ))}
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          onAiEdit();
-          (e.currentTarget.elements.namedItem("ai") as HTMLInputElement).value = "";
-        }}
-        className="mt-3 flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 shadow-[var(--shadow-sm)]"
-      >
-        <Sparkles size={16} className="text-accent" />
-        <input
-          name="ai"
-          placeholder="Pídale a Miracle un ajuste de la nota…"
-          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
-        />
-        <button
-          type="submit"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-accent text-white hover:bg-accent-hover"
-          aria-label="Enviar"
+      {/* Solo mientras la nota sigue editable (no aprobada/exportada). */}
+      {editable ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const input = e.currentTarget.elements.namedItem("ai") as HTMLInputElement;
+            const value = input.value.trim();
+            if (!value) return;
+            onAiEdit(value);
+            input.value = "";
+          }}
+          className="mt-3 flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 shadow-[var(--shadow-sm)]"
         >
-          <Send size={15} />
-        </button>
-      </form>
+          <Sparkles size={16} className="text-accent" />
+          <input
+            name="ai"
+            placeholder="Pídale a Miracle un ajuste de la nota…"
+            disabled={aiBusy}
+            maxLength={2000}
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted disabled:opacity-60"
+          />
+          <button
+            type="submit"
+            disabled={aiBusy}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-accent text-white hover:bg-accent-hover disabled:opacity-50"
+            aria-label="Enviar"
+          >
+            {aiBusy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+          </button>
+        </form>
+      ) : null}
     </div>
   );
 }

@@ -520,3 +520,82 @@ export async function saveEditedClinicalNote(
     { method: "PUT", body: { note_json: noteJson } },
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* Asistente clínico (chat contextual y ajuste de nota con IA)         */
+/* ------------------------------------------------------------------ */
+
+export interface AssistantChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** Contexto de pantalla que el backend acepta (whitelist del contrato). */
+export interface AssistantScreenContext {
+  route?: string;
+  page?: string;
+  visible_panel?: string;
+  selected_section_key?: string;
+  selected_section_label?: string;
+  visible_text?: string;
+  user_intent_surface?: string;
+}
+
+export interface AssistantChatPayload {
+  /** Pregunta o instrucción del médico (máx. 8000 caracteres). */
+  message: string;
+  /** Turnos previos; el backend usa los últimos 12. */
+  history?: AssistantChatMessage[];
+  /** Si se envía, el backend suma transcript/nota del encounter al contexto. */
+  encounter_id?: string;
+  specialty?: string;
+  screen_context?: AssistantScreenContext;
+}
+
+export interface AssistantChatResult {
+  answer: string;
+  mode: string;
+  specialty?: string;
+  used_context?: {
+    encounter?: boolean;
+    transcript?: boolean;
+    note_json?: boolean;
+    screen_context?: boolean;
+  };
+  safety_notice?: string;
+  suggested_actions?: unknown[];
+}
+
+export async function sendAssistantChat(
+  payload: AssistantChatPayload,
+): Promise<AssistantChatResult> {
+  return clinicalRequest<AssistantChatResult>("/api/clinical/assistant/chat", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export interface NoteAdjustmentPayload {
+  encounter_id: string;
+  /** Instrucción libre del médico (máx. 2000). Requiere nota ya generada. */
+  instruction: string;
+  /** Limita el ajuste a una sección concreta. */
+  section_key?: string;
+}
+
+export interface NoteAdjustmentResult {
+  /** Nota propuesta. NO se persiste sola: guardar con saveEditedClinicalNote. */
+  proposed_note_json: ClinicalNoteJson;
+  changed_sections: string[];
+  explanation: string;
+  requires_physician_review: boolean;
+}
+
+export async function adjustNoteWithAssistant(
+  payload: NoteAdjustmentPayload,
+): Promise<NoteAdjustmentResult> {
+  return clinicalRequest<NoteAdjustmentResult>(
+    "/api/clinical/assistant/note-adjustment",
+    { method: "POST", body: payload },
+  );
+}
