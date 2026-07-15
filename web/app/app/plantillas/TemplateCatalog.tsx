@@ -319,11 +319,13 @@ export function TemplateCatalog({
       ) : null}
 
       {!loading && !loadError ? (
-        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,240px)_1fr]">
+        // Flexbox con utilidades núcleo, NO grid con valor arbitrario con comas
+        // (lg:grid-cols-[minmax(0,240px)_1fr] colapsaba la columna a 0 en prod).
+        <div className="mt-5 flex flex-col gap-5 lg:flex-row">
           {/* Navegación por áreas (maestro) */}
           <nav
             aria-label="Áreas y especialidades"
-            className="h-fit rounded-lg border border-line bg-surface p-2 shadow-[var(--shadow-sm)] lg:sticky lg:top-4"
+            className="h-fit rounded-lg border border-line bg-surface p-2 shadow-[var(--shadow-sm)] lg:sticky lg:top-4 lg:w-60 lg:shrink-0"
           >
             {areasWithSpecialties.map(({ area, specialties }) => {
               const open = expandedArea === area.code;
@@ -380,7 +382,7 @@ export function TemplateCatalog({
                                   : "text-ink-soft hover:bg-ice-soft"
                               }`}
                             >
-                              <span className="min-w-0 truncate">{specialty.name}</span>
+                              <span className="min-w-0 flex-1 truncate">{specialty.name}</span>
                               {mine > 0 ? (
                                 <span className="shrink-0 text-[10px] font-bold text-success">
                                   {mine}
@@ -398,7 +400,7 @@ export function TemplateCatalog({
           </nav>
 
           {/* Detalle (plantillas) */}
-          <div>
+          <div className="min-w-0 flex-1">
             {/* Cabecera de contexto + filtros */}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
