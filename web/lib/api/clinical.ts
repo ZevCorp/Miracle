@@ -116,9 +116,6 @@ export interface ClinicalEncounter {
   patient_id: string | null;
   doctor_id?: string;
   consultation_type: BackendConsultationType | string;
-  consent?: boolean;
-  consent_source?: "clinician_attestation" | "legacy" | string;
-  consent_recorded_at?: string | null;
   template_id: string;
   template_snapshot?: EncounterTemplateSnapshot;
   status:
@@ -225,8 +222,6 @@ export const CLINICAL_ERROR_MESSAGES: Record<string, string> = {
     "No encontramos la plantilla seleccionada. Recarga la página e inténtalo de nuevo.",
   TEMPLATE_INVALID: "Revisa la plantilla. Necesita nombre y secciones válidas.",
   ENCOUNTER_NOT_FOUND: "No encontramos esta consulta. Vuelve a iniciarla.",
-  CONSENT_REQUIRED:
-    "Debes confirmar el consentimiento del paciente para iniciar.",
   TRANSCRIPT_REQUIRED:
     "La transcripción está vacía. Graba o escribe la consulta antes de generar la nota.",
   TRANSCRIPT_TOO_LONG:

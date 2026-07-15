@@ -16,7 +16,6 @@ export async function updateOrgSettings(formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim();
   const nit = String(formData.get("nit") ?? "").trim() || null;
-  const requireConsent = String(formData.get("require_consent") ?? "") === "true";
   const useHospitalTemplates = String(formData.get("use_hospital_templates") ?? "") === "true";
 
   if (name.length < 2) back("error", "El nombre de la institución es muy corto.");
@@ -27,7 +26,6 @@ export async function updateOrgSettings(formData: FormData) {
     .update({
       name,
       nit,
-      require_consent: requireConsent,
       use_hospital_templates: useHospitalTemplates,
     })
     .eq("id", profile.organizationId)

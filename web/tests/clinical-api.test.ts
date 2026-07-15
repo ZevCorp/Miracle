@@ -170,14 +170,14 @@ describe("buildClinicalRequest", () => {
       "http://localhost:3000",
       "/api/clinical/encounters",
       "tok",
-      { method: "POST", body: { consent: true } },
+      { method: "POST", body: { template_id: "tpl-1" } },
     );
     expect(url).toBe("http://localhost:3000/api/clinical/encounters");
     expect(init.method).toBe("POST");
     expect((init.headers as Record<string, string>)["Content-Type"]).toBe(
       "application/json",
     );
-    expect(init.body).toBe(JSON.stringify({ consent: true }));
+    expect(init.body).toBe(JSON.stringify({ template_id: "tpl-1" }));
   });
 
   it("omite query params vacíos", () => {
@@ -192,9 +192,9 @@ describe("parseClinicalErrorPayload", () => {
   it("lee el envelope estable { error: { code, message } }", () => {
     expect(
       parseClinicalErrorPayload(400, {
-        error: { code: "CONSENT_REQUIRED", message: "Falta consentimiento." },
+        error: { code: "ENCOUNTER_INVALID", message: "Datos inválidos." },
       }),
-    ).toEqual({ code: "CONSENT_REQUIRED", message: "Falta consentimiento." });
+    ).toEqual({ code: "ENCOUNTER_INVALID", message: "Datos inválidos." });
   });
 
   it("mapea el formato legacy del middleware de auth a UNAUTHORIZED", () => {

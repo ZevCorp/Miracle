@@ -1002,7 +1002,7 @@ function ConsultaActivaInner() {
           <div role="dialog" aria-modal="true" aria-labelledby="regenerate-title" className="mobile-bottom-sheet w-full max-w-lg rounded-t-3xl border border-b-0 border-line bg-surface p-4 shadow-[var(--shadow-lg)] sm:rounded-2xl sm:border-b sm:p-6">
             <div className="flex items-start gap-3">
               <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><LayoutTemplate size={19} /></span>
-              <div><h2 id="regenerate-title" className="font-display text-lg font-semibold text-deep">Cambiar plantilla y regenerar</h2><p className="mt-1 text-sm leading-relaxed text-muted">Se reutilizarán la transcripción y el consentimiento. Miracle creará una nueva revisión enlazada y conservará esta nota en auditoría.</p></div>
+              <div><h2 id="regenerate-title" className="font-display text-lg font-semibold text-deep">Cambiar plantilla y regenerar</h2><p className="mt-1 text-sm leading-relaxed text-muted">Se reutilizará la transcripción. Miracle creará una nueva revisión enlazada y conservará esta nota en auditoría.</p></div>
             </div>
             <div className="mt-5 text-sm font-semibold text-deep">Nueva plantilla
               {!templateLoading && templates.length ? <ClinicalTemplatePicker templates={templates.filter((template) => template.id !== snapshot?.template_id)} value={selectedTemplateId} onChange={setSelectedTemplateId} disabled={busy} /> : null}

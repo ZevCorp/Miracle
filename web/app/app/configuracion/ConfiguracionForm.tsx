@@ -16,12 +16,10 @@ export function ConfiguracionForm({
   initial: {
     name: string;
     nit: string;
-    requireConsent: boolean;
     useHospitalTemplates: boolean;
   };
 }) {
   const { showToast } = useStore();
-  const [requireConsent, setRequireConsent] = useState(initial.requireConsent);
   const [useHospitalTemplates, setUseHospitalTemplates] = useState(
     initial.useHospitalTemplates,
   );
@@ -29,7 +27,6 @@ export function ConfiguracionForm({
   return (
     <form action={updateOrgSettings} className="space-y-5">
       {/* Los toggles se envían como campos ocultos sincronizados con el estado. */}
-      <input type="hidden" name="require_consent" value={String(requireConsent)} />
       <input
         type="hidden"
         name="use_hospital_templates"
@@ -52,19 +49,9 @@ export function ConfiguracionForm({
 
       <Card>
         <h2 className="font-display text-base font-semibold text-deep">
-          Consentimiento y plantillas
+          Plantillas
         </h2>
         <div className="mt-4 space-y-4">
-          <SettingRow
-            title="Requerir consentimiento del paciente"
-            desc="Solicitar confirmación antes de iniciar la captura."
-          >
-            <Toggle
-              checked={requireConsent}
-              onChange={setRequireConsent}
-              ariaLabel="Requerir consentimiento del paciente"
-            />
-          </SettingRow>
           <SettingRow
             title="Usar formatos internos del hospital"
             desc="Priorizar las plantillas propias de la institución."
