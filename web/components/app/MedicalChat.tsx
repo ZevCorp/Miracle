@@ -17,7 +17,7 @@ const SUGERENCIAS = [
   "¿Qué CIE-10 uso para cefalea tensional?",
 ];
 
-export function MedicalChat() {
+export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -61,6 +61,15 @@ export function MedicalChat() {
     }
   }
 
+  // Durante una consulta activa el asistente se muestra embebido en el panel
+  // lateral de la pantalla, no como una ventana flotante duplicada.
+  if (!embedded && pathname === "/app/consultas/en-vivo") return null;
+
+  const visible = embedded || open;
+  const panelClass = embedded
+    ? `${open ? "fixed inset-0 z-[80] flex h-dvh w-full" : "hidden"} flex-col overflow-hidden bg-surface xl:static xl:flex xl:h-[min(590px,calc(100vh-8rem))] xl:min-h-[460px] xl:w-auto xl:rounded-[14px] xl:border xl:border-line xl:shadow-[var(--shadow-xs)]`
+    : "fixed inset-0 z-[80] flex h-dvh w-full flex-col overflow-hidden bg-surface sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[min(560px,calc(100vh-2.5rem))] sm:w-[min(380px,calc(100vw-2.5rem))] sm:rounded-[16px] sm:border sm:border-line sm:shadow-[var(--shadow-lg)]";
+
   return (
     <>
       {!open ? (
@@ -68,34 +77,37 @@ export function MedicalChat() {
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Abrir asistente clínico"
-          className="fixed bottom-5 left-5 z-50 inline-flex items-center gap-2 rounded-full bg-accent px-4 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lg)] transition-transform hover:scale-105 hover:bg-accent-hover"
+          className={`fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] left-3 z-50 inline-flex min-h-12 items-center gap-2 rounded-[12px] border border-line bg-surface px-4 py-3 text-sm font-semibold text-deep shadow-[var(--shadow-md)] active:scale-[0.98] md:bottom-5 md:left-auto md:right-5 md:hover:border-mist md:hover:bg-ice-soft ${embedded ? "xl:hidden" : ""}`}
         >
-          <Sparkles size={18} /> Asistente
+          <Sparkles size={18} className="text-accent" /> <span className="hidden min-[360px]:inline">Asistente</span>
         </button>
       ) : null}
 
-      {open ? (
-        <div className="fixed bottom-5 left-5 z-50 flex h-[min(560px,calc(100vh-2.5rem))] w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-xl)]">
-          <div className="flex items-center justify-between gap-2 bg-night px-4 py-3 text-white">
+      {visible ? (
+        <div className={panelClass}>
+          <div className="flex items-center justify-between gap-2 border-b border-line bg-surface px-4 py-3.5 text-deep">
             <div className="flex items-center gap-2">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
-                <Sparkles size={16} />
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-soft text-accent">
+                <Sparkles size={17} />
               </span>
               <div className="leading-tight">
                 <div className="text-sm font-semibold">Asistente clínico</div>
-                <div className="text-[11px] text-mist">
-                  Apoyo · no reemplaza tu criterio
+                <div className="text-[12px] text-muted">
+                  Apoyo clínico con IA
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Cerrar asistente"
-              className="text-white/70 hover:text-white"
-            >
-              <X size={18} />
-            </button>
+            {!embedded || open ? (
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Cerrar asistente"
+                title="Cerrar asistente"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] text-muted hover:bg-ice-soft hover:text-deep"
+              >
+                <X size={18} />
+              </button>
+            ) : null}
           </div>
 
           <div
@@ -105,7 +117,7 @@ export function MedicalChat() {
             {messages.length === 0 ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted">
-                  Hazme una pregunta clínica. Por ejemplo:
+                  Pregunta sobre diagnóstico, codificación o manejo clínico.
                 </p>
                 <div className="space-y-2">
                   {SUGERENCIAS.map((s) => (
@@ -113,7 +125,7 @@ export function MedicalChat() {
                       key={s}
                       type="button"
                       onClick={() => send(s)}
-                      className="block w-full rounded-lg border border-line px-3 py-2 text-left text-sm text-deep transition-colors hover:border-mist hover:bg-ice-soft"
+                      className="block min-h-11 w-full rounded-[10px] border border-line px-3 py-2 text-left text-sm text-deep transition-colors hover:border-mist hover:bg-ice-soft"
                     >
                       {s}
                     </button>
@@ -160,19 +172,20 @@ export function MedicalChat() {
               e.preventDefault();
               send(input);
             }}
-            className="flex items-center gap-2 border-t border-line p-2.5"
+            className="mobile-bottom-sheet flex items-center gap-2 border-t border-line p-2.5"
           >
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Escribe tu pregunta…"
               aria-label="Pregunta para el asistente clínico"
-              className="min-w-0 flex-1 rounded-full border border-line px-3.5 py-2 text-sm outline-none focus:border-accent"
+              className="clinical-control min-w-0 flex-1 px-3.5 text-base outline-none sm:text-sm"
             />
             <button
               type="submit"
               disabled={!input.trim() || loading}
               aria-label="Enviar pregunta"
+              title="Enviar pregunta al asistente"
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-white hover:bg-accent-hover disabled:opacity-50"
             >
               <Send size={16} />

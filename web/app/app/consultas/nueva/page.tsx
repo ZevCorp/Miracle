@@ -1,89 +1,92 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ArrowRight,
+  CalendarClock,
   Check,
+  ChevronDown,
   FileAudio,
   Loader2,
+  Mic,
   Monitor,
   Search,
-  UserPlus,
+  Upload,
+  UserRound,
   Video,
   X,
 } from "lucide-react";
 import { useStore } from "@/app/app/providers";
+import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker";
+import { AppPageHeader } from "@/components/app/AppPage";
 import type { ConsultationType } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import {
   createClinicalEncounter,
   friendlyClinicalMessage,
+  generateClinicalNote,
   getClinicalTemplates,
   normalizeSpecialtyCode,
-  sortedTemplateSections,
+  saveClinicalTranscript,
   toBackendConsultationType,
   type ClinicalTemplate,
 } from "@/lib/api/clinical";
+import {
+  transcribeAudioFile,
+  validateAudioUpload,
+} from "@/lib/stt/transcribe-audio-file";
 
-const tipos: {
-  id: ConsultationType;
-  label: string;
-  icon: typeof Monitor;
-  disabled?: boolean;
-}[] = [
+const modalities: { id: Exclude<ConsultationType, "audio">; label: string; icon: typeof Monitor }[] = [
   { id: "presencial", label: "Presencial", icon: Monitor },
   { id: "telemedicina", label: "Telemedicina", icon: Video },
-  // "Subir audio" queda deshabilitado hasta que exista transcripción real.
-  { id: "audio", label: "Subir audio", icon: FileAudio, disabled: true },
 ];
-
-const inputClass =
-  "w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent";
 
 function NuevaConsultaForm() {
   const router = useRouter();
   const sp = useSearchParams();
-  const { patients, addPatient, getPatient } = useStore();
+  const { patients, getPatient } = useStore();
+  const appointmentId = sp.get("appointment")?.trim() ?? "";
+  const appointmentName = sp.get("nombre")?.trim() ?? "";
 
-  // Prellenado desde la agenda ("Iniciar consulta" en una cita del día).
-  const [query, setQuery] = useState(() => sp.get("nombre")?.trim() ?? "");
-  const [pacienteId, setPacienteId] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-  const [tipo, setTipo] = useState<ConsultationType>("presencial");
-  const [showNewPatient, setShowNewPatient] = useState(false);
-  const [newPatientName, setNewPatientName] = useState("");
-  const [newPatientDocument, setNewPatientDocument] = useState("");
-  const [newPatientAge, setNewPatientAge] = useState("");
-  // "" = sin registrar: no se inventa un sexo por defecto.
-  const [newPatientSex, setNewPatientSex] = useState<"F" | "M" | "">("");
-
-  // Plantillas reales del backend clínico (institucionales + personales).
+  const [patientQuery, setPatientQuery] = useState(appointmentName);
+  const [patientId, setPatientId] = useState<string | null | undefined>(undefined);
+  const [patientPickerOpen, setPatientPickerOpen] = useState(false);
+  const [tipo, setTipo] = useState<Exclude<ConsultationType, "audio">>("presencial");
   const [templates, setTemplates] = useState<ClinicalTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [profileSpecialtyCode, setProfileSpecialtyCode] = useState<string | null>(null);
-
-  // El backend exige consent: true para crear el encounter — siempre se pide.
-  const [consentGiven, setConsentGiven] = useState(false);
-
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadCanRetry, setUploadCanRetry] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<
+    "idle" | "transcribing" | "creating" | "saving" | "generating" | "error"
+  >("idle");
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const audioInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadAbortRef = useRef<AbortController | null>(null);
+  const uploadRecoveryRef = useRef<{
+    fileKey: string;
+    transcript?: string;
+    encounterId?: string;
+    transcriptSaved?: boolean;
+  } | null>(null);
 
-  const seleccionado = getPatient(pacienteId);
-
-  const resultados = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return patients.slice(0, 6);
-    return patients
-      .filter(
-        (p) =>
-          p.nombre.toLowerCase().includes(q) ||
-          p.documento.toLowerCase().includes(q),
-      )
-      .slice(0, 6);
-  }, [query, patients]);
+  const appointmentPatientId = useMemo(
+    () =>
+      appointmentName
+        ? (patients.find(
+            (patient) =>
+              patient.nombre.trim().toLocaleLowerCase() === appointmentName.toLocaleLowerCase(),
+          )?.id ?? null)
+        : null,
+    [appointmentName, patients],
+  );
+  const effectivePatientId = patientId === undefined ? appointmentPatientId : patientId;
+  const selectedPatient = getPatient(effectivePatientId);
 
   useEffect(() => {
     let ignore = false;
@@ -91,9 +94,6 @@ function NuevaConsultaForm() {
     async function loadTemplateContext() {
       setTemplatesLoading(true);
       setTemplatesError(null);
-
-      // La especialidad del perfil solo se usa para priorizar plantillas; si
-      // falla, se muestran todas. El catálogo clínico viene SOLO del backend.
       const supabase = createClient();
       const profilePromise = (async () => {
         const { data: userData } = await supabase.auth.getUser();
@@ -113,118 +113,82 @@ function NuevaConsultaForm() {
           profilePromise.catch(() => null),
         ]);
         if (ignore) return;
-        setProfileSpecialtyCode(specialtyCode);
         setTemplates(list);
+        setProfileSpecialtyCode(specialtyCode);
       } catch (error) {
-        if (ignore) return;
-        setTemplates([]);
-        setTemplatesError(friendlyClinicalMessage(error));
+        if (!ignore) {
+          setTemplates([]);
+          setTemplatesError(friendlyClinicalMessage(error));
+        }
       } finally {
         if (!ignore) setTemplatesLoading(false);
       }
     }
 
     void loadTemplateContext();
-
     return () => {
       ignore = true;
     };
   }, []);
 
-  // Personales del médico + institucionales de su especialidad (o todas si el
-  // perfil no tiene especialidad registrada o no hay coincidencias).
-  const personalTemplates = useMemo(
-    () => templates.filter((template) => template.scope === "personal"),
-    [templates],
-  );
-  const institutionalTemplates = useMemo(() => {
-    const institutional = templates.filter(
-      (template) => template.scope !== "personal",
-    );
-    if (!profileSpecialtyCode) return institutional;
+  useEffect(() => () => uploadAbortRef.current?.abort(), []);
+
+  const availableTemplates = useMemo(() => {
+    const personal = templates.filter((template) => template.scope === "personal");
+    const institutional = templates.filter((template) => template.scope !== "personal");
+    if (!profileSpecialtyCode) return [...personal, ...institutional];
     const wanted = normalizeSpecialtyCode(profileSpecialtyCode);
     const matching = institutional.filter(
       (template) => normalizeSpecialtyCode(template.specialty) === wanted,
     );
-    return matching.length ? matching : institutional;
-  }, [templates, profileSpecialtyCode]);
+    return [...personal, ...(matching.length ? matching : institutional)];
+  }, [profileSpecialtyCode, templates]);
 
-  const availableTemplates = useMemo(
-    () => [...personalTemplates, ...institutionalTemplates],
-    [personalTemplates, institutionalTemplates],
-  );
-
-  // Selección con template.id REAL; si la selección quedó fuera de la lista,
-  // cae a la primera institucional (o a la primera disponible).
   const effectiveTemplateId = availableTemplates.some(
     (template) => template.id === selectedTemplateId,
   )
     ? selectedTemplateId
-    : (institutionalTemplates[0]?.id ?? availableTemplates[0]?.id ?? "");
-  const plantilla = availableTemplates.find(
-    (template) => template.id === effectiveTemplateId,
-  );
-  const plantillaSections = sortedTemplateSections(plantilla?.sections);
+    : (availableTemplates.find((template) => template.is_default)?.id ?? availableTemplates[0]?.id ?? "");
 
-  const nombreNuevo = query.trim();
-  const existeExacto = patients.some(
-    (p) => p.nombre.toLowerCase() === nombreNuevo.toLowerCase(),
-  );
+  const matchingPatients = useMemo(() => {
+    const query = patientQuery.trim().toLocaleLowerCase();
+    if (!query) return patients.slice(0, 6);
+    return patients
+      .filter(
+        (patient) =>
+          patient.nombre.toLocaleLowerCase().includes(query) ||
+          patient.documento.toLocaleLowerCase().includes(query),
+      )
+      .slice(0, 6);
+  }, [patientQuery, patients]);
 
-  function elegir(id: string, nombre: string) {
-    setPacienteId(id);
-    setQuery(nombre);
-    setOpen(false);
-  }
-
-  function crear() {
-    if (!nombreNuevo) return;
-    const p = addPatient(nombreNuevo);
-    elegir(p.id, p.nombre);
-  }
-
-  function crearPacienteNuevo() {
-    const nombre = newPatientName.trim() || nombreNuevo;
-    if (!nombre.trim()) return;
-
-    const edad = Number.parseInt(newPatientAge, 10);
-    const p = addPatient({
-      nombre,
-      documento: newPatientDocument,
-      edad: Number.isFinite(edad) ? edad : 0,
-      sexo: newPatientSex || undefined,
-    });
-
-    elegir(p.id, p.nombre);
-    setNewPatientName("");
-    setNewPatientDocument("");
-    setNewPatientAge("");
-    setNewPatientSex("");
-    setShowNewPatient(false);
-  }
-
-  function limpiar() {
-    setPacienteId(null);
-    setQuery("");
-  }
-
-  const canStart = Boolean(effectiveTemplateId) && consentGiven && !creating;
-
-  async function empezar() {
-    if (!canStart) return;
+  async function startRecording() {
+    if (!effectiveTemplateId || creating) return;
     setCreating(true);
     setCreateError(null);
     try {
       const result = await createClinicalEncounter({
-        patient_id: pacienteId ?? null,
+        patient_id: effectivePatientId,
         consultation_type: toBackendConsultationType(tipo),
         template_id: effectiveTemplateId,
-        consent: true,
       });
-      // El encounter_id es la llave de todo el flujo: viaja en la URL para
-      // sobrevivir recargas de la pantalla de consulta activa.
-      const params = new URLSearchParams({ encounter: result.encounter_id });
-      if (pacienteId) params.set("paciente", pacienteId);
+
+      if (appointmentId) {
+        const supabase = createClient();
+        const { error } = await supabase
+          .from("appointments")
+          .update({
+            estado: "en_curso",
+            clinical_encounter_id: result.encounter_id,
+            consultation_started_at: new Date().toISOString(),
+          })
+          .eq("id", appointmentId);
+        if (error) console.error("[agenda] link encounter", error.message);
+      }
+
+      const params = new URLSearchParams({ encounter: result.encounter_id, record: "1" });
+      if (effectivePatientId) params.set("paciente", effectivePatientId);
+      if (appointmentId) params.set("appointment", appointmentId);
       router.push(`/app/consultas/en-vivo?${params.toString()}`);
     } catch (error) {
       setCreateError(friendlyClinicalMessage(error));
@@ -232,357 +196,245 @@ function NuevaConsultaForm() {
     }
   }
 
+  async function linkAppointment(encounterId: string) {
+    if (!appointmentId) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("appointments")
+      .update({
+        estado: "en_curso",
+        clinical_encounter_id: encounterId,
+        consultation_started_at: new Date().toISOString(),
+      })
+      .eq("id", appointmentId);
+    if (error) console.error("[agenda] link encounter", error.message);
+  }
+
+  function selectAudioFile(file: File | null) {
+    uploadAbortRef.current?.abort();
+    uploadRecoveryRef.current = null;
+    setUploadProgress(0);
+    setUploadCanRetry(false);
+    setUploadError(null);
+    setUploadStatus("idle");
+    if (!file) {
+      setAudioFile(null);
+      return;
+    }
+    const validationError = validateAudioUpload(file);
+    if (validationError) {
+      setAudioFile(null);
+      setUploadError(validationError);
+      setUploadStatus("error");
+      if (audioInputRef.current) audioInputRef.current.value = "";
+      return;
+    }
+    setAudioFile(file);
+  }
+
+  async function processAudioUpload() {
+    if (!audioFile || !effectiveTemplateId || uploadStatus === "transcribing") return;
+    const controller = new AbortController();
+    uploadAbortRef.current = controller;
+    setUploadError(null);
+
+    const fileKey = `${audioFile.name}:${audioFile.size}:${audioFile.lastModified}`;
+    const recovery = uploadRecoveryRef.current?.fileKey === fileKey
+      ? uploadRecoveryRef.current
+      : { fileKey };
+    uploadRecoveryRef.current = recovery;
+
+    try {
+      let transcript = recovery.transcript;
+      if (!transcript) {
+        setUploadStatus("transcribing");
+        transcript = await transcribeAudioFile(audioFile, {
+          signal: controller.signal,
+          onProgress: setUploadProgress,
+        });
+        recovery.transcript = transcript;
+        setUploadCanRetry(true);
+      }
+
+      let encounterId = recovery.encounterId;
+      if (!encounterId) {
+        setUploadStatus("creating");
+        const result = await createClinicalEncounter({
+          patient_id: effectivePatientId,
+          consultation_type: "audio_upload",
+          template_id: effectiveTemplateId,
+        });
+        encounterId = result.encounter_id;
+        recovery.encounterId = encounterId;
+        await linkAppointment(encounterId);
+      }
+
+      if (!recovery.transcriptSaved) {
+        setUploadStatus("saving");
+        await saveClinicalTranscript(encounterId, transcript);
+        recovery.transcriptSaved = true;
+      }
+
+      setUploadStatus("generating");
+      await generateClinicalNote(encounterId);
+      router.push(`/app/consultas/en-vivo?encounter=${encodeURIComponent(encounterId)}`);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setUploadStatus("error");
+      setUploadError(
+        error instanceof Error ? error.message : friendlyClinicalMessage(error),
+      );
+    } finally {
+      if (uploadAbortRef.current === controller) uploadAbortRef.current = null;
+    }
+  }
+
+  const uploadBusy = ["transcribing", "creating", "saving", "generating"].includes(uploadStatus);
+  const canStart = Boolean(effectiveTemplateId) && !creating && !uploadBusy;
+
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="text-2xl font-semibold text-deep">Nueva consulta</h1>
-      <p className="mt-1 text-sm text-muted">
-        Inicie la captura. Puede asociar un paciente o crear uno nuevo — o
-        hacerlo después.
-      </p>
-
-      <div className="mt-6 space-y-6">
-        {/* Paciente */}
-        <section className="rounded-lg border border-line bg-surface p-5">
-          <h2 className="font-display text-base font-semibold text-deep">
-            1 · Paciente{" "}
-            <span className="font-normal text-muted">(opcional)</span>
-          </h2>
-
-          <div className="relative mt-3">
-            <div className="flex items-center gap-2 rounded-md border border-line px-3 py-2 focus-within:border-accent">
-              <Search size={16} className="text-muted" />
-              <input
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setPacienteId(null);
-                  setOpen(true);
-                }}
-                onFocus={() => setOpen(true)}
-                placeholder="Buscar paciente por nombre o documento…"
-                aria-label="Buscar paciente por nombre o documento"
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
-              />
-              {seleccionado ? (
-                <button
-                  type="button"
-                  onClick={limpiar}
-                  aria-label="Quitar paciente"
-                  className="text-muted hover:text-deep"
-                >
-                  <X size={16} />
-                </button>
-              ) : null}
+    <div className="app-page max-w-4xl pb-4 sm:pb-8">
+      <AppPageHeader
+        kicker="Captura clínica"
+        title="Iniciar consulta"
+        description="Confirma la plantilla y comienza a grabar. El paciente es opcional."
+        action={
+          appointmentName ? (
+            <div className="inline-flex items-center gap-2 rounded-[9px] border border-accent/25 bg-accent-soft/45 px-3 py-2 text-sm font-medium text-accent-ink">
+              <CalendarClock size={15} /> {appointmentName}
             </div>
+          ) : null
+        }
+      />
 
-            {open ? (
-              <>
-                {/* overlay para cerrar al hacer clic afuera */}
-                <button
-                  type="button"
-                  aria-hidden
-                  tabIndex={-1}
-                  onClick={() => setOpen(false)}
-                  className="fixed inset-0 z-10 cursor-default"
-                />
-                <div className="absolute z-20 mt-1.5 w-full overflow-hidden rounded-xl border border-line bg-surface p-1.5 shadow-[var(--shadow-lg)]">
-                  {resultados.length ? (
-                    <ul className="max-h-64 overflow-auto">
-                      {resultados.map((p) => (
-                        <li key={p.id}>
-                          <button
-                            type="button"
-                            onClick={() => elegir(p.id, p.nombre)}
-                            className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-ice-soft"
-                          >
-                            <span className="min-w-0">
-                              <span className="block truncate text-sm font-medium text-deep">
-                                {p.nombre}
-                              </span>
-                              <span className="block truncate text-xs text-muted">
-                                {p.edad > 0
-                                  ? `${p.edad} años · ${p.documento}`
-                                  : "Datos por completar"}
-                              </span>
-                            </span>
-                            {pacienteId === p.id ? (
-                              <Check size={16} className="text-accent" />
-                            ) : null}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="px-3 py-2 text-sm text-muted">
-                      {nombreNuevo
-                        ? "Sin coincidencias."
-                        : "Escribe un nombre o documento para buscar."}
-                    </p>
-                  )}
-
-                  {nombreNuevo && !existeExacto ? (
-                    <button
-                      type="button"
-                      onClick={crear}
-                      className="mt-1 flex w-full items-center gap-2.5 rounded-lg border border-dashed border-accent/50 bg-accent-soft/40 px-3 py-2.5 text-sm font-semibold text-accent-ink hover:bg-accent-soft"
-                    >
-                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-accent text-white">
-                        <UserPlus size={14} />
-                      </span>
-                      Crear paciente «{nombreNuevo}»
-                    </button>
-                  ) : null}
-                </div>
-              </>
-            ) : null}
-          </div>
-
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={() => {
-                setShowNewPatient((show) => !show);
-                if (!newPatientName && nombreNuevo) setNewPatientName(nombreNuevo);
-              }}
-              className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent-soft/40 px-4 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-soft"
-            >
-              <UserPlus size={16} />
-              Añadir paciente nuevo
-            </button>
-          </div>
-
-          {showNewPatient ? (
-            <div className="mt-4 rounded-lg border border-dashed border-accent/40 bg-ice-soft p-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block text-sm font-medium text-deep sm:col-span-2">
-                  Nombre completo
-                  <input
-                    value={newPatientName}
-                    onChange={(event) => setNewPatientName(event.target.value)}
-                    className={`${inputClass} mt-1.5`}
-                    placeholder="Ej. María Gómez"
-                  />
-                </label>
-                <label className="block text-sm font-medium text-deep">
-                  Documento
-                  <input
-                    value={newPatientDocument}
-                    onChange={(event) => setNewPatientDocument(event.target.value)}
-                    className={`${inputClass} mt-1.5`}
-                    placeholder="Ej. CC 123456789"
-                  />
-                </label>
-                <label className="block text-sm font-medium text-deep">
-                  Edad
-                  <input
-                    value={newPatientAge}
-                    onChange={(event) => setNewPatientAge(event.target.value)}
-                    className={`${inputClass} mt-1.5`}
-                    inputMode="numeric"
-                    placeholder="Ej. 42"
-                  />
-                </label>
-                <label className="block text-sm font-medium text-deep">
-                  Sexo
-                  <select
-                    value={newPatientSex}
-                    onChange={(event) =>
-                      setNewPatientSex(event.target.value as "F" | "M" | "")
-                    }
-                    className={`${inputClass} mt-1.5`}
-                  >
-                    <option value="">Sin registrar</option>
-                    <option value="F">Femenino</option>
-                    <option value="M">Masculino</option>
-                  </select>
-                </label>
-              </div>
-
-              <div className="mt-4 flex flex-wrap justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowNewPatient(false)}
-                  className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-deep hover:border-mist"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={crearPacienteNuevo}
-                  disabled={!newPatientName.trim() && !nombreNuevo}
-                  className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Check size={15} />
-                  Crear y seleccionar
-                </button>
-              </div>
+      <main className="rounded-[14px] border border-line bg-surface shadow-[var(--shadow-xs)]">
+        <section className="border-b border-line px-5 py-5 sm:px-7">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Nota clínica</p>
+              <h2 className="mt-1 text-lg font-semibold text-deep">Plantilla para esta consulta</h2>
             </div>
-          ) : null}
-
-          {seleccionado ? (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-mint-soft px-3 py-1.5 text-sm font-medium text-success">
-              <Check size={15} /> {seleccionado.nombre}
-            </div>
-          ) : null}
-        </section>
-
-        {/* Tipo */}
-        <section className="rounded-lg border border-line bg-surface p-5">
-          <h2 className="font-display text-base font-semibold text-deep">
-            2 · Tipo de consulta
-          </h2>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {tipos.map((t) => {
-              const active = t.id === tipo;
-              const Icon = t.icon;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  disabled={t.disabled}
-                  onClick={() => {
-                    if (!t.disabled) setTipo(t.id);
-                  }}
-                  title={t.disabled ? "Próximamente" : undefined}
-                  className={`flex flex-col items-center gap-1.5 rounded-md border px-3 py-3 text-sm font-medium transition-colors ${
-                    active
-                      ? "border-accent bg-accent-soft text-accent-ink"
-                      : "border-line text-ink-soft hover:border-mist"
-                  } ${t.disabled ? "cursor-not-allowed opacity-50 hover:border-line" : ""}`}
-                >
-                  <Icon size={18} />
-                  {t.label}
-                  {t.disabled ? (
-                    <span className="text-[10px] font-normal text-muted">Próximamente</span>
-                  ) : null}
-                </button>
-              );
-            })}
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-ice text-accent"><Check size={16} /></span>
           </div>
-        </section>
-
-        {/* Plantilla */}
-        <section className="rounded-lg border border-line bg-surface p-5">
-          <h2 className="font-display text-base font-semibold text-deep">
-            3 · Plantilla de nota
-          </h2>
-
           {templatesLoading ? (
-            <p className="mt-3 flex items-center gap-2 text-sm text-muted">
-              <Loader2 size={15} className="animate-spin text-accent" />
-              Cargando plantillas...
-            </p>
+            <p className="mt-4 flex items-center gap-2 text-sm text-muted"><Loader2 size={15} className="animate-spin text-accent" /> Cargando plantillas…</p>
           ) : templatesError ? (
-            <p
-              role="alert"
-              className="mt-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-            >
-              No se pudieron cargar las plantillas. {templatesError}
-            </p>
-          ) : availableTemplates.length === 0 ? (
-            <p className="mt-3 rounded-md border border-line bg-pearl px-3 py-2 text-sm text-muted">
-              No hay plantillas disponibles. Crea una en «Plantillas» antes de
-              iniciar la consulta.
-            </p>
+            <p role="alert" className="mt-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">No se pudieron cargar las plantillas. {templatesError}</p>
+          ) : availableTemplates.length ? (
+            <div className="mt-4"><ClinicalTemplatePicker templates={availableTemplates} value={effectiveTemplateId} onChange={setSelectedTemplateId} disabled={creating} /></div>
           ) : (
-            <>
-              <select
-                value={effectiveTemplateId}
-                onChange={(e) => setSelectedTemplateId(e.target.value)}
-                aria-label="Plantilla de nota"
-                className={`${inputClass} mt-3`}
-              >
-                {personalTemplates.length ? (
-                  <optgroup label="Mis plantillas">
-                    {personalTemplates.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null}
-                <optgroup label="Institucionales">
-                  {institutionalTemplates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {plantillaSections.map((s) => (
-                  <span
-                    key={s.key}
-                    className="rounded-full bg-ice px-2.5 py-1 text-xs text-ink-soft"
-                  >
-                    {s.label}
-                  </span>
-                ))}
-              </div>
-            </>
+            <p className="mt-4 rounded-lg bg-pearl px-3 py-2.5 text-sm text-muted">No hay plantillas disponibles. Crea una antes de iniciar la consulta.</p>
           )}
         </section>
 
-        {/* Acción */}
-        <div className="space-y-3">
-          <label className="flex items-start gap-3 rounded-lg border border-line bg-surface p-4 text-sm text-deep">
+        <section className="border-b border-line px-5 py-5 sm:px-7">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Contexto</p>
+              <h2 className="mt-1 text-base font-semibold text-deep">Modalidad de atención</h2>
+            </div>
+            <div className="inline-flex w-full rounded-xl border border-line bg-pearl p-1 sm:w-auto" role="group" aria-label="Modalidad de atención">
+              {modalities.map((modality) => {
+                const Icon = modality.icon;
+                const active = tipo === modality.id;
+                return (
+                  <button key={modality.id} type="button" onClick={() => setTipo(modality.id)} className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${active ? "bg-surface text-accent shadow-[var(--shadow-xs)]" : "text-muted hover:text-deep"}`} aria-pressed={active}>
+                    <Icon size={15} /> {modality.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="relative mt-5 rounded-xl border border-dashed border-line bg-pearl/70 px-4 py-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ice text-accent"><UserRound size={17} /></span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-deep">{(selectedPatient?.nombre ?? appointmentName) || "Paciente sin asociar"}</p>
+                   <p className="text-[13px] text-muted">{selectedPatient ? "Asociado a esta consulta" : "Opcional"}</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setPatientPickerOpen((open) => !open)} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-semibold text-accent hover:bg-accent-soft">
+                {selectedPatient ? "Cambiar" : "Asociar paciente"} <ChevronDown size={15} />
+              </button>
+            </div>
+            {patientPickerOpen ? (
+              <div className="mt-4 border-t border-line pt-4">
+                <div className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 focus-within:border-accent">
+                  <Search size={16} className="text-muted" />
+                  <input value={patientQuery} onChange={(event) => setPatientQuery(event.target.value)} placeholder="Buscar por nombre o documento" aria-label="Buscar paciente" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted" />
+                  {patientQuery ? <button type="button" onClick={() => setPatientQuery("")} aria-label="Limpiar búsqueda" className="text-muted hover:text-deep"><X size={15} /></button> : null}
+                </div>
+                <ul className="mt-2 max-h-44 overflow-y-auto rounded-lg border border-line bg-surface p-1">
+                  {matchingPatients.length ? matchingPatients.map((patient) => (
+                    <li key={patient.id}><button type="button" onClick={() => { setPatientId(patient.id); setPatientQuery(patient.nombre); setPatientPickerOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left hover:bg-ice-soft"><span><span className="block text-sm font-medium text-deep">{patient.nombre}</span><span className="block text-xs text-muted">{patient.documento || "Datos por completar"}</span></span>{patient.id === effectivePatientId ? <Check size={15} className="text-accent" /> : null}</button></li>
+                  )) : <li className="px-3 py-2.5 text-sm text-muted">No hay coincidencias. Podrás crear el paciente dentro de la consulta.</li>}
+                </ul>
+                {selectedPatient ? <button type="button" onClick={() => { setPatientId(null); setPatientPickerOpen(false); }} className="mt-2 text-sm font-semibold text-muted hover:text-deep">Continuar sin paciente asociado</button> : null}
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="border-b border-line px-5 py-5 sm:px-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Usar otra fuente</p>
+              <h2 className="mt-1 text-base font-semibold text-deep">Procesar una grabación existente</h2>
+              <p className="mt-1 text-[13px] leading-relaxed text-muted">El audio se transcribe con la plantilla elegida y no se guarda en Miracle Web.</p>
+            </div>
             <input
-              type="checkbox"
-              checked={consentGiven}
-              onChange={(e) => setConsentGiven(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-accent"
+              ref={audioInputRef}
+              type="file"
+              accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/webm,audio/ogg,.mp3,.m4a,.wav,.webm,.ogg"
+              className="sr-only"
+              onChange={(event) => selectAudioFile(event.target.files?.[0] ?? null)}
             />
-            <span>
-              Confirmo el <strong>consentimiento del paciente</strong> para registrar y
-              procesar la información de esta consulta.
-            </span>
-          </label>
-
-          {createError ? (
-            <p
-              role="alert"
-              className="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
-            >
-              No se pudo iniciar la consulta. {createError}
-            </p>
-          ) : null}
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted">
-              {!consentGiven
-                ? "Debes confirmar el consentimiento."
-                : seleccionado
-                  ? `Listo para iniciar con ${seleccionado.nombre}.`
-                  : "Puede iniciar sin paciente identificado."}
-            </p>
             <button
               type="button"
-              onClick={() => void empezar()}
-              disabled={!canStart}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="clinical-secondary min-h-11 shrink-0 px-4"
+              onClick={() => audioInputRef.current?.click()}
+              disabled={creating || uploadBusy}
             >
-              {creating ? (
-                <>
-                  <Loader2 size={17} className="animate-spin" /> Creando consulta...
-                </>
-              ) : (
-                <>
-                  Empezar consulta <ArrowRight size={17} />
-                </>
-              )}
+              <Upload size={17} /> {audioFile ? "Cambiar archivo" : "Subir grabación"}
             </button>
           </div>
-        </div>
-      </div>
+
+          {audioFile ? (
+            <div className="mt-4 rounded-xl border border-line bg-pearl/70 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ice text-accent"><FileAudio size={19} /></span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-deep">{audioFile.name}</p>
+                    <p className="text-xs text-muted">{(audioFile.size / 1024 / 1024).toFixed(1)} MB · MP3, M4A, WAV, WebM u OGG</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => void processAudioUpload()} disabled={uploadBusy || !effectiveTemplateId} className="clinical-primary min-h-11 shrink-0 px-4">
+                  {uploadBusy ? <><Loader2 size={17} className="animate-spin" /> Procesando {uploadProgress ? `${uploadProgress}%` : "…"}</> : <><FileAudio size={17} /> Transcribir y generar nota</>}
+                </button>
+              </div>
+              {uploadBusy ? <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-line" role="progressbar" aria-label="Progreso de la grabación" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}><div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${uploadProgress}%` }} /></div> : null}
+            </div>
+          ) : null}
+          {uploadError ? <p role="alert" className="mt-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">{uploadError} {uploadCanRetry ? "Puedes reintentar sin volver a transcribir el archivo." : ""}</p> : null}
+        </section>
+
+        <section className="mobile-bottom-sheet sticky bottom-0 z-20 rounded-b-[14px] border-t border-line bg-surface px-4 py-4 shadow-[0_-10px_24px_rgb(8_17_31/0.08)] sm:static sm:bg-accent-soft/25 sm:px-7 sm:py-5 sm:shadow-none">
+          {createError ? <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">No se pudo iniciar la consulta. {createError}</p> : null}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+             <p className="max-w-md text-[13px] leading-relaxed text-muted">Al iniciar, confirmas que cuentas con el consentimiento correspondiente.</p>
+             <button type="button" onClick={() => void startRecording()} disabled={!canStart} className="clinical-primary min-h-12 w-full px-6 py-3 sm:w-auto">
+              {creating ? <><Loader2 size={18} className="animate-spin" /> Preparando grabación…</> : <><Mic size={18} /> Grabar ahora</>}
+            </button>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
 
-// useSearchParams exige un límite de Suspense en la página (mismo patrón que en-vivo).
 export default function NuevaConsultaPage() {
-  return (
-    <Suspense fallback={null}>
-      <NuevaConsultaForm />
-    </Suspense>
-  );
+  return <Suspense fallback={null}><NuevaConsultaForm /></Suspense>;
 }

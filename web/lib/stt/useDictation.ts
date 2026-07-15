@@ -22,6 +22,8 @@ export type DictationStatus =
   | "connecting"
   | "recording"
   | "reconnecting"
+  | "pausing"
+  | "paused"
   | "stopping"
   | "error";
 
@@ -46,6 +48,7 @@ export function useDictation(onFinal: (text: string) => void): {
   error: string | null;
   elapsedSec: number;
   start: () => Promise<void>;
+  pause: () => Promise<void>;
   stop: () => Promise<void>;
 } {
   const [status, setStatus] = useState<DictationStatus>("idle");
@@ -54,7 +57,7 @@ export function useDictation(onFinal: (text: string) => void): {
   const [elapsedSec, setElapsedSec] = useState(0);
 
   const engineRef = useRef<DictationHandle | null>(null);
-  const intentRef = useRef<"recording" | "stopped">("stopped");
+  const intentRef = useRef<"recording" | "paused" | "stopped">("stopped");
   const statusRef = useRef<DictationStatus>("idle");
   const startGuardRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
@@ -148,6 +151,7 @@ export function useDictation(onFinal: (text: string) => void): {
   const start = useCallback(async () => {
     if (startGuardRef.current) return;
     if (statusRef.current === "recording" || statusRef.current === "stopping") return;
+    const resuming = statusRef.current === "paused";
     startGuardRef.current = true;
     setError(null);
     lastEngineErrorRef.current = null;
@@ -159,7 +163,7 @@ export function useDictation(onFinal: (text: string) => void): {
       await engine.ensureMicrophone();
       setStatusSafe("connecting");
       await engine.start();
-      setElapsedSec(0);
+      if (!resuming) setElapsedSec(0);
       startTimer();
       setStatusSafe("recording");
     } catch (e) {
@@ -172,7 +176,28 @@ export function useDictation(onFinal: (text: string) => void): {
     }
   }, [getEngine, setStatusSafe, startTimer, stopTimer]);
 
+  const pause = useCallback(async () => {
+    if (statusRef.current !== "recording" && statusRef.current !== "reconnecting") return;
+    intentRef.current = "paused";
+    setStatusSafe("pausing");
+    stopTimer();
+    try {
+      await engineRef.current?.stop();
+    } catch {
+      /* los segmentos confirmados permanecen en la transcripción */
+    } finally {
+      setPartialText("");
+      setStatusSafe("paused");
+    }
+  }, [setStatusSafe, stopTimer]);
+
   const stop = useCallback(async () => {
+    if (statusRef.current === "paused") {
+      intentRef.current = "stopped";
+      setPartialText("");
+      setStatusSafe("idle");
+      return;
+    }
     if (statusRef.current !== "recording" && statusRef.current !== "reconnecting") return;
     intentRef.current = "stopped";
     setStatusSafe("stopping");
@@ -189,6 +214,27 @@ export function useDictation(onFinal: (text: string) => void): {
     }
   }, [setStatusSafe, stopTimer]);
 
+  // El navegador solo permite advertir, no personalizar, el diálogo de salida.
+  // Protege recargas/cierre de pestaña mientras la captura sigue abierta.
+  useEffect(() => {
+    const protectedStatus = new Set<DictationStatus>([
+      "requesting_mic",
+      "connecting",
+      "recording",
+      "reconnecting",
+      "pausing",
+      "paused",
+      "stopping",
+    ]);
+    if (!protectedStatus.has(status)) return;
+    const preventLoss = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", preventLoss);
+    return () => window.removeEventListener("beforeunload", preventLoss);
+  }, [status]);
+
   // Al desmontar (navegación SPA): apagar micrófono y socket.
   useEffect(() => {
     return () => {
@@ -199,5 +245,5 @@ export function useDictation(onFinal: (text: string) => void): {
     };
   }, [stopTimer]);
 
-  return { status, partialText, error, elapsedSec, start, stop };
+  return { status, partialText, error, elapsedSec, start, pause, stop };
 }

@@ -13,7 +13,7 @@ Motor de plantillas clínicas y notas estructuradas. La plantilla es el molde, l
 
 ## Catálogo institucional (fuente de verdad)
 
-Supabase es la fuente real de plantillas institucionales — **no** se usan plantillas hardcodeadas en el frontend como fuente principal. `clinical_templates` contiene **147 plantillas institucionales** (`scope = institutional`, `status = active`) que cubren **49 especialidades**, con 3 plantillas por especialidad: `Consulta inicial`, `Control y seguimiento` y una de valoración/procedimiento. La única `is_default = true` es `Consulta inicial · Medicina general`.
+Supabase es la fuente real de plantillas institucionales — **no** se usan plantillas hardcodeadas en el frontend como fuente principal. `clinical_templates` contiene **147 plantillas institucionales** (`scope = institutional`, `status = active`) que cubren **49 especialidades**. Medicina general inicia su renovación con `Consulta inicial adulto`, `Consulta de seguimiento` y `Control de condición crónica`; la primera es la única `is_default = true`.
 
 - El catálogo se siembra con [supabase/migrations/20260710060000_seed_institutional_templates.sql](../supabase/migrations/20260710060000_seed_institutional_templates.sql), generado por [scripts/generate-institutional-templates-seed.js](../scripts/generate-institutional-templates-seed.js) (catálogo de 49 especialidades embebido, derivado del catálogo original del frontend Next.js). El seed es idempotente: ids `UUIDv5(slug)` deterministas + `ON CONFLICT (id) DO NOTHING`.
 - Las plantillas **personales** (`scope = personal`, creadas vía `POST /templates`) conviven en la misma tabla y solo son visibles para su dueño.
@@ -61,7 +61,6 @@ Los endpoints clínicos responden errores con envelope estable:
 | `TEMPLATE_INVALID` | 400 | Payload de plantilla inválido (nombre, especialidad, secciones) |
 | `ENCOUNTER_NOT_FOUND` | 404 | Encounter inexistente o de otro médico |
 | `ENCOUNTER_INVALID` | 400/409 | `consultation_type` inválido, `patient_id` muy largo, o transcript sobre encounter `completed` (409) |
-| `CONSENT_REQUIRED` | 400 | `consent !== true` al crear encounter |
 | `TRANSCRIPT_REQUIRED` | 400 | Transcript vacío al guardarlo, o generate-note sin transcript |
 | `TRANSCRIPT_TOO_LONG` | 413 | Transcript > 200 000 caracteres |
 | `LLM_NOT_CONFIGURED` | 503 | No hay proveedor LLM configurado |
@@ -121,6 +120,8 @@ Reglas de normalización (el backend siempre las aplica):
   "doctor_id": "7b8a4c8e-...",
   "consultation_type": "presencial",
   "consent": true,
+  "consent_source": "clinician_attestation",
+  "consent_recorded_at": "2026-07-15T12:00:00.000Z",
   "template_id": "e3b0c442-98fc-4c14-9af4-a11e00000001",
   "template_snapshot": {
     "template_id": "e3b0c442-98fc-4c14-9af4-a11e00000001",
@@ -218,7 +219,19 @@ Respuesta `201`:
 
 Las plantillas creadas por API siempre son `scope: "personal"` del usuario autenticado.
 
-### 3. Obtener plantilla
+### 3. Proponer plantilla desde ejemplo (temporal)
+
+```http
+POST /api/clinical/templates/draft-from-example
+```
+
+```json
+{ "specialty": "medicina_general", "example_text": "Nota de referencia anonimizada..." }
+```
+
+Devuelve una propuesta estructurada (`name`, `description`, `sections`) con `requires_physician_review: true` y `source_persisted: false`. El ejemplo tiene máximo 12 000 caracteres, no se guarda ni se asocia a un encounter; el médico debe revisarlo y crear la plantilla explícitamente mediante `POST /templates`.
+
+### 4. Obtener plantilla
 
 ```http
 GET /api/clinical/templates/:template_id
@@ -254,8 +267,7 @@ POST /api/clinical/encounters
 {
   "patient_id": null,
   "consultation_type": "presencial",
-  "template_id": "e3b0c442-98fc-4c14-9af4-a11e00000001",
-  "consent": true
+  "template_id": "e3b0c442-98fc-4c14-9af4-a11e00000001"
 }
 ```
 
@@ -265,9 +277,21 @@ Respuesta `201`:
 { "encounter_id": "0b3f...", "status": "created", "template": { "...": "template_snapshot" } }
 ```
 
-`consent: true` es obligatorio. La plantilla debe estar activa y ser visible para el médico.
+El servidor registra `consent: true`, `consent_source: "clinician_attestation"` y `consent_recorded_at` al crear el encounter. La plantilla debe estar activa y ser visible para el médico.
 
-### 7. Obtener encounter
+### 7. Asociar paciente durante o después de la captura
+
+```http
+PATCH /api/clinical/encounters/:encounter_id/patient
+```
+
+```json
+{ "patient_id": "id-del-paciente" }
+```
+
+El encounter se actualiza solo si pertenece al médico autenticado. `patient_id` también puede ser `null` para mantener la consulta sin asociar.
+
+### 8. Obtener encounter
 
 ```http
 GET /api/clinical/encounters/:encounter_id
@@ -279,7 +303,7 @@ GET /api/clinical/encounters/:encounter_id
 
 Solo el médico dueño; ajeno/inexistente → 404.
 
-### 8. Guardar transcripción
+### 9. Guardar transcripción
 
 ```http
 POST /api/clinical/encounters/:encounter_id/transcript
@@ -297,7 +321,16 @@ Respuesta:
 
 Vacío → `400 TRANSCRIPT_REQUIRED`. Más de 200 000 caracteres → `413 TRANSCRIPT_TOO_LONG`. No genera la nota automáticamente.
 
-### 9. Generar nota clínica
+#### Grabación existente
+
+El navegador acepta MP3, M4A/MP4, WAV, WebM u OGG de hasta 100 MB y envía el
+audio directamente a la URL STT temporal obtenida en `POST /api/stt/session`.
+Miracle Web no persiste el archivo: conserva la transcripción, crea el encounter
+con `consultation_type: "audio_upload"`, guarda el texto con este endpoint y
+después solicita la generación. Si falla una etapa posterior, el cliente reutiliza
+el texto y el `encounter_id` ya creados para evitar duplicados.
+
+### 10. Generar nota clínica
 
 ```http
 POST /api/clinical/encounters/:encounter_id/generate-note
@@ -309,7 +342,7 @@ Usa el `template_snapshot` (no la plantilla actual), construye el prompt clínic
 { "encounter_id": "0b3f...", "status": "note_generated", "note_json": { "summary": "...", "sections": [ ... ], "warnings": [], "missing_required_sections": [] } }
 ```
 
-### 10. Guardar nota editada
+### 11. Guardar nota editada
 
 ```http
 PUT /api/clinical/encounters/:encounter_id/note
@@ -341,8 +374,7 @@ curl -s "$BASE/api/clinical/templates?specialty=medicina_general" -H "$AUTH"
 # 2. Crear encounter con la plantilla institucional "Consulta inicial"
 ENC=$(curl -s -X POST "$BASE/api/clinical/encounters" -H "$AUTH" -H "$JSON" -d '{
   "consultation_type": "presencial",
-  "template_id": "e3b0c442-98fc-4c14-9af4-a11e00000001",
-  "consent": true
+  "template_id": "e3b0c442-98fc-4c14-9af4-a11e00000001"
 }' | node -pe "JSON.parse(require('fs').readFileSync(0)).encounter_id")
 
 # 3. Guardar transcripción
@@ -365,12 +397,12 @@ curl -s -X PUT "$BASE/api/clinical/encounters/$ENC/note" -H "$AUTH" -H "$JSON" -
 1. Obtener el access token de Supabase tras login y mandarlo en `Authorization: Bearer` a todo `/api/clinical/*`.
 2. Listar plantillas con `GET /templates?specialty=...` y renderizar selector (institucionales primero: `is_default`).
 3. Crear plantillas mandando `sections` como strings u objetos; renderizar siempre lo que devuelve el backend (ya normalizado).
-4. Antes de iniciar consulta: `POST /encounters` con `template_id` y `consent: true`; guardar `encounter_id`.
+4. Antes de iniciar consulta: `POST /encounters` con `template_id`; guardar `encounter_id`. El servidor registra la declaración profesional de consentimiento.
 5. Al terminar la transcripción: `POST /encounters/:id/transcript` (no vacío).
 6. Pedir la nota con `POST /encounters/:id/generate-note` y renderizar `note_json.sections` en orden — nunca dividir markdown ni adivinar estructura.
 7. Mostrar `warnings` y `missing_required_sections` al médico.
 8. Al editar: mantener las mismas `keys` y mandar `PUT /encounters/:id/note` con el `note_json` completo.
-9. Manejar los códigos de error de la tabla (en especial `CONSENT_REQUIRED`, `TRANSCRIPT_REQUIRED`, `LLM_NOT_CONFIGURED`, `NOTE_GENERATION_FAILED`).
+9. Manejar los códigos de error de la tabla (en especial `TRANSCRIPT_REQUIRED`, `LLM_NOT_CONFIGURED`, `NOTE_GENERATION_FAILED`).
 10. No usar `SUPABASE_SERVICE_ROLE_KEY` jamás en el cliente; el frontend solo habla con este API.
 
 ## Tests
@@ -381,3 +413,17 @@ npm run test:clinical-workflow
 ```
 
 Suite en [scripts/verify-clinical-workflow.js](../scripts/verify-clinical-workflow.js): levanta las rutas reales de Express con un Supabase fake en memoria y un LLM fake (17 casos obligatorios + extras de ownership).
+
+## Cierre clínico universal (2026-07-15)
+
+El contrato de `ClinicalNoteJson` ahora incluye `discharge` junto a las secciones específicas del snapshot:
+
+- `plan.medications`: nombre, dosis, vía, frecuencia, duración, instrucciones y evidencia cuando se hayan mencionado.
+- `plan.non_pharmacological` y `plan.follow_up`.
+- `recommendations` y `alarm_signs`, con severidad `emergency`, `priority` o `monitor` para alarmas.
+
+El frontend muestra siempre estos módulos fuera de `note_json.sections`; así se conserva la regla de coincidencia exacta entre secciones y template snapshot. El constructor los presenta como obligatorios/no eliminables aunque no los envía como secciones configurables.
+
+Las notas privadas viven en `clinical_encounters.private_notes` y se actualizan con `PUT /api/clinical/encounters/:id/private-notes`. Son exclusivas del médico, no forman parte del contexto de IA y no se exportan por defecto.
+
+Para cambiar una plantilla se usa `POST /api/clinical/encounters/:id/regenerate-with-template` con `{ template_id }`. La respuesta entrega el encounter nuevo con `supersedes_encounter_id`; el original conserva su contenido y expone `replaced_by_encounter_id` para auditoría.

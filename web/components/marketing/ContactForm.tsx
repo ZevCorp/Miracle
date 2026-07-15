@@ -15,7 +15,7 @@ const roles = [
 ];
 
 const inputClass =
-  "w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm text-ink shadow-[var(--shadow-sm)] outline-none transition-colors focus:border-accent";
+  "w-full rounded-md border border-line bg-field px-3.5 py-2.5 text-sm text-ink shadow-[var(--shadow-sm)] outline-none transition-colors focus:border-accent";
 
 export function ContactForm() {
   const [sent, setSent] = useState(false);

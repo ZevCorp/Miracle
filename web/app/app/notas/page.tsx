@@ -5,6 +5,7 @@ import { formatFechaRelativa, STATUS_LABEL, type ConsultationStatus } from "@/li
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Pager } from "@/components/app/Pager";
+import { AppPage, AppPageHeader } from "@/components/app/AppPage";
 
 const PAGE_SIZE = 20;
 const ESTADOS: (ConsultationStatus | "todas")[] = [
@@ -68,11 +69,14 @@ export default async function NotasPage({
     e === "todas" ? all : (counts.get(e) ?? 0);
 
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-deep">Notas clínicas</h1>
-      <p className="text-sm text-muted">Bandeja de notas por estado de revisión.</p>
+    <AppPage>
+      <AppPageHeader
+        kicker="Revisión médica"
+        title="Notas clínicas"
+        description={`${total} ${total === 1 ? "nota en la bandeja" : "notas en la bandeja"}`}
+      />
 
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" aria-label="Filtrar notas por estado">
         {ESTADOS.map((e) => {
           const active = estadoFilter === e;
           const href = e === "todas" ? "/app/notas" : `/app/notas?estado=${e}`;
@@ -80,14 +84,14 @@ export default async function NotasPage({
             <Link
               key={e}
               href={href}
-              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              className={`inline-flex items-center gap-2 rounded-[9px] border px-3.5 py-2 text-sm font-semibold transition-colors ${
                 active
                   ? "border-accent bg-accent-soft text-accent-ink"
                   : "border-line bg-surface text-ink-soft hover:border-mist"
               }`}
             >
               {e === "todas" ? "Todas" : STATUS_LABEL[e]}
-              <span className="rounded-full bg-ice px-1.5 text-xs text-muted">
+              <span className="rounded-full bg-ice px-1.5 text-[12px] text-muted">
                 {chipCount(e)}
               </span>
             </Link>
@@ -96,24 +100,22 @@ export default async function NotasPage({
       </div>
 
       {rows.length ? (
-        <div className="mt-5 overflow-hidden rounded-lg border border-line bg-surface">
-          {rows.map((c, i) => (
+        <div className="clinical-list mt-5">
+          {rows.map((c) => (
             <Link
               key={c.id}
               href={`/app/consultas/${c.id}`}
-              className={`flex items-center gap-4 px-5 py-4 hover:bg-ice-soft ${
-                i !== 0 ? "border-t border-line" : ""
-              }`}
+              className="clinical-list-row flex items-center gap-3 px-4 py-4 sm:gap-4 sm:px-5"
             >
               <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-ice text-accent">
                 <FileText size={16} />
               </span>
               <div className="min-w-0 flex-1">
-                <div className="truncate font-medium text-deep">
-                  {patientName(c.patients)} · {c.motivo}
+                <div className="truncate font-semibold text-deep">
+                  {patientName(c.patients)}
                 </div>
-                <div className="truncate text-xs text-muted">
-                  {c.especialidad} · {formatFechaRelativa(c.fecha)}
+                <div className="mt-0.5 truncate text-[13px] text-muted">
+                  {c.motivo || "Motivo sin registrar"} · {c.especialidad} · {formatFechaRelativa(c.fecha)}
                 </div>
               </div>
               <StatusBadge estado={c.estado} />
@@ -133,6 +135,6 @@ export default async function NotasPage({
         total={total}
         params={{ estado: estadoFilter !== "todas" ? estadoFilter : undefined }}
       />
-    </div>
+    </AppPage>
   );
 }

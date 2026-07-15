@@ -26,23 +26,44 @@
   --color-line: #e6eaf0;
   --color-line-strong: #d4dbe6;
   --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-field: #fbfcfe;
+  --color-disabled: #edf1f6;
+  --color-disabled-ink: #69778b;
+
+  /* Superficies deliberadamente oscuras, independientes del tema. */
+  --color-statement: #0c1424;
+  --color-sidebar: #1d3358;
+  --color-sidebar-hover: #29466f;
+  --color-sidebar-active: #3a5681;
+  --color-sidebar-text: #f8fafc;
+  --color-sidebar-muted: #c5d0df;
+  --color-overlay: rgb(6 14 27 / 0.58);
 
   /* Acento (azul confianza). 4.7:1 con blanco en ambas direcciones:
      válido como fondo de botón con texto blanco y como texto sobre blanco. */
   --color-accent: #2f6fe0;
   --color-accent-hover: #2559c4;
+  --color-accent-solid: #2f6fe0;
+  --color-accent-solid-hover: #2559c4;
   --color-accent-soft: #eef4fe;
   --color-accent-ink: #1a4fa0;
 
   /* Estados semánticos (≥4.5:1 sobre sus fondos -soft) */
   --color-success: #13795b;
+  --color-success-solid: #13795b;
   --color-success-soft: #dcf4ea;
+  --color-success-ink: #0d6249;
   --color-warning: #a34a06;
   --color-warning-soft: #fdeecf;
+  --color-warning-ink: #7c3a05;
   --color-danger: #b33224;
+  --color-danger-solid: #b33224;
   --color-danger-soft: #fbe3df;
+  --color-danger-ink: #8f281e;
   --color-info: #1f6feb;
   --color-info-soft: #e9f1fe;
+  --color-info-ink: #174f9f;
 
   /* Radios (premium, generosos) */
   --radius-sm: 12px;
@@ -67,42 +88,70 @@
 }
 
 /* ============================================================
-   Modo oscuro — se activa con la clase .dark en el contenedor de la
-   app. "deep" se aclara (sirve para texto/títulos); "night" queda
-   oscuro para superficies que deben seguir oscuras (sidebar, avatares).
+   Modo oscuro — la clase vive en <html> para que el lienzo global,
+   la aplicación y cualquier portal/modal compartan exactamente el tema.
    ============================================================ */
-.dark .app-shell {
-  --color-canvas: #0a1220;
-  --color-pearl: #0e1726;
-  --color-ice: #1a2740;
-  --color-ice-soft: #16213a;
+:root.dark {
+  color-scheme: dark;
+  --color-canvas: #08111f;
+  --color-pearl: #0d1727;
+  --color-ice: #1b2d48;
+  --color-ice-soft: #16263d;
   --color-mint: #6ee7b7;
-  --color-mint-soft: #123026;
-  --color-mist: #3a4a63;
-  --color-deep: #eef2f8; /* texto fuerte / títulos → claro en oscuro */
-  --color-deep-2: #e2e8f2;
-  --color-night: #0a1322; /* superficies oscuras (igual en ambos modos) */
+  --color-mint-soft: #123529;
+  --color-mist: #71839f;
+  --color-deep: #f3f7fc;
+  --color-deep-2: #dce6f4;
+  --color-night: #091526;
 
-  --color-ink: #e7ecf3;
-  --color-ink-soft: #b9c5d8;
-  --color-muted: #9aa8be; /* contraste suficiente sobre superficies oscuras */
-  --color-line: #243049;
-  --color-line-strong: #2f3d57;
-  --color-surface: #131d30;
+  --color-ink: #e8eef7;
+  --color-ink-soft: #c1cddd;
+  --color-muted: #9cabbe;
+  --color-line: #2a3a52;
+  --color-line-strong: #3b4f6e;
+  --color-surface: #121f33;
+  --color-surface-raised: #17263c;
+  --color-field: #0e1a2b;
+  --color-disabled: #1a2639;
+  --color-disabled-ink: #8d9bb0;
 
-  --color-accent: #4f93f5;
-  --color-accent-hover: #6ba3f7;
-  --color-accent-soft: #16294a;
-  --color-accent-ink: #bcd6ff;
+  --color-statement: #08111f;
+  --color-sidebar: #091526;
+  --color-sidebar-hover: #172a45;
+  --color-sidebar-active: #244a79;
+  --color-sidebar-text: #f8fafc;
+  --color-sidebar-muted: #bdcadc;
+  --color-overlay: rgb(1 7 16 / 0.72);
 
-  --color-success: #34d399;
-  --color-success-soft: #0f2e23;
-  --color-warning: #fbbf24;
-  --color-warning-soft: #34260b;
-  --color-danger: #f87171;
-  --color-danger-soft: #361a18;
-  --color-info: #4f93f5;
-  --color-info-soft: #16294a;
+  /* En oscuro, el acento de texto es más luminoso; el fondo de acción
+     conserva un azul más profundo para mantener texto blanco en AA. */
+  --color-accent: #6fa6ff;
+  --color-accent-hover: #91bcff;
+  --color-accent-solid: #3272d9;
+  --color-accent-solid-hover: #2864c5;
+  --color-accent-soft: #172f52;
+  --color-accent-ink: #b9d4ff;
+
+  --color-success: #5ee0b0;
+  --color-success-solid: #13795b;
+  --color-success-soft: #11362a;
+  --color-success-ink: #9aefd0;
+  --color-warning: #f6c65b;
+  --color-warning-soft: #3a2c12;
+  --color-warning-ink: #ffdc8a;
+  --color-danger: #ff8f87;
+  --color-danger-solid: #a9342a;
+  --color-danger-soft: #3c201f;
+  --color-danger-ink: #ffb1aa;
+  --color-info: #78adff;
+  --color-info-soft: #183155;
+  --color-info-ink: #b9d4ff;
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.2);
+  --shadow-sm: 0 6px 18px rgb(0 0 0 / 0.22);
+  --shadow-md: 0 14px 36px rgb(0 0 0 / 0.28);
+  --shadow-lg: 0 28px 72px rgb(0 0 0 / 0.34);
+  --shadow-xl: 0 44px 110px rgb(0 0 0 / 0.42);
 }
 
 /* ============================================================
@@ -117,11 +166,13 @@
   html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
+    color-scheme: light;
   }
 
   body {
     margin: 0;
     min-height: 100%;
+    overflow-x: hidden;
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: 16px;
@@ -141,6 +192,7 @@
       ),
       var(--color-canvas);
     background-attachment: fixed;
+    transition: background-color 160ms ease, color 160ms ease;
   }
 
   h1,
@@ -174,6 +226,23 @@
     color: inherit;
   }
 
+  input,
+  textarea,
+  select {
+    caret-color: var(--color-accent);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-muted);
+    opacity: 1;
+  }
+
+  select option {
+    color: var(--color-ink);
+    background: var(--color-surface-raised);
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
@@ -183,6 +252,353 @@
   ::selection {
     background: var(--color-accent);
     color: #fff;
+  }
+}
+
+/* El fondo de los botones de marca no comparte luminancia con los enlaces
+   azules en modo oscuro. Mantener ambos semánticamente separados evita
+   sacrificar contraste en uno de los dos usos. */
+.bg-accent {
+  background-color: var(--color-accent-solid);
+}
+
+.hover\:bg-accent-hover:hover {
+  background-color: var(--color-accent-solid-hover);
+}
+
+.bg-success {
+  background-color: var(--color-success-solid);
+}
+
+.bg-danger {
+  background-color: var(--color-danger-solid);
+}
+
+:root.dark body {
+  background:
+    radial-gradient(
+      55rem 36rem at 50% -8%,
+      rgb(111 166 255 / 0.08),
+      transparent 60%
+    ),
+    radial-gradient(
+      44rem 30rem at 100% 2%,
+      rgb(94 224 176 / 0.045),
+      transparent 55%
+    ),
+    var(--color-canvas);
+}
+
+:where(input, textarea, select):disabled {
+  border-color: var(--color-line);
+  color: var(--color-disabled-ink);
+  background-color: var(--color-disabled);
+  opacity: 1;
+  -webkit-text-fill-color: var(--color-disabled-ink);
+}
+
+* {
+  scrollbar-color: var(--color-mist) var(--color-pearl);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--color-pearl);
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid var(--color-pearl);
+  border-radius: 999px;
+  background: var(--color-mist);
+}
+
+.theme-icon-dark {
+  display: none;
+}
+
+/* ============================================================
+   Miracle Notes · sistema clínico editorial
+   ============================================================ */
+.app-shell {
+  background: var(--color-pearl);
+}
+
+.app-page {
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.app-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.75rem;
+}
+
+.app-page-heading {
+  position: relative;
+  min-width: 0;
+  padding-left: 1rem;
+}
+
+.app-page-heading::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--color-accent-solid);
+  content: "";
+}
+
+.app-page-kicker {
+  margin-bottom: 0.25rem;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.app-page-title {
+  color: var(--color-deep);
+  font-family: var(--font-display);
+  font-size: clamp(1.65rem, 2.4vw, 2.15rem);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.app-page-description {
+  max-width: 42rem;
+  margin-top: 0.45rem;
+  color: var(--color-muted);
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.clinical-panel {
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.clinical-panel-muted {
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-pearl);
+}
+
+.clinical-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.clinical-control {
+  min-height: 44px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-field);
+  color: var(--color-ink);
+  transition: border-color 150ms ease, box-shadow 150ms ease,
+    background-color 150ms ease;
+}
+
+.clinical-control:hover {
+  border-color: var(--color-line-strong);
+}
+
+.clinical-control:focus-within,
+.clinical-control:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+.clinical-primary,
+.clinical-secondary,
+.clinical-tertiary,
+.clinical-danger {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.2;
+  transition: border-color 150ms ease, background-color 150ms ease,
+    color 150ms ease, transform 150ms ease;
+}
+
+.clinical-primary {
+  border: 1px solid var(--color-accent-solid);
+  background: var(--color-accent-solid);
+  color: white;
+  box-shadow: var(--shadow-xs);
+}
+
+.clinical-primary:hover {
+  border-color: var(--color-accent-solid-hover);
+  background: var(--color-accent-solid-hover);
+}
+
+.clinical-secondary {
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-surface);
+  color: var(--color-deep);
+}
+
+.clinical-secondary:hover {
+  border-color: var(--color-mist);
+  background: var(--color-ice-soft);
+}
+
+.clinical-tertiary {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-accent);
+}
+
+.clinical-tertiary:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-hover);
+}
+
+.clinical-danger {
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger);
+  color: white;
+}
+
+.clinical-primary:disabled,
+.clinical-secondary:disabled,
+.clinical-tertiary:disabled,
+.clinical-danger:disabled {
+  cursor: not-allowed;
+  border-color: var(--color-line);
+  background: var(--color-disabled);
+  color: var(--color-disabled-ink);
+  box-shadow: none;
+}
+
+.clinical-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.clinical-section-title {
+  color: var(--color-deep);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.clinical-list {
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.clinical-list-row {
+  transition: background-color 150ms ease;
+}
+
+.clinical-list-row + .clinical-list-row {
+  border-top: 1px solid var(--color-line);
+}
+
+.clinical-list-row:hover {
+  background: var(--color-ice-soft);
+}
+
+@media (max-width: 639px) {
+  .app-page-header {
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.35rem;
+  }
+
+  .app-page-header > :last-child:not(:first-child) {
+    width: 100%;
+  }
+
+  .app-page-title {
+    font-size: 1.65rem;
+  }
+
+  .app-page-description {
+    font-size: 0.9rem;
+  }
+
+  .clinical-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+.dark .theme-icon-light {
+  display: none;
+}
+
+.dark .theme-icon-dark {
+  display: block;
+}
+
+/* ============================================================
+   App móvil: zonas seguras, controles táctiles y teclado de iOS
+   ============================================================ */
+@media (max-width: 767px) {
+  .app-main {
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-mobile-header {
+    height: calc(3.5rem + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .mobile-bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mobile-bottom-sheet {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 16px evita el zoom automático de Safari al enfocar campos. */
+  .app-shell :where(input, textarea, select) {
+    font-size: 16px;
+  }
+
+  .app-shell :where(button, input, select, [role="button"]) {
+    min-height: 44px;
+  }
+
+  .app-shell :where(input, textarea, select) {
+    scroll-margin-bottom: 8rem;
   }
 }
 

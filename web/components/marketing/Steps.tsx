@@ -11,7 +11,7 @@ export function Steps({ steps }: { steps: Step[] }) {
           key={step.title}
           className="relative rounded-lg border border-line bg-surface/85 p-5 shadow-[var(--shadow-sm)] backdrop-blur-sm"
         >
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-deep font-display text-sm font-semibold text-white">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-statement font-display text-sm font-semibold text-white">
             {i + 1}
           </span>
           <h3 className="mt-4 text-base font-semibold text-deep">

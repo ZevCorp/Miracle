@@ -238,6 +238,15 @@ export function buildTemplatePayload(
 
 /** Secciones iniciales sugeridas al crear desde cero, según la especialidad. */
 export function starterBlocksForSpecialty(specialtyCode: string): SectionBlock[] {
+  if (specialtyCode.replace(/_/g, "-") === "medicina-general") {
+    return [
+      { label: "Motivo de consulta", required: true },
+      { label: "Enfermedad actual", required: true },
+      { label: "Antecedentes relevantes", required: false },
+      { label: "Examen físico dirigido", required: false },
+      { label: "Impresión diagnóstica", required: true },
+    ].map((block) => createBlock(block));
+  }
   const specialty = clinicalSpecialties.find(
     (item) => item.code === specialtyCode,
   );
@@ -249,7 +258,6 @@ export function starterBlocksForSpecialty(specialtyCode: string): SectionBlock[]
     { label: "Antecedentes relevantes", required: false },
     { label: "Examen físico dirigido", required: false },
     { label: "Impresión diagnóstica", required: true },
-    { label: "Plan y recomendaciones", required: true },
   ];
   // Evita duplicar el bloque de foco si coincide con uno estándar.
   const seen = new Set<string>();

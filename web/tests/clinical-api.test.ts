@@ -12,12 +12,18 @@ import {
   CLINICAL_ERROR_MESSAGES,
   ClinicalApiError,
   createClinicalEncounter,
+  createClinicalTemplateDraftFromExample,
+  emptyClinicalDischarge,
+  ensureClinicalDischarge,
   friendlyClinicalMessage,
   getClinicalTemplates,
   normalizeSpecialtyCode,
   parseClinicalErrorPayload,
   parseTemplateSectionsInput,
   saveEditedClinicalNote,
+  savePrivateEncounterNotes,
+  regenerateClinicalEncounterWithTemplate,
+  updateClinicalEncounterPatient,
   sortedTemplateSections,
   toBackendConsultationType,
   updateNoteSectionContent,
@@ -119,6 +125,21 @@ describe("updateNoteSectionContent", () => {
     expect(next.sections[1]).toEqual(note.sections[1]);
     expect(next.warnings).toEqual(["aviso"]);
     expect(note.sections[0].content).toBe("Cefalea de 3 días.");
+  });
+});
+
+describe("cierre clínico universal", () => {
+  it("normaliza notas históricas sin cierre a una estructura editable", () => {
+    expect(ensureClinicalDischarge(undefined)).toEqual(emptyClinicalDischarge());
+  });
+
+  it("preserva el cierre estructurado que entrega el backend", () => {
+    const discharge = {
+      plan: { medications: [{ name: "Acetaminofén", dose: "500 mg" }], non_pharmacological: [], follow_up: [] },
+      recommendations: [{ text: "Hidratación" }],
+      alarm_signs: [{ text: "Dolor súbito", urgency: "emergency" as const }],
+    };
+    expect(ensureClinicalDischarge(discharge)).toEqual(discharge);
   });
 });
 
@@ -254,7 +275,7 @@ describe("API client (requests reales al contrato)", () => {
     });
   });
 
-  it("createClinicalEncounter envía template_id real y consent", async () => {
+  it("createClinicalEncounter envía template_id real sin una casilla de consentimiento", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(201, { encounter_id: "enc_1", status: "created", template: {} }),
     );
@@ -262,7 +283,6 @@ describe("API client (requests reales al contrato)", () => {
       patient_id: null,
       consultation_type: "presencial",
       template_id: "tpl-uuid-real",
-      consent: true,
     });
     expect(result.encounter_id).toBe("enc_1");
     const [url, init] = fetchMock.mock.calls[0];
@@ -272,8 +292,33 @@ describe("API client (requests reales al contrato)", () => {
       patient_id: null,
       consultation_type: "presencial",
       template_id: "tpl-uuid-real",
-      consent: true,
     });
+  });
+
+  it("asocia un paciente a un encounter existente sin reemplazar la nota", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { encounter: { id: "enc_1", patient_id: "patient_7", status: "recording" } }),
+    );
+    await expect(updateClinicalEncounterPatient("enc_1", "patient_7")).resolves.toMatchObject({ patient_id: "patient_7" });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://backend.test/api/clinical/encounters/enc_1/patient");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ patient_id: "patient_7" });
+  });
+
+  it("solicita un borrador temporal desde ejemplo sin guardar una plantilla", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, {
+      template: { name: "Seguimiento", specialty: "medicina_general", sections: [{ label: "Evolución" }, { label: "Impresión" }] },
+      requires_physician_review: true,
+      source_persisted: false,
+    }));
+    const result = await createClinicalTemplateDraftFromExample({ specialty: "medicina-general", example_text: "Nota anonimizada" });
+    expect(result.source_persisted).toBe(false);
+    expect(result.requires_physician_review).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://backend.test/api/clinical/templates/draft-from-example");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ specialty: "medicina-general", example_text: "Nota anonimizada" });
   });
 
   it("saveEditedClinicalNote manda el note_json completo por PUT", async () => {
@@ -296,10 +341,22 @@ describe("API client (requests reales al contrato)", () => {
     expect(JSON.parse(init.body as string)).toEqual({ note_json: note });
   });
 
+  it("guarda notas privadas y crea una revisión al cambiar plantilla", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, { encounter_id: "enc_1", private_notes: "Dato sensible" }))
+      .mockResolvedValueOnce(jsonResponse(201, { source_encounter_id: "enc_1", encounter: { id: "enc_2", supersedes_encounter_id: "enc_1" } }));
+    await expect(savePrivateEncounterNotes("enc_1", "Dato sensible")).resolves.toMatchObject({ private_notes: "Dato sensible" });
+    await expect(regenerateClinicalEncounterWithTemplate("enc_1", "tpl_2")).resolves.toMatchObject({ encounter: { id: "enc_2" } });
+    expect(fetchMock.mock.calls[0][0]).toBe("https://backend.test/api/clinical/encounters/enc_1/private-notes");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({ content: "Dato sensible" });
+    expect(fetchMock.mock.calls[1][0]).toBe("https://backend.test/api/clinical/encounters/enc_1/regenerate-with-template");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toEqual({ template_id: "tpl_2" });
+  });
+
   it("convierte errores del backend en ClinicalApiError con mensaje amigable", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(400, {
-        error: { code: "CONSENT_REQUIRED", message: "consent debe ser true" },
+        error: { code: "ENCOUNTER_INVALID", message: "datos inválidos" },
       }),
     );
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -308,11 +365,10 @@ describe("API client (requests reales al contrato)", () => {
         patient_id: null,
         consultation_type: "presencial",
         template_id: "tpl",
-        consent: false,
       });
       await expect(promise).rejects.toMatchObject({
-        code: "CONSENT_REQUIRED",
-        friendlyMessage: CLINICAL_ERROR_MESSAGES.CONSENT_REQUIRED,
+        code: "ENCOUNTER_INVALID",
+        friendlyMessage: CLINICAL_ERROR_MESSAGES.ENCOUNTER_INVALID,
       });
     } finally {
       consoleError.mockRestore();

@@ -45,6 +45,7 @@ import { CodeSuggestion } from "@/components/app/CodeSuggestion";
 import { Timeline } from "@/components/app/Timeline";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { HoverHint } from "@/components/ui/HoverHint";
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -211,7 +212,7 @@ export default function ConsultaDetallePage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="app-page max-w-4xl pb-24 sm:pb-0">
       <Link
         href="/app/consultas"
         className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-deep"
@@ -228,8 +229,8 @@ export default function ConsultaDetallePage() {
               : "?"}
           </span>
           <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-xl font-semibold text-deep">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-deep">
                 {patient?.nombre ?? "Paciente sin identificar"}
               </h1>
               <StatusBadge estado={c.estado} />
@@ -239,7 +240,7 @@ export default function ConsultaDetallePage() {
               {c.especialidad} · {TYPE_LABEL[c.tipo]} ·{" "}
               {formatFechaRelativa(c.fecha)}
             </p>
-            <p className="text-sm text-muted">
+            <p className="mt-0.5 text-sm text-muted">
               {c.servicio} · {medicoNombre ?? "—"} · {c.duracionMin} min
             </p>
             {c.firma ? (
@@ -252,14 +253,16 @@ export default function ConsultaDetallePage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={copyResumen}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:text-deep"
-            aria-label="Copiar resumen"
-          >
-            <Copy size={16} />
-          </button>
+          <HoverHint label="Copiar el resumen clínico">
+            <button
+              type="button"
+              onClick={copyResumen}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:text-deep"
+              aria-label="Copiar resumen"
+            >
+              <Copy size={16} />
+            </button>
+          </HoverHint>
           <button
             type="button"
             onClick={descargarPDF}
@@ -279,23 +282,24 @@ export default function ConsultaDetallePage() {
             }}
             className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:text-deep"
             aria-label="Regrabar"
+            title="Iniciar una nueva grabación para este paciente"
           >
             <Mic size={16} />
           </button>
 
           {/* Las consultas de demostración no se firman ni se exportan. */}
           {!demo && c.estado === "borrador" ? (
-            <Button variant="secondary" onClick={() => markReviewed(c.id)}>
+            <Button variant="secondary" onClick={() => markReviewed(c.id)} className="hidden sm:inline-flex">
               Marcar revisada
             </Button>
           ) : null}
           {!demo && (c.estado === "borrador" || c.estado === "revisada") ? (
-            <Button onClick={() => approveNote(c.id)}>
+            <Button onClick={() => approveNote(c.id)} className="hidden sm:inline-flex">
               <CheckCircle2 size={16} /> Aprobar
             </Button>
           ) : null}
           {!demo && c.estado === "aprobada" ? (
-            <Button onClick={() => exportNote(c.id)}>
+            <Button onClick={() => exportNote(c.id)} className="hidden sm:inline-flex">
               <FileCheck2 size={16} /> Exportar a HC
             </Button>
           ) : null}
@@ -366,6 +370,20 @@ export default function ConsultaDetallePage() {
         ) : null}
         {tab === "auditoria" ? <AuditoriaTab consultation={c} /> : null}
       </div>
+
+      {!demo && c.estado !== "exportada" ? (
+        <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-30 grid gap-2 rounded-[14px] border border-line bg-surface p-2.5 shadow-[var(--shadow-lg)] sm:hidden">
+          {c.estado === "borrador" ? (
+            <button type="button" onClick={() => markReviewed(c.id)} className="clinical-secondary">Marcar revisada</button>
+          ) : null}
+          {c.estado === "borrador" || c.estado === "revisada" ? (
+            <button type="button" onClick={() => approveNote(c.id)} className="clinical-primary min-h-12"><CheckCircle2 size={17} /> Aprobar y firmar nota</button>
+          ) : null}
+          {c.estado === "aprobada" ? (
+            <button type="button" onClick={() => exportNote(c.id)} className="clinical-primary min-h-12"><FileCheck2 size={17} /> Exportar a historia clínica</button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -400,7 +418,7 @@ function HistoriaTab({
   return (
     <div>
       <AiDisclaimer />
-      <div className="rounded-lg border border-line bg-surface px-5 py-2">
+      <div className="rounded-lg border border-line bg-surface px-3 py-2 sm:px-5">
         {consultation.note.map((s) => (
           <NoteSectionView
             key={s.id}
@@ -422,7 +440,7 @@ function HistoriaTab({
             onAiEdit(value);
             input.value = "";
           }}
-          className="mt-3 flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 shadow-[var(--shadow-sm)]"
+          className="mt-3 flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 shadow-[var(--shadow-sm)] sm:rounded-full sm:px-4"
         >
           <Sparkles size={16} className="text-accent" />
           <input
@@ -498,14 +516,14 @@ function CodificacionTab({
 
           {showForm ? (
             <div className="mb-3 rounded-md border border-line bg-surface p-3">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
                 <select
                   value={sistema}
                   onChange={(e) =>
                     setSistema(e.target.value as ClinicalCode["sistema"])
                   }
                   aria-label="Sistema de codificación"
-                  className="rounded-md border border-line bg-surface px-2.5 py-2 text-sm outline-none focus:border-accent"
+                  className="rounded-md border border-line bg-field px-2.5 py-2 text-sm outline-none focus:border-accent"
                 >
                   <option value="CIE-10">CIE-10</option>
                   <option value="CUPS">CUPS</option>
@@ -514,13 +532,13 @@ function CodificacionTab({
                   value={codigo}
                   onChange={(e) => setCodigo(e.target.value)}
                   placeholder="Código (ej. I10)"
-                  className="w-32 rounded-md border border-line px-3 py-2 text-sm uppercase outline-none focus:border-accent"
+                  className="w-full rounded-md border border-line bg-field px-3 py-2 text-sm uppercase outline-none focus:border-accent sm:w-32"
                 />
                 <input
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                   placeholder="Descripción del diagnóstico o procedimiento"
-                  className="min-w-0 flex-1 rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-accent"
+                  className="min-w-0 flex-1 rounded-md border border-line bg-field px-3 py-2 text-sm outline-none focus:border-accent"
                 />
               </div>
 
@@ -684,20 +702,17 @@ function TranscripcionTab({
   const [fetching, setFetching] = useState(consultation.transcript.length === 0);
 
   useEffect(() => {
+    if (consultation.transcript.length !== 0) return;
     let ignore = false;
-    if (consultation.transcript.length === 0) {
-      ensureTranscript(consultation.id).finally(() => {
-        if (!ignore) setFetching(false);
-      });
-    } else {
-      setFetching(false);
-    }
+    ensureTranscript(consultation.id).finally(() => {
+      if (!ignore) setFetching(false);
+    });
     return () => {
       ignore = true;
     };
   }, [consultation.id, consultation.transcript.length, ensureTranscript]);
 
-  if (fetching) {
+  if (fetching && consultation.transcript.length === 0) {
     return (
       <div className="flex justify-center rounded-lg border border-line bg-surface p-10">
         <Loader2 size={22} className="animate-spin text-accent" />

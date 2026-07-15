@@ -16,11 +16,11 @@ type ButtonProps = {
 };
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-full font-medium transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60";
+  "inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-accent text-white hover:bg-accent-hover shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]",
+    "border border-accent bg-accent text-white shadow-[var(--shadow-xs)] hover:border-accent-hover hover:bg-accent-hover",
   secondary:
     "bg-surface text-deep border border-line hover:border-mist hover:bg-ice-soft",
   ghost: "text-deep hover:bg-ice-soft",
@@ -29,8 +29,8 @@ const variants: Record<Variant, string> = {
 };
 
 const sizes: Record<Size, string> = {
-  md: "px-5 py-2.5 text-sm",
-  lg: "px-7 py-3.5 text-[0.95rem]",
+  md: "min-h-11 px-4 py-2.5 text-sm",
+  lg: "min-h-12 px-5 py-3 text-[0.95rem]",
 };
 
 export function Button({

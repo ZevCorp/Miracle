@@ -78,7 +78,7 @@ export default async function RecuperarPage({
                     autoComplete="email"
                     required
                     placeholder="nombre@institucion.com"
-                    className="w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent"
+                    className="w-full rounded-md border border-line bg-field px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent"
                   />
                 </div>
                 <SubmitButton

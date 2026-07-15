@@ -21,7 +21,7 @@ export function StatementBand({
 }) {
   const visual = media ?? (sphere ? <BrandSphere size={320} className="float drop-shadow-2xl" /> : null);
   return (
-    <section className="relative overflow-hidden bg-deep py-24 text-white md:py-32">
+    <section className="relative overflow-hidden bg-statement py-24 text-white md:py-32">
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div className="absolute -right-40 -top-32 h-[28rem] w-[28rem] rounded-full bg-accent/20 blur-[120px]" />
         <div className="absolute -left-32 bottom-[-6rem] h-80 w-80 rounded-full bg-mint/10 blur-[110px]" />

@@ -60,7 +60,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbfcfe" },
+    { media: "(prefers-color-scheme: dark)", color: "#08111f" },
+  ],
   width: "device-width",
   initialScale: 1,
 };
@@ -76,12 +79,14 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="min-h-full">
+      <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem('miracle-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}`,
+            __html: `(function(){var s=null;try{s=localStorage.getItem('miracle-theme')}catch(e){}var d=s==='dark'||(s!=='light'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.toggle('dark',d);r.dataset.theme=d?'dark':'light';r.style.colorScheme=d?'dark':'light'})()`,
           }}
         />
+      </head>
+      <body className="min-h-full">
         {children}
       </body>
     </html>

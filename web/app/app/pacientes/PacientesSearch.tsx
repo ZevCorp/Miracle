@@ -26,12 +26,12 @@ export function PacientesSearch({ initialQuery }: { initialQuery: string }) {
   }, [q, router]);
 
   return (
-    <div className="mt-5 flex items-center gap-2 rounded-md border border-line bg-surface px-3 py-2">
+    <div className="clinical-control flex items-center gap-2 px-3">
       <Search size={16} className="text-muted" />
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Buscar por nombre o documento…"
+        placeholder="Buscar por nombre o documento"
         className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
       />
     </div>

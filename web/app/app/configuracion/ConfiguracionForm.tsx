@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { updateOrgSettings } from "./actions";
 
 const inputClass =
-  "w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent";
+  "w-full rounded-md border border-line bg-field px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent";
 
 export function ConfiguracionForm({
   initial,

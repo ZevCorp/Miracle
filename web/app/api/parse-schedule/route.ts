@@ -50,6 +50,13 @@ function sanitizeCitas(value: unknown): ParsedCita[] {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+function extractJsonObject(raw: string): string | null {
+  const clean = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const start = clean.indexOf("{");
+  const end = clean.lastIndexOf("}");
+  return start >= 0 && end > start ? clean.slice(start, end + 1) : null;
+}
+
 export async function POST(req: Request) {
   const userId = await requireApiUser();
   if (!userId) {
@@ -112,7 +119,6 @@ export async function POST(req: Request) {
               { type: "text", text: "Extrae las citas de este horario." },
             ],
           },
-          { role: "assistant", content: "{" },
         ],
       }),
     });
@@ -128,16 +134,16 @@ export async function POST(req: Request) {
     const data = (await res.json()) as {
       content?: { type: string; text?: string }[];
     };
-    const raw =
-      "{" +
-      (data.content
-        ?.filter((b) => b.type === "text")
-        .map((b) => b.text ?? "")
-        .join("") ?? "");
+    const raw = data.content
+      ?.filter((b) => b.type === "text")
+      .map((b) => b.text ?? "")
+      .join("") ?? "";
+    const json = extractJsonObject(raw);
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(raw);
+      if (!json) throw new Error("JSON object missing");
+      parsed = JSON.parse(json);
     } catch {
       // No se registra `raw` (puede contener nombres de pacientes).
       reportError(new Error("parse-schedule JSON parse failed"), {

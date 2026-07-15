@@ -43,11 +43,11 @@ export function AppSidebar({
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full flex-col bg-night text-white">
+    <div className="flex h-full flex-col bg-sidebar text-sidebar-text">
       <div className="flex h-16 items-center border-b border-white/10 px-5">
         <Logo onDark size={28} />
       </div>
-      <nav aria-label="Navegación de la app" className="flex-1 space-y-1 p-3">
+      <nav aria-label="Navegación de la app" className="flex-1 space-y-1 px-3 py-5">
         {appNav.filter((item) => item.roles.includes(role)).map((item) => {
           const Icon = icons[item.icon] ?? LayoutDashboard;
           const active =
@@ -58,40 +58,33 @@ export function AppSidebar({
               href={item.href}
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
-              className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
+              className={`relative flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-semibold transition-colors ${
                 active
-                  ? "bg-white/12 text-white"
-                  : "text-mist hover:bg-white/8 hover:text-white"
+                  ? "bg-sidebar-active text-sidebar-text before:absolute before:-left-3 before:h-6 before:w-[3px] before:rounded-r-full before:bg-white"
+                  : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-text"
               }`}
             >
               <Icon
                 size={18}
-                className={active ? "text-white" : "text-mist/80"}
+                className={active ? "text-sidebar-text" : "text-sidebar-muted"}
               />
               {item.label}
             </Link>
           );
         })}
       </nav>
-      <div className="space-y-1 border-t border-white/10 p-3">
+      <div className="border-t border-white/10 p-3">
         {/* Siempre visible (también en el drawer móvil): en equipos compartidos
             debe poderse cerrar sesión desde cualquier tamaño de pantalla. */}
         <form action={signOut}>
           <button
             type="submit"
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm text-mist hover:bg-white/8 hover:text-white"
+            className="flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-semibold text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-text"
           >
             <LogOut size={16} />
             Cerrar sesión
           </button>
         </form>
-        <Link
-          href="/"
-          onClick={onNavigate}
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-mist hover:bg-white/8 hover:text-white"
-        >
-          ← Volver al sitio
-        </Link>
       </div>
     </div>
   );

@@ -60,7 +60,7 @@ export default async function OrganizacionesPage({
               name="name"
               required
               placeholder="Hospital Norte"
-              className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-deep outline-none focus:border-accent"
+              className="w-full rounded-md border border-line bg-field px-3 py-2 text-sm text-deep outline-none focus:border-accent"
             />
           </label>
           <label className="text-sm">
@@ -68,7 +68,7 @@ export default async function OrganizacionesPage({
             <select
               name="kind"
               defaultValue="institution"
-              className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-deep outline-none focus:border-accent"
+              className="w-full rounded-md border border-line bg-field px-3 py-2 text-sm text-deep outline-none focus:border-accent"
             >
               <option value="institution">Hospital</option>
               <option value="personal">Personal</option>
@@ -79,7 +79,7 @@ export default async function OrganizacionesPage({
             <input
               name="nit"
               placeholder="900.000.000-0"
-              className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-deep outline-none focus:border-accent"
+              className="w-full rounded-md border border-line bg-field px-3 py-2 text-sm text-deep outline-none focus:border-accent"
             />
           </label>
           <button

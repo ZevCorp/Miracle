@@ -42,13 +42,13 @@ export function ConsultasFilters({
   }, [q]);
 
   return (
-    <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center">
-      <div className="flex flex-1 items-center gap-2 rounded-md border border-line bg-surface px-3 py-2">
+    <div className="clinical-toolbar">
+      <div className="clinical-control flex flex-1 items-center gap-2 px-3">
         <Search size={16} className="text-muted" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por motivo…"
+          placeholder="Buscar por motivo"
           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
         />
       </div>
@@ -58,7 +58,7 @@ export function ConsultasFilters({
           setServicio(e.target.value);
           push(q, e.target.value);
         }}
-        className="rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+        className="clinical-control px-3 text-sm outline-none lg:min-w-52"
       >
         <option value="todos">Todos los servicios</option>
         {SERVICIOS.map((s) => (

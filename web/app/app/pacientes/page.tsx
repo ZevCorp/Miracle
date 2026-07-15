@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Pager } from "@/components/app/Pager";
 import { PacientesSearch } from "./PacientesSearch";
+import { AppPage, AppPageHeader } from "@/components/app/AppPage";
 
 const PAGE_SIZE = 20;
 
@@ -52,34 +53,36 @@ export default async function PacientesPage({
   }
 
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-deep">Pacientes</h1>
-      <p className="text-sm text-muted">{total} pacientes registrados</p>
+    <AppPage>
+      <AppPageHeader
+        kicker="Directorio clínico"
+        title="Pacientes"
+        description={`${total} ${total === 1 ? "paciente registrado" : "pacientes registrados"}`}
+      />
 
       <PacientesSearch initialQuery={term} />
 
-      <div className="mt-5 overflow-hidden rounded-lg border border-line bg-surface">
-        {patients.map((p, i) => (
+      <div className="clinical-list mt-5">
+        {patients.map((p) => (
           <Link
             key={p.id}
             href={`/app/pacientes/${p.id}`}
-            className={`flex items-center gap-4 px-5 py-4 hover:bg-ice-soft ${
-              i !== 0 ? "border-t border-line" : ""
-            }`}
+            className="clinical-list-row flex items-center gap-3 px-4 py-4 sm:gap-4 sm:px-5"
           >
             <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-night text-sm font-semibold text-white">
               {p.nombre.split(" ").map((n) => n[0]).slice(0, 2).join("")}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="truncate font-medium text-deep">{p.nombre}</div>
-              <div className="truncate text-xs text-muted">
-                {p.edad ?? 0} años
-                {p.sexo ? ` · ${p.sexo === "M" ? "Masculino" : "Femenino"}` : ""} ·{" "}
-                {p.documento || "Por registrar"} · {p.eps || "Por registrar"}
+              <div className="truncate font-semibold text-deep">{p.nombre}</div>
+              <div className="mt-0.5 truncate text-[13px] text-muted">
+                {p.documento || "Documento pendiente"} · {p.eps || "EPS pendiente"}
               </div>
             </div>
-            <span className="hidden text-sm text-muted sm:block">
-              {counts.get(p.id) ?? 0} consultas
+            <span className="hidden text-right text-[13px] text-muted sm:block">
+              <span className="block font-medium text-ink-soft">
+                {p.edad ?? "—"} años{p.sexo ? ` · ${p.sexo}` : ""}
+              </span>
+              <span>{counts.get(p.id) ?? 0} consultas</span>
             </span>
             <ChevronRight size={18} className="text-muted" />
           </Link>
@@ -98,6 +101,6 @@ export default async function PacientesPage({
         total={total}
         params={{ q: term || undefined }}
       />
-    </div>
+    </AppPage>
   );
 }

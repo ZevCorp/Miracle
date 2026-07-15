@@ -120,21 +120,21 @@ export function MiniLine({
     >
       <defs>
         <linearGradient id="line-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1f6feb" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#1f6feb" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={area} fill="url(#line-fill)" />
       <path
         d={path}
         fill="none"
-        stroke="#1f6feb"
+        stroke="var(--color-accent)"
         strokeWidth="2.5"
         strokeLinejoin="round"
         strokeLinecap="round"
       />
       {coords.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="3" fill="#1f6feb" />
+        <circle key={i} cx={x} cy={y} r="3" fill="var(--color-accent)" />
       ))}
     </svg>
   );
@@ -161,7 +161,7 @@ export function Donut({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="#dceffd"
+          stroke="var(--color-ice)"
           strokeWidth={stroke}
         />
         <circle
@@ -169,7 +169,7 @@ export function Donut({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="#1f6feb"
+          stroke="var(--color-accent)"
           strokeWidth={stroke}
           strokeDasharray={`${dash} ${c - dash}`}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}

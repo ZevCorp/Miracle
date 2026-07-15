@@ -23,6 +23,11 @@ import { MetricCard } from "@/components/marketing/MetricCard";
 import { AgendaHoy } from "@/components/app/AgendaHoy";
 import { ConsultationCard } from "@/components/app/ConsultationCard";
 import { BarList, MiniLine } from "@/components/app/Charts";
+import {
+  AppPage,
+  AppPageHeader,
+  ClinicalSectionHeader,
+} from "@/components/app/AppPage";
 
 export default function DashboardPage() {
   const { consultations, role, loading } = useStore();
@@ -49,7 +54,7 @@ export default function DashboardPage() {
 
 function DashboardSkeleton() {
   return (
-    <div className="mx-auto max-w-5xl" aria-busy="true" aria-label="Cargando el panel">
+    <div className="app-page" aria-busy="true" aria-label="Cargando el panel">
       <div className="h-32 animate-pulse rounded-xl bg-ice" />
       <div className="mt-6 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
         <div className="h-64 animate-pulse rounded-lg bg-ice-soft" />
@@ -81,15 +86,16 @@ function MedicoView({
   const [citasHoy, setCitasHoy] = useState(0);
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <AppPage>
       {/* Acción principal */}
-      <section className="overflow-hidden rounded-xl bg-night p-6 text-white md:p-8">
+      <section className="clinical-panel border-l-[3px] border-l-accent p-5 sm:p-6 md:p-7">
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-white md:text-3xl">
-              Tu consulta, sin el papeleo.
+            <p className="app-page-kicker">Jornada clínica</p>
+            <h1 className="app-page-title">
+              Tu día en Miracle
             </h1>
-            <p className="mt-1.5 text-mist">
+            <p className="mt-2 text-[0.95rem] text-muted">
               {citasHoy > 0
                 ? `Tienes ${citasHoy} ${citasHoy === 1 ? "cita agendada" : "citas agendadas"} hoy`
                 : hoy.length > 0
@@ -103,7 +109,7 @@ function MedicoView({
           </div>
           <Link
             href="/app/consultas/nueva"
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-surface px-6 py-3.5 text-sm font-semibold text-deep transition-colors hover:bg-ice"
+            className="clinical-primary min-h-12 px-5"
           >
             <Mic size={18} /> Iniciar consulta
           </Link>
@@ -112,26 +118,28 @@ function MedicoView({
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
         {/* Por revisar y firmar */}
-        <Card>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-deep">
-              Por revisar y firmar
-            </h2>
-            <FileText size={18} className="text-muted" />
-          </div>
+        <Card className="shadow-none">
+          <ClinicalSectionHeader
+            title="Por revisar y firmar"
+            action={<FileText size={18} className="text-muted" />}
+          />
           {pendientes.length ? (
-            <div className="space-y-3">
+            <div className="mt-1 divide-y divide-line">
               {/* Las más antiguas primero: lo que lleva más tiempo esperando firma. */}
               {[...pendientes]
                 .sort((a, b) => (a.fecha < b.fecha ? -1 : 1))
                 .slice(0, 5)
                 .map((c) => (
-                  <ConsultationCard key={c.id} consultation={c} />
+                  <ConsultationCard
+                    key={c.id}
+                    consultation={c}
+                    presentation="row"
+                  />
                 ))}
               {pendientes.length > 5 ? (
                 <Link
                   href="/app/consultas?estado=borrador"
-                  className="block rounded-md border border-dashed border-line px-4 py-2.5 text-center text-sm font-medium text-accent hover:border-mist hover:bg-ice-soft"
+                  className="mt-3 block rounded-[10px] border border-dashed border-line px-4 py-2.5 text-center text-sm font-semibold text-accent hover:border-mist hover:bg-ice-soft"
                 >
                   Ver las {pendientes.length - 5} restantes
                 </Link>
@@ -152,19 +160,24 @@ function MedicoView({
         <div className="space-y-5">
           <AgendaHoy onCountChange={setCitasHoy} />
 
-          <Card>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-deep">Pacientes recientes</h2>
-              <Link href="/app/pacientes" className="text-sm font-medium text-accent hover:underline">
-                Ver todos
-              </Link>
-            </div>
+          <Card className="shadow-none">
+            <ClinicalSectionHeader
+              title="Pacientes recientes"
+              action={
+                <Link
+                  href="/app/pacientes"
+                  className="text-sm font-semibold text-accent hover:underline"
+                >
+                  Ver todos
+                </Link>
+              }
+            />
             <ul className="space-y-1">
               {recientes.map((p) => (
                 <li key={p.id}>
                   <Link
                     href={`/app/pacientes/${p.id}`}
-                    className="flex items-center gap-3 rounded-md px-1 py-2 hover:bg-ice-soft"
+                    className="flex min-h-12 items-center gap-3 rounded-[10px] px-1 py-2 hover:bg-ice-soft"
                   >
                     <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-night text-xs font-semibold text-white">
                       {p.nombre.split(" ").map((n) => n[0]).slice(0, 2).join("")}
@@ -180,7 +193,7 @@ function MedicoView({
           </Card>
         </div>
       </div>
-    </div>
+    </AppPage>
   );
 }
 
@@ -204,11 +217,12 @@ function SupervisorView({
   ).length;
 
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-deep">
-        Supervisión de documentación
-      </h1>
-      <p className="text-sm text-muted">{pendientes.length} notas por revisar</p>
+    <AppPage>
+      <AppPageHeader
+        kicker="Supervisión"
+        title="Documentación clínica"
+        description={`${pendientes.length} notas por revisar`}
+      />
 
       <div className="mt-6 grid gap-5 sm:grid-cols-3">
         <MetricCard value={String(pendientes.length)} label="Por revisar" hint="Borrador o revisada" />
@@ -233,7 +247,7 @@ function SupervisorView({
           <p className="text-sm text-muted">No hay notas pendientes de revisión.</p>
         )}
       </Card>
-    </div>
+    </AppPage>
   );
 }
 
@@ -269,17 +283,12 @@ function AdminView() {
   const porServicio = useMemo(() => countByService(reales), [reales]);
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold text-deep">Panel institucional</h1>
-        <span className="rounded-full bg-mint-soft px-3 py-1 text-xs font-semibold text-success">
-          Datos de tu institución
-        </span>
-      </div>
-      <p className="text-sm text-muted">
-        Actividad y calidad documental de tu organización, sobre las consultas
-        recientes registradas.
-      </p>
+    <AppPage>
+      <AppPageHeader
+        kicker="Institución"
+        title="Actividad clínica"
+        description="Volumen y calidad documental de las consultas recientes."
+      />
 
       {notasGeneradas === 0 ? (
         <div className="mt-6 rounded-lg border border-dashed border-line bg-surface p-8 text-center">
@@ -327,7 +336,7 @@ function AdminView() {
           Gestionar usuarios <ArrowRight size={14} />
         </Link>
       </div>
-    </div>
+    </AppPage>
   );
 }
 

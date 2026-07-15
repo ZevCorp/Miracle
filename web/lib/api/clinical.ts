@@ -51,9 +51,41 @@ export interface ClinicalNoteSection {
   evidence?: string;
 }
 
+export interface ClinicalDischargeItem {
+  text: string;
+  evidence?: string;
+}
+
+export interface ClinicalMedicationPlanItem {
+  name: string;
+  dose?: string;
+  route?: string;
+  frequency?: string;
+  duration?: string;
+  instructions?: string;
+  evidence?: string;
+}
+
+export interface ClinicalAlarmSign extends ClinicalDischargeItem {
+  urgency?: "emergency" | "priority" | "monitor";
+}
+
+/** Universal clinical close, present for every generated note regardless of template. */
+export interface ClinicalDischarge {
+  plan: {
+    medications: ClinicalMedicationPlanItem[];
+    non_pharmacological: ClinicalDischargeItem[];
+    follow_up: ClinicalDischargeItem[];
+  };
+  recommendations: ClinicalDischargeItem[];
+  alarm_signs: ClinicalAlarmSign[];
+}
+
 export interface ClinicalNoteJson {
   summary: string;
   sections: ClinicalNoteSection[];
+  /** Older notes may not have this until re-saved; use ensureClinicalDischarge in UI. */
+  discharge?: ClinicalDischarge;
   warnings: string[];
   missing_required_sections: string[];
 }
@@ -85,6 +117,8 @@ export interface ClinicalEncounter {
   doctor_id?: string;
   consultation_type: BackendConsultationType | string;
   consent?: boolean;
+  consent_source?: "clinician_attestation" | "legacy" | string;
+  consent_recorded_at?: string | null;
   template_id: string;
   template_snapshot?: EncounterTemplateSnapshot;
   status:
@@ -97,6 +131,10 @@ export interface ClinicalEncounter {
     | string;
   transcript?: string;
   note_json?: ClinicalNoteJson | null;
+  /** Visible only to the owning doctor; excluded from AI prompts and exports by default. */
+  private_notes?: string;
+  supersedes_encounter_id?: string | null;
+  replaced_by_encounter_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -130,7 +168,6 @@ export interface CreateClinicalEncounterPayload {
   patient_id: string | null;
   consultation_type: BackendConsultationType;
   template_id: string;
-  consent: boolean;
 }
 
 export interface CreateEncounterResult {
@@ -155,6 +192,24 @@ export interface SaveNoteResult {
   encounter_id: string;
   status: string;
   note_json: ClinicalNoteJson;
+}
+
+/** Propuesta efímera de IA: se revisa en el constructor antes de guardarse. */
+export interface TemplateDraftProposal {
+  template: CreateClinicalTemplatePayload;
+  requires_physician_review: boolean;
+  source_persisted: false;
+}
+
+export interface SavePrivateNotesResult {
+  encounter_id: string;
+  private_notes: string;
+  updated_at?: string;
+}
+
+export interface RegenerateWithTemplateResult {
+  source_encounter_id: string;
+  encounter: ClinicalEncounter;
 }
 
 /** Límite del backend (413 TRANSCRIPT_TOO_LONG por encima de esto). */
@@ -321,8 +376,42 @@ export function updateNoteSectionContent(
   };
 }
 
+export function emptyClinicalDischarge(): ClinicalDischarge {
+  return {
+    plan: { medications: [], non_pharmacological: [], follow_up: [] },
+    recommendations: [],
+    alarm_signs: [],
+  };
+}
+
+/** Makes old notes renderable while the backend backfills the universal close on save. */
+export function ensureClinicalDischarge(
+  discharge?: ClinicalDischarge | null,
+): ClinicalDischarge {
+  const empty = emptyClinicalDischarge();
+  return {
+    plan: {
+      medications: Array.isArray(discharge?.plan?.medications)
+        ? discharge!.plan.medications
+        : empty.plan.medications,
+      non_pharmacological: Array.isArray(discharge?.plan?.non_pharmacological)
+        ? discharge!.plan.non_pharmacological
+        : empty.plan.non_pharmacological,
+      follow_up: Array.isArray(discharge?.plan?.follow_up)
+        ? discharge!.plan.follow_up
+        : empty.plan.follow_up,
+    },
+    recommendations: Array.isArray(discharge?.recommendations)
+      ? discharge!.recommendations
+      : empty.recommendations,
+    alarm_signs: Array.isArray(discharge?.alarm_signs)
+      ? discharge!.alarm_signs
+      : empty.alarm_signs,
+  };
+}
+
 export interface ClinicalRequestOptions {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   query?: Record<string, string | undefined>;
 }
@@ -523,6 +612,48 @@ export async function saveEditedClinicalNote(
   return clinicalRequest<SaveNoteResult>(
     `/api/clinical/encounters/${encodeURIComponent(encounterId)}/note`,
     { method: "PUT", body: { note_json: noteJson } },
+  );
+}
+
+/** Asocia o retira un paciente sin modificar la transcripción ni la plantilla. */
+export async function updateClinicalEncounterPatient(
+  encounterId: string,
+  patientId: string | null,
+): Promise<ClinicalEncounter> {
+  const data = await clinicalRequest<{ encounter: ClinicalEncounter }>(
+    `/api/clinical/encounters/${encodeURIComponent(encounterId)}/patient`,
+    { method: "PATCH", body: { patient_id: patientId } },
+  );
+  return data.encounter;
+}
+
+export async function createClinicalTemplateDraftFromExample(payload: {
+  specialty: string;
+  example_text: string;
+}): Promise<TemplateDraftProposal> {
+  return clinicalRequest<TemplateDraftProposal>(
+    "/api/clinical/templates/draft-from-example",
+    { method: "POST", body: payload },
+  );
+}
+
+export async function savePrivateEncounterNotes(
+  encounterId: string,
+  content: string,
+): Promise<SavePrivateNotesResult> {
+  return clinicalRequest<SavePrivateNotesResult>(
+    `/api/clinical/encounters/${encodeURIComponent(encounterId)}/private-notes`,
+    { method: "PUT", body: { content } },
+  );
+}
+
+export async function regenerateClinicalEncounterWithTemplate(
+  encounterId: string,
+  templateId: string,
+): Promise<RegenerateWithTemplateResult> {
+  return clinicalRequest<RegenerateWithTemplateResult>(
+    `/api/clinical/encounters/${encodeURIComponent(encounterId)}/regenerate-with-template`,
+    { method: "POST", body: { template_id: templateId } },
   );
 }
 

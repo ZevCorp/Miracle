@@ -14,7 +14,7 @@ type SectionProps = {
 const toneClasses: Record<NonNullable<SectionProps["tone"]>, string> = {
   transparent: "",
   surface: "bg-surface/70 border-y border-line backdrop-blur-sm",
-  deep: "bg-deep text-white",
+  deep: "bg-statement text-white",
 };
 
 export function Section({
