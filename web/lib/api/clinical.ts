@@ -181,6 +181,11 @@ export const CLINICAL_ERROR_MESSAGES: Record<string, string> = {
   NOTE_GENERATION_FAILED: "No pudimos generar la nota clínica. Intenta de nuevo.",
   NOTE_JSON_INVALID:
     "La nota generada tuvo un formato inválido. Intenta regenerarla.",
+  // Errores del asistente clínico (chat, ajuste de nota, sugerencias).
+  ASSISTANT_FAILED:
+    "El asistente no pudo responder en este momento. Intenta de nuevo en unos segundos.",
+  ASSISTANT_INVALID:
+    "Revisa el mensaje: está vacío o es demasiado largo.",
   UNAUTHORIZED: "Tu sesión expiró. Vuelve a iniciar sesión.",
   ENCOUNTER_INVALID: "La consulta tiene datos incompletos o inválidos.",
   ENCOUNTER_COMPLETED:
