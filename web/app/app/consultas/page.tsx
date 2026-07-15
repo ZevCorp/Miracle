@@ -6,6 +6,7 @@ import { ConsultationCard } from "@/components/app/ConsultationCard";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Pager } from "@/components/app/Pager";
 import { ConsultasFilters } from "./ConsultasFilters";
+import { AppPage, AppPageHeader } from "@/components/app/AppPage";
 
 const PAGE_SIZE = 18;
 const ESTADOS: (ConsultationStatus | "todas")[] = [
@@ -79,19 +80,17 @@ export default async function ConsultasPage({
   };
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-deep">Consultas</h1>
-          <p className="text-sm text-muted">{total} consultas</p>
-        </div>
-        <Link
-          href="/app/consultas/nueva"
-          className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-hover"
-        >
-          <Plus size={16} /> Nueva consulta
-        </Link>
-      </div>
+    <AppPage>
+      <AppPageHeader
+        kicker="Documentación clínica"
+        title="Consultas"
+        description={`${total} ${total === 1 ? "consulta registrada" : "consultas registradas"}`}
+        action={
+          <Link href="/app/consultas/nueva" className="clinical-primary w-full sm:w-auto">
+            <Plus size={16} /> Nueva consulta
+          </Link>
+        }
+      />
 
       <ConsultasFilters
         initialQuery={term}
@@ -99,12 +98,12 @@ export default async function ConsultasPage({
         estado={estadoFilter}
       />
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-2" aria-label="Filtrar por estado">
         {ESTADOS.map((e) => (
           <Link
             key={e}
             href={chipHref(e)}
-            className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+            className={`rounded-[9px] border px-3.5 py-2 text-sm font-semibold transition-colors ${
               estadoFilter === e
                 ? "border-accent bg-accent-soft text-accent-ink"
                 : "border-line bg-surface text-ink-soft hover:border-mist"
@@ -138,7 +137,7 @@ export default async function ConsultasPage({
           <EmptyState
             icon={<ClipboardList size={22} />}
             title="Sin consultas para este filtro"
-            description="Ajuste los filtros o inicie una nueva consulta."
+            description="Cambia los filtros o inicia una consulta."
           />
         </div>
       )}
@@ -154,6 +153,6 @@ export default async function ConsultasPage({
           q: term || undefined,
         }}
       />
-    </div>
+    </AppPage>
   );
 }

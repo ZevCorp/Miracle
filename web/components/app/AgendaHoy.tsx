@@ -19,9 +19,11 @@ import {
   X,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
+import { ClinicalSectionHeader } from "@/components/app/AppPage";
 import { useStore } from "@/app/app/providers";
 import { createClient } from "@/lib/supabase/client";
 import {
+  appointmentImportFingerprint,
   normalizeHora,
   rowToAppointment,
   todayLocalISO,
@@ -29,8 +31,7 @@ import {
   type ParsedCita,
 } from "@/lib/agenda";
 
-const inputClass =
-  "rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm outline-none transition-colors focus:border-accent";
+const inputClass = "clinical-control px-3 text-sm outline-none";
 
 function sortCitas(list: Appointment[]): Appointment[] {
   return [...list].sort((a, b) => a.hora.localeCompare(b.hora));
@@ -116,6 +117,7 @@ export function AgendaHoy({
 
   const marcarAtendida = useCallback(
     async (id: string) => {
+      const previous = citas.find((c) => c.id === id);
       setCitas((list) =>
         list.map((c) => (c.id === id ? { ...c, estado: "atendida" as const } : c)),
       );
@@ -125,22 +127,31 @@ export function AgendaHoy({
         .eq("id", id);
       if (error) {
         console.error("[agenda] update", error.message);
+        if (previous) {
+          const rollback = previous;
+          setCitas((list) => list.map((c) => (c.id === id ? rollback : c)));
+        }
         showToast("No se pudo actualizar la cita.", "warning");
       }
     },
-    [supabase, showToast],
+    [citas, supabase, showToast],
   );
 
   const eliminar = useCallback(
     async (id: string) => {
+      const removed = citas.find((c) => c.id === id);
       setCitas((list) => list.filter((c) => c.id !== id));
       const { error } = await supabase.from("appointments").delete().eq("id", id);
       if (error) {
         console.error("[agenda] delete", error.message);
+        if (removed) {
+          const rollback = removed;
+          setCitas((list) => sortCitas([...list.filter((c) => c.id !== id), rollback]));
+        }
         showToast("No se pudo eliminar la cita.", "warning");
       }
     },
-    [supabase, showToast],
+    [citas, supabase, showToast],
   );
 
   // ---- Confirmación de borrado ----------------------------------------------
@@ -162,33 +173,33 @@ export function AgendaHoy({
   }, []);
 
   return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-deep">Consultas de hoy</h2>
-        <CalendarDays size={18} className="text-muted" />
-      </div>
+    <Card className="shadow-none">
+      <ClinicalSectionHeader
+        title="Consultas de hoy"
+        action={<CalendarDays size={18} className="text-muted" />}
+      />
 
       {dbLista ? (
-        <div className="mb-3 flex flex-wrap gap-2">
+        <div className="mb-3 mt-4 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setShowAdd((s) => !s)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent-soft/40 px-3 py-1.5 text-xs font-semibold text-accent-ink hover:bg-accent-soft"
+            className="clinical-secondary min-h-10 px-3 py-2 text-[13px]"
           >
             <Plus size={14} /> Agregar cita
           </button>
           <button
             type="button"
             onClick={() => setImportOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-deep hover:border-mist"
+            className="clinical-secondary min-h-10 px-3 py-2 text-[13px]"
           >
-            <Camera size={14} /> Desde foto
+            <Camera size={14} /> Importar agenda
           </button>
         </div>
       ) : null}
 
       {showAdd ? (
-        <div className="mb-3 rounded-lg border border-dashed border-accent/40 bg-ice-soft p-3">
+        <div className="clinical-panel-muted mb-3 p-3.5">
           <div className="flex flex-wrap gap-2">
             <input
               type="time"
@@ -216,7 +227,7 @@ export function AgendaHoy({
             <button
               type="button"
               onClick={() => setShowAdd(false)}
-              className="rounded-full border border-line px-3.5 py-1.5 text-xs font-semibold text-deep hover:border-mist"
+              className="clinical-secondary min-h-10 px-3.5 py-2 text-[13px]"
             >
               Cancelar
             </button>
@@ -224,7 +235,7 @@ export function AgendaHoy({
               type="button"
               onClick={agregar}
               disabled={guardando}
-              className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-1.5 text-xs font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
+              className="clinical-primary min-h-10 px-4 py-2 text-[13px]"
             >
               {guardando ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
               Agendar
@@ -238,10 +249,8 @@ export function AgendaHoy({
           <Loader2 size={18} className="animate-spin text-muted" />
         </div>
       ) : !dbLista ? (
-        <p className="py-2 text-sm text-muted">
-          La agenda aún no está disponible: falta aplicar la migración{" "}
-          <code className="rounded bg-ice px-1 py-0.5 text-xs">appointments</code> en
-          Supabase.
+        <p className="py-3 text-sm text-muted">
+          La agenda no está disponible en este momento.
         </p>
       ) : citas.length ? (
         <ul className="divide-y divide-line">
@@ -265,8 +274,12 @@ export function AgendaHoy({
                   ) : null}
                 </span>
                 {c.estado === "atendida" ? (
-                  <span className="rounded-full bg-mint-soft px-2 py-0.5 text-[11px] font-semibold text-success">
+                  <span className="rounded-full bg-mint-soft px-2 py-0.5 text-xs font-semibold text-success">
                     Atendida
+                  </span>
+                ) : c.estado === "en_curso" ? (
+                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-ink">
+                    En curso
                   </span>
                 ) : null}
                 {confirmId === c.id ? (
@@ -293,7 +306,7 @@ export function AgendaHoy({
                 ) : c.estado === "programada" ? (
                   <span className="flex shrink-0 items-center gap-0.5">
                     <Link
-                      href={`/app/consultas/nueva?nombre=${encodeURIComponent(c.pacienteNombre)}`}
+                      href={`/app/consultas/nueva?appointment=${encodeURIComponent(c.id)}&nombre=${encodeURIComponent(c.pacienteNombre)}`}
                       title="Iniciar consulta"
                       aria-label={`Iniciar consulta con ${c.pacienteNombre}`}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-md text-accent hover:bg-accent-soft"
@@ -315,6 +328,26 @@ export function AgendaHoy({
                       title="Eliminar cita"
                       aria-label={`Eliminar la cita de ${c.pacienteNombre}`}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-danger-soft hover:text-danger"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </span>
+                ) : c.estado === "en_curso" && c.clinicalEncounterId ? (
+                  <span className="flex shrink-0 items-center gap-0.5">
+                    <Link
+                      href={`/app/consultas/en-vivo?encounter=${encodeURIComponent(c.clinicalEncounterId)}&appointment=${encodeURIComponent(c.id)}`}
+                      title="Reanudar consulta"
+                      aria-label={`Reanudar consulta con ${c.pacienteNombre}`}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-accent hover:bg-accent-soft"
+                    >
+                      <Play size={16} />
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmId(c.id)}
+                      title="Eliminar cita"
+                      aria-label={`Eliminar la cita de ${c.pacienteNombre}`}
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted hover:bg-danger-soft hover:text-danger"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -465,41 +498,64 @@ function ImportarFotoModal({
       return;
     }
     setAgregando(true);
-    const { data, error } = await supabase
-      .from("appointments")
-      .insert(
-        seleccionadas.map((f) => ({
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const doctorId = userData.user?.id;
+      if (!doctorId) {
+        showToast("Tu sesión expiró. Vuelve a iniciar sesión para importar citas.", "warning");
+        return;
+      }
+
+      const rows = await Promise.all(
+        seleccionadas.map(async (f) => ({
           fecha,
           hora: normalizeHora(f.hora),
           paciente_nombre: f.paciente.trim(),
           paciente_documento: f.documento?.trim() || null,
           motivo: f.motivo?.trim() || null,
           source: "importada",
+          medico_id: doctorId,
+          import_fingerprint: await appointmentImportFingerprint({
+            fecha,
+            hora: f.hora,
+            paciente: f.paciente,
+          }),
         })),
-      )
-      .select();
-    setAgregando(false);
-    if (error || !data) {
-      console.error("[agenda] import", error?.message);
-      showToast("No se pudieron guardar las citas.", "warning");
-      return;
+      );
+      const { data, error } = await supabase
+        .from("appointments")
+        .upsert(rows, { onConflict: "medico_id,import_fingerprint", ignoreDuplicates: true })
+        .select();
+      if (error || !data) {
+        console.error("[agenda] import", error?.message);
+        showToast("No se pudieron guardar las citas.", "warning");
+        return;
+      }
+      onImported(data.map(rowToAppointment));
+      const skipped = seleccionadas.length - data.length;
+      showToast(
+        skipped
+          ? `${data.length} nuevas y ${skipped} ya existentes. No se duplicaron citas.`
+          : `${data.length} ${data.length === 1 ? "cita agendada" : "citas agendadas"}.`,
+        "success",
+      );
+      onClose();
+    } catch (error) {
+      console.error("[agenda] import failed", error);
+      showToast("No se pudieron guardar las citas. Intenta de nuevo.", "warning");
+    } finally {
+      setAgregando(false);
     }
-    onImported(data.map(rowToAppointment));
-    showToast(
-      `${data.length} ${data.length === 1 ? "cita agendada" : "citas agendadas"}.`,
-      "success",
-    );
-    onClose();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <button
         type="button"
         aria-hidden
         tabIndex={-1}
         onClick={onClose}
-        className="absolute inset-0 bg-night/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-overlay backdrop-blur-sm"
       />
       <div
         ref={dialogRef}
@@ -507,9 +563,9 @@ function ImportarFotoModal({
         role="dialog"
         aria-modal="true"
         aria-label="Importar horario desde foto"
-        className="relative z-10 flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-[var(--shadow-xl)] outline-none"
+        className="relative z-10 flex h-dvh max-h-dvh w-full max-w-xl flex-col overflow-hidden bg-surface shadow-[var(--shadow-xl)] outline-none sm:h-auto sm:max-h-[85vh] sm:rounded-lg sm:border sm:border-line"
       >
-        <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+        <div className="app-mobile-header flex items-center justify-between border-b border-line px-4 py-3.5 sm:h-auto sm:px-5">
           <h3 className="text-base font-semibold text-deep">
             Importar horario desde foto
           </h3>
@@ -536,7 +592,11 @@ function ImportarFotoModal({
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
                 className="hidden"
-                onChange={(e) => onFile(e.target.files?.[0])}
+                onChange={(e) => {
+                  onFile(e.target.files?.[0]);
+                  // Permite volver a elegir la misma captura tras corregirla.
+                  e.currentTarget.value = "";
+                }}
               />
               {img ? (
                 <>

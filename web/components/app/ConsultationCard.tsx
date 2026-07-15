@@ -17,12 +17,14 @@ export function ConsultationCard({
   consultation,
   active = false,
   patientName,
+  presentation = "card",
 }: {
   consultation: CardConsultation;
   active?: boolean;
   /** Nombre del paciente ya resuelto (p. ej. desde un join en RSC). Si no se pasa,
    *  se resuelve desde el store. */
   patientName?: string;
+  presentation?: "card" | "row";
 }) {
   const { getPatient } = useStore();
   const nombre =
@@ -30,14 +32,16 @@ export function ConsultationCard({
   return (
     <Link
       href={`/app/consultas/${consultation.id}`}
-      className={`block rounded-lg border bg-surface p-4 transition-all hover:border-mist hover:shadow-[var(--shadow-sm)] ${
-        active ? "border-accent ring-1 ring-accent/30" : "border-line"
-      }`}
+      className={`block transition-colors ${
+        presentation === "row"
+          ? "clinical-list-row px-1 py-3.5"
+          : "rounded-[14px] border bg-surface p-4 shadow-[var(--shadow-xs)] hover:border-mist hover:bg-ice-soft/40"
+      } ${active ? "border-accent ring-1 ring-accent/30" : presentation === "card" ? "border-line" : ""}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate font-semibold text-deep">{nombre}</div>
-          <div className="truncate text-xs text-muted">
+          <div className="truncate text-[13px] text-muted">
             {consultation.especialidad} · {TYPE_LABEL[consultation.tipo]}
           </div>
         </div>
@@ -46,7 +50,7 @@ export function ConsultationCard({
       <p className="mt-2 line-clamp-1 text-sm text-ink-soft">
         {consultation.motivo}
       </p>
-      <div className="mt-2 text-xs text-muted">
+      <div className="mt-2 text-[13px] text-muted">
         {formatFechaRelativa(consultation.fecha)}
       </div>
     </Link>

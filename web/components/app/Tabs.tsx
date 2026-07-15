@@ -14,7 +14,7 @@ export function Tabs({
   onChange: (id: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2" role="tablist">
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" role="tablist">
       {tabs.map((tab) => {
         const isActive = tab.id === active;
         return (
@@ -23,7 +23,7 @@ export function Tabs({
             role="tab"
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
-            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+            className={`inline-flex min-w-0 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors sm:rounded-full sm:px-4 ${
               isActive
                 ? "border-accent bg-accent-soft text-accent-ink"
                 : "border-line bg-surface text-ink-soft hover:border-mist hover:text-deep"

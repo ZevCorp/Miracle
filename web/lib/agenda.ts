@@ -1,7 +1,7 @@
 // Agenda del día del médico: tipos y utilidades compartidas entre la tarjeta
 // del dashboard (AgendaHoy) y el endpoint de importación por foto.
 
-export type AppointmentStatus = "programada" | "atendida" | "cancelada";
+export type AppointmentStatus = "programada" | "en_curso" | "atendida" | "cancelada";
 
 export interface Appointment {
   id: string;
@@ -12,6 +12,7 @@ export interface Appointment {
   motivo?: string;
   estado: AppointmentStatus;
   source: "manual" | "importada";
+  clinicalEncounterId?: string;
 }
 
 /** Cita extraída de la foto del horario, antes de que el médico la confirme. */
@@ -33,7 +34,23 @@ export function rowToAppointment(r: any): Appointment {
     motivo: r.motivo ?? undefined,
     estado: (r.estado as AppointmentStatus) ?? "programada",
     source: r.source === "importada" ? "importada" : "manual",
+    clinicalEncounterId: r.clinical_encounter_id ?? undefined,
   };
+}
+
+/** Huella no reversible para que reimportar la misma captura no duplique citas. */
+export async function appointmentImportFingerprint(input: {
+  fecha: string;
+  hora: string;
+  paciente: string;
+}): Promise<string> {
+  const normalized = [
+    input.fecha,
+    normalizeHora(input.hora),
+    input.paciente.trim().toLocaleLowerCase().replace(/\s+/g, " "),
+  ].join("|");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalized));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Check, ChevronDown, Mic, Pencil, Plus, Trash2, X } from "lucide-react";
 import type { NoteSection } from "@/lib/mock";
 
@@ -22,21 +22,26 @@ export function NoteSectionView({
 
   const [savedHint, setSavedHint] = useState(false);
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
 
   const [listening, setListening] = useState(false);
-  const [dictSupported, setDictSupported] = useState(false);
+  const dictSupported = useSyncExternalStore(
+    () => () => undefined,
+    () =>
+      typeof window !== "undefined" &&
+      Boolean(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition,
+      ),
+    () => false,
+  );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recRef = useRef<any>(null);
 
   useEffect(() => {
-    if (
-      typeof window !== "undefined" &&
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
-    ) {
-      setDictSupported(true);
-    }
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
     return () => {
       try {
         recRef.current?.stop();
@@ -73,7 +78,10 @@ export function NoteSectionView({
       for (let i = e.resultIndex; i < e.results.length; i++) {
         if (e.results[i].isFinal) add += e.results[i][0].transcript;
       }
-      if (add.trim()) setTexto((t) => (t ? `${t} ${add.trim()}` : add.trim()));
+      if (add.trim()) {
+        setSavedHint(false);
+        setTexto((t) => (t ? `${t} ${add.trim()}` : add.trim()));
+      }
     };
     rec.onend = () => setListening(false);
     rec.onerror = () => setListening(false);
@@ -95,7 +103,6 @@ export function NoteSectionView({
       ? JSON.stringify(limpios) !== JSON.stringify(section.items ?? [])
       : texto.trim() !== (section.texto ?? "").trim();
     if (!cambiado) return;
-    setSavedHint(false);
     const h = setTimeout(() => {
       onChangeRef.current?.(esLista ? { items: limpios } : { texto: texto.trim() });
       setSavedHint(true);
@@ -153,13 +160,13 @@ export function NoteSectionView({
             onClick={startEdit}
             className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-ice-soft hover:text-accent"
           >
-            <Pencil size={13} /> Editar
+            <Pencil size={14} /> <span className="hidden sm:inline">Editar</span>
           </button>
         ) : null}
       </div>
 
       {open ? (
-        <div className="mt-2 pl-6 text-[0.95rem] leading-relaxed text-ink">
+        <div className="mt-2 pl-0 text-[0.95rem] leading-relaxed text-ink sm:pl-6">
           {/* ----- Modo edición ----- */}
           {editing ? (
             <div>
@@ -170,18 +177,20 @@ export function NoteSectionView({
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
                       <input
                         value={item}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          setSavedHint(false);
                           setItems((list) =>
                             list.map((v, j) => (j === i ? e.target.value : v)),
-                          )
-                        }
-                        className="min-w-0 flex-1 rounded-md border border-line bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent"
+                          );
+                        }}
+                        className="min-w-0 flex-1 rounded-md border border-line bg-field px-3 py-1.5 text-sm outline-none focus:border-accent"
                       />
                       <button
                         type="button"
-                        onClick={() =>
-                          setItems((list) => list.filter((_, j) => j !== i))
-                        }
+                        onClick={() => {
+                          setSavedHint(false);
+                          setItems((list) => list.filter((_, j) => j !== i));
+                        }}
                         aria-label="Quitar"
                         className="text-muted hover:text-danger"
                       >
@@ -191,7 +200,10 @@ export function NoteSectionView({
                   ))}
                   <button
                     type="button"
-                    onClick={() => setItems((list) => [...list, ""])}
+                    onClick={() => {
+                      setSavedHint(false);
+                      setItems((list) => [...list, ""]);
+                    }}
                     className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
                   >
                     <Plus size={14} /> Agregar punto
@@ -200,14 +212,17 @@ export function NoteSectionView({
               ) : (
                 <textarea
                   value={texto}
-                  onChange={(e) => setTexto(e.target.value)}
+                  onChange={(e) => {
+                    setSavedHint(false);
+                    setTexto(e.target.value);
+                  }}
                   rows={Math.max(3, Math.ceil(texto.length / 70))}
-                  className="w-full resize-y rounded-md border border-line bg-surface px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
+                  className="w-full resize-y rounded-md border border-line bg-field px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
                   autoFocus
                 />
               )}
 
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={save}

@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, Check, ChevronDown, Info, Pencil, X } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  ClipboardCopy,
+  Info,
+  Mic,
+  Pencil,
+  X,
+} from "lucide-react";
 import type { ClinicalNoteJson, ClinicalNoteSection } from "@/lib/api/clinical";
 
 /**
@@ -19,11 +28,16 @@ export function EncounterNote({
   editable,
   onChangeSection,
   onChangeSummary,
+  onVoiceInstruction,
+  voiceProcessingSection,
 }: {
   note: ClinicalNoteJson;
   editable: boolean;
   onChangeSection: (key: string, content: string) => void;
   onChangeSummary: (summary: string) => void;
+  /** Instrucción hablada para modificar una sección con el asistente clínico. */
+  onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
+  voiceProcessingSection?: string | null;
 }) {
   const missingLabels = note.missing_required_sections
     .map(
@@ -67,11 +81,13 @@ export function EncounterNote({
         </div>
       ) : null}
 
-      <div className="rounded-lg border border-line bg-surface px-5 py-2">
+      <div className="rounded-lg border border-line bg-surface px-3 py-2 sm:px-5">
         <SummaryBlock
           summary={note.summary}
           editable={editable}
           onChange={onChangeSummary}
+          onVoiceInstruction={onVoiceInstruction}
+          voiceProcessing={voiceProcessingSection === "Resumen"}
         />
         {note.sections.map((section) => (
           <SectionBlock
@@ -79,6 +95,8 @@ export function EncounterNote({
             section={section}
             editable={editable}
             onChange={(content) => onChangeSection(section.key, content)}
+            onVoiceInstruction={onVoiceInstruction}
+            voiceProcessing={voiceProcessingSection === section.label}
           />
         ))}
       </div>
@@ -90,10 +108,14 @@ function SummaryBlock({
   summary,
   editable,
   onChange,
+  onVoiceInstruction,
+  voiceProcessing,
 }: {
   summary: string;
   editable: boolean;
   onChange: (summary: string) => void;
+  onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
+  voiceProcessing: boolean;
 }) {
   return (
     <EditableBlock
@@ -101,6 +123,8 @@ function SummaryBlock({
       content={summary}
       editable={editable}
       onChange={onChange}
+      onVoiceInstruction={onVoiceInstruction}
+      voiceProcessing={voiceProcessing}
     />
   );
 }
@@ -109,10 +133,14 @@ function SectionBlock({
   section,
   editable,
   onChange,
+  onVoiceInstruction,
+  voiceProcessing,
 }: {
   section: ClinicalNoteSection;
   editable: boolean;
   onChange: (content: string) => void;
+  onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
+  voiceProcessing: boolean;
 }) {
   return (
     <EditableBlock
@@ -120,6 +148,8 @@ function SectionBlock({
       content={section.content}
       editable={editable}
       onChange={onChange}
+      onVoiceInstruction={onVoiceInstruction}
+      voiceProcessing={voiceProcessing}
     />
   );
 }
@@ -129,15 +159,22 @@ function EditableBlock({
   content,
   editable,
   onChange,
+  onVoiceInstruction,
+  voiceProcessing,
 }: {
   title: string;
   content: string;
   editable: boolean;
   onChange: (content: string) => void;
+  onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
+  voiceProcessing: boolean;
 }) {
   const [open, setOpen] = useState(true);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(content);
+  const [listening, setListening] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   function startEdit() {
     setDraft(content);
@@ -148,6 +185,43 @@ function EditableBlock({
   function confirm() {
     onChange(draft.trim());
     setEditing(false);
+  }
+
+  function copy() {
+    if (!content.trim()) return;
+    void navigator.clipboard.writeText(content).catch(() => {
+      setVoiceError("No se pudo copiar este campo.");
+    });
+  }
+
+  function dictateChange() {
+    const Recognition = getSpeechRecognition();
+    if (!Recognition || !onVoiceInstruction) {
+      setVoiceError("El dictado no está disponible en este navegador.");
+      return;
+    }
+    setVoiceError(null);
+    const recognition = new Recognition();
+    recognitionRef.current = recognition;
+    recognition.lang = "es-CO";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.onresult = (event) => {
+      const instruction = Array.from(event.results)
+        .map((result) => result[0]?.transcript ?? "")
+        .join(" ")
+        .trim();
+      if (instruction) onVoiceInstruction(title, instruction);
+    };
+    recognition.onerror = () => {
+      setVoiceError("No pudimos entender el cambio. Intenta dictarlo de nuevo.");
+    };
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setListening(false);
+    };
+    setListening(true);
+    recognition.start();
   }
 
   return (
@@ -166,29 +240,55 @@ function EditableBlock({
           <h3 className="font-display text-base font-semibold text-deep">{title}</h3>
         </button>
 
-        {editable && !editing ? (
+        <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
-            onClick={startEdit}
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-ice-soft hover:text-accent"
+            onClick={copy}
+            disabled={!content.trim()}
+            aria-label={`Copiar ${title}`}
+            title="Copiar campo"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-ice-soft hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <Pencil size={13} /> Editar
+            <ClipboardCopy size={14} />
           </button>
-        ) : null}
+          {editable && onVoiceInstruction ? (
+            <button
+              type="button"
+              onClick={dictateChange}
+              disabled={listening || voiceProcessing}
+              aria-label={`Dictar cambio para ${title}`}
+              title="Dictar un cambio"
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                listening ? "bg-danger-soft text-danger" : "text-muted hover:bg-ice-soft hover:text-accent"
+              }`}
+            >
+              <Mic size={14} className={listening || voiceProcessing ? "animate-pulse" : ""} />
+            </button>
+          ) : null}
+          {editable && !editing ? (
+            <button
+              type="button"
+              onClick={startEdit}
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-ice-soft hover:text-accent"
+            >
+              <Pencil size={14} /> <span className="hidden sm:inline">Editar</span>
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {open ? (
-        <div className="mt-2 pl-6 text-[0.95rem] leading-relaxed text-ink">
+        <div className="mt-2 pl-0 text-[0.95rem] leading-relaxed text-ink sm:pl-6">
           {editing ? (
             <div>
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 rows={Math.max(3, Math.ceil(draft.length / 70))}
-                className="w-full resize-y rounded-md border border-line bg-surface px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
+                className="w-full resize-y rounded-md border border-line bg-field px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
                 autoFocus
               />
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={confirm}
@@ -214,8 +314,41 @@ function EditableBlock({
               )}
             </p>
           )}
+          {listening ? (
+            <p className="mt-2 text-xs font-medium text-danger">
+              Escuchando el cambio para {title}...
+            </p>
+          ) : null}
+          {voiceProcessing ? (
+            <p className="mt-2 text-xs font-medium text-accent">
+              Aplicando el cambio dictado...
+            </p>
+          ) : null}
+          {voiceError ? <p role="alert" className="mt-2 text-xs text-danger">{voiceError}</p> : null}
         </div>
       ) : null}
     </div>
   );
+}
+
+type SpeechRecognitionResultLike = { 0?: { transcript?: string } };
+type SpeechRecognitionEventLike = { results: ArrayLike<SpeechRecognitionResultLike> };
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+};
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+function getSpeechRecognition(): SpeechRecognitionConstructor | null {
+  if (typeof window === "undefined") return null;
+  const browserWindow = window as typeof window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+  return browserWindow.SpeechRecognition ?? browserWindow.webkitSpeechRecognition ?? null;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Plus, Search, User } from "lucide-react";
 import { useStore } from "@/app/app/providers";
@@ -23,24 +23,25 @@ export function CommandPalette({
   const router = useRouter();
   const { patients, consultations, getPatient } = useStore();
   const [query, setQuery] = useState("");
+  const closePalette = useCallback(() => {
+    setQuery("");
+    onOpenChange(false);
+  }, [onOpenChange]);
 
   // Atajo global Cmd/Ctrl+K y cierre con Esc.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        onOpenChange(!open);
+        if (open) closePalette();
+        else onOpenChange(true);
       } else if (e.key === "Escape" && open) {
-        onOpenChange(false);
+        closePalette();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onOpenChange]);
-
-  useEffect(() => {
-    if (!open) setQuery("");
-  }, [open]);
+  }, [closePalette, open, onOpenChange]);
 
   const items = useMemo<Item[]>(() => {
     const q = query.trim().toLowerCase();
@@ -90,18 +91,18 @@ export function CommandPalette({
   if (!open) return null;
 
   function go(href: string) {
-    onOpenChange(false);
+    closePalette();
     router.push(href);
   }
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-start justify-center p-4 pt-[12vh]">
+    <div className="fixed inset-0 z-[90] flex items-start justify-center p-0 sm:p-4 sm:pt-[12vh]">
       <div
-        className="absolute inset-0 bg-night/40 backdrop-blur-sm"
-        onClick={() => onOpenChange(false)}
+        className="absolute inset-0 bg-overlay backdrop-blur-sm"
+        onClick={closePalette}
       />
-      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-xl)]">
-        <div className="flex items-center gap-2 border-b border-line px-4">
+      <div className="relative flex h-dvh w-full max-w-xl flex-col overflow-hidden bg-surface shadow-[var(--shadow-xl)] sm:h-auto sm:rounded-2xl sm:border sm:border-line">
+        <div className="app-mobile-header flex items-center gap-2 border-b border-line px-4 sm:h-auto">
           <Search size={18} className="text-muted" />
           <input
             autoFocus
@@ -111,13 +112,13 @@ export function CommandPalette({
               if (e.key === "Enter" && items[0]) go(items[0].href);
             }}
             placeholder="Buscar paciente, consulta o acción…"
-            className="w-full bg-transparent py-3.5 text-sm outline-none placeholder:text-muted"
+            className="w-full bg-transparent py-3.5 text-base outline-none placeholder:text-muted sm:text-sm"
           />
-          <kbd className="hidden rounded border border-line px-1.5 py-0.5 text-[10px] font-medium text-muted sm:block">
+          <kbd className="hidden rounded border border-line px-1.5 py-0.5 text-xs font-medium text-muted sm:block">
             ESC
           </kbd>
         </div>
-        <div className="max-h-80 overflow-y-auto p-2">
+        <div className="min-h-0 flex-1 overflow-y-auto p-2 sm:max-h-80">
           {items.length ? (
             items.map((it) => {
               const Icon = it.icon;

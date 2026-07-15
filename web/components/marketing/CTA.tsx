@@ -15,11 +15,11 @@ export function CTASection({
   return (
     <section className="py-16 md:py-24">
       <Container>
-        <div className="overflow-hidden rounded-xl bg-deep px-6 py-14 text-center shadow-[var(--shadow-xl)] md:px-16 md:py-20">
+        <div className="overflow-hidden rounded-xl bg-statement px-6 py-14 text-center shadow-[var(--shadow-xl)] md:px-16 md:py-20">
           <h2 className="mx-auto max-w-2xl text-3xl font-semibold text-white md:text-4xl">
             {title}
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-mist">
+          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-sidebar-muted">
             {subtitle}
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">

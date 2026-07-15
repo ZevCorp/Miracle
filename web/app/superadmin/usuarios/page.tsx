@@ -17,7 +17,7 @@ type ProfileRow = {
 };
 
 const inputClass =
-  "w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-deep outline-none focus:border-accent";
+  "w-full rounded-md border border-line bg-field px-3 py-2 text-sm text-deep outline-none focus:border-accent";
 
 export default async function SuperadminUsuariosPage({
   searchParams,
@@ -148,7 +148,7 @@ export default async function SuperadminUsuariosPage({
                   name="organizationId"
                   defaultValue={user.organization_id ?? ""}
                   aria-label={`Organización de ${user.email}`}
-                  className="rounded-md border border-line bg-surface px-2 py-2 text-sm text-deep outline-none focus:border-accent"
+                  className="rounded-md border border-line bg-field px-2 py-2 text-sm text-deep outline-none focus:border-accent"
                 >
                   {orgs.map((o) => (
                     <option key={o.id} value={o.id}>
@@ -160,7 +160,7 @@ export default async function SuperadminUsuariosPage({
                   name="role"
                   defaultValue={user.role}
                   aria-label={`Rol de ${user.email}`}
-                  className="rounded-md border border-line bg-surface px-2 py-2 text-sm text-deep outline-none focus:border-accent"
+                  className="rounded-md border border-line bg-field px-2 py-2 text-sm text-deep outline-none focus:border-accent"
                 >
                   <option value="medico">Médico</option>
                   <option value="supervisor">Supervisor</option>

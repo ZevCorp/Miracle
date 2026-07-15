@@ -16,10 +16,10 @@ export function SuperadminSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full flex-col bg-night text-white">
+    <div className="flex h-full flex-col bg-sidebar text-sidebar-text">
       <div className="flex h-16 flex-col justify-center border-b border-white/10 px-5">
         <Logo onDark size={26} />
-        <span className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-mist/70">
+        <span className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-sidebar-muted">
           Consola de plataforma
         </span>
       </div>
@@ -38,11 +38,11 @@ export function SuperadminSidebar({ onNavigate }: { onNavigate?: () => void }) {
               aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
                 active
-                  ? "bg-white/12 text-white"
-                  : "text-mist hover:bg-white/8 hover:text-white"
+                  ? "bg-sidebar-active text-sidebar-text"
+                  : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-text"
               }`}
             >
-              <Icon size={18} className={active ? "text-white" : "text-mist/80"} />
+              <Icon size={18} className={active ? "text-sidebar-text" : "text-sidebar-muted"} />
               {item.label}
             </Link>
           );
@@ -52,7 +52,7 @@ export function SuperadminSidebar({ onNavigate }: { onNavigate?: () => void }) {
         <Link
           href="/"
           onClick={onNavigate}
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-mist hover:bg-white/8 hover:text-white"
+          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-text"
         >
           ← Volver al sitio
         </Link>

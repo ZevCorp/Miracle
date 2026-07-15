@@ -12,9 +12,9 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-line bg-surface/60 px-6 py-14 text-center">
+    <div className="flex flex-col items-center justify-center rounded-[14px] border border-line bg-surface px-6 py-10 text-center shadow-[var(--shadow-xs)]">
       {icon ? (
-        <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-ice text-accent">
+        <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-ice text-accent">
           {icon}
         </div>
       ) : null}

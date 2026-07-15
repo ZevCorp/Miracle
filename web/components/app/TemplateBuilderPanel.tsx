@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  CheckCircle2,
   ChevronDown,
   GripVertical,
   Info,
   Loader2,
   Plus,
   Save,
+  ShieldCheck,
   Sparkles,
   Trash2,
   X,
@@ -17,6 +19,7 @@ import {
   friendlyClinicalMessage,
   updateClinicalTemplate,
   type ClinicalTemplate,
+  type CreateClinicalTemplatePayload,
 } from "@/lib/api/clinical";
 import {
   buildTemplatePayload,
@@ -43,7 +46,7 @@ import {
 export type BuilderMode = "scratch" | "base" | "edit";
 
 const fieldClass =
-  "mt-1.5 w-full rounded-md border border-line bg-surface px-3.5 py-2.5 text-sm text-deep outline-none transition-colors focus:border-accent";
+  "mt-1.5 w-full rounded-md border border-line bg-field px-3.5 py-2.5 text-sm text-deep outline-none transition-colors focus:border-accent";
 
 const MODE_TITLE: Record<BuilderMode, string> = {
   scratch: "Nueva plantilla",
@@ -57,10 +60,16 @@ const MODE_SUBTITLE: Record<BuilderMode, string> = {
   edit: "Cambia las secciones de tu plantilla personal.",
 };
 
+const COMMON_SECTIONS = [
+  "Motivo de consulta", "Enfermedad actual", "Antecedentes relevantes",
+  "Examen físico dirigido", "Impresión diagnóstica", "Resultados relevantes",
+];
+
 export function TemplateBuilderPanel({
   mode,
   baseTemplate,
   initialSpecialtyCode,
+  initialDraft,
   onClose,
   onSaved,
 }: {
@@ -68,6 +77,7 @@ export function TemplateBuilderPanel({
   /** Plantilla origen: en "base" se duplica; en "edit" se actualiza. */
   baseTemplate?: ClinicalTemplate;
   initialSpecialtyCode: string;
+  initialDraft?: CreateClinicalTemplatePayload;
   onClose: () => void;
   onSaved: (template: ClinicalTemplate, action: "created" | "updated") => void;
 }) {
@@ -92,6 +102,7 @@ export function TemplateBuilderPanel({
     getAreaForSpecialty(resolvedSpecialty)?.code ?? medicalAreas[0].code;
 
   const [name, setName] = useState(() => {
+    if (initialDraft) return initialDraft.name;
     if (mode === "base" && baseTemplate) return `${baseTemplate.name} (personal)`;
     if (mode === "edit" && baseTemplate) return baseTemplate.name;
     return "";
@@ -99,9 +110,14 @@ export function TemplateBuilderPanel({
   const [areaCode, setAreaCode] = useState(initialArea);
   const [specialtyCode, setSpecialtyCode] = useState(resolvedSpecialty);
   const [description, setDescription] = useState(
-    baseTemplate?.description ?? "",
+    initialDraft?.description ?? baseTemplate?.description ?? "",
   );
   const [blocks, setBlocks] = useState<SectionBlock[]>(() => {
+    if (initialDraft) return initialDraft.sections.map((section) => createBlock({
+      label: typeof section === "string" ? section : section.label,
+      required: typeof section === "string" ? false : section.required === true,
+      instruction: typeof section === "string" ? "" : section.instruction ?? "",
+    }));
     if (mode === "edit" && baseTemplate) return templateToBlocks(baseTemplate);
     if (mode === "base" && baseTemplate) return templateToDraftBlocks(baseTemplate);
     return starterBlocksForSpecialty(resolvedSpecialty);
@@ -111,6 +127,7 @@ export function TemplateBuilderPanel({
   const [error, setError] = useState<string | null>(null);
   const [duplicateUids, setDuplicateUids] = useState<string[]>([]);
   const [dirty, setDirty] = useState(false);
+  const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
 
   const specialtiesInArea = useMemo(
     () => specialtiesForArea(areaCode),
@@ -153,8 +170,9 @@ export function TemplateBuilderPanel({
     markDirty();
   }
 
-  function addSection() {
-    setBlocksDirty([...blocks, createBlock()]);
+  function addSection(label = "") {
+    setBlocksDirty([...blocks, createBlock({ label })]);
+    setSectionMenuOpen(false);
   }
 
   async function handleSubmit() {
@@ -205,13 +223,13 @@ export function TemplateBuilderPanel({
   const filledCount = blocks.filter((b) => b.label.trim().length > 0).length;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
       {/* Backdrop */}
       <button
         type="button"
         aria-label="Cerrar"
         onClick={attemptClose}
-        className="absolute inset-0 bg-night/30 backdrop-blur-[1px]"
+        className="absolute inset-0 bg-overlay backdrop-blur-[1px]"
       />
 
       {/* Panel */}
@@ -219,12 +237,13 @@ export function TemplateBuilderPanel({
         role="dialog"
         aria-modal="true"
         aria-label={MODE_TITLE[mode]}
-        className="relative flex h-full w-full max-w-2xl flex-col bg-surface shadow-[var(--shadow-lg)]"
+        className="relative flex h-dvh max-h-dvh w-full max-w-6xl flex-col overflow-hidden bg-surface shadow-[var(--shadow-xl)] sm:h-auto sm:max-h-[90dvh] sm:rounded-2xl sm:border sm:border-line"
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-line px-6 py-4">
+        <div className="app-mobile-header flex items-start justify-between gap-3 border-b border-line px-4 py-4 sm:h-auto sm:px-7">
           <div>
-            <h2 className="text-lg font-semibold text-deep">{MODE_TITLE[mode]}</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Constructor clínico</p>
+            <h2 className="mt-1 text-xl font-semibold text-deep">{MODE_TITLE[mode]}</h2>
             <p className="mt-0.5 text-sm text-muted">{MODE_SUBTITLE[mode]}</p>
           </div>
           <button
@@ -238,7 +257,7 @@ export function TemplateBuilderPanel({
         </div>
 
         {/* Body (scroll) */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-7">
           {error ? (
             <p
               role="alert"
@@ -247,6 +266,8 @@ export function TemplateBuilderPanel({
               {error}
             </p>
           ) : null}
+
+          {initialDraft ? <p className="mb-4 flex items-center gap-2 rounded-lg border border-accent/25 bg-accent-soft/35 px-3 py-2.5 text-sm text-accent-ink"><CheckCircle2 size={16} /> Borrador creado desde tu ejemplo. Revísalo antes de guardarlo.</p> : null}
 
           <label className="block text-sm font-medium text-deep">
             Nombre de la plantilla
@@ -311,6 +332,20 @@ export function TemplateBuilderPanel({
             />
           </label>
 
+          <section className="mt-6 overflow-hidden rounded-lg border border-accent/20 bg-accent-soft/30">
+            <div className="flex items-start gap-2.5 border-b border-accent/15 px-4 py-3">
+              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-accent"><ShieldCheck size={15} /></span>
+              <div><h3 className="text-sm font-semibold text-accent-ink">Cierre clínico universal</h3><p className="mt-0.5 text-xs leading-relaxed text-muted">Se añade a cada nota, sin importar la plantilla. No se puede eliminar ni reordenar.</p></div>
+            </div>
+            <div className="grid gap-px bg-accent/10 sm:grid-cols-3">
+              {[
+                ["Plan terapéutico", "Medicamentos, medidas y seguimiento"],
+                ["Recomendaciones", "Borrador personalizado para revisión"],
+                ["Signos de alarma", "Jerarquizados antes del egreso"],
+              ].map(([title, description]) => <div key={title} className="bg-surface px-3 py-3"><p className="text-xs font-semibold text-deep">{title}</p><p className="mt-1 text-xs leading-relaxed text-muted">{description}</p><span className="mt-2 inline-flex rounded-full bg-mint-soft px-2 py-0.5 text-xs font-semibold text-success">Obligatorio</span></div>)}
+            </div>
+          </section>
+
           {/* Secciones */}
           <div className="mt-6">
             <div className="flex items-center justify-between">
@@ -324,7 +359,7 @@ export function TemplateBuilderPanel({
               sección por ti.
             </p>
 
-            <div className="mt-3 space-y-2.5">
+            <div className="mt-3 space-y-2.5 border-l border-line pl-3 sm:pl-5">
               {blocks.map((block, index) => (
                 <SectionCard
                   key={block.uid}
@@ -339,18 +374,15 @@ export function TemplateBuilderPanel({
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={addSection}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-accent/50 bg-accent-soft/30 px-4 py-2.5 text-sm font-semibold text-accent-ink hover:bg-accent-soft"
-            >
-              <Plus size={16} /> Agregar sección
-            </button>
+            <div className="relative mt-3">
+              <button type="button" onClick={() => setSectionMenuOpen((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-accent/50 bg-accent-soft/30 px-4 py-2.5 text-sm font-semibold text-accent-ink hover:bg-accent-soft"><Plus size={16} /> Añadir una sección</button>
+              {sectionMenuOpen ? <div className="absolute z-10 mt-2 w-full rounded-xl border border-line bg-surface p-2 shadow-[var(--shadow-lg)]"><p className="px-2 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide text-muted">Secciones frecuentes</p><div className="grid gap-1 sm:grid-cols-2">{COMMON_SECTIONS.map((label) => <button key={label} type="button" onClick={() => addSection(label)} className="rounded-lg px-3 py-2 text-left text-sm text-deep hover:bg-ice-soft">{label}</button>)}<button type="button" onClick={() => addSection()} className="rounded-lg px-3 py-2 text-left text-sm font-semibold text-accent hover:bg-accent-soft">+ Sección personalizada</button></div></div> : null}
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
+        <div className="mobile-bottom-sheet grid grid-cols-2 gap-2 border-t border-line bg-surface px-4 py-3 sm:flex sm:items-center sm:justify-end sm:px-7 sm:py-4">
           <button
             type="button"
             onClick={attemptClose}
@@ -433,7 +465,7 @@ function SectionCard({
           >
             <GripVertical size={16} />
           </span>
-          <span className="text-[11px] font-semibold text-muted">
+          <span className="text-[12px] font-semibold text-muted">
             {String(index + 1).padStart(2, "0")}
           </span>
         </div>
@@ -445,7 +477,7 @@ function SectionCard({
             placeholder="Nombre de la sección (ej. Motivo de consulta)"
             maxLength={MAX_LABEL_LENGTH}
             aria-label={`Nombre de la sección ${index + 1}`}
-            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm font-medium text-deep outline-none focus:border-accent"
+            className="w-full rounded-md border border-line bg-field px-3 py-2 text-sm font-medium text-deep outline-none focus:border-accent"
           />
 
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -479,9 +511,9 @@ function SectionCard({
                 rows={2}
                 maxLength={MAX_INSTRUCTION_LENGTH}
                 placeholder="Opcional: qué debe contener esta sección. Ej. «Resume el motivo del control y los cambios desde la última consulta.»"
-                className="w-full resize-y rounded-md border border-line bg-pearl px-3 py-2 text-sm leading-relaxed text-ink outline-none focus:border-accent"
+                className="w-full resize-y rounded-md border border-line bg-field px-3 py-2 text-sm leading-relaxed text-ink outline-none focus:border-accent"
               />
-              <p className="mt-1 flex items-center gap-1 text-[11px] text-muted">
+              <p className="mt-1 flex items-center gap-1 text-[12px] text-muted">
                 <Info size={11} /> Guía para que Miracle redacte mejor esta
                 sección. No es visible para el paciente.
               </p>
@@ -495,6 +527,7 @@ function SectionCard({
             onClick={() => onMove(index - 1)}
             disabled={index === 0}
             aria-label="Subir sección"
+            title="Subir sección"
             className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-ice-soft hover:text-deep disabled:opacity-30 disabled:hover:bg-transparent"
           >
             <ChevronDown size={14} className="rotate-180" />
@@ -504,6 +537,7 @@ function SectionCard({
             onClick={() => onMove(index + 1)}
             disabled={index === total - 1}
             aria-label="Bajar sección"
+            title="Bajar sección"
             className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-ice-soft hover:text-deep disabled:opacity-30 disabled:hover:bg-transparent"
           >
             <ChevronDown size={14} />
@@ -512,6 +546,7 @@ function SectionCard({
             type="button"
             onClick={onRemove}
             aria-label="Eliminar sección"
+            title="Eliminar sección"
             className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-danger/10 hover:text-danger"
           >
             <Trash2 size={14} />
