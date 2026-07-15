@@ -74,7 +74,11 @@ export function QuickConsultationLauncher() {
     }
   }
 
-  if (pathname === "/app/consultas/en-vivo" || pathname === "/app/consultas/nueva") {
+  if (
+    pathname === "/app/consultas/en-vivo" ||
+    pathname === "/app/consultas/nueva" ||
+    pathname === "/app/plantillas"
+  ) {
     return null;
   }
 

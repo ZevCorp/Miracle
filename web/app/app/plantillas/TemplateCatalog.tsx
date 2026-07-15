@@ -140,7 +140,7 @@ export function TemplateCatalog({
   }
 
   return (
-    <div className="app-page max-w-7xl">
+    <div className="app-page max-w-[1440px]">
       <header className="border-b border-line pb-6">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
@@ -235,7 +235,7 @@ export function TemplateCatalog({
         </div>
       ) : null}
       {!loading && !error ? (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(330px,.8fr)]">
+        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
           <section aria-label="Plantillas disponibles" className="space-y-3">
             {visible.map((template) => (
               <TemplateRow
@@ -389,7 +389,7 @@ function TemplatePreview({
 }) {
   const personal = template.scope === "personal";
   return (
-    <aside className="h-fit rounded-[14px] border border-line bg-surface p-5 shadow-[var(--shadow-xs)] lg:sticky lg:top-5">
+    <aside className="h-fit rounded-[14px] border border-line bg-surface p-4 shadow-[var(--shadow-xs)] lg:sticky lg:top-4">
       <div className="flex items-start gap-3">
         <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ice text-accent">
           <Stethoscope size={19} />
@@ -406,20 +406,20 @@ function TemplatePreview({
           </p>
         </div>
       </div>
-      <div className="mt-5 border-l border-line pl-4">
+      <div className="mt-4 border-l border-line pl-3">
         {sortedTemplateSections(template.sections).map((section, index) => (
-          <div key={section.key} className="relative pb-3 last:pb-0">
-            <span className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-surface bg-accent" />
-            <p className="text-sm font-medium text-deep">
+          <div key={section.key} className="relative flex min-h-8 items-start justify-between gap-3 pb-2 last:pb-0">
+            <span className="absolute -left-[18px] top-2 h-2 w-2 rounded-full border-2 border-surface bg-accent" />
+            <p className="min-w-0 text-sm font-medium leading-5 text-deep">
               {String(index + 1).padStart(2, "0")} · {section.label}
             </p>
-            <p className="mt-0.5 text-[13px] text-muted">
+            <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${section.required ? "bg-accent-soft text-accent-ink" : "bg-ice-soft text-muted"}`}>
               {section.required ? "Obligatoria" : "Opcional"}
-            </p>
+            </span>
           </div>
         ))}
       </div>
-      <div className="mt-5 border-l-2 border-accent bg-accent-soft/20 px-3 py-2.5">
+      <div className="mt-4 border-l-2 border-accent bg-accent-soft/20 px-3 py-2.5">
         <p className="text-[13px] font-semibold text-accent-ink">
           Cierre clínico universal
         </p>
@@ -427,7 +427,7 @@ function TemplatePreview({
           Incluye plan, recomendaciones y signos de alarma.
         </p>
       </div>
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={onBase}
