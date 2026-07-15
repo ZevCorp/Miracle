@@ -63,7 +63,7 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
 
   // Durante una consulta activa el asistente se muestra embebido en el panel
   // lateral de la pantalla, no como una ventana flotante duplicada.
-  if (!embedded && pathname === "/app/consultas/en-vivo") return null;
+  if (!embedded && (pathname === "/app/consultas/en-vivo" || pathname === "/app/plantillas")) return null;
 
   const visible = embedded || open;
   const panelClass = embedded
