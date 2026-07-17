@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Check, ChevronDown, Mic, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Copy, Mic, Pencil, Plus, Trash2, X } from "lucide-react";
 import type { NoteSection } from "@/lib/mock";
 
 export function NoteSectionView({
@@ -19,8 +19,14 @@ export function NoteSectionView({
   const [items, setItems] = useState<string[]>(section.items ?? []);
 
   const esLista = section.kind === "lista";
+  // Contenido de la sección en texto plano, para copiar solo esta sección.
+  const contenido = esLista
+    ? (section.items ?? []).map((i) => i.trim()).filter(Boolean).join("\n")
+    : (section.texto ?? "").trim();
 
   const [savedHint, setSavedHint] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onChangeRef = useRef(onChange);
 
   const [listening, setListening] = useState(false);
@@ -48,6 +54,7 @@ export function NoteSectionView({
       } catch {
         /* noop */
       }
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
     };
   }, []);
 
@@ -110,6 +117,20 @@ export function NoteSectionView({
     return () => clearTimeout(h);
   }, [editing, texto, items, esLista, section.items, section.texto]);
 
+  function copyContent() {
+    if (!contenido) return;
+    void navigator.clipboard
+      ?.writeText(contenido)
+      .then(() => {
+        setCopied(true);
+        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = setTimeout(() => setCopied(false), 1600);
+      })
+      .catch(() => {
+        /* portapapeles no disponible: sin acción */
+      });
+  }
+
   function startEdit() {
     setTexto(section.texto ?? "");
     setItems(section.items ?? []);
@@ -154,14 +175,30 @@ export function NoteSectionView({
           </h3>
         </button>
 
-        {editable && !editing ? (
-          <button
-            type="button"
-            onClick={startEdit}
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-ice-soft hover:text-accent"
-          >
-            <Pencil size={14} /> <span className="hidden sm:inline">Editar</span>
-          </button>
+        {!editing ? (
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={copyContent}
+              disabled={!contenido}
+              aria-label={`Copiar ${section.titulo}`}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
+                copied ? "text-success" : "text-muted hover:bg-ice-soft hover:text-accent"
+              }`}
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              <span className="hidden sm:inline">{copied ? "Copiado" : "Copiar"}</span>
+            </button>
+            {editable ? (
+              <button
+                type="button"
+                onClick={startEdit}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-ice-soft hover:text-accent"
+              >
+                <Pencil size={14} /> <span className="hidden sm:inline">Editar</span>
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
