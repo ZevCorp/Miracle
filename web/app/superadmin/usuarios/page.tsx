@@ -91,7 +91,7 @@ export default async function SuperadminUsuariosPage({
             <span className="mb-1 block font-medium text-deep">Tipo profesional</span>
             <select name="professionalType" defaultValue="" className={inputClass}>
               <option value="">Se define en onboarding</option>
-              <option value="bacteriologo">Bacteriólogo/a · laboratorio</option>
+              <option value="patologo">Patólogo/a · patología</option>
             </select>
           </label>
           <div className="grid gap-1">
@@ -115,8 +115,8 @@ export default async function SuperadminUsuariosPage({
           </button>
         </form>
         <p className="mt-2 text-xs text-muted">
-          Marca <strong>Bacteriólogo/a</strong> para habilitar la generación de notas desde una
-          foto (informes de laboratorio). Los demás tipos se completan en el onboarding.
+          Marca <strong>Patólogo/a</strong> para habilitar la generación de informes desde una
+          foto de la hoja (patología). Los demás tipos se completan en el onboarding.
         </p>
       </Card>
 

@@ -45,7 +45,7 @@ export type AppNavItem = {
   /**
    * Si está presente, además del rol el ítem exige que el professional_type del usuario esté
    * en la lista. Sirve para funcionalidades exclusivas de una división de cuenta (p. ej.
-   * "Laboratorio" solo para bacteriólogos). Ausente = solo importa el rol.
+   * "Patología" solo para patólogos). Ausente = solo importa el rol.
    */
   professionalTypes?: string[];
 };
@@ -53,7 +53,7 @@ export type AppNavItem = {
 export const appNav: AppNavItem[] = [
   { label: "Inicio", href: "/app/dashboard", icon: "dashboard", roles: allRoles },
   { label: "Consultas", href: "/app/consultas", icon: "consultas", roles: allRoles },
-  { label: "Laboratorio", href: "/app/laboratorio", icon: "laboratorio", roles: allRoles, professionalTypes: ["bacteriologo"] },
+  { label: "Patología", href: "/app/laboratorio", icon: "laboratorio", roles: allRoles, professionalTypes: ["patologo"] },
   { label: "Pacientes", href: "/app/pacientes", icon: "pacientes", roles: allRoles },
   { label: "Notas", href: "/app/notas", icon: "notas", roles: allRoles },
   { label: "Auditoría", href: "/app/auditoria", icon: "auditoria", roles: ["admin", "supervisor"] },

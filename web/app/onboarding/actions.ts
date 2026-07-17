@@ -26,7 +26,7 @@ export async function completeClinicalOnboarding(
   if (
     professionalType !== "medico_general" &&
     professionalType !== "medico_especialista" &&
-    professionalType !== "bacteriologo"
+    professionalType !== "patologo"
   ) {
     return { error: "Escoge tu tipo de práctica." };
   }
@@ -43,8 +43,8 @@ export async function completeClinicalOnboarding(
     return { error: "Si eliges médico especialista, escoge una especialidad del menú." };
   }
 
-  if (professionalType === "bacteriologo" && specialty.code !== "bacteriologia") {
-    return { error: "Para bacteriólogo la especialidad es Bacteriología." };
+  if (professionalType === "patologo" && specialty.code !== "patologia") {
+    return { error: "Para patólogo la especialidad es Patología." };
   }
 
   const supabase = await createClient();

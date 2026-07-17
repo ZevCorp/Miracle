@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth/server";
-import { canUsePhotoNotes } from "@/lib/clinical/bacteriology";
+import { canUsePhotoNotes } from "@/lib/clinical/pathology";
 import { createClient } from "@/lib/supabase/server";
 import { LaboratorioWorkspace } from "@/components/app/LaboratorioWorkspace";
 
-// Workspace exclusivo de cuentas bacteriólogo: generar notas de laboratorio desde una foto de
+// Workspace exclusivo de cuentas patólogo: generar informes de patología desde una foto de
 // la hoja manuscrita. Doble candado: la nav lo oculta al resto y aquí se bloquea el acceso
 // directo por URL.
 export default async function LaboratorioPage() {

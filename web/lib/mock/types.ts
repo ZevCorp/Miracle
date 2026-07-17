@@ -123,7 +123,7 @@ export const TYPE_LABEL: Record<ConsultationType, string> = {
   presencial: "Presencial",
   telemedicina: "Telemedicina",
   audio: "Audio cargado",
-  laboratorio: "Laboratorio (foto)",
+  laboratorio: "Patología (foto)",
 };
 
 export const ROLE_LABEL: Record<Role, string> = APP_ROLE_LABEL;

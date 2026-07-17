@@ -11,7 +11,7 @@ export interface AuthenticatedProfile {
   avatarUrl: string | null;
   role: AppRole;
   organizationId: string | null;
-  professionalType: "medico_general" | "medico_especialista" | "bacteriologo" | null;
+  professionalType: "medico_general" | "medico_especialista" | "patologo" | null;
   specialtyCode: string | null;
   specialtyName: string | null;
   professionalRegistration: string | null;
@@ -45,7 +45,7 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
     professionalType:
       profile.professional_type === "medico_general" ||
       profile.professional_type === "medico_especialista" ||
-      profile.professional_type === "bacteriologo"
+      profile.professional_type === "patologo"
         ? profile.professional_type
         : null,
     specialtyCode: profile.specialty_code,

@@ -120,12 +120,12 @@ function buildLabReportHtml(input: LabReportInput): string {
   </style></head><body>
     ${
       input.demo
-        ? `<div class="demo">DOCUMENTO DE DEMOSTRACIÓN — no válido como resultado de laboratorio.</div>`
+        ? `<div class="demo">DOCUMENTO DE DEMOSTRACIÓN — no válido como resultado de patología.</div>`
         : ""
     }
     <div class="brand">
       <div>
-        <p class="kind">Informe de laboratorio</p>
+        <p class="kind">Informe de patología</p>
         <h1 class="title">${esc(input.reportTitle)}</h1>
       </div>
       <div class="meta">

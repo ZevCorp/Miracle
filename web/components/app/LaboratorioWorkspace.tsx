@@ -157,7 +157,7 @@ export function LaboratorioWorkspace({
       const { data, error: err } = await supabase
         .from("clinical_templates")
         .select("id, name, description, sections")
-        .eq("specialty_code", "bacteriologia")
+        .eq("specialty_code", "patologia")
         .eq("scope", "institutional")
         .eq("status", "active")
         // La predeterminada primero → queda preseleccionada y de primera en la lista.
@@ -166,7 +166,7 @@ export function LaboratorioWorkspace({
       if (ignore) return;
       if (err) {
         setTemplates([]);
-        setTemplatesError("No se pudieron cargar las plantillas de laboratorio.");
+        setTemplatesError("No se pudieron cargar las plantillas de patología.");
       } else {
         const rows: TemplateRow[] = (data ?? []).map((row) => ({
           id: row.id as string,
@@ -193,7 +193,7 @@ export function LaboratorioWorkspace({
   );
 
   /** Nombre a mostrar para el informe en curso (dinámico o de plantilla). */
-  const activeTitle = reportTitle ?? selectedTemplate?.name ?? "Informe de laboratorio";
+  const activeTitle = reportTitle ?? selectedTemplate?.name ?? "Informe de patología";
 
   const matchingPatients = useMemo(() => {
     const query = patientQuery.trim().toLocaleLowerCase();
@@ -344,8 +344,8 @@ export function LaboratorioWorkspace({
       id: savedId ?? crypto.randomUUID(),
       pacienteId: linkedPatientId ?? "",
       medicoId: "",
-      servicio: "Laboratorio",
-      especialidad: professional.specialtyName ?? "Bacteriología",
+      servicio: "Patología",
+      especialidad: professional.specialtyName ?? "Patología",
       tipo: "laboratorio",
       estado: "borrador",
       fecha: new Date().toISOString(),
@@ -367,7 +367,7 @@ export function LaboratorioWorkspace({
       const consultation = buildConsultation();
       upsertConsultation(consultation);
       setSavedId(consultation.id);
-      showToast("Nota de laboratorio guardada en el historial.", "success");
+      showToast("Informe de patología guardado en el historial.", "success");
     } finally {
       setSaving(false);
     }
@@ -402,12 +402,12 @@ export function LaboratorioWorkspace({
   return (
     <div className="app-page max-w-4xl pb-24 sm:pb-8">
       <AppPageHeader
-        kicker="Laboratorio · Bacteriología"
-        title="Nota desde foto de la hoja"
+        kicker="Patología"
+        title="Informe desde foto de la hoja"
         description="Toma una foto de tu hoja de trabajo y Miracle la vuelca en la plantilla. Revisa las casillas y descarga el informe para tu HIS."
         action={
           <span className="inline-flex items-center gap-2 rounded-[9px] border border-accent/25 bg-accent-soft/45 px-3 py-2 text-sm font-medium text-accent-ink">
-            <Microscope size={15} /> Solo bacteriología
+            <Microscope size={15} /> Solo patología
           </span>
         }
       />
@@ -501,7 +501,7 @@ export function LaboratorioWorkspace({
               </div>
             ) : (
               <p className="mt-4 rounded-lg bg-pearl px-3 py-2.5 text-sm text-muted">
-                No hay plantillas de laboratorio disponibles.
+                No hay plantillas de patología disponibles.
               </p>
             )}
           </section>

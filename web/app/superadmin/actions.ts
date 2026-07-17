@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth/server";
 import {
-  BACTERIOLOGIA_SPECIALTY_CODE,
-  BACTERIOLOGIA_SPECIALTY_NAME,
-  BACTERIOLOGO_TYPE,
-} from "@/lib/clinical/bacteriology";
+  PATOLOGIA_SPECIALTY_CODE,
+  PATOLOGIA_SPECIALTY_NAME,
+  PATOLOGO_TYPE,
+} from "@/lib/clinical/pathology";
 import { createClient } from "@/lib/supabase/server";
 
 const UUID_RE =
@@ -53,10 +53,10 @@ export async function createDoctorAccount(formData: FormData) {
   const role: AssignableRole = isAssignableRole(roleRaw) ? roleRaw : "medico";
 
   // Tipo profesional opcional al crear. Hoy la única división que se marca desde la consola
-  // es "bacteriólogo" (habilita las notas desde foto); el resto se define en el onboarding.
+  // es "patólogo" (habilita los informes desde foto); el resto se define en el onboarding.
   const professionalType =
-    String(formData.get("professionalType") ?? "").trim() === BACTERIOLOGO_TYPE
-      ? BACTERIOLOGO_TYPE
+    String(formData.get("professionalType") ?? "").trim() === PATOLOGO_TYPE
+      ? PATOLOGO_TYPE
       : null;
 
   // La organización: el admin de hospital queda atado a la suya.
@@ -84,21 +84,21 @@ export async function createDoctorAccount(formData: FormData) {
 
   if (error) back(base, "error", error.message);
 
-  // Marcar bacteriólogo con un UPDATE posterior (la RLS de superadmin/admin lo permite): la
-  // RPC de alta no fija el tipo profesional. Deja el onboarding como completado para que el
-  // bacteriólogo entre directo a su flujo de laboratorio (notas desde foto).
-  if (professionalType === BACTERIOLOGO_TYPE && typeof newUserId === "string") {
+  // Marcar patólogo con un UPDATE posterior (la RLS de superadmin/admin lo permite): la RPC
+  // de alta no fija el tipo profesional. Deja el onboarding como completado para que el
+  // patólogo entre directo a su flujo de patología (informes desde foto).
+  if (professionalType === PATOLOGO_TYPE && typeof newUserId === "string") {
     const { error: typeError } = await supabase
       .from("profiles")
       .update({
-        professional_type: BACTERIOLOGO_TYPE,
-        specialty_code: BACTERIOLOGIA_SPECIALTY_CODE,
-        specialty_name: BACTERIOLOGIA_SPECIALTY_NAME,
+        professional_type: PATOLOGO_TYPE,
+        specialty_code: PATOLOGIA_SPECIALTY_CODE,
+        specialty_name: PATOLOGIA_SPECIALTY_NAME,
         onboarding_completed_at: new Date().toISOString(),
       })
       .eq("id", newUserId);
     if (typeError) {
-      back(base, "error", `Cuenta creada, pero no se marcó como bacteriólogo: ${typeError.message}`);
+      back(base, "error", `Cuenta creada, pero no se marcó como patólogo: ${typeError.message}`);
     }
   }
 

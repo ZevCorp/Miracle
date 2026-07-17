@@ -3,8 +3,8 @@
 Índice de la documentación del proyecto. El punto de entrada para entender todo de una
 es **[`../CONTEXTO.md`](../CONTEXTO.md)** (visión + estado + diagrama).
 
-> 🔴 **Pendiente activo:** [`pendiente-bacteriologia-api-key.md`](./pendiente-bacteriologia-api-key.md)
-> — el módulo de Laboratorio (notas desde foto) está commiteado pero **sin desplegar**:
+> 🔴 **Pendiente activo:** [`pendiente-patologia-api-key.md`](./pendiente-patologia-api-key.md)
+> — el módulo de Patología (informes desde foto) está commiteado pero **sin activar**:
 > falta la `ANTHROPIC_API_KEY`. Ahí está todo lo necesario para cerrarlo.
 
 ## Documentos al día (junio 2026)

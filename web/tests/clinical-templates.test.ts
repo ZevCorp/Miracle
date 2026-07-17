@@ -34,8 +34,7 @@ describe("agrupación por áreas médicas", () => {
     expect(new Set(codesEnAreas).size).toBe(codesEnAreas.length);
     // Cobertura total del catálogo.
     expect(codesEnAreas.length).toBe(clinicalSpecialties.length);
-    // 49 clínicas/quirúrgicas/etc. + bacteriología (división de laboratorio).
-    expect(clinicalSpecialties.length).toBe(50);
+    expect(clinicalSpecialties.length).toBe(49);
   });
 
   it("toda especialidad del catálogo pertenece a un área válida", () => {

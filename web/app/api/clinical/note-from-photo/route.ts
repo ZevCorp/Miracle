@@ -2,18 +2,18 @@ import { NextResponse } from "next/server";
 import { reportError } from "@/lib/observability";
 import { rateLimit, requireApiUser } from "@/lib/api/guard";
 import { getCurrentProfile } from "@/lib/auth/server";
-import { canUsePhotoNotes } from "@/lib/clinical/bacteriology";
+import { canUsePhotoNotes } from "@/lib/clinical/pathology";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 /**
- * Nota de laboratorio desde FOTO (exclusiva de bacteriólogos).
+ * Informe de patología desde FOTO (exclusivo de cuentas patólogo).
  *
  * La lectura de la hoja manuscrita la hace el backend Graph: su tarjeta de
  * Provider Studio "Biopsia" expone `POST /api/v1/biopsy/extract`, que envía la
  * foto a un modelo de VISIÓN (OpenAI por defecto) y devuelve las casillas
- * transcritas. Esta ruta es un proxy server-side: autentica al bacteriólogo,
+ * transcritas. Esta ruta es un proxy server-side: autentica al patólogo,
  * carga la plantilla (RLS) y reenvía la foto a Graph con la API key de
  * plataforma (MIRACLE_API_KEY), un secreto que jamás llega al navegador.
  *
@@ -25,7 +25,7 @@ export const runtime = "nodejs";
 const MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 // ~5 MB de imagen binaria en base64.
 const MAX_BASE64_CHARS = 7_000_000;
-// Tope defensivo por sección.
+// Tope defensivo por sección (una casilla del informe no debería excederlo).
 const MAX_SECTION_CHARS = 4_000;
 
 type TemplateSection = {
@@ -38,6 +38,8 @@ type TemplateSection = {
 
 type FilledSection = { key: string; label: string; content: string };
 
+// El prompt de visión vive en el backend Graph (tarjeta Provider Studio "Biopsia"), no aquí:
+// esta ruta solo reenvía la foto + la plantilla, ya no llama directo a un proveedor de IA.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function parseTemplateSections(value: unknown): TemplateSection[] {
   if (!Array.isArray(value)) return [];
@@ -125,7 +127,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
 
-  // Exclusivo de cuentas bacteriólogo. El resto de médicos no puede usar esta ruta.
+  // Exclusivo de cuentas patólogo. El resto de médicos no puede usar esta ruta.
   const profile = await getCurrentProfile();
   if (!profile || !canUsePhotoNotes(profile.professionalType)) {
     return NextResponse.json({ error: "Funcionalidad no disponible para esta cuenta." }, { status: 403 });
@@ -250,10 +252,10 @@ export async function POST(req: Request) {
       if (!dynSections.length) {
         return NextResponse.json({ connected: true, error: "parse" }, { status: 502 });
       }
-      const name = String(payload.template?.name ?? "").trim() || "Informe de laboratorio";
+      const name = String(payload.template?.name ?? "").trim() || "Informe de patología";
       return NextResponse.json({
         connected: true,
-        template: { id: null, name, specialtyCode: "bacteriologia" },
+        template: { id: null, name, specialtyCode: "patologia" },
         sections: dynSections,
         warnings: sanitizeWarnings(payload),
       });
