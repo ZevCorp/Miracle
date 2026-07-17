@@ -56,7 +56,7 @@ export default async function SuperadminUsuariosPage({
         </h2>
         <form
           action={createDoctorAccount}
-          className="mt-4 grid gap-3 lg:grid-cols-[1.4fr_1fr_1fr_1fr_auto] lg:items-end"
+          className="mt-4 grid gap-3 lg:grid-cols-[1.3fr_1fr_1fr_.9fr_.9fr_auto] lg:items-end"
         >
           <label className="text-sm">
             <span className="mb-1 block font-medium text-deep">Correo</span>
@@ -87,6 +87,13 @@ export default async function SuperadminUsuariosPage({
               <option value="admin">Administrador</option>
             </select>
           </label>
+          <label className="text-sm">
+            <span className="mb-1 block font-medium text-deep">Tipo profesional</span>
+            <select name="professionalType" defaultValue="" className={inputClass}>
+              <option value="">Se define en onboarding</option>
+              <option value="bacteriologo">Bacteriólogo/a · laboratorio</option>
+            </select>
+          </label>
           <div className="grid gap-1">
             <label className="text-sm">
               <span className="mb-1 block font-medium text-deep">Contraseña</span>
@@ -102,11 +109,15 @@ export default async function SuperadminUsuariosPage({
           </div>
           <button
             type="submit"
-            className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-hover lg:col-span-5 lg:w-fit lg:justify-self-end"
+            className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-hover lg:col-span-6 lg:w-fit lg:justify-self-end"
           >
             Crear médico
           </button>
         </form>
+        <p className="mt-2 text-xs text-muted">
+          Marca <strong>Bacteriólogo/a</strong> para habilitar la generación de notas desde una
+          foto (informes de laboratorio). Los demás tipos se completan en el onboarding.
+        </p>
       </Card>
 
       <div className="overflow-hidden rounded-lg border border-line bg-surface">

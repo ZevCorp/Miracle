@@ -14,7 +14,7 @@ const inputClass =
 
 export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
   const [professionalType, setProfessionalType] = useState<
-    "medico_general" | "medico_especialista"
+    "medico_general" | "medico_especialista" | "bacteriologo"
   >("medico_general");
   const [specialtyCode, setSpecialtyCode] = useState("medicina-general");
   const [state, action, pending] = useActionState(
@@ -49,7 +49,7 @@ export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
           </div>
         </div>
 
-        <fieldset className="mt-5 grid gap-3 sm:grid-cols-2">
+        <fieldset className="mt-5 grid gap-3 sm:grid-cols-3">
           <label className={`cursor-pointer rounded-md border p-4 transition-colors ${professionalType === "medico_general" ? "border-accent bg-ice-soft ring-1 ring-accent/20" : "border-line hover:border-mist"}`}>
             <input
               className="sr-only"
@@ -79,6 +79,21 @@ export function ClinicalOnboardingForm({ fullName }: { fullName: string }) {
             />
             <span className="block text-sm font-semibold text-deep">Médico especialista</span>
             <span className="mt-1 block text-xs text-muted">Plantillas dirigidas a tu especialidad.</span>
+          </label>
+          <label className={`cursor-pointer rounded-md border p-4 transition-colors ${professionalType === "bacteriologo" ? "border-accent bg-ice-soft ring-1 ring-accent/20" : "border-line hover:border-mist"}`}>
+            <input
+              className="sr-only"
+              type="radio"
+              name="professionalType"
+              value="bacteriologo"
+              checked={professionalType === "bacteriologo"}
+              onChange={() => {
+                setProfessionalType("bacteriologo");
+                setSpecialtyCode("bacteriologia");
+              }}
+            />
+            <span className="block text-sm font-semibold text-deep">Bacteriólogo/a</span>
+            <span className="mt-1 block text-xs text-muted">Informes de laboratorio: histopatología, microbiología y laboratorio clínico. Habilita generar notas desde una foto.</span>
           </label>
         </fieldset>
 

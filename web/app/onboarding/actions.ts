@@ -23,8 +23,12 @@ export async function completeClinicalOnboarding(
   const city = String(formData.get("city") ?? "").trim();
   const specialty = getClinicalSpecialty(specialtyCode);
 
-  if (professionalType !== "medico_general" && professionalType !== "medico_especialista") {
-    return { error: "Escoge si eres médico general o médico especialista." };
+  if (
+    professionalType !== "medico_general" &&
+    professionalType !== "medico_especialista" &&
+    professionalType !== "bacteriologo"
+  ) {
+    return { error: "Escoge tu tipo de práctica." };
   }
 
   if (!specialty) {
@@ -37,6 +41,10 @@ export async function completeClinicalOnboarding(
 
   if (professionalType === "medico_especialista" && specialty.code === "medicina-general") {
     return { error: "Si eliges médico especialista, escoge una especialidad del menú." };
+  }
+
+  if (professionalType === "bacteriologo" && specialty.code !== "bacteriologia") {
+    return { error: "Para bacteriólogo la especialidad es Bacteriología." };
   }
 
   const supabase = await createClient();
