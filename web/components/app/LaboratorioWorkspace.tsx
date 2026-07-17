@@ -160,6 +160,8 @@ export function LaboratorioWorkspace({
         .eq("specialty_code", "bacteriologia")
         .eq("scope", "institutional")
         .eq("status", "active")
+        // La predeterminada primero → queda preseleccionada y de primera en la lista.
+        .order("is_default", { ascending: false })
         .order("name");
       if (ignore) return;
       if (err) {

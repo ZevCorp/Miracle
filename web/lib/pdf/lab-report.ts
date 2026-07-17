@@ -73,6 +73,17 @@ function buildLabReportHtml(input: LabReportInput): string {
     professional.city ? esc(professional.city) : "",
   ].filter(Boolean);
 
+  // El bloque "Paciente" del encabezado solo se muestra si hay paciente vinculado. Algunas
+  // plantillas (p. ej. la de histopatología estilo HGM) ya traen Nombre/Cédula como casillas
+  // propias del informe; en ese caso el bloque duplicaría los datos, así que se omite.
+  const patientBlock = patient?.nombre
+    ? `<div class="block">
+        <p class="lbl">Paciente</p>
+        <p class="val">${esc(patient.nombre)}</p>
+        ${patientBits.length ? `<p class="sub">${patientBits.join(" · ")}</p>` : ""}
+      </div>`
+    : "";
+
   const secciones = input.sections
     .map((section) => {
       const content = section.content.trim();
@@ -124,11 +135,7 @@ function buildLabReportHtml(input: LabReportInput): string {
     </div>
 
     <div class="cols">
-      <div class="block">
-        <p class="lbl">Paciente</p>
-        <p class="val">${esc(patient?.nombre ?? "Paciente sin identificar")}</p>
-        ${patientBits.length ? `<p class="sub">${patientBits.join(" · ")}</p>` : ""}
-      </div>
+      ${patientBlock}
       <div class="block">
         <p class="lbl">Profesional</p>
         <p class="val">${esc(professional.name || "—")}</p>
