@@ -423,7 +423,10 @@ function ConsultaActivaInner() {
       const [title, ...content] = block.split("\n");
       return `<section><h2>${safe(title)}</h2><p>${safe(content.join("\n"))}</p></section>`;
     }).join("");
-    const popup = window.open("", "_blank", "noopener,noreferrer");
+    // Sin `noopener`/`noreferrer`: con esos flags window.open devuelve null y
+    // deja un about:blank en blanco (el document.write no corre). Escribimos
+    // nuestro propio HTML, así que no hacen falta.
+    const popup = window.open("", "_blank", "width=900,height=1000");
     if (!popup) {
       showToast("El navegador bloqueó la ventana de impresión. Permite ventanas emergentes e inténtalo de nuevo.", "warning");
       return;

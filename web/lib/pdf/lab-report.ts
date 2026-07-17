@@ -156,7 +156,12 @@ function buildLabReportHtml(input: LabReportInput): string {
  * Devuelve false si el navegador bloqueó la ventana emergente (el caller avisa al usuario).
  */
 export function downloadLabReport(input: LabReportInput): boolean {
-  const popup = window.open("", "_blank", "noopener,noreferrer,width=900,height=1000");
+  // OJO: nada de `noopener`/`noreferrer` aquí. Con esos flags `window.open`
+  // devuelve `null` (aunque abra la ventana), así que el `document.write` nunca
+  // corre y queda un about:blank en blanco. Como escribimos nuestro propio HTML
+  // de confianza en la ventana, no necesitamos noopener (mismo patrón que la
+  // exportación de consultas/[id], que sí funciona).
+  const popup = window.open("", "_blank", "width=900,height=1000");
   if (!popup) return false;
   popup.document.write(buildLabReportHtml(input));
   popup.document.close();
