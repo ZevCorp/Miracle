@@ -11,6 +11,7 @@ import {
   LayoutTemplate,
   LogOut,
   Menu,
+  Microscope,
   Moon,
   Settings,
   ShieldCheck,
@@ -20,7 +21,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { appNav } from "@/lib/site";
+import { visibleAppNav } from "@/lib/site";
 import type { AuthenticatedProfile } from "@/lib/auth/server";
 import { APP_ROLE_LABEL } from "@/lib/auth/roles";
 import { signOut } from "@/app/login/actions";
@@ -28,6 +29,7 @@ import { signOut } from "@/app/login/actions";
 const icons: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
   consultas: ClipboardList,
+  laboratorio: Microscope,
   pacientes: Users,
   notas: FileText,
   auditoria: ShieldCheck,
@@ -71,7 +73,7 @@ export function MobileBottomNavigation({
   // evita abandonar una grabación por un toque accidental.
   if (pathname === "/app/consultas/en-vivo" || pathname === "/app/consultas/nueva") return null;
 
-  const allowed = appNav.filter((item) => item.roles.includes(profile.role));
+  const allowed = visibleAppNav(profile.role, profile.professionalType);
   const primary = allowed.filter((item) => primaryHrefs.has(item.href));
   const secondary = allowed.filter((item) => !primaryHrefs.has(item.href));
   const secondaryActive = secondary.some((item) => isActive(pathname, item.href));

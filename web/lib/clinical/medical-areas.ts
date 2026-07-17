@@ -131,7 +131,7 @@ export const medicalAreas: MedicalArea[] = [
     name: "Diagnóstico y apoyo terapéutico",
     description: "Imágenes, laboratorio, patología y genética.",
     icon: Microscope,
-    specialtyCodes: ["radiologia", "patologia", "medicina-nuclear", "genetica"],
+    specialtyCodes: ["radiologia", "patologia", "medicina-nuclear", "genetica", "bacteriologia"],
   },
   {
     code: "rehabilitacion-paliativos",

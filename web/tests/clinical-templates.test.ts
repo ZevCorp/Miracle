@@ -28,13 +28,14 @@ import type { ClinicalTemplate } from "@/lib/api/clinical";
 /* ------------------------------------------------------------------ */
 
 describe("agrupación por áreas médicas", () => {
-  it("cubre exactamente las 49 especialidades sin repetir ninguna", () => {
+  it("cubre exactamente las especialidades del catálogo sin repetir ninguna", () => {
     const codesEnAreas = medicalAreas.flatMap((area) => area.specialtyCodes);
     // Sin duplicados entre áreas.
     expect(new Set(codesEnAreas).size).toBe(codesEnAreas.length);
     // Cobertura total del catálogo.
     expect(codesEnAreas.length).toBe(clinicalSpecialties.length);
-    expect(clinicalSpecialties.length).toBe(49);
+    // 49 clínicas/quirúrgicas/etc. + bacteriología (división de laboratorio).
+    expect(clinicalSpecialties.length).toBe(50);
   });
 
   it("toda especialidad del catálogo pertenece a un área válida", () => {

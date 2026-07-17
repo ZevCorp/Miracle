@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LayoutTemplate,
   LogOut,
+  Microscope,
   Settings,
   ShieldCheck,
   UserCog,
@@ -16,13 +17,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
-import { appNav } from "@/lib/site";
+import { visibleAppNav } from "@/lib/site";
 import type { AppRole } from "@/lib/auth/roles";
 import { signOut } from "@/app/login/actions";
 
 const icons: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
   consultas: ClipboardList,
+  laboratorio: Microscope,
   pacientes: Users,
   notas: FileText,
   auditoria: ShieldCheck,
@@ -35,9 +37,11 @@ const icons: Record<string, LucideIcon> = {
 /** Contenido de navegación de la app (sidebar oscuro). Reutilizado en el drawer móvil. */
 export function AppSidebar({
   role,
+  professionalType,
   onNavigate,
 }: {
   role: AppRole;
+  professionalType?: string | null;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -48,7 +52,7 @@ export function AppSidebar({
         <Logo onDark size={28} />
       </div>
       <nav aria-label="Navegación de la app" className="flex-1 space-y-1 px-3 py-5">
-        {appNav.filter((item) => item.roles.includes(role)).map((item) => {
+        {visibleAppNav(role, professionalType).map((item) => {
           const Icon = icons[item.icon] ?? LayoutDashboard;
           const active =
             pathname === item.href || pathname.startsWith(item.href + "/");

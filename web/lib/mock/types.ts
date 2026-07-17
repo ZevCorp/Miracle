@@ -11,7 +11,7 @@ export type ConsultationStatus =
   | "aprobada"
   | "exportada";
 
-export type ConsultationType = "presencial" | "telemedicina" | "audio";
+export type ConsultationType = "presencial" | "telemedicina" | "audio" | "laboratorio";
 
 export interface Patient {
   id: string;
@@ -119,6 +119,7 @@ export const TYPE_LABEL: Record<ConsultationType, string> = {
   presencial: "Presencial",
   telemedicina: "Telemedicina",
   audio: "Audio cargado",
+  laboratorio: "Laboratorio (foto)",
 };
 
 export const ROLE_LABEL: Record<Role, string> = APP_ROLE_LABEL;
