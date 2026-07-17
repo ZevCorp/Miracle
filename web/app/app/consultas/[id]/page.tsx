@@ -37,10 +37,12 @@ import {
   type NoteSection,
 } from "@/lib/mock";
 import { searchCodes } from "@/lib/clinical/codes";
+import { auditConsultation } from "@/lib/clinical/note-audit";
 import { useStore } from "@/app/app/providers";
 import { Tabs } from "@/components/app/Tabs";
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { NoteSectionView } from "@/components/app/NoteSectionView";
+import { AuditFindingList } from "@/components/app/AuditFindings";
 import { CodeSuggestion } from "@/components/app/CodeSuggestion";
 import { Timeline } from "@/components/app/Timeline";
 import { EmptyState } from "@/components/app/EmptyState";
@@ -731,23 +733,34 @@ function TranscripcionTab({
   return (
     <div className="rounded-lg border border-line bg-surface p-6">
       <div className="space-y-4">
-        {consultation.transcript.map((turn, i) => (
-          <div key={i} className="flex gap-3">
-            <span className="w-12 shrink-0 pt-0.5 font-mono text-xs text-muted">
-              {turn.t}
-            </span>
-            <div>
-              <span
-                className={`mr-2 text-xs font-semibold ${
-                  turn.hablante === "Médico" ? "text-accent" : "text-success"
-                }`}
-              >
-                {turn.hablante}
+        {consultation.transcript.map((turn, i) =>
+          turn.hablante ? (
+            // Transcripción con diarización (Médico/Paciente).
+            <div key={i} className="flex gap-3">
+              <span className="w-12 shrink-0 pt-0.5 font-mono text-xs text-muted">
+                {turn.t}
               </span>
-              <span className="text-[0.95rem] text-ink">{turn.texto}</span>
+              <div>
+                <span
+                  className={`mr-2 text-xs font-semibold ${
+                    turn.hablante === "Médico" ? "text-accent" : "text-success"
+                  }`}
+                >
+                  {turn.hablante}
+                </span>
+                <span className="text-[0.95rem] text-ink">{turn.texto}</span>
+              </div>
             </div>
-          </div>
-        ))}
+          ) : (
+            // Transcripción verbatim (tal cual como se dijo): bloque de texto plano.
+            <p
+              key={i}
+              className="whitespace-pre-wrap text-[0.95rem] leading-relaxed text-ink"
+            >
+              {turn.texto}
+            </p>
+          ),
+        )}
       </div>
       <p className="mt-5 border-t border-line pt-4 text-xs text-muted">
         El audio no se conserva tras generar la nota. La transcripción queda
@@ -758,20 +771,59 @@ function TranscripcionTab({
 }
 
 function AuditoriaTab({ consultation }: { consultation: Consultation }) {
+  const report = auditConsultation(consultation);
   const pct = completitud(consultation);
+  const scoreColor =
+    report.puntaje >= 85
+      ? "text-success"
+      : report.puntaje >= 60
+        ? "text-warning"
+        : "text-danger";
+  const barColor =
+    report.puntaje >= 85
+      ? "bg-success"
+      : report.puntaje >= 60
+        ? "bg-warning"
+        : "bg-danger";
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-      <div className="h-fit rounded-lg border border-line bg-surface p-5 text-center">
-        <div className="font-display text-4xl font-bold text-deep">{pct}%</div>
-        <div className="mt-1 text-sm text-muted">Completitud documental</div>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-ice">
-          <div
-            className="h-full rounded-full bg-success"
-            style={{ width: `${pct}%` }}
+    <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div className="space-y-5">
+        {/* Calidad documental + completitud RIPS */}
+        <div className="rounded-lg border border-line bg-surface p-5">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <div className="text-sm text-muted">Calidad documental</div>
+              <div className={`font-display text-4xl font-bold ${scoreColor}`}>
+                {report.puntaje}%
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-muted">Completitud RIPS</div>
+              <div className="text-lg font-semibold text-deep">{pct}%</div>
+            </div>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-ice">
+            <div
+              className={`h-full rounded-full ${barColor}`}
+              style={{ width: `${report.puntaje}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Qué se puede mejorar */}
+        <div className="rounded-lg border border-line bg-surface p-5">
+          <h2 className="mb-4 font-display text-base font-semibold text-deep">
+            Qué se puede mejorar
+          </h2>
+          <AuditFindingList
+            hallazgos={report.hallazgos}
+            emptyLabel="Sin observaciones — la nota está completa y lista para firmar."
           />
         </div>
       </div>
-      <div className="rounded-lg border border-line bg-surface p-5">
+
+      <div className="h-fit rounded-lg border border-line bg-surface p-5">
         <h2 className="mb-4 font-display text-base font-semibold text-deep">
           Trazabilidad
         </h2>

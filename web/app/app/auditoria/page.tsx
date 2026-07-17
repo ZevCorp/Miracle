@@ -1,10 +1,21 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, CheckCircle2 } from "lucide-react";
-import { completitud, formatFechaRelativa, type Consultation } from "@/lib/mock";
+import { ArrowRight } from "lucide-react";
+import {
+  formatFechaRelativa,
+  type ClinicalCode,
+  type Consultation,
+  type NoteSection,
+} from "@/lib/mock";
+import {
+  auditConsultation,
+  auditSummaryLabel,
+  worstSeverity,
+} from "@/lib/clinical/note-audit";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/Card";
 import { MetricCard } from "@/components/marketing/MetricCard";
 import { StatusBadge } from "@/components/app/StatusBadge";
+import { AuditFindingList, AuditSeverityBadge } from "@/components/app/AuditFindings";
 
 const POR_REVISAR_LIMIT = 24;
 
@@ -16,6 +27,9 @@ type RevisarRow = {
   fecha: string;
   estado: Consultation["estado"];
   codigos: unknown;
+  note: unknown;
+  resumen: string | null;
+  firma: unknown;
   patients: { nombre: string | null } | { nombre: string | null }[] | null;
 };
 
@@ -43,7 +57,7 @@ export default async function AuditoriaPage() {
     supabase.rpc("consultation_audit_stats"),
     supabase
       .from("consultations")
-      .select("id, motivo, fecha, estado, codigos, patients(nombre)")
+      .select("id, motivo, fecha, estado, codigos, note, resumen, firma, patients(nombre)")
       .in("estado", ["borrador", "revisada"])
       .order("fecha", { ascending: false })
       .limit(POR_REVISAR_LIMIT),
@@ -65,11 +79,28 @@ export default async function AuditoriaPage() {
   // llegan como objeto. `nombreDe` maneja ambos; el cast concilia el tipo.
   const eventos = (eventosRes.data ?? []) as unknown as EventoRow[];
 
+  // Auditoría concreta por nota (motor determinista), ordenada peor-primero para
+  // que las notas con más por corregir queden arriba.
+  const auditadas = porRevisar
+    .map((c) => ({
+      row: c,
+      report: auditConsultation({
+        estado: c.estado,
+        motivo: c.motivo,
+        resumen: c.resumen,
+        note: (c.note ?? []) as NoteSection[],
+        codigos: (c.codigos ?? []) as ClinicalCode[],
+        firma: c.firma,
+      }),
+    }))
+    .sort((a, b) => a.report.puntaje - b.report.puntaje);
+
   return (
     <div>
       <h1 className="text-2xl font-semibold text-deep">Auditoría y calidad</h1>
       <p className="text-sm text-muted">
-        Revisión de completitud, codificación y trazabilidad documental.
+        Revisión de completitud, codificación y trazabilidad. Cada nota indica qué
+        se puede mejorar antes de firmar.
       </p>
 
       <div className="mt-6 grid gap-5 sm:grid-cols-3">
@@ -95,39 +126,40 @@ export default async function AuditoriaPage() {
           <h2 className="mb-4 text-lg font-semibold text-deep">
             Notas que requieren atención
           </h2>
-          {porRevisar.length ? (
+          {auditadas.length ? (
             <div className="space-y-3">
-              {porRevisar.map((c) => {
-                const pct = completitud({
-                  codigos: (c.codigos ?? []) as Consultation["codigos"],
-                  estado: c.estado,
-                } as Consultation);
-                const ok = pct >= 80;
-                return (
-                  <Link
-                    key={c.id}
-                    href={`/app/consultas/${c.id}`}
-                    className="flex items-center gap-4 rounded-lg border border-line p-4 hover:border-mist"
-                  >
-                    <span
-                      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${
-                        ok ? "bg-success-soft text-success" : "bg-warning-soft text-warning"
-                      }`}
-                    >
-                      {ok ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
-                    </span>
+              {auditadas.map(({ row: c, report }) => (
+                <Link
+                  key={c.id}
+                  href={`/app/consultas/${c.id}`}
+                  className="block rounded-lg border border-line p-4 hover:border-mist"
+                >
+                  <div className="flex items-start gap-3">
+                    <AuditSeverityBadge severidad={worstSeverity(report)} />
                     <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium text-deep">
-                        {nombreDe(c.patients) ?? "Paciente sin identificar"} · {c.motivo}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-deep">
+                            {nombreDe(c.patients) ?? "Paciente sin identificar"}
+                            {c.motivo ? ` · ${c.motivo}` : ""}
+                          </div>
+                          <div className="text-xs text-muted">
+                            {auditSummaryLabel(report)} · {formatFechaRelativa(c.fecha)}
+                          </div>
+                        </div>
+                        <StatusBadge estado={c.estado} />
                       </div>
-                      <div className="text-xs text-muted">
-                        Completitud {pct}% · {formatFechaRelativa(c.fecha)}
+                      <div className="mt-2.5">
+                        <AuditFindingList
+                          hallazgos={report.hallazgos}
+                          max={2}
+                          emptyLabel="Lista para firmar — sin observaciones."
+                        />
                       </div>
                     </div>
-                    <StatusBadge estado={c.estado} />
-                  </Link>
-                );
-              })}
+                  </div>
+                </Link>
+              ))}
             </div>
           ) : (
             <p className="text-sm text-muted">
