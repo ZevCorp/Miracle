@@ -93,6 +93,30 @@ function sanitizeWarnings(value: unknown): string[] {
   }
   return out;
 }
+
+/**
+ * Modo dinámico: no hay plantilla contra la cual alinear, así que se pasan las
+ * secciones que diseñó la IA (key/label/content) saneando cada campo. Graph ya
+ * las sanea; esto es una segunda barrera defensiva del contrato hacia la UI.
+ */
+function sanitizeDynamicSections(value: unknown): FilledSection[] {
+  const list = (value as any)?.sections;
+  if (!Array.isArray(list)) return [];
+  const out: FilledSection[] = [];
+  const usedKeys = new Set<string>();
+  list.forEach((item, index) => {
+    if (!item || typeof item !== "object") return;
+    if (out.length >= 40) return;
+    const label = String((item as any).label ?? "").trim().slice(0, 120) || `Sección ${index + 1}`;
+    let key = String((item as any).key ?? "").trim() || `seccion_${index + 1}`;
+    while (usedKeys.has(key)) key = `${key}_${index}`;
+    usedKeys.add(key);
+    const raw = (item as any).content;
+    const content = typeof raw === "string" ? raw.trim().slice(0, MAX_SECTION_CHARS) : "";
+    out.push({ key, label, content });
+  });
+  return out;
+}
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export async function POST(req: Request) {
@@ -114,15 +138,18 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { image?: string; templateId?: string };
+  let body: { image?: string; templateId?: string; dynamic?: boolean };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
   }
 
+  // Modo dinámico: la IA diseña su propia plantilla a partir de la foto (sin
+  // plantilla fija). En ese caso no se exige templateId ni se carga plantilla.
+  const dynamic = body.dynamic === true;
   const templateId = String(body.templateId ?? "").trim();
-  if (!templateId) {
+  if (!dynamic && !templateId) {
     return NextResponse.json({ error: "Falta la plantilla." }, { status: 400 });
   }
 
@@ -142,21 +169,31 @@ export async function POST(req: Request) {
     );
   }
 
-  // Cargar las secciones de la plantilla (RLS: institucional activa o propia del usuario).
-  const supabase = await createClient();
-  const { data: template, error: templateError } = await supabase
-    .from("clinical_templates")
-    .select("id, name, specialty_code, sections")
-    .eq("id", templateId)
-    .maybeSingle();
+  // Cargar las secciones de la plantilla (RLS: institucional activa o propia del
+  // usuario). Solo en modo con plantilla fija; en dinámico la diseña la IA.
+  let template: { id: string; name: string; specialty_code: string | null } | null = null;
+  let sections: TemplateSection[] = [];
+  if (!dynamic) {
+    const supabase = await createClient();
+    const { data: templateRow, error: templateError } = await supabase
+      .from("clinical_templates")
+      .select("id, name, specialty_code, sections")
+      .eq("id", templateId)
+      .maybeSingle();
 
-  if (templateError || !template) {
-    return NextResponse.json({ error: "No se encontró la plantilla." }, { status: 404 });
-  }
+    if (templateError || !templateRow) {
+      return NextResponse.json({ error: "No se encontró la plantilla." }, { status: 404 });
+    }
 
-  const sections = parseTemplateSections(template.sections);
-  if (!sections.length) {
-    return NextResponse.json({ error: "La plantilla no tiene secciones." }, { status: 400 });
+    sections = parseTemplateSections(templateRow.sections);
+    if (!sections.length) {
+      return NextResponse.json({ error: "La plantilla no tiene secciones." }, { status: 400 });
+    }
+    template = {
+      id: templateRow.id as string,
+      name: templateRow.name as string,
+      specialty_code: (templateRow.specialty_code as string | null) ?? null,
+    };
   }
 
   // Backend Graph (tarjeta Provider Studio "Biopsia"). Sin backend/clave, el
@@ -175,13 +212,14 @@ export async function POST(req: Request) {
     const upstream = await fetch(`${base}/api/v1/biopsy/extract`, {
       method: "POST",
       headers: { "X-API-Key": apiKey, "content-type": "application/json" },
-      body: JSON.stringify({
-        image: `data:${mediaType};base64,${b64}`,
-        template: {
-          name: template.name,
-          sections,
-        },
-      }),
+      body: JSON.stringify(
+        dynamic
+          ? { image: `data:${mediaType};base64,${b64}`, mode: "dynamic" }
+          : {
+              image: `data:${mediaType};base64,${b64}`,
+              template: { name: template!.name, sections },
+            },
+      ),
       cache: "no-store",
       signal: AbortSignal.timeout(60_000),
     });
@@ -193,6 +231,7 @@ export async function POST(req: Request) {
     }
 
     const payload = (await upstream.json().catch(() => null)) as {
+      template?: { name?: string };
       sections?: unknown;
       warnings?: unknown;
     } | null;
@@ -206,9 +245,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ connected: true, error: "upstream" }, { status: 502 });
     }
 
+    if (dynamic) {
+      const dynSections = sanitizeDynamicSections(payload);
+      if (!dynSections.length) {
+        return NextResponse.json({ connected: true, error: "parse" }, { status: 502 });
+      }
+      const name = String(payload.template?.name ?? "").trim() || "Informe de laboratorio";
+      return NextResponse.json({
+        connected: true,
+        template: { id: null, name, specialtyCode: "bacteriologia" },
+        sections: dynSections,
+        warnings: sanitizeWarnings(payload),
+      });
+    }
+
     return NextResponse.json({
       connected: true,
-      template: { id: template.id, name: template.name, specialtyCode: template.specialty_code },
+      template: { id: template!.id, name: template!.name, specialtyCode: template!.specialty_code },
       sections: alignSections(sections, payload),
       warnings: sanitizeWarnings(payload),
     });

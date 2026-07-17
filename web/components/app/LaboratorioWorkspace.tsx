@@ -12,8 +12,10 @@ import {
   RefreshCw,
   Save,
   Search,
+  Sparkles,
   TriangleAlert,
   UserRound,
+  Wand2,
   X,
 } from "lucide-react";
 import { useStore } from "@/app/app/providers";
@@ -47,6 +49,8 @@ interface ProfessionalInfo {
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MIME_OK = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+/** Valor centinela: la IA diseña su propia plantilla a partir de la foto. */
+const DYNAMIC_ID = "__dynamic__";
 
 /** Parsea el jsonb `sections` de una plantilla a metadatos ordenados. */
 function parseSections(value: unknown): TemplateSectionMeta[] {
@@ -131,6 +135,9 @@ export function LaboratorioWorkspace({
   const [sections, setSections] = useState<FilledSection[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [aiConnected, setAiConnected] = useState<boolean | null>(null);
+  // Título efectivo del informe: en dinámico lo pone la IA; con plantilla fija
+  // es el nombre de la plantilla. Se usa en la revisión, el guardado y el PDF.
+  const [reportTitle, setReportTitle] = useState<string | null>(null);
 
   const [patientName, setPatientName] = useState("");
   const [patientDocument, setPatientDocument] = useState("");
@@ -176,10 +183,15 @@ export function LaboratorioWorkspace({
     };
   }, []);
 
+  const dynamicSelected = selectedTemplateId === DYNAMIC_ID;
+
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === selectedTemplateId) ?? null,
     [templates, selectedTemplateId],
   );
+
+  /** Nombre a mostrar para el informe en curso (dinámico o de plantilla). */
+  const activeTitle = reportTitle ?? selectedTemplate?.name ?? "Informe de laboratorio";
 
   const matchingPatients = useMemo(() => {
     const query = patientQuery.trim().toLocaleLowerCase();
@@ -212,17 +224,20 @@ export function LaboratorioWorkspace({
   }
 
   async function analyze() {
-    if (!selectedTemplate || !image || analyzing) return;
+    if ((!selectedTemplate && !dynamicSelected) || !image || analyzing) return;
     setAnalyzing(true);
     setError(null);
     try {
       const res = await fetch("/api/clinical/note-from-photo", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ image, templateId: selectedTemplate.id }),
+        body: JSON.stringify(
+          dynamicSelected ? { image, dynamic: true } : { image, templateId: selectedTemplate!.id },
+        ),
       });
       const data = (await res.json()) as {
         connected?: boolean;
+        template?: { name?: string };
         sections?: FilledSection[];
         warnings?: string[];
         error?: string;
@@ -240,13 +255,20 @@ export function LaboratorioWorkspace({
       }
 
       if (data.connected === false) {
+        if (dynamicSelected) {
+          // La plantilla dinámica necesita la IA activa: no hay estructura fija que rellenar.
+          setError(
+            "La plantilla dinámica necesita la IA. No está disponible ahora: elige una plantilla fija para rellenar a mano.",
+          );
+          return;
+        }
         // Sin IA configurada: se rellena manualmente sobre las casillas de la plantilla.
         startManual();
         showToast("La IA no está disponible ahora. Rellena las casillas manualmente.", "warning");
         return;
       }
 
-      lastRun.current = { image, templateId: selectedTemplate.id };
+      lastRun.current = { image, templateId: dynamicSelected ? DYNAMIC_ID : selectedTemplate!.id };
       setSections(
         (data.sections ?? []).map((section) => ({
           key: section.key,
@@ -255,6 +277,7 @@ export function LaboratorioWorkspace({
         })),
       );
       setWarnings(data.warnings ?? []);
+      setReportTitle(data.template?.name ?? selectedTemplate?.name ?? null);
       setAiConnected(true);
       setSavedId(null);
       setStep("review");
@@ -275,6 +298,7 @@ export function LaboratorioWorkspace({
       })),
     );
     setWarnings([]);
+    setReportTitle(selectedTemplate.name);
     setAiConnected(false);
     setSavedId(null);
     setStep("review");
@@ -291,6 +315,7 @@ export function LaboratorioWorkspace({
     setStep("setup");
     setSections([]);
     setWarnings([]);
+    setReportTitle(null);
     setAiConnected(null);
     setSavedId(null);
   }
@@ -312,7 +337,7 @@ export function LaboratorioWorkspace({
       texto: section.content,
     }));
     const firstFilled = sections.find((section) => section.content.trim());
-    const motivo = (patientName.trim() || selectedTemplate?.name || "Informe de laboratorio").slice(0, 140);
+    const motivo = (patientName.trim() || activeTitle).slice(0, 140);
     return {
       id: savedId ?? crypto.randomUUID(),
       pacienteId: linkedPatientId ?? "",
@@ -323,7 +348,7 @@ export function LaboratorioWorkspace({
       estado: "borrador",
       fecha: new Date().toISOString(),
       duracionMin: 0,
-      plantilla: selectedTemplate?.name ?? "Informe de laboratorio",
+      plantilla: activeTitle,
       motivo,
       note,
       transcript: [],
@@ -348,7 +373,7 @@ export function LaboratorioWorkspace({
 
   function download() {
     const ok = downloadLabReport({
-      reportTitle: selectedTemplate?.name ?? "Informe de laboratorio",
+      reportTitle: activeTitle,
       dateISO: new Date().toISOString(),
       professional: {
         name: professional.name,
@@ -370,7 +395,7 @@ export function LaboratorioWorkspace({
     }
   }
 
-  const canAnalyze = Boolean(selectedTemplate && image) && !analyzing;
+  const canAnalyze = Boolean((selectedTemplate || dynamicSelected) && image) && !analyzing;
 
   return (
     <div className="app-page max-w-4xl pb-24 sm:pb-8">
@@ -401,6 +426,47 @@ export function LaboratorioWorkspace({
               </p>
             ) : templates.length ? (
               <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTemplateId(DYNAMIC_ID)}
+                  className={`rounded-xl border p-4 text-left transition-colors ${
+                    dynamicSelected
+                      ? "border-accent bg-accent text-white shadow-[var(--shadow-xs)] ring-2 ring-accent/25"
+                      : "border-accent/50 bg-accent-soft/60 hover:border-accent hover:bg-accent-soft"
+                  }`}
+                  aria-pressed={dynamicSelected}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-sm font-semibold ${
+                        dynamicSelected ? "text-white" : "text-accent-ink"
+                      }`}
+                    >
+                      <Wand2 size={15} /> Plantilla dinámica
+                    </span>
+                    {dynamicSelected ? (
+                      <Check size={16} className="text-white" />
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+                        <Sparkles size={11} /> IA
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className={`mt-1 block text-xs leading-relaxed ${
+                      dynamicSelected ? "text-white/85" : "text-muted"
+                    }`}
+                  >
+                    La IA crea una plantilla a la medida de tu hoja desde la foto y la rellena. Úsala cuando ninguna de las anteriores encaje.
+                  </span>
+                  <span
+                    className={`mt-2 block text-[11px] font-medium uppercase tracking-wide ${
+                      dynamicSelected ? "text-white/80" : "text-accent"
+                    }`}
+                  >
+                    Se genera desde la foto
+                  </span>
+                </button>
                 {templates.map((template) => {
                   const active = template.id === selectedTemplateId;
                   return (
@@ -603,7 +669,7 @@ export function LaboratorioWorkspace({
                 {aiConnected ? "Revisa y corrige las casillas" : "Rellena las casillas"}
               </p>
               <h2 className="mt-0.5 truncate text-lg font-semibold text-deep">
-                {selectedTemplate?.name ?? "Informe de laboratorio"}
+                {activeTitle}
               </h2>
             </div>
             <button
