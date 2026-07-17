@@ -7,11 +7,25 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-// Formatos que acepta la API de visión de Anthropic.
+/**
+ * Nota de laboratorio desde FOTO (exclusiva de bacteriólogos).
+ *
+ * La lectura de la hoja manuscrita la hace el backend Graph: su tarjeta de
+ * Provider Studio "Biopsia" expone `POST /api/v1/biopsy/extract`, que envía la
+ * foto a un modelo de VISIÓN (OpenAI por defecto) y devuelve las casillas
+ * transcritas. Esta ruta es un proxy server-side: autentica al bacteriólogo,
+ * carga la plantilla (RLS) y reenvía la foto a Graph con la API key de
+ * plataforma (MIRACLE_API_KEY), un secreto que jamás llega al navegador.
+ *
+ * Diseño: UNA sola llamada de IA por foto. La nota queda como datos
+ * estructurados; editar una casilla o volver a descargar el PDF no gasta tokens.
+ */
+
+// Formatos aceptados (validación temprana antes de llegar a Graph).
 const MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-// Límite de Anthropic por imagen: 5 MB binarios (~6,7M caracteres en base64).
+// ~5 MB de imagen binaria en base64.
 const MAX_BASE64_CHARS = 7_000_000;
-// Tope defensivo por sección (una casilla de laboratorio no debería excederlo).
+// Tope defensivo por sección.
 const MAX_SECTION_CHARS = 4_000;
 
 type TemplateSection = {
@@ -23,20 +37,6 @@ type TemplateSection = {
 };
 
 type FilledSection = { key: string; label: string; content: string };
-
-const SYSTEM = `Eres un asistente que TRANSCRIBE y ORGANIZA una hoja de trabajo de laboratorio escrita a mano por un profesional (bacteriología, patología o laboratorio clínico) mientras analiza una muestra al microscopio.
-
-Tu tarea: leer la foto de la hoja y volcar su contenido en las secciones (casillas) de la plantilla que se te indica, respetando EXACTAMENTE las claves ("key") dadas.
-
-Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después, con esta forma exacta:
-{"sections": [{"key": string, "content": string}], "warnings": [string]}
-
-Reglas:
-- Incluye una entrada por cada "key" de la plantilla, en el mismo orden. No agregues claves que no estén en la plantilla.
-- "content": transcribe fielmente lo escrito para esa sección. Conserva términos técnicos, nombres de microorganismos, medidas, recuentos y notación de cruces (+, ++, +++). Corrige solo abreviaturas obvias.
-- NO inventes ni completes datos clínicos que no estén en la hoja. Si una sección no tiene información en la hoja, deja "content" como cadena vacía "".
-- Usa "warnings" para señalar texto ilegible o dudoso (p. ej. "El recuento de leucocitos es poco legible"). Si no hay dudas, devuelve [].
-- No incluyas datos de otras secciones dentro de una que no corresponde.`;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function parseTemplateSections(value: unknown): TemplateSection[] {
@@ -60,15 +60,12 @@ function parseTemplateSections(value: unknown): TemplateSection[] {
 }
 
 /**
- * Alinea la respuesta del modelo con las secciones de la plantilla: una entrada por key,
- * en el orden de la plantilla, con el content saneado. Garantiza que la nota casa con la
- * plantilla aunque el modelo omita, reordene o invente claves.
+ * Alinea la respuesta del backend con las secciones de la plantilla: una entrada
+ * por key, en el orden de la plantilla, con el content saneado. Defensivo: aunque
+ * Graph ya alinea, garantiza el contrato hacia la UI si algo cambia upstream.
  */
-function alignSections(
-  template: TemplateSection[],
-  modelValue: unknown,
-): FilledSection[] {
-  const list = (modelValue as any)?.sections;
+function alignSections(template: TemplateSection[], upstream: unknown): FilledSection[] {
+  const list = (upstream as any)?.sections;
   const byKey = new Map<string, string>();
   if (Array.isArray(list)) {
     for (const item of list) {
@@ -97,13 +94,6 @@ function sanitizeWarnings(value: unknown): string[] {
   return out;
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
-
-function extractJsonObject(raw: string): string | null {
-  const clean = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  const start = clean.indexOf("{");
-  const end = clean.lastIndexOf("}");
-  return start >= 0 && end > start ? clean.slice(start, end + 1) : null;
-}
 
 export async function POST(req: Request) {
   const userId = await requireApiUser();
@@ -169,86 +159,58 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "La plantilla no tiene secciones." }, { status: 400 });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  // Sin clave: el cliente ofrece rellenar la plantilla manualmente.
-  if (!apiKey) {
+  // Backend Graph (tarjeta Provider Studio "Biopsia"). Sin backend/clave, el
+  // cliente ofrece rellenar la plantilla manualmente.
+  const base = (
+    process.env.MIRACLE_API_BASE_URL ??
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    ""
+  ).replace(/\/+$/, "");
+  const apiKey = process.env.MIRACLE_API_KEY;
+  if (!base || !apiKey) {
     return NextResponse.json({ connected: false });
   }
 
-  const templateGuide = sections
-    .map(
-      (section, index) =>
-        `${index + 1}. key="${section.key}" — ${section.label}${
-          section.instruction ? ` (${section.instruction})` : ""
-        }`,
-    )
-    .join("\n");
-
-  const userText = `Plantilla: "${template.name}".
-Rellena estas secciones a partir de la hoja de la foto (usa exactamente estas keys):
-${templateGuide}`;
-
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const upstream = await fetch(`${base}/api/v1/biopsy/extract`, {
       method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
+      headers: { "X-API-Key": apiKey, "content-type": "application/json" },
       body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
-        max_tokens: 4000,
-        system: SYSTEM,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: { type: "base64", media_type: mediaType, data: b64 },
-              },
-              { type: "text", text: userText },
-            ],
-          },
-        ],
+        image: `data:${mediaType};base64,${b64}`,
+        template: {
+          name: template.name,
+          sections,
+        },
       }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(60_000),
     });
 
-    if (!res.ok) {
-      reportError(new Error("anthropic note-from-photo error"), {
-        route: "note-from-photo",
-        status: res.status,
-      });
-      return NextResponse.json({ connected: true, error: "anthropic" }, { status: 502 });
+    // 503 = el provider de visión no está configurado en Graph. Se trata igual
+    // que "sin conexión": el cliente ofrece el relleno manual.
+    if (upstream.status === 503) {
+      return NextResponse.json({ connected: false });
     }
 
-    const data = (await res.json()) as { content?: { type: string; text?: string }[] };
-    const raw =
-      data.content
-        ?.filter((b) => b.type === "text")
-        .map((b) => b.text ?? "")
-        .join("") ?? "";
-    const json = extractJsonObject(raw);
+    const payload = (await upstream.json().catch(() => null)) as {
+      sections?: unknown;
+      warnings?: unknown;
+    } | null;
 
-    let parsed: unknown;
-    try {
-      if (!json) throw new Error("JSON object missing");
-      parsed = JSON.parse(json);
-    } catch {
-      // No se registra `raw`: puede contener datos del paciente/muestra.
-      reportError(new Error("note-from-photo JSON parse failed"), {
+    if (!upstream.ok || !payload) {
+      // Nunca se registra el cuerpo: puede contener datos de la muestra/paciente.
+      reportError(new Error("biopsy extract upstream"), {
         route: "note-from-photo",
-        stage: "parse",
+        status: upstream.status,
       });
-      return NextResponse.json({ connected: true, error: "parse" }, { status: 502 });
+      return NextResponse.json({ connected: true, error: "upstream" }, { status: 502 });
     }
 
     return NextResponse.json({
       connected: true,
       template: { id: template.id, name: template.name, specialtyCode: template.specialty_code },
-      sections: alignSections(sections, parsed),
-      warnings: sanitizeWarnings(parsed),
+      sections: alignSections(sections, payload),
+      warnings: sanitizeWarnings(payload),
     });
   } catch (e) {
     reportError(e, { route: "note-from-photo" });
