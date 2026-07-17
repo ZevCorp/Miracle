@@ -323,6 +323,7 @@ function ConsultaActivaInner() {
             },
             note: result.note_json,
             patient,
+            transcript: transcriptDraft,
             now: new Date().toISOString(),
           }),
         );

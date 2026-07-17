@@ -49,7 +49,11 @@ export interface NoteSection {
 
 export interface SpeakerTurn {
   t: string; // "00:42"
-  hablante: "Médico" | "Paciente";
+  /**
+   * Hablante en transcripciones con diarización (demo). En la transcripción real
+   * (verbatim, sin separación de hablantes) se omite y el texto se muestra tal cual.
+   */
+  hablante?: "Médico" | "Paciente";
   texto: string;
 }
 

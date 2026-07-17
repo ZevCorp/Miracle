@@ -22,6 +22,8 @@ import {
   type Role,
 } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
+import { getClinicalEncounter } from "@/lib/api/clinical";
+import { transcriptTextToTurns } from "@/lib/clinical/encounter-to-consultation";
 import type { AppRole } from "@/lib/auth/roles";
 import { signConsultationNote } from "@/app/app/consultas/actions";
 
@@ -301,6 +303,7 @@ export function MiracleProvider({
       if (!current || current.transcript.length > 0) return;
       if (transcriptFetched.current.has(id)) return;
       transcriptFetched.current.add(id);
+      // 1) Espejo local (consultations.transcript): la vía normal para consultas nuevas.
       const { data, error } = await supabase
         .from("consultations")
         .select("transcript")
@@ -311,7 +314,20 @@ export function MiracleProvider({
         console.error("[store] transcript", error.message);
         return;
       }
-      const transcript = (data?.transcript as Consultation["transcript"]) ?? [];
+      let transcript = (data?.transcript as Consultation["transcript"]) ?? [];
+
+      // 2) Respaldo: consultas antiguas cuya transcripción quedó solo en el backend
+      //    clínico (el espejo local no la tenía). Si el backend no responde, se
+      //    mantiene "sin transcripción" sin romper la vista.
+      if (!transcript.length) {
+        try {
+          const encounter = await getClinicalEncounter(id);
+          transcript = transcriptTextToTurns(encounter.transcript);
+        } catch {
+          /* backend no disponible: sigue sin transcripción */
+        }
+      }
+
       if (transcript.length) {
         setConsultations((list) =>
           list.map((c) => (c.id === id ? { ...c, transcript } : c)),

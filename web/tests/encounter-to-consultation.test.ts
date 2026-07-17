@@ -5,6 +5,7 @@ import {
   noteJsonToSections,
   specialtyDisplayName,
   toStoreConsultationType,
+  transcriptTextToTurns,
 } from "@/lib/clinical/encounter-to-consultation";
 import type { ClinicalNoteJson } from "@/lib/api/clinical";
 import type { Patient } from "@/lib/mock";
@@ -113,9 +114,26 @@ describe("encounterToConsultation (el puente)", () => {
     expect(c.fecha).toBe("2026-07-14T12:00:00.000Z");
   });
 
-  it("no fabrica códigos CIE-10/CUPS ni transcript en el espejo", () => {
+  it("no fabrica códigos CIE-10/CUPS; sin transcripción deja el espejo vacío", () => {
     const c = encounterToConsultation(base);
     expect(c.codigos).toEqual([]);
     expect(c.transcript).toEqual([]);
+  });
+
+  it("espeja la transcripción verbatim tal cual (un turno sin hablante)", () => {
+    const c = encounterToConsultation({ ...base, transcript: "  Paciente refiere cefalea.  " });
+    expect(c.transcript).toEqual([{ t: "", texto: "Paciente refiere cefalea." }]);
+  });
+});
+
+describe("transcriptTextToTurns", () => {
+  it("convierte texto verbatim a un único turno sin hablante", () => {
+    expect(transcriptTextToTurns("Hola, ¿cómo sigue?")).toEqual([
+      { t: "", texto: "Hola, ¿cómo sigue?" },
+    ]);
+  });
+  it("vacío o solo espacios → [] (no fabrica transcripción)", () => {
+    expect(transcriptTextToTurns("   ")).toEqual([]);
+    expect(transcriptTextToTurns(undefined)).toEqual([]);
   });
 });

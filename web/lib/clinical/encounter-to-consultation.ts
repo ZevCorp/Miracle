@@ -18,6 +18,7 @@ import type {
   ConsultationType,
   NoteSection,
   Patient,
+  SpeakerTurn,
 } from "@/lib/mock";
 
 /** Nombre legible de la especialidad a partir del code del backend (snake_case). */
@@ -48,6 +49,17 @@ export function noteJsonToSections(note: ClinicalNoteJson): NoteSection[] {
     }));
 }
 
+/**
+ * Transcripción verbatim (texto plano, sin diarización) → SpeakerTurn[] del store.
+ * Se guarda tal cual como se dijo: un único turno sin hablante; el detalle lo muestra
+ * como bloque de texto (respeta saltos de línea). Vacío → [] (no fabrica una transcripción).
+ */
+export function transcriptTextToTurns(text?: string): SpeakerTurn[] {
+  const clean = (text ?? "").trim();
+  if (!clean) return [];
+  return [{ t: "", texto: clean }];
+}
+
 /** Motivo de consulta: de la sección "motivo…" si existe, si no del resumen. */
 export function deriveMotivo(note: ClinicalNoteJson): string {
   const motivo = note.sections.find(
@@ -64,20 +76,22 @@ export interface EncounterToConsultationInput {
   >;
   note: ClinicalNoteJson;
   patient?: Patient;
+  /** Transcripción verbatim (texto plano). Se espeja para verla en el detalle. */
+  transcript?: string;
   /** ISO string; se pasa para mantener la función pura y testeable. */
   now: string;
 }
 
 /**
  * Construye la fila `Consultation` espejo de un encounter completado.
- * estado "borrador" → entra al ciclo de revisión/firma. Sin códigos CIE-10/CUPS
- * (el backend aún no los genera) y sin transcript en el espejo (queda en el
- * encounter del backend); ambos se rellenan cuando el backend los provea.
+ * estado "borrador" → entra al ciclo de revisión/firma. La transcripción verbatim se
+ * espeja tal cual (para verla en el detalle). Sin códigos CIE-10/CUPS (el backend aún no
+ * los genera); se rellenan cuando el backend los provea.
  */
 export function encounterToConsultation(
   input: EncounterToConsultationInput,
 ): Consultation {
-  const { encounter, note, patient, now } = input;
+  const { encounter, note, patient, transcript, now } = input;
   const snapshot = encounter.template_snapshot;
   return {
     id: encounter.id,
@@ -92,7 +106,7 @@ export function encounterToConsultation(
     plantilla: snapshot?.name ?? "",
     motivo: deriveMotivo(note),
     note: noteJsonToSections(note),
-    transcript: [],
+    transcript: transcriptTextToTurns(transcript),
     resumen: note.summary ?? "",
     codigos: [],
     auditoria: [],
