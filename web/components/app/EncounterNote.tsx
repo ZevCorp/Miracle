@@ -346,13 +346,39 @@ function EditableBlock({
               </div>
             </div>
           ) : (
-            <p className="whitespace-pre-wrap">
-              {content.trim() ? (
-                content
-              ) : (
-                <span className="text-muted">Sin contenido.</span>
-              )}
-            </p>
+            // Click directo sobre el texto entra a edición, sin pasar por el
+            // botón "Editar" (el médico toca lo que quiere corregir). El
+            // botón sigue ahí para quien prefiera usarlo o navegue con
+            // teclado/lector de pantalla.
+            <div
+              role={editable ? "button" : undefined}
+              tabIndex={editable ? 0 : undefined}
+              onClick={editable ? startEdit : undefined}
+              onKeyDown={
+                editable
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        startEdit();
+                      }
+                    }
+                  : undefined
+              }
+              className={
+                editable
+                  ? "-mx-2 rounded-md px-2 py-1 transition-colors hover:bg-ice-soft"
+                  : undefined
+              }
+              title={editable ? "Toca para editar esta sección" : undefined}
+            >
+              <p className="whitespace-pre-wrap">
+                {content.trim() ? (
+                  content
+                ) : (
+                  <span className="text-muted">Sin contenido.</span>
+                )}
+              </p>
+            </div>
           )}
           {listening ? (
             <p className="mt-2 text-xs font-medium text-danger">
