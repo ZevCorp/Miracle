@@ -3,12 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
-  Check,
   ChevronDown,
   ClipboardCopy,
   Info,
   Mic,
-  Pencil,
   X,
 } from "lucide-react";
 import type { ClinicalNoteJson, ClinicalNoteSection } from "@/lib/api/clinical";
@@ -195,9 +193,9 @@ function EditableBlock({
     onChangeRef.current = onChange;
   }, [onChange]);
 
-  // Autoguardado: si el médico deja de escribir y no llega a pulsar "Aplicar"
-  // (por ejemplo, cierra la sección o navega a otra), el cambio se persiste
-  // solo tras una breve pausa, igual que en la nota ya firmada.
+  // Autoguardado: el cambio se persiste solo tras una breve pausa al
+  // escribir, sin depender de que el médico confirme nada (igual que en la
+  // nota ya firmada).
   useEffect(() => {
     if (!editing) return;
     const trimmed = draft.trim();
@@ -214,11 +212,6 @@ function EditableBlock({
     setSavedHint(false);
     setEditing(true);
     setOpen(true);
-  }
-
-  function confirm() {
-    onChange(draft.trim());
-    setEditing(false);
   }
 
   function copy() {
@@ -299,15 +292,6 @@ function EditableBlock({
               <Mic size={14} className={listening || voiceProcessing ? "animate-pulse" : ""} />
             </button>
           ) : null}
-          {editable && !editing ? (
-            <button
-              type="button"
-              onClick={startEdit}
-              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-ice-soft hover:text-accent"
-            >
-              <Pencil size={14} /> <span className="hidden sm:inline">Editar</span>
-            </button>
-          ) : null}
         </div>
       </div>
 
@@ -326,13 +310,6 @@ function EditableBlock({
                 autoFocus
               />
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={confirm}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover"
-                >
-                  <Check size={15} /> Aplicar
-                </button>
                 {savedHint ? (
                   <span className="text-xs font-medium text-success">Guardado</span>
                 ) : null}
@@ -341,15 +318,14 @@ function EditableBlock({
                   onClick={() => setEditing(false)}
                   className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-1.5 text-sm font-medium text-deep hover:border-mist"
                 >
-                  <X size={15} /> Cancelar
+                  <X size={15} /> Cerrar
                 </button>
               </div>
             </div>
           ) : (
-            // Click directo sobre el texto entra a edición, sin pasar por el
-            // botón "Editar" (el médico toca lo que quiere corregir). El
-            // botón sigue ahí para quien prefiera usarlo o navegue con
-            // teclado/lector de pantalla.
+            // Único punto de entrada a edición: tocar el texto (sin botón
+            // "Editar" aparte, ya no aporta nada). Accesible por teclado
+            // (role=button + Enter/Espacio) para quien no usa mouse/touch.
             <div
               role={editable ? "button" : undefined}
               tabIndex={editable ? 0 : undefined}
