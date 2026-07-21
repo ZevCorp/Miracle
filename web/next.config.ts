@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   // Fija la raíz del proyecto (hay un package-lock.json suelto en el home del
@@ -32,4 +33,14 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sin DSN el export es el config actual, intacto: Sentry no toca el build. Con
+// DSN se envuelve para que el SDK funcione (sin subir sourcemaps en esta fase,
+// así no hace falta SENTRY_AUTH_TOKEN).
+export default process.env.NEXT_PUBLIC_SENTRY_DSN
+  ? withSentryConfig(nextConfig, {
+      silent: true,
+      telemetry: false,
+      sourcemaps: { disable: true },
+      disableLogger: true,
+    })
+  : nextConfig;

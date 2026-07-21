@@ -1,4 +1,5 @@
-import { formatFechaRelativa, type AuditEvent } from "@/lib/mock";
+import { type AuditEvent } from "@/lib/mock";
+import { formatFechaRelativa } from "@/lib/dates";
 
 export function Timeline({ events }: { events: AuditEvent[] }) {
   return (

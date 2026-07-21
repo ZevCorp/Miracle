@@ -27,8 +27,9 @@ export const maxDuration = 60;
 
 // Formatos aceptados (validación temprana antes de llegar a Graph).
 const MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-// ~5 MB de imagen binaria en base64.
-const MAX_BASE64_CHARS = 7_000_000;
+// Alineado con el límite de body de Vercel (~4.5 MB): 5.8M chars base64
+// ≈ 4.35 MB binarios, con margen para el resto del JSON.
+const MAX_BASE64_CHARS = 5_800_000;
 // Tope defensivo por sección (una casilla del informe no debería excederlo).
 const MAX_SECTION_CHARS = 4_000;
 
@@ -137,7 +138,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Funcionalidad no disponible para esta cuenta." }, { status: 403 });
   }
 
-  if (!rateLimit(`note-from-photo:${userId}`, 6)) {
+  if (!(await rateLimit(`note-from-photo:${userId}`, 6))) {
     return NextResponse.json(
       { error: "Demasiadas solicitudes. Espera un momento e intenta de nuevo." },
       { status: 429 },

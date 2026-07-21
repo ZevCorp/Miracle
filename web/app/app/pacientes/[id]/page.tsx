@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useStore } from "@/app/app/providers";
-import { formatFechaRelativa } from "@/lib/mock";
+import { formatFechaRelativa } from "@/lib/dates";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { EmptyState } from "@/components/app/EmptyState";

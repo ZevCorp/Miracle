@@ -10,7 +10,11 @@ export const SITE = {
   tagline: "Para que el médico mire al paciente, no la pantalla",
   // Número usado en el sitio previo para conversión (WhatsApp).
   whatsappNumber: "573172550953",
-  email: "hola@miracle.health",
+  // Buzón real que recibe los correos del sitio.
+  email: "dev@itsmiracleai.com",
+  // Dominio de producción (para canonical/OG/metadataBase). En Vercel se
+  // fija NEXT_PUBLIC_SITE_URL; el fallback es el dominio real, no un ejemplo.
+  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://itsmiracleai.com.co",
 } as const;
 
 export const WHATSAPP_BASE = `https://wa.me/${SITE.whatsappNumber}`;

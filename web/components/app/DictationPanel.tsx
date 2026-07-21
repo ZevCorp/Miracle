@@ -44,7 +44,7 @@ export function DictationPanel({
   /** Etiqueta para una detención que termina la cita. */
   finishLabel?: string;
 }) {
-  const { status, partialText, error, elapsedSec, start, pause, stop } =
+  const { status, partialText, error, elapsedSec, stalled, start, pause, stop } =
     useDictation(onAppendFinal);
   const autoStartHandled = useRef(false);
   const [finishConfirm, setFinishConfirm] = useState(false);
@@ -133,6 +133,14 @@ export function DictationPanel({
         <span role="status" aria-live="polite" className="mt-3 block text-xs font-medium text-muted">
           {STATUS_TEXT[status] ?? ""}
         </span>
+
+        {stalled ? (
+          <p role="alert" className="mt-3 flex items-start gap-2 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            Grabando, pero no llega transcripción hace 45 s. Verifica el
+            micrófono o tu conexión.
+          </p>
+        ) : null}
 
         {finishConfirm ? (
           <div role="alertdialog" aria-label="Confirmar finalización" className="mt-4 rounded-xl border border-danger/25 bg-danger-soft p-4">

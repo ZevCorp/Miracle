@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Schibsted_Grotesk, Geist_Mono, Inter } from "next/font/google";
+import { SITE } from "@/lib/site";
 import "./globals.css";
 
 const display = Schibsted_Grotesk({
@@ -21,7 +22,7 @@ const sans = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://miracle.health"),
+  metadataBase: new URL(SITE.url),
   title: {
     default: "Miracle · Inteligencia clínica-operativa para hospitales",
     template: "%s · Miracle",

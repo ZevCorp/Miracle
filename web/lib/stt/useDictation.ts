@@ -4,12 +4,16 @@
 //
 // Decisiones (ver docs del motor en ./deepgram-dictation.js):
 // - El motor NO reconecta solo: ante cierre inesperado este hook reintenta
-//   hasta 2 veces consecutivas con sesión/token nuevos; el contador se resetea
-//   al recibir texto (así una consulta larga sobrevive cortes del proveedor).
+//   hasta 4 veces con backoff, ENCADENANDO cada reintento en el catch del
+//   anterior (el motor no re-dispara onUnexpectedClose tras un start() fallido).
+//   El contador se resetea al recibir texto (una consulta larga sobrevive
+//   cortes repetidos). Agotado el presupuesto, se muestra un error claro.
 // - El motor se crea PEREZOSAMENTE en el primer start() (gesto del usuario):
 //   StrictMode/dobles renders no crean dobles instancias.
 // - Los finales que llegan durante el stop() (finalize/flush) se siguen
 //   appendeando: no se pierde la cola de la última frase.
+// - Watchdog: si con el micrófono abierto no llega NADA de texto en 45 s, se
+//   expone `stalled` para avisar (mic mudo, proveedor caído sin cerrar socket).
 // - onDebug incluye preview de transcripción (PHI): solo se conecta en dev.
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -27,8 +31,12 @@ export type DictationStatus =
   | "stopping"
   | "error";
 
-const MAX_RECONNECT_ATTEMPTS = 2;
-const RECONNECT_DELAYS_MS = [300, 1500];
+const MAX_RECONNECT_ATTEMPTS = 4;
+const RECONNECT_DELAYS_MS = [300, 1000, 3000, 5000];
+// Con el micrófono abierto y grabando, este es el máximo silencio tolerado sin
+// ningún fragmento de transcripción antes de avisar. Las pausas clínicas son
+// normales; 45 s sin ni un parcial es señal de mic mudo o proveedor caído.
+const STALL_THRESHOLD_MS = 45_000;
 
 async function fetchStreamSession(): Promise<VoiceStreamSession> {
   const res = await fetch("/api/stt/session", { method: "POST" });
@@ -47,6 +55,7 @@ export function useDictation(onFinal: (text: string) => void): {
   partialText: string;
   error: string | null;
   elapsedSec: number;
+  stalled: boolean;
   start: () => Promise<void>;
   pause: () => Promise<void>;
   stop: () => Promise<void>;
@@ -55,14 +64,24 @@ export function useDictation(onFinal: (text: string) => void): {
   const [partialText, setPartialText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [stalled, setStalled] = useState(false);
 
   const engineRef = useRef<DictationHandle | null>(null);
   const intentRef = useRef<"recording" | "paused" | "stopped">("stopped");
   const statusRef = useRef<DictationStatus>("idle");
   const startGuardRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastEngineErrorRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Última señal de actividad de transcripción (parcial o final): base del
+  // watchdog. Se marca al iniciar la grabación para no disparar de inmediato.
+  const lastActivityAtRef = useRef<number>(0);
+
+  const markActivity = useCallback(() => {
+    lastActivityAtRef.current = Date.now();
+    setStalled(false);
+  }, []);
 
   // Trampolín: el callback del médico siempre fresco sin recrear el motor.
   const onFinalRef = useRef(onFinal);
@@ -87,14 +106,68 @@ export function useDictation(onFinal: (text: string) => void): {
     timerRef.current = setInterval(() => setElapsedSec((s) => s + 1), 1000);
   }, []);
 
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  }, []);
+
+  const failReconnect = useCallback(() => {
+    intentRef.current = "stopped";
+    setError(DICTATION_MESSAGES.connectionLost);
+    setStatusSafe("error");
+    stopTimer();
+  }, [setStatusSafe, stopTimer]);
+
+  // Reintento de reconexión ENCADENADO: cada fallo programa el siguiente hasta
+  // agotar el presupuesto. No depende de que el motor re-dispare onUnexpectedClose
+  // (tras un start() fallido no lo hace), que era la causa del cuelgue eterno.
+  // La recursión pasa por un ref para no auto-referenciar el useCallback.
+  const attemptReconnectRef = useRef<(attempt: number) => void>(() => {});
+  const attemptReconnect = useCallback(
+    (attempt: number) => {
+      if (intentRef.current !== "recording") return;
+      if (attempt >= MAX_RECONNECT_ATTEMPTS) {
+        failReconnect();
+        return;
+      }
+      reconnectAttemptsRef.current = attempt + 1;
+      setStatusSafe("reconnecting");
+      const delay = RECONNECT_DELAYS_MS[attempt] ?? 5000;
+      clearReconnectTimer();
+      reconnectTimerRef.current = setTimeout(() => {
+        if (intentRef.current !== "recording" || !engineRef.current) return;
+        engineRef.current
+          .start()
+          .then(() => {
+            if (intentRef.current === "recording") {
+              markActivity();
+              setStatusSafe("recording");
+            }
+          })
+          .catch(() => {
+            // Reprograma el siguiente intento (o falla si se agotó).
+            attemptReconnectRef.current(attempt + 1);
+          });
+      }, delay);
+    },
+    [clearReconnectTimer, failReconnect, markActivity, setStatusSafe],
+  );
+  useEffect(() => {
+    attemptReconnectRef.current = attemptReconnect;
+  }, [attemptReconnect]);
+
   const getEngine = useCallback((): DictationHandle => {
     if (engineRef.current) return engineRef.current;
     engineRef.current = createDictation({
       createStreamSession: fetchStreamSession,
       onPartialTranscript: (text) => {
+        markActivity();
         setPartialText(text);
       },
       onFinalTranscript: ({ transcript }) => {
+        markActivity();
         const clean = (transcript ?? "").trim();
         if (!clean) return;
         // Texto llegó: la conexión sirve → resetea el presupuesto de reintentos.
@@ -108,45 +181,14 @@ export function useDictation(onFinal: (text: string) => void): {
       },
       onUnexpectedClose: () => {
         if (intentRef.current !== "recording") return;
-        const attempt = reconnectAttemptsRef.current;
-        if (attempt < MAX_RECONNECT_ATTEMPTS) {
-          reconnectAttemptsRef.current = attempt + 1;
-          setStatusSafe("reconnecting");
-          const delay = RECONNECT_DELAYS_MS[attempt] ?? 1500;
-          setTimeout(() => {
-            if (intentRef.current !== "recording" || !engineRef.current) return;
-            engineRef.current
-              .start()
-              .then(() => {
-                if (intentRef.current === "recording") setStatusSafe("recording");
-              })
-              .catch(() => {
-                // El fallo del reintento vuelve a disparar onUnexpectedClose/onError;
-                // si el presupuesto se agotó, cae al else de abajo en el siguiente ciclo.
-                if (
-                  intentRef.current === "recording" &&
-                  reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS
-                ) {
-                  intentRef.current = "stopped";
-                  setError(DICTATION_MESSAGES.connectionLost);
-                  setStatusSafe("error");
-                  stopTimer();
-                }
-              });
-          }, delay);
-        } else {
-          intentRef.current = "stopped";
-          setError(DICTATION_MESSAGES.connectionLost);
-          setStatusSafe("error");
-          stopTimer();
-        }
+        attemptReconnect(reconnectAttemptsRef.current);
       },
       ...(process.env.NODE_ENV === "development"
         ? { onDebug: (event: string, data: unknown) => console.debug("[stt]", event, data) }
         : {}),
     });
     return engineRef.current;
-  }, [setStatusSafe, stopTimer]);
+  }, [attemptReconnect, markActivity]);
 
   const start = useCallback(async () => {
     if (startGuardRef.current) return;
@@ -164,6 +206,7 @@ export function useDictation(onFinal: (text: string) => void): {
       setStatusSafe("connecting");
       await engine.start();
       if (!resuming) setElapsedSec(0);
+      markActivity();
       startTimer();
       setStatusSafe("recording");
     } catch (e) {
@@ -174,11 +217,13 @@ export function useDictation(onFinal: (text: string) => void): {
     } finally {
       startGuardRef.current = false;
     }
-  }, [getEngine, setStatusSafe, startTimer, stopTimer]);
+  }, [getEngine, markActivity, setStatusSafe, startTimer, stopTimer]);
 
   const pause = useCallback(async () => {
     if (statusRef.current !== "recording" && statusRef.current !== "reconnecting") return;
     intentRef.current = "paused";
+    clearReconnectTimer();
+    setStalled(false);
     setStatusSafe("pausing");
     stopTimer();
     try {
@@ -189,7 +234,7 @@ export function useDictation(onFinal: (text: string) => void): {
       setPartialText("");
       setStatusSafe("paused");
     }
-  }, [setStatusSafe, stopTimer]);
+  }, [clearReconnectTimer, setStatusSafe, stopTimer]);
 
   const stop = useCallback(async () => {
     if (statusRef.current === "paused") {
@@ -200,6 +245,8 @@ export function useDictation(onFinal: (text: string) => void): {
     }
     if (statusRef.current !== "recording" && statusRef.current !== "reconnecting") return;
     intentRef.current = "stopped";
+    clearReconnectTimer();
+    setStalled(false);
     setStatusSafe("stopping");
     stopTimer();
     try {
@@ -212,7 +259,20 @@ export function useDictation(onFinal: (text: string) => void): {
       setPartialText("");
       setStatusSafe("idle");
     }
-  }, [setStatusSafe, stopTimer]);
+  }, [clearReconnectTimer, setStatusSafe, stopTimer]);
+
+  // Watchdog de inactividad: solo mientras se graba. Si con el micrófono
+  // abierto no llega ningún fragmento en STALL_THRESHOLD_MS, se marca stalled
+  // para avisar (no corta la grabación). Cualquier actividad lo reinicia.
+  useEffect(() => {
+    if (status !== "recording") return;
+    const id = setInterval(() => {
+      if (Date.now() - lastActivityAtRef.current > STALL_THRESHOLD_MS) {
+        setStalled(true);
+      }
+    }, 5000);
+    return () => clearInterval(id);
+  }, [status]);
 
   // El navegador solo permite advertir, no personalizar, el diálogo de salida.
   // Protege recargas/cierre de pestaña mientras la captura sigue abierta.
@@ -239,11 +299,12 @@ export function useDictation(onFinal: (text: string) => void): {
   useEffect(() => {
     return () => {
       intentRef.current = "stopped";
+      clearReconnectTimer();
       stopTimer();
       engineRef.current?.dispose();
       engineRef.current = null;
     };
-  }, [stopTimer]);
+  }, [clearReconnectTimer, stopTimer]);
 
-  return { status, partialText, error, elapsedSec, start, pause, stop };
+  return { status, partialText, error, elapsedSec, stalled, start, pause, stop };
 }

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { reportError } from "@/lib/observability";
 
 /**
  * Guardas compartidas de las rutas /api/*. El proxy solo protege las páginas
@@ -17,12 +18,12 @@ export async function requireApiUser(): Promise<string | null> {
   return userId;
 }
 
-// Límite simple por usuario y ruta, en memoria de la instancia. No sustituye
-// un rate limit distribuido, pero corta el abuso básico sin infraestructura.
+// Primera barrera: contador en memoria de la instancia. Es gratis y corta el
+// abuso local; si ya excede aquí, ni se consulta la BD.
 const WINDOW_MS = 60_000;
 const buckets = new Map<string, { count: number; reset: number }>();
 
-export function rateLimit(key: string, limit: number): boolean {
+function memoryAllow(key: string, limit: number): boolean {
   const now = Date.now();
 
   if (buckets.size > 5_000) {
@@ -39,4 +40,33 @@ export function rateLimit(key: string, limit: number): boolean {
   if (bucket.count >= limit) return false;
   bucket.count += 1;
   return true;
+}
+
+/**
+ * Rate limit durable por usuario y ruta. Doble barrera: el Map en memoria
+ * (rápido, por instancia) y un contador en Postgres compartido entre todas las
+ * lambdas serverless (el Map solo no sirve en Vercel: cada cold start lo pierde
+ * y el tope real se multiplica por el número de instancias).
+ *
+ * Fail-open: si la RPC falla, se permite el request y se reporta el error. El
+ * flujo clínico no debe caerse porque el limitador tenga un problema.
+ */
+export async function rateLimit(key: string, limit: number): Promise<boolean> {
+  if (!memoryAllow(key, limit)) return false;
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("check_rate_limit", {
+      p_key: key,
+      p_limit: limit,
+      p_window_seconds: 60,
+    });
+    if (error) {
+      reportError(error, { where: "rateLimit" });
+      return true;
+    }
+    return data === true;
+  } catch (e) {
+    reportError(e, { where: "rateLimit" });
+    return true;
+  }
 }

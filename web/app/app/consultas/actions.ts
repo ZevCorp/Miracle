@@ -66,13 +66,23 @@ export async function signConsultationNote(
   // prefijo en auditoría.
   const firma = { por, fecha, hash: contentHash };
 
-  const { error: updateError } = await supabase
+  // UPDATE condicional por estado: si otra sesión firmó/exportó entre el
+  // SELECT de arriba y este punto, afecta 0 filas y no se pisa esa firma.
+  const { data: updated, error: updateError } = await supabase
     .from("consultations")
     .update({ estado: "aprobada", firma })
-    .eq("id", consultationId);
+    .eq("id", consultationId)
+    .in("estado", ["borrador", "revisada"])
+    .select("id");
 
   if (updateError) {
     return { ok: false, error: "No se pudo guardar la firma. Intenta de nuevo." };
+  }
+  if (!updated?.length) {
+    return {
+      ok: false,
+      error: "La nota cambió de estado (posible firma simultánea). Recarga la página.",
+    };
   }
 
   await supabase.from("audit_events").insert({

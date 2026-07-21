@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { formatFechaRelativa, TYPE_LABEL, type Consultation } from "@/lib/mock";
+import { TYPE_LABEL, type Consultation } from "@/lib/mock";
+import { formatFechaRelativa } from "@/lib/dates";
 import { useStore } from "@/app/app/providers";
 import { StatusBadge } from "./StatusBadge";
 

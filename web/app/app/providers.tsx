@@ -43,6 +43,18 @@ interface NewPatientInput {
   telefono?: string;
 }
 
+/**
+ * Adenda a una nota firmada. Las adendas viven en su propia tabla append-only
+ * (nunca modifican la nota original) y se cargan bajo demanda en el detalle.
+ */
+export interface ConsultationAddendum {
+  id: string;
+  consultationId: string;
+  autor: string;
+  fecha: string;
+  contenido: string;
+}
+
 interface StoreValue {
   consultations: Consultation[];
   patients: Patient[];
@@ -56,6 +68,10 @@ interface StoreValue {
   getPatient: (id: string | null | undefined) => Patient | undefined;
   getMedicoName: (id: string) => string | undefined;
   addPatient: (patient: string | NewPatientInput) => Patient;
+  /** Como addPatient, pero espera la confirmación de Supabase antes de resolver. */
+  addPatientAsync: (
+    patient: NewPatientInput,
+  ) => Promise<{ ok: boolean; patient: Patient }>;
   approveNote: (id: string) => void;
   exportNote: (id: string) => void;
   markReviewed: (id: string) => void;
@@ -67,8 +83,19 @@ interface StoreValue {
    * Inserta o actualiza (por id) una consulta. Lo usa el puente del backend
    * clínico: al completar un encounter, su nota se espeja aquí para que aparezca
    * en el historial y pueda firmarse/exportarse. Idempotente por id.
+   *
+   * Una fila existente se actualiza de forma PARCIAL, sin tocar `estado` ni
+   * `firma`: una nota firmada es inmutable (el trigger de la BD lo refuerza) y
+   * el puente nunca puede degradarla a borrador ni borrar la firma. Resuelve
+   * solo cuando Supabase confirmó la escritura.
    */
-  upsertConsultation: (c: Consultation) => void;
+  upsertConsultation: (c: Consultation) => Promise<{ ok: boolean }>;
+  /** Adendas de una nota firmada (bajo demanda; no viven en Consultation). */
+  listAddenda: (consultationId: string) => Promise<ConsultationAddendum[]>;
+  addAddendum: (
+    consultationId: string,
+    contenido: string,
+  ) => Promise<{ ok: boolean; addendum?: ConsultationAddendum }>;
   resetDemo: () => void;
   toast: Toast | null;
   showToast: (message: string, tone?: ToastTone) => void;
@@ -433,6 +460,45 @@ export function MiracleProvider({
     [supabase, showToast],
   );
 
+  // Variante awaitable: para flujos que encadenan acciones sobre el paciente
+  // recién creado (p. ej. asociarlo a un encounter) y necesitan saber que el
+  // insert quedó confirmado antes de continuar.
+  const addPatientAsync = useCallback(
+    async (
+      input: NewPatientInput,
+    ): Promise<{ ok: boolean; patient: Patient }> => {
+      const nuevo: Patient = {
+        id: uuid(),
+        nombre: input.nombre.trim(),
+        documento: input.documento?.trim() || "Por registrar",
+        edad: input.edad && input.edad > 0 ? input.edad : 0,
+        sexo: input.sexo ?? null,
+        eps: input.eps?.trim() || "Por registrar",
+        telefono: input.telefono?.trim() || "—",
+        antecedentes: [],
+        alergias: [],
+        medicamentos: [],
+      };
+      setPatients((list) => [nuevo, ...list]);
+      const { error } = await supabase.from("patients").insert({
+        id: nuevo.id,
+        nombre: nuevo.nombre,
+        documento: input.documento?.trim() || null,
+        edad: nuevo.edad > 0 ? nuevo.edad : null,
+        sexo: nuevo.sexo ?? null,
+        eps: input.eps?.trim() || null,
+        telefono: input.telefono?.trim() || null,
+      });
+      if (error) {
+        console.error("[store] insert paciente", error.message);
+        showToast("No se pudo guardar el paciente. Intenta de nuevo.", "warning");
+        return { ok: false, patient: nuevo };
+      }
+      return { ok: true, patient: nuevo };
+    },
+    [supabase, showToast],
+  );
+
   // ---- Consultas ------------------------------------------------------------
   const getConsultation = useCallback(
     (id: string) => consultations.find((c) => c.id === id),
@@ -483,11 +549,24 @@ export function MiracleProvider({
   );
 
   // Puente del backend clínico: espeja un encounter completado como consulta.
-  // Idempotente por id (upsert) para que re-guardar la nota no duplique filas;
-  // registra la auditoría solo en la primera creación.
+  // Idempotente por id para que re-guardar la nota no duplique filas; registra
+  // la auditoría solo en la primera creación. Filas existentes se actualizan
+  // en PARCIAL (sin estado ni firma): el puente nunca degrada una nota firmada.
   const upsertConsultation = useCallback(
-    (c: Consultation) => {
-      const isNew = !consultationsRef.current.some((x) => x.id === c.id);
+    async (c: Consultation): Promise<{ ok: boolean }> => {
+      const existing = consultationsRef.current.find((x) => x.id === c.id);
+      if (
+        existing &&
+        (existing.estado === "aprobada" || existing.estado === "exportada")
+      ) {
+        showToast(
+          "Esta nota ya está firmada. Los cambios van como adenda.",
+          "warning",
+        );
+        return { ok: false };
+      }
+
+      const isNew = !existing;
       const audit = isNew
         ? {
             id: `a-${uuid()}`,
@@ -501,13 +580,16 @@ export function MiracleProvider({
       setConsultations((list) =>
         isNew
           ? [{ ...c, auditoria: audit ? [audit] : [] }, ...list]
-          : // Preserva la auditoría existente al actualizar el contenido.
+          : // Preserva estado, firma y auditoría existentes: el puente solo
+            // actualiza el contenido de la nota.
             list.map((x) =>
-              x.id === c.id ? { ...c, auditoria: x.auditoria } : x,
+              x.id === c.id
+                ? { ...c, estado: x.estado, firma: x.firma, auditoria: x.auditoria }
+                : x,
             ),
       );
 
-      void (async () => {
+      if (isNew) {
         const { error } = await supabase.from("consultations").upsert(
           {
             id: c.id,
@@ -534,7 +616,7 @@ export function MiracleProvider({
             "La nota se generó, pero no se pudo guardar en tu historial. Reintenta.",
             "warning",
           );
-          return;
+          return { ok: false };
         }
         if (audit) {
           await supabase.from("audit_events").insert({
@@ -544,9 +626,117 @@ export function MiracleProvider({
             detalle: audit.detalle,
           });
         }
-      })();
+        return { ok: true };
+      }
+
+      const { data, error } = await supabase
+        .from("consultations")
+        .update({
+          patient_id: c.pacienteId || null,
+          servicio: c.servicio,
+          especialidad: c.especialidad,
+          tipo: c.tipo,
+          motivo: c.motivo,
+          fecha: c.fecha,
+          duracion_min: c.duracionMin,
+          plantilla: c.plantilla,
+          resumen: c.resumen,
+          note: c.note,
+          codigos: c.codigos,
+          transcript: c.transcript,
+        })
+        .eq("id", c.id)
+        .select("id");
+      if (error || !data?.length) {
+        console.error("[store] update consulta (puente)", error?.message);
+        showToast(
+          "La nota se generó, pero no se pudo guardar en tu historial. Reintenta.",
+          "warning",
+        );
+        return { ok: false };
+      }
+      return { ok: true };
     },
     [supabase, actor, showToast],
+  );
+
+  const listAddenda = useCallback(
+    async (consultationId: string): Promise<ConsultationAddendum[]> => {
+      const { data, error } = await supabase
+        .from("consultation_addenda")
+        .select("id, consultation_id, author_name, contenido, created_at")
+        .eq("consultation_id", consultationId)
+        .order("created_at", { ascending: true });
+      if (error) {
+        console.error("[store] listar adendas", error.message);
+        return [];
+      }
+      return (data ?? []).map((r) => ({
+        id: r.id,
+        consultationId: r.consultation_id,
+        autor: r.author_name,
+        fecha: r.created_at,
+        contenido: r.contenido,
+      }));
+    },
+    [supabase],
+  );
+
+  const addAddendum = useCallback(
+    async (
+      consultationId: string,
+      contenido: string,
+    ): Promise<{ ok: boolean; addendum?: ConsultationAddendum }> => {
+      const texto = contenido.trim();
+      if (!texto) return { ok: false };
+      const { data, error } = await supabase
+        .from("consultation_addenda")
+        .insert({
+          consultation_id: consultationId,
+          author_name: actor,
+          contenido: texto,
+        })
+        .select("id, consultation_id, author_name, contenido, created_at")
+        .single();
+      if (error || !data) {
+        console.error("[store] adenda", error?.message);
+        showToast("No se pudo guardar la adenda. Intenta de nuevo.", "warning");
+        return { ok: false };
+      }
+      // El detalle de auditoría no incluye contenido clínico, solo el hecho.
+      remoteAudit(consultationId, "Adenda agregada", `Adenda de ${actor}.`);
+      setConsultations((list) =>
+        list.map((c) =>
+          c.id === consultationId
+            ? {
+                ...c,
+                auditoria: [
+                  ...c.auditoria,
+                  {
+                    id: `a-${uuid()}`,
+                    fecha: data.created_at,
+                    actor,
+                    accion: "Adenda agregada",
+                    detalle: `Adenda de ${actor}.`,
+                  },
+                ],
+              }
+            : c,
+        ),
+      );
+      showToast("Adenda agregada.", "success");
+      return {
+        ok: true,
+        addendum: {
+          id: data.id,
+          consultationId: data.consultation_id,
+          autor: data.author_name,
+          fecha: data.created_at,
+          contenido: data.contenido,
+        },
+      };
+    },
+    [supabase, actor, remoteAudit, showToast],
   );
 
   // La firma se hace en el servidor (valida sesión, estado y deja hash del
@@ -677,6 +867,7 @@ export function MiracleProvider({
       getPatient,
       getMedicoName,
       addPatient,
+      addPatientAsync,
       approveNote,
       exportNote,
       markReviewed,
@@ -685,6 +876,8 @@ export function MiracleProvider({
       updateNote,
       addConsultation,
       upsertConsultation,
+      listAddenda,
+      addAddendum,
       resetDemo,
       toast,
       showToast,
@@ -700,6 +893,7 @@ export function MiracleProvider({
       getPatient,
       getMedicoName,
       addPatient,
+      addPatientAsync,
       approveNote,
       exportNote,
       markReviewed,
@@ -708,6 +902,8 @@ export function MiracleProvider({
       updateNote,
       addConsultation,
       upsertConsultation,
+      listAddenda,
+      addAddendum,
       resetDemo,
       toast,
       showToast,

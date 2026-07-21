@@ -20,6 +20,7 @@ import { useStore } from "@/app/app/providers";
 import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker";
 import { AppPageHeader } from "@/components/app/AppPage";
 import type { ConsultationType } from "@/lib/mock";
+import { buildRedactor } from "@/lib/privacy/redact";
 import { createClient } from "@/lib/supabase/client";
 import {
   createClinicalEncounter,
@@ -46,9 +47,11 @@ function NuevaConsultaForm() {
   const sp = useSearchParams();
   const { patients, getPatient } = useStore();
   const appointmentId = sp.get("appointment")?.trim() ?? "";
-  const appointmentName = sp.get("nombre")?.trim() ?? "";
+  // Preselección por id (UUID opaco). El nombre del paciente ya no viaja en
+  // la URL: quedaría en el historial del navegador y en logs de acceso.
+  const preselectedPatientId = sp.get("paciente")?.trim() ?? "";
 
-  const [patientQuery, setPatientQuery] = useState(appointmentName);
+  const [patientQuery, setPatientQuery] = useState("");
   const [patientId, setPatientId] = useState<string | null | undefined>(undefined);
   const [patientPickerOpen, setPatientPickerOpen] = useState(false);
   const [tipo, setTipo] = useState<Exclude<ConsultationType, "audio">>("presencial");
@@ -75,18 +78,83 @@ function NuevaConsultaForm() {
     transcriptSaved?: boolean;
   } | null>(null);
 
-  const appointmentPatientId = useMemo(
-    () =>
-      appointmentName
-        ? (patients.find(
-            (patient) =>
-              patient.nombre.trim().toLocaleLowerCase() === appointmentName.toLocaleLowerCase(),
-          )?.id ?? null)
-        : null,
-    [appointmentName, patients],
-  );
-  const effectivePatientId = patientId === undefined ? appointmentPatientId : patientId;
+  // Datos del paciente de la cita, resueltos por id desde la agenda (la URL
+  // solo trae el id de la cita). `patient_id` es el vínculo VERIFICADO; si es
+  // null, solo hay un nombre que puede coincidir con homónimos.
+  const [appointmentName, setAppointmentName] = useState("");
+  const [appointmentDocumento, setAppointmentDocumento] = useState("");
+  const [appointmentLinkedId, setAppointmentLinkedId] = useState<string | null>(null);
+  // El médico ya resolvió (confirmó o rechazó) el match por nombre.
+  const [nameMatchResolved, setNameMatchResolved] = useState(false);
+
+  useEffect(() => {
+    if (!appointmentId) return;
+    let ignore = false;
+
+    async function loadAppointment() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("appointments")
+        .select("paciente_nombre, paciente_documento, patient_id")
+        .eq("id", appointmentId)
+        .maybeSingle();
+      if (ignore) return;
+      const nombre = data?.paciente_nombre?.trim();
+      if (nombre) {
+        setAppointmentName(nombre);
+        setPatientQuery((prev) => prev || nombre);
+      }
+      setAppointmentDocumento(data?.paciente_documento?.trim() ?? "");
+      setAppointmentLinkedId(data?.patient_id ?? null);
+    }
+
+    void loadAppointment();
+    return () => {
+      ignore = true;
+    };
+  }, [appointmentId]);
+
+  const preselectedPatient = getPatient(preselectedPatientId || null);
+
+  // Candidato por nombre EXACTO cuando la cita no tiene patient_id verificado.
+  // No se preselecciona en silencio: con homónimos (frecuentes en Colombia)
+  // podría abrir la historia clínica de otra persona.
+  const nameMatchCandidate = useMemo(() => {
+    if (appointmentLinkedId || !appointmentName) return null;
+    return (
+      patients.find(
+        (patient) =>
+          patient.nombre.trim().toLocaleLowerCase() ===
+          appointmentName.toLocaleLowerCase(),
+      ) ?? null
+    );
+  }, [appointmentLinkedId, appointmentName, patients]);
+
+  const effectivePatientId =
+    patientId !== undefined
+      ? patientId
+      : (preselectedPatient?.id ?? appointmentLinkedId);
   const selectedPatient = getPatient(effectivePatientId);
+
+  // Persiste el vínculo cita↔paciente para no volver a preguntar por nombre.
+  async function writeAppointmentPatient(pid: string) {
+    if (!appointmentId) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("appointments")
+      .update({ patient_id: pid })
+      .eq("id", appointmentId);
+    if (error) console.error("[agenda] set appointment patient", error.message);
+    else setAppointmentLinkedId(pid);
+  }
+
+  // Se pregunta solo si hay candidato por nombre, no hay paciente efectivo ya
+  // elegido, y el médico aún no lo resolvió.
+  const showNameMatchPrompt =
+    !!nameMatchCandidate &&
+    !effectivePatientId &&
+    patientId === undefined &&
+    !nameMatchResolved;
 
   useEffect(() => {
     let ignore = false;
@@ -173,18 +241,7 @@ function NuevaConsultaForm() {
         template_id: effectiveTemplateId,
       });
 
-      if (appointmentId) {
-        const supabase = createClient();
-        const { error } = await supabase
-          .from("appointments")
-          .update({
-            estado: "en_curso",
-            clinical_encounter_id: result.encounter_id,
-            consultation_started_at: new Date().toISOString(),
-          })
-          .eq("id", appointmentId);
-        if (error) console.error("[agenda] link encounter", error.message);
-      }
+      await linkAppointment(result.encounter_id);
 
       const params = new URLSearchParams({ encounter: result.encounter_id, record: "1" });
       if (effectivePatientId) params.set("paciente", effectivePatientId);
@@ -205,6 +262,9 @@ function NuevaConsultaForm() {
         estado: "en_curso",
         clinical_encounter_id: encounterId,
         consultation_started_at: new Date().toISOString(),
+        // Escribe el vínculo verificado cuando existe; nunca null sobre uno ya
+        // establecido (el update omite la clave si no hay paciente).
+        ...(effectivePatientId ? { patient_id: effectivePatientId } : {}),
       })
       .eq("id", appointmentId);
     if (error) console.error("[agenda] link encounter", error.message);
@@ -248,10 +308,21 @@ function NuevaConsultaForm() {
       let transcript = recovery.transcript;
       if (!transcript) {
         setUploadStatus("transcribing");
-        transcript = await transcribeAudioFile(audioFile, {
+        const raw = await transcribeAudioFile(audioFile, {
           signal: controller.signal,
           onProgress: setUploadProgress,
         });
+        // De-identificación antes de cachear y enviar: el backend (y el LLM)
+        // solo ven [PACIENTE]/[DOCUMENTO]. La nota se rehidrata al abrirse en
+        // la consulta activa. Ver lib/privacy/redact.ts.
+        transcript = buildRedactor(
+          selectedPatient
+            ? {
+                nombre: selectedPatient.nombre,
+                documento: selectedPatient.documento,
+              }
+            : null,
+        ).redact(raw);
         recovery.transcript = transcript;
         setUploadCanRetry(true);
       }
@@ -345,6 +416,48 @@ function NuevaConsultaForm() {
               })}
             </div>
           </div>
+
+          {showNameMatchPrompt && nameMatchCandidate ? (
+            <div className="mt-5 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3.5">
+              <p className="text-sm font-semibold text-deep">
+                La cita dice «{appointmentName}». ¿Es este paciente?
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                {nameMatchCandidate.nombre}
+                {nameMatchCandidate.documento && nameMatchCandidate.documento !== "Por registrar"
+                  ? ` — ${nameMatchCandidate.documento}`
+                  : ""}
+                {appointmentDocumento ? ` · Cita: ${appointmentDocumento}` : ""}
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Confírmalo para evitar abrir la historia de un homónimo.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPatientId(nameMatchCandidate.id);
+                    setPatientQuery(nameMatchCandidate.nombre);
+                    setNameMatchResolved(true);
+                    void writeAppointmentPatient(nameMatchCandidate.id);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+                >
+                  <Check size={15} /> Sí, asociar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNameMatchResolved(true);
+                    setPatientPickerOpen(true);
+                  }}
+                  className="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-semibold text-deep hover:border-mist"
+                >
+                  No, elegir otro
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="relative mt-5 rounded-xl border border-dashed border-line bg-pearl/70 px-4 py-3.5">
             <div className="flex flex-wrap items-center justify-between gap-3">

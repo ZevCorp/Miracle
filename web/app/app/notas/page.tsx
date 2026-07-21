@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { FileText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { formatFechaRelativa, STATUS_LABEL, type ConsultationStatus } from "@/lib/mock";
+import { STATUS_LABEL, type ConsultationStatus } from "@/lib/mock";
+import { formatFechaRelativa } from "@/lib/dates";
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Pager } from "@/components/app/Pager";

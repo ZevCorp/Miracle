@@ -13,6 +13,8 @@ type ButtonProps = {
   type?: "button" | "submit";
   onClick?: () => void;
   ariaLabel?: string;
+  /** Solo aplica al render como <button>; los links no se deshabilitan. */
+  disabled?: boolean;
 };
 
 const base =
@@ -42,6 +44,7 @@ export function Button({
   type = "button",
   onClick,
   ariaLabel,
+  disabled,
 }: ButtonProps) {
   const classes = `${base} ${variants[variant]} ${sizes[size]} ${className}`;
 
@@ -73,6 +76,7 @@ export function Button({
       onClick={onClick}
       className={classes}
       aria-label={ariaLabel}
+      disabled={disabled}
     >
       {children}
     </button>

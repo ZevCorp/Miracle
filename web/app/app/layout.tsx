@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app/AppShell";
 import { MiracleProvider } from "./providers";
+import { UnsavedChangesProvider } from "@/components/app/UnsavedChangesProvider";
 import { getCurrentProfile } from "@/lib/auth/server";
 
 export const metadata: Metadata = {
@@ -26,7 +27,9 @@ export default async function AppLayout({
 
   return (
     <MiracleProvider role={profile.role} userName={profile.fullName ?? profile.email}>
-      <AppShell profile={profile}>{children}</AppShell>
+      <UnsavedChangesProvider>
+        <AppShell profile={profile}>{children}</AppShell>
+      </UnsavedChangesProvider>
     </MiracleProvider>
   );
 }

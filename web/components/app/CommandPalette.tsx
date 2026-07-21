@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Plus, Search, User } from "lucide-react";
 import { useStore } from "@/app/app/providers";
+import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
 
 type Item = {
   id: string;
@@ -22,6 +23,7 @@ export function CommandPalette({
 }) {
   const router = useRouter();
   const { patients, consultations, getPatient } = useStore();
+  const { guardedNavigate } = useNavigationGuard();
   const [query, setQuery] = useState("");
   const closePalette = useCallback(() => {
     setQuery("");
@@ -91,8 +93,10 @@ export function CommandPalette({
   if (!open) return null;
 
   function go(href: string) {
-    closePalette();
-    router.push(href);
+    guardedNavigate(() => {
+      closePalette();
+      router.push(href);
+    });
   }
 
   return (

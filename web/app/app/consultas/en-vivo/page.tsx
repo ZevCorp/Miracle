@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { useStore } from "@/app/app/providers";
+import { useUnsavedChangesGuard } from "@/components/app/UnsavedChangesProvider";
 import { PatientHeader } from "@/components/app/PatientHeader";
 import { EncounterNote } from "@/components/app/EncounterNote";
 import { DictationPanel } from "@/components/app/DictationPanel";
@@ -32,6 +33,7 @@ import { MedicalChat } from "@/components/app/MedicalChat";
 import { PlanDischargePanel } from "@/components/app/PlanDischargePanel";
 import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker";
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
+import { buildRedactor } from "@/lib/privacy/redact";
 import { createClient } from "@/lib/supabase/client";
 import type { Patient } from "@/lib/mock";
 import {
@@ -95,17 +97,53 @@ function ConsultaActivaInner() {
   const encounterId = sp.get("encounter");
   const pacienteId = sp.get("paciente") ?? "";
   const appointmentId = sp.get("appointment") ?? "";
-  const startRecordingOnArrival = sp.get("record") === "1";
-  const { patients, addPatient, getPatient, upsertConsultation, showToast } = useStore();
+  // `record=1` se captura UNA sola vez al montar y luego se limpia de la URL:
+  // si quedara, cada remontaje del panel (p. ej. volver a la pestaña
+  // Transcripción) reencendería el micrófono sin gesto del médico.
+  const [autoStartOnArrival] = useState(() => sp.get("record") === "1");
+  const {
+    patients,
+    addPatientAsync,
+    getPatient,
+    getConsultation,
+    upsertConsultation,
+    showToast,
+  } = useStore();
   const [associatedPatientId, setAssociatedPatientId] = useState(pacienteId || null);
   const [patientAssociationOpen, setPatientAssociationOpen] = useState(false);
   const patient = getPatient(associatedPatientId);
+
+  // De-identificación: tapa nombre/documento del paciente registrado antes de
+  // que el texto salga hacia el backend (y el LLM) y los restaura al mostrar
+  // la nota. Ver lib/privacy/redact.ts.
+  const redactor = useMemo(
+    () =>
+      buildRedactor(
+        patient
+          ? { nombre: patient.nombre, documento: patient.documento }
+          : null,
+      ),
+    [patient],
+  );
 
   // La consulta activa SIEMPRE trabaja sobre un encounter real del backend.
   // Sin encounter_id no hay nada que capturar: el flujo nace en Nueva consulta.
   useEffect(() => {
     if (!encounterId) router.replace("/app/consultas/nueva");
   }, [encounterId, router]);
+
+  // Limpia `record` de la URL preservando `encounter`, `paciente` y
+  // `appointment`. El flag ya quedó capturado en autoStartOnArrival.
+  useEffect(() => {
+    if (sp.get("record") !== "1") return;
+    const params = new URLSearchParams(sp.toString());
+    params.delete("record");
+    router.replace(`/app/consultas/en-vivo?${params.toString()}`, {
+      scroll: false,
+    });
+    // Solo al montar: re-ejecutarlo en cada cambio de sp sería redundante.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [encounter, setEncounter] = useState<ClinicalEncounter | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
@@ -124,6 +162,7 @@ function ConsultaActivaInner() {
   const [noteSaved, setNoteSaved] = useState(false);
   const [showTranscriptPanel, setShowTranscriptPanel] = useState(true);
   const [finishAfterRecording, setFinishAfterRecording] = useState(false);
+  const [recoveredDraft, setRecoveredDraft] = useState(false);
   const [reviewView, setReviewView] = useState<ReviewView>("summary");
   const [voiceEditingSection, setVoiceEditingSection] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
@@ -142,6 +181,22 @@ function ConsultaActivaInner() {
   const status = encounter?.status ?? "created";
   const completed = status === "completed";
   const busy = phase !== "idle";
+
+  // Espejo local ya firmado → la nota es inmutable (el trigger de la BD lo
+  // refuerza). La captura no puede pisarla: las correcciones van como adenda.
+  const mirrorConsultation = encounterId ? getConsultation(encounterId) : undefined;
+  const signedMirror =
+    !!mirrorConsultation &&
+    (mirrorConsultation.estado === "aprobada" ||
+      mirrorConsultation.estado === "exportada");
+
+  // El estado `note` vive en formato "de cable" (con [PACIENTE]/[DOCUMENTO],
+  // tal como lo maneja el backend); el médico siempre ve y edita la versión
+  // rehidratada. Al guardar, redactNote vuelve a tapar lo que haya escrito.
+  const displayNote = useMemo(
+    () => (note ? redactor.rehydrateNote(note) : note),
+    [note, redactor],
+  );
 
   // Re-dispara la carga del encounter (botón Reintentar).
   const [reloadKey, setReloadKey] = useState(0);
@@ -165,6 +220,9 @@ function ConsultaActivaInner() {
         setNoteDirty(false);
         setNoteSaved(data.status === "completed");
         setShowTranscriptPanel(!data.note_json);
+        // Hay transcripción guardada pero aún no hay nota: es un borrador que
+        // sobrevivió a un cierre/recarga. Avisar para que el médico lo sepa.
+        setRecoveredDraft(Boolean(data.transcript?.trim()) && !data.note_json);
         setLoadState("ready");
       } catch (error) {
         if (ignore) return;
@@ -179,28 +237,47 @@ function ConsultaActivaInner() {
     };
   }, [encounterId, reloadKey]);
 
+  // Si el paciente se asocia (o cambia) después de dictar, re-tapa la
+  // transcripción ya acumulada en pantalla. Ajuste de estado durante el
+  // render: https://react.dev/learn/you-might-not-need-an-effect
+  const [lastRedactor, setLastRedactor] = useState(redactor);
+  if (lastRedactor !== redactor) {
+    setLastRedactor(redactor);
+    setTranscriptDraft((prev) => redactor.redact(prev));
+  }
+
   function retryLoad() {
     setLoadState("loading");
     setLoadError(null);
     setReloadKey((key) => key + 1);
   }
 
-  // Aviso del navegador si hay transcripción o edición de nota sin guardar,
-  // o una grabación en curso.
+  // Cambios sin guardar: transcripción/nota editadas o grabación en curso. El
+  // guard central (UnsavedChangesProvider) cubre recarga, cierre, atrás/adelante
+  // y los clics de navegación del shell; no hace falta un beforeunload propio.
   const hasUnsaved =
     noteDirty || dictando || transcriptDraft.trim() !== savedTranscript.trim();
-  useEffect(() => {
-    if (!hasUnsaved) return;
-    function onBeforeUnload(e: BeforeUnloadEvent) {
-      e.preventDefault();
-    }
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [hasUnsaved]);
+  useUnsavedChangesGuard(
+    hasUnsaved,
+    dictando
+      ? "Hay una grabación en curso. Si sales ahora, la transcripción no guardada se perderá. ¿Salir de todas formas?"
+      : "Tienes cambios sin guardar en esta consulta. ¿Salir de todas formas?",
+  );
 
   function applyStatus(nextStatus: string) {
     setEncounter((prev) => (prev ? { ...prev, status: nextStatus } : prev));
   }
+
+  // Autosave del borrador de transcripción: cada pausa de 2.5 s (o máximo 10 s
+  // de dictado continuo) persiste el texto al backend. Si el navegador muere o
+  // el médico navega, el borrador sobrevive y se recupera al reabrir.
+  const autosave = useTranscriptAutosave({
+    encounterId,
+    transcriptDraft,
+    savedTranscript,
+    suspended: busy || completed || signedMirror || loadState !== "ready",
+    onSaved: (text) => setSavedTranscript(text),
+  });
 
   async function associatePatient(nextPatientId: string | null) {
     if (!encounterId) return;
@@ -216,7 +293,10 @@ function ConsultaActivaInner() {
   }
 
   async function createAndAssociatePatient(input: { nombre: string; documento?: string; edad?: number; sexo?: "F" | "M" }) {
-    const created = addPatient(input);
+    // Se espera la confirmación del insert: asociar un paciente cuyo registro
+    // falló dejaría el encounter apuntando a un id inexistente.
+    const { ok, patient: created } = await addPatientAsync(input);
+    if (!ok) return;
     await associatePatient(created.id);
   }
 
@@ -234,7 +314,10 @@ function ConsultaActivaInner() {
   /** Paso 1 + 2 del flujo: guardar transcripción y pedir la nota al backend. */
   async function generarNota() {
     if (!encounterId || busy) return;
-    const text = transcriptDraft.trim();
+    // Defensa en profundidad: además del dictado (ya redactado segmento a
+    // segmento), el texto pegado o escrito a mano se redacta aquí, justo
+    // antes de salir hacia el backend.
+    const text = redactor.redact(transcriptDraft.trim());
     if (!text) {
       setFlowError(CLINICAL_ERROR_MESSAGES.TRANSCRIPT_REQUIRED);
       return;
@@ -251,6 +334,8 @@ function ConsultaActivaInner() {
     }
 
     setFlowError(null);
+    // La pantalla refleja exactamente lo que se envió (con placeholders).
+    if (text !== transcriptDraft) setTranscriptDraft(text);
     try {
       if (text !== savedTranscript.trim()) {
         setPhase("saving_transcript");
@@ -260,6 +345,8 @@ function ConsultaActivaInner() {
       }
       setPhase("generating");
       const generated = await generateClinicalNote(encounterId);
+      // La IA solo vio [PACIENTE]/[DOCUMENTO]; la vista (displayNote) muestra
+      // la nota rehidratada con los datos reales.
       setNote(generated.note_json);
       setNoteDirty(false);
       setNoteSaved(false);
@@ -278,12 +365,14 @@ function ConsultaActivaInner() {
   // El motor puede emitir el último segmento durante stop(). Esperamos una
   // fracción de segundo para incluirlo antes de guardar y generar el resumen.
   useEffect(() => {
-    if (
-      !finishAfterRecording ||
-      dictando ||
-      busy ||
-      !transcriptDraft.trim()
-    ) {
+    if (!finishAfterRecording || dictando || busy) return;
+    if (!transcriptDraft.trim()) {
+      // Sin voz captada: se apaga el flag YA. Si quedara encendido, el primer
+      // carácter que el médico escribiera a mano dispararía la generación.
+      setFinishAfterRecording(false);
+      setFlowError(
+        "No se captó audio en la grabación. Puedes escribir o pegar la transcripción manualmente.",
+      );
       return;
     }
     const timer = window.setTimeout(() => {
@@ -299,10 +388,19 @@ function ConsultaActivaInner() {
   /** Paso final: guardar la nota revisada (deja el encounter en "completed"). */
   async function guardarNota() {
     if (!encounterId || !note || busy) return;
+    // La nota firmada es inmutable: el banner ya ofrece "Ver detalle" y
+    // "Crear adenda"; aquí solo se corta el guardado por si algo lo invoca.
+    if (signedMirror) return;
     setPhase("saving_note");
     setFlowError(null);
     try {
-      const result = await saveEditedClinicalNote(encounterId, note);
+      // Hacia el backend viaja la versión redactada; el eco se rehidrata para
+      // que el médico y el espejo local conserven el nombre real.
+      const result = await saveEditedClinicalNote(
+        encounterId,
+        redactor.redactNote(note),
+      );
+      const rehydratedNote = redactor.rehydrateNote(result.note_json);
       setNote(result.note_json);
       setNoteDirty(false);
       setNoteSaved(true);
@@ -313,7 +411,7 @@ function ConsultaActivaInner() {
       // para que aparezca en la lista, el detalle del paciente, y pueda
       // firmarse/exportarse. Idempotente: re-guardar actualiza la misma fila.
       if (encounter) {
-        upsertConsultation(
+        await upsertConsultation(
           encounterToConsultation({
             encounter: {
               id: encounterId,
@@ -321,7 +419,9 @@ function ConsultaActivaInner() {
               template_snapshot: encounter.template_snapshot,
               created_at: encounter.created_at,
             },
-            note: result.note_json,
+            // Historia clínica local: nota con datos reales, transcripción
+            // redactada (transcriptDraft ya viene con placeholders).
+            note: rehydratedNote,
             patient,
             transcript: transcriptDraft,
             now: new Date().toISOString(),
@@ -357,9 +457,12 @@ function ConsultaActivaInner() {
   // Cada segmento final de la dictación se agrega al texto acumulado.
   // setState funcional: inmune a renders concurrentes durante la grabación.
   const appendFinal = (text: string) =>
-    setTranscriptDraft((prev) =>
-      prev.trim() ? `${prev.replace(/\s+$/, "")} ${text}` : text,
-    );
+    setTranscriptDraft((prev) => {
+      // Cada segmento se redacta al llegar: el nombre nunca queda visible en
+      // el contexto acumulado ni viaja después al backend.
+      const clean = redactor.redact(text);
+      return prev.trim() ? `${prev.replace(/\s+$/, "")} ${clean}` : clean;
+    });
 
   function copyToClipboard(text: string, label: string) {
     if (!text.trim()) return;
@@ -405,8 +508,8 @@ function ConsultaActivaInner() {
   }
 
   function descargarTextoPlano() {
-    if (!note) return;
-    const blob = new Blob([noteAsPlainText(note)], { type: "text/plain;charset=utf-8" });
+    if (!displayNote) return;
+    const blob = new Blob([noteAsPlainText(displayNote)], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -417,9 +520,9 @@ function ConsultaActivaInner() {
   }
 
   function descargarPdf() {
-    if (!note) return;
+    if (!displayNote) return;
     const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br />");
-    const sections = noteAsPlainText(note).split("\n\n").map((block) => {
+    const sections = noteAsPlainText(displayNote).split("\n\n").map((block) => {
       const [title, ...content] = block.split("\n");
       return `<section><h2>${safe(title)}</h2><p>${safe(content.join("\n"))}</p></section>`;
     }).join("");
@@ -489,7 +592,8 @@ function ConsultaActivaInner() {
     try {
       const result = await adjustNoteWithAssistant({
         encounter_id: encounterId,
-        instruction,
+        // Si el médico escribe el nombre en la instrucción, también se tapa.
+        instruction: redactor.redact(instruction),
       });
       setNote(result.proposed_note_json);
       setNoteDirty(true);
@@ -518,7 +622,7 @@ function ConsultaActivaInner() {
     try {
       const result = await adjustNoteWithAssistant({
         encounter_id: encounterId,
-        instruction: `En la sección "${sectionTitle}", aplica esta instrucción dictada por el médico: "${instruction}". Modifica únicamente lo necesario para cumplirla y conserva el resto de la nota.`,
+        instruction: `En la sección "${sectionTitle}", aplica esta instrucción dictada por el médico: "${redactor.redact(instruction)}". Modifica únicamente lo necesario para cumplirla y conserva el resto de la nota.`,
       });
       setNote(result.proposed_note_json);
       setNoteDirty(true);
@@ -636,6 +740,40 @@ function ConsultaActivaInner() {
         </div>
       ) : null}
 
+      {signedMirror ? (
+        <div
+          role="alert"
+          className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-success/30 bg-mint-soft px-4 py-3"
+        >
+          <LockKeyhole size={18} className="shrink-0 text-success" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-deep">
+              Esta nota ya fue firmada y es inmutable.
+            </p>
+            <p className="text-[13px] text-muted">
+              Las correcciones se registran como adendas, sin modificar el
+              documento original.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => router.push(`/app/consultas/${encounterId}`)}
+              className="rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-deep hover:border-mist"
+            >
+              Ver detalle
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push(`/app/consultas/${encounterId}?adenda=1`)}
+              className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+            >
+              Crear adenda
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {note ? (
         <ReviewNavigation
           active={currentReviewView}
@@ -658,24 +796,55 @@ function ConsultaActivaInner() {
                     Transcripción en vivo
                   </h2>
                 </div>
-                {dictando ? (
-                  <span className="inline-flex items-center gap-2 rounded-full bg-danger-soft px-3 py-1.5 text-xs font-semibold text-danger">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-danger" /> Grabando
-                  </span>
-                ) : null}
+                <div className="flex flex-wrap items-center gap-2">
+                  {redactor.hasIdentity ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-1.5 text-xs font-semibold text-success">
+                      <ShieldCheck size={13} className="shrink-0" />
+                      Datos del paciente protegidos antes de enviar a la IA
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1.5 text-xs font-semibold text-warning">
+                      <ShieldCheck size={13} className="shrink-0" />
+                      Sin paciente asociado: solo se ocultan números de documento
+                    </span>
+                  )}
+                  {dictando ? (
+                    <span className="inline-flex items-center gap-2 rounded-full bg-danger-soft px-3 py-1.5 text-xs font-semibold text-danger">
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-danger" /> Grabando
+                    </span>
+                  ) : null}
+                </div>
               </div>
+              {recoveredDraft && !completed ? (
+                <div className="mb-4 flex items-start justify-between gap-3 rounded-md border border-accent/25 bg-accent-soft/45 px-3.5 py-2.5 text-sm text-accent-ink">
+                  <span>
+                    Se recuperó el borrador de transcripción guardado de esta
+                    consulta.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRecoveredDraft(false)}
+                    aria-label="Descartar aviso de borrador recuperado"
+                    className="shrink-0 rounded-full p-0.5 hover:bg-accent-soft"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : null}
               {!completed ? (
                 <>
                   <DictationPanel
-                    disabled={busy}
+                    disabled={busy || signedMirror}
                     onAppendFinal={appendFinal}
                     onActiveChange={setDictando}
-                    autoStart={startRecordingOnArrival && !completed}
+                    autoStart={autoStartOnArrival && !completed && !signedMirror}
                     onRecordingStopped={() => setFinishAfterRecording(true)}
                     finishLabel="Finalizar y generar nota"
                   />
                   <p className="mt-2 text-xs text-muted">
                     También puedes escribir o pegar la transcripción manualmente.
+                    Antes de enviarla a la IA, el nombre del paciente se
+                    reemplaza por [PACIENTE] y su documento por [DOCUMENTO].
                   </p>
                 </>
               ) : null}
@@ -685,6 +854,7 @@ function ConsultaActivaInner() {
                 <textarea
                   value={transcriptDraft}
                   onChange={(e) => setTranscriptDraft(e.target.value)}
+                  onBlur={() => setTranscriptDraft((prev) => redactor.redact(prev))}
                   disabled={completed || busy}
                   readOnly={dictando}
                   rows={10}
@@ -694,9 +864,23 @@ function ConsultaActivaInner() {
               </label>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[13px] text-muted">
                 <span>
-                  {completed
-                    ? "La consulta está completada; la transcripción ya no se puede modificar."
-                    : "Puedes corregir el texto antes de generar la nota."}
+                  {completed ? (
+                    "La consulta está completada; la transcripción ya no se puede modificar."
+                  ) : autosave.state === "saving" ? (
+                    "Guardando borrador…"
+                  ) : autosave.state === "error" ? (
+                    <span className="text-warning">
+                      No se pudo guardar el borrador. Se reintentará al seguir
+                      dictando o escribiendo.
+                    </span>
+                  ) : autosave.at ? (
+                    `Borrador guardado · ${new Date(autosave.at).toLocaleTimeString(
+                      "es-CO",
+                      { hour: "2-digit", minute: "2-digit" },
+                    )}`
+                  ) : (
+                    "Puedes corregir el texto antes de generar la nota."
+                  )}
                 </span>
                 <span className="flex items-center gap-2">
                   {transcriptDraft.trim().length.toLocaleString("es-CO")} caracteres
@@ -757,17 +941,17 @@ function ConsultaActivaInner() {
             <PrivateEncounterNotes key={encounterId} initialNotes={encounter?.private_notes ?? ""} saving={phase === "saving_private"} onSave={guardarNotasPrivadas} />
           ) : null}
 
-          {note && currentReviewView === "summary" ? (
+          {displayNote && currentReviewView === "summary" ? (
             <ReviewSummary
-              note={note}
-              onCopy={() => copyToClipboard(note.summary, "Resumen")}
+              note={displayNote}
+              onCopy={() => copyToClipboard(displayNote.summary, "Resumen")}
               onOpenFullNote={() => setReviewView("note")}
             />
           ) : null}
 
-          {note && currentReviewView === "plan" ? (
+          {displayNote && currentReviewView === "plan" ? (
             <PlanDischargePanel
-              discharge={ensureClinicalDischarge(note.discharge)}
+              discharge={ensureClinicalDischarge(displayNote.discharge)}
               editable={!busy}
               onChange={editarEgreso}
               onCopy={copyToClipboard}
@@ -783,7 +967,7 @@ function ConsultaActivaInner() {
           ) : null}
 
           {/* Nota clínica estructurada */}
-          {note && currentReviewView === "note" ? (
+          {displayNote && currentReviewView === "note" ? (
             <div>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <h2 className="font-display text-lg font-semibold text-deep">
@@ -805,14 +989,14 @@ function ConsultaActivaInner() {
                     ) : null}
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(note.summary, "Resumen")}
+                      onClick={() => copyToClipboard(displayNote.summary, "Resumen")}
                       className="inline-flex items-center gap-1.5 rounded-full border border-line px-3.5 py-2 text-sm font-semibold text-deep hover:border-mist"
                     >
                       <ClipboardCopy size={14} /> Copiar resumen
                     </button>
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(noteAsPlainText(note), "Nota clínica")}
+                      onClick={() => copyToClipboard(noteAsPlainText(displayNote), "Nota clínica")}
                       className="inline-flex items-center gap-1.5 rounded-full border border-line px-3.5 py-2 text-sm font-semibold text-deep hover:border-mist"
                     >
                       <ClipboardCopy size={14} /> Copiar nota
@@ -820,7 +1004,8 @@ function ConsultaActivaInner() {
                     <button
                     type="button"
                     onClick={() => void guardarNota()}
-                    disabled={busy}
+                    disabled={busy || signedMirror}
+                    title={signedMirror ? "La nota firmada es inmutable; usa una adenda" : undefined}
                     className="hidden items-center gap-2 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60 sm:inline-flex"
                   >
                     {phase === "saving_note" ? (
@@ -861,8 +1046,8 @@ function ConsultaActivaInner() {
               )}
 
               <EncounterNote
-                note={note}
-                editable={!busy}
+                note={displayNote}
+                editable={!busy && !signedMirror}
                 onChangeSection={editarSeccion}
                 onChangeSummary={editarResumen}
                 onVoiceInstruction={applyVoiceInstruction}
@@ -875,7 +1060,7 @@ function ConsultaActivaInner() {
                     Ver consulta y firmar <ArrowRight size={16} />
                   </button>
                 ) : (
-                  <button type="button" onClick={() => void guardarNota()} disabled={busy} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-white disabled:opacity-60">
+                  <button type="button" onClick={() => void guardarNota()} disabled={busy || signedMirror} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-white disabled:opacity-60">
                     {phase === "saving_note" ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                     {phase === "saving_note" ? "Guardando nota…" : noteDirty ? "Guardar cambios" : "Guardar nota"}
                   </button>
@@ -1260,6 +1445,90 @@ function PrivateEncounterNotes({ initialNotes, saving, onSave }: { initialNotes:
   );
 }
 
+const AUTOSAVE_DEBOUNCE_MS = 2_500;
+const AUTOSAVE_MAX_WAIT_MS = 10_000;
+
+/**
+ * Autosave del borrador de transcripción. Debounce de 2.5 s tras el último
+ * cambio, con garantía de guardado cada 10 s durante dictado continuo (los
+ * segmentos llegan tan seguido que un debounce puro nunca dispararía).
+ * Errores no bloquean: el siguiente cambio de texto reintenta solo.
+ */
+function useTranscriptAutosave({
+  encounterId,
+  transcriptDraft,
+  savedTranscript,
+  suspended,
+  onSaved,
+}: {
+  encounterId: string | null;
+  transcriptDraft: string;
+  savedTranscript: string;
+  suspended: boolean;
+  onSaved: (text: string) => void;
+}): { state: "idle" | "saving" | "saved" | "error"; at: number | null } {
+  const [autosave, setAutosave] = useState<{
+    state: "idle" | "saving" | "saved" | "error";
+    at: number | null;
+  }>({ state: "idle", at: null });
+  const inFlightRef = useRef(false);
+  // Momento del primer cambio sin guardar: ancla del tope de 10 s.
+  const dirtySinceRef = useRef<number | null>(null);
+  // Valores vigentes para que el timer no capture closures viejos.
+  const latest = useRef({ encounterId, transcriptDraft, savedTranscript, suspended, onSaved });
+  latest.current = { encounterId, transcriptDraft, savedTranscript, suspended, onSaved };
+
+  const flush = useCallback(async () => {
+    const cur = latest.current;
+    if (!cur.encounterId || cur.suspended || inFlightRef.current) return;
+    const text = cur.transcriptDraft.trim();
+    // Un borrador vacío o demasiado largo no se autoguarda (generarNota ya
+    // valida el tope con mensaje propio).
+    if (!text || text === cur.savedTranscript.trim()) return;
+    if (text.length > MAX_TRANSCRIPT_LENGTH) return;
+    inFlightRef.current = true;
+    setAutosave((s) => ({ ...s, state: "saving" }));
+    try {
+      await saveClinicalTranscript(cur.encounterId, text);
+      cur.onSaved(text);
+      dirtySinceRef.current = null;
+      setAutosave({ state: "saved", at: Date.now() });
+    } catch {
+      setAutosave((s) => ({ state: "error", at: s.at }));
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (suspended) return;
+    const dirty =
+      transcriptDraft.trim() !== savedTranscript.trim() && transcriptDraft.trim();
+    if (!dirty) {
+      dirtySinceRef.current = null;
+      return;
+    }
+    if (dirtySinceRef.current === null) dirtySinceRef.current = Date.now();
+    const elapsed = Date.now() - dirtySinceRef.current;
+    const delay =
+      elapsed >= AUTOSAVE_MAX_WAIT_MS
+        ? 0
+        : Math.min(AUTOSAVE_DEBOUNCE_MS, AUTOSAVE_MAX_WAIT_MS - elapsed);
+    const timer = window.setTimeout(() => void flush(), delay);
+    return () => window.clearTimeout(timer);
+  }, [transcriptDraft, savedTranscript, suspended, flush]);
+
+  return autosave;
+}
+
+function EnVivoRouter() {
+  const sp = useSearchParams();
+  const encounterId = sp.get("encounter");
+  // La key remonta la captura completa al cambiar de encounter: ningún estado
+  // (nota, transcripción, paciente) puede filtrarse de una consulta a otra.
+  return <ConsultaActivaInner key={encounterId ?? "sin-encounter"} />;
+}
+
 export default function EnVivoPage() {
   return (
     <Suspense
@@ -1269,7 +1538,7 @@ export default function EnVivoPage() {
         </div>
       }
     >
-      <ConsultaActivaInner />
+      <EnVivoRouter />
     </Suspense>
   );
 }

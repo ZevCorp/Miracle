@@ -16,3 +16,14 @@ describe("whatsappLink", () => {
     expect(WHATSAPP_BASE).toContain(SITE.whatsappNumber);
   });
 });
+
+describe("datos de contacto del sitio", () => {
+  it("expone un correo real (dominio propio, no un placeholder)", () => {
+    expect(SITE.email).toBe("dev@itsmiracleai.com");
+    expect(SITE.email).not.toContain("miracle.health");
+  });
+
+  it("expone una URL de sitio válida", () => {
+    expect(() => new URL(SITE.url)).not.toThrow();
+  });
+});

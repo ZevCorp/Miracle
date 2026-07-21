@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Camera,
   Check,
@@ -47,8 +47,14 @@ interface ProfessionalInfo {
   city: string | null;
 }
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const MIME_OK = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+// Rechazo temprano del archivo fuente (antes de recomprimir). Una foto de más
+// de 15 MB casi nunca es legible y no vale la pena procesarla.
+const MAX_SOURCE_BYTES = 15 * 1024 * 1024;
+// Tope del data URL que se envía: ~4.2 MB de caracteres base64 ≈ 3.15 MB
+// binarios. El body JSON queda por debajo del límite de 4.5 MB de Vercel.
+const MAX_DATAURL_CHARS = 4_200_000;
+// OpenAI vía Graph no procesa GIF animado y toda la copy dice JPG/PNG/WebP.
+const MIME_OK = new Set(["image/jpeg", "image/png", "image/webp"]);
 /** Valor centinela: la IA diseña su propia plantilla a partir de la foto. */
 const DYNAMIC_ID = "__dynamic__";
 
@@ -71,8 +77,9 @@ function parseSections(value: unknown): TemplateSectionMeta[] {
 }
 
 /**
- * Reduce la foto a un JPEG de lado máximo ~2200px para bajar peso sin perder legibilidad de
- * la escritura. Si el navegador no puede, cae al data URL original.
+ * Reduce la foto a un JPEG que quepa bajo MAX_DATAURL_CHARS (el límite real de
+ * body de Vercel), recomprimiendo por PESO, no solo por dimensión: baja la
+ * calidad y, si aún no alcanza, reescala hasta lograrlo. Lanza si no se puede.
  */
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -83,27 +90,51 @@ function fileToDataUrl(file: File): Promise<string> {
       const img = new Image();
       img.onload = () => {
         try {
-          const maxDim = 2200;
-          const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-          if (scale >= 1) {
+          // Si el original ya cabe y es un formato liviano, no lo re-procesa.
+          if (original.length <= MAX_DATAURL_CHARS && file.type === "image/jpeg") {
             resolve(original);
             return;
           }
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.round(img.width * scale);
-          canvas.height = Math.round(img.height * scale);
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            resolve(original);
-            return;
+          let width = img.width;
+          let height = img.height;
+          const firstScale = Math.min(1, 2200 / Math.max(width, height));
+          width = Math.round(width * firstScale);
+          height = Math.round(height * firstScale);
+
+          const encode = (w: number, h: number, quality: number): string | null => {
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return null;
+            ctx.drawImage(img, 0, 0, w, h);
+            return canvas.toDataURL("image/jpeg", quality);
+          };
+
+          const qualities = [0.85, 0.7, 0.55];
+          for (let iteration = 0; iteration < 6; iteration += 1) {
+            for (const quality of qualities) {
+              const out = encode(width, height, quality);
+              if (out && out.length <= MAX_DATAURL_CHARS) {
+                resolve(out);
+                return;
+              }
+            }
+            // Ninguna calidad bastó a este tamaño: reduce dimensiones y repite.
+            width = Math.round(width * 0.8);
+            height = Math.round(height * 0.8);
+            if (width < 400 || height < 400) break;
           }
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL("image/jpeg", 0.85));
+          reject(
+            new Error(
+              "La imagen no se pudo reducir lo suficiente. Toma la foto con menos resolución.",
+            ),
+          );
         } catch {
-          resolve(original);
+          reject(new Error("No se pudo procesar la imagen."));
         }
       };
-      img.onerror = () => resolve(original);
+      img.onerror = () => reject(new Error("No se pudo abrir la imagen."));
       img.src = original;
     };
     reader.readAsDataURL(file);
@@ -146,7 +177,20 @@ export function LaboratorioWorkspace({
   const [patientQuery, setPatientQuery] = useState("");
 
   const [saving, setSaving] = useState(false);
-  const [savedId, setSavedId] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  // Id ESTABLE del informe: sobrevive a las ediciones para que "Guardar cambios"
+  // actualice la misma fila (antes se regeneraba y duplicaba el informe).
+  const reportIdRef = useRef<string>(crypto.randomUUID());
+  // Fecha del primer guardado: un documento clínico no cambia de fecha al
+  // corregir un typo.
+  const savedFechaRef = useRef<string | null>(null);
+
+  // Reinicia la identidad del informe al empezar uno nuevo (nueva foto / manual).
+  const resetReportIdentity = useCallback(() => {
+    reportIdRef.current = crypto.randomUUID();
+    savedFechaRef.current = null;
+    setSaved(false);
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -214,15 +258,22 @@ export function LaboratorioWorkspace({
       setError("Formato no soportado. Usa JPG, PNG o WebP.");
       return;
     }
-    if (file.size > MAX_IMAGE_BYTES * 2) {
-      // Deja margen: la compresión reduce, pero un archivo enorme igual se rechaza.
-      setError("La imagen es demasiado pesada. Toma la foto de nuevo o usa una más liviana.");
+    if (file.size > MAX_SOURCE_BYTES) {
+      setError("Selecciona una imagen de menos de 15 MB.");
       return;
     }
-    void fileToDataUrl(file).then((dataUrl) => {
-      setImage(dataUrl);
-      lastRun.current = null;
-    });
+    void fileToDataUrl(file)
+      .then((dataUrl) => {
+        setImage(dataUrl);
+        lastRun.current = null;
+      })
+      .catch((e: unknown) => {
+        setError(
+          e instanceof Error
+            ? e.message
+            : "No se pudo procesar la imagen. Intenta con otra foto.",
+        );
+      });
   }
 
   async function analyze() {
@@ -237,21 +288,39 @@ export function LaboratorioWorkspace({
           dynamicSelected ? { image, dynamic: true } : { image, templateId: selectedTemplate!.id },
         ),
       });
-      const data = (await res.json()) as {
+
+      // La plataforma (Vercel) puede cortar el request con un 413/504 en HTML,
+      // no en el JSON de la ruta: detectarlo evita el engañoso "revisa tu
+      // conexión" y el crash de res.json() sobre un cuerpo no-JSON.
+      const contentType = res.headers.get("content-type") ?? "";
+      if (res.status === 413 || !contentType.includes("application/json")) {
+        setError(
+          "La imagen es demasiado pesada o el servicio no está disponible. Intenta con una foto más liviana.",
+        );
+        return;
+      }
+
+      let data: {
         connected?: boolean;
         template?: { name?: string };
         sections?: FilledSection[];
         warnings?: string[];
         error?: string;
       };
+      try {
+        data = await res.json();
+      } catch {
+        setError(
+          "La imagen es demasiado pesada o el servicio no está disponible. Intenta con una foto más liviana.",
+        );
+        return;
+      }
 
       if (!res.ok) {
         setError(
-          data.error === "anthropic" || data.error === "parse"
+          data.error === "upstream" || data.error === "parse"
             ? "La IA no pudo leer la foto. Reintenta con una imagen más nítida o rellena manualmente."
-            : res.status === 413
-              ? "La imagen supera 5 MB. Toma la foto de nuevo con menos resolución."
-              : "No se pudo procesar la foto. Reintenta o rellena manualmente.",
+            : "No se pudo procesar la foto. Reintenta o rellena manualmente.",
         );
         return;
       }
@@ -281,7 +350,7 @@ export function LaboratorioWorkspace({
       setWarnings(data.warnings ?? []);
       setReportTitle(data.template?.name ?? selectedTemplate?.name ?? null);
       setAiConnected(true);
-      setSavedId(null);
+      resetReportIdentity();
       setStep("review");
     } catch {
       setError("No se pudo conectar. Revisa tu conexión e intenta de nuevo.");
@@ -302,15 +371,16 @@ export function LaboratorioWorkspace({
     setWarnings([]);
     setReportTitle(selectedTemplate.name);
     setAiConnected(false);
-    setSavedId(null);
+    resetReportIdentity();
     setStep("review");
   }
 
   function updateSection(key: string, content: string) {
+    // Solo cambia el contenido: el id del informe permanece estable, así
+    // "Guardar cambios" actualiza la misma fila en vez de crear una nueva.
     setSections((list) =>
       list.map((section) => (section.key === key ? { ...section, content } : section)),
     );
-    setSavedId(null);
   }
 
   function resetToSetup() {
@@ -319,7 +389,7 @@ export function LaboratorioWorkspace({
     setWarnings([]);
     setReportTitle(null);
     setAiConnected(null);
-    setSavedId(null);
+    resetReportIdentity();
   }
 
   function selectPatient(id: string) {
@@ -341,14 +411,14 @@ export function LaboratorioWorkspace({
     const firstFilled = sections.find((section) => section.content.trim());
     const motivo = (patientName.trim() || activeTitle).slice(0, 140);
     return {
-      id: savedId ?? crypto.randomUUID(),
+      id: reportIdRef.current,
       pacienteId: linkedPatientId ?? "",
       medicoId: "",
       servicio: "Patología",
       especialidad: professional.specialtyName ?? "Patología",
       tipo: "laboratorio",
       estado: "borrador",
-      fecha: new Date().toISOString(),
+      fecha: savedFechaRef.current ?? new Date().toISOString(),
       duracionMin: 0,
       plantilla: activeTitle,
       motivo,
@@ -360,13 +430,17 @@ export function LaboratorioWorkspace({
     };
   }
 
-  function save() {
+  async function save() {
     if (saving) return;
     setSaving(true);
     try {
       const consultation = buildConsultation();
-      upsertConsultation(consultation);
-      setSavedId(consultation.id);
+      // Se espera la confirmación de Supabase antes de declarar el guardado:
+      // el toast de éxito no debe aparecer sobre una escritura que falló.
+      const { ok } = await upsertConsultation(consultation);
+      if (!ok) return; // el store ya avisó del fallo.
+      savedFechaRef.current ??= consultation.fecha;
+      setSaved(true);
       showToast("Informe de patología guardado en el historial.", "success");
     } finally {
       setSaving(false);
@@ -593,7 +667,7 @@ export function LaboratorioWorkspace({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept="image/jpeg,image/png,image/webp"
               className="sr-only"
               onChange={(event) => pickFile(event.target.files?.[0] ?? null)}
             />
@@ -625,7 +699,7 @@ export function LaboratorioWorkspace({
                   <Camera size={20} />
                 </span>
                 <span className="text-sm font-semibold text-deep">Tomar o subir foto</span>
-                <span className="text-xs text-muted">JPG, PNG o WebP · hasta 5 MB</span>
+                <span className="text-xs text-muted">JPG, PNG o WebP · hasta 15 MB</span>
               </button>
             )}
 
@@ -720,14 +794,14 @@ export function LaboratorioWorkspace({
           </div>
 
           <section className="mobile-bottom-sheet sticky bottom-0 z-20 flex flex-col gap-2 rounded-b-[14px] border-t border-line bg-surface px-4 py-4 shadow-[0_-10px_24px_rgb(8_17_31/0.08)] sm:static sm:flex-row sm:items-center sm:justify-end sm:gap-3 sm:bg-accent-soft/25 sm:px-7 sm:shadow-none">
-            {savedId ? (
+            {saved ? (
               <span className="mr-auto hidden items-center gap-1.5 text-sm font-medium text-mint-ink sm:inline-flex">
                 <Check size={15} /> Guardada en el historial
               </span>
             ) : null}
-            <button type="button" onClick={save} disabled={saving} className="clinical-secondary min-h-11 px-4">
+            <button type="button" onClick={() => void save()} disabled={saving} className="clinical-secondary min-h-11 px-4">
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              {savedId ? "Guardar cambios" : "Guardar en historial"}
+              {saved ? "Guardar cambios" : "Guardar en historial"}
             </button>
             <button type="button" onClick={download} className="clinical-primary min-h-11 px-5">
               <Download size={16} /> Descargar informe (PDF)

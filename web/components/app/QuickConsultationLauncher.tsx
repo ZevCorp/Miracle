@@ -10,6 +10,7 @@ import {
   type ClinicalTemplate,
 } from "@/lib/api/clinical";
 import { ClinicalTemplatePicker } from "./ClinicalTemplatePicker";
+import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
 
 /**
  * Entrada corta para una captura espontánea: crea el encounter real y abre el
@@ -18,6 +19,7 @@ import { ClinicalTemplatePicker } from "./ClinicalTemplatePicker";
 export function QuickConsultationLauncher() {
   const router = useRouter();
   const pathname = usePathname();
+  const { guardedNavigate } = useNavigationGuard();
   const [open, setOpen] = useState(false);
   const [templates, setTemplates] = useState<ClinicalTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
@@ -67,7 +69,9 @@ export function QuickConsultationLauncher() {
         encounter: result.encounter_id,
         record: "1",
       });
-      router.push(`/app/consultas/en-vivo?${params.toString()}`);
+      guardedNavigate(() =>
+        router.push(`/app/consultas/en-vivo?${params.toString()}`),
+      );
     } catch (reason) {
       setError(friendlyClinicalMessage(reason));
       setStarting(false);

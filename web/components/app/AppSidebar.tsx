@@ -20,6 +20,7 @@ import { Logo } from "@/components/brand/Logo";
 import { visibleAppNav } from "@/lib/site";
 import type { AppRole } from "@/lib/auth/roles";
 import { signOut } from "@/app/login/actions";
+import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
 
 const icons: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -45,6 +46,7 @@ export function AppSidebar({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const { confirmLeave } = useNavigationGuard();
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-text">
@@ -60,7 +62,13 @@ export function AppSidebar({
             <Link
               key={item.href}
               href={item.href}
-              onClick={onNavigate}
+              onClick={(e) => {
+                if (!confirmLeave()) {
+                  e.preventDefault();
+                  return;
+                }
+                onNavigate?.();
+              }}
               aria-current={active ? "page" : undefined}
               className={`relative flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-semibold transition-colors ${
                 active

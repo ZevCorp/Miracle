@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import {
-  formatFechaRelativa,
   type ClinicalCode,
   type Consultation,
   type NoteSection,
 } from "@/lib/mock";
+import { formatFechaRelativa } from "@/lib/dates";
 import {
   auditConsultation,
   auditSummaryLabel,

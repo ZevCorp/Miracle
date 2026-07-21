@@ -13,10 +13,10 @@ import {
 import { useStore } from "@/app/app/providers";
 import {
   completitud,
-  esDeHoy,
   type Consultation,
   type Patient,
 } from "@/lib/mock";
+import { esDeHoy } from "@/lib/dates";
 import { isDemoConsultation } from "@/lib/demo";
 import { Card } from "@/components/ui/Card";
 import { MetricCard } from "@/components/marketing/MetricCard";

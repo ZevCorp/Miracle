@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Copy,
   FileCheck2,
+  FilePlus2,
   Info,
   Loader2,
   Mic,
@@ -25,9 +26,9 @@ import {
   ClinicalApiError,
 } from "@/lib/api/clinical";
 import { noteJsonToSections } from "@/lib/clinical/encounter-to-consultation";
+import { buildRedactor } from "@/lib/privacy/redact";
 import {
   completitud,
-  formatFechaRelativa,
   ripsChecklist,
   ripsListo,
   suggestedCodes,
@@ -36,9 +37,10 @@ import {
   type Consultation,
   type NoteSection,
 } from "@/lib/mock";
+import { formatFechaRelativa } from "@/lib/dates";
 import { searchCodes } from "@/lib/clinical/codes";
 import { auditConsultation } from "@/lib/clinical/note-audit";
-import { useStore } from "@/app/app/providers";
+import { useStore, type ConsultationAddendum } from "@/app/app/providers";
 import { Tabs } from "@/components/app/Tabs";
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { NoteSectionView } from "@/components/app/NoteSectionView";
@@ -68,14 +70,39 @@ export default function ConsultaDetallePage() {
     addCode,
     updateNote,
     upsertConsultation,
+    listAddenda,
+    addAddendum,
     showToast,
     loading,
     ensureTranscript,
   } = useStore();
   const [tab, setTab] = useState("historia");
   const [aiEditing, setAiEditing] = useState(false);
+  const [addenda, setAddenda] = useState<ConsultationAddendum[]>([]);
+  const [focusAddenda, setFocusAddenda] = useState(false);
 
   const c = getConsultation(id);
+  const signed = !!c && (c.estado === "aprobada" || c.estado === "exportada");
+
+  // Las adendas viven en su propia tabla y se cargan solo cuando la nota está
+  // firmada (antes de la firma no existen por diseño).
+  useEffect(() => {
+    if (!signed) return;
+    let ignore = false;
+    listAddenda(id).then((rows) => {
+      if (!ignore) setAddenda(rows);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [signed, id, listAddenda]);
+
+  // `?adenda=1` (desde la consulta en vivo) lleva directo al formulario de
+  // adenda. Se lee de window para no exigir un Suspense por useSearchParams.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("adenda") === "1") setFocusAddenda(true);
+  }, []);
 
   if (!c) {
     // Mientras el store carga, aún no se sabe si la consulta existe.
@@ -118,17 +145,32 @@ export default function ConsultaDetallePage() {
     setAiEditing(true);
     showToast("Miracle está ajustando la nota…", "info");
     try {
+      // De-identificación: la instrucción y la nota viajan al backend sin
+      // nombre/documento del paciente; el espejo local guarda la versión
+      // rehidratada (historia clínica completa). Ver lib/privacy/redact.ts.
+      const redactor = buildRedactor(
+        patient
+          ? { nombre: patient.nombre, documento: patient.documento }
+          : null,
+      );
       const proposal = await adjustNoteWithAssistant({
         encounter_id: c.id,
-        instruction: texto,
+        instruction: redactor.redact(texto),
       });
-      const saved = await saveEditedClinicalNote(c.id, proposal.proposed_note_json);
-      upsertConsultation({
+      const saved = await saveEditedClinicalNote(
+        c.id,
+        redactor.redactNote(proposal.proposed_note_json),
+      );
+      const rehydrated = redactor.rehydrateNote(saved.note_json);
+      const mirror = await upsertConsultation({
         ...c,
-        note: noteJsonToSections(saved.note_json),
-        resumen: saved.note_json.summary || c.resumen,
+        note: noteJsonToSections(rehydrated),
+        resumen: rehydrated.summary || c.resumen,
       });
-      showToast("Nota ajustada por Miracle. Revisa los cambios.", "success");
+      // Si el espejo no se pudo guardar, el store ya mostró la advertencia.
+      if (mirror.ok) {
+        showToast("Nota ajustada por Miracle. Revisa los cambios.", "success");
+      }
     } catch (error) {
       if (
         error instanceof ClinicalApiError &&
@@ -206,6 +248,18 @@ export default function ConsultaDetallePage() {
       <h2>Resumen</h2><p>${esc(c!.resumen)}</p>
       ${secciones}
       <h2>Codificación</h2>${codigos}
+      ${
+        addenda.length
+          ? `<h2>Adendas</h2>${addenda
+              .map(
+                (a) =>
+                  `<section><p class="muted">${esc(a.autor)} · ${esc(
+                    new Date(a.fecha).toLocaleString("es-CO"),
+                  )}</p><p>${esc(a.contenido)}</p></section>`,
+              )
+              .join("")}<p class="muted">Adenda a nota firmada — no modifica el documento original.</p>`
+          : ""
+      }
       <p class="foot">Documento generado con asistencia de IA y revisado por el profesional de salud. Miracle · Inteligencia clínica-operativa.</p>
     </body></html>`);
     w.document.close();
@@ -277,8 +331,10 @@ export default function ConsultaDetallePage() {
             onClick={() => {
               // La consulta activa exige un encounter del backend, así que una
               // nueva captura siempre arranca desde "Nueva consulta".
+              // Se pasa el id del paciente (UUID opaco), nunca su nombre:
+              // la URL queda en el historial del navegador y en logs.
               const sp = new URLSearchParams();
-              if (patient?.nombre) sp.set("nombre", patient.nombre);
+              if (patient?.id) sp.set("paciente", patient.id);
               const qs = sp.toString();
               router.push(`/app/consultas/nueva${qs ? `?${qs}` : ""}`);
             }}
@@ -373,6 +429,21 @@ export default function ConsultaDetallePage() {
         {tab === "auditoria" ? <AuditoriaTab consultation={c} /> : null}
       </div>
 
+      {signed ? (
+        <AddendaSection
+          addenda={addenda}
+          autoFocus={focusAddenda}
+          onAdd={async (texto) => {
+            const res = await addAddendum(c.id, texto);
+            if (res.ok && res.addendum) {
+              const nueva = res.addendum;
+              setAddenda((list) => [...list, nueva]);
+            }
+            return res.ok;
+          }}
+        />
+      ) : null}
+
       {!demo && c.estado !== "exportada" ? (
         <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-30 grid gap-2 rounded-[14px] border border-line bg-surface p-2.5 shadow-[var(--shadow-lg)] sm:hidden">
           {c.estado === "borrador" ? (
@@ -387,6 +458,98 @@ export default function ConsultaDetallePage() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/* ---------- Adendas ---------- */
+
+// Una nota firmada es inmutable: las correcciones y ampliaciones se registran
+// como adendas append-only con autor y fecha automáticos, sin tocar el original.
+function AddendaSection({
+  addenda,
+  autoFocus,
+  onAdd,
+}: {
+  addenda: ConsultationAddendum[];
+  autoFocus: boolean;
+  onAdd: (contenido: string) => Promise<boolean>;
+}) {
+  const [texto, setTexto] = useState("");
+  const [saving, setSaving] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!autoFocus) return;
+    sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    textareaRef.current?.focus();
+  }, [autoFocus]);
+
+  async function submit() {
+    if (!texto.trim() || saving) return;
+    setSaving(true);
+    const ok = await onAdd(texto);
+    if (ok) setTexto("");
+    setSaving(false);
+  }
+
+  return (
+    <section
+      ref={sectionRef}
+      className="mt-8 scroll-mt-24 rounded-lg border border-line bg-surface p-5"
+    >
+      <div className="flex items-center gap-2">
+        <FilePlus2 size={17} className="text-accent" />
+        <h2 className="font-display text-base font-semibold text-deep">
+          Adendas
+        </h2>
+      </div>
+      <p className="mt-1 text-sm text-muted">
+        La nota firmada no se modifica. Las correcciones o ampliaciones quedan
+        aquí, con autor y fecha, y se registran en la auditoría.
+      </p>
+
+      {addenda.length ? (
+        <ol className="mt-4 space-y-3">
+          {addenda.map((a) => (
+            <li key={a.id} className="rounded-md border border-line bg-field p-3.5">
+              <p className="text-xs font-semibold text-muted">
+                {a.autor} · {new Date(a.fecha).toLocaleString("es-CO")}
+              </p>
+              <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-ink">
+                {a.contenido}
+              </p>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-4 rounded-md border border-dashed border-line px-4 py-3 text-sm text-muted">
+          Esta nota aún no tiene adendas.
+        </p>
+      )}
+
+      <div className="mt-4">
+        <label htmlFor="nueva-adenda" className="text-sm font-medium text-deep">
+          Nueva adenda
+        </label>
+        <textarea
+          id="nueva-adenda"
+          ref={textareaRef}
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          rows={3}
+          maxLength={4000}
+          placeholder="Describe la corrección o ampliación de la nota firmada…"
+          className="mt-1.5 w-full resize-y rounded-md border border-line bg-field px-3.5 py-2.5 text-sm leading-relaxed outline-none transition-colors focus:border-accent"
+        />
+        <div className="mt-2 flex justify-end">
+          <Button onClick={() => void submit()} disabled={!texto.trim() || saving}>
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <FilePlus2 size={15} />}
+            Agregar adenda
+          </Button>
+        </div>
+      </div>
+    </section>
   );
 }
 

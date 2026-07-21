@@ -47,7 +47,7 @@ export function AgendaHoy({
   onCountChange?: (n: number) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
-  const { showToast } = useStore();
+  const { showToast, patients } = useStore();
   const hoy = useMemo(() => todayLocalISO(), []);
 
   const [citas, setCitas] = useState<Appointment[]>([]);
@@ -86,6 +86,9 @@ export function AgendaHoy({
   const [hora, setHora] = useState("");
   const [nombre, setNombre] = useState("");
   const [motivo, setMotivo] = useState("");
+  // Vínculo opcional a un paciente ya registrado: al elegirlo se guarda el
+  // patient_id verificado (evita luego la confirmación por nombre al atender).
+  const [linkedPatientId, setLinkedPatientId] = useState("");
   const [guardando, setGuardando] = useState(false);
 
   const agregar = useCallback(async () => {
@@ -98,7 +101,13 @@ export function AgendaHoy({
     setGuardando(true);
     const { data, error } = await supabase
       .from("appointments")
-      .insert({ fecha: hoy, hora: h, paciente_nombre: n, motivo: motivo.trim() || null })
+      .insert({
+        fecha: hoy,
+        hora: h,
+        paciente_nombre: n,
+        motivo: motivo.trim() || null,
+        patient_id: linkedPatientId || null,
+      })
       .select()
       .single();
     setGuardando(false);
@@ -111,9 +120,10 @@ export function AgendaHoy({
     setHora("");
     setNombre("");
     setMotivo("");
+    setLinkedPatientId("");
     setShowAdd(false);
     showToast("Cita agendada.", "success");
-  }, [supabase, hoy, hora, nombre, motivo, showToast]);
+  }, [supabase, hoy, hora, nombre, motivo, linkedPatientId, showToast]);
 
   const marcarAtendida = useCallback(
     async (id: string) => {
@@ -223,6 +233,28 @@ export function AgendaHoy({
             aria-label="Motivo de la cita"
             className={`${inputClass} mt-2 w-full`}
           />
+          {patients.length ? (
+            <select
+              value={linkedPatientId}
+              onChange={(e) => {
+                setLinkedPatientId(e.target.value);
+                const p = patients.find((x) => x.id === e.target.value);
+                if (p) setNombre(p.nombre);
+              }}
+              aria-label="Vincular paciente registrado (opcional)"
+              className={`${inputClass} mt-2 w-full`}
+            >
+              <option value="">Vincular paciente registrado (opcional)</option>
+              {patients.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                  {p.documento && p.documento !== "Por registrar"
+                    ? ` — ${p.documento}`
+                    : ""}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <div className="mt-2.5 flex justify-end gap-2">
             <button
               type="button"
@@ -306,7 +338,7 @@ export function AgendaHoy({
                 ) : c.estado === "programada" ? (
                   <span className="flex shrink-0 items-center gap-0.5">
                     <Link
-                      href={`/app/consultas/nueva?appointment=${encodeURIComponent(c.id)}&nombre=${encodeURIComponent(c.pacienteNombre)}`}
+                      href={`/app/consultas/nueva?appointment=${encodeURIComponent(c.id)}`}
                       title="Iniciar consulta"
                       aria-label={`Iniciar consulta con ${c.pacienteNombre}`}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-md text-accent hover:bg-accent-soft"
@@ -455,6 +487,15 @@ function ImportarFotoModal({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ image: img }),
       });
+      // Vercel puede cortar la subida con un 413/504 en HTML antes de llegar a
+      // la ruta: se detecta para no mostrar "error de red" ni romper res.json().
+      const contentType = res.headers.get("content-type") ?? "";
+      if (res.status === 413 || !contentType.includes("application/json")) {
+        setAviso(
+          "La imagen es demasiado pesada o el servicio no está disponible. Prueba con una foto más liviana.",
+        );
+        return;
+      }
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         setAviso(data?.error ?? "No se pudo analizar la imagen. Intenta de nuevo.");
@@ -506,6 +547,9 @@ function ImportarFotoModal({
         return;
       }
 
+      // Sin patient_id: los nombres vienen de OCR y podrían no coincidir con un
+      // registro. El vínculo verificado se resuelve al atender, con la tarjeta
+      // de confirmación por nombre de /app/consultas/nueva.
       const rows = await Promise.all(
         seleccionadas.map(async (f) => ({
           fecha,

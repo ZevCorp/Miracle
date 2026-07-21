@@ -4,11 +4,14 @@ import { normalizeHora, type ParsedCita } from "@/lib/agenda";
 import { rateLimit, requireApiUser } from "@/lib/api/guard";
 
 export const runtime = "nodejs";
+// La visión sobre una agenda densa puede tardar: sin esto la función se corta
+// con el timeout por defecto de Vercel.
+export const maxDuration = 60;
 
 // Formatos que acepta la API de visión de Anthropic.
 const MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-// Límite de Anthropic por imagen: 5 MB binarios (~6,7M caracteres en base64).
-const MAX_BASE64_CHARS = 7_000_000;
+// Alineado con el límite de body de Vercel (~4.5 MB): 5.8M chars base64.
+const MAX_BASE64_CHARS = 5_800_000;
 
 const SYSTEM = `Extraes citas médicas de la foto o captura de pantalla de un horario o agenda (sistemas hospitalarios, planillas impresas, cuadernos).
 
@@ -62,7 +65,7 @@ export async function POST(req: Request) {
   if (!userId) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
-  if (!rateLimit(`parse-schedule:${userId}`, 6)) {
+  if (!(await rateLimit(`parse-schedule:${userId}`, 6))) {
     return NextResponse.json(
       { error: "Demasiadas solicitudes. Espera un momento e intenta de nuevo." },
       { status: 429 },
@@ -121,6 +124,9 @@ export async function POST(req: Request) {
           },
         ],
       }),
+      // Corta la llamada dentro del presupuesto de maxDuration en vez de dejar
+      // que la mate la plataforma con un 504 en HTML.
+      signal: AbortSignal.timeout(60_000),
     });
 
     if (!res.ok) {

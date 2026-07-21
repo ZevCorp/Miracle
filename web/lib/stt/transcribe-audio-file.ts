@@ -162,7 +162,15 @@ export async function transcribeAudioFile(
     const chunkSize = 64 * 1024;
     for (let offset = 0; offset < file.size; offset += chunkSize) {
       if (options.signal?.aborted) throw new DOMException("Carga cancelada", "AbortError");
-      while (socket.bufferedAmount > chunkSize * 8) await delay(15, options.signal);
+      // Backpressure: el chequeo de readyState va DENTRO del while — si el
+      // socket se cierra con el buffer lleno, bufferedAmount no drena y el
+      // bucle giraría para siempre sin esta guarda.
+      while (socket.bufferedAmount > chunkSize * 8) {
+        if (socket.readyState !== WebSocket.OPEN) {
+          throw new Error("La conexión se cerró durante la carga.");
+        }
+        await delay(15, options.signal);
+      }
       const chunk = await file.slice(offset, Math.min(offset + chunkSize, file.size)).arrayBuffer();
       if (socket.readyState !== WebSocket.OPEN) throw new Error("La conexión se cerró durante la carga.");
       socket.send(chunk);
@@ -176,10 +184,15 @@ export async function transcribeAudioFile(
       if (soniox) socket.send(new ArrayBuffer(0));
     }
 
+    // El proveedor transcribe a ~tiempo real: un audio largo deja un backlog
+    // que puede tardar minutos en drenar tras el finalize. El tope fijo de 20 s
+    // truncaba silenciosamente esos casos. Ahora la ventana es proporcional al
+    // tamaño (≈32 kB/s ⇒ file.size/32 ms) y se corta por silencio de mensajes.
+    const maxWaitMs = Math.min(240_000, Math.max(60_000, Math.floor(file.size / 32)));
     const finalizeStartedAt = Date.now();
-    while (Date.now() - finalizeStartedAt < 20_000) {
+    while (Date.now() - finalizeStartedAt < maxWaitMs) {
       if (providerError) throw new Error(providerError);
-      if (Date.now() - lastMessageAt > 1_500 && Date.now() - finalizeStartedAt > 1_500) break;
+      if (Date.now() - lastMessageAt > 2_500 && Date.now() - finalizeStartedAt > 1_500) break;
       await delay(150, options.signal);
     }
     if (sonioxBuffer.trim()) finalSegments.push(sonioxBuffer.trim());
