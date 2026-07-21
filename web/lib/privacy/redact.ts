@@ -29,6 +29,18 @@ export const PLACEHOLDER_PACIENTE = "[PACIENTE]";
 export const PLACEHOLDER_DOCUMENTO = "[DOCUMENTO]";
 export const PLACEHOLDER_NUMERO = "[NUMERO]";
 
+// Interruptor temporal (pedido explícito, 2026-07-21): los médicos necesitan
+// ver el texto tal como se dictó -incluida la cédula y cualquier otro número-
+// para poder verificar que la nota quedó correcta contra la transcripción. El
+// [NUMERO] genérico nunca se rehidrata (es irreversible por diseño), así que
+// mientras esto estuvo activo esos números quedaban perdidos para siempre en
+// la transcripción que el médico revisa. Se apaga aquí (un solo interruptor
+// para las 3 pantallas que llaman a buildRedactor) sin borrar el motor: los
+// tests siguen cubriendo la lógica real pasando `enabled: true` explícito, y
+// se reactiva cambiando este valor cuando haya una forma de mostrar el dato
+// real sin perder la protección hacia el LLM.
+const REDACTION_ENABLED = false;
+
 export interface RedactorIdentity {
   nombre?: string | null;
   documento?: string | null;
@@ -268,9 +280,23 @@ export function transformNoteStrings(
 /* API principal                                                       */
 /* ------------------------------------------------------------------ */
 
-export function buildRedactor(identity?: RedactorIdentity | null): Redactor {
+export function buildRedactor(
+  identity?: RedactorIdentity | null,
+  enabled: boolean = REDACTION_ENABLED,
+): Redactor {
   const nombre = buildNombreRegex(identity?.nombre);
   const documento = buildDocumentoRegex(identity?.documento);
+
+  if (!enabled) {
+    const passthrough = (text: string) => text;
+    return {
+      hasIdentity: Boolean(nombre.regex || documento.regex),
+      redact: passthrough,
+      rehydrate: passthrough,
+      redactNote: (note) => note,
+      rehydrateNote: (note) => note,
+    };
+  }
 
   function redact(text: string): string {
     if (!text) return text;

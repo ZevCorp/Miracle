@@ -14,8 +14,14 @@ const IDENTITY = {
   documento: "CC 1.023.456.789",
 };
 
+// Estos tests cubren el motor de redacción real: buildRedactor(identity) sin
+// segundo argumento está desactivado en producción (ver REDACTION_ENABLED en
+// lib/privacy/redact.ts, pedido explícito para que el médico verifique la
+// nota contra el dictado real), pero la lógica se mantiene y se prueba aquí
+// pasando `enabled: true` para reactivarla el día que haya una forma de
+// mostrar el dato real sin perder la protección hacia el LLM.
 function redactor(identity: Parameters<typeof buildRedactor>[0] = IDENTITY) {
-  return buildRedactor(identity);
+  return buildRedactor(identity, true);
 }
 
 describe("redact: nombre del paciente", () => {
@@ -54,7 +60,7 @@ describe("redact: nombre del paciente", () => {
       `${PLACEHOLDER_PACIENTE}, ${PLACEHOLDER_PACIENTE}`,
     );
     // Registrado sin tilde debe tapar el texto con tilde.
-    const sinTilde = buildRedactor({ nombre: "Jose Perez", documento: null });
+    const sinTilde = buildRedactor({ nombre: "Jose Perez", documento: null }, true);
     expect(sinTilde.redact("El señor José Pérez llegó")).toBe(
       `El señor ${PLACEHOLDER_PACIENTE} llegó`,
     );
@@ -74,10 +80,13 @@ describe("redact: nombre del paciente", () => {
   });
 
   it("no tapa partículas sueltas de nombres compuestos", () => {
-    const maria = buildRedactor({
-      nombre: "María del Carmen García",
-      documento: null,
-    });
+    const maria = buildRedactor(
+      {
+        nombre: "María del Carmen García",
+        documento: null,
+      },
+      true,
+    );
     expect(maria.redact("salió del consultorio")).toBe("salió del consultorio");
     expect(maria.redact("La saludé: María del Carmen, siga.")).toBe(
       `La saludé: ${PLACEHOLDER_PACIENTE}, siga.`,
@@ -88,7 +97,7 @@ describe("redact: nombre del paciente", () => {
   });
 
   it("cubre nombres con tokens cortos solo como frase completa", () => {
-    const ana = buildRedactor({ nombre: "Ana Li Gómez", documento: null });
+    const ana = buildRedactor({ nombre: "Ana Li Gómez", documento: null }, true);
     expect(ana.redact("La paciente Ana Li Gómez consulta")).toBe(
       `La paciente ${PLACEHOLDER_PACIENTE} consulta`,
     );
@@ -115,7 +124,7 @@ describe("redact: documento y números", () => {
   });
 
   it("ignora documentos sin dígitos suficientes (Por registrar)", () => {
-    const r = buildRedactor({ nombre: null, documento: "Por registrar" });
+    const r = buildRedactor({ nombre: null, documento: "Por registrar" }, true);
     expect(r.hasIdentity).toBe(false);
     expect(r.redact("Por registrar")).toBe("Por registrar");
   });
@@ -169,7 +178,7 @@ describe("redact: idempotencia y estabilidad", () => {
 
   it("el ciclo es estable con nombres con partículas y tokens cortos", () => {
     for (const nombre of ["María del Carmen García", "Ana Li Gómez"]) {
-      const r = buildRedactor({ nombre, documento: "1.023.456.789" });
+      const r = buildRedactor({ nombre, documento: "1.023.456.789" }, true);
       const redacted = r.redact(
         `La paciente ${nombre}, cédula 1023456789, consulta por dolor.`,
       );
@@ -190,7 +199,7 @@ describe("rehydrate", () => {
   });
 
   it("sin identidad es la función identidad", () => {
-    const r = buildRedactor(null);
+    const r = buildRedactor(null, true);
     expect(r.hasIdentity).toBe(false);
     const text = `${PLACEHOLDER_PACIENTE} y ${PLACEHOLDER_DOCUMENTO}`;
     expect(r.rehydrate(text)).toBe(text);
@@ -199,7 +208,7 @@ describe("rehydrate", () => {
 
 describe("sin paciente asociado", () => {
   it("solo tapa números; el texto con nombres queda igual", () => {
-    const r = buildRedactor(null);
+    const r = buildRedactor(null, true);
     expect(r.redact("José Pérez, cédula 1023456789")).toBe(
       `José Pérez, cédula ${PLACEHOLDER_NUMERO}`,
     );
