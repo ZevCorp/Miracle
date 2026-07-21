@@ -6,6 +6,10 @@ import { canUsePhotoNotes } from "@/lib/clinical/pathology";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
+// La lectura por visión (OpenAI en Graph) puede tardar bastante en una hoja
+// densa. Sin esto, Vercel mata la función con su límite por defecto (~10-15s) y
+// el patólogo ve un error aunque la foto esté bien. 60 s es el techo seguro.
+export const maxDuration = 60;
 
 /**
  * Informe de patología desde FOTO (exclusivo de cuentas patólogo).
@@ -223,7 +227,9 @@ export async function POST(req: Request) {
             },
       ),
       cache: "no-store",
-      signal: AbortSignal.timeout(60_000),
+      // Un poco por debajo del maxDuration (60 s) para devolver un error limpio
+      // antes de que Vercel mate la función.
+      signal: AbortSignal.timeout(55_000),
     });
 
     // 503 = el provider de visión no está configurado en Graph. Se trata igual
