@@ -134,7 +134,7 @@ export function AppShell({
       </div>
 
       <MobileBottomNavigation profile={profile} onToggleTheme={toggleTheme} />
-      <QuickConsultationLauncher />
+      <QuickConsultationLauncher userId={profile.id} specialtyCode={profile.specialtyCode} />
       <MedicalChat />
       <CommandPalette open={cmdk} onOpenChange={setCmdk} />
     </div>

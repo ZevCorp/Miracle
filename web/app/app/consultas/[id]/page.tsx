@@ -245,7 +245,6 @@ export default function ConsultaDetallePage() {
           <span>${esc(fecha)}</span>
         </div>
       </div>
-      <h2>Resumen</h2><p>${esc(c!.resumen)}</p>
       ${secciones}
       <h2>Codificación</h2>${codigos}
       ${

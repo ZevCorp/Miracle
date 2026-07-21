@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -154,6 +154,19 @@ function SectionBlock({
   );
 }
 
+// Filas iniciales del textarea de una sección: arranca más alto que un input
+// normal y crece con el contenido (saltos de línea reales o ajuste estimado
+// por ancho) hasta un techo generoso; pasado ese punto, resize-y permite
+// seguir agrandándolo a mano.
+const MIN_SECTION_ROWS = 6;
+const MAX_SECTION_ROWS = 22;
+
+function rowsForText(text: string): number {
+  const lineBreaks = text.split("\n").length;
+  const wrapped = Math.ceil(text.length / 60);
+  return Math.min(MAX_SECTION_ROWS, Math.max(MIN_SECTION_ROWS, lineBreaks, wrapped));
+}
+
 function EditableBlock({
   title,
   content,
@@ -174,10 +187,31 @@ function EditableBlock({
   const [draft, setDraft] = useState(content);
   const [listening, setListening] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [savedHint, setSavedHint] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  // Autoguardado: si el médico deja de escribir y no llega a pulsar "Aplicar"
+  // (por ejemplo, cierra la sección o navega a otra), el cambio se persiste
+  // solo tras una breve pausa, igual que en la nota ya firmada.
+  useEffect(() => {
+    if (!editing) return;
+    const trimmed = draft.trim();
+    if (trimmed === content.trim()) return;
+    const h = setTimeout(() => {
+      onChangeRef.current(trimmed);
+      setSavedHint(true);
+    }, 1200);
+    return () => clearTimeout(h);
+  }, [editing, draft, content]);
 
   function startEdit() {
     setDraft(content);
+    setSavedHint(false);
     setEditing(true);
     setOpen(true);
   }
@@ -283,8 +317,11 @@ function EditableBlock({
             <div>
               <textarea
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                rows={Math.max(3, Math.ceil(draft.length / 70))}
+                onChange={(e) => {
+                  setSavedHint(false);
+                  setDraft(e.target.value);
+                }}
+                rows={rowsForText(draft)}
                 className="w-full resize-y rounded-md border border-line bg-field px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
                 autoFocus
               />
@@ -296,6 +333,9 @@ function EditableBlock({
                 >
                   <Check size={15} /> Aplicar
                 </button>
+                {savedHint ? (
+                  <span className="text-xs font-medium text-success">Guardado</span>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setEditing(false)}

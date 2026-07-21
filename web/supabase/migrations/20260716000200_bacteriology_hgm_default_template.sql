@@ -25,7 +25,7 @@ values
     '[
       {"key":"rotulo","label":"Rótulo","order":1,"required":false,"instruction":"Transcribe el rótulo o identificador de la muestra tal como aparece en la hoja. Si no está, déjalo vacío."},
       {"key":"nombre_paciente","label":"Nombre del paciente","order":2,"required":false,"instruction":"Copia el nombre del paciente tal como aparece en la hoja. No lo inventes; si no está, déjalo vacío."},
-      {"key":"episodio","label":"Episodio","order":3,"required":false,"instruction":"Transcribe el número de episodio, orden o ingreso si aparece."},
+      {"key":"episodio","label":"Episodio","order":3,"required":false,"instruction":"Transcribe el número de episodio, orden o ingreso tal como aparece, pero escríbelo como un número normal: solo dígitos consecutivos, sin puntos, comas, espacios ni dos puntos (:). NUNCA lo escribas ni lo interpretes como una hora o fecha (ejemplo correcto: 3258162; incorrecto: 3:25:81 o 32:58:16)."},
       {"key":"cedula","label":"Cédula","order":4,"required":false,"instruction":"Transcribe el número de documento o cédula del paciente si aparece."},
       {"key":"fecha_corte_macroscopico","label":"Fecha de corte macroscópico","order":5,"required":false,"instruction":"Transcribe la fecha de corte macroscópico tal como aparece."},
       {"key":"procedimiento","label":"Procedimiento","order":6,"required":false,"instruction":"Transcribe el procedimiento o tipo de muestra (biopsia, resección, etc.)."},

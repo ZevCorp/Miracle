@@ -7,16 +7,49 @@ import {
   createClinicalEncounter,
   friendlyClinicalMessage,
   getClinicalTemplates,
+  normalizeSpecialtyCode,
   type ClinicalTemplate,
 } from "@/lib/api/clinical";
 import { ClinicalTemplatePicker } from "./ClinicalTemplatePicker";
 import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
 
+// Recuerda, por médico, la última plantilla con la que de verdad inició una
+// grabación (no solo la que miró en el selector). Es la señal más honesta de
+// "la que más usa" — más confiable que asumir la de su especialidad, que no
+// siempre coincide con lo que realmente elige día a día.
+function lastTemplateKey(userId: string) {
+  return `miracle-last-template:${userId}`;
+}
+
+function readLastTemplateId(userId?: string | null): string | null {
+  if (!userId || typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(lastTemplateKey(userId));
+  } catch {
+    return null;
+  }
+}
+
+function rememberTemplateId(userId: string | null | undefined, templateId: string) {
+  if (!userId || typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(lastTemplateKey(userId), templateId);
+  } catch {
+    /* almacenamiento no disponible: sin memoria, no rompe el flujo */
+  }
+}
+
 /**
  * Entrada corta para una captura espontánea: crea el encounter real y abre el
  * micrófono sin pedir datos administrativos antes de atender.
  */
-export function QuickConsultationLauncher() {
+export function QuickConsultationLauncher({
+  userId,
+  specialtyCode,
+}: {
+  userId?: string | null;
+  specialtyCode?: string | null;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const { guardedNavigate } = useNavigationGuard();
@@ -35,10 +68,33 @@ export function QuickConsultationLauncher() {
 
     void getClinicalTemplates()
       .then((items) => {
-        const active = items.filter((template) => template.status !== "archived");
+        const activeAll = items.filter((template) => template.status !== "archived");
+        // Mismo criterio que /consultas/nueva: institucionales de la especialidad
+        // del médico primero (con fallback a todas si no hay match), personales
+        // siempre disponibles. Así un patólogo no ve/recibe por defecto la
+        // plantilla de otra especialidad en el inicio rápido.
+        const personal = activeAll.filter((template) => template.scope === "personal");
+        const institutional = activeAll.filter((template) => template.scope !== "personal");
+        const wanted = specialtyCode ? normalizeSpecialtyCode(specialtyCode) : null;
+        const matching = wanted
+          ? institutional.filter(
+              (template) => normalizeSpecialtyCode(template.specialty) === wanted,
+            )
+          : [];
+        const active = wanted
+          ? [...personal, ...(matching.length ? matching : institutional)]
+          : activeAll;
         setTemplates(active);
+        // Prioridad del preseleccionado: 1) la última que el médico usó de
+        // verdad, si sigue disponible; 2) la predeterminada de su
+        // especialidad; 3) la primera de la lista.
+        const lastUsedId = readLastTemplateId(userId);
+        const lastUsed = lastUsedId && active.find((template) => template.id === lastUsedId);
         setSelectedTemplateId(
-          active.find((template) => template.is_default)?.id ?? active[0]?.id ?? "",
+          (lastUsed ? lastUsed.id : undefined) ??
+            active.find((template) => template.is_default)?.id ??
+            active[0]?.id ??
+            "",
         );
       })
       .catch((reason) => {
@@ -65,6 +121,7 @@ export function QuickConsultationLauncher() {
         consultation_type: "presencial",
         template_id: selectedTemplateId,
       });
+      rememberTemplateId(userId, selectedTemplateId);
       const params = new URLSearchParams({
         encounter: result.encounter_id,
         record: "1",

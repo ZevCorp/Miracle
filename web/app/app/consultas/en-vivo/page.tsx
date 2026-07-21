@@ -464,15 +464,54 @@ function ConsultaActivaInner() {
       return prev.trim() ? `${prev.replace(/\s+$/, "")} ${clean}` : clean;
     });
 
-  function copyToClipboard(text: string, label: string) {
-    if (!text.trim()) return;
-    void navigator.clipboard
-      .writeText(text)
-      .then(() => showToast(`${label} copiado al portapapeles.`, "success"))
-      .catch(() => showToast(`No se pudo copiar ${label.toLowerCase()}.`, "warning"));
+  // Respaldo para entornos donde la API moderna del portapapeles no está
+  // disponible (equipos de hospital con políticas de TI restrictivas,
+  // navegadores antiguos): mecanismo clásico de seleccionar + copiar. Sin
+  // esto, `navigator.clipboard` indefinido rompía el botón en silencio (sin
+  // aviso ni error visible).
+  function copyTextFallback(text: string): boolean {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return ok;
+    } catch {
+      return false;
+    }
   }
 
-  function noteAsPlainText(noteJson: ClinicalNoteJson) {
+  function copyToClipboard(text: string, label: string) {
+    if (!text.trim()) return;
+    const attempt = navigator.clipboard?.writeText
+      ? navigator.clipboard.writeText(text).then(
+          () => true,
+          () => copyTextFallback(text),
+        )
+      : Promise.resolve(copyTextFallback(text));
+    void attempt.then((ok) => {
+      showToast(
+        ok ? `${label} copiado al portapapeles.` : `No se pudo copiar ${label.toLowerCase()}.`,
+        ok ? "success" : "warning",
+      );
+    });
+  }
+
+  /**
+   * Secciones de la nota en el mismo orden y contenido que ven el "PDF
+   * clínico" y el texto plano: una sola fuente de verdad para que copiar y
+   * descargar coincidan siempre. Devolver {título, contenido} ya separados
+   * (en vez de un texto plano que luego se re-parte por líneas en blanco)
+   * evita que un salto de línea DENTRO de una sección (p. ej. una
+   * descripción con varios párrafos) se confunda con el inicio de una
+   * sección nueva y aparezca como un encabezado en negrilla espurio.
+   */
+  function noteSections(noteJson: ClinicalNoteJson): { title: string; content: string }[] {
     const discharge = ensureClinicalDischarge(noteJson.discharge);
     const plan = [
       ...discharge.plan.medications.map((item) =>
@@ -484,12 +523,31 @@ function ConsultaActivaInner() {
       ...discharge.plan.follow_up.map((item) => item.text),
     ].filter(Boolean);
     return [
-      `Resumen\n${noteJson.summary}`,
-      ...noteJson.sections.map((section) => `${section.label}\n${section.content}`),
-      `Plan terapéutico\n${plan.join("\n") || "Sin información documentada."}`,
-      `Recomendaciones\n${discharge.recommendations.map((item) => item.text).join("\n") || "Sin información documentada."}`,
-      `Signos de alarma\n${discharge.alarm_signs.map((item) => item.text).join("\n") || "Sin información documentada."}`,
-    ].join("\n\n");
+      { title: "Resumen", content: noteJson.summary.trim() || "Sin información documentada." },
+      ...noteJson.sections.map((section) => ({
+        title: section.label,
+        content: section.content.trim() || "Sin información documentada.",
+      })),
+      { title: "Plan terapéutico", content: plan.join("\n") || "Sin información documentada." },
+      {
+        title: "Recomendaciones",
+        content:
+          discharge.recommendations.map((item) => item.text).join("\n") ||
+          "Sin información documentada.",
+      },
+      {
+        title: "Signos de alarma",
+        content:
+          discharge.alarm_signs.map((item) => item.text).join("\n") ||
+          "Sin información documentada.",
+      },
+    ];
+  }
+
+  function noteAsPlainText(noteJson: ClinicalNoteJson) {
+    return noteSections(noteJson)
+      .map((section) => `${section.title}\n${section.content}`)
+      .join("\n\n");
   }
 
   async function guardarNotasPrivadas(content: string) {
@@ -521,11 +579,19 @@ function ConsultaActivaInner() {
 
   function descargarPdf() {
     if (!displayNote) return;
-    const safe = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br />");
-    const sections = noteAsPlainText(displayNote).split("\n\n").map((block) => {
-      const [title, ...content] = block.split("\n");
-      return `<section><h2>${safe(title)}</h2><p>${safe(content.join("\n"))}</p></section>`;
-    }).join("");
+    const safe = (value: string) =>
+      value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br />");
+    // Se arma cada sección desde los datos estructurados (noteSections), no
+    // partiendo un texto plano por líneas en blanco: así un párrafo con un
+    // salto de línea interno (frecuente en descripciones largas) nunca se
+    // confunde con el inicio de otra sección ni aparece como un encabezado
+    // en negrilla que no debería estarlo.
+    const sections = noteSections(displayNote)
+      .map(
+        (section) =>
+          `<section><h2>${safe(section.title)}</h2><p>${safe(section.content)}</p></section>`,
+      )
+      .join("");
     // Sin `noopener`/`noreferrer`: con esos flags window.open devuelve null y
     // deja un about:blank en blanco (el document.write no corre). Escribimos
     // nuestro propio HTML, así que no hacen falta.
@@ -534,10 +600,32 @@ function ConsultaActivaInner() {
       showToast("El navegador bloqueó la ventana de impresión. Permite ventanas emergentes e inténtalo de nuevo.", "warning");
       return;
     }
-    popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8" /><title>Nota clínica Miracle</title><style>body{font-family:Arial,sans-serif;color:#14233d;margin:36px;line-height:1.55}h1{font-size:22px;margin:0 0 6px}h2{font-size:15px;margin:24px 0 6px;border-top:1px solid #dbe4f2;padding-top:16px}p{margin:0;font-size:12px}.meta{color:#546782;font-size:11px}@media print{body{margin:22px}}</style></head><body><h1>Nota clínica · Miracle</h1><p class="meta">${safe(snapshot?.name ?? "Plantilla clínica")} · ${safe(tipoLabel ?? "Consulta")}</p>${sections}</body></html>`);
+    // No se dispara la impresión sola al abrir: el médico revisa el
+    // documento primero y decide cuándo imprimir o guardar como PDF con el
+    // botón de la barra superior (o Ctrl/Cmd+P). El botón se oculta al
+    // imprimir para que no salga en el documento final.
+    popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8" /><title>Nota clínica Miracle</title><style>
+      *{box-sizing:border-box}
+      body{font-family:Arial,sans-serif;color:#14233d;margin:0;line-height:1.55}
+      .toolbar{position:sticky;top:0;display:flex;justify-content:flex-end;gap:8px;padding:12px 36px;background:#f1f5f9;border-bottom:1px solid #dbe4f2}
+      .toolbar button{border:none;background:#0c1424;color:#fff;font:inherit;font-size:13px;font-weight:600;padding:8px 16px;border-radius:999px;cursor:pointer}
+      .doc{margin:36px}
+      h1{font-size:20px;font-weight:700;margin:0 0 6px}
+      h2{font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;margin:20px 0 6px;border-top:1px solid #dbe4f2;padding-top:14px;color:#14233d}
+      p{margin:0;font-size:13px;font-weight:400}
+      .meta{color:#546782;font-size:12px;font-weight:400}
+      @media print{.toolbar{display:none}.doc{margin:18mm}}
+    </style></head><body>
+      <div class="toolbar"><button type="button" id="print-btn">Imprimir / Guardar como PDF</button></div>
+      <div class="doc">
+        <h1>Nota clínica · Miracle</h1>
+        <p class="meta">${safe(snapshot?.name ?? "Plantilla clínica")} · ${safe(tipoLabel ?? "Consulta")}</p>
+        ${sections}
+      </div>
+      <script>document.getElementById("print-btn").addEventListener("click", function () { window.print(); });</script>
+    </body></html>`);
     popup.document.close();
     popup.focus();
-    window.setTimeout(() => popup.print(), 250);
   }
 
   async function abrirRegeneracion() {
