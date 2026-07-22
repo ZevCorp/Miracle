@@ -133,10 +133,12 @@ export default function ConsultaDetallePage() {
   const medicoNombre = getMedicoName(c.medicoId);
   const sugeridos = suggestedCodes(c);
   const demo = isDemoConsultation(c);
-  // Único punto que decide qué puede modificarse: solo el médico dueño de la
-  // lógica clínica, y nunca sobre una consulta de demostración. Roles de solo
-  // lectura (p. ej. "secretaria") quedan fuera de todo lo que edite la nota.
-  const canEdit = role === "medico" && !demo;
+  // Único punto que decide qué puede modificarse. Admin y supervisor
+  // conservan la capacidad que ya tenían (aprobar/exportar/editar cualquier
+  // consulta de su organización, respaldada por la política UPDATE de
+  // consultations); la única exclusión real es "secretaria" (solo lectura),
+  // y nunca sobre una consulta de demostración.
+  const canEdit = role !== "secretaria" && !demo;
 
   async function copyResumen() {
     const ok = await copyTextWithFallback(c!.resumen);
@@ -478,9 +480,10 @@ export default function ConsultaDetallePage() {
         <AddendaSection
           addenda={addenda}
           autoFocus={focusAddenda}
-          // Redactar una adenda es un acto clínico del médico tratante; los
-          // demás roles solo pueden leer las que ya existen.
-          canAdd={role === "medico"}
+          // Redactar una adenda queda para quien ya podía hacerlo antes de
+          // esta cuenta (médico, admin, supervisor); la secretaria (solo
+          // lectura) solo puede leer las que ya existen.
+          canAdd={role !== "secretaria"}
           onAdd={async (texto) => {
             const res = await addAddendum(c.id, texto);
             if (res.ok && res.addendum) {

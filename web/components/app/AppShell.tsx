@@ -135,8 +135,9 @@ export function AppShell({
 
       <MobileBottomNavigation profile={profile} onToggleTheme={toggleTheme} />
       {/* La secretaría es de solo lectura: nunca graba consultas ni usa el
-          asistente clínico (esas acciones son del médico). */}
-      {profile.role === "medico" ? (
+          asistente clínico. Los demás roles (admin, supervisor, médico) los
+          veían antes de esta cuenta y siguen viéndolos igual. */}
+      {profile.role !== "secretaria" ? (
         <>
           <QuickConsultationLauncher userId={profile.id} specialtyCode={profile.specialtyCode} />
           <MedicalChat />
