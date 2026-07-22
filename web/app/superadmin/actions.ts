@@ -185,3 +185,41 @@ export async function createOrganization(formData: FormData) {
   revalidatePath("/superadmin");
   back(base, "ok", `Organización creada: ${name}`);
 }
+
+/**
+ * Elimina una consulta (borrado suave, exclusivo de superadmin). No es un
+ * DELETE físico: la RPC public.superadmin_delete_consultation marca
+ * deleted_at, así que desaparece de toda la app pero el registro sigue en la
+ * base (retención de historia clínica). Ver
+ * supabase/migrations/20260722000000_superadmin_delete_consultation.sql.
+ */
+export async function deleteConsultationAsSuperadmin(formData: FormData) {
+  const profile = await getCurrentProfile();
+  if (!profile) redirect("/login");
+  if (profile.role !== "superadmin") {
+    back("/app/dashboard", "error", "Solo el super-admin puede eliminar consultas.");
+  }
+
+  const base = "/superadmin/consultas";
+  const consultationId = String(formData.get("consultationId") ?? "").trim();
+  if (!UUID_RE.test(consultationId)) back(base, "error", "Consulta inválida.");
+
+  const db = await createClient();
+  const { error } = await db.rpc("superadmin_delete_consultation", {
+    p_consultation_id: consultationId,
+  });
+
+  if (error) {
+    back(
+      base,
+      "error",
+      error.message.includes("No autorizado")
+        ? "No tienes permiso para eliminar consultas."
+        : `No se pudo eliminar: ${error.message}`,
+    );
+  }
+
+  revalidatePath(base);
+  revalidatePath("/superadmin");
+  back(base, "ok", "Consulta eliminada.");
+}

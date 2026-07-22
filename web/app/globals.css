@@ -570,9 +570,20 @@
 /* ============================================================
    App móvil: zonas seguras, controles táctiles y teclado de iOS
    ============================================================ */
+/* Espacio reservado abajo de .app-main para que los botones flotantes
+   ("Grabar consulta", "Asistente") nunca queden encima del contenido: sin
+   esto, la última fila de una lista larga (Notas, Consultas, Pacientes)
+   comparte el mismo punto de la pantalla que el botón, y un clic ahí puede
+   activar el botón en vez de la fila (o viceversa) sin aviso. Se aplica
+   siempre -no solo en móvil-, porque los botones están fijos en todos los
+   anchos, solo cambian de posición. */
+.app-main {
+  padding-bottom: 6rem;
+}
+
 @media (max-width: 767px) {
   .app-main {
-    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(9rem + env(safe-area-inset-bottom, 0px));
   }
 
   .app-mobile-header {
