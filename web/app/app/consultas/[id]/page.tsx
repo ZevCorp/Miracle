@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  ClipboardCopy,
   Copy,
   FileCheck2,
   FilePlus2,
@@ -26,6 +27,7 @@ import {
   ClinicalApiError,
 } from "@/lib/api/clinical";
 import { noteJsonToSections } from "@/lib/clinical/encounter-to-consultation";
+import { buildConsultationPlainText, copyTextWithFallback } from "@/lib/clinical/consultation-text";
 import { buildRedactor } from "@/lib/privacy/redact";
 import {
   completitud,
@@ -75,6 +77,7 @@ export default function ConsultaDetallePage() {
     showToast,
     loading,
     ensureTranscript,
+    role,
   } = useStore();
   const [tab, setTab] = useState("historia");
   const [aiEditing, setAiEditing] = useState(false);
@@ -130,10 +133,38 @@ export default function ConsultaDetallePage() {
   const medicoNombre = getMedicoName(c.medicoId);
   const sugeridos = suggestedCodes(c);
   const demo = isDemoConsultation(c);
+  // Único punto que decide qué puede modificarse: solo el médico dueño de la
+  // lógica clínica, y nunca sobre una consulta de demostración. Roles de solo
+  // lectura (p. ej. "secretaria") quedan fuera de todo lo que edite la nota.
+  const canEdit = role === "medico" && !demo;
 
-  function copyResumen() {
-    navigator.clipboard?.writeText(c!.resumen);
-    showToast("Resumen copiado al portapapeles.", "info");
+  async function copyResumen() {
+    const ok = await copyTextWithFallback(c!.resumen);
+    showToast(
+      ok ? "Resumen copiado al portapapeles." : "No se pudo copiar el resumen.",
+      ok ? "success" : "warning",
+    );
+  }
+
+  async function copiarNota() {
+    if (!c) return;
+    const texto = buildConsultationPlainText({
+      especialidad: c.especialidad,
+      servicio: c.servicio,
+      fecha: c.fecha,
+      note: c.note,
+      codigos: c.codigos,
+      patient: patient
+        ? { nombre: patient.nombre, edad: patient.edad, sexo: patient.sexo, documento: patient.documento }
+        : null,
+      medicoNombre,
+      addenda,
+    });
+    const ok = await copyTextWithFallback(texto);
+    showToast(
+      ok ? "Nota copiada al portapapeles." : "No se pudo copiar la nota.",
+      ok ? "success" : "warning",
+    );
   }
 
   // Edición asistida real: el backend calcula el ajuste sobre el encounter
@@ -311,11 +342,20 @@ export default function ConsultaDetallePage() {
           <HoverHint label="Copiar el resumen clínico">
             <button
               type="button"
-              onClick={copyResumen}
+              onClick={() => void copyResumen()}
               className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:text-deep"
               aria-label="Copiar resumen"
             >
               <Copy size={16} />
+            </button>
+          </HoverHint>
+          <HoverHint label="Copiar la nota completa, igual que el PDF">
+            <button
+              type="button"
+              onClick={() => void copiarNota()}
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium text-deep hover:border-mist"
+            >
+              <ClipboardCopy size={16} /> Copiar nota
             </button>
           </HoverHint>
           <button
@@ -325,37 +365,42 @@ export default function ConsultaDetallePage() {
           >
             <Printer size={16} /> PDF
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              // La consulta activa exige un encounter del backend, así que una
-              // nueva captura siempre arranca desde "Nueva consulta".
-              // Se pasa el id del paciente (UUID opaco), nunca su nombre:
-              // la URL queda en el historial del navegador y en logs.
-              const sp = new URLSearchParams();
-              if (patient?.id) sp.set("paciente", patient.id);
-              const qs = sp.toString();
-              router.push(`/app/consultas/nueva${qs ? `?${qs}` : ""}`);
-            }}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:text-deep"
-            aria-label="Regrabar"
-            title="Iniciar una nueva grabación para este paciente"
-          >
-            <Mic size={16} />
-          </button>
+          {/* Regrabar arranca una nueva captura: es una acción exclusiva del
+              médico (la secretaría no tiene acceso a /app/consultas/nueva). */}
+          {role === "medico" ? (
+            <button
+              type="button"
+              onClick={() => {
+                // La consulta activa exige un encounter del backend, así que una
+                // nueva captura siempre arranca desde "Nueva consulta".
+                // Se pasa el id del paciente (UUID opaco), nunca su nombre:
+                // la URL queda en el historial del navegador y en logs.
+                const sp = new URLSearchParams();
+                if (patient?.id) sp.set("paciente", patient.id);
+                const qs = sp.toString();
+                router.push(`/app/consultas/nueva${qs ? `?${qs}` : ""}`);
+              }}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:text-deep"
+              aria-label="Regrabar"
+              title="Iniciar una nueva grabación para este paciente"
+            >
+              <Mic size={16} />
+            </button>
+          ) : null}
 
-          {/* Las consultas de demostración no se firman ni se exportan. */}
-          {!demo && c.estado === "borrador" ? (
+          {/* Las consultas de demostración no se firman ni se exportan, y
+              solo el médico puede firmar/exportar. */}
+          {canEdit && c.estado === "borrador" ? (
             <Button variant="secondary" onClick={() => markReviewed(c.id)} className="hidden sm:inline-flex">
               Marcar revisada
             </Button>
           ) : null}
-          {!demo && (c.estado === "borrador" || c.estado === "revisada") ? (
+          {canEdit && (c.estado === "borrador" || c.estado === "revisada") ? (
             <Button onClick={() => approveNote(c.id)} className="hidden sm:inline-flex">
               <CheckCircle2 size={16} /> Aprobar
             </Button>
           ) : null}
-          {!demo && c.estado === "aprobada" ? (
+          {canEdit && c.estado === "aprobada" ? (
             <Button onClick={() => exportNote(c.id)} className="hidden sm:inline-flex">
               <FileCheck2 size={16} /> Exportar a HC
             </Button>
@@ -405,7 +450,7 @@ export default function ConsultaDetallePage() {
         {tab === "historia" ? (
           <HistoriaTab
             consultation={c}
-            editable={c.estado !== "aprobada" && c.estado !== "exportada"}
+            editable={canEdit && c.estado !== "aprobada" && c.estado !== "exportada"}
             onSectionChange={(sectionId, next) => updateNote(c.id, sectionId, next)}
             onAiEdit={(instruction) => void aiEdit(instruction)}
             aiBusy={aiEditing}
@@ -414,13 +459,14 @@ export default function ConsultaDetallePage() {
         {tab === "codificacion" ? (
           <CodificacionTab
             consultation={c}
+            canEdit={canEdit}
             onAccept={(codeId) => setCodeStatus(c.id, codeId, "aceptado")}
             onDiscard={(codeId) => setCodeStatus(c.id, codeId, "descartado")}
             onAddCode={(code) => addCode(c.id, code)}
           />
         ) : null}
         {tab === "resumen" ? (
-          <ResumenTab texto={c.resumen} onCopy={copyResumen} />
+          <ResumenTab texto={c.resumen} onCopy={() => void copyResumen()} />
         ) : null}
         {tab === "transcripcion" ? (
           <TranscripcionTab consultation={c} ensureTranscript={ensureTranscript} />
@@ -432,6 +478,9 @@ export default function ConsultaDetallePage() {
         <AddendaSection
           addenda={addenda}
           autoFocus={focusAddenda}
+          // Redactar una adenda es un acto clínico del médico tratante; los
+          // demás roles solo pueden leer las que ya existen.
+          canAdd={role === "medico"}
           onAdd={async (texto) => {
             const res = await addAddendum(c.id, texto);
             if (res.ok && res.addendum) {
@@ -443,7 +492,7 @@ export default function ConsultaDetallePage() {
         />
       ) : null}
 
-      {!demo && c.estado !== "exportada" ? (
+      {canEdit && c.estado !== "exportada" ? (
         <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-30 grid gap-2 rounded-[14px] border border-line bg-surface p-2.5 shadow-[var(--shadow-lg)] sm:hidden">
           {c.estado === "borrador" ? (
             <button type="button" onClick={() => markReviewed(c.id)} className="clinical-secondary">Marcar revisada</button>
@@ -467,10 +516,12 @@ export default function ConsultaDetallePage() {
 function AddendaSection({
   addenda,
   autoFocus,
+  canAdd,
   onAdd,
 }: {
   addenda: ConsultationAddendum[];
   autoFocus: boolean;
+  canAdd: boolean;
   onAdd: (contenido: string) => Promise<boolean>;
 }) {
   const [texto, setTexto] = useState("");
@@ -527,27 +578,29 @@ function AddendaSection({
         </p>
       )}
 
-      <div className="mt-4">
-        <label htmlFor="nueva-adenda" className="text-sm font-medium text-deep">
-          Nueva adenda
-        </label>
-        <textarea
-          id="nueva-adenda"
-          ref={textareaRef}
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          rows={3}
-          maxLength={4000}
-          placeholder="Describe la corrección o ampliación de la nota firmada…"
-          className="mt-1.5 w-full resize-y rounded-md border border-line bg-field px-3.5 py-2.5 text-sm leading-relaxed outline-none transition-colors focus:border-accent"
-        />
-        <div className="mt-2 flex justify-end">
-          <Button onClick={() => void submit()} disabled={!texto.trim() || saving}>
-            {saving ? <Loader2 size={15} className="animate-spin" /> : <FilePlus2 size={15} />}
-            Agregar adenda
-          </Button>
+      {canAdd ? (
+        <div className="mt-4">
+          <label htmlFor="nueva-adenda" className="text-sm font-medium text-deep">
+            Nueva adenda
+          </label>
+          <textarea
+            id="nueva-adenda"
+            ref={textareaRef}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            rows={3}
+            maxLength={4000}
+            placeholder="Describe la corrección o ampliación de la nota firmada…"
+            className="mt-1.5 w-full resize-y rounded-md border border-line bg-field px-3.5 py-2.5 text-sm leading-relaxed outline-none transition-colors focus:border-accent"
+          />
+          <div className="mt-2 flex justify-end">
+            <Button onClick={() => void submit()} disabled={!texto.trim() || saving}>
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <FilePlus2 size={15} />}
+              Agregar adenda
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }
@@ -630,11 +683,13 @@ function HistoriaTab({
 
 function CodificacionTab({
   consultation,
+  canEdit,
   onAccept,
   onDiscard,
   onAddCode,
 }: {
   consultation: Consultation;
+  canEdit: boolean;
   onAccept: (codeId: string) => void;
   onDiscard: (codeId: string) => void;
   onAddCode: (code: Omit<ClinicalCode, "id" | "estado">) => void;
@@ -669,16 +724,18 @@ function CodificacionTab({
             <h2 className="font-display text-base font-semibold text-deep">
               Códigos sugeridos
             </h2>
-            <button
-              type="button"
-              onClick={() => setShowForm((v) => !v)}
-              className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
-            >
-              <Plus size={15} /> Agregar
-            </button>
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => setShowForm((v) => !v)}
+                className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+              >
+                <Plus size={15} /> Agregar
+              </button>
+            ) : null}
           </div>
 
-          {showForm ? (
+          {canEdit && showForm ? (
             <div className="mb-3 rounded-md border border-line bg-surface p-3">
               <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
                 <select
@@ -754,8 +811,8 @@ function CodificacionTab({
                 <CodeSuggestion
                   key={k.id}
                   code={k}
-                  onAccept={() => onAccept(k.id)}
-                  onDiscard={() => onDiscard(k.id)}
+                  onAccept={canEdit ? () => onAccept(k.id) : undefined}
+                  onDiscard={canEdit ? () => onDiscard(k.id) : undefined}
                 />
               ))}
             </div>
@@ -786,7 +843,11 @@ function CodificacionTab({
             </h2>
             <div className="space-y-2.5">
               {descartados.map((k) => (
-                <CodeSuggestion key={k.id} code={k} onAccept={() => onAccept(k.id)} />
+                <CodeSuggestion
+                  key={k.id}
+                  code={k}
+                  onAccept={canEdit ? () => onAccept(k.id) : undefined}
+                />
               ))}
             </div>
           </section>

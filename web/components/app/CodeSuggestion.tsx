@@ -43,33 +43,39 @@ export function CodeSuggestion({
               <Check size={13} /> Aceptado
             </span>
           ) : discarded ? (
-            <button
-              type="button"
-              onClick={onAccept}
-              className="inline-flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-medium text-muted hover:text-deep"
-            >
-              <RotateCcw size={13} /> Restaurar
-            </button>
-          ) : (
-            <>
+            onAccept ? (
               <button
                 type="button"
                 onClick={onAccept}
-                aria-label="Aceptar código"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent text-white hover:bg-accent-hover"
+                className="inline-flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-medium text-muted hover:text-deep"
               >
-                <Check size={16} />
+                <RotateCcw size={13} /> Restaurar
               </button>
-              <button
-                type="button"
-                onClick={onDiscard}
-                aria-label="Descartar código"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-line text-muted hover:text-danger"
-              >
-                <X size={16} />
-              </button>
+            ) : null
+          ) : onAccept || onDiscard ? (
+            <>
+              {onAccept ? (
+                <button
+                  type="button"
+                  onClick={onAccept}
+                  aria-label="Aceptar código"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent text-white hover:bg-accent-hover"
+                >
+                  <Check size={16} />
+                </button>
+              ) : null}
+              {onDiscard ? (
+                <button
+                  type="button"
+                  onClick={onDiscard}
+                  aria-label="Descartar código"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-line text-muted hover:text-danger"
+                >
+                  <X size={16} />
+                </button>
+              ) : null}
             </>
-          )}
+          ) : null}
         </div>
       </div>
 

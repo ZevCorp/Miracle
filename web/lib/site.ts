@@ -56,7 +56,10 @@ export type AppNavItem = {
 
 export const appNav: AppNavItem[] = [
   { label: "Inicio", href: "/app/dashboard", icon: "dashboard", roles: allRoles },
-  { label: "Consultas", href: "/app/consultas", icon: "consultas", roles: allRoles },
+  // "secretaria" solo ve este ítem: es su única sección permitida
+  // (lista blanca en canAccessPath). El resto de ítems abajo no la incluyen,
+  // así que desaparecen solos del menú.
+  { label: "Consultas", href: "/app/consultas", icon: "consultas", roles: [...allRoles, "secretaria"] },
   { label: "Patología", href: "/app/laboratorio", icon: "laboratorio", roles: allRoles, professionalTypes: ["patologo"] },
   { label: "Pacientes", href: "/app/pacientes", icon: "pacientes", roles: allRoles },
   { label: "Notas", href: "/app/notas", icon: "notas", roles: allRoles },

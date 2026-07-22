@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   BarChart3,
@@ -30,7 +31,14 @@ import {
 } from "@/components/app/AppPage";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { consultations, role, loading } = useStore();
+
+  // La secretaría no tiene un panel propio: su única sección es "Consultas".
+  // Se saca de aquí apenas se conoce el rol, antes de armar ninguna métrica.
+  useEffect(() => {
+    if (role === "secretaria") router.replace("/app/consultas");
+  }, [role, router]);
 
   // Las consultas de demostración no cuentan para el trabajo real del día
   // ni para la cola de firma.
@@ -44,7 +52,7 @@ export default function DashboardPage() {
     [reales],
   );
 
-  if (loading) return <DashboardSkeleton />;
+  if (loading || role === "secretaria") return <DashboardSkeleton />;
 
   if (role === "admin") return <AdminView />;
   if (role === "supervisor")

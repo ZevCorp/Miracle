@@ -134,8 +134,14 @@ export function AppShell({
       </div>
 
       <MobileBottomNavigation profile={profile} onToggleTheme={toggleTheme} />
-      <QuickConsultationLauncher userId={profile.id} specialtyCode={profile.specialtyCode} />
-      <MedicalChat />
+      {/* La secretaría es de solo lectura: nunca graba consultas ni usa el
+          asistente clínico (esas acciones son del médico). */}
+      {profile.role === "medico" ? (
+        <>
+          <QuickConsultationLauncher userId={profile.id} specialtyCode={profile.specialtyCode} />
+          <MedicalChat />
+        </>
+      ) : null}
       <CommandPalette open={cmdk} onOpenChange={setCmdk} />
     </div>
   );

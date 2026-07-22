@@ -2,10 +2,11 @@ import Link from "next/link";
 import { ClipboardList, Plus } from "lucide-react";
 import { STATUS_LABEL, type ConsultationStatus, type ConsultationType } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/auth/server";
 import { ConsultationCard } from "@/components/app/ConsultationCard";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Pager } from "@/components/app/Pager";
-import { ConsultasFilters } from "./ConsultasFilters";
+import { ConsultasFilters, type DoctorOption } from "./ConsultasFilters";
 import { AppPage, AppPageHeader } from "@/components/app/AppPage";
 
 const PAGE_SIZE = 18;
@@ -35,12 +36,26 @@ function patientName(p: Row["patients"]): string | undefined {
   return row?.nombre ?? undefined;
 }
 
+type AccessRow = {
+  medico_id: string;
+  profiles:
+    | { full_name: string | null; email: string | null }
+    | { full_name: string | null; email: string | null }[]
+    | null;
+};
+
 export default async function ConsultasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ estado?: string; servicio?: string; q?: string; page?: string }>;
+  searchParams: Promise<{
+    estado?: string;
+    servicio?: string;
+    q?: string;
+    page?: string;
+    medico?: string;
+  }>;
 }) {
-  const { estado, servicio, q, page } = await searchParams;
+  const { estado, servicio, q, page, medico } = await searchParams;
   const estadoFilter = (ESTADOS as string[]).includes(estado ?? "")
     ? (estado as ConsultationStatus | "todas")
     : "todas";
@@ -51,6 +66,24 @@ export default async function ConsultasPage({
   const to = from + PAGE_SIZE - 1;
 
   const supabase = await createClient();
+  const profile = await getCurrentProfile();
+
+  // La secretaría solo ve a los médicos que le hayan asignado en
+  // secretary_doctor_access (acotado también por RLS del lado del servidor).
+  let doctors: DoctorOption[] = [];
+  let medicoFilter = "todos";
+  if (profile?.role === "secretaria") {
+    const { data: accesos } = await supabase
+      .from("secretary_doctor_access")
+      .select("medico_id, profiles!secretary_doctor_access_medico_id_fkey(full_name, email)")
+      .eq("secretary_id", profile.id);
+    doctors = ((accesos ?? []) as AccessRow[]).map((a) => {
+      const p = Array.isArray(a.profiles) ? a.profiles[0] : a.profiles;
+      return { id: a.medico_id, label: p?.full_name || p?.email || "Médico" };
+    });
+    if (medico && doctors.some((d) => d.id === medico)) medicoFilter = medico;
+  }
+
   let query = supabase
     .from("consultations")
     .select(
@@ -61,6 +94,7 @@ export default async function ConsultasPage({
     .range(from, to);
   if (estadoFilter !== "todas") query = query.eq("estado", estadoFilter);
   if (servicioFilter !== "todos") query = query.eq("servicio", servicioFilter);
+  if (medicoFilter !== "todos") query = query.eq("medico_id", medicoFilter);
   if (term) {
     const safe = term.replace(/[%,()*\\]/g, " ").trim();
     if (safe) query = query.ilike("motivo", `%${safe}%`);
@@ -74,6 +108,7 @@ export default async function ConsultasPage({
     const sp = new URLSearchParams();
     if (e !== "todas") sp.set("estado", e);
     if (servicioFilter !== "todos") sp.set("servicio", servicioFilter);
+    if (medicoFilter !== "todos") sp.set("medico", medicoFilter);
     if (term) sp.set("q", term);
     const qs = sp.toString();
     return `/app/consultas${qs ? `?${qs}` : ""}`;
@@ -86,9 +121,11 @@ export default async function ConsultasPage({
         title="Consultas"
         description={`${total} ${total === 1 ? "consulta registrada" : "consultas registradas"}`}
         action={
-          <Link href="/app/consultas/nueva" className="clinical-primary w-full sm:w-auto">
-            <Plus size={16} /> Nueva consulta
-          </Link>
+          profile?.role === "medico" ? (
+            <Link href="/app/consultas/nueva" className="clinical-primary w-full sm:w-auto">
+              <Plus size={16} /> Nueva consulta
+            </Link>
+          ) : undefined
         }
       />
 
@@ -96,6 +133,8 @@ export default async function ConsultasPage({
         initialQuery={term}
         initialServicio={servicioFilter}
         estado={estadoFilter}
+        doctors={doctors}
+        initialMedico={medicoFilter}
       />
 
       <div className="mt-4 flex flex-wrap gap-2" aria-label="Filtrar por estado">
@@ -150,6 +189,7 @@ export default async function ConsultasPage({
         params={{
           estado: estadoFilter !== "todas" ? estadoFilter : undefined,
           servicio: servicioFilter !== "todos" ? servicioFilter : undefined,
+          medico: medicoFilter !== "todos" ? medicoFilter : undefined,
           q: term || undefined,
         }}
       />

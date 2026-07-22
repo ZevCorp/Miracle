@@ -13,6 +13,7 @@ const roleTone: Record<AppRole, "accent" | "mint" | "neutral"> = {
   medico: "accent",
   supervisor: "mint",
   admin: "neutral",
+  secretaria: "neutral",
 };
 
 const inputClass =

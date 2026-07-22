@@ -22,7 +22,7 @@ export function CommandPalette({
   onOpenChange: (v: boolean) => void;
 }) {
   const router = useRouter();
-  const { patients, consultations, getPatient } = useStore();
+  const { patients, consultations, getPatient, role } = useStore();
   const { guardedNavigate } = useNavigationGuard();
   const [query, setQuery] = useState("");
   const closePalette = useCallback(() => {
@@ -47,15 +47,20 @@ export function CommandPalette({
 
   const items = useMemo<Item[]>(() => {
     const q = query.trim().toLowerCase();
-    const acciones: Item[] = [
-      {
-        id: "nueva",
-        label: "Nueva consulta",
-        hint: "Iniciar captura",
-        href: "/app/consultas/nueva",
-        icon: Plus,
-      },
-    ];
+    // "Nueva consulta" es una acción exclusiva del médico: la secretaría (y
+    // cualquier otro rol de solo lectura) no debe verla ni activarla desde acá.
+    const acciones: Item[] =
+      role === "medico"
+        ? [
+            {
+              id: "nueva",
+              label: "Nueva consulta",
+              hint: "Iniciar captura",
+              href: "/app/consultas/nueva",
+              icon: Plus,
+            },
+          ]
+        : [];
     const pac: Item[] = patients
       .filter(
         (p) =>
@@ -88,7 +93,7 @@ export function CommandPalette({
     return q
       ? [...acciones.filter((a) => a.label.toLowerCase().includes(q)), ...pac, ...cons]
       : [...acciones, ...pac, ...cons];
-  }, [query, patients, consultations, getPatient]);
+  }, [query, patients, consultations, getPatient, role]);
 
   if (!open) return null;
 
