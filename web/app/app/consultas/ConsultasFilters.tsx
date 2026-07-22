@@ -79,21 +79,25 @@ export function ConsultasFilters({
           ))}
         </select>
       ) : null}
-      <select
-        value={servicio}
-        onChange={(e) => {
-          setServicio(e.target.value);
-          push(q, e.target.value, medico);
-        }}
-        className="clinical-control px-3 text-sm outline-none lg:min-w-52"
-      >
-        <option value="todos">Todos los servicios</option>
-        {SERVICIOS.map((s) => (
-          <option key={s} value={s}>
-            {s}
-          </option>
-        ))}
-      </select>
+      {/* La secretaría filtra por médico, no por servicio: este selector solo
+          aplica cuando no hay lista de médicos (cualquier otro rol). */}
+      {doctors.length ? null : (
+        <select
+          value={servicio}
+          onChange={(e) => {
+            setServicio(e.target.value);
+            push(q, e.target.value, medico);
+          }}
+          className="clinical-control px-3 text-sm outline-none lg:min-w-52"
+        >
+          <option value="todos">Todos los servicios</option>
+          {SERVICIOS.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }
