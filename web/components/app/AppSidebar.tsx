@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { InstallAppButton } from "@/components/app/InstallAppButton";
 import { visibleAppNav } from "@/lib/site";
 import type { AppRole } from "@/lib/auth/roles";
 import { signOut } from "@/app/login/actions";
@@ -85,7 +86,9 @@ export function AppSidebar({
           );
         })}
       </nav>
-      <div className="border-t border-white/10 p-3">
+      <div className="space-y-1 border-t border-white/10 p-3">
+        {/* Solo aparece cuando el navegador ofrece instalar la app (PWA). */}
+        <InstallAppButton onNavigate={onNavigate} />
         {/* Siempre visible (también en el drawer móvil): en equipos compartidos
             debe poderse cerrar sesión desde cualquier tamaño de pantalla. */}
         <form action={signOut}>
