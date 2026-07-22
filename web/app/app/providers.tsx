@@ -779,6 +779,43 @@ export function MiracleProvider({
 
   const exportNote = useCallback(
     (id: string) => {
+      // La secretaria no tiene permiso UPDATE directo sobre consultations (ni
+      // debe tenerlo: solo puede mover esta transición puntual). Pasa por una
+      // RPC security definer bien acotada en vez del mutate()+persist() normal.
+      if (role === "secretaria") {
+        void (async () => {
+          const { error } = await supabase.rpc("secretary_mark_exported", {
+            p_consultation_id: id,
+          });
+          if (error) {
+            showToast("No se pudo marcar como exportada. Intenta de nuevo.", "warning");
+            return;
+          }
+          setConsultations((list) =>
+            list.map((c) =>
+              c.id === id
+                ? {
+                    ...c,
+                    estado: "exportada" as const,
+                    auditoria: [
+                      ...c.auditoria,
+                      {
+                        id: `a-${Date.now()}`,
+                        fecha: new Date().toISOString(),
+                        actor,
+                        accion: "Nota exportada a HC",
+                        detalle: "Copiada al sistema de historia clínica.",
+                      },
+                    ],
+                  }
+                : c,
+            ),
+          );
+          remoteAudit(id, "Nota exportada a HC", "Copiada al sistema de historia clínica.");
+          showToast("Nota exportada a la historia clínica.", "success");
+        })();
+        return;
+      }
       mutate(
         id,
         (c) => ({ ...c, estado: "exportada" }),
@@ -787,7 +824,7 @@ export function MiracleProvider({
       );
       showToast("Nota exportada a la historia clínica.", "success");
     },
-    [mutate, showToast],
+    [mutate, showToast, role, supabase, actor, remoteAudit],
   );
 
   const markReviewed = useCallback(

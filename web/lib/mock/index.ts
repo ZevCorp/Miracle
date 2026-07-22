@@ -56,7 +56,10 @@ export function statusTone(
     case "aprobada":
       return "success";
     case "exportada":
-      return "mint";
+      // Antes usaba "mint" (mismo verde que "success"/aprobada, casi
+      // indistinguible a simple vista). "warning" no lo usa ningún otro
+      // estado visible hoy (en_curso nunca se persiste), así que resalta.
+      return "warning";
   }
 }
 

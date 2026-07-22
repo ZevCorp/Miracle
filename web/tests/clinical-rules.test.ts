@@ -23,7 +23,7 @@ describe("statusTone", () => {
     expect(statusTone("borrador")).toBe("neutral");
     expect(statusTone("revisada")).toBe("accent");
     expect(statusTone("aprobada")).toBe("success");
-    expect(statusTone("exportada")).toBe("mint");
+    expect(statusTone("exportada")).toBe("warning");
   });
 });
 

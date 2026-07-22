@@ -139,6 +139,10 @@ export default function ConsultaDetallePage() {
   // consultations); la única exclusión real es "secretaria" (solo lectura),
   // y nunca sobre una consulta de demostración.
   const canEdit = role !== "secretaria" && !demo;
+  // Marcar "Exportada a HC" es distinto de canEdit: es justamente la tarea
+  // de la secretaria (avisar que ya subió la nota aprobada al sistema del
+  // hospital), así que se abre a cualquier rol una vez el médico ya firmó.
+  const canExport = !demo && c.estado === "aprobada";
 
   async function copyResumen() {
     const ok = await copyTextWithFallback(c!.resumen);
@@ -390,8 +394,10 @@ export default function ConsultaDetallePage() {
             </button>
           ) : null}
 
-          {/* Las consultas de demostración no se firman ni se exportan, y
-              solo el médico puede firmar/exportar. */}
+          {/* Las consultas de demostración no se firman ni se exportan.
+              Marcar revisada/aprobar siguen siendo del médico (canEdit);
+              exportar es justamente la tarea de la secretaria, así que se
+              abre a cualquier rol una vez la nota ya está aprobada. */}
           {canEdit && c.estado === "borrador" ? (
             <Button variant="secondary" onClick={() => markReviewed(c.id)} className="hidden sm:inline-flex">
               Marcar revisada
@@ -402,13 +408,13 @@ export default function ConsultaDetallePage() {
               <CheckCircle2 size={16} /> Aprobar
             </Button>
           ) : null}
-          {canEdit && c.estado === "aprobada" ? (
+          {canExport ? (
             <Button onClick={() => exportNote(c.id)} className="hidden sm:inline-flex">
               <FileCheck2 size={16} /> Exportar a HC
             </Button>
           ) : null}
           {!demo && c.estado === "exportada" ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-mint-soft px-3 py-2 text-sm font-semibold text-success">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-2 text-sm font-semibold text-warning">
               <CheckCircle2 size={16} /> Exportada a HC
             </span>
           ) : null}
@@ -495,15 +501,15 @@ export default function ConsultaDetallePage() {
         />
       ) : null}
 
-      {canEdit && c.estado !== "exportada" ? (
+      {(canEdit || canExport) && c.estado !== "exportada" ? (
         <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-30 grid gap-2 rounded-[14px] border border-line bg-surface p-2.5 shadow-[var(--shadow-lg)] sm:hidden">
-          {c.estado === "borrador" ? (
+          {canEdit && c.estado === "borrador" ? (
             <button type="button" onClick={() => markReviewed(c.id)} className="clinical-secondary">Marcar revisada</button>
           ) : null}
-          {c.estado === "borrador" || c.estado === "revisada" ? (
+          {canEdit && (c.estado === "borrador" || c.estado === "revisada") ? (
             <button type="button" onClick={() => approveNote(c.id)} className="clinical-primary min-h-12"><CheckCircle2 size={17} /> Aprobar y firmar nota</button>
           ) : null}
-          {c.estado === "aprobada" ? (
+          {canExport ? (
             <button type="button" onClick={() => exportNote(c.id)} className="clinical-primary min-h-12"><FileCheck2 size={17} /> Exportar a historia clínica</button>
           ) : null}
         </div>
