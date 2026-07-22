@@ -23,7 +23,7 @@ values
     'Formato de informe histopatológico: rótulo, datos del paciente, macroscópico, microscópico y diagnóstico.',
     'bacteriologia', 'Bacteriología', 'institutional', true, 'active',
     '[
-      {"key":"rotulo","label":"Rótulo","order":1,"required":false,"instruction":"Transcribe el rótulo o identificador de la muestra tal como aparece en la hoja. Si no está, déjalo vacío."},
+      {"key":"rotulo","label":"Rótulo","order":1,"required":false,"instruction":"Transcribe el rótulo o número de caso tal como aparece en la hoja. Formato: año de 2 dígitos, un guion y el número de caso, sin espacios ni puntos (ejemplo: 26-3456). Si no aparece, déjalo vacío."},
       {"key":"nombre_paciente","label":"Nombre del paciente","order":2,"required":false,"instruction":"Copia el nombre del paciente tal como aparece en la hoja. No lo inventes; si no está, déjalo vacío."},
       {"key":"episodio","label":"Episodio","order":3,"required":false,"instruction":"Transcribe el número de episodio, orden o ingreso tal como aparece, pero escríbelo como un número normal: solo dígitos consecutivos, sin puntos, comas, espacios ni dos puntos (:). NUNCA lo escribas ni lo interpretes como una hora o fecha (ejemplo correcto: 3258162; incorrecto: 3:25:81 o 32:58:16)."},
       {"key":"cedula","label":"Cédula","order":4,"required":false,"instruction":"Transcribe el número de documento o cédula del paciente si aparece."},

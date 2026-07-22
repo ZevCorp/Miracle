@@ -114,7 +114,6 @@ function buildLabReportHtml(input: LabReportInput): string {
     section p.empty{color:#94a3b8;font-style:italic}
     .sign{margin-top:40px;display:flex;justify-content:space-between;gap:24px}
     .sign .line{flex:1;border-top:1px solid #0c1424;padding-top:6px;font-size:12px;color:#334155;max-width:320px}
-    .foot{margin-top:26px;border-top:1px solid #cbd5e1;padding-top:10px;font-size:11px;color:#64748b}
     .demo{border:2px solid #a34a06;background:#fdeecf;color:#7c3a05;padding:8px 12px;margin-bottom:14px;font-weight:700;font-size:13px}
     @media print{body{margin:16mm}}
   </style></head><body>
@@ -153,8 +152,6 @@ function buildLabReportHtml(input: LabReportInput): string {
         }
       </div>
     </div>
-
-    <p class="foot">Informe transcrito con asistencia de Miracle a partir de la hoja de trabajo del profesional y revisado por él. Miracle · Inteligencia clínica-operativa.</p>
   </body></html>`;
 }
 
