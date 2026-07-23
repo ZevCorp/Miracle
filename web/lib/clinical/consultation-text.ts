@@ -26,6 +26,10 @@ export interface ConsultationTextInput {
   codigos: readonly ClinicalCode[];
   patient?: ConsultationTextPatient | null;
   medicoNombre?: string | null;
+  /** Cédula y registro médico del profesional — la secretaria los necesita
+   *  para llenar el "Responsable" del sistema del hospital. */
+  medicoIdentificacion?: string | null;
+  medicoRegistro?: string | null;
   addenda?: readonly ConsultationTextAddendum[];
 }
 
@@ -35,7 +39,18 @@ export interface ConsultationTextInput {
  * códigos aceptados y adendas (si existen).
  */
 export function buildConsultationPlainText(input: ConsultationTextInput): string {
-  const { patient, medicoNombre, especialidad, servicio, fecha, note, codigos, addenda } = input;
+  const {
+    patient,
+    medicoNombre,
+    medicoIdentificacion,
+    medicoRegistro,
+    especialidad,
+    servicio,
+    fecha,
+    note,
+    codigos,
+    addenda,
+  } = input;
   const lines: string[] = [];
 
   lines.push(patient?.nombre ?? "Paciente sin identificar");
@@ -48,6 +63,13 @@ export function buildConsultationPlainText(input: ConsultationTextInput): string
   if (patient?.documento) datos.push(`Doc: ${patient.documento}`);
   datos.push(`${especialidad} · ${servicio}`);
   if (medicoNombre) datos.push(medicoNombre);
+  const identidad = [
+    medicoIdentificacion ? `CC ${medicoIdentificacion}` : null,
+    medicoRegistro ? `Reg. Med. ${medicoRegistro}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  if (identidad) datos.push(identidad);
   datos.push(new Date(fecha).toLocaleString("es-CO"));
   lines.push(datos.join(" · "), "");
 

@@ -65,6 +65,7 @@ export default function ConsultaDetallePage() {
     getConsultation,
     getPatient,
     getMedicoName,
+    getMedicoIdentity,
     approveNote,
     exportNote,
     markReviewed,
@@ -131,6 +132,7 @@ export default function ConsultaDetallePage() {
 
   const patient = getPatient(c.pacienteId);
   const medicoNombre = getMedicoName(c.medicoId);
+  const medicoIdentidad = getMedicoIdentity(c.medicoId);
   const sugeridos = suggestedCodes(c);
   const demo = isDemoConsultation(c);
   // Único punto que decide qué puede modificarse. Admin y supervisor
@@ -164,6 +166,8 @@ export default function ConsultaDetallePage() {
         ? { nombre: patient.nombre, edad: patient.edad, sexo: patient.sexo, documento: patient.documento }
         : null,
       medicoNombre,
+      medicoIdentificacion: medicoIdentidad?.identificationNumber,
+      medicoRegistro: medicoIdentidad?.professionalRegistration,
       addenda,
     });
     const ok = await copyTextWithFallback(texto);
@@ -279,6 +283,22 @@ export default function ConsultaDetallePage() {
           ${patient?.documento ? `<span>Doc: ${esc(patient.documento)}</span>` : ""}
           <span>${esc(c!.especialidad)} · ${esc(c!.servicio)}</span>
           <span>${esc(medicoNombre ?? "")}</span>
+          ${
+            medicoIdentidad?.identificationNumber || medicoIdentidad?.professionalRegistration
+              ? `<span>${esc(
+                  [
+                    medicoIdentidad.identificationNumber
+                      ? `CC ${medicoIdentidad.identificationNumber}`
+                      : null,
+                    medicoIdentidad.professionalRegistration
+                      ? `Reg. Med. ${medicoIdentidad.professionalRegistration}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
+                )}</span>`
+              : ""
+          }
           <span>${esc(fecha)}</span>
         </div>
       </div>
@@ -335,6 +355,20 @@ export default function ConsultaDetallePage() {
             <p className="mt-0.5 text-sm text-muted">
               {c.servicio} · {medicoNombre ?? "—"} · {c.duracionMin} min
             </p>
+            {medicoIdentidad?.identificationNumber || medicoIdentidad?.professionalRegistration ? (
+              <p className="mt-0.5 text-xs text-muted">
+                {[
+                  medicoIdentidad.identificationNumber
+                    ? `CC ${medicoIdentidad.identificationNumber}`
+                    : null,
+                  medicoIdentidad.professionalRegistration
+                    ? `Reg. Med. ${medicoIdentidad.professionalRegistration}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            ) : null}
             {c.firma ? (
               <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-mint-soft px-2.5 py-1 text-xs font-semibold text-success">
                 <CheckCircle2 size={13} /> Firmada por {c.firma.por} ·{" "}

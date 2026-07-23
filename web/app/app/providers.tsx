@@ -67,6 +67,11 @@ interface StoreValue {
   getConsultation: (id: string) => Consultation | undefined;
   getPatient: (id: string | null | undefined) => Patient | undefined;
   getMedicoName: (id: string) => string | undefined;
+  /** Cédula y registro médico del profesional — para el PDF y "Copiar nota"
+   *  (la secretaria los necesita al llenar el sistema del hospital). */
+  getMedicoIdentity: (
+    id: string,
+  ) => { identificationNumber: string | null; professionalRegistration: string | null } | undefined;
   addPatient: (patient: string | NewPatientInput) => Patient;
   /** Como addPatient, pero espera la confirmación de Supabase antes de resolver. */
   addPatientAsync: (
@@ -170,6 +175,9 @@ export function MiracleProvider({
   const [patients, setPatients] = useState<Patient[]>([]);
   const [consultations, setConsultations] = useState<Consultation[]>([]);
   const [medicos, setMedicos] = useState<Record<string, string>>({});
+  const [medicoIdentity, setMedicoIdentity] = useState<
+    Record<string, { identificationNumber: string | null; professionalRegistration: string | null }>
+  >({});
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<Toast | null>(null);
 
@@ -203,14 +211,22 @@ export function MiracleProvider({
         )
         .order("fecha", { ascending: false })
         .limit(CONSULTATIONS_CAP),
-      supabase.from("profiles").select("id, full_name"),
+      supabase
+        .from("profiles")
+        .select("id, full_name, identification_number, professional_registration"),
     ]);
 
     const med: Record<string, string> = {};
+    const ident: typeof medicoIdentity = {};
     for (const p of profRes.data ?? []) {
       med[p.id] = p.full_name || "Médico";
+      ident[p.id] = {
+        identificationNumber: p.identification_number,
+        professionalRegistration: p.professional_registration,
+      };
     }
     setMedicos(med);
+    setMedicoIdentity(ident);
 
     setPatients((patRes.data ?? []).map(rowToPatient));
 
@@ -506,6 +522,10 @@ export function MiracleProvider({
   );
 
   const getMedicoName = useCallback((id: string) => medicos[id], [medicos]);
+  const getMedicoIdentity = useCallback(
+    (id: string) => medicoIdentity[id],
+    [medicoIdentity],
+  );
 
   const addConsultation = useCallback(
     (c: Consultation) => {
@@ -903,6 +923,7 @@ export function MiracleProvider({
       getConsultation,
       getPatient,
       getMedicoName,
+      getMedicoIdentity,
       addPatient,
       addPatientAsync,
       approveNote,
@@ -929,6 +950,7 @@ export function MiracleProvider({
       getConsultation,
       getPatient,
       getMedicoName,
+      getMedicoIdentity,
       addPatient,
       addPatientAsync,
       approveNote,

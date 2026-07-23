@@ -50,6 +50,25 @@ describe("buildConsultationPlainText", () => {
     expect(output).toContain("Patología · Consulta externa");
   });
 
+  it("incluye la identificación y el registro médico del profesional cuando están presentes", () => {
+    const output = buildConsultationPlainText(
+      base({
+        medicoNombre: "Álvaro Restrepo Pareja",
+        medicoIdentificacion: "71595247",
+        medicoRegistro: "71595247",
+      }),
+    );
+    expect(output).toContain("Álvaro Restrepo Pareja · CC 71595247 · Reg. Med. 71595247");
+  });
+
+  it("omite la identificación del médico cuando no está registrada", () => {
+    const output = buildConsultationPlainText(
+      base({ medicoNombre: "Dra. Juliana Pérez", medicoIdentificacion: null, medicoRegistro: null }),
+    );
+    expect(output).not.toContain("CC ");
+    expect(output).not.toContain("Reg. Med.");
+  });
+
   it("usa 'Paciente sin identificar' y omite edad/documento cuando no hay paciente", () => {
     const output = buildConsultationPlainText(base({ patient: null }));
     expect(output).toContain("Paciente sin identificar");
