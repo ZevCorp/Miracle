@@ -57,6 +57,29 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+const COMBINING_MARKS_RE = new RegExp("[\\u0300-\\u036f]", "g");
+
+/** Quita tildes ("Patología" → "Patologia") — el sello del sistema del
+ *  hospital muestra la especialidad sin acentos (p. ej. "PATOLOGIA"). */
+function sinTildes(s: string): string {
+  return s.normalize("NFD").replace(COMBINING_MARKS_RE, "");
+}
+
+/** DD/MM/AAAA, HH:MM a./p. m. — mismo formato que usa el sistema del
+ *  hospital en su sello "Fecha y hora" (con ceros a la izquierda). */
+function formatFechaResponsable(iso: string): string {
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  let h = d.getHours();
+  const ampm = h >= 12 ? "p. m." : "a. m.";
+  h = h % 12 || 12;
+  const hh = String(h).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${yyyy}, ${hh}:${mi} ${ampm}`;
+}
+
 export default function ConsultaDetallePage() {
   const params = useParams();
   const router = useRouter();
@@ -235,6 +258,28 @@ export default function ConsultaDetallePage() {
       showToast("Permita las ventanas emergentes para generar el PDF.", "warning");
       return;
     }
+    // Bloque final al estilo del sello que deja el sistema del hospital
+    // ("Nota realizada por / Responsable / Identificación / Reg. Med. /
+    // Especialidad"). Anclado a cuentas: honorific/responsableLabel solo
+    // están cargados para los perfiles a los que se les dio ese dato real,
+    // así que en cualquier otra cuenta este bloque simplemente no aparece.
+    const pieResponsable =
+      medicoIdentidad?.honorific &&
+      medicoIdentidad?.responsableLabel &&
+      medicoIdentidad?.identificationNumber &&
+      medicoIdentidad?.professionalRegistration
+        ? `<div class="foot-responsable">
+            <p>Nota realizada por: ${esc(medicoIdentidad.honorific)}. ${esc(
+              medicoNombre ?? "",
+            )} Empresa: Hospital General de Medellín Fecha y hora: ${esc(
+              formatFechaResponsable(c!.fecha),
+            )}</p>
+            <p><strong>Responsable:</strong> ${esc(medicoIdentidad.responsableLabel)}</p>
+            <p><strong>Identificación:</strong> CC${esc(medicoIdentidad.identificationNumber)}</p>
+            <p><strong>Reg. Med.:</strong> ${esc(medicoIdentidad.professionalRegistration)}</p>
+            <p><strong>Especialidad:</strong> ${esc(sinTildes(c!.especialidad).toUpperCase())}</p>
+          </div>`
+        : "";
     const aceptados = c!.codigos.filter((k) => k.estado === "aceptado");
     const secciones = c!.note
       .map((s) => {
@@ -258,13 +303,16 @@ export default function ConsultaDetallePage() {
       patient?.nombre ?? "Paciente",
     )}</title><style>
       *{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#0e1726;margin:40px;line-height:1.5}
-      h1{font-size:20px;margin:0 0 2px}h2{font-size:14px;margin:18px 0 4px;color:#0c1424}
+      h1{font-size:20px;margin:0 0 2px}h2{font-size:14px;margin:18px 0 4px;color:#0c1424;text-transform:uppercase;letter-spacing:.02em}
       .muted{color:#64748b;font-size:12px}.head{border-bottom:2px solid #0c1424;padding-bottom:10px;margin-bottom:8px}
       .grid{display:flex;flex-wrap:wrap;gap:4px 24px;font-size:13px;margin-top:6px}
       section p,section ul{font-size:13px;margin:2px 0}ul{padding-left:18px}
       table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
       th,td{border:1px solid #cbd5e1;padding:5px 8px;text-align:left}th{background:#f1f5f9}
       .foot{margin-top:28px;border-top:1px solid #cbd5e1;padding-top:10px;font-size:11px;color:#64748b}
+      .foot-responsable{margin-top:14px;font-size:12px;color:#0e1726}
+      .foot-responsable p{margin:3px 0}
+      .foot-responsable strong{display:inline-block;min-width:100px}
       @media print{body{margin:18mm}}
     </style></head><body>
       ${
@@ -317,6 +365,7 @@ export default function ConsultaDetallePage() {
           : ""
       }
       <p class="foot">Documento generado con asistencia de IA y revisado por el profesional de salud. Miracle · Inteligencia clínica-operativa.</p>
+      ${pieResponsable}
     </body></html>`);
     w.document.close();
     w.focus();

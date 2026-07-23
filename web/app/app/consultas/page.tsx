@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ClipboardList, Plus } from "lucide-react";
-import { STATUS_LABEL, type ConsultationStatus, type ConsultationType, type NoteSection } from "@/lib/mock";
+import { STATUS_LABEL, type ConsultationStatus, type ConsultationType } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/auth/server";
 import { ConsultationCard } from "@/components/app/ConsultationCard";
@@ -27,7 +27,7 @@ type Row = {
   motivo: string | null;
   fecha: string;
   servicio: string | null;
-  note: NoteSection[] | null;
+  rotulo: string | null;
   patients: { nombre: string | null } | { nombre: string | null }[] | null;
 };
 
@@ -88,7 +88,7 @@ export default async function ConsultasPage({
   let query = supabase
     .from("consultations")
     .select(
-      "id, patient_id, especialidad, tipo, estado, motivo, fecha, servicio, note, patients(nombre)",
+      "id, patient_id, especialidad, tipo, estado, motivo, fecha, servicio, rotulo, patients(nombre)",
       { count: "exact" },
     )
     .order("fecha", { ascending: false })
@@ -98,7 +98,11 @@ export default async function ConsultasPage({
   if (medicoFilter !== "todos") query = query.eq("medico_id", medicoFilter);
   if (term) {
     const safe = term.replace(/[%,()*\\]/g, " ").trim();
-    if (safe) query = query.ilike("motivo", `%${safe}%`);
+    // Transversal a cualquier especialidad: `rotulo` viene de la columna
+    // sincronizada por trigger (ver migración consultations_rotulo_column),
+    // null cuando la plantilla no tiene esa sección, sin casos especiales
+    // por especialidad.
+    if (safe) query = query.or(`motivo.ilike.%${safe}%,rotulo.ilike.%${safe}%`);
   }
 
   const { data, count } = await query;
@@ -160,6 +164,7 @@ export default async function ConsultasPage({
             <ConsultationCard
               key={r.id}
               patientName={patientName(r.patients)}
+              rotulo={r.rotulo}
               consultation={{
                 id: r.id,
                 pacienteId: r.patient_id ?? "",
@@ -168,7 +173,6 @@ export default async function ConsultasPage({
                 estado: r.estado,
                 motivo: r.motivo ?? "",
                 fecha: r.fecha,
-                note: r.note ?? [],
               }}
             />
           ))}

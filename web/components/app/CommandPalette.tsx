@@ -80,7 +80,15 @@ export function CommandPalette({
       .filter((c) => {
         if (!q) return true;
         const nombre = getPatient(c.pacienteId)?.nombre.toLowerCase() ?? "";
-        return nombre.includes(q) || c.motivo.toLowerCase().includes(q);
+        // Transversal a cualquier especialidad: el rótulo (si la consulta lo
+        // tiene) también cuenta como coincidencia de búsqueda.
+        const rotulo =
+          c.note
+            .find((s) => s.id === "rotulo" || s.titulo === "Rótulo")
+            ?.texto?.toLowerCase() ?? "";
+        return (
+          nombre.includes(q) || c.motivo.toLowerCase().includes(q) || rotulo.includes(q)
+        );
       })
       .slice(0, 5)
       .map((c) => ({

@@ -36,6 +36,7 @@ export function ConsultationCard({
   consultation,
   active = false,
   patientName,
+  rotulo: rotuloProp,
   presentation = "card",
 }: {
   consultation: CardConsultation;
@@ -43,12 +44,15 @@ export function ConsultationCard({
   /** Nombre del paciente ya resuelto (p. ej. desde un join en RSC). Si no se pasa,
    *  se resuelve desde el store. */
   patientName?: string;
+  /** Rótulo ya resuelto (p. ej. desde la columna `rotulo` en RSC). Si no se
+   *  pasa, se extrae de `consultation.note` cuando esté disponible. */
+  rotulo?: string | null;
   presentation?: "card" | "row";
 }) {
   const { getPatient } = useStore();
   const nombre =
     patientName ?? getPatient(consultation.pacienteId)?.nombre ?? "Paciente sin identificar";
-  const rotulo = rotuloDe(consultation.note);
+  const rotulo = rotuloProp ?? rotuloDe(consultation.note);
   return (
     <Link
       href={`/app/consultas/${consultation.id}`}

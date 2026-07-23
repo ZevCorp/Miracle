@@ -57,7 +57,7 @@ export function ConsultasFilters({
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por motivo"
+          placeholder="Buscar por motivo o rótulo"
           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
         />
       </div>

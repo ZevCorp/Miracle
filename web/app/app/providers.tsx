@@ -68,10 +68,19 @@ interface StoreValue {
   getPatient: (id: string | null | undefined) => Patient | undefined;
   getMedicoName: (id: string) => string | undefined;
   /** Cédula y registro médico del profesional — para el PDF y "Copiar nota"
-   *  (la secretaria los necesita al llenar el sistema del hospital). */
-  getMedicoIdentity: (
-    id: string,
-  ) => { identificationNumber: string | null; professionalRegistration: string | null } | undefined;
+   *  (la secretaria los necesita al llenar el sistema del hospital).
+   *  honorific/responsableLabel solo existen para las cuentas a las que se
+   *  les cargó el bloque de pie de página al estilo del sistema del
+   *  hospital — no se derivan de full_name, así que la mayoría de
+   *  profesionales los tendrá en null. */
+  getMedicoIdentity: (id: string) =>
+    | {
+        identificationNumber: string | null;
+        professionalRegistration: string | null;
+        honorific: string | null;
+        responsableLabel: string | null;
+      }
+    | undefined;
   addPatient: (patient: string | NewPatientInput) => Patient;
   /** Como addPatient, pero espera la confirmación de Supabase antes de resolver. */
   addPatientAsync: (
@@ -176,7 +185,15 @@ export function MiracleProvider({
   const [consultations, setConsultations] = useState<Consultation[]>([]);
   const [medicos, setMedicos] = useState<Record<string, string>>({});
   const [medicoIdentity, setMedicoIdentity] = useState<
-    Record<string, { identificationNumber: string | null; professionalRegistration: string | null }>
+    Record<
+      string,
+      {
+        identificationNumber: string | null;
+        professionalRegistration: string | null;
+        honorific: string | null;
+        responsableLabel: string | null;
+      }
+    >
   >({});
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -213,7 +230,9 @@ export function MiracleProvider({
         .limit(CONSULTATIONS_CAP),
       supabase
         .from("profiles")
-        .select("id, full_name, identification_number, professional_registration"),
+        .select(
+          "id, full_name, identification_number, professional_registration, honorific, responsable_label",
+        ),
     ]);
 
     const med: Record<string, string> = {};
@@ -223,6 +242,8 @@ export function MiracleProvider({
       ident[p.id] = {
         identificationNumber: p.identification_number,
         professionalRegistration: p.professional_registration,
+        honorific: p.honorific,
+        responsableLabel: p.responsable_label,
       };
     }
     setMedicos(med);
