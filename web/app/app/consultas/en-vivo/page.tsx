@@ -1258,7 +1258,11 @@ function ConsultaActivaInner() {
           </div>
 
           {encounterId ? (
-            <AgentPairPanel consultationId={encounterId} note={note} />
+            <AgentPairPanel
+              consultationId={encounterId}
+              note={note}
+              transcript={transcriptDraft}
+            />
           ) : null}
 
           <p className="flex items-start gap-2 px-1 text-xs text-muted">

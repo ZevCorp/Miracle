@@ -33,10 +33,18 @@ import { createClient } from "@/lib/supabase/client";
 export function AgentPairPanel({
   consultationId,
   note,
+  transcript,
 }: {
   consultationId: string;
   /** La nota tal como la tiene la página en vivo. `null` mientras aún no hay nada. */
   note: { sections?: readonly NoteSectionLike[] } | null;
+  /**
+   * El borrador de la transcripción, que es lo ÚNICO que crece mientras el médico
+   * habla. La nota no existe hasta que se pulsa «Generar nota clínica», así que
+   * leyendo solo la nota los datos aparecían al final y se perdía todo el sentido de
+   * que se vayan llenando durante la conversación.
+   */
+  transcript: string;
 }) {
   const supabase = createClient();
   const [code, setCode] = useState<string | null>(null);
@@ -69,7 +77,14 @@ export function AgentPairPanel({
   useEffect(() => {
     if (!code) return;
 
-    const concepts = extractConcepts(note?.sections);
+    // La NOTA va primero y el borrador después: los patrones se quedan con la primera
+    // coincidencia, así que lo curado gana sobre lo crudo. Si el médico se corrige al
+    // hablar («talla 1.75… perdón, 1.70»), la nota ya trae el valor bueno; y mientras
+    // la nota no exista, el borrador es lo único que hay.
+    const concepts = extractConcepts([
+      ...(note?.sections ?? []),
+      { texto: transcript },
+    ]);
     const rev = conceptsRevision(concepts);
     if (rev === sentRev.current) return;
 
@@ -89,7 +104,7 @@ export function AgentPairPanel({
     }, 500);
 
     return () => clearTimeout(t);
-  }, [code, note, consultationId, supabase]);
+  }, [code, note, transcript, consultationId, supabase]);
 
   const enviados = Object.keys(pushed).length;
 
@@ -129,7 +144,7 @@ export function AgentPairPanel({
             Válido 8 horas.{" "}
             {enviados > 0
               ? `Enviando ${enviados} dato(s) al agente.`
-              : "Aún no hay signos vitales en la nota."}
+              : "Aún no se han dicho signos vitales."}
           </p>
           <button
             type="button"

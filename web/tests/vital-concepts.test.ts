@@ -118,6 +118,23 @@ describe("noteToText", () => {
     expect(noteToText([{ content: "Talla 1.70 metros" }])).toBe("Talla 1.70 metros");
   });
 
+  // El panel manda la nota PRIMERO y el borrador de la transcripción después. Los
+  // patrones se quedan con la primera coincidencia, así que lo curado gana sobre lo
+  // crudo: si el médico se corrige al hablar, la nota ya trae el valor bueno.
+  it("la nota tiene precedencia sobre el borrador hablado", () => {
+    const c = extractConcepts([
+      { content: "Talla 1.70 metros" },
+      { texto: "eh… talla 1.75, perdón, 1.70" },
+    ]);
+    expect(c["vital.talla"]?.value).toBe("1.70");
+  });
+
+  it("mientras no hay nota, lee el borrador hablado", () => {
+    const c = extractConcepts([{ texto: "peso 62 kilos, temperatura 37.1" }]);
+    expect(c["vital.peso"]?.value).toBe("62.0");
+    expect(c["vital.temperatura"]?.value).toBe("37.1");
+  });
+
   it("extrae conceptos de la nota en vivo", () => {
     const c = extractConcepts([{ content: "TA 118/76, FC 64, Temp 36.4" }]);
     expect(c["vital.presion.sistolica"]?.value).toBe("118");
