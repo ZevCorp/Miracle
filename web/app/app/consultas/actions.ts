@@ -1,6 +1,6 @@
 "use server";
 
-import { createHash } from "node:crypto";
+import { computeSignatureHash } from "@/lib/clinical/signature-hash";
 import { getCurrentProfile } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEMO_AUDIT_ACCION } from "@/lib/demo";
@@ -53,15 +53,20 @@ export async function signConsultationNote(
 
   const por = profile.fullName ?? profile.email;
   const fecha = new Date().toISOString();
-  const contentHash = createHash("sha256")
-    .update(
-      JSON.stringify({
-        note: consultation.note,
-        resumen: consultation.resumen,
-        codigos: consultation.codigos,
-      }),
-    )
-    .digest("hex");
+  // Serialización canónica compartida con Graph (lib/clinical/signature-hash.ts):
+  // Graph re-verifica este mismo hash al exportar a la historia clínica.
+  //
+  // OJO: se hashea la fila TAL COMO LA DEVOLVIÓ EL SELECT de arriba, no un objeto
+  // construido en memoria antes de escribir. Postgres normaliza el orden de
+  // claves de `jsonb`, así que hashear el valor previo a la escritura produce un
+  // hash que Graph no puede reproducir y haría fallar TODAS las exportaciones con
+  // SIGNATURE_HASH_MISMATCH. Verificado contra Postgres real en Graph
+  // (scripts/verify-note-export-real-postgres.js).
+  const contentHash = computeSignatureHash({
+    note: consultation.note,
+    resumen: consultation.resumen,
+    codigos: consultation.codigos,
+  });
   // El hash completo queda en la firma (atadura contenido↔firma), no solo un
   // prefijo en auditoría.
   const firma = { por, fecha, hash: contentHash };
