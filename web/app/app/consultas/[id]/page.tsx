@@ -27,6 +27,8 @@ import {
   ClinicalApiError,
 } from "@/lib/api/clinical";
 import { noteJsonToSections } from "@/lib/clinical/encounter-to-consultation";
+import { useNoteExport } from "@/lib/hooks/useNoteExport";
+import { NoteExportButton, NoteExportStatus } from "@/components/app/NoteExportStatus";
 import { buildConsultationPlainText, copyTextWithFallback } from "@/lib/clinical/consultation-text";
 import { buildRedactor } from "@/lib/privacy/redact";
 import {
@@ -90,7 +92,8 @@ export default function ConsultaDetallePage() {
     getMedicoName,
     getMedicoIdentity,
     approveNote,
-    exportNote,
+    markExportedManually,
+    applyServerConsultationEstado,
     markReviewed,
     setCodeStatus,
     addCode,
@@ -131,6 +134,21 @@ export default function ConsultaDetallePage() {
     if (params.get("adenda") === "1") setFocusAddenda(true);
   }, []);
 
+  // Estado REAL de la exportación a historia clínica, leído del servidor (Graph).
+  // Se consulta solo para notas firmadas y no-demo: antes de la firma no hay nada
+  // que exportar. Va antes de cualquier return para no romper el orden de hooks.
+  const exportState = useNoteExport(id, {
+    enabled: signed && !!c && !isDemoConsultation(c),
+  });
+
+  // La transición aprobada→exportada la hace la base de datos cuando el ejecutor
+  // confirma el éxito. Aquí solo se refleja en el store para que la lista y los
+  // badges dejen de decir "aprobada".
+  const serverEstado = exportState.consultationEstado;
+  useEffect(() => {
+    if (serverEstado) applyServerConsultationEstado(id, serverEstado);
+  }, [serverEstado, id, applyServerConsultationEstado]);
+
   if (!c) {
     // Mientras el store carga, aún no se sabe si la consulta existe.
     if (loading) {
@@ -168,6 +186,10 @@ export default function ConsultaDetallePage() {
   // de la secretaria (avisar que ya subió la nota aprobada al sistema del
   // hospital), así que se abre a cualquier rol una vez el médico ya firmó.
   const canExport = !demo && c.estado === "aprobada";
+  // La exportación automática la pide quien puede firmar/editar (médico, admin,
+  // supervisor). La secretaria no habla con Graph: su vía es el registro manual,
+  // que es lo que su rol realmente hace (copiar la nota a mano y dejar constancia).
+  const canUseAutomaticExport = role !== "secretaria";
 
   async function copyResumen() {
     const ok = await copyTextWithFallback(c!.resumen);
@@ -491,13 +513,24 @@ export default function ConsultaDetallePage() {
               <CheckCircle2 size={16} /> Aprobar
             </Button>
           ) : null}
-          {canExport ? (
-            <Button onClick={() => exportNote(c.id)} className="hidden sm:inline-flex">
-              <FileCheck2 size={16} /> Exportar a HC
+          {/* Exportación AUTOMÁTICA: pide el trabajo a Graph. El botón se
+              deshabilita solo mientras hay uno en vuelo o en curso. */}
+          {canExport && canUseAutomaticExport ? (
+            <NoteExportButton
+              state={exportState}
+              label="Exportar a HC"
+              className="hidden min-h-11 items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white sm:inline-flex"
+            />
+          ) : null}
+          {/* Registro MANUAL de la secretaria: ella ya copió la nota al sistema
+              del hospital y aquí deja constancia. No envía nada al HIS. */}
+          {canExport && !canUseAutomaticExport ? (
+            <Button onClick={() => markExportedManually(c.id)} className="hidden sm:inline-flex">
+              <FileCheck2 size={16} /> Marcar como exportada
             </Button>
           ) : null}
           {!demo && c.estado === "exportada" ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-2 text-sm font-semibold text-warning">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-2 text-sm font-semibold text-success">
               <CheckCircle2 size={16} /> Exportada a HC
             </span>
           ) : null}
@@ -520,6 +553,12 @@ export default function ConsultaDetallePage() {
             </p>
           </div>
         </div>
+      ) : null}
+
+      {/* Estado real de la exportación a historia clínica. Solo aparece cuando
+          existe un trabajo: pintar un panel vacío no informa de nada. */}
+      {signed && !demo && canUseAutomaticExport && exportState.job ? (
+        <NoteExportStatus state={exportState} className="mt-5" />
       ) : null}
 
       {/* Tabs */}
@@ -592,8 +631,11 @@ export default function ConsultaDetallePage() {
           {canEdit && (c.estado === "borrador" || c.estado === "revisada") ? (
             <button type="button" onClick={() => approveNote(c.id)} className="clinical-primary min-h-12"><CheckCircle2 size={17} /> Aprobar y firmar nota</button>
           ) : null}
-          {canExport ? (
-            <button type="button" onClick={() => exportNote(c.id)} className="clinical-primary min-h-12"><FileCheck2 size={17} /> Exportar a historia clínica</button>
+          {canExport && canUseAutomaticExport ? (
+            <NoteExportButton state={exportState} className="clinical-primary min-h-12" />
+          ) : null}
+          {canExport && !canUseAutomaticExport ? (
+            <button type="button" onClick={() => markExportedManually(c.id)} className="clinical-primary min-h-12"><FileCheck2 size={17} /> Marcar como exportada</button>
           ) : null}
         </div>
       ) : null}

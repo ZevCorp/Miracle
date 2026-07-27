@@ -87,7 +87,13 @@ interface StoreValue {
     patient: NewPatientInput,
   ) => Promise<{ ok: boolean; patient: Patient }>;
   approveNote: (id: string) => void;
-  exportNote: (id: string) => void;
+  /**
+   * Registro MANUAL de la secretaria: marca la consulta como exportada sin
+   * enviar nada al HIS. La exportación automática vive en `useNoteExport`.
+   */
+  markExportedManually: (id: string) => void;
+  /** Aplica en memoria un estado que el servidor ya confirmó (solo aprobada→exportada). */
+  applyServerConsultationEstado: (id: string, estado: string) => void;
   markReviewed: (id: string) => void;
   setCodeStatus: (id: string, codeId: string, estado: CodeStatus) => void;
   addCode: (id: string, code: Omit<ClinicalCode, "id" | "estado">) => void;
@@ -818,54 +824,74 @@ export function MiracleProvider({
     [showToast],
   );
 
-  const exportNote = useCallback(
+  /**
+   * Marca la consulta como exportada SIN enviar nada a la historia clínica.
+   *
+   * Es el registro manual de la secretaria: ella copia la nota al sistema del
+   * hospital a mano y luego deja constancia aquí. No tiene permiso de UPDATE
+   * directo sobre `consultations` (ni debe tenerlo: solo puede mover esta
+   * transición puntual), así que pasa por una RPC security definer acotada.
+   *
+   * La exportación AUTOMÁTICA es otra cosa y vive en `useNoteExport`: pide el
+   * trabajo a Graph y solo llega a 'exportada' cuando el ejecutor confirma que
+   * la nota quedó escrita en el HIS. Este camino no la sustituye ni la simula.
+   */
+  const markExportedManually = useCallback(
     (id: string) => {
-      // La secretaria no tiene permiso UPDATE directo sobre consultations (ni
-      // debe tenerlo: solo puede mover esta transición puntual). Pasa por una
-      // RPC security definer bien acotada en vez del mutate()+persist() normal.
-      if (role === "secretaria") {
-        void (async () => {
-          const { error } = await supabase.rpc("secretary_mark_exported", {
-            p_consultation_id: id,
-          });
-          if (error) {
-            showToast("No se pudo marcar como exportada. Intenta de nuevo.", "warning");
-            return;
-          }
-          setConsultations((list) =>
-            list.map((c) =>
-              c.id === id
-                ? {
-                    ...c,
-                    estado: "exportada" as const,
-                    auditoria: [
-                      ...c.auditoria,
-                      {
-                        id: `a-${Date.now()}`,
-                        fecha: new Date().toISOString(),
-                        actor,
-                        accion: "Nota exportada a HC",
-                        detalle: "Copiada al sistema de historia clínica.",
-                      },
-                    ],
-                  }
-                : c,
-            ),
-          );
-          remoteAudit(id, "Nota exportada a HC", "Copiada al sistema de historia clínica.");
-          showToast("Nota exportada a la historia clínica.", "success");
-        })();
-        return;
-      }
-      mutate(
-        id,
-        (c) => ({ ...c, estado: "exportada" }),
-        "Nota exportada a HC",
-        "Copiada al sistema de historia clínica.",
-      );
-      showToast("Nota exportada a la historia clínica.", "success");
+      void (async () => {
+        const { error } = await supabase.rpc("secretary_mark_exported", {
+          p_consultation_id: id,
+        });
+        if (error) {
+          showToast("No se pudo marcar como exportada. Intenta de nuevo.", "warning");
+          return;
+        }
+        setConsultations((list) =>
+          list.map((c) =>
+            c.id === id
+              ? {
+                  ...c,
+                  estado: "exportada" as const,
+                  auditoria: [
+                    ...c.auditoria,
+                    {
+                      id: `a-${Date.now()}`,
+                      fecha: new Date().toISOString(),
+                      actor,
+                      accion: "Nota exportada a HC",
+                      detalle: "Copiada al sistema de historia clínica.",
+                    },
+                  ],
+                }
+              : c,
+          ),
+        );
+        remoteAudit(id, "Nota exportada a HC", "Copiada al sistema de historia clínica.");
+        showToast("Marcada como exportada (registro manual).", "success");
+      })();
     },
-    [mutate, showToast, role, supabase, actor, remoteAudit],
+    [showToast, supabase, actor, remoteAudit],
+  );
+
+  /**
+   * Refleja en memoria el estado de negocio que ya confirmó el servidor.
+   *
+   * Lo llama el detalle de la consulta cuando Graph reporta que la exportación
+   * terminó bien: la transición la hizo la base de datos, aquí solo se pinta.
+   * Se ignora cualquier cosa que no sea la transición legal aprobada→exportada,
+   * para que esto no pueda usarse como puerta trasera para degradar una nota
+   * firmada.
+   */
+  const applyServerConsultationEstado = useCallback(
+    (id: string, estado: string) => {
+      if (estado !== "exportada") return;
+      setConsultations((list) =>
+        list.map((c) => (c.id === id && c.estado === "aprobada"
+          ? { ...c, estado: "exportada" as const }
+          : c)),
+      );
+    },
+    [],
   );
 
   const markReviewed = useCallback(
@@ -948,7 +974,8 @@ export function MiracleProvider({
       addPatient,
       addPatientAsync,
       approveNote,
-      exportNote,
+      markExportedManually,
+      applyServerConsultationEstado,
       markReviewed,
       setCodeStatus,
       addCode,
@@ -975,7 +1002,8 @@ export function MiracleProvider({
       addPatient,
       addPatientAsync,
       approveNote,
-      exportNote,
+      markExportedManually,
+      applyServerConsultationEstado,
       markReviewed,
       setCodeStatus,
       addCode,

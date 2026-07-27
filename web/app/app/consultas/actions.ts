@@ -1,6 +1,6 @@
 "use server";
 
-import { createHash } from "node:crypto";
+import { computeSignatureHash } from "@/lib/clinical/signature-hash";
 import { getCurrentProfile } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEMO_AUDIT_ACCION } from "@/lib/demo";
@@ -53,15 +53,13 @@ export async function signConsultationNote(
 
   const por = profile.fullName ?? profile.email;
   const fecha = new Date().toISOString();
-  const contentHash = createHash("sha256")
-    .update(
-      JSON.stringify({
-        note: consultation.note,
-        resumen: consultation.resumen,
-        codigos: consultation.codigos,
-      }),
-    )
-    .digest("hex");
+  // Serialización canónica compartida con Graph (lib/clinical/signature-hash.ts):
+  // Graph re-verifica este mismo hash al exportar a la historia clínica.
+  const contentHash = computeSignatureHash({
+    note: consultation.note,
+    resumen: consultation.resumen,
+    codigos: consultation.codigos,
+  });
   // El hash completo queda en la firma (atadura contenido↔firma), no solo un
   // prefijo en auditoría.
   const firma = { por, fecha, hash: contentHash };

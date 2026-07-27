@@ -243,6 +243,27 @@ export const CLINICAL_ERROR_MESSAGES: Record<string, string> = {
   SUPABASE_NOT_CONFIGURED:
     "El servidor clínico no está configurado. Contacta al administrador.",
   RATE_LIMITED: "Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.",
+  // Exportación a historia clínica (graph_note_exports en Graph).
+  CONSULTATION_NOT_FOUND: "No encontramos esta consulta. Recarga la página.",
+  CONSULTATION_NOT_APPROVED:
+    "La nota tiene que estar aprobada y firmada antes de exportarla.",
+  CONSULTATION_NOT_SIGNED: "Esta nota no tiene una firma válida.",
+  CONSULTATION_ALREADY_EXPORTED:
+    "Esta consulta ya está exportada a la historia clínica.",
+  CONSULTATION_IS_DEMO:
+    "Esta es una consulta de demostración y no puede exportarse a la historia clínica.",
+  SIGNATURE_HASH_MISMATCH:
+    "El contenido de la nota no coincide con su firma, así que no se puede exportar. Revísala y vuelve a firmarla.",
+  EXPORT_FORBIDDEN: "No tienes permiso para exportar esta nota.",
+  EXPORT_NOT_FOUND: "No encontramos esta exportación. Recarga la página.",
+  EXPORT_ALREADY_EXISTS: "Ya hay una exportación en curso para esta consulta.",
+  EXPORT_NOT_RETRYABLE:
+    "Esta exportación no se puede reintentar en su estado actual.",
+  EXPORT_NOT_CANCELLABLE:
+    "La exportación ya está en curso: no se puede cancelar.",
+  EXPORT_INVALID: "La solicitud de exportación no es válida.",
+  WORKFLOW_NOT_CONFIGURED:
+    "La automatización de historia clínica no está configurada. Contacta al administrador.",
   NETWORK_ERROR:
     "No pudimos conectar con el servidor clínico. Revisa tu conexión e inténtalo de nuevo.",
   API_NOT_CONFIGURED:
@@ -728,5 +749,141 @@ export async function adjustNoteWithAssistant(
   return clinicalRequest<NoteAdjustmentResult>(
     "/api/clinical/assistant/note-adjustment",
     { method: "POST", body: payload },
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Exportación a historia clínica                                      */
+/* ------------------------------------------------------------------ */
+//
+// Flujo real (nada de esto marca la consulta como exportada por sí solo):
+//   1. El médico firma y pulsa "Exportar a HC" → createNoteExport().
+//   2. Graph valida (aprobada + firmada + hash re-verificado), congela un
+//      snapshot y encola el trabajo en estado `pending`.
+//   3. Un ejecutor de Operations lo reclama (`claimed`) y lo escribe en el HIS.
+//   4. Solo cuando el ejecutor confirma éxito el trabajo pasa a `completed` y
+//      la consulta pasa de `aprobada` a `exportada`.
+//
+// Por eso la UI NUNCA debe decir "exportada" al enviar la solicitud: el estado
+// se lee del servidor (getNoteExport) y sobrevive a recargas.
+
+/** Estados del trabajo de exportación. Son los del contrato de Graph. */
+export type NoteExportStatus =
+  | "pending"
+  | "claimed"
+  | "completed"
+  | "needs_doctor"
+  | "failed"
+  | "cancelled";
+
+export interface NoteExportResultSummary {
+  outcome: "ok" | "needs_doctor" | "error" | null;
+  /** Folio devuelto por el HIS cuando la escritura se confirmó. */
+  folio: string | null;
+  /** Etiquetas de campos que quedaron sin llenar (no son PHI). */
+  unresolved_fields: string[];
+  detail_code: string | null;
+}
+
+export interface NoteExportAttempt {
+  event: string;
+  at?: string;
+  attempt?: number;
+  outcome?: string;
+  status?: string;
+  error_code?: string | null;
+  folio?: string | null;
+  from_status?: string;
+  claimed_by?: string;
+}
+
+/** Vista del trabajo que expone Graph. Nunca incluye el contenido clínico. */
+export interface NoteExport {
+  id: string;
+  consultation_id: string;
+  status: NoteExportStatus;
+  attempts: number;
+  workflow_id: string;
+  error_code: string | null;
+  hash_source: "firma" | "computed_at_export";
+  result_summary: NoteExportResultSummary | null;
+  claimed_by: string | null;
+  lease_expires_at: string | null;
+  created_at: string | null;
+  claimed_at: string | null;
+  finished_at: string | null;
+  updated_at: string | null;
+  attempt_history: NoteExportAttempt[];
+}
+
+export interface NoteExportState {
+  export: NoteExport | null;
+  /** Estado de negocio de la consulta según el servidor ('aprobada'|'exportada'…). */
+  consultation_estado: string;
+}
+
+/** `true` cuando el trabajo ya terminó y no cambiará solo (deja de hacer polling). */
+export function isNoteExportTerminal(status: NoteExportStatus | null | undefined): boolean {
+  return status === "completed" || status === "failed"
+    || status === "needs_doctor" || status === "cancelled";
+}
+
+/** `true` cuando el médico puede volver a intentarlo. */
+export function isNoteExportRetryable(status: NoteExportStatus | null | undefined): boolean {
+  return status === "failed" || status === "needs_doctor" || status === "cancelled";
+}
+
+/**
+ * Pide la exportación. Devuelve el trabajo en `pending`: NO significa que la
+ * nota esté en la historia clínica.
+ *
+ * Idempotente: si ya existía un trabajo para la consulta, Graph responde 409 y
+ * aquí se recupera ese mismo trabajo con `duplicate: true` en vez de propagar un
+ * error. Eso es lo que hace inofensivos el doble clic, dos pestañas abiertas y
+ * los reintentos de red.
+ */
+export async function createNoteExport(
+  consultationId: string,
+): Promise<{ export: NoteExport; duplicate: boolean }> {
+  try {
+    const data = await clinicalRequest<{ export: NoteExport }>("/api/clinical/exports", {
+      method: "POST",
+      body: { consultation_id: consultationId },
+    });
+    return { export: data.export, duplicate: false };
+  } catch (error) {
+    if (error instanceof ClinicalApiError && error.code === "EXPORT_ALREADY_EXISTS") {
+      // Ya había trabajo: adoptamos su estado actual, no creamos otro.
+      const current = await getNoteExport(consultationId);
+      if (current.export) return { export: current.export, duplicate: true };
+    }
+    throw error;
+  }
+}
+
+/** Estado actual del trabajo. Es la fuente de verdad tras recargar la página. */
+export async function getNoteExport(consultationId: string): Promise<NoteExportState> {
+  return clinicalRequest<NoteExportState>("/api/clinical/exports", {
+    query: { consultation_id: consultationId },
+  });
+}
+
+/** Reencola la MISMA exportación. Solo desde failed | needs_doctor | cancelled. */
+export async function retryNoteExport(
+  exportId: string,
+): Promise<{ export: NoteExport; idempotent: boolean }> {
+  return clinicalRequest<{ export: NoteExport; idempotent: boolean }>(
+    `/api/clinical/exports/${encodeURIComponent(exportId)}/retry`,
+    { method: "POST" },
+  );
+}
+
+/** Cancela una exportación que todavía nadie tomó. */
+export async function cancelNoteExport(
+  exportId: string,
+): Promise<{ export: NoteExport; idempotent: boolean }> {
+  return clinicalRequest<{ export: NoteExport; idempotent: boolean }>(
+    `/api/clinical/exports/${encodeURIComponent(exportId)}/cancel`,
+    { method: "POST" },
   );
 }
