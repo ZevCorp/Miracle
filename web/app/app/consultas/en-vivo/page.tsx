@@ -1261,7 +1261,7 @@ function ConsultaActivaInner() {
             <AgentPairPanel
               consultationId={encounterId}
               note={note}
-              transcript={transcriptDraft}
+              approved={noteSaved && !noteDirty}
             />
           ) : null}
 

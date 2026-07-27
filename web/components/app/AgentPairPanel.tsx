@@ -33,18 +33,21 @@ import { createClient } from "@/lib/supabase/client";
 export function AgentPairPanel({
   consultationId,
   note,
-  transcript,
+  approved,
 }: {
   consultationId: string;
   /** La nota tal como la tiene la página en vivo. `null` mientras aún no hay nada. */
   note: { sections?: readonly NoteSectionLike[] } | null;
   /**
-   * El borrador de la transcripción, que es lo ÚNICO que crece mientras el médico
-   * habla. La nota no existe hasta que se pulsa «Generar nota clínica», así que
-   * leyendo solo la nota los datos aparecían al final y se perdía todo el sentido de
-   * que se vayan llenando durante la conversación.
+   * La nota está generada, revisada y guardada (`noteSaved && !noteDirty`).
+   *
+   * NADA sale de aquí antes de eso, y es una decisión de seguridad, no de comodidad.
+   * Estos números terminan escritos en la historia clínica de un hospital: que hayan
+   * pasado por los ojos del médico antes de salir es la única garantía que de verdad
+   * vale. Empujar mientras se dicta era más vistoso y metía valores a medio decir en
+   * un sistema clínico.
    */
-  transcript: string;
+  approved: boolean;
 }) {
   const supabase = createClient();
   const [code, setCode] = useState<string | null>(null);
@@ -75,36 +78,23 @@ export function AgentPairPanel({
   }, [consultationId, supabase]);
 
   useEffect(() => {
-    if (!code) return;
+    if (!code || !approved) return;
 
-    // La NOTA va primero y el borrador después: los patrones se quedan con la primera
-    // coincidencia, así que lo curado gana sobre lo crudo. Si el médico se corrige al
-    // hablar («talla 1.75… perdón, 1.70»), la nota ya trae el valor bueno; y mientras
-    // la nota no exista, el borrador es lo único que hay.
-    const concepts = extractConcepts([
-      ...(note?.sections ?? []),
-      { texto: transcript },
-    ]);
+    const concepts = extractConcepts(note?.sections);
     const rev = conceptsRevision(concepts);
     if (rev === sentRev.current) return;
 
-    // Debounce: mientras se dicta, la nota se reescribe entera cada pocos segundos.
-    // Medio segundo agrupa las correcciones sin que se note el retraso en el campo.
-    const t = setTimeout(() => {
-      void (async () => {
-        const { error: pushError } = await supabase.rpc("push_agent_values", {
-          p_consultation_id: consultationId,
-          p_values: concepts,
-          p_rev: rev,
-        });
-        if (pushError) return; // se reintenta solo en el próximo cambio de la nota
-        sentRev.current = rev;
-        setPushed(concepts);
-      })();
-    }, 500);
-
-    return () => clearTimeout(t);
-  }, [code, note, transcript, consultationId, supabase]);
+    void (async () => {
+      const { error: pushError } = await supabase.rpc("push_agent_values", {
+        p_consultation_id: consultationId,
+        p_values: concepts,
+        p_rev: rev,
+      });
+      if (pushError) return; // se reintenta solo si la nota vuelve a cambiar
+      sentRev.current = rev;
+      setPushed(concepts);
+    })();
+  }, [code, approved, note, consultationId, supabase]);
 
   const enviados = Object.keys(pushed).length;
 
@@ -143,8 +133,10 @@ export function AgentPairPanel({
           <p className="mt-2 text-xs text-muted">
             Válido 8 horas.{" "}
             {enviados > 0
-              ? `Enviando ${enviados} dato(s) al agente.`
-              : "Aún no se han dicho signos vitales."}
+              ? `${enviados} dato(s) disponibles para el agente.`
+              : approved
+                ? "La nota guardada no trae signos vitales."
+                : "Se enviarán cuando guardes la nota."}
           </p>
           <button
             type="button"
