@@ -7,9 +7,9 @@ import {
   conceptsRevision,
   extractConcepts,
   type ConceptMap,
+  type NoteSectionLike,
 } from "@/lib/clinical/vital-concepts";
 import { createClient } from "@/lib/supabase/client";
-import type { NoteSection } from "@/lib/mock";
 
 /**
  * Empareja esta consulta con el agente de escritorio (Ü) y le va empujando los
@@ -35,7 +35,8 @@ export function AgentPairPanel({
   note,
 }: {
   consultationId: string;
-  note: readonly NoteSection[];
+  /** La nota tal como la tiene la página en vivo. `null` mientras aún no hay nada. */
+  note: { sections?: readonly NoteSectionLike[] } | null;
 }) {
   const supabase = createClient();
   const [code, setCode] = useState<string | null>(null);
@@ -68,7 +69,7 @@ export function AgentPairPanel({
   useEffect(() => {
     if (!code) return;
 
-    const concepts = extractConcepts(note);
+    const concepts = extractConcepts(note?.sections);
     const rev = conceptsRevision(concepts);
     if (rev === sentRev.current) return;
 
@@ -93,15 +94,15 @@ export function AgentPairPanel({
   const enviados = Object.keys(pushed).length;
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4">
-      <header className="flex items-center gap-2">
-        <Monitor className="size-4 text-muted-foreground" aria-hidden />
-        <h3 className="text-sm font-medium">Agente de escritorio</h3>
-      </header>
+    <div className="rounded-lg border border-line bg-surface p-5">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
+        <Monitor size={14} aria-hidden />
+        Agente de escritorio
+      </div>
 
       {!code ? (
         <>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-muted">
             Genera un código y tecléalo en Ü para que vaya llenando los signos vitales
             en el sistema del hospital mientras hablas.
           </p>
@@ -109,23 +110,24 @@ export function AgentPairPanel({
             type="button"
             onClick={generar}
             disabled={busy}
-            className="mt-3 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            className="mt-3 inline-flex items-center gap-2 rounded-lg border border-accent/25 bg-accent-soft/45 px-3 py-2 text-sm font-semibold text-accent-ink hover:bg-accent-soft disabled:opacity-50"
           >
             {busy ? "Generando…" : "Generar código"}
           </button>
         </>
       ) : (
         <>
-          {/* Grande y monoespaciado: se teclea a mano en otra pantalla, a veces
-              leyéndolo de lejos. */}
+          {/* Grande y monoespaciado: se teclea a mano en la otra pantalla, a veces
+              leyéndolo de lejos. `select-all` para poder copiarlo de un clic. */}
           <p
-            className="mt-3 select-all font-mono text-2xl tracking-[0.3em]"
+            className="mt-3 select-all font-mono text-2xl tracking-[0.3em] text-deep"
             aria-label={`Código de emparejamiento: ${code.split("").join(" ")}`}
           >
             {code}
           </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Válido 8 horas. {enviados > 0
+          <p className="mt-2 text-xs text-muted">
+            Válido 8 horas.{" "}
+            {enviados > 0
               ? `Enviando ${enviados} dato(s) al agente.`
               : "Aún no hay signos vitales en la nota."}
           </p>
@@ -133,14 +135,14 @@ export function AgentPairPanel({
             type="button"
             onClick={generar}
             disabled={busy}
-            className="mt-2 text-xs text-muted-foreground underline disabled:opacity-50"
+            className="mt-2 text-xs text-muted underline disabled:opacity-50"
           >
             Generar uno nuevo (anula el anterior)
           </button>
         </>
       )}
 
-      {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
-    </section>
+      {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
+    </div>
   );
 }

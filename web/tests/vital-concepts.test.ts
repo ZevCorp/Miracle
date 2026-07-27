@@ -5,15 +5,9 @@ import {
   extractConcepts,
   noteToText,
 } from "@/lib/clinical/vital-concepts";
-import type { NoteSection } from "@/lib/mock/types";
-
-function note(...textos: string[]): NoteSection[] {
-  return textos.map((texto, i) => ({
-    id: `s${i}`,
-    titulo: `Sección ${i}`,
-    kind: "texto" as NoteSection["kind"],
-    texto,
-  }));
+/** Forma del store local (`texto`). La del backend clínico (`content`) se prueba aparte. */
+function note(...textos: string[]) {
+  return textos.map((texto) => ({ texto }));
 }
 
 describe("extractConcepts", () => {
@@ -114,11 +108,20 @@ describe("conceptsRevision", () => {
 
 describe("noteToText", () => {
   it("junta texto e items y descarta secciones vacías", () => {
-    const t = noteToText([
-      { id: "a", titulo: "A", kind: "texto" as NoteSection["kind"], texto: "hola" },
-      { id: "b", titulo: "B", kind: "lista" as NoteSection["kind"], items: ["uno", "dos"] },
-      { id: "c", titulo: "C", kind: "texto" as NoteSection["kind"], texto: "  " },
-    ]);
+    const t = noteToText([{ texto: "hola" }, { items: ["uno", "dos"] }, { texto: "  " }]);
     expect(t).toBe("hola\nuno\ndos");
+  });
+
+  // La nota del backend clínico usa `content`. Es la que existe MIENTRAS se dicta, o
+  // sea la única que importa para el agente: leer solo `texto` devolvía vacío en vivo.
+  it("lee también la forma del backend clínico (`content`)", () => {
+    expect(noteToText([{ content: "Talla 1.70 metros" }])).toBe("Talla 1.70 metros");
+  });
+
+  it("extrae conceptos de la nota en vivo", () => {
+    const c = extractConcepts([{ content: "TA 118/76, FC 64, Temp 36.4" }]);
+    expect(c["vital.presion.sistolica"]?.value).toBe("118");
+    expect(c["vital.frecuencia.cardiaca"]?.value).toBe("64");
+    expect(c["vital.temperatura"]?.value).toBe("36.4");
   });
 });

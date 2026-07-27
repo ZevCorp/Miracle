@@ -24,7 +24,21 @@
  *      uno con el número equivocado puede no verlo nadie.
  */
 
-import type { NoteSection } from "@/lib/mock/types";
+/**
+ * La nota tiene DOS formas en este repo y hay que leer las dos:
+ *   · la del backend clínico (`ClinicalNoteSection`) usa `content` — es la que existe
+ *     mientras el médico dicta, y por tanto la que de verdad importa aquí;
+ *   · la del store local (`NoteSection`, lib/mock) usa `texto` + `items`.
+ *
+ * Se declara la forma mínima en vez de importar cualquiera de las dos: así este
+ * módulo no se ata a ninguna, y si mañana aparece una tercera basta con añadir el
+ * campo. Leer solo una de las dos fue un error real — devolvía vacío justo en vivo.
+ */
+export interface NoteSectionLike {
+  content?: string | null;
+  texto?: string | null;
+  items?: readonly string[] | null;
+}
 
 /** Llave canónica de un dato clínico. Es el contrato con el agente de escritorio. */
 export type ConceptKey =
@@ -92,13 +106,19 @@ const BLOOD_PRESSURE = new RegExp(
 );
 
 /** Texto plano de la nota: títulos fuera, contenido dentro. */
-export function noteToText(sections: readonly NoteSection[] | null | undefined): string {
+export function noteToText(
+  sections: readonly NoteSectionLike[] | null | undefined,
+): string {
   if (!Array.isArray(sections)) return "";
   // Se filtran los trozos vacíos ANTES de unir, no después: una sección que solo
   // trae items dejaría una línea en blanco al frente, y esa línea vacía es
   // precisamente lo que separa frases para los patrones anclados.
   return sections
-    .flatMap((s) => [s?.texto ?? "", ...(Array.isArray(s?.items) ? s.items : [])])
+    .flatMap((s) => [
+      s?.content ?? "",
+      s?.texto ?? "",
+      ...(Array.isArray(s?.items) ? s.items : []),
+    ])
     .map((t) => (typeof t === "string" ? t.trim() : ""))
     .filter((t) => t.length > 0)
     .join("\n");
@@ -129,7 +149,7 @@ function around(text: string, index: number, length: number): string {
  * en su rango, o no traiga etiqueta, sencillamente no sale.
  */
 export function extractConcepts(
-  sections: readonly NoteSection[] | null | undefined,
+  sections: readonly NoteSectionLike[] | null | undefined,
 ): ConceptMap {
   const text = noteToText(sections);
   if (!text.trim()) return {};

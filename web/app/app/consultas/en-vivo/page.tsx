@@ -30,6 +30,7 @@ import { PatientHeader } from "@/components/app/PatientHeader";
 import { EncounterNote } from "@/components/app/EncounterNote";
 import { DictationPanel } from "@/components/app/DictationPanel";
 import { MedicalChat } from "@/components/app/MedicalChat";
+import { AgentPairPanel } from "@/components/app/AgentPairPanel";
 import { PlanDischargePanel } from "@/components/app/PlanDischargePanel";
 import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker";
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
@@ -1255,6 +1256,10 @@ function ConsultaActivaInner() {
               </p>
             ) : null}
           </div>
+
+          {encounterId ? (
+            <AgentPairPanel consultationId={encounterId} note={note} />
+          ) : null}
 
           <p className="flex items-start gap-2 px-1 text-xs text-muted">
             <ShieldCheck size={14} className="mt-0.5 shrink-0 text-success" />
