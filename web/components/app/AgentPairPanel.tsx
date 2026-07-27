@@ -90,7 +90,14 @@ export function AgentPairPanel({
         p_values: concepts,
         p_rev: rev,
       });
-      if (pushError) return; // se reintenta solo si la nota vuelve a cambiar
+      if (pushError) {
+        // A la vista, no en silencio. Tragarse este error dejaba el panel diciendo lo
+        // mismo de siempre mientras el agente recibía cero datos, y desde fuera era
+        // indistinguible de «la nota no tiene signos vitales».
+        setError(`No se pudieron enviar los datos: ${pushError.message}`);
+        return; // se reintenta solo si la nota vuelve a cambiar
+      }
+      setError(null);
       sentRev.current = rev;
       setPushed(concepts);
     })();
@@ -135,8 +142,8 @@ export function AgentPairPanel({
             {enviados > 0
               ? `${enviados} dato(s) disponibles para el agente.`
               : approved
-                ? "La nota guardada no trae signos vitales."
-                : "Se enviarán cuando guardes la nota."}
+                ? "La nota guardada no trae signos vitales que sepa reconocer."
+                : "Genera la nota y guárdala: los datos se envían al guardar."}
           </p>
           <button
             type="button"
