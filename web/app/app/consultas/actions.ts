@@ -55,6 +55,13 @@ export async function signConsultationNote(
   const fecha = new Date().toISOString();
   // Serialización canónica compartida con Graph (lib/clinical/signature-hash.ts):
   // Graph re-verifica este mismo hash al exportar a la historia clínica.
+  //
+  // OJO: se hashea la fila TAL COMO LA DEVOLVIÓ EL SELECT de arriba, no un objeto
+  // construido en memoria antes de escribir. Postgres normaliza el orden de
+  // claves de `jsonb`, así que hashear el valor previo a la escritura produce un
+  // hash que Graph no puede reproducir y haría fallar TODAS las exportaciones con
+  // SIGNATURE_HASH_MISMATCH. Verificado contra Postgres real en Graph
+  // (scripts/verify-note-export-real-postgres.js).
   const contentHash = computeSignatureHash({
     note: consultation.note,
     resumen: consultation.resumen,
