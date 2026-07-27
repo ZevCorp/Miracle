@@ -2,11 +2,6 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { rateLimit } from "@/lib/api/guard";
-import {
-  conceptsRevision,
-  extractConcepts,
-  type ConceptKey,
-} from "@/lib/clinical/vital-concepts";
 import { reportError } from "@/lib/observability";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,11 +18,12 @@ export const runtime = "nodejs";
  *
  * Lo que se entrega es deliberadamente pobre: nueve números y su evidencia. Ni la
  * nota, ni el paciente, ni el historial. Quien robe un código no obtiene una historia
- * clínica — obtiene una talla y una tensión, durante ocho horas o hasta que la
- * consulta se firme.
+ * clínica — obtiene una talla y una tensión, durante ocho horas.
  *
- * La conversión nota → conceptos ocurre AQUÍ, en el servidor: la RPC devuelve la nota
- * completa (la necesita para extraer) pero esa nota nunca cruza la respuesta.
+ * Los conceptos los EMPUJA la página en vivo mientras el médico dicta
+ * (`push_agent_values`). Esta ruta no toca la nota ni la tabla `consultations`: esa
+ * fila ni siquiera existe durante el dictado — se escribe al guardar la nota —, así
+ * que leerla habría devuelto vacío justo durante los veinte minutos que importan.
  */
 export async function GET(request: NextRequest) {
   const code = (request.nextUrl.searchParams.get("code") ?? "").trim().toUpperCase();
@@ -49,43 +45,37 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("agent_note_for_code", { p_code: code });
+    const { data, error } = await supabase.rpc("agent_values_for_code", { p_code: code });
 
     if (error) {
       reportError(error, { route: "agent/values" });
       return NextResponse.json({ error: "No fue posible leer la consulta." }, { status: 502 });
     }
 
-    const payload = data as { ok?: boolean; reason?: string; note?: unknown } | null;
+    const payload = data as
+      | { ok?: boolean; rev?: unknown; values?: unknown }
+      | null;
 
     if (!payload?.ok) {
-      // 'closed' se distingue de 'invalid' porque NO es un error del que pregunta: la
-      // consulta se firmó y el agente debe dejar de sondear en vez de reintentar.
-      const closed = payload?.reason === "closed";
+      // `stop` le dice al agente que deje de sondear en vez de reintentar cuarenta
+      // veces por minuto contra un código que no va a revivir.
       return NextResponse.json(
-        {
-          error: closed
-            ? "La consulta ya fue firmada; este código dejó de servir."
-            : "Código inválido o vencido.",
-          stop: true,
-        },
-        { status: closed ? 409 : 404 },
+        { error: "Código inválido o vencido.", stop: true },
+        { status: 404 },
       );
     }
 
-    const sections = Array.isArray(payload.note) ? payload.note : [];
-    const concepts = extractConcepts(sections as never);
-
     // Plano y sin adornos: el agente coloca valores, no interpreta estructuras.
+    const stored = (payload.values ?? {}) as Record<string, { value?: unknown; evidence?: unknown }>;
     const values: Record<string, string> = {};
     const evidence: Record<string, string> = {};
-    for (const [key, v] of Object.entries(concepts)) {
-      if (!v) continue;
+    for (const [key, v] of Object.entries(stored)) {
+      if (typeof v?.value !== "string") continue;
       values[key] = v.value;
-      evidence[key as ConceptKey] = v.evidence;
+      if (typeof v.evidence === "string") evidence[key] = v.evidence;
     }
 
-    const rev = conceptsRevision(concepts);
+    const rev = typeof payload.rev === "string" ? payload.rev : "0";
 
     // ETag para que el sondeo sea barato: si nada cambió desde la última lectura, un
     // 304 sin cuerpo. Cuarenta lecturas por minuto durante una consulta larga son
