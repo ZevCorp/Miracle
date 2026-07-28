@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Send, Sparkles, X } from "lucide-react";
+import { AlertTriangle, RefreshCw, Send, Sparkles, X } from "lucide-react";
 import {
   ClinicalApiError,
   friendlyClinicalMessage,
@@ -10,6 +10,29 @@ import {
 } from "@/lib/api/clinical";
 
 type Msg = { role: "user" | "assistant"; content: string };
+
+/** Fallo de la última pregunta. Vive aparte de `messages` a propósito. */
+type Failure = {
+  /** Se guarda para poder reintentar sin que el médico la reescriba. */
+  question: string;
+  /** Código del backend; se muestra para que se pueda reportar. */
+  code: string;
+  message: string;
+  retryable: boolean;
+};
+
+/**
+ * Códigos que valen la pena reintentar: fallos transitorios del backend o de
+ * la red. Los demás (asistente no configurado, sesión expirada, mensaje
+ * inválido) no se arreglan repitiendo, así que ahí no se ofrece el botón.
+ */
+const RETRYABLE_CODES = new Set([
+  "ASSISTANT_FAILED",
+  "ASSISTANT_EMPTY",
+  "RATE_LIMITED",
+  "NETWORK_ERROR",
+  "INTERNAL_ERROR",
+]);
 
 const SUGERENCIAS = [
   "Diagnósticos diferenciales de dolor torácico",
@@ -23,6 +46,7 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [failure, setFailure] = useState<Failure | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,17 +54,20 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, loading, open]);
+  }, [messages, loading, failure, open]);
 
-  // Habla directo con el asistente clínico del backend Miracle (token Supabase
-  // del médico). Respuesta completa (sin streaming): el indicador de "puntos"
-  // cubre la espera.
-  async function send(text: string) {
-    const content = text.trim();
-    if (!content || loading) return;
-    const history = messages;
-    setMessages((m) => [...m, { role: "user", content }]);
-    setInput("");
+  /**
+   * Habla directo con el asistente clínico del backend Miracle (token Supabase
+   * del médico). Respuesta completa (sin streaming): el indicador de "puntos"
+   * cubre la espera.
+   *
+   * El fallo NUNCA entra en `messages`, y eso importa por dos razones. En
+   * pantalla, un error pintado como burbuja del asistente es indistinguible de
+   * una respuesta clínica real. Y hacia el backend, `messages` es el `history`
+   * de la siguiente pregunta: meter ahí "no pude responder" envenenaba el
+   * contexto de toda la conversación posterior.
+   */
+  async function ask(content: string, history: Msg[]) {
     setLoading(true);
     try {
       const result = await sendAssistantChat({
@@ -48,17 +75,52 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
         history,
         screen_context: pathname ? { route: pathname } : undefined,
       });
-      const reply = result.answer?.trim() || "No pude responder en este momento.";
-      setMessages((m) => [...m, { role: "assistant", content: reply }]);
+      const reply = result.answer?.trim();
+      if (!reply) {
+        // 200 con cuerpo vacío: para el médico es un fallo, no una respuesta.
+        setFailure({
+          question: content,
+          code: "ASSISTANT_EMPTY",
+          message: "El asistente respondió sin contenido.",
+          retryable: true,
+        });
+        return;
+      }
+      setMessages([...history, { role: "user", content }, { role: "assistant", content: reply }]);
     } catch (error) {
-      const reply =
-        error instanceof ClinicalApiError && error.code === "LLM_NOT_CONFIGURED"
-          ? "El asistente todavía no está habilitado para tu institución. Mientras tanto puedes seguir registrando tus consultas con normalidad."
-          : friendlyClinicalMessage(error);
-      setMessages((m) => [...m, { role: "assistant", content: reply }]);
+      const code = error instanceof ClinicalApiError ? error.code : "INTERNAL_ERROR";
+      // La pregunta se conserva en pantalla: el médico ve qué preguntó y puede
+      // reintentar sin volver a escribirla.
+      setMessages([...history, { role: "user", content }]);
+      setFailure({
+        question: content,
+        code,
+        message:
+          code === "LLM_NOT_CONFIGURED"
+            ? "El asistente todavía no está habilitado para tu institución. Mientras tanto puedes seguir registrando tus consultas con normalidad."
+            : friendlyClinicalMessage(error),
+        retryable: RETRYABLE_CODES.has(code),
+      });
     } finally {
       setLoading(false);
     }
+  }
+
+  async function send(text: string) {
+    const content = text.trim();
+    if (!content || loading) return;
+    setInput("");
+    setFailure(null);
+    await ask(content, messages);
+  }
+
+  async function retry() {
+    if (!failure || loading) return;
+    // `messages` termina en la pregunta que falló: el historial es todo menos ella.
+    const history = messages.slice(0, -1);
+    const question = failure.question;
+    setFailure(null);
+    await ask(question, history);
   }
 
   // Durante una consulta activa el asistente se muestra embebido en el panel
@@ -173,6 +235,32 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
                       style={{ animationDelay: `${d}s`, animationDuration: "0.8s" }}
                     />
                   ))}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Deliberadamente NO es una burbuja del asistente: un fallo con la
+                misma forma que una respuesta clínica se lee como si la IA
+                hubiera contestado eso. */}
+            {failure && !loading ? (
+              <div role="alert" className="flex justify-start">
+                <div className="max-w-[92%] rounded-2xl border border-warning/40 bg-warning-soft px-3.5 py-2.5">
+                  <p className="flex items-start gap-1.5 text-sm leading-relaxed text-warning">
+                    <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                    <span>{failure.message}</span>
+                  </p>
+                  {failure.retryable ? (
+                    <button
+                      type="button"
+                      onClick={() => void retry()}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-surface px-3 py-1.5 text-xs font-semibold text-warning hover:bg-warning-soft"
+                    >
+                      <RefreshCw size={12} /> Reintentar
+                    </button>
+                  ) : null}
+                  <p className="mt-1.5 text-[11px] text-warning/70">
+                    Código: {failure.code}
+                  </p>
                 </div>
               </div>
             ) : null}
