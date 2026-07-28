@@ -66,6 +66,15 @@ export function auditSeverityRank(severidad: AuditSeverity): number {
   return SEVERITY_ORDER[severidad];
 }
 
+/**
+ * Penalización de una severidad sobre el puntaje 0-100. Se exporta para que la
+ * revisión en vivo (note-review.ts) puntúe con la MISMA escala: un 70% debe
+ * significar lo mismo en la consulta activa que en /app/auditoria.
+ */
+export function auditSeverityPenalty(severidad: AuditSeverity): number {
+  return SEVERITY_PENALTY[severidad];
+}
+
 /** Contenido en texto plano de una sección (une la lista o toma el texto), recortado. */
 export function sectionContent(section: NoteSection): string {
   if (section.kind === "lista") {

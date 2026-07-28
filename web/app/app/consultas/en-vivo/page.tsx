@@ -10,7 +10,6 @@ import {
   Download,
   Ellipsis,
   FileText,
-  History,
   LayoutTemplate,
   LockKeyhole,
   Loader2,
@@ -31,9 +30,11 @@ import { EncounterNote } from "@/components/app/EncounterNote";
 import { DictationPanel } from "@/components/app/DictationPanel";
 import { MedicalChat } from "@/components/app/MedicalChat";
 import { AgentPairPanel } from "@/components/app/AgentPairPanel";
+import { EncounterAuditPanel } from "@/components/app/EncounterAuditPanel";
 import { PlanDischargePanel } from "@/components/app/PlanDischargePanel";
 import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker";
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
+import { reviewGeneratedNote } from "@/lib/clinical/note-review";
 import { buildRedactor } from "@/lib/privacy/redact";
 import { createClient } from "@/lib/supabase/client";
 import type { Patient } from "@/lib/mock";
@@ -197,6 +198,20 @@ function ConsultaActivaInner() {
   const displayNote = useMemo(
     () => (note ? redactor.rehydrateNote(note) : note),
     [note, redactor],
+  );
+
+  // Revisión determinista de la nota: qué falta, qué quedó incompleto y qué
+  // conviene reforzar. Se recalcula con cada edición para que el recordatorio
+  // siga siendo cierto mientras el médico corrige — antes dependía solo de lo
+  // que el backend quisiera avisar. Ver lib/clinical/note-review.ts.
+  const noteReview = useMemo(
+    () =>
+      reviewGeneratedNote({
+        note: displayNote,
+        template: encounter?.template_snapshot,
+        transcript: transcriptDraft,
+      }),
+    [displayNote, encounter?.template_snapshot, transcriptDraft],
   );
 
   // Re-dispara la carga del encounter (botón Reintentar).
@@ -774,12 +789,16 @@ function ConsultaActivaInner() {
 
   return (
     <div className="app-page max-w-5xl pb-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="app-page-heading">
-          <p className="app-page-kicker">Captura clínica</p>
-          <h1 className="app-page-title">Consulta activa</h1>
-          <p className="mt-1 text-sm text-muted">
-            {tipoLabel} · Plantilla: {snapshot?.name ?? "—"}
+      {/* Cabecera compacta: en esta pantalla lo que importa es la captura, no
+          el título. Se sacrifica el kicker y el tamaño grande para que la
+          transcripción y el asistente empiecen más arriba, sin scroll. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="app-page-heading min-w-0 py-0.5">
+          <h1 className="font-display text-[1.3rem] font-[650] leading-tight tracking-[-0.03em] text-deep">
+            Consulta activa
+          </h1>
+          <p className="mt-0.5 truncate text-[13px] leading-snug text-muted">
+            {tipoLabel} · {snapshot?.name ?? "—"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -873,15 +892,15 @@ function ConsultaActivaInner() {
         />
       ) : null}
 
-      <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-5">
           {/* Captura de la consulta: grabación con transcripción en vivo,
               con edición/pegado manual como alternativa siempre disponible. */}
           {currentReviewView === "transcript" && showTranscriptPanel ? (
-            <div className="rounded-lg border border-line bg-surface p-4 shadow-[var(--shadow-xs)] sm:p-6">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="rounded-lg border border-line bg-surface p-4 shadow-[var(--shadow-xs)] sm:p-5">
+              <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h2 className="font-display text-lg font-semibold text-deep">
+                  <h2 className="font-display text-base font-semibold text-deep sm:text-lg">
                     Transcripción en vivo
                   </h2>
                 </div>
@@ -1052,7 +1071,14 @@ function ConsultaActivaInner() {
           ) : null}
 
           {note && currentReviewView === "audit" ? (
-            <AuditPanel encounter={encounter} onOpenEncounter={(id) => router.push(`/app/consultas/en-vivo?encounter=${encodeURIComponent(id)}`)} />
+            <EncounterAuditPanel
+              encounter={encounter}
+              note={displayNote}
+              review={noteReview}
+              transcriptLength={transcriptDraft.trim().length}
+              identityProtected={redactor.hasIdentity}
+              onOpenEncounter={(id) => router.push(`/app/consultas/en-vivo?encounter=${encodeURIComponent(id)}`)}
+            />
           ) : null}
 
           {/* Nota clínica estructurada */}
@@ -1136,6 +1162,7 @@ function ConsultaActivaInner() {
 
               <EncounterNote
                 note={displayNote}
+                review={noteReview}
                 editable={!busy && !signedMirror}
                 onChangeSection={editarSeccion}
                 onChangeSummary={editarResumen}
@@ -1474,20 +1501,6 @@ function ClinicalRow({ label, values }: { label: string; values?: string[] }) {
         {values && values.length ? values.join(", ") : "—"}
       </dd>
     </div>
-  );
-}
-
-function AuditPanel({ encounter, onOpenEncounter }: { encounter: ClinicalEncounter | null; onOpenEncounter: (id: string) => void }) {
-  const created = encounter?.created_at ? new Date(encounter.created_at).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" }) : "Fecha no disponible";
-  return (
-    <section className="rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-xs)] sm:p-6">
-      <div className="flex items-start gap-3"><span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-ice text-accent"><History size={18} /></span><div><h2 className="font-display text-lg font-semibold text-deep">Auditoría de la consulta</h2><p className="mt-0.5 text-sm text-muted">Trazabilidad de la fuente clínica y sus revisiones.</p></div></div>
-      <ol className="mt-6 border-l border-line pl-5">
-        <li className="relative pb-5"><span className="absolute -left-[25px] top-1 h-3 w-3 rounded-full border-2 border-surface bg-accent" /><p className="text-sm font-semibold text-deep">Revisión actual</p><p className="mt-1 text-sm text-muted">Creada {created}. Usa el snapshot de plantilla que figura en esta consulta.</p></li>
-        {encounter?.supersedes_encounter_id ? <li className="relative"><span className="absolute -left-[25px] top-1 h-3 w-3 rounded-full border-2 border-surface bg-mist" /><p className="text-sm font-semibold text-deep">Reemplaza una revisión anterior</p><button type="button" onClick={() => onOpenEncounter(encounter.supersedes_encounter_id!)} className="mt-1 text-sm font-semibold text-accent hover:underline">Abrir versión anterior</button></li> : null}
-        {encounter?.replaced_by_encounter_id ? <li className="relative"><span className="absolute -left-[25px] top-1 h-3 w-3 rounded-full border-2 border-surface bg-mint" /><p className="text-sm font-semibold text-deep">Existe una revisión posterior</p><button type="button" onClick={() => onOpenEncounter(encounter.replaced_by_encounter_id!)} className="mt-1 text-sm font-semibold text-accent hover:underline">Abrir versión nueva</button></li> : null}
-      </ol>
-    </section>
   );
 }
 

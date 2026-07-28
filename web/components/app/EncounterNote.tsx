@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
+  CheckCircle2,
   ChevronDown,
   ClipboardCopy,
   Info,
@@ -10,6 +11,8 @@ import {
   X,
 } from "lucide-react";
 import type { ClinicalNoteJson, ClinicalNoteSection } from "@/lib/api/clinical";
+import { noteReviewLabel, type NoteReview } from "@/lib/clinical/note-review";
+import { AuditFindingList } from "@/components/app/AuditFindings";
 
 /**
  * Editor de la nota clínica estructurada (note_json del backend).
@@ -23,6 +26,7 @@ import type { ClinicalNoteJson, ClinicalNoteSection } from "@/lib/api/clinical";
  */
 export function EncounterNote({
   note,
+  review,
   editable,
   onChangeSection,
   onChangeSummary,
@@ -30,6 +34,13 @@ export function EncounterNote({
   voiceProcessingSection,
 }: {
   note: ClinicalNoteJson;
+  /**
+   * Revisión determinista de la nota (lib/clinical/note-review.ts). Obligatoria
+   * a propósito: antes este bloque se alimentaba solo de `note.warnings` y
+   * `note.missing_required_sections`, que el backend emite de forma
+   * intermitente, y el aviso aparecía a ratos. La revisión ya integra ambos.
+   */
+  review: NoteReview;
   editable: boolean;
   onChangeSection: (key: string, content: string) => void;
   onChangeSummary: (summary: string) => void;
@@ -37,12 +48,6 @@ export function EncounterNote({
   onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
   voiceProcessingSection?: string | null;
 }) {
-  const missingLabels = note.missing_required_sections
-    .map(
-      (key) => note.sections.find((section) => section.key === key)?.label ?? key,
-    )
-    .filter(Boolean);
-
   return (
     <div>
       <div className="mb-4 flex items-start gap-2 rounded-md border border-accent/20 bg-accent-soft/50 px-3.5 py-2.5 text-sm text-accent-ink">
@@ -53,31 +58,7 @@ export function EncounterNote({
         </span>
       </div>
 
-      {note.warnings.length ? (
-        <div
-          role="alert"
-          className="mb-4 rounded-md border border-warning/40 bg-warning-soft px-3.5 py-2.5 text-sm text-warning"
-        >
-          <p className="flex items-center gap-2 font-semibold">
-            <AlertTriangle size={15} /> Avisos de la generación
-          </p>
-          <ul className="mt-1.5 list-disc space-y-0.5 pl-5">
-            {note.warnings.map((warning, index) => (
-              <li key={index}>{warning}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {missingLabels.length ? (
-        <div
-          role="alert"
-          className="mb-4 rounded-md border border-warning/40 bg-warning-soft px-3.5 py-2.5 text-sm text-warning"
-        >
-          <span className="font-semibold">Secciones obligatorias sin información: </span>
-          {missingLabels.join(", ")}. Complétalas antes de cerrar la nota.
-        </div>
-      ) : null}
+      <NoteReviewPanel review={review} />
 
       <div className="rounded-lg border border-line bg-surface px-3 py-2 sm:px-5">
         <SummaryBlock
@@ -99,6 +80,72 @@ export function EncounterNote({
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * El recordatorio para el médico: qué falta, qué está incompleto y qué conviene
+ * reforzar antes de guardar. Se pinta SIEMPRE que haya nota — cuando no hay nada
+ * que señalar dice justo eso. Esa es la diferencia con la versión anterior: un
+ * aviso que solo aparece a veces no se lee como "hoy está bien", se lee como
+ * "está roto", y se termina ignorando.
+ *
+ * El color sigue a la severidad peor: rojo si algo es crítico, ámbar para lo
+ * demás, verde cuando no hay observaciones.
+ */
+function NoteReviewPanel({ review }: { review: NoteReview }) {
+  if (review.hallazgos.length === 0) {
+    return (
+      <div className="mb-4 flex items-center gap-2 rounded-md border border-success/30 bg-success-soft px-3.5 py-2.5 text-sm text-success">
+        <CheckCircle2 size={16} className="shrink-0" />
+        <span>
+          Revisión de la nota: sin observaciones. Está completa y consistente.
+        </span>
+      </div>
+    );
+  }
+
+  const critico = review.criticos > 0;
+
+  return (
+    <section
+      role="alert"
+      aria-label="Revisión de la nota"
+      className={`mb-4 rounded-md border px-3.5 py-3 ${
+        critico
+          ? "border-danger/40 bg-danger-soft"
+          : "border-warning/40 bg-warning-soft"
+      }`}
+    >
+      <div className="flex items-start gap-2">
+        <AlertTriangle
+          size={16}
+          className={`mt-0.5 shrink-0 ${critico ? "text-danger" : "text-warning"}`}
+        />
+        <div className="min-w-0">
+          <p
+            className={`text-sm font-semibold ${
+              critico ? "text-danger" : "text-warning"
+            }`}
+          >
+            Antes de guardar — {noteReviewLabel(review)}
+          </p>
+          <p
+            className={`mt-0.5 text-xs leading-relaxed ${
+              critico ? "text-danger/85" : "text-warning/85"
+            }`}
+          >
+            Esto es lo que quedó pendiente o se puede mejorar de la consulta.
+          </p>
+        </div>
+      </div>
+
+      {/* Sobre fondo propio: los chips de severidad de AuditFindingList pierden
+          contraste si se pintan directamente sobre el ámbar. */}
+      <div className="mt-3 rounded-md border border-line bg-surface px-3 py-3">
+        <AuditFindingList hallazgos={review.hallazgos} />
+      </div>
+    </section>
   );
 }
 
