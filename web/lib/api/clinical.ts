@@ -228,6 +228,15 @@ export const CLINICAL_ERROR_MESSAGES: Record<string, string> = {
     "La transcripción es demasiado larga. Divide la consulta o intenta resumirla.",
   LLM_NOT_CONFIGURED:
     "La generación de notas no está configurada en el servidor.",
+  // Fallos del proveedor de IA que NO se arreglan reintentando: le tocan al
+  // administrador, no al médico. Decirle "intenta de nuevo en unos segundos"
+  // ante una cuota agotada es mandarlo a un botón que nunca va a funcionar.
+  LLM_QUOTA_EXCEEDED:
+    "El asistente se quedó sin cuota de IA. Avisa al administrador: no se arregla reintentando.",
+  LLM_AUTH_FAILED:
+    "Las credenciales de IA del servidor no son válidas. Avisa al administrador.",
+  LLM_MODEL_NOT_FOUND:
+    "El modelo de IA configurado no está disponible. Avisa al administrador.",
   NOTE_GENERATION_FAILED: "No pudimos generar la nota clínica. Intenta de nuevo.",
   NOTE_JSON_INVALID:
     "La nota generada tuvo un formato inválido. Intenta regenerarla.",
