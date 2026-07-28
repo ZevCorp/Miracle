@@ -66,8 +66,17 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
   if (!embedded && (pathname === "/app/consultas/en-vivo" || pathname === "/app/plantillas")) return null;
 
   const visible = embedded || open;
+
+  // Embebido en el panel lateral, el alto se ajusta a lo que hay dentro:
+  // sin conversación el panel solo mide lo que ocupan las sugerencias, así
+  // el campo "Escribe tu pregunta…" queda a la vista sin bajar la página.
+  // Al empezar a conversar sí toma un alto fijo y el historial hace scroll.
+  const hasConversation = messages.length > 0 || loading;
+  const embeddedHeight = hasConversation
+    ? "xl:h-[min(460px,calc(100vh-13rem))] xl:min-h-[320px]"
+    : "xl:h-auto";
   const panelClass = embedded
-    ? `${open ? "fixed inset-0 z-[80] flex h-dvh w-full" : "hidden"} flex-col overflow-hidden bg-surface xl:static xl:flex xl:h-[min(590px,calc(100vh-8rem))] xl:min-h-[460px] xl:w-auto xl:rounded-[14px] xl:border xl:border-line xl:shadow-[var(--shadow-xs)]`
+    ? `${open ? "fixed inset-0 z-[80] flex h-dvh w-full" : "hidden"} flex-col overflow-hidden bg-surface xl:static xl:flex xl:w-auto xl:rounded-[14px] xl:border xl:border-line xl:shadow-[var(--shadow-xs)] ${embeddedHeight}`
     : "fixed inset-0 z-[80] flex h-dvh w-full flex-col overflow-hidden bg-surface sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[min(560px,calc(100vh-2.5rem))] sm:w-[min(380px,calc(100vw-2.5rem))] sm:rounded-[16px] sm:border sm:border-line sm:shadow-[var(--shadow-lg)]";
 
   return (
@@ -85,9 +94,9 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
 
       {visible ? (
         <div className={panelClass}>
-          <div className="flex items-center justify-between gap-2 border-b border-line bg-surface px-4 py-3.5 text-deep">
+          <div className="flex items-center justify-between gap-2 border-b border-line bg-surface px-4 py-3.5 text-deep xl:py-2.5">
             <div className="flex items-center gap-2">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-soft text-accent">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] bg-accent-soft text-accent xl:h-8 xl:w-8">
                 <Sparkles size={17} />
               </span>
               <div className="leading-tight">
@@ -112,11 +121,13 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
 
           <div
             ref={scrollRef}
-            className="flex-1 space-y-3 overflow-y-auto px-3.5 py-4"
+            className={`flex-1 space-y-3 overflow-y-auto px-3.5 py-4 xl:py-3 ${
+              hasConversation ? "" : "xl:basis-auto"
+            }`}
           >
             {messages.length === 0 ? (
-              <div className="space-y-3">
-                <p className="text-sm text-muted">
+              <div className="space-y-2.5">
+                <p className="text-[13px] leading-snug text-muted">
                   Pregunta sobre diagnóstico, codificación o manejo clínico.
                 </p>
                 <div className="space-y-2">
@@ -125,7 +136,7 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
                       key={s}
                       type="button"
                       onClick={() => send(s)}
-                      className="block min-h-11 w-full rounded-[10px] border border-line px-3 py-2 text-left text-sm text-deep transition-colors hover:border-mist hover:bg-ice-soft"
+                      className="block min-h-11 w-full rounded-[10px] border border-line px-3 py-2 text-left text-sm text-deep transition-colors hover:border-mist hover:bg-ice-soft xl:min-h-0 xl:py-1.5 xl:text-[13px]"
                     >
                       {s}
                     </button>
