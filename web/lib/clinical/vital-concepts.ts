@@ -38,10 +38,20 @@ export interface NoteSectionLike {
   content?: string | null;
   texto?: string | null;
   items?: readonly string[] | null;
+  /**
+   * Cómo se llama la sección. Hace falta para el motivo de consulta, que NO se saca por
+   * patrón: es texto libre y lo que lo identifica es la sección donde vive, no una palabra
+   * dentro de la frase. Las tres formas conviven en este repo (`label` en
+   * ClinicalNoteSection, `titulo` en el store local, `key` en las plantillas).
+   */
+  label?: string | null;
+  titulo?: string | null;
+  key?: string | null;
 }
 
 /** Llave canónica de un dato clínico. Es el contrato con el agente de escritorio. */
 export type ConceptKey =
+  | "consulta.motivo"
   | "paciente.edad"
   | "vital.talla"
   | "vital.peso"
@@ -148,6 +158,37 @@ function around(text: string, index: number, length: number): string {
  * Lee la nota y devuelve solo los conceptos que se pueden afirmar. Lo que no encaje
  * en su rango, o no traiga etiqueta, sencillamente no sale.
  */
+/**
+ * El motivo de consulta, de la seccion que lo contiene.
+ *
+ * Se busca "motivo" en el nombre de la seccion (`label`, `titulo` o `key`), sin tildes y en
+ * minusculas, porque las tres formas conviven en el repo y la plantilla lo llama "Motivo de
+ * consulta" mientras la clave es "motivo". Se devuelve la PRIMERA que case y tenga contenido:
+ * una nota no tiene dos motivos, y si algo raro pasara, tomar el primero es preferible a
+ * concatenar dos textos clinicos distintos en un mismo campo.
+ */
+function motivoDeConsulta(
+  sections: readonly NoteSectionLike[] | null | undefined,
+): ConceptValue | null {
+  if (!Array.isArray(sections)) return null;
+
+  for (const s of sections) {
+    const nombre = `${s?.label ?? ""} ${s?.titulo ?? ""} ${s?.key ?? ""}`
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    if (!nombre.includes("motivo")) continue;
+
+    const texto = (s?.content ?? s?.texto ?? "").trim();
+    if (!texto) continue;
+
+    // La evidencia ES el propio texto: a diferencia de una cifra, aqui el dato y su
+    // justificacion son lo mismo, y quien aprueba lee exactamente lo que se va a escribir.
+    return { value: texto, evidence: texto };
+  }
+  return null;
+}
+
 export function extractConcepts(
   sections: readonly NoteSectionLike[] | null | undefined,
 ): ConceptMap {
@@ -163,6 +204,14 @@ export function extractConcepts(
     if (!parsed) continue;
     out[rule.key] = { value: parsed.text, evidence: around(text, m.index, m[0].length) };
   }
+
+  // El motivo de consulta va aparte de RULES a propósito: es TEXTO, no una cifra anclada a
+  // una etiqueta dentro de la frase. Lo identifica la SECCION donde vive, y por eso se lee de
+  // `sections` y no del texto aplanado —aplanar pierde justamente la unica pista que hay—.
+  // Va entero, sin recortar: si no cabe en el destino, que lo decida quien aprueba viendolo,
+  // no un truncado silencioso que se coma la mitad de un motivo clinico.
+  const motivo = motivoDeConsulta(sections);
+  if (motivo) out["consulta.motivo"] = motivo;
 
   const bp = BLOOD_PRESSURE.exec(text);
   if (bp) {
