@@ -29,7 +29,12 @@ import {
 import { noteJsonToSections } from "@/lib/clinical/encounter-to-consultation";
 import { useNoteExport } from "@/lib/hooks/useNoteExport";
 import { NoteExportButton, NoteExportStatus } from "@/components/app/NoteExportStatus";
-import { buildConsultationPlainText, copyTextWithFallback } from "@/lib/clinical/consultation-text";
+import {
+  buildConsultationHtml,
+  buildConsultationPlainText,
+  copyRichTextWithFallback,
+  copyTextWithFallback,
+} from "@/lib/clinical/consultation-text";
 import { buildRedactor } from "@/lib/privacy/redact";
 import {
   completitud,
@@ -201,7 +206,7 @@ export default function ConsultaDetallePage() {
 
   async function copiarNota() {
     if (!c) return;
-    const texto = buildConsultationPlainText({
+    const datos = {
       especialidad: c.especialidad,
       servicio: c.servicio,
       fecha: c.fecha,
@@ -214,8 +219,13 @@ export default function ConsultaDetallePage() {
       medicoIdentificacion: medicoIdentidad?.identificationNumber,
       medicoRegistro: medicoIdentidad?.professionalRegistration,
       addenda,
-    });
-    const ok = await copyTextWithFallback(texto);
+    };
+    // Se copian las dos versiones a la vez: con negrilla donde el destino
+    // acepte formato, y en texto plano (títulos en mayúscula) donde no.
+    const ok = await copyRichTextWithFallback(
+      buildConsultationHtml(datos),
+      buildConsultationPlainText(datos),
+    );
     showToast(
       ok ? "Nota copiada al portapapeles." : "No se pudo copiar la nota.",
       ok ? "success" : "warning",

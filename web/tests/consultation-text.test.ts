@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildConsultationHtml,
   buildConsultationPlainText,
   type ConsultationTextInput,
 } from "@/lib/clinical/consultation-text";
@@ -80,7 +81,7 @@ describe("buildConsultationPlainText", () => {
     const output = buildConsultationPlainText(
       base({ note: [seccionTexto("plan", "Plan", "Continuar seguimiento en 3 meses.")] }),
     );
-    expect(output).toContain("Plan");
+    expect(output).toContain("PLAN");
     expect(output).toContain("Continuar seguimiento en 3 meses.");
   });
 
@@ -88,14 +89,14 @@ describe("buildConsultationPlainText", () => {
     const output = buildConsultationPlainText(
       base({ note: [seccionLista("hallazgos", "Hallazgos", ["Lesión eritematosa", "Bordes definidos"])] }),
     );
-    expect(output).toContain("Hallazgos");
+    expect(output).toContain("HALLAZGOS");
     expect(output).toContain("- Lesión eritematosa");
     expect(output).toContain("- Bordes definidos");
   });
 
   it("marca una sección de lista vacía sin viñetas sueltas", () => {
     const output = buildConsultationPlainText(base({ note: [seccionLista("vacio", "Antecedentes", [])] }));
-    expect(output).toContain("Antecedentes");
+    expect(output).toContain("ANTECEDENTES");
     expect(output).not.toContain("- ");
   });
 
@@ -121,7 +122,7 @@ describe("buildConsultationPlainText", () => {
 
   it("omite la sección de adendas cuando no hay ninguna", () => {
     const output = buildConsultationPlainText(base({ addenda: [] }));
-    expect(output).not.toContain("Adendas");
+    expect(output).not.toContain("ADENDAS");
   });
 
   it("incluye adendas con autor, fecha y contenido", () => {
@@ -136,9 +137,60 @@ describe("buildConsultationPlainText", () => {
         ],
       }),
     );
-    expect(output).toContain("Adendas");
+    expect(output).toContain("ADENDAS");
     expect(output).toContain("Dr. Felipe Maldonado");
     expect(output).toContain("Se amplía descripción macroscópica.");
     expect(output).toContain("Adenda a nota firmada — no modifica el documento original.");
+  });
+});
+
+describe("buildConsultationHtml", () => {
+  it("pone los títulos de sección en negrilla y mayúscula", () => {
+    const html = buildConsultationHtml(
+      base({ note: [seccionTexto("plan", "Plan", "Continuar seguimiento en 3 meses.")] }),
+    );
+    expect(html).toContain("<strong>PLAN</strong>");
+    expect(html).toContain("<strong>CODIFICACIÓN</strong>");
+    // El contenido NO va en negrilla: solo los títulos.
+    expect(html).toContain("<p>Continuar seguimiento en 3 meses.</p>");
+  });
+
+  it("las listas salen como viñetas reales", () => {
+    const html = buildConsultationHtml(
+      base({ note: [seccionLista("hallazgos", "Hallazgos", ["Lesión eritematosa"])] }),
+    );
+    expect(html).toContain("<strong>HALLAZGOS</strong>");
+    expect(html).toContain("<li>Lesión eritematosa</li>");
+  });
+
+  it("escapa el HTML del contenido clínico", () => {
+    const html = buildConsultationHtml(
+      base({ note: [seccionTexto("dx", "Diagnóstico", "Lesión <5 mm & bordes netos")] }),
+    );
+    expect(html).toContain("Lesión &lt;5 mm &amp; bordes netos");
+    expect(html).not.toContain("<5 mm");
+  });
+
+  it("respeta los saltos de línea dentro de una sección", () => {
+    const html = buildConsultationHtml(
+      base({ note: [seccionTexto("macro", "Macroscópica", "1. Primer fragmento.\n2. Segundo.")] }),
+    );
+    expect(html).toContain("1. Primer fragmento.<br>2. Segundo.");
+  });
+
+  it("lleva el mismo contenido clínico que la versión en texto plano", () => {
+    const datos = base({
+      patient: { nombre: "Ana Ruiz", edad: 45, sexo: "F", documento: "CC 1.020.304" },
+      medicoNombre: "Dra. Juliana Pérez",
+      note: [seccionTexto("dx", "Diagnóstico", "Queratosis actínica.")],
+    });
+    const plano = buildConsultationPlainText(datos);
+    const html = buildConsultationHtml(datos);
+    for (const fragmento of ["Ana Ruiz", "Dra. Juliana Pérez", "Queratosis actínica."]) {
+      expect(plano).toContain(fragmento);
+      expect(html).toContain(fragmento);
+    }
+    expect(plano).toContain("DIAGNÓSTICO");
+    expect(html).toContain("<strong>DIAGNÓSTICO</strong>");
   });
 });
