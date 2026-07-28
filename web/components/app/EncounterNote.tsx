@@ -281,6 +281,22 @@ function EditableBlock({
     return () => clearTimeout(h);
   }, [editing, draft, content]);
 
+  /**
+   * Confirma YA lo que haya escrito, sin esperar la pausa de 1200 ms.
+   *
+   * Sin esto, escribir y pulsar "Guardar nota" enseguida dejaba el último
+   * cambio en el limbo: el guardado se llevaba la versión vieja y, al vencer
+   * el temporizador, la nota volvía a marcarse "sin guardar". El médico veía
+   * que su primer clic no había servido — y peor, se había guardado una nota
+   * desactualizada.
+   */
+  function confirmarCambio() {
+    const trimmed = draft.trim();
+    if (trimmed === content.trim()) return;
+    onChangeRef.current(trimmed);
+    setSavedHint(true);
+  }
+
   function startEdit() {
     setDraft(content);
     setSavedHint(false);
@@ -379,6 +395,9 @@ function EditableBlock({
                   setSavedHint(false);
                   setDraft(e.target.value);
                 }}
+                // Al salir del campo (p. ej. al ir a pulsar "Guardar nota") el
+                // cambio se confirma de una vez, sin esperar la pausa.
+                onBlur={confirmarCambio}
                 rows={rowsForText(draft)}
                 className="w-full resize-y rounded-md border border-line bg-field px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
                 autoFocus
@@ -389,7 +408,10 @@ function EditableBlock({
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => setEditing(false)}
+                  onClick={() => {
+                    confirmarCambio();
+                    setEditing(false);
+                  }}
                   className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-1.5 text-sm font-medium text-deep hover:border-mist"
                 >
                   <X size={15} /> Cerrar

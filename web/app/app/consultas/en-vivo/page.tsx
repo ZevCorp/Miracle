@@ -1,6 +1,14 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
@@ -160,6 +168,18 @@ function ConsultaActivaInner() {
   const [dictando, setDictando] = useState(false);
 
   const [note, setNote] = useState<ClinicalNoteJson | null>(null);
+  // Espejo en ref de la nota: `guardarNota` corre desde un onClick cuyo closure
+  // se creó en el render anterior. Si una sección confirmó su edición justo
+  // antes del clic, el closure aún tiene la nota vieja y se guardaría una
+  // versión desactualizada. Leyendo de la ref siempre se guarda lo último.
+  //
+  // useLayoutEffect y no useEffect: se ejecuta al confirmar el render, antes de
+  // que el navegador pueda entregar el clic siguiente. Con useEffect (diferido)
+  // el clic podría llegar con la ref aún vieja, que es justo lo que se corrige.
+  const noteRef = useRef<ClinicalNoteJson | null>(null);
+  useLayoutEffect(() => {
+    noteRef.current = note;
+  }, [note]);
   const [noteDirty, setNoteDirty] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
   const [showTranscriptPanel, setShowTranscriptPanel] = useState(true);
@@ -403,7 +423,9 @@ function ConsultaActivaInner() {
 
   /** Paso final: guardar la nota revisada (deja el encounter en "completed"). */
   async function guardarNota() {
-    if (!encounterId || !note || busy) return;
+    // Se lee de la ref, no del closure: ver noteRef arriba.
+    const notaActual = noteRef.current;
+    if (!encounterId || !notaActual || busy) return;
     // La nota firmada es inmutable: el banner ya ofrece "Ver detalle" y
     // "Crear adenda"; aquí solo se corta el guardado por si algo lo invoca.
     if (signedMirror) return;
@@ -414,20 +436,25 @@ function ConsultaActivaInner() {
       // que el médico y el espejo local conserven el nombre real.
       const result = await saveEditedClinicalNote(
         encounterId,
-        redactor.redactNote(note),
+        redactor.redactNote(notaActual),
       );
       const rehydratedNote = redactor.rehydrateNote(result.note_json);
       setNote(result.note_json);
       setNoteDirty(false);
-      setNoteSaved(true);
       setAiExplanation(null);
       applyStatus(result.status);
 
       // Puente: espeja la consulta en el historial local (tabla `consultations`)
       // para que aparezca en la lista, el detalle del paciente, y pueda
       // firmarse/exportarse. Idempotente: re-guardar actualiza la misma fila.
+      //
+      // "Nota guardada en tu historial" se afirma DESPUÉS de esto y solo si de
+      // verdad quedó: antes se marcaba como guardada apenas respondía el
+      // backend, así que un fallo del puente dejaba al médico creyendo que la
+      // consulta estaba en su lista cuando no aparecía por ningún lado.
+      let enHistorial = true;
       if (encounter) {
-        await upsertConsultation(
+        const espejo = await upsertConsultation(
           encounterToConsultation({
             encounter: {
               id: encounterId,
@@ -443,7 +470,9 @@ function ConsultaActivaInner() {
             now: new Date().toISOString(),
           }),
         );
+        enHistorial = espejo.ok;
       }
+      setNoteSaved(enHistorial);
       void completeLinkedAppointment();
     } catch (error) {
       setFlowError(friendlyClinicalMessage(error));
