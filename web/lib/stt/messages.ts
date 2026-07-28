@@ -8,6 +8,10 @@ export const DICTATION_MESSAGES = {
   micMissing: "No encontramos un micrófono en este dispositivo.",
   micBusy:
     "El micrófono está en uso por otra aplicación. Ciérrala e inténtalo de nuevo.",
+  micSilent:
+    "El micrófono está conectado pero no está entregando audio. Comprueba en la configuración de sonido del sistema que el micrófono seleccionado sea el correcto, o desconéctalo y vuelve a conectarlo.",
+  micLost:
+    "Se perdió la señal del micrófono durante la grabación. Lo transcrito hasta ahora se conserva; revisa la conexión del micrófono y reanuda.",
   serviceUnavailable:
     "La transcripción en vivo no está disponible en este momento. Puedes escribir la transcripción manualmente.",
   connectionLost:
@@ -33,6 +37,11 @@ export function dictationErrorMessage(error: unknown): string {
   }
   if (name === "NotReadableError" || name === "TrackStartError") {
     return DICTATION_MESSAGES.micBusy;
+  }
+  // El micrófono abre pero no entrega muestras (driver mudo, USB colgado).
+  // Va antes del emparejado por texto: su mensaje lleva "micrófono" y "audio".
+  if (name === "MicSilentError") {
+    return DICTATION_MESSAGES.micSilent;
   }
 
   const text =

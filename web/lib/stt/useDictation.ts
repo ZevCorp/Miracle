@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createDictation, type DictationHandle, type VoiceStreamSession } from "./index";
 import { dictationErrorMessage, DICTATION_MESSAGES } from "./messages";
+import { assertMicrophoneDelivers, watchMicrophoneDrop } from "./mic-health";
 
 export type DictationStatus =
   | "idle"
@@ -74,6 +75,8 @@ export function useDictation(onFinal: (text: string) => void): {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastEngineErrorRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Desuscriptor de los eventos mute/ended de la pista en curso.
+  const detachMicWatchRef = useRef<(() => void) | null>(null);
   // Última señal de actividad de transcripción (parcial o final): base del
   // watchdog. Se marca al iniciar la grabación para no disparar de inmediato.
   const lastActivityAtRef = useRef<number>(0);
@@ -104,6 +107,11 @@ export function useDictation(onFinal: (text: string) => void): {
   const startTimer = useCallback(() => {
     if (timerRef.current) return;
     timerRef.current = setInterval(() => setElapsedSec((s) => s + 1), 1000);
+  }, []);
+
+  const detachMicWatch = useCallback(() => {
+    detachMicWatchRef.current?.();
+    detachMicWatchRef.current = null;
   }, []);
 
   const clearReconnectTimer = useCallback(() => {
@@ -202,7 +210,18 @@ export function useDictation(onFinal: (text: string) => void): {
     try {
       const engine = getEngine();
       setStatusSafe("requesting_mic");
-      await engine.ensureMicrophone();
+      const stream = await engine.ensureMicrophone();
+      // Un micrófono que abre pero no entrega muestras haría grabar la consulta
+      // entera contra el vacío (el watchdog solo avisaría a los 45 s). Se corta
+      // aquí, antes de abrir el socket. La sonda solo bloquea ante silencio
+      // digital exacto; si no puede concluir, deja grabar.
+      await assertMicrophoneDelivers(stream);
+      detachMicWatch();
+      detachMicWatchRef.current = watchMicrophoneDrop(stream, () => {
+        if (intentRef.current !== "recording") return;
+        setError(DICTATION_MESSAGES.micLost);
+        setStalled(true);
+      });
       setStatusSafe("connecting");
       await engine.start();
       if (!resuming) setElapsedSec(0);
@@ -217,12 +236,13 @@ export function useDictation(onFinal: (text: string) => void): {
     } finally {
       startGuardRef.current = false;
     }
-  }, [getEngine, markActivity, setStatusSafe, startTimer, stopTimer]);
+  }, [detachMicWatch, getEngine, markActivity, setStatusSafe, startTimer, stopTimer]);
 
   const pause = useCallback(async () => {
     if (statusRef.current !== "recording" && statusRef.current !== "reconnecting") return;
     intentRef.current = "paused";
     clearReconnectTimer();
+    detachMicWatch();
     setStalled(false);
     setStatusSafe("pausing");
     stopTimer();
@@ -234,7 +254,7 @@ export function useDictation(onFinal: (text: string) => void): {
       setPartialText("");
       setStatusSafe("paused");
     }
-  }, [clearReconnectTimer, setStatusSafe, stopTimer]);
+  }, [clearReconnectTimer, detachMicWatch, setStatusSafe, stopTimer]);
 
   const stop = useCallback(async () => {
     if (statusRef.current === "paused") {
@@ -246,6 +266,7 @@ export function useDictation(onFinal: (text: string) => void): {
     if (statusRef.current !== "recording" && statusRef.current !== "reconnecting") return;
     intentRef.current = "stopped";
     clearReconnectTimer();
+    detachMicWatch();
     setStalled(false);
     setStatusSafe("stopping");
     stopTimer();
@@ -259,7 +280,7 @@ export function useDictation(onFinal: (text: string) => void): {
       setPartialText("");
       setStatusSafe("idle");
     }
-  }, [clearReconnectTimer, setStatusSafe, stopTimer]);
+  }, [clearReconnectTimer, detachMicWatch, setStatusSafe, stopTimer]);
 
   // Watchdog de inactividad: solo mientras se graba. Si con el micrófono
   // abierto no llega ningún fragmento en STALL_THRESHOLD_MS, se marca stalled
@@ -300,11 +321,12 @@ export function useDictation(onFinal: (text: string) => void): {
     return () => {
       intentRef.current = "stopped";
       clearReconnectTimer();
+      detachMicWatch();
       stopTimer();
       engineRef.current?.dispose();
       engineRef.current = null;
     };
-  }, [clearReconnectTimer, stopTimer]);
+  }, [clearReconnectTimer, detachMicWatch, stopTimer]);
 
   return { status, partialText, error, elapsedSec, stalled, start, pause, stop };
 }
