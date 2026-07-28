@@ -121,6 +121,37 @@ function emptyReview(): NoteReview {
 }
 
 /**
+ * Orden de lectura para el médico que está a punto de firmar. NO coincide con
+ * la severidad: un aviso del modelo puede sonar grave y ser puro comentario,
+ * mientras que una prescripción sin dosis es riesgo directo para el paciente.
+ * Menor número = se lee primero. El panel muestra los primeros y pliega el
+ * resto, así que este orden decide qué alcanza a ver el médico apurado.
+ */
+const PRIORIDAD_DE_LECTURA: Record<string, number> = {
+  // Riesgo directo sobre el paciente: una indicación que no se puede cumplir
+  // o un fármaco recetado a ciegas.
+  "medicacion-incompleta": 2,
+  "alergias-no-documentadas": 3,
+  // Lo que el paciente se lleva y respalda la atención.
+  "cierre-incompleto": 4,
+  "sin-resumen": 5,
+  // Completitud documental, ya sin riesgo clínico inmediato.
+  "secciones-vacias": 6,
+  "confianza-baja": 7,
+  "secciones-breves": 8,
+  "sin-signos-vitales": 9,
+};
+
+function prioridadDeLectura(key: string): number {
+  // Sección que la plantilla del hospital exige: sin eso la nota está
+  // incompleta frente al formato que la institución pide. Va primero.
+  if (key.startsWith("falta-")) return 1;
+  // Texto libre del modelo: contexto, no comprobación. Siempre al fondo.
+  if (key.startsWith("generacion-")) return 90;
+  return PRIORIDAD_DE_LECTURA[key] ?? 50;
+}
+
+/**
  * Una consulta asistencial tiene un paciente al frente: hay plan, control,
  * signos de alarma y recomendaciones que darle. Un informe sobre una muestra
  * (patología, laboratorio) no tiene nada de eso — se describe un espécimen.
@@ -383,15 +414,20 @@ export function reviewGeneratedNote(input: NoteReviewInput): NoteReview {
     .forEach((warning, index) => {
       hallazgos.push({
         key: `generacion-${index}`,
-        severidad: "advertencia",
+        // Comentario libre del modelo, no una comprobación determinista: es
+        // contexto útil, pero no puede desplazar a lo que el médico sí tiene
+        // que corregir. Por eso es sugerencia y va al fondo de la lista.
+        severidad: "sugerencia",
         titulo: "Aviso de la generación",
         detalle: warning,
       });
     });
 
-  hallazgos.sort(
-    (a, b) => auditSeverityRank(a.severidad) - auditSeverityRank(b.severidad),
-  );
+  hallazgos.sort((a, b) => {
+    const p = prioridadDeLectura(a.key) - prioridadDeLectura(b.key);
+    if (p !== 0) return p;
+    return auditSeverityRank(a.severidad) - auditSeverityRank(b.severidad);
+  });
 
   return {
     hallazgos,
@@ -412,6 +448,31 @@ export function noteReviewScore(review: NoteReview): number {
     0,
   );
   return Math.max(0, Math.min(100, 100 - penalizacion));
+}
+
+/**
+ * Reparte los hallazgos entre los que el panel muestra de entrada y los que
+ * quedan plegados tras "ver más".
+ *
+ * Un aviso con 5 líneas no se lee: el médico lo mira una vez, ve un muro y
+ * deja de abrirlo. Así que arriba va lo poco que sí tiene que corregir —en el
+ * orden de PRIORIDAD_DE_LECTURA— y el resto queda a un clic.
+ *
+ * Un crítico NUNCA se pliega: es lo que deja la nota incompleta frente a la
+ * plantilla del hospital. Si hay más críticos que cupo, se muestran todos y el
+ * cupo se ignora, porque esconder uno sería peor que la lista larga.
+ */
+export function splitReviewFindings(
+  review: NoteReview,
+  visibles = 3,
+): { principales: AuditFinding[]; plegados: AuditFinding[] } {
+  const criticos = review.hallazgos.filter((h) => h.severidad === "critico");
+  const resto = review.hallazgos.filter((h) => h.severidad !== "critico");
+  const cupo = Math.max(0, visibles - criticos.length);
+  return {
+    principales: [...criticos, ...resto.slice(0, cupo)],
+    plegados: resto.slice(cupo),
+  };
 }
 
 export type SectionCoverageState = "completa" | "breve" | "vacia";

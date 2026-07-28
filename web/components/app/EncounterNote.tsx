@@ -11,7 +11,11 @@ import {
   X,
 } from "lucide-react";
 import type { ClinicalNoteJson, ClinicalNoteSection } from "@/lib/api/clinical";
-import { noteReviewLabel, type NoteReview } from "@/lib/clinical/note-review";
+import {
+  noteReviewLabel,
+  splitReviewFindings,
+  type NoteReview,
+} from "@/lib/clinical/note-review";
 import { AuditFindingList } from "@/components/app/AuditFindings";
 
 /**
@@ -108,8 +112,7 @@ function NoteReviewPanel({ review }: { review: NoteReview }) {
   }
 
   const critico = review.criticos > 0;
-  const principales = review.hallazgos.filter((h) => h.severidad !== "sugerencia");
-  const sugerencias = review.hallazgos.filter((h) => h.severidad === "sugerencia");
+  const { principales, plegados } = splitReviewFindings(review);
 
   return (
     <section
@@ -149,12 +152,12 @@ function NoteReviewPanel({ review }: { review: NoteReview }) {
       <div className="mt-3 rounded-md border border-line bg-surface px-3 py-3">
         <AuditFindingList hallazgos={principales} />
 
-        {/* Las sugerencias son pulido opcional: si compiten de entrada con lo
-            que sí bloquea la firma, el médico deja de leer el aviso entero. */}
-        {sugerencias.length > 0 ? (
+        {/* Lo secundario queda a un clic: un aviso con muchas líneas se deja
+            de leer entero, y entonces también se pierde lo importante. */}
+        {plegados.length > 0 ? (
           verSugerencias ? (
             <div className="mt-2 border-t border-line pt-2">
-              <AuditFindingList hallazgos={sugerencias} />
+              <AuditFindingList hallazgos={plegados} />
             </div>
           ) : (
             <button
@@ -162,8 +165,9 @@ function NoteReviewPanel({ review }: { review: NoteReview }) {
               onClick={() => setVerSugerencias(true)}
               className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
             >
-              Ver {sugerencias.length}{" "}
-              {sugerencias.length === 1 ? "sugerencia" : "sugerencias"} más
+              <ChevronDown size={13} />
+              Ver {plegados.length}{" "}
+              {plegados.length === 1 ? "observación" : "observaciones"} más
             </button>
           )
         ) : null}

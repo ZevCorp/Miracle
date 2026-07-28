@@ -4,8 +4,10 @@ import {
   noteReviewScore,
   reviewGeneratedNote,
   sectionCoverage,
+  splitReviewFindings,
   type NoteReviewInput,
 } from "@/lib/clinical/note-review";
+import type { AuditSeverity } from "@/lib/clinical/note-audit";
 import type {
   ClinicalNoteJson,
   EncounterTemplateSnapshot,
@@ -451,6 +453,26 @@ describe("reviewGeneratedNote — backend y orden", () => {
     expect(avisos[0].detalle).toBe("El audio tenía ruido de fondo");
   });
 
+  it("el aviso del backend es sugerencia y queda de último", () => {
+    // Es texto libre del modelo, no una comprobación: no debe desplazar a lo
+    // que el médico sí tiene que corregir.
+    const note = notaCompleta({ warnings: ["Transcripción fragmentada"] });
+    note.discharge!.plan.medications = [{ name: "Ibuprofeno" }]; // sin dosis ni frecuencia
+    const review = reviewGeneratedNote({
+      note,
+      template: plantilla(),
+      transcript: TRANSCRIPCION_LARGA,
+    });
+
+    const aviso = review.hallazgos.find((h) => h.key.startsWith("generacion-"));
+    expect(aviso?.severidad).toBe("sugerencia");
+    expect(review.hallazgos.at(-1)?.key).toMatch(/^generacion-/);
+    // El riesgo real (fármaco sin dosis) se lee antes que el comentario.
+    expect(claves(review).indexOf("medicacion-incompleta")).toBeLessThan(
+      claves(review).findIndex((k) => k.startsWith("generacion-")),
+    );
+  });
+
   it("ordena crítico → advertencia → sugerencia y cuenta cada severidad", () => {
     const note = notaCompleta({ summary: "" });
     note.sections[1].content = ""; // crítico
@@ -523,6 +545,64 @@ describe("noteReviewScore", () => {
     });
     expect(noteReviewScore(review)).toBeGreaterThanOrEqual(0);
     expect(noteReviewScore(review)).toBeLessThan(30);
+  });
+});
+
+describe("splitReviewFindings", () => {
+  function review(hallazgos: { key: string; severidad: AuditSeverity }[]) {
+    return {
+      hallazgos: hallazgos.map((h) => ({ ...h, titulo: h.key, detalle: "" })),
+      criticos: hallazgos.filter((h) => h.severidad === "critico").length,
+      advertencias: hallazgos.filter((h) => h.severidad === "advertencia").length,
+      sugerencias: hallazgos.filter((h) => h.severidad === "sugerencia").length,
+    };
+  }
+
+  it("muestra 3 de entrada y pliega el resto", () => {
+    const { principales, plegados } = splitReviewFindings(
+      review([
+        { key: "a", severidad: "advertencia" },
+        { key: "b", severidad: "advertencia" },
+        { key: "c", severidad: "advertencia" },
+        { key: "d", severidad: "sugerencia" },
+        { key: "e", severidad: "sugerencia" },
+      ]),
+    );
+    expect(principales.map((h) => h.key)).toEqual(["a", "b", "c"]);
+    expect(plegados.map((h) => h.key)).toEqual(["d", "e"]);
+  });
+
+  it("nunca pliega un crítico, aunque pasen del cupo", () => {
+    const { principales, plegados } = splitReviewFindings(
+      review([
+        { key: "c1", severidad: "critico" },
+        { key: "c2", severidad: "critico" },
+        { key: "c3", severidad: "critico" },
+        { key: "c4", severidad: "critico" },
+        { key: "a1", severidad: "advertencia" },
+      ]),
+    );
+    expect(principales.map((h) => h.key)).toEqual(["c1", "c2", "c3", "c4"]);
+    expect(plegados.map((h) => h.key)).toEqual(["a1"]);
+  });
+
+  it("los críticos ocupan cupo: con 2 críticos solo sube 1 advertencia", () => {
+    const { principales, plegados } = splitReviewFindings(
+      review([
+        { key: "c1", severidad: "critico" },
+        { key: "c2", severidad: "critico" },
+        { key: "a1", severidad: "advertencia" },
+        { key: "a2", severidad: "advertencia" },
+      ]),
+    );
+    expect(principales.map((h) => h.key)).toEqual(["c1", "c2", "a1"]);
+    expect(plegados.map((h) => h.key)).toEqual(["a2"]);
+  });
+
+  it("sin hallazgos no hay nada que plegar", () => {
+    const { principales, plegados } = splitReviewFindings(review([]));
+    expect(principales).toEqual([]);
+    expect(plegados).toEqual([]);
   });
 });
 
