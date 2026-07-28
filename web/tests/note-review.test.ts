@@ -124,7 +124,7 @@ describe("reviewGeneratedNote — determinismo", () => {
 /* ------------------------------------------------------------------ */
 
 describe("reviewGeneratedNote — secciones", () => {
-  it("una obligatoria vacía es crítica y una opcional vacía es advertencia", () => {
+  it("cada sección vacía se nombra aparte: obligatoria crítica, opcional advertencia", () => {
     const note = notaCompleta();
     note.sections[1].content = "   "; // examen: obligatoria
     note.sections[2].content = ""; // analisis: opcional
@@ -134,42 +134,81 @@ describe("reviewGeneratedNote — secciones", () => {
       transcript: TRANSCRIPCION_LARGA,
     });
 
-    const critico = review.hallazgos.find((h) => h.key === "obligatorias-vacias");
+    const critico = review.hallazgos.find((h) => h.key === "falta-examen");
     expect(critico?.severidad).toBe("critico");
-    expect(critico?.detalle).toContain("Examen físico");
+    expect(critico?.titulo).toBe("Falta Examen físico");
 
-    const aviso = review.hallazgos.find((h) => h.key === "secciones-vacias");
+    const aviso = review.hallazgos.find((h) => h.key === "falta-analisis");
     expect(aviso?.severidad).toBe("advertencia");
-    expect(aviso?.detalle).toContain("Análisis");
+    expect(aviso?.titulo).toBe("Falta Análisis");
+  });
+
+  it("un campo de dato corto (rótulo, cédula, fecha) no se reclama como breve", () => {
+    // La plantilla de patología pide identificadores: un rótulo "26-2513" es
+    // exactamente lo que se pidió, no una sección que quedó a medias.
+    const note = notaCompleta({
+      sections: [
+        { key: "rotulo", label: "Rótulo", content: "26-2513", confidence: 0.9 },
+        { key: "cedula", label: "Cédula", content: "1040181619", confidence: 0.9 },
+        {
+          key: "fecha",
+          label: "Fecha de lectura",
+          content: "22/07/2026",
+          confidence: 0.9,
+        },
+      ],
+    });
+    const review = reviewGeneratedNote({
+      note,
+      template: plantilla({
+        specialty: "patologia",
+        sections: [
+          { key: "rotulo", label: "Rótulo", order: 1 },
+          { key: "cedula", label: "Cédula", order: 2 },
+          { key: "fecha", label: "Fecha de lectura", order: 3 },
+        ],
+      }),
+      transcript: TRANSCRIPCION_LARGA,
+    });
+    expect(claves(review)).not.toContain("secciones-breves");
+  });
+
+  it("el aviso cita la plantilla que el médico usó", () => {
+    const note = notaCompleta();
+    note.sections[1].content = "";
+    const review = reviewGeneratedNote({ note, template: plantilla() });
+    const falta = review.hallazgos.find((h) => h.key === "falta-examen");
+    expect(falta?.detalle).toContain("«Consulta inicial»");
   });
 
   it("el relleno sin contenido cuenta como vacío", () => {
     const note = notaCompleta();
     note.sections[1].content = "Sin información documentada.";
     const review = reviewGeneratedNote({ note, template: plantilla() });
-    expect(claves(review)).toContain("obligatorias-vacias");
+    expect(claves(review)).toContain("falta-examen");
   });
 
   it("una negación clínica NO cuenta como vacío", () => {
     const note = notaCompleta();
     note.sections[1].content = "No refiere dolor ni fiebre.";
     const review = reviewGeneratedNote({ note, template: plantilla() });
-    expect(claves(review)).not.toContain("obligatorias-vacias");
+    expect(claves(review)).not.toContain("falta-examen");
   });
 
   it("una obligatoria que ni siquiera vino como sección se reporta", () => {
     const note = notaCompleta();
     note.sections = note.sections.filter((s) => s.key !== "examen");
     const review = reviewGeneratedNote({ note, template: plantilla() });
-    const critico = review.hallazgos.find((h) => h.key === "obligatorias-vacias");
-    expect(critico?.detalle).toContain("Examen físico");
+    const critico = review.hallazgos.find((h) => h.key === "falta-examen");
+    expect(critico?.severidad).toBe("critico");
+    expect(critico?.titulo).toBe("Falta Examen físico");
   });
 
   it("missing_required_sections del backend ya resuelto no vuelve a avisar", () => {
     // El backend marcó "examen" como faltante, pero el médico ya lo llenó.
     const note = notaCompleta({ missing_required_sections: ["examen"] });
     const review = reviewGeneratedNote({ note, template: plantilla() });
-    expect(claves(review)).not.toContain("obligatorias-vacias");
+    expect(claves(review)).not.toContain("falta-examen");
   });
 
   it("missing_required_sections aplica aunque la plantilla no marque required", () => {
@@ -181,7 +220,8 @@ describe("reviewGeneratedNote — secciones", () => {
         sections: [{ key: "analisis", label: "Análisis", order: 1 }],
       }),
     });
-    expect(claves(review)).toContain("obligatorias-vacias");
+    const falta = review.hallazgos.find((h) => h.key === "falta-analisis");
+    expect(falta?.severidad).toBe("critico");
   });
 
   it("baja confianza de la IA se señala como advertencia", () => {
@@ -282,6 +322,44 @@ describe("reviewGeneratedNote — datos que se olvidan", () => {
     expect(claves(review)).not.toContain("sin-signos-vitales");
   });
 
+  it("un informe de muestra no reclama plan, alarma ni recomendaciones", () => {
+    // Informe de patología real: hay diagnóstico sobre la muestra, pero no hay
+    // paciente al frente a quien indicarle un tratamiento.
+    const note = notaCompleta({
+      discharge: {
+        plan: { medications: [], non_pharmacological: [], follow_up: [] },
+        recommendations: [],
+        alarm_signs: [],
+      },
+    });
+    const review = reviewGeneratedNote({
+      note,
+      template: plantilla({ specialty: "patologia", name: "Histopatología" }),
+      transcript: TRANSCRIPCION_LARGA,
+    });
+    expect(claves(review)).not.toContain("sin-plan");
+    expect(claves(review)).not.toContain("sin-signos-alarma");
+    expect(claves(review)).not.toContain("sin-recomendaciones");
+    expect(claves(review)).not.toContain("sin-seguimiento");
+  });
+
+  it("la misma nota sin cierre SÍ avisa en una consulta asistencial", () => {
+    const note = notaCompleta({
+      discharge: {
+        plan: { medications: [], non_pharmacological: [], follow_up: [] },
+        recommendations: [],
+        alarm_signs: [],
+      },
+    });
+    const review = reviewGeneratedNote({
+      note,
+      template: plantilla(),
+      transcript: TRANSCRIPCION_LARGA,
+    });
+    expect(claves(review)).toContain("sin-plan");
+    expect(claves(review)).toContain("sin-signos-alarma");
+  });
+
   it("no reclama signos vitales si la consulta fue corta", () => {
     const note = notaCompleta();
     note.sections[1].content = "Sin hallazgos.";
@@ -329,7 +407,8 @@ describe("reviewGeneratedNote — datos que se olvidan", () => {
 
   it("secciones muy breves solo se señalan tras una consulta larga", () => {
     const note = notaCompleta();
-    note.sections[2].content = "Ok.";
+    // Prosa que arrancó y quedó a medias (no un dato suelto, que sería válido).
+    note.sections[2].content = "Todo normal ok.";
 
     const larga = reviewGeneratedNote({
       note,
@@ -441,7 +520,7 @@ describe("noteReviewScore", () => {
 describe("sectionCoverage", () => {
   it("clasifica completa / breve / vacía y marca las obligatorias", () => {
     const note = notaCompleta();
-    note.sections[1].content = "Ok."; // breve
+    note.sections[1].content = "Todo normal ok."; // prosa a medias = breve
     note.sections[2].content = "Sin información documentada."; // relleno = vacía
     const cobertura = sectionCoverage(note, plantilla());
 

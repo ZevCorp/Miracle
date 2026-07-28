@@ -73,6 +73,16 @@ function vacio(value: string | null | undefined): boolean {
   return text === "" || RELLENO.test(text);
 }
 
+/**
+ * Un valor suelto (un rótulo "26-2513", una cédula, una fecha, un nombre) no es
+ * prosa truncada: es exactamente lo que la plantilla pide, y así de corto está
+ * bien. La regla de brevedad solo tiene sentido sobre secciones que intentan
+ * narrar algo, así que estas quedan fuera para no inventarles un problema.
+ */
+function pareceDato(content: string): boolean {
+  return content.trim().split(/\s+/).length < 3;
+}
+
 function pluralize(n: number, singular: string, plural: string): string {
   return `${n} ${n === 1 ? singular : plural}`;
 }
@@ -111,6 +121,21 @@ function emptyReview(): NoteReview {
 }
 
 /**
+ * Una consulta asistencial tiene un paciente al frente: hay plan, control,
+ * signos de alarma y recomendaciones que darle. Un informe sobre una muestra
+ * (patología, laboratorio) no tiene nada de eso — se describe un espécimen.
+ * Reclamarle "plan terapéutico" o "signos de alarma" a una biopsia es ruido
+ * garantizado, y este módulo existe justamente para que el médico pueda
+ * confiar en el aviso en vez de aprender a ignorarlo.
+ */
+function esInformeDeMuestra(
+  template: EncounterTemplateSnapshot | null | undefined,
+): boolean {
+  const especialidad = (template?.specialty ?? "").toLowerCase();
+  return /patolog|citolog|histolog|laboratorio|bacteriolog/.test(especialidad);
+}
+
+/**
  * Revisa la nota generada y devuelve qué falta, qué está incompleto y qué
  * conviene reforzar, ordenado de más grave a menos.
  */
@@ -136,20 +161,26 @@ export function reviewGeneratedNote(input: NoteReviewInput): NoteReview {
       : []),
   ]);
 
-  const vaciasObligatorias: string[] = [];
-  const vaciasOpcionales: string[] = [];
+  // Se nombran una por una, con la etiqueta que la plantilla les da: el médico
+  // necesita leer "falta Antecedentes", no "2 secciones sin información".
+  const faltantes: { key: string; label: string; obligatoria: boolean }[] = [];
   const breves: string[] = [];
   const dudosas: string[] = [];
 
   for (const section of sections) {
     const label = section.label?.trim() || section.key;
     if (vacio(section.content)) {
-      (obligatorias.has(section.key) ? vaciasObligatorias : vaciasOpcionales).push(
+      faltantes.push({
+        key: section.key,
         label,
-      );
+        obligatoria: obligatorias.has(section.key),
+      });
       continue;
     }
-    if (section.content.trim().length < SECCION_BREVE) breves.push(label);
+    const contenido = section.content.trim();
+    if (contenido.length < SECCION_BREVE && !pareceDato(contenido)) {
+      breves.push(label);
+    }
     if (
       typeof section.confidence === "number" &&
       section.confidence < CONFIANZA_MINIMA
@@ -162,38 +193,25 @@ export function reviewGeneratedNote(input: NoteReviewInput): NoteReview {
   const presentes = new Set(sections.map((s) => s.key));
   for (const key of obligatorias) {
     if (presentes.has(key)) continue;
-    vaciasObligatorias.push(
-      plantilla.find((s) => s.key === key)?.label?.trim() || key,
-    );
-  }
-
-  if (vaciasObligatorias.length > 0) {
-    hallazgos.push({
-      key: "obligatorias-vacias",
-      severidad: "critico",
-      titulo: `${pluralize(
-        vaciasObligatorias.length,
-        "sección obligatoria sin información",
-        "secciones obligatorias sin información",
-      )}`,
-      detalle: `Complétalas antes de cerrar la nota: ${joinLabels(
-        vaciasObligatorias,
-      )}.`,
+    faltantes.push({
+      key,
+      label: plantilla.find((s) => s.key === key)?.label?.trim() || key,
+      obligatoria: true,
     });
   }
 
-  if (vaciasOpcionales.length > 0) {
+  // El nombre de la plantilla ancla el aviso a lo que el médico eligió usar.
+  const nombrePlantilla = input.template?.name?.trim();
+  const laPlantilla = nombrePlantilla ? `«${nombrePlantilla}»` : "La plantilla";
+
+  for (const falta of faltantes) {
     hallazgos.push({
-      key: "secciones-vacias",
-      severidad: "advertencia",
-      titulo: `${pluralize(
-        vaciasOpcionales.length,
-        "sección sin información",
-        "secciones sin información",
-      )}`,
-      detalle: `No se documentó nada en: ${joinLabels(
-        vaciasOpcionales,
-      )}. Si no aplica, déjalo escrito; si se preguntó, agrégalo.`,
+      key: `falta-${falta.key}`,
+      severidad: falta.obligatoria ? "critico" : "advertencia",
+      titulo: `Falta ${falta.label}`,
+      detalle: falta.obligatoria
+        ? `${laPlantilla} marca esta sección como obligatoria y quedó sin información. Complétala antes de cerrar la nota.`
+        : `${laPlantilla} incluye esta sección y quedó sin información. Si no aplica, déjalo escrito; si se preguntó, agrégalo.`,
     });
   }
 
@@ -243,80 +261,84 @@ export function reviewGeneratedNote(input: NoteReviewInput): NoteReview {
 
   /* --- Cierre: plan, seguimiento, alarma, recomendaciones -------------- */
 
+  // Todo lo que sigue (plan, control, alarma, recomendaciones, signos vitales,
+  // alergias) asume un paciente al que se le indica algo. Un informe sobre una
+  // muestra no tiene a quién indicarle nada: ahí la plantilla manda y estas
+  // reglas se omiten enteras en vez de llenar el panel de ruido.
+  const informeDeMuestra = esInformeDeMuestra(input.template);
   const meds = discharge.plan.medications;
-  const noFarma = discharge.plan.non_pharmacological;
-  const seguimiento = discharge.plan.follow_up;
-  const planVacio =
-    meds.length === 0 && noFarma.length === 0 && seguimiento.length === 0;
 
-  if (planVacio) {
-    hallazgos.push({
-      key: "sin-plan",
-      severidad: "advertencia",
-      titulo: "Sin plan terapéutico",
-      detalle:
-        "No quedó registrado qué se le indicó al paciente: medicación, medidas no farmacológicas o control.",
-    });
-  } else if (seguimiento.length === 0) {
-    hallazgos.push({
-      key: "sin-seguimiento",
-      severidad: "sugerencia",
-      titulo: "Sin control ni seguimiento",
-      detalle:
-        "Menciona cuándo debe volver el paciente o qué control necesita; es lo que más se olvida al dictar.",
-    });
-  }
+  if (!informeDeMuestra) {
+    const noFarma = discharge.plan.non_pharmacological;
+    const seguimiento = discharge.plan.follow_up;
+    const planVacio =
+      meds.length === 0 && noFarma.length === 0 && seguimiento.length === 0;
 
-  // Una prescripción sin dosis o sin frecuencia no se puede ejecutar.
-  const medsIncompletos = meds
-    .filter((m) => vacio(m.dose) || vacio(m.frequency))
-    .map((m) => m.name?.trim() || "medicamento sin nombre");
-  if (medsIncompletos.length > 0) {
-    hallazgos.push({
-      key: "medicacion-incompleta",
-      severidad: "advertencia",
-      titulo: `${pluralize(
-        medsIncompletos.length,
-        "medicamento sin dosis o frecuencia",
-        "medicamentos sin dosis o frecuencia",
-      )}`,
-      detalle: `Completa dosis y frecuencia de: ${joinLabels(
-        medsIncompletos,
-      )}. Sin eso la indicación no se puede cumplir.`,
-    });
-  }
+    if (planVacio) {
+      hallazgos.push({
+        key: "sin-plan",
+        severidad: "advertencia",
+        titulo: "Sin plan terapéutico",
+        detalle:
+          "No quedó registrado qué se le indicó al paciente: medicación, medidas no farmacológicas o control.",
+      });
+    } else if (seguimiento.length === 0) {
+      hallazgos.push({
+        key: "sin-seguimiento",
+        severidad: "sugerencia",
+        titulo: "Sin control ni seguimiento",
+        detalle:
+          "Menciona cuándo debe volver el paciente o qué control necesita; es lo que más se olvida al dictar.",
+      });
+    }
 
-  if (discharge.alarm_signs.length === 0) {
-    hallazgos.push({
-      key: "sin-signos-alarma",
-      severidad: "advertencia",
-      titulo: "Sin signos de alarma",
-      detalle:
-        "Deja por escrito con qué síntomas debe volver o consultar a urgencias. Es lo que respalda la atención si el cuadro empeora.",
-    });
-  }
+    // Una prescripción sin dosis o sin frecuencia no se puede ejecutar.
+    const medsIncompletos = meds
+      .filter((m) => vacio(m.dose) || vacio(m.frequency))
+      .map((m) => m.name?.trim() || "medicamento sin nombre");
+    if (medsIncompletos.length > 0) {
+      hallazgos.push({
+        key: "medicacion-incompleta",
+        severidad: "advertencia",
+        titulo: `${pluralize(
+          medsIncompletos.length,
+          "medicamento sin dosis o frecuencia",
+          "medicamentos sin dosis o frecuencia",
+        )}`,
+        detalle: `Completa dosis y frecuencia de: ${joinLabels(
+          medsIncompletos,
+        )}. Sin eso la indicación no se puede cumplir.`,
+      });
+    }
 
-  if (discharge.recommendations.length === 0) {
-    hallazgos.push({
-      key: "sin-recomendaciones",
-      severidad: "sugerencia",
-      titulo: "Sin recomendaciones al paciente",
-      detalle:
-        "Agrega las indicaciones de cuidado en casa que le diste durante la consulta.",
-    });
+    if (discharge.alarm_signs.length === 0) {
+      hallazgos.push({
+        key: "sin-signos-alarma",
+        severidad: "advertencia",
+        titulo: "Sin signos de alarma",
+        detalle:
+          "Deja por escrito con qué síntomas debe volver o consultar a urgencias. Es lo que respalda la atención si el cuadro empeora.",
+      });
+    }
+
+    if (discharge.recommendations.length === 0) {
+      hallazgos.push({
+        key: "sin-recomendaciones",
+        severidad: "sugerencia",
+        titulo: "Sin recomendaciones al paciente",
+        detalle:
+          "Agrega las indicaciones de cuidado en casa que le diste durante la consulta.",
+      });
+    }
   }
 
   /* --- Datos que se suelen olvidar preguntar --------------------------- */
 
-  // Patología trabaja sobre una muestra, no sobre un paciente presente: pedir
-  // signos vitales ahí sería ruido garantizado.
-  const especialidad = (input.template?.specialty ?? "").toLowerCase();
-  const midePaciente = !especialidad.includes("patolog");
   const vitales = extractConcepts(sections);
   const tieneVitales = Object.keys(vitales).some((k) => k.startsWith("vital."));
 
   if (
-    midePaciente &&
+    !informeDeMuestra &&
     !tieneVitales &&
     transcript.length >= TRANSCRIPCION_SUSTANCIAL
   ) {
@@ -332,7 +354,7 @@ export function reviewGeneratedNote(input: NoteReviewInput): NoteReview {
   // Prescribir sin haber dejado constancia de alergias es un riesgo real. Se
   // busca tanto en la nota como en lo que se habló, para no reclamar algo que
   // sí se preguntó.
-  if (meds.length > 0) {
+  if (!informeDeMuestra && meds.length > 0) {
     const textoNota = sections.map((s) => s.content ?? "").join("\n");
     const mencionaAlergia = /alergi|al[eé]rgic/i.test(
       `${textoNota}\n${note.summary ?? ""}\n${transcript}`,
@@ -431,7 +453,7 @@ export function sectionCoverage(
       obligatoria: obligatorias.has(section.key),
       estado: estaVacia
         ? "vacia"
-        : content.length < SECCION_BREVE
+        : content.length < SECCION_BREVE && !pareceDato(content)
           ? "breve"
           : "completa",
       confianzaBaja:
