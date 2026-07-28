@@ -43,6 +43,7 @@ import { AuditFindingList } from "@/components/app/AuditFindings";
 /* ------------------------------------------------------------------ */
 
 const CONCEPT_LABEL: Record<ConceptKey, string> = {
+  "consulta.motivo": "Motivo de consulta",
   "paciente.edad": "Edad",
   "vital.talla": "Talla (m)",
   "vital.peso": "Peso (kg)",
