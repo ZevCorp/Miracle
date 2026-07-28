@@ -124,7 +124,7 @@ describe("reviewGeneratedNote — determinismo", () => {
 /* ------------------------------------------------------------------ */
 
 describe("reviewGeneratedNote — secciones", () => {
-  it("cada sección vacía se nombra aparte: obligatoria crítica, opcional advertencia", () => {
+  it("cada obligatoria vacía se nombra aparte; las opcionales van en una línea", () => {
     const note = notaCompleta();
     note.sections[1].content = "   "; // examen: obligatoria
     note.sections[2].content = ""; // analisis: opcional
@@ -134,13 +134,15 @@ describe("reviewGeneratedNote — secciones", () => {
       transcript: TRANSCRIPCION_LARGA,
     });
 
+    // La obligatoria bloquea la firma: se nombra sola.
     const critico = review.hallazgos.find((h) => h.key === "falta-examen");
     expect(critico?.severidad).toBe("critico");
     expect(critico?.titulo).toBe("Falta Examen físico");
 
-    const aviso = review.hallazgos.find((h) => h.key === "falta-analisis");
+    // La opcional se agrupa, pero se sigue nombrando en el detalle.
+    const aviso = review.hallazgos.find((h) => h.key === "secciones-vacias");
     expect(aviso?.severidad).toBe("advertencia");
-    expect(aviso?.titulo).toBe("Falta Análisis");
+    expect(aviso?.detalle).toContain("Análisis");
   });
 
   it("un campo de dato corto (rótulo, cédula, fecha) no se reclama como breve", () => {
@@ -239,24 +241,34 @@ describe("reviewGeneratedNote — secciones", () => {
 /* ------------------------------------------------------------------ */
 
 describe("reviewGeneratedNote — cierre de la consulta", () => {
-  it("sin plan terapéutico avisa, y no duplica con el de seguimiento", () => {
+  it("sin plan terapéutico es advertencia y lo dice en una sola línea", () => {
     const note = notaCompleta();
     note.discharge!.plan = {
       medications: [],
       non_pharmacological: [],
       follow_up: [],
     };
+    note.discharge!.alarm_signs = [];
+    note.discharge!.recommendations = [];
     const review = reviewGeneratedNote({ note, template: plantilla() });
-    expect(claves(review)).toContain("sin-plan");
-    expect(claves(review)).not.toContain("sin-seguimiento");
+
+    // Un solo hallazgo para todo el cierre, no cuatro.
+    const cierre = review.hallazgos.filter((h) => h.key === "cierre-incompleto");
+    expect(cierre).toHaveLength(1);
+    expect(cierre[0].severidad).toBe("advertencia");
+    expect(cierre[0].detalle).toContain("plan terapéutico");
+    expect(cierre[0].detalle).toContain("signos de alarma");
+    expect(cierre[0].detalle).toContain("recomendaciones al paciente");
   });
 
-  it("con plan pero sin control, avisa solo del seguimiento", () => {
+  it("con plan pero sin control, el cierre baja a sugerencia", () => {
     const note = notaCompleta();
     note.discharge!.plan.follow_up = [];
     const review = reviewGeneratedNote({ note, template: plantilla() });
-    expect(claves(review)).toContain("sin-seguimiento");
-    expect(claves(review)).not.toContain("sin-plan");
+    const cierre = review.hallazgos.find((h) => h.key === "cierre-incompleto");
+    expect(cierre?.severidad).toBe("sugerencia");
+    expect(cierre?.detalle).toContain("control o seguimiento");
+    expect(cierre?.detalle).not.toContain("plan terapéutico");
   });
 
   it("medicamento sin dosis o sin frecuencia se nombra", () => {
@@ -272,17 +284,15 @@ describe("reviewGeneratedNote — cierre de la consulta", () => {
     expect(med?.detalle).toContain("Omeprazol");
   });
 
-  it("sin signos de alarma es advertencia y sin recomendaciones es sugerencia", () => {
+  it("con plan completo, la alarma y las recomendaciones van juntas en una línea", () => {
     const note = notaCompleta();
     note.discharge!.alarm_signs = [];
     note.discharge!.recommendations = [];
     const review = reviewGeneratedNote({ note, template: plantilla() });
-    expect(
-      review.hallazgos.find((h) => h.key === "sin-signos-alarma")?.severidad,
-    ).toBe("advertencia");
-    expect(
-      review.hallazgos.find((h) => h.key === "sin-recomendaciones")?.severidad,
-    ).toBe("sugerencia");
+    const cierre = review.hallazgos.find((h) => h.key === "cierre-incompleto");
+    expect(cierre?.severidad).toBe("sugerencia");
+    expect(cierre?.detalle).toContain("signos de alarma");
+    expect(cierre?.detalle).toContain("recomendaciones al paciente");
   });
 
   it("una nota sin discharge no rompe la revisión", () => {
@@ -290,8 +300,9 @@ describe("reviewGeneratedNote — cierre de la consulta", () => {
       note: notaCompleta({ discharge: undefined }),
       template: plantilla(),
     });
-    expect(claves(review)).toContain("sin-plan");
-    expect(claves(review)).toContain("sin-signos-alarma");
+    const cierre = review.hallazgos.find((h) => h.key === "cierre-incompleto");
+    expect(cierre?.severidad).toBe("advertencia");
+    expect(cierre?.detalle).toContain("plan terapéutico");
   });
 });
 
@@ -337,10 +348,7 @@ describe("reviewGeneratedNote — datos que se olvidan", () => {
       template: plantilla({ specialty: "patologia", name: "Histopatología" }),
       transcript: TRANSCRIPCION_LARGA,
     });
-    expect(claves(review)).not.toContain("sin-plan");
-    expect(claves(review)).not.toContain("sin-signos-alarma");
-    expect(claves(review)).not.toContain("sin-recomendaciones");
-    expect(claves(review)).not.toContain("sin-seguimiento");
+    expect(claves(review)).not.toContain("cierre-incompleto");
   });
 
   it("la misma nota sin cierre SÍ avisa en una consulta asistencial", () => {
@@ -356,8 +364,9 @@ describe("reviewGeneratedNote — datos que se olvidan", () => {
       template: plantilla(),
       transcript: TRANSCRIPCION_LARGA,
     });
-    expect(claves(review)).toContain("sin-plan");
-    expect(claves(review)).toContain("sin-signos-alarma");
+    const cierre = review.hallazgos.find((h) => h.key === "cierre-incompleto");
+    expect(cierre?.severidad).toBe("advertencia");
+    expect(cierre?.detalle).toContain("plan terapéutico");
   });
 
   it("no reclama signos vitales si la consulta fue corta", () => {

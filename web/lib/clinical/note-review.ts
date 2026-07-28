@@ -204,14 +204,31 @@ export function reviewGeneratedNote(input: NoteReviewInput): NoteReview {
   const nombrePlantilla = input.template?.name?.trim();
   const laPlantilla = nombrePlantilla ? `«${nombrePlantilla}»` : "La plantilla";
 
-  for (const falta of faltantes) {
+  // Las obligatorias se nombran una a una: son pocas y cada una bloquea la
+  // firma. Las opcionales van en una sola línea (también nombradas) para no
+  // llenar el panel con una fila por cada campo que la plantilla ni exige.
+  for (const falta of faltantes.filter((f) => f.obligatoria)) {
     hallazgos.push({
       key: `falta-${falta.key}`,
-      severidad: falta.obligatoria ? "critico" : "advertencia",
+      severidad: "critico",
       titulo: `Falta ${falta.label}`,
-      detalle: falta.obligatoria
-        ? `${laPlantilla} marca esta sección como obligatoria y quedó sin información. Complétala antes de cerrar la nota.`
-        : `${laPlantilla} incluye esta sección y quedó sin información. Si no aplica, déjalo escrito; si se preguntó, agrégalo.`,
+      detalle: `${laPlantilla} marca esta sección como obligatoria y quedó sin información. Complétala antes de cerrar la nota.`,
+    });
+  }
+
+  const opcionalesVacias = faltantes.filter((f) => !f.obligatoria);
+  if (opcionalesVacias.length > 0) {
+    hallazgos.push({
+      key: "secciones-vacias",
+      severidad: "advertencia",
+      titulo: `${pluralize(
+        opcionalesVacias.length,
+        "sección sin información",
+        "secciones sin información",
+      )}`,
+      detalle: `${laPlantilla} las incluye y quedaron vacías: ${joinLabels(
+        opcionalesVacias.map((f) => f.label),
+      )}. Si no aplican, déjalo escrito.`,
     });
   }
 
@@ -274,21 +291,28 @@ export function reviewGeneratedNote(input: NoteReviewInput): NoteReview {
     const planVacio =
       meds.length === 0 && noFarma.length === 0 && seguimiento.length === 0;
 
-    if (planVacio) {
+    // Plan, control, signos de alarma y recomendaciones son partes de UNA sola
+    // cosa: lo que el paciente se lleva. Cuando la consulta se dicta sin cerrar,
+    // faltan casi siempre las cuatro, y sacarlas por separado llenaba el panel
+    // con cuatro avisos que se corrigen de una sentada.
+    const cierreFaltante: string[] = [];
+    if (planVacio) cierreFaltante.push("plan terapéutico");
+    else if (seguimiento.length === 0) cierreFaltante.push("control o seguimiento");
+    if (discharge.alarm_signs.length === 0) cierreFaltante.push("signos de alarma");
+    if (discharge.recommendations.length === 0) {
+      cierreFaltante.push("recomendaciones al paciente");
+    }
+
+    if (cierreFaltante.length > 0) {
       hallazgos.push({
-        key: "sin-plan",
-        severidad: "advertencia",
-        titulo: "Sin plan terapéutico",
-        detalle:
-          "No quedó registrado qué se le indicó al paciente: medicación, medidas no farmacológicas o control.",
-      });
-    } else if (seguimiento.length === 0) {
-      hallazgos.push({
-        key: "sin-seguimiento",
-        severidad: "sugerencia",
-        titulo: "Sin control ni seguimiento",
-        detalle:
-          "Menciona cuándo debe volver el paciente o qué control necesita; es lo que más se olvida al dictar.",
+        key: "cierre-incompleto",
+        // Sin plan no hay conducta médica; sin él, lo que falta es el detalle
+        // del egreso y con eso basta una sugerencia.
+        severidad: planVacio ? "advertencia" : "sugerencia",
+        titulo: "Falta el cierre de la consulta",
+        detalle: `No quedó registrado: ${joinLabels(
+          cierreFaltante,
+        )}. Es lo que el paciente se lleva y lo que respalda la atención si el cuadro empeora.`,
       });
     }
 
@@ -308,26 +332,6 @@ export function reviewGeneratedNote(input: NoteReviewInput): NoteReview {
         detalle: `Completa dosis y frecuencia de: ${joinLabels(
           medsIncompletos,
         )}. Sin eso la indicación no se puede cumplir.`,
-      });
-    }
-
-    if (discharge.alarm_signs.length === 0) {
-      hallazgos.push({
-        key: "sin-signos-alarma",
-        severidad: "advertencia",
-        titulo: "Sin signos de alarma",
-        detalle:
-          "Deja por escrito con qué síntomas debe volver o consultar a urgencias. Es lo que respalda la atención si el cuadro empeora.",
-      });
-    }
-
-    if (discharge.recommendations.length === 0) {
-      hallazgos.push({
-        key: "sin-recomendaciones",
-        severidad: "sugerencia",
-        titulo: "Sin recomendaciones al paciente",
-        detalle:
-          "Agrega las indicaciones de cuidado en casa que le diste durante la consulta.",
       });
     }
   }

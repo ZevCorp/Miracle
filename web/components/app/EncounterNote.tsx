@@ -94,6 +94,8 @@ export function EncounterNote({
  * demás, verde cuando no hay observaciones.
  */
 function NoteReviewPanel({ review }: { review: NoteReview }) {
+  const [verSugerencias, setVerSugerencias] = useState(false);
+
   if (review.hallazgos.length === 0) {
     return (
       <div className="mb-4 flex items-center gap-2 rounded-md border border-success/30 bg-success-soft px-3.5 py-2.5 text-sm text-success">
@@ -106,6 +108,8 @@ function NoteReviewPanel({ review }: { review: NoteReview }) {
   }
 
   const critico = review.criticos > 0;
+  const principales = review.hallazgos.filter((h) => h.severidad !== "sugerencia");
+  const sugerencias = review.hallazgos.filter((h) => h.severidad === "sugerencia");
 
   return (
     <section
@@ -143,7 +147,26 @@ function NoteReviewPanel({ review }: { review: NoteReview }) {
       {/* Sobre fondo propio: los chips de severidad de AuditFindingList pierden
           contraste si se pintan directamente sobre el ámbar. */}
       <div className="mt-3 rounded-md border border-line bg-surface px-3 py-3">
-        <AuditFindingList hallazgos={review.hallazgos} />
+        <AuditFindingList hallazgos={principales} />
+
+        {/* Las sugerencias son pulido opcional: si compiten de entrada con lo
+            que sí bloquea la firma, el médico deja de leer el aviso entero. */}
+        {sugerencias.length > 0 ? (
+          verSugerencias ? (
+            <div className="mt-2 border-t border-line pt-2">
+              <AuditFindingList hallazgos={sugerencias} />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setVerSugerencias(true)}
+              className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
+            >
+              Ver {sugerencias.length}{" "}
+              {sugerencias.length === 1 ? "sugerencia" : "sugerencias"} más
+            </button>
+          )
+        ) : null}
       </div>
     </section>
   );
