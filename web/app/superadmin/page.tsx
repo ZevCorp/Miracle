@@ -1,9 +1,21 @@
+import Link from "next/link";
 import { Building2, ClipboardList, UserRound, Users } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { APP_ROLE_LABEL, isAppRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { FlashBanner } from "@/components/superadmin/FlashBanner";
+
+type ActivitySummary = {
+  active: {
+    total_users: number;
+    total_doctors: number;
+    signed_in_today: number;
+    signed_in_7d: number;
+    working_7d: number;
+    never_worked: number;
+  };
+};
 
 type Overview = {
   totals: { organizations: number; users: number; consultations: number; patients: number };
@@ -27,8 +39,12 @@ export default async function SuperadminResumenPage({
   const db = await createClient();
 
   // Métricas agregadas en la base (no se cargan tablas enteras al cliente).
-  const { data, error: rpcError } = await db.rpc("superadmin_overview");
+  const [{ data, error: rpcError }, { data: activityData }] = await Promise.all([
+    db.rpc("superadmin_overview"),
+    db.rpc("superadmin_activity"),
+  ]);
   const overview = (data ?? null) as Overview | null;
+  const activity = (activityData ?? null) as ActivitySummary | null;
 
   const totals = overview?.totals ?? {
     organizations: 0,
@@ -80,6 +96,52 @@ export default async function SuperadminResumenPage({
           );
         })}
       </div>
+
+      {activity ? (
+        <Card>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+              Quién está activo
+            </h2>
+            <Link
+              href="/superadmin/actividad"
+              className="text-xs font-semibold text-accent hover:underline"
+            >
+              Ver detalle →
+            </Link>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {[
+              {
+                value: activity.active.signed_in_today,
+                label: "ingresaron hoy",
+                of: `de ${activity.active.total_users}`,
+              },
+              {
+                value: activity.active.signed_in_7d,
+                label: "ingresaron esta semana",
+                of: `de ${activity.active.total_users}`,
+              },
+              {
+                value: activity.active.working_7d,
+                label: "médicos dictando (7d)",
+                of: `de ${activity.active.total_doctors}`,
+              },
+              {
+                value: activity.active.never_worked,
+                label: "médicos que nunca usaron",
+                of: "desde que se crearon",
+              },
+            ].map((item) => (
+              <div key={item.label}>
+                <div className="text-xl font-semibold text-deep">{item.value}</div>
+                <div className="text-sm text-muted">{item.label}</div>
+                <div className="text-xs text-muted">{item.of}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       <Card>
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
