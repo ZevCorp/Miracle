@@ -2,11 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, ClipboardList, LayoutDashboard, Users, type LucideIcon } from "lucide-react";
+import {
+  Activity,
+  Building2,
+  ClipboardList,
+  LayoutDashboard,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 
 const nav: Array<{ label: string; href: string; icon: LucideIcon }> = [
   { label: "Resumen", href: "/superadmin", icon: LayoutDashboard },
+  { label: "Actividad", href: "/superadmin/actividad", icon: Activity },
   { label: "Organizaciones", href: "/superadmin/organizaciones", icon: Building2 },
   { label: "Usuarios", href: "/superadmin/usuarios", icon: Users },
   { label: "Consultas", href: "/superadmin/consultas", icon: ClipboardList },
