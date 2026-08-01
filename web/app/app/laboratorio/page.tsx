@@ -10,7 +10,7 @@ import { LaboratorioWorkspace } from "@/components/app/LaboratorioWorkspace";
 export default async function LaboratorioPage() {
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login");
-  if (!canUsePhotoNotes(profile.professionalType)) {
+  if (!canUsePhotoNotes(profile.professionalType, profile.isDemo)) {
     redirect("/app/dashboard?error=forbidden");
   }
 

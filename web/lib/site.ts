@@ -77,7 +77,13 @@ export const appNav: AppNavItem[] = [
 export function visibleAppNav(
   role: AppRole,
   professionalType?: string | null,
+  isDemo = false,
 ): AppNavItem[] {
+  // La cuenta de demostración comercial recorre el producto completo en una
+  // presentación: ve todas las secciones sin cambiar de usuario. No abre datos
+  // de nadie más — la RLS la sigue acotando a su propia organización.
+  if (isDemo) return appNav;
+
   return appNav.filter((item) => {
     if (!item.roles.includes(role)) return false;
     if (item.professionalTypes && !item.professionalTypes.includes(professionalType ?? "")) {

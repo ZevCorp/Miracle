@@ -87,11 +87,22 @@ export async function updateSession(request: NextRequest) {
     return redirectWithSession(url, supabaseResponse);
   }
 
-  if (!canAccessPath(role, request.nextUrl.pathname)) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/app/dashboard";
-    url.searchParams.set("error", "forbidden");
-    return redirectWithSession(url, supabaseResponse);
+  if (!canAccessPath(role, pathname)) {
+    // Segunda oportunidad solo para la cuenta demo comercial, que entra a
+    // secciones que su rol no alcanza. La consulta a la BD ocurre únicamente en
+    // rutas que el rol ya tiene vedadas (raro), no en la navegación normal.
+    const { data: demoProfile } = await supabase
+      .from("profiles")
+      .select("is_demo")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!canAccessPath(role, pathname, demoProfile?.is_demo === true)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/app/dashboard";
+      url.searchParams.set("error", "forbidden");
+      return redirectWithSession(url, supabaseResponse);
+    }
   }
 
   return supabaseResponse;

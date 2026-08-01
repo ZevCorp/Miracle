@@ -57,3 +57,37 @@ describe("canAccessPath", () => {
     }
   });
 });
+
+describe("canAccessPath · cuenta demo comercial", () => {
+  it("la cuenta demo (rol admin) sí puede crear y grabar una consulta", () => {
+    expect(canAccessPath("admin", "/app/consultas/nueva", true)).toBe(true);
+    expect(canAccessPath("admin", "/app/consultas/en-vivo", true)).toBe(true);
+  });
+
+  it("el flag demo NUNCA abre la consola de plataforma", () => {
+    for (const r of ["admin", "supervisor", "medico", "secretaria"] as const) {
+      expect(canAccessPath(r, "/superadmin", true)).toBe(false);
+      expect(canAccessPath(r, "/superadmin/organizaciones", true)).toBe(false);
+    }
+  });
+
+  it("el flag demo no asciende a un médico a usuarios ni configuración", () => {
+    // La demo llega a esas secciones por su rol admin, no por el flag: un
+    // médico marcado como demo sigue sin poder administrar la organización.
+    expect(canAccessPath("medico", "/app/usuarios", true)).toBe(false);
+    expect(canAccessPath("medico", "/app/configuracion", true)).toBe(false);
+    expect(canAccessPath("medico", "/app/auditoria", true)).toBe(false);
+    expect(canAccessPath("medico", "/app/reportes", true)).toBe(false);
+  });
+
+  it("sin el flag, el comportamiento no cambia", () => {
+    expect(canAccessPath("admin", "/app/consultas/nueva")).toBe(false);
+    expect(canAccessPath("admin", "/app/consultas/nueva", false)).toBe(false);
+  });
+
+  it("la secretaría sigue con su lista blanca aunque la marquen como demo", () => {
+    expect(canAccessPath("secretaria", "/app/consultas/nueva", true)).toBe(false);
+    expect(canAccessPath("secretaria", "/app/pacientes", true)).toBe(false);
+    expect(canAccessPath("secretaria", "/app/consultas", true)).toBe(true);
+  });
+});

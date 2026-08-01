@@ -59,6 +59,8 @@ interface StoreValue {
   consultations: Consultation[];
   patients: Patient[];
   role: Role;
+  /** Cuenta de demostración comercial: ver canAccessPath en lib/auth/roles.ts. */
+  isDemo: boolean;
   loading: boolean;
   /** true mientras haya escrituras pendientes de sincronizar con el servidor. */
   syncing: boolean;
@@ -178,10 +180,12 @@ export function MiracleProvider({
   children,
   role,
   userName,
+  isDemo = false,
 }: {
   children: ReactNode;
   role: AppRole;
   userName?: string;
+  isDemo?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   // El actor de auditoría es siempre el usuario real; nunca un nombre ficticio.
@@ -964,6 +968,7 @@ export function MiracleProvider({
       consultations,
       patients,
       role,
+      isDemo,
       loading,
       syncing: pendingWrites > 0,
       ensureTranscript,
@@ -992,6 +997,7 @@ export function MiracleProvider({
       consultations,
       patients,
       role,
+      isDemo,
       loading,
       pendingWrites,
       ensureTranscript,

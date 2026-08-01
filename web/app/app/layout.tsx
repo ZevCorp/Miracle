@@ -26,7 +26,11 @@ export default async function AppLayout({
   }
 
   return (
-    <MiracleProvider role={profile.role} userName={profile.fullName ?? profile.email}>
+    <MiracleProvider
+      role={profile.role}
+      userName={profile.fullName ?? profile.email}
+      isDemo={profile.isDemo}
+    >
       <UnsavedChangesProvider>
         <AppShell profile={profile}>{children}</AppShell>
       </UnsavedChangesProvider>

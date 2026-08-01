@@ -21,8 +21,29 @@ export function isAppRole(value: unknown): value is AppRole {
   return typeof value === "string" && APP_ROLES.includes(value as AppRole);
 }
 
-export function canAccessPath(role: AppRole, pathname: string): boolean {
-  // La consola de plataforma es exclusiva del superadmin.
+/**
+ * Cuenta de demostración comercial: un solo login que recorre TODO el producto
+ * en una presentación de venta.
+ *
+ * La cuenta demo tiene rol `admin` (por RLS ya lee toda su organización:
+ * reportes, auditoría, usuarios, configuración). Este flag abre además las
+ * secciones que ese rol no alcanza y que son el corazón de la demo: crear una
+ * consulta, grabarla en vivo y el workspace de patología.
+ *
+ * Lo que NO hace, a propósito:
+ *   · No abre /superadmin — la consola de plataforma se decide por rol.
+ *   · No otorga acceso a datos: la RLS sigue acotando todo a la organización
+ *     del usuario, así que una cuenta demo jamás ve datos de otra organización.
+ * Solo un superadmin puede activar el flag (trigger en la migración
+ * 20260731000000_demo_account_flag.sql).
+ */
+export function canAccessPath(
+  role: AppRole,
+  pathname: string,
+  isDemo = false,
+): boolean {
+  // La consola de plataforma es exclusiva del superadmin. Se evalúa antes que
+  // el flag demo: `is_demo` nunca abre esta puerta.
   if (pathname.startsWith("/superadmin")) {
     return role === "superadmin";
   }
@@ -51,9 +72,11 @@ export function canAccessPath(role: AppRole, pathname: string): boolean {
     pathname.startsWith("/app/consultas/nueva") ||
     pathname.startsWith("/app/consultas/en-vivo")
   ) {
-    return role === "medico";
+    return role === "medico" || isDemo;
   }
 
+  // /app/laboratorio no se decide aquí: lo gobierna el professional_type en la
+  // propia página (canUsePhotoNotes), que ya contempla la cuenta demo.
   if (pathname.startsWith("/app/usuarios") || pathname.startsWith("/app/configuracion")) {
     return role === "admin";
   }
