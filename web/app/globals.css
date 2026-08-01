@@ -88,6 +88,30 @@
 }
 
 /* ============================================================
+   Series de gráficas (consola de plataforma).
+
+   Van en :root y NO en @theme a propósito: Tailwind v4 elimina del tema las
+   variables que ninguna utilidad usa, y estas se consumen desde atributos
+   `style` de los SVG (fill/stroke), así que ahí desaparecerían y las líneas
+   se pintarían en `none`.
+
+   Paleta categórica validada: banda de luminosidad, piso de croma, separación
+   bajo daltonismo (ΔE 23 deutan) y contraste ≥3:1 sobre la superficie. NO
+   reutilizar los tokens de estado (success/danger): están reservados para
+   semántica, no para "serie 2". El orden es fijo: serie-1 es siempre la
+   primera serie, nunca se rota.
+   ============================================================ */
+:root {
+  --color-serie-1: #2f6fe0;
+  --color-serie-2: #0f9b6c;
+  --color-serie-1-soft: #dfeafb;
+  --color-serie-2-soft: #d8f2e7;
+  /* Rejilla y ejes: recesivos, nunca compiten con los datos. */
+  --color-chart-grid: #eef1f6;
+  --color-chart-axis: #97a3b6;
+}
+
+/* ============================================================
    Modo oscuro — la clase vive en <html> para que el lienzo global,
    la aplicación y cualquier portal/modal compartan exactamente el tema.
    ============================================================ */
@@ -146,6 +170,17 @@
   --color-info: #78adff;
   --color-info-soft: #183155;
   --color-info-ink: #b9d4ff;
+
+  /* Series de gráficas en oscuro: pasos PROPIOS, no un aclarado automático de
+     los claros. La banda de luminosidad en oscuro es más estrecha (0.48–0.67),
+     así que el accent claro de la app se sale; estos se validaron contra la
+     superficie oscura (#121f33). */
+  --color-serie-1: #5596e8;
+  --color-serie-2: #17a673;
+  --color-serie-1-soft: #1c3050;
+  --color-serie-2-soft: #12362c;
+  --color-chart-grid: #223349;
+  --color-chart-axis: #6b7c95;
 
   --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.2);
   --shadow-sm: 0 6px 18px rgb(0 0 0 / 0.22);
