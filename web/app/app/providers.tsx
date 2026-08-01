@@ -600,9 +600,20 @@ export function MiracleProvider({
   );
 
   // Puente del backend clínico: espeja un encounter completado como consulta.
+  //
+  // Desde 2026-08-01 el SERVIDOR es quien publica la fila (ConsultationMirror
+  // en el backend Graph), porque cuando esto vivía solo aquí bastaba cerrar la
+  // pestaña para que la nota quedara huérfana: existía en el backend pero no
+  // aparecía en el historial, sin error ni aviso (24 consultas así). Esta
+  // función se conserva como RED DE SEGURIDAD —si el servidor no pudo publicar,
+  // por ejemplo un médico sin organización, aquí se crea igual— y como la vía
+  // para refrescar lo que solo el navegador sabe: paciente y nota rehidratada.
+  //
   // Idempotente por id para que re-guardar la nota no duplique filas; registra
   // la auditoría solo en la primera creación. Filas existentes se actualizan
   // en PARCIAL (sin estado ni firma): el puente nunca degrada una nota firmada.
+  // El reparto completo de quién manda sobre cada dato está en
+  // Backend Miracle/Graph/docs/consultation-data-ownership.md
   const upsertConsultation = useCallback(
     async (c: Consultation): Promise<{ ok: boolean }> => {
       const existing = consultationsRef.current.find((x) => x.id === c.id);
