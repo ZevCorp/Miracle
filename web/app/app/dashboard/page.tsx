@@ -32,7 +32,12 @@ import {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { consultations, role, loading } = useStore();
+  const { consultations, role, isDemo, loading } = useStore();
+
+  // La cuenta demo siempre abre en el panel del médico, que es lo que se
+  // muestra al vender. Su rol admin solo le sirve para alcanzar las demás
+  // secciones desde el menú, no para cambiar este inicio.
+  const viewRole = isDemo ? "medico" : role;
 
   // La secretaría no tiene un panel propio: su única sección es "Consultas".
   // Se saca de aquí apenas se conoce el rol, antes de armar ninguna métrica.
@@ -54,8 +59,8 @@ export default function DashboardPage() {
 
   if (loading || role === "secretaria") return <DashboardSkeleton />;
 
-  if (role === "admin") return <AdminView />;
-  if (role === "supervisor")
+  if (viewRole === "admin") return <AdminView />;
+  if (viewRole === "supervisor")
     return <SupervisorView consultations={reales} pendientes={pendientes} />;
   return <MedicoView hoy={hoy} pendientes={pendientes} consultations={reales} />;
 }

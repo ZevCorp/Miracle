@@ -40,10 +40,12 @@ const icons: Record<string, LucideIcon> = {
 export function AppSidebar({
   role,
   professionalType,
+  isDemo,
   onNavigate,
 }: {
   role: AppRole;
   professionalType?: string | null;
+  isDemo?: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -55,7 +57,7 @@ export function AppSidebar({
         <Logo onDark size={28} />
       </div>
       <nav aria-label="Navegación de la app" className="flex-1 space-y-1 px-3 py-5">
-        {visibleAppNav(role, professionalType).map((item) => {
+        {visibleAppNav(role, professionalType, isDemo).map((item) => {
           const Icon = icons[item.icon] ?? LayoutDashboard;
           const active =
             pathname === item.href || pathname.startsWith(item.href + "/");
