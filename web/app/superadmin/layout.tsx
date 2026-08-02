@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { requireRole } from "@/lib/auth/server";
+import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/login/actions";
-import { SuperadminSidebar } from "@/components/superadmin/SuperadminSidebar";
+import { SuperadminSidebar, type NavCounts } from "@/components/superadmin/SuperadminSidebar";
+import { MobileSidebar } from "@/components/superadmin/MobileSidebar";
 
 export const metadata: Metadata = {
   title: "Consola · Miracle",
@@ -27,14 +29,21 @@ export default async function SuperadminLayout({
   const profile = await requireRole("superadmin");
   const display = profile.fullName ?? profile.email;
 
+  // Conteos de los badges del menú. RPC mínima (cuatro counts) porque corre en
+  // cada navegación; si falla o no está aplicada, el menú carga sin badges.
+  const db = await createClient();
+  const { data: countsData } = await db.rpc("superadmin_nav_counts");
+  const counts = (countsData ?? undefined) as NavCounts | undefined;
+
   return (
     <div className="flex min-h-screen bg-pearl">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 md:block">
-        <SuperadminSidebar />
+        <SuperadminSidebar counts={counts} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-surface/80 px-4 backdrop-blur-md md:px-6">
+          <MobileSidebar counts={counts} />
           <div>
             <p className="text-sm font-semibold text-deep">Miracle · Consola de plataforma</p>
             <p className="text-xs text-muted">Gestión de organizaciones y usuarios</p>

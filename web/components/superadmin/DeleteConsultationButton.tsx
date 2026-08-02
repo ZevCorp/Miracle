@@ -12,9 +12,12 @@ import { deleteConsultationAsSuperadmin } from "@/app/superadmin/actions";
 export function DeleteConsultationButton({
   consultationId,
   label,
+  returnTo,
 }: {
   consultationId: string;
   label: string;
+  /** URL (con filtros) a la que volver tras eliminar; sin ella se pierde el filtrado. */
+  returnTo?: string;
 }) {
   return (
     <form
@@ -30,6 +33,7 @@ export function DeleteConsultationButton({
       }}
     >
       <input type="hidden" name="consultationId" value={consultationId} />
+      {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
       <button
         type="submit"
         aria-label={`Eliminar ${label}`}

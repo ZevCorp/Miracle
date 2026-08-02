@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 /**
@@ -44,10 +45,13 @@ export function BarList({
     <ul className="space-y-3">
       {items.map((item, index) => {
         const pct = Math.round((item.value / max) * 100);
-        return (
-          <li key={`${item.label}-${index}`} className="grid gap-1">
+        const fila = (
+          <>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="min-w-0 truncate text-sm text-deep" title={item.label}>
+              <span
+                className={`min-w-0 truncate text-sm text-deep ${item.href ? "group-hover/bar:text-accent" : ""}`}
+                title={item.label}
+              >
                 {item.label}
               </span>
               <span className="flex shrink-0 items-baseline gap-2">
@@ -68,6 +72,20 @@ export function BarList({
               </div>
               {trailing ? trailing(item, index) : null}
             </div>
+          </>
+        );
+        return (
+          <li key={`${item.label}-${index}`}>
+            {item.href ? (
+              <Link
+                href={item.href}
+                className="group/bar -mx-2 grid gap-1 rounded-md px-2 py-1 transition-colors hover:bg-ice-soft"
+              >
+                {fila}
+              </Link>
+            ) : (
+              <div className="grid gap-1">{fila}</div>
+            )}
           </li>
         );
       })}
