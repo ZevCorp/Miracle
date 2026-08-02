@@ -3,25 +3,50 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Activity,
+  BarChart3,
   Building2,
   ClipboardList,
+  HeartPulse,
   LayoutDashboard,
   Users,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 
-const nav: Array<{ label: string; href: string; icon: LucideIcon }> = [
+export type NavCounts = {
+  organizaciones?: number;
+  usuarios?: number;
+  consultas?: number;
+  alertas_salud?: number;
+};
+
+type NavItem = {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  /** Clave de NavCounts que alimenta el badge del ítem. */
+  countKey?: keyof NavCounts;
+  /** El badge de salud es de alerta: solo aparece si hay algo y va en warning. */
+  alertBadge?: boolean;
+};
+
+const nav: NavItem[] = [
   { label: "Resumen", href: "/superadmin", icon: LayoutDashboard },
-  { label: "Actividad", href: "/superadmin/actividad", icon: Activity },
-  { label: "Organizaciones", href: "/superadmin/organizaciones", icon: Building2 },
-  { label: "Usuarios", href: "/superadmin/usuarios", icon: Users },
-  { label: "Consultas", href: "/superadmin/consultas", icon: ClipboardList },
+  { label: "Analítica", href: "/superadmin/analitica", icon: BarChart3 },
+  { label: "Salud", href: "/superadmin/salud", icon: HeartPulse, countKey: "alertas_salud", alertBadge: true },
+  { label: "Organizaciones", href: "/superadmin/organizaciones", icon: Building2, countKey: "organizaciones" },
+  { label: "Usuarios", href: "/superadmin/usuarios", icon: Users, countKey: "usuarios" },
+  { label: "Consultas", href: "/superadmin/consultas", icon: ClipboardList, countKey: "consultas" },
 ];
 
 /** Navegación de la consola de plataforma (Miracle). */
-export function SuperadminSidebar({ onNavigate }: { onNavigate?: () => void }) {
+export function SuperadminSidebar({
+  onNavigate,
+  counts,
+}: {
+  onNavigate?: () => void;
+  counts?: NavCounts;
+}) {
   const pathname = usePathname();
 
   return (
@@ -39,6 +64,9 @@ export function SuperadminSidebar({ onNavigate }: { onNavigate?: () => void }) {
             item.href === "/superadmin"
               ? pathname === "/superadmin"
               : pathname === item.href || pathname.startsWith(item.href + "/");
+          const count = item.countKey ? counts?.[item.countKey] : undefined;
+          const showBadge =
+            typeof count === "number" && (item.alertBadge ? count > 0 : true);
           return (
             <Link
               key={item.href}
@@ -52,7 +80,18 @@ export function SuperadminSidebar({ onNavigate }: { onNavigate?: () => void }) {
               }`}
             >
               <Icon size={18} className={active ? "text-sidebar-text" : "text-sidebar-muted"} />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {showBadge ? (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
+                    item.alertBadge
+                      ? "bg-warning-soft text-warning"
+                      : "bg-white/10 text-sidebar-muted"
+                  }`}
+                >
+                  {count}
+                </span>
+              ) : null}
             </Link>
           );
         })}

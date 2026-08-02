@@ -202,6 +202,7 @@ export default async function SuperadminResumenPage({
               label: org.name,
               value: org.consultas_30d,
               hint: `${org.members_active_30d}/${org.members} activos`,
+              href: `/superadmin/organizaciones/${org.id}`,
             }))}
             emptyLabel="Ninguna organización ha registrado consultas."
             trailing={(_, index) => {

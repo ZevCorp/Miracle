@@ -24,7 +24,10 @@ function isAssignableRole(value: unknown): value is AssignableRole {
 }
 
 function back(base: string, kind: "ok" | "error", message: string): never {
-  redirect(`${base}?${kind}=${encodeURIComponent(message)}`);
+  // La base puede traer ya sus propios filtros (?estado=…&page=…): el flash se
+  // añade con & en ese caso para no producir una URL con dos signos de pregunta.
+  const joiner = base.includes("?") ? "&" : "?";
+  redirect(`${base}${joiner}${kind}=${encodeURIComponent(message)}`);
 }
 
 /**
@@ -200,7 +203,12 @@ export async function deleteConsultationAsSuperadmin(formData: FormData) {
     back("/app/dashboard", "error", "Solo el super-admin puede eliminar consultas.");
   }
 
-  const base = "/superadmin/consultas";
+  // returnTo conserva los filtros/página desde donde se eliminó. Se valida el
+  // prefijo para que el hidden input no pueda redirigir fuera de la consola.
+  const returnToRaw = String(formData.get("returnTo") ?? "");
+  const base = returnToRaw.startsWith("/superadmin/consultas")
+    ? returnToRaw
+    : "/superadmin/consultas";
   const consultationId = String(formData.get("consultationId") ?? "").trim();
   if (!UUID_RE.test(consultationId)) back(base, "error", "Consulta inválida.");
 
