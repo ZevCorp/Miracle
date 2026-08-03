@@ -8,6 +8,8 @@
 // Igual que el resto de exportaciones de la app, usa HTML + window.print() (sin librerías de
 // PDF): el usuario elige "Guardar como PDF" o imprime, y lo sube a su HIS.
 
+import { ZONA_CLINICA } from "@/lib/dates";
+
 export interface LabReportSection {
   label: string;
   content: string;
@@ -47,7 +49,11 @@ function esc(value: string): string {
 function formatFecha(dateISO: string): string {
   const date = new Date(dateISO);
   if (Number.isNaN(date.getTime())) return "";
+  // timeZone explícita: el HTML del informe se arma en el servidor (UTC en
+  // Vercel). Sin ella, un informe firmado a las 21:00 salía fechado a las 02:00
+  // del día siguiente — en un documento clínico eso no es un detalle cosmético.
   return date.toLocaleString("es-CO", {
+    timeZone: ZONA_CLINICA,
     dateStyle: "long",
     timeStyle: "short",
   });

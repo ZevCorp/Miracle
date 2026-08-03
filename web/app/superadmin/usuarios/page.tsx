@@ -1,7 +1,9 @@
-import { UserPlus, Users } from "lucide-react";
+import Link from "next/link";
+import { ShieldAlert, UserPlus, Users } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/app/EmptyState";
 import { APP_ROLE_LABEL, APP_ROLES, isAppRole } from "@/lib/auth/roles";
+import { isAssignableRole } from "@/lib/superadmin/roles";
 import { createClient } from "@/lib/supabase/server";
 import { formatFechaRelativa } from "@/lib/dates";
 import { FlashBanner } from "@/components/superadmin/FlashBanner";
@@ -25,7 +27,9 @@ export default async function SuperadminUsuariosPage({
   // La fuente pasa de `profiles` crudo a la RPC de actividad: además de quién
   // existe, trae quién entra y quién dicta — la señal que faltaba en esta vista.
   const [orgsRes, activityRes] = await Promise.all([
-    db.from("organizations").select("id, name, kind").order("name"),
+    // Sin las archivadas: estos desplegables son destinos de asignación, y
+    // mover a alguien a una organización archivada lo dejaría sin poder entrar.
+    db.from("organizations").select("id, name, kind").is("archived_at", null).order("name"),
     db.rpc("superadmin_activity"),
   ]);
 
@@ -220,12 +224,27 @@ export default async function SuperadminUsuariosPage({
                 )}
               </div>
 
-              <div title={estado.hint}>
-                <Badge tone={estado.tone}>{estado.label}</Badge>
-              </div>
+              {/* Una cuenta dada de baja no tiene "estado de uso": lo relevante
+                  es que está cerrada, y eso gana a cualquier otra etiqueta. */}
+              {user.disabled_at ? (
+                <div title={user.disabled_reason ?? "Cuenta dada de baja"}>
+                  <Badge tone="danger">De baja</Badge>
+                </div>
+              ) : (
+                <div title={estado.hint}>
+                  <Badge tone={estado.tone}>{estado.label}</Badge>
+                </div>
+              )}
 
               {user.role === "superadmin" ? (
                 <span className="text-sm text-muted">Cuenta de plataforma.</span>
+              ) : user.disabled_at ? (
+                <Link
+                  href="/superadmin/mantenimiento"
+                  className="text-sm font-semibold text-accent hover:underline"
+                >
+                  Reactivar en Mantenimiento →
+                </Link>
               ) : (
                 <form
                   action={assignUserToOrg}
@@ -244,12 +263,23 @@ export default async function SuperadminUsuariosPage({
                       </option>
                     ))}
                   </select>
+                  {/* La opción del rol ACTUAL siempre está presente, aunque no
+                      sea asignable desde aquí (secretaria). Sin ella el
+                      navegador seleccionaba la primera opción —médico— y
+                      guardar un simple cambio de organización le quitaba el rol
+                      en silencio. La RPC además conserva el rol si no se manda
+                      uno, así que hay doble red. */}
                   <select
                     name="role"
                     defaultValue={user.role}
                     aria-label={`Rol de ${user.email}`}
                     className="rounded-md border border-line bg-field px-2 py-2 text-sm text-deep outline-none focus:border-accent"
                   >
+                    {!isAssignableRole(user.role) ? (
+                      <option value={user.role}>
+                        {isAppRole(user.role) ? APP_ROLE_LABEL[user.role] : user.role} (actual)
+                      </option>
+                    ) : null}
                     <option value="medico">Médico</option>
                     <option value="supervisor">Supervisor</option>
                     <option value="admin">Administrador</option>
@@ -281,12 +311,22 @@ export default async function SuperadminUsuariosPage({
 
 function Encabezado() {
   return (
-    <div>
-      <h1 className="font-display text-2xl font-semibold text-deep">Usuarios</h1>
-      <p className="text-sm text-muted">
-        Todas las personas de todas las organizaciones, con su actividad real: quién entra,
-        quién dicta y quién nunca arrancó.
-      </p>
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 className="font-display text-2xl font-semibold text-deep">Usuarios</h1>
+        <p className="text-sm text-muted">
+          Todas las personas de todas las organizaciones, con su actividad real: quién entra,
+          quién dicta y quién nunca arrancó.
+        </p>
+      </div>
+      {/* Dar de baja no vive aquí a propósito: un control irreversible no debe
+          estar en la pantalla que se abre para consultar. */}
+      <Link
+        href="/superadmin/mantenimiento"
+        className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-deep hover:border-mist"
+      >
+        <ShieldAlert size={15} className="text-danger" /> Dar de baja o eliminar
+      </Link>
     </div>
   );
 }

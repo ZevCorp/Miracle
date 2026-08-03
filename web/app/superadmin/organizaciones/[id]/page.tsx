@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarClock, ClipboardList, Users } from "lucide-react";
+import { ArrowLeft, CalendarClock, ClipboardList, ShieldAlert, Users } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/lib/supabase/server";
@@ -91,6 +91,14 @@ export default async function SuperadminOrganizacionDetallePage({
             {org.kind === "institution" ? "Hospital" : "Personal"}
           </Badge>
           {org.nit ? <span className="text-sm text-muted">NIT {org.nit}</span> : null}
+          {/* Esta página es de solo lectura a propósito. Archivar o eliminar
+              vive en un único sitio, con el radio de impacto a la vista. */}
+          <Link
+            href="/superadmin/mantenimiento"
+            className="ml-auto inline-flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-danger"
+          >
+            <ShieldAlert size={15} /> Gestionar en Mantenimiento →
+          </Link>
         </div>
       </div>
 

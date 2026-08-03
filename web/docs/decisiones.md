@@ -58,3 +58,49 @@ localStorage, porque ahí sí es apropiado.)
 ## D10 · La web debe funcionar sola (independiente de Milagro)
 **Decisión:** primero dejar la web **100% funcional sola** (B2C); Milagro es un añadido (B2B).
 **Por qué:** son dos productos y dos mercados; la web se vende sola por suscripción.
+
+## D11 · Dar de baja no es borrar (organizaciones y cuentas)
+**Decisión:** la vía normal para retirar una organización es **archivarla**
+(`organizations.archived_at`) y para una persona es **darla de baja**
+(`profiles.disabled_at`). El borrado físico solo se permite cuando no queda nada
+que perder, y lo comprueba la base, no la UI.
+**Por qué:** se verificaron las claves foráneas una a una contra la base viva.
+`consultations`, `patients`, `audit_events`, `appointments`, `agent_links` y
+`consultation_addenda` apuntan a `organizations` **en CASCADE**: un solo borrado
+confirmado destruye físicamente la historia clínica de ese hospital *y* el rastro
+de auditoría que la respalda, derrotando por completo el borrado suave con
+retención que sostiene el resto de la app (ver D9 y la Res. 1995/1999). Del lado
+de las personas, las seis claves foráneas hacia `auth.users` son NO ACTION, así
+que **la base ya impedía** borrar a un médico con historia: la RPC solo traduce
+ese error a una frase que dice cuánta historia hay y remite a dar de baja.
+**Consecuencia:** archivar bloquea a los miembros vía `lib/auth/server.ts`, no
+borrando filas. El super-admin queda exento de ese bloqueo, porque es quien tiene
+que poder restaurar.
+
+## D12 · La contraseña se verifica en la base, no abriendo una sesión
+**Decisión:** toda acción destructiva pide la contraseña del super-admin y la
+comprueba `private.verify_own_password` con pgcrypto, dentro de la misma
+transacción que el cambio.
+**Por qué:** la alternativa —abrir un cliente desechable y llamar a
+`signInWithPassword`— se descartó por dos motivos comprobados en el código de
+`auth-js`: `signOut()` sin argumento revoca **todas** las sesiones del usuario,
+incluida la que está usando en ese momento; y el diseño dependería de que "sesión
+única por usuario" siga desactivado en la configuración de Auth, un acoplamiento
+invisible que rompería la consola sin que nada en el código lo insinúe. Verificar
+en la base además elimina la ventana entre "comprobé" y "borré".
+**Consecuencia:** vive en el esquema `private`, que PostgREST no expone, así que
+nunca es un endpoint contra el que probar contraseñas. Las cuentas que entran con
+Google (sin `encrypted_password`) reciben un mensaje propio.
+
+## D13 · Las horas se muestran siempre en hora de Bogotá
+**Decisión:** `lib/dates.ts` fija `America/Bogota` en vez de usar la zona del
+entorno de ejecución.
+**Por qué:** esos helpers los llaman sobre todo *server components*, y en Vercel
+"local" es UTC: toda la consola mostraba las horas cinco adelantadas, mientras el
+SQL sí agrupaba por día de Bogotá — así que la gráfica y la tabla de al lado
+nunca cuadraban, y el indicador de "visto hoy" se apagaba a las 19:00. Con la
+zona fija, servidor y navegador imprimen lo mismo, lo que además elimina un
+desajuste de hidratación en los componentes cliente que usan estos helpers.
+**Consecuencia:** si algún día hay operación fuera de Colombia, esto pasa a ser
+una preferencia por organización. Hasta entonces, una constante es más honesta
+que `undefined`.

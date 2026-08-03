@@ -32,16 +32,35 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
   const columns =
     "id, email, full_name, avatar_url, role, organization_id, professional_type, specialty_code, specialty_name, professional_registration, practice_country, practice_city, onboarding_completed_at";
 
-  // `is_demo` se pide aparte y de forma tolerante: si el despliegue del código
-  // llega antes que la migración que crea la columna, pedirla dentro del select
-  // principal haría fallar la consulta y sacaría a TODOS los usuarios al login.
-  // Sin la columna, simplemente no hay cuentas demo.
-  const [{ data: profile, error: profileError }, { data: demoRow }] = await Promise.all([
+  // `is_demo` y `disabled_at` se piden aparte y de forma tolerante: si el
+  // despliegue del código llega antes que la migración que crea la columna,
+  // pedirla dentro del select principal haría fallar la consulta y sacaría a
+  // TODOS los usuarios al login. Sin la columna, simplemente no hay cuentas
+  // demo ni bajas.
+  const [{ data: profile, error: profileError }, { data: extraRow }] = await Promise.all([
     supabase.from("profiles").select(columns).eq("id", userId).maybeSingle(),
-    supabase.from("profiles").select("is_demo").eq("id", userId).maybeSingle(),
+    supabase
+      .from("profiles")
+      // El embed a organizations resuelve por la clave foránea
+      // profiles.organization_id: sale en la misma consulta, sin viaje extra.
+      .select("is_demo, disabled_at, organizations(archived_at)")
+      .eq("id", userId)
+      .maybeSingle(),
   ]);
 
   if (profileError || !profile || !isAppRole(profile.role)) return null;
+
+  // Cuenta dada de baja desde /superadmin/mantenimiento. La RPC también fija
+  // `banned_until` en auth.users, que impide renovar el token; esta comprobación
+  // es la que cierra la ventana de hasta una hora del token ya emitido.
+  if (extraRow?.disabled_at) return null;
+
+  // Organización archivada: sus miembros dejan de entrar. El super-admin queda
+  // exento por seguridad — es la cuenta que tiene que poder restaurarla, y
+  // dejarla fuera convertiría un archivado en un bloqueo de la plataforma.
+  const orgEmbed = extraRow?.organizations;
+  const orgArchivada = Array.isArray(orgEmbed) ? orgEmbed[0] : orgEmbed;
+  if (orgArchivada?.archived_at && profile.role !== "superadmin") return null;
 
   return {
     id: profile.id,
@@ -49,7 +68,7 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
     fullName: profile.full_name,
     avatarUrl: profile.avatar_url,
     role: profile.role,
-    isDemo: demoRow?.is_demo === true,
+    isDemo: extraRow?.is_demo === true,
     organizationId: profile.organization_id ?? null,
     professionalType:
       profile.professional_type === "medico_general" ||

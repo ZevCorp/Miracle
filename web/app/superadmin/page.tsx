@@ -9,17 +9,26 @@ import {
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/lib/supabase/server";
-import { formatFechaRelativa } from "@/lib/dates";
+import { formatFechaHora, formatFechaRelativa } from "@/lib/dates";
 import { FlashBanner } from "@/components/superadmin/FlashBanner";
 import { StatTile } from "@/components/superadmin/charts/StatTile";
 import { TrendChart } from "@/components/superadmin/charts/TrendChart";
 import { BarList } from "@/components/superadmin/charts/BarList";
 import { Sparkline } from "@/components/superadmin/charts/Sparkline";
+import { RangePicker } from "@/components/superadmin/RangePicker";
+import { AutoRefresh } from "@/components/superadmin/AutoRefresh";
+import {
+  etiquetaPeriodoAnterior,
+  resolverRango,
+  type RangoResuelto,
+} from "@/lib/superadmin/rango";
 
 type Kpi = { value: number; previous?: number; delta_pct: number | null };
 
 type Dashboard = {
   generated_at: string;
+  /** Ventana que la RPC resolvió de verdad (puede diferir de la pedida). */
+  rango: { desde: string; hasta: string; dias: number };
   kpis: {
     consultas: Kpi;
     medicos: Kpi;
@@ -35,6 +44,8 @@ type Dashboard = {
     members: number;
     members_active_30d: number;
     consultas_total: number;
+    /** Consultas dentro del rango elegido. Es lo que manda el selector. */
+    consultas_rango: number;
     consultas_30d: number;
     consultas_7d: number;
     last_activity_at: string | null;
@@ -57,18 +68,26 @@ type Dashboard = {
 export default async function SuperadminResumenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; error?: string }>;
+  searchParams: Promise<{
+    ok?: string;
+    error?: string;
+    rango?: string;
+    desde?: string;
+    hasta?: string;
+  }>;
 }) {
-  const { ok, error } = await searchParams;
+  const sp = await searchParams;
+  const { ok, error } = sp;
   const db = await createClient();
 
-  const { data, error: rpcError } = await db.rpc("superadmin_dashboard");
+  const rango = resolverRango(sp);
+  const { data, error: rpcError } = await db.rpc("superadmin_dashboard", rango.rpcArgs);
   const dash = (data ?? null) as Dashboard | null;
 
   if (rpcError || !dash) {
     return (
       <div className="space-y-6">
-        <Encabezado />
+        <Encabezado rango={rango} />
         <FlashBanner ok={ok} error={error} />
         <div className="rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
           No fue posible cargar las métricas. Verifica que la migración{" "}
@@ -88,18 +107,23 @@ export default async function SuperadminResumenPage({
   const orgsConActividad = organizaciones.filter((o) => o.consultas_total > 0);
   const alertas = salud.encounters_failed + salud.encounters_stuck;
 
+  // Etiquetas derivadas del rango: nada de textos fijos "últimos 30 días", que
+  // mentirían en cuanto se cambia el periodo.
+  const periodo = rango.etiqueta.toLowerCase();
+  const comparativa = etiquetaPeriodoAnterior(rango);
+
   return (
     <div className="space-y-6">
-      <Encabezado generadoEn={dash.generated_at} />
+      <Encabezado generadoEn={dash.generated_at} rango={rango} />
       <FlashBanner ok={ok} error={error} />
 
       {/* --- Fila de KPIs ------------------------------------------------- */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
-          label="Consultas esta semana"
+          label="Consultas del periodo"
           value={kpis.consultas.value}
           deltaPct={kpis.consultas.delta_pct}
-          previousLabel="vs. semana anterior"
+          previousLabel={comparativa}
           spark={spark}
           icon={ClipboardList}
         />
@@ -107,7 +131,7 @@ export default async function SuperadminResumenPage({
           label="Médicos trabajando"
           value={kpis.medicos.value}
           deltaPct={kpis.medicos.delta_pct}
-          previousLabel="vs. semana anterior"
+          previousLabel={comparativa}
           spark={sparkAsistente}
           icon={Stethoscope}
         />
@@ -115,7 +139,7 @@ export default async function SuperadminResumenPage({
           label="Organizaciones activas"
           value={kpis.organizaciones.value}
           suffix={`de ${kpis.organizaciones.total}`}
-          footnote="con consultas en los últimos 30 días"
+          footnote={`con consultas en ${periodo}`}
           icon={Building2}
         />
         <StatTile
@@ -123,8 +147,8 @@ export default async function SuperadminResumenPage({
           value={kpis.exito_notas.value === null ? "—" : `${kpis.exito_notas.value}%`}
           footnote={
             kpis.exito_notas.total === 0
-              ? "sin actividad del asistente en 30 días"
-              : `${kpis.exito_notas.fallidos} fallidas de ${kpis.exito_notas.total} en 30 días`
+              ? `sin actividad del asistente en ${periodo}`
+              : `${kpis.exito_notas.fallidos} fallidas de ${kpis.exito_notas.total}`
           }
           icon={ShieldCheck}
         />
@@ -139,13 +163,13 @@ export default async function SuperadminResumenPage({
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
               Atenciones por día
             </h2>
-            <span className="text-xs text-muted">Últimos 30 días</span>
+            <span className="text-xs text-muted">{rango.etiqueta}</span>
           </div>
           <p className="mb-4 text-xs text-muted">
             Las consultas de la web y las del asistente clínico se cuentan aparte: una misma
             atención puede quedar registrada en ambos.
           </p>
-          <TrendChart data={serie_diaria} />
+          <TrendChart data={serie_diaria} periodo={periodo} />
         </Card>
 
         <Card className="flex min-w-0 flex-col">
@@ -157,7 +181,14 @@ export default async function SuperadminResumenPage({
               <Link href="/superadmin/salud" className="text-xs font-semibold text-warning hover:underline">
                 {alertas} por revisar →
               </Link>
-            ) : null}
+            ) : (
+              <Link
+                href="/superadmin/actividad"
+                className="text-xs font-semibold text-accent hover:underline"
+              >
+                Ver todo →
+              </Link>
+            )}
           </div>
 
           <ul className="mt-4 min-h-0 flex-1 space-y-3.5 overflow-hidden">
@@ -171,8 +202,15 @@ export default async function SuperadminResumenPage({
                     {evento.organizacion ? ` · ${evento.organizacion}` : ""}
                   </div>
                 </div>
-                <span className="ml-auto shrink-0 text-xs text-muted">
-                  {formatFechaRelativa(evento.fecha).split(" · ")[0]}
+                {/* La etiqueta completa, no solo el día: con `.split(" · ")[0]`
+                    todas las filas de hoy decían "Hoy" y la lista quedaba sin
+                    orden legible. El título lleva la fecha larga al pasar el
+                    ratón, para los eventos de hace semanas. */}
+                <span
+                  className="ml-auto shrink-0 text-xs text-muted"
+                  title={formatFechaHora(evento.fecha)}
+                >
+                  {formatFechaRelativa(evento.fecha)}
                 </span>
               </li>
             ))}
@@ -200,7 +238,7 @@ export default async function SuperadminResumenPage({
           <BarList
             items={orgsConActividad.slice(0, 6).map((org) => ({
               label: org.name,
-              value: org.consultas_30d,
+              value: org.consultas_rango,
               hint: `${org.members_active_30d}/${org.members} activos`,
               href: `/superadmin/organizaciones/${org.id}`,
             }))}
@@ -218,7 +256,7 @@ export default async function SuperadminResumenPage({
             }}
           />
           <p className="mt-4 text-xs text-muted">
-            Consultas de los últimos 30 días. La línea muestra las últimas 8 semanas.
+            Consultas de {periodo}. La línea muestra las últimas 8 semanas, siempre.
           </p>
         </Card>
 
@@ -226,7 +264,7 @@ export default async function SuperadminResumenPage({
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
             Especialidades
           </h2>
-          <p className="mb-4 mt-1 text-xs text-muted">Consultas de los últimos 90 días.</p>
+          <p className="mb-4 mt-1 text-xs text-muted">Consultas de {periodo}.</p>
           <BarList
             items={especialidades.map((e) => ({ label: e.name, value: e.count }))}
             emptyLabel="Sin consultas registradas."
@@ -283,21 +321,27 @@ export default async function SuperadminResumenPage({
   );
 }
 
-function Encabezado({ generadoEn }: { generadoEn?: string }) {
+function Encabezado({
+  generadoEn,
+  rango,
+}: {
+  generadoEn?: string;
+  rango: RangoResuelto;
+}) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="font-display text-2xl font-semibold text-deep">Resumen de la plataforma</h1>
-        <p className="text-sm text-muted">
-          Cómo va Miracle hoy: volumen, adopción y estado del servicio.
-        </p>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-deep">
+            Resumen de la plataforma
+          </h1>
+          <p className="text-sm text-muted">
+            Cómo va Miracle hoy: volumen, adopción y estado del servicio.
+          </p>
+        </div>
+        {generadoEn ? <AutoRefresh generadoEn={generadoEn} /> : null}
       </div>
-      {generadoEn ? (
-        <span className="inline-flex items-center gap-1.5 text-xs text-muted">
-          <Activity size={13} />
-          Actualizado {formatFechaRelativa(generadoEn).toLowerCase()}
-        </span>
-      ) : null}
+      <RangePicker basePath="/superadmin" rango={rango} />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { FilterBar } from "@/components/superadmin/FilterBar";
 import { Pager } from "@/components/app/Pager";
 import { EmptyState } from "@/components/app/EmptyState";
 import { StatusBadge } from "@/components/app/StatusBadge";
+import { filtroBusqueda } from "@/lib/superadmin/filtros";
 import type { ConsultationStatus } from "@/lib/mock";
 
 const PAGE_SIZE = 25;
@@ -83,10 +84,11 @@ export default async function SuperadminConsultasPage({
   if (estadoFilter !== "todas") query = query.eq("estado", estadoFilter);
   if (orgFilter !== "todos") query = query.eq("organization_id", orgFilter);
   if (term) {
-    // Misma sanitización que app/app/consultas: los metacaracteres de PostgREST
-    // se sustituyen para que el término no rompa el filtro `or`.
-    const safe = term.replace(/[%,()*\\]/g, " ").trim();
-    if (safe) query = query.or(`motivo.ilike.%${safe}%,especialidad.ilike.%${safe}%`);
+    // Sanitización compartida con el explorador de actividad: los
+    // metacaracteres de PostgREST se sustituyen para que el término no rompa
+    // el filtro `or` (ver lib/superadmin/filtros.ts).
+    const busqueda = filtroBusqueda(term, ["motivo", "especialidad"]);
+    if (busqueda) query = query.or(busqueda);
   }
 
   const { data, count, error: queryError } = await query;

@@ -8,6 +8,8 @@ import {
   ClipboardList,
   HeartPulse,
   LayoutDashboard,
+  ScrollText,
+  ShieldAlert,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -37,6 +39,8 @@ const nav: NavItem[] = [
   { label: "Organizaciones", href: "/superadmin/organizaciones", icon: Building2, countKey: "organizaciones" },
   { label: "Usuarios", href: "/superadmin/usuarios", icon: Users, countKey: "usuarios" },
   { label: "Consultas", href: "/superadmin/consultas", icon: ClipboardList, countKey: "consultas" },
+  { label: "Actividad", href: "/superadmin/actividad", icon: ScrollText },
+  { label: "Mantenimiento", href: "/superadmin/mantenimiento", icon: ShieldAlert },
 ];
 
 /** Navegación de la consola de plataforma (Miracle). */

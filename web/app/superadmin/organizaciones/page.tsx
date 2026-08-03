@@ -33,8 +33,16 @@ export default async function OrganizacionesPage({
   const { ok, error } = await searchParams;
   const db = await createClient();
 
-  const { data, error: rpcError } = await db.rpc("superadmin_dashboard");
+  // El estado de archivado se pide aparte: la RPC del panel devuelve métricas,
+  // no estado administrativo, y son cinco filas indexadas.
+  const [{ data, error: rpcError }, archivadasRes] = await Promise.all([
+    db.rpc("superadmin_dashboard"),
+    db.from("organizations").select("id").not("archived_at", "is", null),
+  ]);
   const dash = (data ?? null) as DashboardOrgs | null;
+  const archivadas = new Set(
+    ((archivadasRes.data ?? []) as { id: string }[]).map((o) => o.id),
+  );
 
   if (rpcError || !dash) {
     return (
@@ -112,7 +120,14 @@ export default async function OrganizacionesPage({
       <div className="grid gap-4 sm:grid-cols-2">
         {orgs.map((org) => (
           <Link key={org.id} href={`/superadmin/organizaciones/${org.id}`} className="group">
-            <Card className="h-full transition-shadow group-hover:shadow-[var(--shadow-sm)]">
+            {/* Las archivadas se muestran atenuadas en vez de esconderse: si
+                desaparecieran de aquí, no habría desde dónde darse cuenta de que
+                existen para restaurarlas. */}
+            <Card
+              className={`h-full transition-shadow group-hover:shadow-[var(--shadow-sm)] ${
+                archivadas.has(org.id) ? "opacity-60" : ""
+              }`}
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   <h3 className="truncate font-semibold text-deep group-hover:text-accent">
@@ -123,9 +138,13 @@ export default async function OrganizacionesPage({
                     {org.nit ? ` · NIT ${org.nit}` : ""}
                   </p>
                 </div>
-                <Badge tone={org.kind === "institution" ? "mint" : "neutral"}>
-                  {org.members_active_30d}/{org.members} activos
-                </Badge>
+                {archivadas.has(org.id) ? (
+                  <Badge tone="warning">Archivada</Badge>
+                ) : (
+                  <Badge tone={org.kind === "institution" ? "mint" : "neutral"}>
+                    {org.members_active_30d}/{org.members} activos
+                  </Badge>
+                )}
               </div>
 
               <div className="mt-4 flex items-end justify-between gap-4">

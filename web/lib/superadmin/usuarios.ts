@@ -13,6 +13,9 @@ export type ActivityUser = {
   organization_id: string | null;
   created_at: string;
   onboarding_completed_at: string | null;
+  /** Cuenta dada de baja desde /superadmin/mantenimiento. */
+  disabled_at: string | null;
+  disabled_reason: string | null;
   last_sign_in_at: string | null;
   last_activity_at: string | null;
   consultations_total: number;
@@ -37,6 +40,8 @@ export type ActivityPayload = {
     never_signed_in: number;
     never_worked: number;
     onboarding_pending: number;
+    /** Cuentas dadas de baja. Excluidas del resto de contadores. */
+    disabled: number;
   };
   users: ActivityUser[];
   adoption: {
@@ -53,6 +58,21 @@ export type ActivityPayload = {
     consultations_7d: number;
     encounters_7d: number;
     audit_events_7d: number;
+    /** Notas sin firmar de hace más de una semana: riesgo de cumplimiento. */
+    borradores_estancados: number;
+    /** Organizaciones vivas sin una sola consulta en 30 días. */
+    orgs_sin_actividad_30d: number;
+    /** Médicos con 3 o más fallos en 7 días: a quién llamar. */
+    doctores_con_fallos: {
+      doctor_id: string | null;
+      nombre: string;
+      fallos: number;
+      ultimo_error: string | null;
+    }[];
+    /** Exportaciones al HIS con el lease vencido: el worker murió a mitad. */
+    exportaciones_abandonadas: number;
+    cuentas_de_baja: number;
+    orgs_archivadas: number;
   };
 };
 

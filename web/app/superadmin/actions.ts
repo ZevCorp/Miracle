@@ -9,25 +9,38 @@ import {
   PATOLOGO_TYPE,
 } from "@/lib/clinical/pathology";
 import { createClient } from "@/lib/supabase/server";
+import { isAssignableRole, type AssignableRole } from "@/lib/superadmin/roles";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Roles asignables desde la consola. 'superadmin' NUNCA se otorga por la UI
-// (solo a mano en la base), para que no se pueda escalar por accidente.
-const ASSIGNABLE_ROLES = ["medico", "supervisor", "admin"] as const;
-type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
-
-function isAssignableRole(value: unknown): value is AssignableRole {
-  return typeof value === "string" && (ASSIGNABLE_ROLES as readonly string[]).includes(value);
-}
+// Roles asignables: la lista vive en lib/superadmin/roles.ts para que también
+// la pueda leer la UI sin importar este módulo "use server".
 
 function back(base: string, kind: "ok" | "error", message: string): never {
   // La base puede traer ya sus propios filtros (?estado=…&page=…): el flash se
   // añade con & en ese caso para no producir una URL con dos signos de pregunta.
   const joiner = base.includes("?") ? "&" : "?";
   redirect(`${base}${joiner}${kind}=${encodeURIComponent(message)}`);
+}
+
+/**
+ * Traduce el error de una RPC a algo que se pueda leer.
+ *
+ * Las funciones de mantenimiento ya lanzan frases en español pensadas para
+ * quien las va a leer ("No se puede eliminar: la cuenta tiene 12 consultas…"),
+ * así que se dejan pasar tal cual. Solo se sustituyen los errores crudos de
+ * Postgres, que no le dicen nada a nadie.
+ */
+function mensajeDeError(mensaje: string): string {
+  if (/violates foreign key constraint/i.test(mensaje)) {
+    return "No se pudo completar: quedan registros que dependen de esta cuenta u organización.";
+  }
+  if (/function .* does not exist/i.test(mensaje)) {
+    return "Falta aplicar la migración de mantenimiento en la base de datos.";
+  }
+  return mensaje;
 }
 
 /**
@@ -111,7 +124,16 @@ export async function createDoctorAccount(formData: FormData) {
   back(base, "ok", `Cuenta creada: ${email}`);
 }
 
-/** Mueve un usuario a otra organización y/o le cambia el rol. Solo superadmin. */
+/**
+ * Mueve un usuario a otra organización y/o le cambia el rol. Solo superadmin.
+ *
+ * Pasa por la RPC superadmin_move_user en vez de un UPDATE directo por dos
+ * motivos: deja rastro en auditoría con la organización correcta, y CONSERVA el
+ * rol cuando el formulario no manda uno. Ese segundo punto arregla un fallo
+ * real: para una secretaria el desplegable de rol no tenía su opción, el
+ * navegador seleccionaba la primera (médico), y guardar solo el cambio de
+ * organización le quitaba el rol en silencio.
+ */
 export async function assignUserToOrg(formData: FormData) {
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login");
@@ -123,31 +145,25 @@ export async function assignUserToOrg(formData: FormData) {
   const userId = String(formData.get("userId") ?? "");
   const organizationId = String(formData.get("organizationId") ?? "").trim();
   const roleRaw = String(formData.get("role") ?? "");
-  const role: AssignableRole = isAssignableRole(roleRaw) ? roleRaw : "medico";
+  // null = conservar el rol actual. Solo se manda un rol si es asignable.
+  const role: AssignableRole | null = isAssignableRole(roleRaw) ? roleRaw : null;
 
   if (!UUID_RE.test(userId)) back(base, "error", "Usuario inválido.");
   if (!UUID_RE.test(organizationId)) back(base, "error", "Organización inválida.");
 
-  // Cliente servidor: la política RLS del superadmin permite el update cross-org.
   const db = await createClient();
-  const { data, error } = await db
-    .from("profiles")
-    .update({ organization_id: organizationId, role })
-    .eq("id", userId)
-    .select("id");
+  const { error } = await db.rpc("superadmin_move_user", {
+    p_user_id: userId,
+    p_org_id: organizationId,
+    p_role: role,
+  });
 
-  if (error) back(base, "error", error.message);
-  if (!data || data.length === 0) {
-    back(
-      base,
-      "error",
-      "No se aplicó el cambio. Verifica que la migración de super-admin esté aplicada (políticas RLS).",
-    );
-  }
+  if (error) back(base, "error", mensajeDeError(error.message));
 
   revalidatePath(base);
   revalidatePath("/superadmin");
   revalidatePath("/superadmin/organizaciones");
+  revalidatePath("/superadmin/mantenimiento");
   revalidatePath("/app", "layout");
   back(base, "ok", "Usuario actualizado.");
 }
@@ -230,4 +246,149 @@ export async function deleteConsultationAsSuperadmin(formData: FormData) {
   revalidatePath(base);
   revalidatePath("/superadmin");
   back(base, "ok", "Consulta eliminada.");
+}
+
+// ===========================================================================
+// Mantenimiento: dar de baja, archivar y eliminar.
+//
+// Todas viven en /superadmin/mantenimiento y TODAS piden la contraseña del
+// super-admin. La contraseña viaja en el cuerpo del POST de la server action y
+// nunca toca la URL — por eso esto no son route handlers: `back()` solo pone el
+// mensaje de resultado en el query string.
+//
+// La verificación real ocurre dentro de la RPC (private.verify_own_password),
+// en la misma transacción que el cambio: aquí no se compara nada.
+// ===========================================================================
+
+const BASE_MANTENIMIENTO = "/superadmin/mantenimiento";
+
+type AccionCritica = {
+  /** Nombre de la RPC. */
+  rpc: string;
+  /** Argumentos, ya validados. */
+  args: Record<string, unknown>;
+  /** Mensaje de éxito. */
+  exito: string;
+};
+
+/**
+ * Esqueleto común: rol, contraseña presente, RPC, revalidación y flash.
+ * Devolver la construcción de argumentos al llamante mantiene cada acción
+ * legible y deja la validación de UUID donde se puede dar un mensaje concreto.
+ */
+async function ejecutarAccionCritica(
+  formData: FormData,
+  construir: (password: string) => AccionCritica,
+): Promise<never> {
+  const profile = await getCurrentProfile();
+  if (!profile) redirect("/login");
+  if (profile.role !== "superadmin") {
+    back("/app/dashboard", "error", "Solo el super-admin puede hacer esto.");
+  }
+
+  const password = String(formData.get("password") ?? "");
+  if (!password) back(BASE_MANTENIMIENTO, "error", "Escribe tu contraseña para confirmar.");
+
+  const { rpc, args, exito } = construir(password);
+
+  const db = await createClient();
+  const { error } = await db.rpc(rpc, args);
+  if (error) back(BASE_MANTENIMIENTO, "error", mensajeDeError(error.message));
+
+  // Amplio a propósito: una baja cambia los conteos del menú, el resumen, las
+  // listas de usuarios y organizaciones y el propio mantenimiento.
+  revalidatePath(BASE_MANTENIMIENTO);
+  revalidatePath("/superadmin");
+  revalidatePath("/superadmin/usuarios");
+  revalidatePath("/superadmin/organizaciones");
+  revalidatePath("/superadmin", "layout");
+  revalidatePath("/app", "layout");
+  back(BASE_MANTENIMIENTO, "ok", exito);
+}
+
+function uuidObligatorio(formData: FormData, campo: string, mensaje: string): string {
+  const valor = String(formData.get(campo) ?? "").trim();
+  if (!UUID_RE.test(valor)) back(BASE_MANTENIMIENTO, "error", mensaje);
+  return valor;
+}
+
+/** Da de baja una cuenta: bloquea el acceso y conserva toda su historia. */
+export async function deactivateUser(formData: FormData) {
+  const userId = uuidObligatorio(formData, "userId", "Cuenta inválida.");
+  const etiqueta = String(formData.get("etiqueta") ?? "la cuenta");
+  const motivo = String(formData.get("motivo") ?? "").trim();
+
+  return ejecutarAccionCritica(formData, (password) => ({
+    rpc: "superadmin_deactivate_user",
+    args: { p_user_id: userId, p_password: password, p_reason: motivo || null },
+    exito: `${etiqueta} quedó dada de baja. Su historia clínica se conserva.`,
+  }));
+}
+
+/** Devuelve el acceso a una cuenta dada de baja. */
+export async function reactivateUser(formData: FormData) {
+  const userId = uuidObligatorio(formData, "userId", "Cuenta inválida.");
+  const etiqueta = String(formData.get("etiqueta") ?? "la cuenta");
+
+  return ejecutarAccionCritica(formData, (password) => ({
+    rpc: "superadmin_reactivate_user",
+    args: { p_user_id: userId, p_password: password },
+    exito: `${etiqueta} vuelve a tener acceso.`,
+  }));
+}
+
+/**
+ * Borra una cuenta de forma definitiva. La RPC solo lo permite si NO tiene
+ * historia clínica: si tiene, devuelve un mensaje que dice cuánta y remite a
+ * dar de baja.
+ */
+export async function deleteUserPermanently(formData: FormData) {
+  const userId = uuidObligatorio(formData, "userId", "Cuenta inválida.");
+  const etiqueta = String(formData.get("etiqueta") ?? "la cuenta");
+
+  return ejecutarAccionCritica(formData, (password) => ({
+    rpc: "superadmin_delete_user",
+    args: { p_user_id: userId, p_password: password },
+    exito: `${etiqueta} se eliminó definitivamente.`,
+  }));
+}
+
+/** Archiva una organización: sale de todas las listas, no se pierde nada. */
+export async function archiveOrganization(formData: FormData) {
+  const orgId = uuidObligatorio(formData, "orgId", "Organización inválida.");
+  const etiqueta = String(formData.get("etiqueta") ?? "la organización");
+
+  return ejecutarAccionCritica(formData, (password) => ({
+    rpc: "superadmin_archive_organization",
+    args: { p_org_id: orgId, p_password: password, p_archived: true },
+    exito: `«${etiqueta}» quedó archivada. Sus datos siguen ahí y se puede restaurar.`,
+  }));
+}
+
+/** Restaura una organización archivada. */
+export async function restoreOrganization(formData: FormData) {
+  const orgId = uuidObligatorio(formData, "orgId", "Organización inválida.");
+  const etiqueta = String(formData.get("etiqueta") ?? "la organización");
+
+  return ejecutarAccionCritica(formData, (password) => ({
+    rpc: "superadmin_archive_organization",
+    args: { p_org_id: orgId, p_password: password, p_archived: false },
+    exito: `«${etiqueta}» vuelve a estar activa.`,
+  }));
+}
+
+/**
+ * Borra una organización de forma definitiva. La RPC lo rechaza salvo que esté
+ * COMPLETAMENTE vacía: todas sus tablas dependientes están en cascade, así que
+ * borrarla con datos destruiría historia clínica y su auditoría.
+ */
+export async function deleteOrganization(formData: FormData) {
+  const orgId = uuidObligatorio(formData, "orgId", "Organización inválida.");
+  const etiqueta = String(formData.get("etiqueta") ?? "la organización");
+
+  return ejecutarAccionCritica(formData, (password) => ({
+    rpc: "superadmin_delete_organization",
+    args: { p_org_id: orgId, p_password: password },
+    exito: `«${etiqueta}» se eliminó definitivamente.`,
+  }));
 }

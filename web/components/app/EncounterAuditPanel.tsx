@@ -37,6 +37,7 @@ import {
 import { extractConcepts, type ConceptKey } from "@/lib/clinical/vital-concepts";
 import { specialtyDisplayName } from "@/lib/clinical/medical-areas";
 import { AuditFindingList } from "@/components/app/AuditFindings";
+import { ZONA_CLINICA } from "@/lib/dates";
 
 /* ------------------------------------------------------------------ */
 /* Presentación                                                        */
@@ -68,7 +69,13 @@ function fecha(value?: string | null): string | null {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
+  // timeZone explícita: este panel se renderiza en el servidor (UTC en Vercel),
+  // así que sin ella la hora de auditoría salía cinco horas adelantada.
+  return date.toLocaleString("es-CO", {
+    timeZone: ZONA_CLINICA,
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 /** Anillo de puntaje. SVG puro: sin dependencias y se ve igual en todo lado. */

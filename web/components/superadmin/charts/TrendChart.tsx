@@ -36,7 +36,15 @@ function formatDia(iso: string): string {
   return `${d}/${m}`;
 }
 
-export function TrendChart({ data }: { data: Punto[] }) {
+export function TrendChart({
+  data,
+  /** Periodo ya resuelto ("últimos 7 días"), para que el lector de pantalla
+      anuncie el mismo rango que ve el resto de la página. */
+  periodo = "el periodo seleccionado",
+}: {
+  data: Punto[];
+  periodo?: string;
+}) {
   const [hover, setHover] = useState<number | null>(null);
   const gradId = useId();
 
@@ -110,7 +118,7 @@ export function TrendChart({ data }: { data: Punto[] }) {
           className="w-full min-w-[600px]"
           style={{ height: "auto" }}
           role="img"
-          aria-label="Atenciones por día en los últimos 30 días"
+          aria-label={`Atenciones por día en ${periodo}`}
           onMouseLeave={() => setHover(null)}
         >
           <defs>
