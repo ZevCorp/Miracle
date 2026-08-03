@@ -6,6 +6,7 @@ import {
   BarChart3,
   ClipboardList,
   FileText,
+  Laptop,
   LayoutDashboard,
   LayoutTemplate,
   LogOut,
@@ -32,6 +33,7 @@ const icons: Record<string, LucideIcon> = {
   auditoria: ShieldCheck,
   reportes: BarChart3,
   plantillas: LayoutTemplate,
+  equipos: Laptop,
   configuracion: Settings,
   usuarios: UserCog,
 };

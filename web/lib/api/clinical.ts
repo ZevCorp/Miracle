@@ -264,6 +264,12 @@ export const CLINICAL_ERROR_MESSAGES: Record<string, string> = {
   EXPORT_INVALID: "La solicitud de exportación no es válida.",
   WORKFLOW_NOT_CONFIGURED:
     "La automatización de historia clínica no está configurada. Contacta al administrador.",
+  // Vinculación de equipos (Operations) — graph_device_doctor_links en Graph.
+  PAIRING_CODE_INVALID:
+    "El código no es válido o ya venció. Pídele al equipo uno nuevo (duran 10 minutos).",
+  DOCTOR_WITHOUT_ORGANIZATION:
+    "Tu perfil no tiene organización asignada; pídele al administrador que la configure antes de vincular un equipo.",
+  LINK_NOT_FOUND: "Ese vínculo ya no existe. Recarga la página.",
   NETWORK_ERROR:
     "No pudimos conectar con el servidor clínico. Revisa tu conexión e inténtalo de nuevo.",
   API_NOT_CONFIGURED:
@@ -886,4 +892,47 @@ export async function cancelNoteExport(
     `/api/clinical/exports/${encodeURIComponent(exportId)}/cancel`,
     { method: "POST" },
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* Equipos vinculados (Operations)                                     */
+/* ------------------------------------------------------------------ */
+// El equipo Windows muestra un código de 8 caracteres en su pantalla; el médico
+// lo canjea aquí con SU sesión. Desde entonces ese equipo puede trabajarle las
+// consultas por API (crear, dictar, generar nota) — nunca firmar ni exportar.
+// Las tablas viven en Graph (service-role): por eso esto va por el API clínico
+// y no por una RPC de Supabase.
+
+export interface LinkedDevice {
+  link_id: string;
+  device_id: string;
+  label: string;
+  approved_at: string;
+  last_seen: string | null;
+}
+
+/** Canjea el código que muestra el equipo. Un solo uso; vence a los 10 minutos. */
+export async function claimDevicePairing(code: string): Promise<{
+  link_id: string;
+  device: { device_id: string; label: string };
+}> {
+  return clinicalRequest("/api/clinical/devices/claim-pairing", {
+    method: "POST",
+    body: { code: code.trim().toUpperCase() },
+  });
+}
+
+/** Los equipos vinculados del médico actual. */
+export async function getLinkedDevices(): Promise<LinkedDevice[]> {
+  const data = await clinicalRequest<{ devices: LinkedDevice[] }>(
+    "/api/clinical/devices",
+  );
+  return data.devices ?? [];
+}
+
+/** Desvincula un equipo. Su credencial sigue viva; lo que muere es poder actuar a tu nombre. */
+export async function revokeDeviceLink(linkId: string): Promise<void> {
+  await clinicalRequest(`/api/clinical/devices/${encodeURIComponent(linkId)}/revoke`, {
+    method: "POST",
+  });
 }

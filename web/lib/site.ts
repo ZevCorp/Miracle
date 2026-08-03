@@ -66,6 +66,9 @@ export const appNav: AppNavItem[] = [
   { label: "Auditoría", href: "/app/auditoria", icon: "auditoria", roles: ["admin", "supervisor"] },
   { label: "Reportes", href: "/app/reportes", icon: "reportes", roles: ["admin", "supervisor"] },
   { label: "Plantillas", href: "/app/plantillas", icon: "plantillas", roles: allRoles },
+  // Vincular el computador del consultorio (Operations). Lo hace el propio
+  // médico dueño del equipo, por eso no es exclusivo de admin.
+  { label: "Equipos", href: "/app/equipos", icon: "equipos", roles: allRoles },
   { label: "Configuración", href: "/app/configuracion", icon: "configuracion", roles: ["admin"] },
   { label: "Usuarios", href: "/app/usuarios", icon: "usuarios", roles: ["admin"] },
 ];
