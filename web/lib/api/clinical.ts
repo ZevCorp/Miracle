@@ -368,6 +368,35 @@ export function toBackendConsultationType(
   return "presencial";
 }
 
+/**
+ * Ordena las plantillas para el selector: las del médico (personales + las
+ * institucionales de su especialidad) primero y el resto en `others`.
+ *
+ * Es un ORDEN, no un filtro: `primary.concat(others)` siempre contiene todas las
+ * plantillas recibidas. Sin especialidad —o si no hay institucionales de esa
+ * especialidad— devuelve una sola lista para no esconder lo único que hay.
+ */
+export function splitTemplatesBySpecialty(
+  templates: ClinicalTemplate[],
+  specialtyCode?: string | null,
+): { primary: ClinicalTemplate[]; others: ClinicalTemplate[] } {
+  const wanted = specialtyCode ? normalizeSpecialtyCode(specialtyCode) : null;
+  const personal = templates.filter((template) => template.scope === "personal");
+  const institutional = templates.filter((template) => template.scope !== "personal");
+  const own = wanted
+    ? institutional.filter(
+        (template) => normalizeSpecialtyCode(template.specialty) === wanted,
+      )
+    : [];
+  if (!own.length) return { primary: [...personal, ...institutional], others: [] };
+  return {
+    primary: [...personal, ...own],
+    others: institutional.filter(
+      (template) => normalizeSpecialtyCode(template.specialty) !== wanted,
+    ),
+  };
+}
+
 /** Secciones de plantilla ordenadas por `order` (sin mutar la original). */
 export function sortedTemplateSections(
   sections: ClinicalTemplateSection[] | undefined,

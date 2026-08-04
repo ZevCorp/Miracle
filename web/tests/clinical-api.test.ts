@@ -25,7 +25,9 @@ import {
   regenerateClinicalEncounterWithTemplate,
   updateClinicalEncounterPatient,
   sortedTemplateSections,
+  splitTemplatesBySpecialty,
   toBackendConsultationType,
+  type ClinicalTemplate,
   updateNoteSectionContent,
   type ClinicalNoteJson,
 } from "@/lib/api/clinical";
@@ -93,6 +95,52 @@ describe("sortedTemplateSections", () => {
     const sorted = sortedTemplateSections(sections);
     expect(sorted.map((s) => s.key)).toEqual(["a", "b"]);
     expect(sections[0].key).toBe("b");
+  });
+});
+
+describe("splitTemplatesBySpecialty", () => {
+  function template(
+    id: string,
+    specialty: string,
+    scope: "institutional" | "personal" = "institutional",
+  ): ClinicalTemplate {
+    return { id, name: id, specialty, scope, sections: [] };
+  }
+
+  const catalogo = [
+    template("mg-1", "medicina_general"),
+    template("ped-1", "pediatria"),
+    template("ped-2", "pediatria"),
+    template("mia", "medicina_general", "personal"),
+  ];
+
+  it("pone las del médico primero y deja el resto en `others`", () => {
+    const { primary, others } = splitTemplatesBySpecialty(catalogo, "pediatria");
+    expect(primary.map((t) => t.id)).toEqual(["mia", "ped-1", "ped-2"]);
+    expect(others.map((t) => t.id)).toEqual(["mg-1"]);
+  });
+
+  it("acepta el código con guiones igual que con guion_bajo", () => {
+    const conGuion = [template("gineco-1", "ginecologia_obstetricia"), ...catalogo];
+    const { primary } = splitTemplatesBySpecialty(conGuion, "ginecologia-obstetricia");
+    expect(primary.map((t) => t.id)).toEqual(["mia", "gineco-1"]);
+  });
+
+  it("nunca esconde una plantilla: primary + others es todo el catálogo", () => {
+    for (const especialidad of ["pediatria", "medicina_general", "cardiologia", null]) {
+      const { primary, others } = splitTemplatesBySpecialty(catalogo, especialidad);
+      expect([...primary, ...others].map((t) => t.id).sort()).toEqual(
+        catalogo.map((t) => t.id).sort(),
+      );
+    }
+  });
+
+  it("no agrupa si el médico no tiene institucionales de su especialidad", () => {
+    // Un médico de una especialidad sin catálogo propio ve una sola lista, no un
+    // grupo vacío con todo escondido detrás de "otras especialidades".
+    const { primary, others } = splitTemplatesBySpecialty(catalogo, "cardiologia");
+    expect(primary).toHaveLength(catalogo.length);
+    expect(others).toEqual([]);
   });
 });
 

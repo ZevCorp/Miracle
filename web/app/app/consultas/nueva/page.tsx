@@ -201,22 +201,31 @@ function NuevaConsultaForm() {
 
   useEffect(() => () => uploadAbortRef.current?.abort(), []);
 
-  const availableTemplates = useMemo(() => {
-    const personal = templates.filter((template) => template.scope === "personal");
-    const institutional = templates.filter((template) => template.scope !== "personal");
+  // Todas las plantillas activas quedan disponibles: el selector agrupa las de la
+  // especialidad del médico arriba y deja el resto a un clic.
+  const availableTemplates = useMemo(
+    () => templates.filter((template) => template.status !== "archived"),
+    [templates],
+  );
+
+  // Solo para elegir la preseleccionada: las suyas primero, para que un pediatra
+  // no arranque con la plantilla de otra especialidad.
+  const preferredTemplates = useMemo(() => {
+    const personal = availableTemplates.filter((template) => template.scope === "personal");
+    const institutional = availableTemplates.filter((template) => template.scope !== "personal");
     if (!profileSpecialtyCode) return [...personal, ...institutional];
     const wanted = normalizeSpecialtyCode(profileSpecialtyCode);
     const matching = institutional.filter(
       (template) => normalizeSpecialtyCode(template.specialty) === wanted,
     );
     return [...personal, ...(matching.length ? matching : institutional)];
-  }, [profileSpecialtyCode, templates]);
+  }, [availableTemplates, profileSpecialtyCode]);
 
   const effectiveTemplateId = availableTemplates.some(
     (template) => template.id === selectedTemplateId,
   )
     ? selectedTemplateId
-    : (availableTemplates.find((template) => template.is_default)?.id ?? availableTemplates[0]?.id ?? "");
+    : (preferredTemplates.find((template) => template.is_default)?.id ?? preferredTemplates[0]?.id ?? "");
 
   const matchingPatients = useMemo(() => {
     const query = patientQuery.trim().toLocaleLowerCase();
@@ -392,7 +401,7 @@ function NuevaConsultaForm() {
           ) : templatesError ? (
             <p role="alert" className="mt-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">No se pudieron cargar las plantillas. {templatesError}</p>
           ) : availableTemplates.length ? (
-            <div className="mt-4"><ClinicalTemplatePicker templates={availableTemplates} value={effectiveTemplateId} onChange={setSelectedTemplateId} disabled={creating} /></div>
+            <div className="mt-4"><ClinicalTemplatePicker templates={availableTemplates} specialtyCode={profileSpecialtyCode} value={effectiveTemplateId} onChange={setSelectedTemplateId} disabled={creating} /></div>
           ) : (
             <p className="mt-4 rounded-lg bg-pearl px-3 py-2.5 text-sm text-muted">No hay plantillas disponibles. Crea una antes de iniciar la consulta.</p>
           )}
