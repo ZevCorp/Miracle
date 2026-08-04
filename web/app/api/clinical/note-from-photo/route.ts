@@ -219,7 +219,15 @@ export async function POST(req: Request) {
   try {
     const upstream = await fetch(`${base}/api/v1/biopsy/extract`, {
       method: "POST",
-      headers: { "X-API-Key": apiKey, "content-type": "application/json" },
+      headers: {
+        "X-API-Key": apiKey,
+        "content-type": "application/json",
+        // Atribución del consumo: Graph resuelve el correo contra `profiles`
+        // con service-role; nunca confía en lo que diga el cliente.
+        "X-Miracle-App": "web_app",
+        "X-Miracle-Feature": "biopsia",
+        ...(profile?.email ? { "X-Miracle-User-Email": profile.email } : {}),
+      },
       body: JSON.stringify(
         dynamic
           ? { image: `data:${mediaType};base64,${b64}`, mode: "dynamic" }

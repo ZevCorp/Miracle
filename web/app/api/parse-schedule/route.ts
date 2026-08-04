@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { reportError } from "@/lib/observability";
 import { normalizeHora, type ParsedCita } from "@/lib/agenda";
 import { rateLimit, requireApiUser } from "@/lib/api/guard";
+import { anthropicUsage, reportAiUsage } from "@/lib/ai-usage";
 
 export const runtime = "nodejs";
 // La visión sobre una agenda densa puede tardar: sin esto la función se corta
@@ -99,6 +100,11 @@ export async function POST(req: Request) {
   // Sin clave: el cliente ofrece el alta manual como alternativa.
   if (!apiKey) return NextResponse.json({ connected: false });
 
+  // Única llamada del portal a un modelo que NO pasa por Graph: se mide aquí
+  // o no se mide en ningún lado.
+  const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
+  const startedAt = Date.now();
+
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -108,7 +114,7 @@ export async function POST(req: Request) {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
+        model,
         max_tokens: 3000,
         system: SYSTEM,
         messages: [
@@ -130,6 +136,20 @@ export async function POST(req: Request) {
     });
 
     if (!res.ok) {
+      // Un error del proveedor puede haber consumido tokens igual (p. ej. si
+      // falló después de procesar la imagen). Se registra sin cifras, que es
+      // exactamente lo que sabemos, en vez de omitirlo.
+      void reportAiUsage({
+        userId,
+        feature: "schedule_parsing",
+        provider: "anthropic",
+        requestedModel: model,
+        inputTokens: 0,
+        outputTokens: 0,
+        status: "error",
+        errorCode: `http_${res.status}`,
+        latencyMs: Date.now() - startedAt,
+      });
       reportError(new Error("anthropic parse-schedule error"), {
         route: "parse-schedule",
         status: res.status,
@@ -138,8 +158,30 @@ export async function POST(req: Request) {
     }
 
     const data = (await res.json()) as {
+      id?: string;
+      model?: string;
       content?: { type: string; text?: string }[];
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        cache_read_input_tokens?: number;
+        cache_creation_input_tokens?: number;
+      };
     };
+
+    // Se reporta el consumo aunque el parseo de abajo falle: los tokens ya se
+    // gastaron. Nunca se envía el texto extraído (lleva nombres de pacientes).
+    void reportAiUsage({
+      userId,
+      feature: "schedule_parsing",
+      provider: "anthropic",
+      requestedModel: model,
+      servedModel: data.model ?? model,
+      status: "ok",
+      latencyMs: Date.now() - startedAt,
+      providerRequestId: data.id ?? "",
+      ...anthropicUsage(data.usage),
+    });
     const raw = data.content
       ?.filter((b) => b.type === "text")
       .map((b) => b.text ?? "")

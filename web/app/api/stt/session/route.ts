@@ -43,7 +43,14 @@ export async function POST() {
   try {
     const upstream = await fetch(`${base}/api/v1/transcription/session`, {
       method: "POST",
-      headers: { "X-API-Key": apiKey, "content-type": "application/json" },
+      headers: {
+        "X-API-Key": apiKey,
+        "content-type": "application/json",
+        "X-Miracle-App": "web_app",
+        "X-Miracle-Feature": "transcription",
+        // Graph valida este uuid contra `profiles` antes de atribuir nada.
+        "X-Miracle-User-Id": userId,
+      },
       body: "{}",
       cache: "no-store",
       signal: AbortSignal.timeout(20_000),
