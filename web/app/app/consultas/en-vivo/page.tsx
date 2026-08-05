@@ -679,7 +679,9 @@ function ConsultaActivaInner() {
     if (templates.length) return;
     setTemplateLoading(true);
     try {
-      const loaded = await getClinicalTemplates({ specialty: snapshot?.specialty });
+      // Sin filtro de especialidad: rehacer la nota con la plantilla de otra
+      // especialidad es un caso real (el selector las agrupa, no las esconde).
+      const loaded = await getClinicalTemplates();
       setTemplates(loaded);
       setSelectedTemplateId(loaded.find((item) => item.id !== snapshot?.template_id)?.id ?? "");
     } catch (error) {
@@ -1347,7 +1349,7 @@ function ConsultaActivaInner() {
               <div><h2 id="regenerate-title" className="font-display text-lg font-semibold text-deep">Cambiar plantilla y regenerar</h2><p className="mt-1 text-sm leading-relaxed text-muted">Se reutilizará la transcripción. Miracle creará una nueva revisión enlazada y conservará esta nota en auditoría.</p></div>
             </div>
             <div className="mt-5 text-sm font-semibold text-deep">Nueva plantilla
-              {!templateLoading && templates.length ? <ClinicalTemplatePicker templates={templates.filter((template) => template.id !== snapshot?.template_id)} value={selectedTemplateId} onChange={setSelectedTemplateId} disabled={busy} /> : null}
+              {!templateLoading && templates.length ? <ClinicalTemplatePicker templates={templates.filter((template) => template.id !== snapshot?.template_id)} specialtyCode={snapshot?.specialty} value={selectedTemplateId} onChange={setSelectedTemplateId} disabled={busy} /> : null}
             </div>
             {templateLoading ? <p className="mt-3 flex items-center gap-2 text-xs text-muted"><Loader2 size={14} className="animate-spin" /> Cargando plantillas disponibles…</p> : null}
             <div className="mt-6 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setRegenerateOpen(false)} disabled={busy} className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-deep hover:border-mist disabled:opacity-60">Cancelar</button><button type="button" onClick={() => void regenerarConPlantilla()} disabled={!selectedTemplateId || busy || templateLoading} className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60">{phase === "regenerating" ? <Loader2 size={15} className="animate-spin" /> : <LayoutTemplate size={15} />} Crear revisión</button></div>

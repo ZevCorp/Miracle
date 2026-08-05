@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Check, ChevronDown, FileText, Search, X } from "lucide-react";
 import {
   sortedTemplateSections,
+  splitTemplatesBySpecialty,
   type ClinicalTemplate,
 } from "@/lib/api/clinical";
 
@@ -13,15 +14,24 @@ export function ClinicalTemplatePicker({
   onChange,
   disabled = false,
   label = "Plantilla de nota",
+  specialtyCode,
 }: {
+  /** Todas las plantillas que el médico puede usar, sin filtrar por especialidad. */
   templates: ClinicalTemplate[];
   value: string;
   onChange: (templateId: string) => void;
   disabled?: boolean;
   label?: string;
+  /**
+   * Especialidad del médico (o de la nota). Solo ordena: las suyas arriba y el
+   * resto detrás de "Otras especialidades". Nunca esconde plantillas: buscar
+   * alcanza a todo el catálogo.
+   */
+  specialtyCode?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [showOthers, setShowOthers] = useState(false);
   const selected =
     templates.find((template) => template.id === value) ?? templates[0];
   const results = useMemo(() => {
@@ -33,6 +43,18 @@ export function ClinicalTemplatePicker({
         .includes(term),
     );
   }, [query, templates]);
+
+  const { primary, others } = useMemo(
+    () => splitTemplatesBySpecialty(templates, specialtyCode),
+    [specialtyCode, templates],
+  );
+  const searching = query.trim().length > 0;
+
+  function pick(templateId: string) {
+    onChange(templateId);
+    setOpen(false);
+    setQuery("");
+  }
 
   if (!selected) return null;
   const sections = sortedTemplateSections(selected.sections).slice(0, 4);
@@ -147,60 +169,111 @@ export function ClinicalTemplatePicker({
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
-              <div className="space-y-2">
-                {results.map((template) => {
-                  const active = template.id === selected.id;
-                  return (
-                    <button
+              {searching ? (
+                <div className="space-y-2">
+                  {results.map((template) => (
+                    <TemplateOption
                       key={template.id}
-                      type="button"
-                      onClick={() => {
-                        onChange(template.id);
-                        setOpen(false);
-                        setQuery("");
-                      }}
-                      className={`flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition ${active ? "border-accent bg-accent-soft/35" : "border-line hover:border-mist hover:bg-pearl"}`}
-                    >
-                      <span
-                        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${active ? "bg-accent text-white" : "bg-ice text-accent"}`}
-                      >
-                        <FileText size={16} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold text-deep">
-                            {template.name}
-                          </span>
-                          {template.is_default ? (
-                            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
-                              Sugerida
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="mt-0.5 block text-xs text-muted">
-                          {template.specialty.replace(/_/g, " ")} ·{" "}
-                          {template.sections.length} secciones ·{" "}
-                          {template.scope === "personal"
-                            ? "Personal"
-                            : "Institucional"}
-                        </span>
-                      </span>
-                      {active ? (
-                        <Check size={18} className="shrink-0 text-accent" />
+                      template={template}
+                      active={template.id === selected.id}
+                      onPick={pick}
+                    />
+                  ))}
+                  {results.length === 0 ? (
+                    <p className="p-8 text-center text-sm text-muted">
+                      No encontramos una plantilla con esa búsqueda.
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {others.length ? (
+                    <p className="px-1 pb-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                      Para tu especialidad
+                    </p>
+                  ) : null}
+                  {primary.map((template) => (
+                    <TemplateOption
+                      key={template.id}
+                      template={template}
+                      active={template.id === selected.id}
+                      onPick={pick}
+                    />
+                  ))}
+                  {others.length ? (
+                    <>
+                      {showOthers ? (
+                        <p className="px-1 pb-1 pt-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+                          Otras especialidades
+                        </p>
                       ) : null}
-                    </button>
-                  );
-                })}
-                {results.length === 0 ? (
-                  <p className="p-8 text-center text-sm text-muted">
-                    No encontramos una plantilla con esa búsqueda.
-                  </p>
-                ) : null}
-              </div>
+                      {showOthers ? (
+                        others.map((template) => (
+                          <TemplateOption
+                            key={template.id}
+                            template={template}
+                            active={template.id === selected.id}
+                            onPick={pick}
+                          />
+                        ))
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setShowOthers(true)}
+                          className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line px-4 py-3 text-sm font-semibold text-accent hover:border-accent hover:bg-ice-soft"
+                        >
+                          Ver plantillas de otras especialidades ({others.length})
+                          <ChevronDown size={15} />
+                        </button>
+                      )}
+                    </>
+                  ) : null}
+                </div>
+              )}
             </div>
           </section>
         </div>
       ) : null}
     </>
+  );
+}
+
+function TemplateOption({
+  template,
+  active,
+  onPick,
+}: {
+  template: ClinicalTemplate;
+  active: boolean;
+  onPick: (templateId: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(template.id)}
+      className={`flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition ${active ? "border-accent bg-accent-soft/35" : "border-line hover:border-mist hover:bg-pearl"}`}
+    >
+      <span
+        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${active ? "bg-accent text-white" : "bg-ice text-accent"}`}
+      >
+        <FileText size={16} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-deep">{template.name}</span>
+          {template.is_default ? (
+            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
+              Sugerida
+            </span>
+          ) : null}
+        </span>
+        <span className="mt-0.5 block text-xs text-muted">
+          {template.specialty.replace(/_/g, " ")} · {template.sections.length}{" "}
+          secciones ·{" "}
+          {template.scope === "personal" ? "Personal" : "Institucional"}
+        </span>
+      </span>
+      {active ? <Check size={18} className="shrink-0 text-accent" /> : null}
+    </button>
   );
 }

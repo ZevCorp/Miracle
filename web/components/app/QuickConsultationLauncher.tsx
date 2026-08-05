@@ -69,10 +69,11 @@ export function QuickConsultationLauncher({
     void getClinicalTemplates()
       .then((items) => {
         const activeAll = items.filter((template) => template.status !== "archived");
-        // Mismo criterio que /consultas/nueva: institucionales de la especialidad
-        // del médico primero (con fallback a todas si no hay match), personales
-        // siempre disponibles. Así un patólogo no ve/recibe por defecto la
-        // plantilla de otra especialidad en el inicio rápido.
+        setTemplates(activeAll);
+        // Mismo criterio que /consultas/nueva: el selector ofrece TODAS, pero la
+        // preselección sale de las de su especialidad (con fallback a todas si no
+        // hay match) más las personales. Así un patólogo no arranca por defecto
+        // con la plantilla de otra especialidad.
         const personal = activeAll.filter((template) => template.scope === "personal");
         const institutional = activeAll.filter((template) => template.scope !== "personal");
         const wanted = specialtyCode ? normalizeSpecialtyCode(specialtyCode) : null;
@@ -81,19 +82,18 @@ export function QuickConsultationLauncher({
               (template) => normalizeSpecialtyCode(template.specialty) === wanted,
             )
           : [];
-        const active = wanted
+        const preferred = wanted
           ? [...personal, ...(matching.length ? matching : institutional)]
           : activeAll;
-        setTemplates(active);
         // Prioridad del preseleccionado: 1) la última que el médico usó de
         // verdad, si sigue disponible; 2) la predeterminada de su
         // especialidad; 3) la primera de la lista.
         const lastUsedId = readLastTemplateId(userId);
-        const lastUsed = lastUsedId && active.find((template) => template.id === lastUsedId);
+        const lastUsed = lastUsedId && activeAll.find((template) => template.id === lastUsedId);
         setSelectedTemplateId(
           (lastUsed ? lastUsed.id : undefined) ??
-            active.find((template) => template.is_default)?.id ??
-            active[0]?.id ??
+            preferred.find((template) => template.is_default)?.id ??
+            preferred[0]?.id ??
             "",
         );
       })
@@ -205,7 +205,7 @@ export function QuickConsultationLauncher({
               ) : templates.length ? (
                 <div className="text-sm font-semibold text-deep">
                   Plantilla de nota
-                  <ClinicalTemplatePicker templates={templates} value={selectedTemplateId} onChange={setSelectedTemplateId} disabled={starting} />
+                  <ClinicalTemplatePicker templates={templates} specialtyCode={specialtyCode} value={selectedTemplateId} onChange={setSelectedTemplateId} disabled={starting} />
                 </div>
               ) : !error ? (
                 <p className="rounded-md border border-line bg-pearl px-3 py-2.5 text-sm text-muted">
