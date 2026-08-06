@@ -49,3 +49,6 @@ docs/cuentas.md
 # seeds con contraseñas en claro (el repo es público): se ejecutan directo en
 # el SQL Editor de Supabase; el archivo vive solo en el disco local
 supabase/seed/
+
+# graphify: respaldos automaticos del grafo (no se comparten)
+graphify-out/20*/
