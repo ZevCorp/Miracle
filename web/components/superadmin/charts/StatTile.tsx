@@ -21,6 +21,7 @@ export function StatTile({
   spark,
   icon: Icon,
   footnote,
+  footnoteTone,
   invertido = false,
 }: {
   label: string;
@@ -31,11 +32,16 @@ export function StatTile({
   spark?: number[];
   icon?: LucideIcon;
   footnote?: string;
+  /** Tiñe la nota al pie cuando lo que cuenta es un problema ("3 fallidas de
+      120"). El número grande se queda neutro: es el pie el que da la mala
+      noticia, y así no se confunde con la flecha de tendencia. */
+  footnoteTone?: "warning";
   invertido?: boolean;
 }) {
   const sinCambio = deltaPct === 0;
   const subio = typeof deltaPct === "number" && deltaPct > 0;
   const bueno = invertido ? !subio : subio;
+  const footnoteClass = footnoteTone === "warning" ? "text-warning" : "text-muted";
 
   const TrendIcon = sinCambio ? Minus : subio ? TrendingUp : TrendingDown;
   const trendClass = sinCambio
@@ -71,7 +77,7 @@ export function StatTile({
               </span>
             </div>
           ) : footnote ? (
-            <div className="mt-2 text-xs text-muted">{footnote}</div>
+            <div className={`mt-2 text-xs ${footnoteClass}`}>{footnote}</div>
           ) : null}
         </div>
 
@@ -85,7 +91,7 @@ export function StatTile({
       </div>
 
       {typeof deltaPct === "number" && footnote ? (
-        <div className="mt-2 text-xs text-muted">{footnote}</div>
+        <div className={`mt-2 text-xs ${footnoteClass}`}>{footnote}</div>
       ) : null}
     </div>
   );
