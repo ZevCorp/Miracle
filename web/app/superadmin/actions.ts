@@ -168,6 +168,102 @@ export async function assignUserToOrg(formData: FormData) {
   back(base, "ok", "Usuario actualizado.");
 }
 
+// ===========================================================================
+// Administradores de una organización.
+//
+// Viven aquí y no en /app/usuarios porque desde el 20260808140000 el
+// administrador principal solo lo toca la plataforma: el hospital ya no puede
+// degradarlo ni desactivarlo. Si esto no existiera, la única forma de relevarlo
+// sería un UPDATE a mano en la base.
+// ===========================================================================
+
+function baseOrg(orgId: string): string {
+  return `/superadmin/organizaciones/${orgId}`;
+}
+
+async function exigirSuperadmin(orgId: string) {
+  const profile = await getCurrentProfile();
+  if (!profile) redirect("/login");
+  if (profile.role !== "superadmin") {
+    back(baseOrg(orgId), "error", "Solo el super-admin puede gestionar administradores.");
+  }
+}
+
+/**
+ * Cambia el rol de un miembro sin moverlo de organización.
+ *
+ * Pasa por `superadmin_move_user` —con la organización que ya tiene— en vez de
+ * un UPDATE directo, para que quede el mismo rastro de auditoría que cualquier
+ * otro cambio de rol de la consola.
+ */
+export async function changeOrgMemberRole(formData: FormData) {
+  const orgId = String(formData.get("orgId") ?? "").trim();
+  if (!UUID_RE.test(orgId)) back("/superadmin/organizaciones", "error", "Organización inválida.");
+  await exigirSuperadmin(orgId);
+
+  const userId = String(formData.get("userId") ?? "").trim();
+  const roleRaw = String(formData.get("role") ?? "");
+  const etiqueta = String(formData.get("etiqueta") ?? "la cuenta");
+
+  if (!UUID_RE.test(userId)) back(baseOrg(orgId), "error", "Cuenta inválida.");
+  if (!isAssignableRole(roleRaw)) back(baseOrg(orgId), "error", "Ese rol no se puede asignar.");
+
+  const db = await createClient();
+  const { error } = await db.rpc("superadmin_move_user", {
+    p_user_id: userId,
+    p_org_id: orgId,
+    p_role: roleRaw,
+  });
+
+  if (error) back(baseOrg(orgId), "error", mensajeDeError(error.message));
+
+  revalidatePath(baseOrg(orgId));
+  revalidatePath("/superadmin/usuarios");
+  revalidatePath("/superadmin/organizaciones");
+  revalidatePath("/app", "layout");
+  back(
+    baseOrg(orgId),
+    "ok",
+    roleRaw === "admin"
+      ? `${etiqueta} ya es administrador.`
+      : `${etiqueta} dejó de ser administrador.`,
+  );
+}
+
+/**
+ * Designa al administrador principal (organizations.owner_id).
+ *
+ * El trigger `protect_org_owner_column` solo deja moverlo a un superadmin, así
+ * que este UPDATE directo es la vía prevista; la base rechaza además a quien no
+ * sea un administrador activo de esa misma organización, de modo que un id
+ * manipulado en el formulario no puede dejar el puesto en manos de nadie raro.
+ */
+export async function setOrgOwner(formData: FormData) {
+  const orgId = String(formData.get("orgId") ?? "").trim();
+  if (!UUID_RE.test(orgId)) back("/superadmin/organizaciones", "error", "Organización inválida.");
+  await exigirSuperadmin(orgId);
+
+  const userId = String(formData.get("userId") ?? "").trim();
+  const etiqueta = String(formData.get("etiqueta") ?? "esa cuenta");
+  if (!UUID_RE.test(userId)) back(baseOrg(orgId), "error", "Cuenta inválida.");
+
+  const db = await createClient();
+  const { data, error } = await db
+    .from("organizations")
+    .update({ owner_id: userId })
+    .eq("id", orgId)
+    .select("id");
+
+  if (error) back(baseOrg(orgId), "error", mensajeDeError(error.message));
+  if (!data || data.length === 0) {
+    back(baseOrg(orgId), "error", "No se pudo designar: ¿falta aplicar la migración del administrador principal?");
+  }
+
+  revalidatePath(baseOrg(orgId));
+  revalidatePath("/superadmin/organizaciones");
+  back(baseOrg(orgId), "ok", `${etiqueta} es ahora el administrador principal.`);
+}
+
 /** Crea una organización (hospital o consultorio). Solo superadmin. */
 export async function createOrganization(formData: FormData) {
   const profile = await getCurrentProfile();

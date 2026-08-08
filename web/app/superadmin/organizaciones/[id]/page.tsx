@@ -8,6 +8,8 @@ import { formatFechaRelativa } from "@/lib/dates";
 import { StatTile } from "@/components/superadmin/charts/StatTile";
 import { BarList } from "@/components/superadmin/charts/BarList";
 import { StatusBadge } from "@/components/app/StatusBadge";
+import { FlashBanner } from "@/components/superadmin/FlashBanner";
+import { OrgAdmins } from "@/components/superadmin/OrgAdmins";
 import type { ConsultationStatus } from "@/lib/mock";
 import { APP_ROLE_LABEL, isAppRole } from "@/lib/auth/roles";
 import { userState, type ActivityPayload } from "@/lib/superadmin/usuarios";
@@ -38,13 +40,16 @@ type ConsultaRow = {
 
 export default async function SuperadminOrganizacionDetallePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
   const { id } = await params;
+  const { ok, error } = await searchParams;
   const db = await createClient();
 
-  const [dashRes, activityRes, consultasRes] = await Promise.all([
+  const [dashRes, activityRes, consultasRes, orgRes] = await Promise.all([
     db.rpc("superadmin_dashboard"),
     db.rpc("superadmin_activity"),
     db
@@ -53,6 +58,10 @@ export default async function SuperadminOrganizacionDetallePage({
       .eq("organization_id", id)
       .order("fecha", { ascending: false })
       .limit(10),
+    // `owner_id` va aparte de la RPC del panel: esa devuelve métricas, y esto es
+    // gobierno. Se pide de forma tolerante —si el código llega antes que la
+    // migración, la columna no existe y la tarjeta lo dice en vez de romperse.
+    db.from("organizations").select("owner_id").eq("id", id).maybeSingle(),
   ]);
 
   const dash = (dashRes.data ?? null) as DashboardOrg | null;
@@ -64,6 +73,10 @@ export default async function SuperadminOrganizacionDetallePage({
   const activity = (activityRes.data ?? null) as ActivityPayload | null;
   const miembros = (activity?.users ?? []).filter((u) => u.organization_id === id);
   const consultas = (consultasRes.data ?? []) as ConsultaRow[];
+  // undefined = la columna todavía no existe en la base; null = puesto vacante.
+  const ownerId = orgRes.error
+    ? undefined
+    : ((orgRes.data as { owner_id: string | null } | null)?.owner_id ?? null);
 
   // Las 8 semanas de la RPC vienen como enteros ordenados de la más vieja a la
   // actual; las etiquetas se derivan aquí para no engordar el payload.
@@ -101,6 +114,11 @@ export default async function SuperadminOrganizacionDetallePage({
           </Link>
         </div>
       </div>
+
+      <FlashBanner ok={ok} error={error} />
+
+      {/* --- Quién administra ---------------------------------------------- */}
+      <OrgAdmins orgId={id} miembros={miembros} ownerId={ownerId} />
 
       {/* --- KPIs de la organización --------------------------------------- */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

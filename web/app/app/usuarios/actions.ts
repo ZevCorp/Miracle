@@ -45,12 +45,37 @@ export async function updateUserRole(formData: FormData) {
   }
   if (userId === profile.id) {
     // Quitarse el propio rol de admin deja a la institución sin quien administre
-    // (y la base lo bloquea con prevent_last_admin_removal, pero con un error
-    // crudo). Mejor explicarlo antes de intentarlo.
+    // (la base lo bloquea además con prevent_last_admin_removal, ya por
+    // organización, pero con un error crudo). Mejor explicarlo antes.
     back("error", "No puedes cambiar tu propio rol.");
   }
 
   const supabase = await createClient();
+
+  // El administrador principal solo se toca desde la consola de plataforma.
+  //
+  // La regla la impone la base (private.protect_org_owner): sin ella, cualquier
+  // admin podía degradar a otro admin de su organización con un PATCH directo a
+  // PostgREST y quedarse solo con la institución — la UI nunca fue la defensa.
+  // Esta comprobación existe solo para fallar con una frase entendible en vez de
+  // con la excepción de Postgres. Se ignora el error a propósito: si el código
+  // llega a producción antes que la migración, `owner_id` todavía no existe y
+  // esto no debe tumbar la pantalla — la base sigue siendo la que manda.
+  if (profile.organizationId) {
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("owner_id")
+      .eq("id", profile.organizationId)
+      .maybeSingle();
+
+    if (org && (org as { owner_id: string | null }).owner_id === userId) {
+      back(
+        "error",
+        "Esa cuenta es la del administrador principal de la institución: su rol solo se cambia desde Miracle.",
+      );
+    }
+  }
+
   const { data, error } = await supabase
     .from("profiles")
     .update({ role })
