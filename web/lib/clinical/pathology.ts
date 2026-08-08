@@ -30,13 +30,11 @@ export function isPathologist(
  * ¿La cuenta puede generar informes a partir de una foto de la hoja manuscrita?
  * Exclusivo de patólogos: el resto de médicos no lo ve ni lo puede usar.
  *
- * La cuenta de demostración comercial también pasa, para poder mostrar el
- * módulo de patología dentro del recorrido de venta. Sigue sin ver datos
- * ajenos: la RLS la acota a su propia organización.
+ * La cuenta de demostración comercial tampoco: la demo se enseña a médicos y
+ * patología es otra división de cuenta (ver DEMO_SECTIONS en lib/auth/roles.ts).
  */
 export function canUsePhotoNotes(
   professionalType: string | null | undefined,
-  isDemo = false,
 ): boolean {
-  return isPathologist(professionalType) || isDemo;
+  return isPathologist(professionalType);
 }

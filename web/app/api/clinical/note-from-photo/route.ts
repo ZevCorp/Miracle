@@ -132,10 +132,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
 
-  // Exclusivo de cuentas patólogo (y la cuenta demo comercial). El resto de
-  // médicos no puede usar esta ruta.
+  // Exclusivo de cuentas patólogo. El resto de médicos no puede usar esta ruta.
   const profile = await getCurrentProfile();
-  if (!profile || !canUsePhotoNotes(profile.professionalType, profile.isDemo)) {
+  if (!profile || !canUsePhotoNotes(profile.professionalType)) {
     return NextResponse.json({ error: "Funcionalidad no disponible para esta cuenta." }, { status: 403 });
   }
 

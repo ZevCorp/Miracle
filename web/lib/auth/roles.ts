@@ -22,19 +22,43 @@ export function isAppRole(value: unknown): value is AppRole {
 }
 
 /**
- * Cuenta de demostración comercial: un solo login que recorre TODO el producto
- * en una presentación de venta.
+ * Secciones que ve la cuenta de demostración comercial: exactamente las de un
+ * médico, ni una más.
  *
- * La cuenta demo tiene rol `admin` (por RLS ya lee toda su organización:
- * reportes, auditoría, usuarios, configuración). Este flag abre además las
- * secciones que ese rol no alcanza y que son el corazón de la demo: crear una
- * consulta, grabarla en vivo y el workspace de patología.
+ * La demo se enseña a médicos (venta B2C), no a instituciones: auditoría,
+ * reportes, usuarios y la configuración institucional son lo que vería un
+ * administrador de hospital, cargan la pantalla y muestran un producto que el
+ * comprador no va a usar. Patología es de otra división de cuenta, tampoco va.
  *
- * Lo que NO hace, a propósito:
- *   · No abre /superadmin — la consola de plataforma se decide por rol.
- *   · No otorga acceso a datos: la RLS sigue acotando todo a la organización
- *     del usuario, así que una cuenta demo jamás ve datos de otra organización.
- * Solo un superadmin puede activar el flag (trigger en la migración
+ * Por eso `is_demo` ya no DESTAPA secciones: ahora ACOTA. La cuenta sigue
+ * teniendo rol `admin` por debajo (así la RLS le deja leer las consultas de su
+ * organización demo), pero de cara a la interfaz es un médico.
+ */
+export const DEMO_SECTIONS = [
+  "/app/dashboard",
+  // Incluye /nueva y /en-vivo — el corazón de la demo, y son de rol `medico`.
+  "/app/consultas",
+  "/app/pacientes",
+  "/app/notas",
+  // El catálogo completo: la demo no tiene specialty_code, así que ve las
+  // plantillas de todas las áreas médicas.
+  "/app/plantillas",
+] as const;
+
+/** true si la ruta pertenece a la superficie de la cuenta demo. */
+export function isDemoSection(pathname: string): boolean {
+  return DEMO_SECTIONS.some(
+    (section) => pathname === section || pathname.startsWith(`${section}/`),
+  );
+}
+
+/**
+ * ¿Puede este usuario abrir esta ruta?
+ *
+ * `isDemo` no otorga acceso a datos en ningún caso: la RLS sigue siendo la
+ * autoridad y sigue acotando todo a la organización del usuario. Tampoco abre
+ * /superadmin — la consola de plataforma se decide solo por rol. Solo un
+ * superadmin puede activar el flag (trigger en la migración
  * 20260731000000_demo_account_flag.sql).
  */
 export function canAccessPath(
@@ -68,15 +92,22 @@ export function canAccessPath(
     );
   }
 
+  // La demo es un médico de cara a la interfaz: lista blanca, aunque su rol
+  // `admin` alcance más. Va después de la secretaría a propósito — entre dos
+  // listas blancas manda la más estricta, el flag nunca asciende a nadie.
+  if (isDemo) {
+    return isDemoSection(pathname);
+  }
+
   if (
     pathname.startsWith("/app/consultas/nueva") ||
     pathname.startsWith("/app/consultas/en-vivo")
   ) {
-    return role === "medico" || isDemo;
+    return role === "medico";
   }
 
   // /app/laboratorio no se decide aquí: lo gobierna el professional_type en la
-  // propia página (canUsePhotoNotes), que ya contempla la cuenta demo.
+  // propia página (canUsePhotoNotes).
   if (pathname.startsWith("/app/usuarios") || pathname.startsWith("/app/configuracion")) {
     return role === "admin";
   }

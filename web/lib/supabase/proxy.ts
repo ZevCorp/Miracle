@@ -87,22 +87,30 @@ export async function updateSession(request: NextRequest) {
     return redirectWithSession(url, supabaseResponse);
   }
 
-  if (!canAccessPath(role, pathname)) {
-    // Segunda oportunidad solo para la cuenta demo comercial, que entra a
-    // secciones que su rol no alcanza. La consulta a la BD ocurre únicamente en
-    // rutas que el rol ya tiene vedadas (raro), no en la navegación normal.
+  // La cuenta demo comercial no se decide igual que su rol: entra a crear y
+  // grabar consultas (que son de `medico`) y NO entra a las secciones de
+  // administración que su rol `admin` sí alcanza. Solo cuando ambas respuestas
+  // difieren hace falta saber si es demo, y ahí se lee la BD; la navegación
+  // normal (donde coinciden) no paga ninguna consulta extra.
+  const allowedByRole = canAccessPath(role, pathname);
+  const allowedAsDemo = canAccessPath(role, pathname, true);
+
+  let allowed = allowedByRole;
+  if (allowedByRole !== allowedAsDemo) {
     const { data: demoProfile } = await supabase
       .from("profiles")
       .select("is_demo")
       .eq("id", userId)
       .maybeSingle();
 
-    if (!canAccessPath(role, pathname, demoProfile?.is_demo === true)) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/app/dashboard";
-      url.searchParams.set("error", "forbidden");
-      return redirectWithSession(url, supabaseResponse);
-    }
+    allowed = demoProfile?.is_demo === true ? allowedAsDemo : allowedByRole;
+  }
+
+  if (!allowed) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/app/dashboard";
+    url.searchParams.set("error", "forbidden");
+    return redirectWithSession(url, supabaseResponse);
   }
 
   return supabaseResponse;

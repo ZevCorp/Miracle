@@ -5,12 +5,14 @@
 -- presentación, sin cambiar de usuario a mitad de la demo.
 --
 -- Cómo funciona (y por qué es seguro):
---   · La cuenta demo tiene rol `admin`, que por RLS ya lee toda SU organización
---     (consultas, pacientes, auditoría, reportes, usuarios). No se toca ninguna
---     política de RLS en esta migración.
---   · `is_demo` abre ÚNICAMENTE las puertas de INTERFAZ que el rol admin no
---     cruza: /app/consultas/nueva, /app/consultas/en-vivo, /app/laboratorio, el
---     catálogo de plantillas sin filtro de especialidad y los ítems de menú.
+--   · La cuenta demo tiene rol `admin`, que por RLS ya lee toda SU organización.
+--     No se toca ninguna política de RLS en esta migración.
+--   · `is_demo` ACOTA la INTERFAZ a la superficie de un médico: inicio,
+--     consultas (incluidas /nueva y /en-vivo), pacientes, notas y plantillas.
+--     Ver DEMO_SECTIONS en lib/auth/roles.ts. La demo se enseña a médicos, así
+--     que no muestra auditoría, reportes, usuarios ni configuración
+--     institucional, aunque su rol admin las alcanzaría.
+--     (Hasta 2026-08-08 el flag hacía lo contrario: destapaba secciones.)
 --   · NO otorga acceso a datos: la RLS sigue siendo la autoridad y sigue
 --     acotando todo a la organización del usuario. Una cuenta demo jamás ve
 --     datos de otra organización, tenga el flag o no.
@@ -26,7 +28,7 @@ alter table public.profiles
   add column if not exists is_demo boolean not null default false;
 
 comment on column public.profiles.is_demo is
-  'Cuenta de demostración comercial: abre secciones de INTERFAZ que el rol no alcanza. No otorga acceso a datos (la RLS sigue acotando por organización). Solo un superadmin puede asignarlo.';
+  'Cuenta de demostración comercial: acota la INTERFAZ a la superficie de un médico (inicio, consultas, pacientes, notas, plantillas), aunque el rol alcance más. No otorga acceso a datos (la RLS sigue acotando por organización). Solo un superadmin puede asignarlo.';
 
 -- Solo un superadmin puede activar o desactivar el flag ------------------------
 -- `auth.uid() is null` = la sentencia no viene de una sesión de usuario, sino de

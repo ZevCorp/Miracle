@@ -71,13 +71,32 @@ describe("canAccessPath · cuenta demo comercial", () => {
     }
   });
 
-  it("el flag demo no asciende a un médico a usuarios ni configuración", () => {
-    // La demo llega a esas secciones por su rol admin, no por el flag: un
-    // médico marcado como demo sigue sin poder administrar la organización.
-    expect(canAccessPath("medico", "/app/usuarios", true)).toBe(false);
-    expect(canAccessPath("medico", "/app/configuracion", true)).toBe(false);
-    expect(canAccessPath("medico", "/app/auditoria", true)).toBe(false);
-    expect(canAccessPath("medico", "/app/reportes", true)).toBe(false);
+  it("la demo ve la superficie del médico", () => {
+    for (const path of [
+      "/app/dashboard",
+      "/app/consultas",
+      "/app/consultas/abc-123",
+      "/app/pacientes",
+      "/app/notas",
+      "/app/plantillas",
+    ]) {
+      expect(canAccessPath("admin", path, true)).toBe(true);
+    }
+  });
+
+  it("la demo NO ve las secciones de administración ni patología", () => {
+    // El flag acota: aunque el rol admin las alcance, la demo se enseña a
+    // médicos y esas secciones son de un administrador de hospital.
+    for (const path of [
+      "/app/usuarios",
+      "/app/configuracion",
+      "/app/auditoria",
+      "/app/reportes",
+      "/app/laboratorio",
+    ]) {
+      expect(canAccessPath("admin", path, true)).toBe(false);
+      expect(canAccessPath("medico", path, true)).toBe(false);
+    }
   });
 
   it("sin el flag, el comportamiento no cambia", () => {

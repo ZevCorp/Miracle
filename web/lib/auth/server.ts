@@ -85,24 +85,21 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
   };
 }
 
-export async function requireRole(...allowedRoles: AppRole[]) {
-  const profile = await getCurrentProfile();
-  if (!profile || !allowedRoles.includes(profile.role)) {
-    redirect("/app/dashboard?error=forbidden");
-  }
-
-  return profile;
+/**
+ * Rol con el que se resuelven los permisos de interfaz.
+ *
+ * La cuenta de demostración comercial tiene rol `admin` en la base (lo necesita
+ * para que la RLS le deje leer las consultas de su organización demo), pero se
+ * presenta y se limita como médico: no entra a las secciones de administración
+ * y sí entra a crear y grabar consultas. Ver DEMO_SECTIONS en lib/auth/roles.ts.
+ */
+export function effectiveRole(profile: AuthenticatedProfile): AppRole {
+  return profile.isDemo ? "medico" : profile.role;
 }
 
-/**
- * Como requireRole, pero deja pasar también a la cuenta de demostración.
- * Se usa donde la demo debe entrar aunque su rol no corresponda (crear consulta
- * y grabarla en vivo, que son de `medico`). La RLS no cambia: la demo sigue
- * viendo solo su propia organización.
- */
-export async function requireRoleOrDemo(...allowedRoles: AppRole[]) {
+export async function requireRole(...allowedRoles: AppRole[]) {
   const profile = await getCurrentProfile();
-  if (!profile || (!allowedRoles.includes(profile.role) && !profile.isDemo)) {
+  if (!profile || !allowedRoles.includes(effectiveRole(profile))) {
     redirect("/app/dashboard?error=forbidden");
   }
 
