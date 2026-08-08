@@ -177,6 +177,32 @@ export function tonoSinFirmar(sinFirmar: number): "neutral" | "warning" | "dange
 }
 
 /**
+ * Suelo real de la completitud RIPS. NO es 0.
+ *
+ * `private.completitud_rips` reparte 5 puntos y dos de ellos —identificación y
+ * finalidad— los tiene toda nota por construcción. Así que una nota literalmente
+ * vacía puntúa 40, y el rango que de verdad se mueve es 40–100, no 0–100.
+ *
+ * Esto importa porque se lee mal por defecto: sobre los datos reales del piloto
+ * (322 notas en 30 días) el 90 % de las notas puntúa exactamente 60 y solo 5
+ * tienen un CIE-10 aceptado y 2 un CUPS. Es decir, hoy la completitud es casi
+ * una forma cara de decir "¿está firmada?", comprimida en la franja 40–100. Un
+ * "45 %" suelto se lee como "no documenta nada" cuando lo que dice es "casi
+ * ninguna de sus notas está firmada".
+ */
+export const COMPLETITUD_MINIMA = 40;
+
+/**
+ * Muestra mínima para que el promedio de un profesional signifique algo.
+ *
+ * Mismo criterio que BASE_MINIMA_COMPARACION y por la misma razón: con una o
+ * dos notas, un 100 % no dice que documente mejor que quien lleva 200 al 88 %,
+ * dice que hizo dos. El dato se sigue mostrando, pero atenuado y con el tamaño
+ * de la muestra a la vista, en vez de ordenar a la gente por ruido.
+ */
+export const MUESTRA_MINIMA_COMPLETITUD = 5;
+
+/**
  * Clasifica a un profesional según su actividad en el rango.
  *
  * Es el juicio que un administrador hace de un vistazo y la razón de ser de la

@@ -3,8 +3,11 @@ import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { formatFechaRelativa } from "@/lib/dates";
 import {
+  COMPLETITUD_MINIMA,
   ETIQUETA_ADOPCION,
+  MUESTRA_MINIMA_COMPLETITUD,
   estadoAdopcion,
+  tonoSinFirmar,
   type EstadoAdopcion,
   type MedicoActividad,
 } from "@/lib/hospital/dashboard";
@@ -22,11 +25,16 @@ import {
  * lista actividad los deja justamente fuera.
  */
 
+// "Nunca ha documentado" es un HECHO sobre la adopción, no una incidencia: en
+// una institución que arranca es la mitad del equipo, y en rojo entierra lo
+// único sobre lo que se puede actuar hoy —la cola de firma—, que quedaba pintada
+// más suave que cuatro filas en cero. El rojo se reserva para la cola cuando se
+// desborda (tonoSinFirmar).
 const TONO: Record<EstadoAdopcion, "success" | "warning" | "danger" | "neutral"> = {
   activo: "success",
   rezagado: "warning",
   sin_uso: "neutral",
-  nunca: "danger",
+  nunca: "warning",
 };
 
 export function AdoptionTable({
@@ -81,7 +89,11 @@ export function AdoptionTable({
               <Dato
                 etiqueta="Sin firmar"
                 valor={String(m.sin_firmar)}
-                tono={m.sin_firmar > 0 ? "warning" : undefined}
+                // El tono sale de tonoSinFirmar, que ya distinguía una cola
+                // desbordada (≥10) de un par de pendientes. Estaba exportado y
+                // sin usar: aquí se pintaba todo de naranja, así que 25 notas
+                // atrasadas y 1 se veían igual de graves.
+                tono={tonoSinFirmar(m.sin_firmar)}
               />
               <Dato
                 etiqueta="Completitud"
@@ -89,6 +101,14 @@ export function AdoptionTable({
                 // se leería como "documenta mal" cuando el hecho es que no
                 // documentó.
                 valor={m.consultas ? `${m.completitud}%` : "—"}
+                // Con menos de un puñado de notas el promedio es anécdota, no
+                // medida: se muestra atenuado y diciendo de cuántas sale.
+                atenuado={m.consultas > 0 && m.consultas < MUESTRA_MINIMA_COMPLETITUD}
+                titulo={
+                  m.consultas > 0 && m.consultas < MUESTRA_MINIMA_COMPLETITUD
+                    ? `Promedio de solo ${m.consultas} ${m.consultas === 1 ? "nota" : "notas"}`
+                    : undefined
+                }
               />
             </>
           );
@@ -110,11 +130,16 @@ export function AdoptionTable({
         })}
       </ul>
 
-      {ocultos > 0 ? (
-        <p className="mt-3 text-xs text-muted">
-          Se muestran {visibles.length} de {medicos.length} profesionales.
-        </p>
-      ) : null}
+      <p className="mt-3 text-xs text-muted">
+        {ocultos > 0
+          ? `Se muestran ${visibles.length} de ${medicos.length} profesionales. `
+          : null}
+        Las tres cifras son del periodo elegido, incluida la de sin firmar: la
+        cola completa de la institución está en «Notas por firmar», que cuenta
+        todo el histórico. La completitud RIPS parte de {COMPLETITUD_MINIMA}%
+        —toda nota trae identificación y finalidad—, así que el margen real de
+        mejora va de {COMPLETITUD_MINIMA}% a 100%.
+      </p>
     </div>
   );
 }
@@ -123,23 +148,30 @@ function Dato({
   etiqueta,
   valor,
   tono,
+  atenuado,
+  titulo,
 }: {
   etiqueta: string;
   valor: string;
-  tono?: "warning";
+  tono?: "neutral" | "warning" | "danger";
+  /** Dato con base insuficiente: se muestra, pero no compite visualmente. */
+  atenuado?: boolean;
+  titulo?: string;
 }) {
+  const color = atenuado
+    ? "text-muted"
+    : tono === "danger"
+      ? "text-danger"
+      : tono === "warning"
+        ? "text-warning"
+        : "text-deep";
+
   return (
-    <div className="text-right">
+    <div className="text-right" title={titulo}>
       {/* La etiqueta se repite por celda en móvil, donde no hay cabecera de
           tabla que dé contexto a un número suelto. */}
       <span className="mr-2 text-xs text-muted sm:hidden">{etiqueta}</span>
-      <span
-        className={`text-sm font-semibold tabular-nums ${
-          tono === "warning" ? "text-warning" : "text-deep"
-        }`}
-      >
-        {valor}
-      </span>
+      <span className={`text-sm font-semibold tabular-nums ${color}`}>{valor}</span>
     </div>
   );
 }
