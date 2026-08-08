@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { whatsappLink, SITE, WHATSAPP_BASE } from "@/lib/site";
+import { whatsappLink, visibleAppNav, SITE, WHATSAPP_BASE } from "@/lib/site";
 
 describe("whatsappLink", () => {
   it("arma el enlace con el mensaje codificado", () => {
@@ -14,6 +14,27 @@ describe("whatsappLink", () => {
 
   it("usa el número de WhatsApp del sitio", () => {
     expect(WHATSAPP_BASE).toContain(SITE.whatsappNumber);
+  });
+});
+
+describe("visibleAppNav · cuenta demo comercial", () => {
+  it("muestra el menú del médico, no el del administrador", () => {
+    const hrefs = visibleAppNav("admin", "medico_especialista", true).map(
+      (item) => item.href,
+    );
+    expect(hrefs).toEqual([
+      "/app/dashboard",
+      "/app/consultas",
+      "/app/pacientes",
+      "/app/notas",
+      "/app/plantillas",
+    ]);
+  });
+
+  it("un admin normal sigue viendo sus secciones", () => {
+    const hrefs = visibleAppNav("admin").map((item) => item.href);
+    expect(hrefs).toContain("/app/usuarios");
+    expect(hrefs).toContain("/app/reportes");
   });
 });
 

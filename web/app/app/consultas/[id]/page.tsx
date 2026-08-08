@@ -47,6 +47,7 @@ import {
   type NoteSection,
 } from "@/lib/mock";
 import { formatFechaRelativa } from "@/lib/dates";
+import { letterheadLines, responsableLabelDe } from "@/lib/hospital/org";
 import { searchCodes } from "@/lib/clinical/codes";
 import { auditConsultation } from "@/lib/clinical/note-audit";
 import { useStore, type ConsultationAddendum } from "@/app/app/providers";
@@ -110,6 +111,7 @@ export default function ConsultaDetallePage() {
     loading,
     ensureTranscript,
     role,
+    org,
   } = useStore();
   const [tab, setTab] = useState("historia");
   const [aiEditing, setAiEditing] = useState(false);
@@ -292,24 +294,48 @@ export default function ConsultaDetallePage() {
     }
     // Bloque final al estilo del sello que deja el sistema del hospital
     // ("Nota realizada por / Responsable / Identificación / Reg. Med. /
-    // Especialidad"). Anclado a cuentas: honorific/responsableLabel solo
-    // están cargados para los perfiles a los que se les dio ese dato real,
-    // así que en cualquier otra cuenta este bloque simplemente no aparece.
+    // Especialidad").
+    //
+    // La cédula, el registro médico y el honorífico son datos PERSONALES del
+    // profesional: no se pueden heredar de la institución, así que si el perfil
+    // no los tiene el bloque sigue sin aparecer. La etiqueta de responsable sí
+    // admite un valor institucional por defecto (Configuración) — era el único
+    // de los cuatro que dejaba el bloque fuera para casi todo el equipo.
+    const responsableLabel = responsableLabelDe(org, medicoIdentidad?.responsableLabel);
     const pieResponsable =
       medicoIdentidad?.honorific &&
-      medicoIdentidad?.responsableLabel &&
+      responsableLabel &&
       medicoIdentidad?.identificationNumber &&
       medicoIdentidad?.professionalRegistration
         ? `<div class="foot-responsable">
             <p>Nota realizada por: ${esc(medicoIdentidad.honorific)}. ${esc(
               medicoNombre ?? "",
-            )} Empresa: Hospital General de Medellín Fecha y hora: ${esc(
-              formatFechaResponsable(c!.fecha),
-            )}</p>
-            <p><strong>Responsable:</strong> ${esc(medicoIdentidad.responsableLabel)}</p>
+            )}${
+              // El nombre de la institución viene de Configuración. Antes esta
+              // línea decía "Hospital General de Medellín" literalmente, así que
+              // CUALQUIER institución imprimía sus notas con ese nombre.
+              org.name ? ` Empresa: ${esc(org.name)}` : ""
+            } Fecha y hora: ${esc(formatFechaResponsable(c!.fecha))}</p>
+            <p><strong>Responsable:</strong> ${esc(responsableLabel)}</p>
             <p><strong>Identificación:</strong> CC${esc(medicoIdentidad.identificationNumber)}</p>
             <p><strong>Reg. Med.:</strong> ${esc(medicoIdentidad.professionalRegistration)}</p>
             <p><strong>Especialidad:</strong> ${esc(sinTildes(c!.especialidad).toUpperCase())}</p>
+          </div>`
+        : "";
+
+    // Encabezado institucional. Hasta ahora el documento no llevaba ningún dato
+    // de la institución: el único texto institucional era el nombre de Miracle
+    // en el pie, en un papel que se archiva en la historia clínica.
+    const lineasEncabezado = letterheadLines(org);
+    const membrete =
+      org.name || lineasEncabezado.length
+        ? `<div class="membrete">
+            ${org.name ? `<p class="membrete-nombre">${esc(org.name)}</p>` : ""}
+            ${
+              lineasEncabezado.length
+                ? `<p class="membrete-datos">${lineasEncabezado.map(esc).join(" · ")}</p>`
+                : ""
+            }
           </div>`
         : "";
     const aceptados = c!.codigos.filter((k) => k.estado === "aceptado");
@@ -345,6 +371,9 @@ export default function ConsultaDetallePage() {
       .foot-responsable{margin-top:14px;font-size:12px;color:#0e1726}
       .foot-responsable p{margin:3px 0}
       .foot-responsable strong{display:inline-block;min-width:100px}
+      .membrete{margin-bottom:14px}
+      .membrete-nombre{margin:0;font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:#0c1424}
+      .membrete-datos{margin:2px 0 0;font-size:11px;color:#64748b}
       @media print{body{margin:18mm}}
     </style></head><body>
       ${
@@ -352,6 +381,7 @@ export default function ConsultaDetallePage() {
           ? `<div style="border:2px solid #a34a06;background:#fdeecf;color:#7c3a05;padding:8px 12px;margin-bottom:14px;font-weight:700;font-size:13px">DOCUMENTO DE DEMOSTRACIÓN — generado a partir de una conversación simulada. No válido como historia clínica.</div>`
           : ""
       }
+      ${membrete}
       <div class="head">
         <h1>${esc(patient?.nombre ?? "Paciente sin identificar")}</h1>
         <div class="grid">
@@ -396,7 +426,11 @@ export default function ConsultaDetallePage() {
               .join("")}<p class="muted">Adenda a nota firmada — no modifica el documento original.</p>`
           : ""
       }
-      <p class="foot">Documento generado con asistencia de IA y revisado por el profesional de salud. Miracle · Inteligencia clínica-operativa.</p>
+      <p class="foot">${
+        // El documento es de la institución, no del proveedor: su nombre va
+        // primero y Miracle queda como la herramienta con la que se generó.
+        org.name ? `${esc(org.name)} · ` : ""
+      }Documento generado con asistencia de IA y revisado por el profesional de salud. Generado con Miracle.</p>
       ${pieResponsable}
     </body></html>`);
     w.document.close();

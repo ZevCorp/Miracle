@@ -162,5 +162,6 @@
   "160": "TrendChart.tsx",
   "161": "DailyTrend.tsx",
   "162": "codes.ts",
-  "163": "20260808000000_superadmin_dashboard_serie_medicos.sql"
+  "163": "20260808000000_superadmin_dashboard_serie_medicos.sql",
+  "164": "public.profiles"
 }

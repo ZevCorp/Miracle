@@ -3,6 +3,12 @@ import { ClipboardList, Plus } from "lucide-react";
 import { STATUS_LABEL, type ConsultationStatus, type ConsultationType } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/auth/server";
+import {
+  ORG_SETTINGS_COLUMNS,
+  rowToOrgSettings,
+  serviciosDe,
+  type OrgSettingsRow,
+} from "@/lib/hospital/org";
 import { ConsultationCard } from "@/components/app/ConsultationCard";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Pager } from "@/components/app/Pager";
@@ -69,11 +75,29 @@ export default async function ConsultasPage({
   const supabase = await createClient();
   const profile = await getCurrentProfile();
 
-  // La secretaría solo ve a los médicos que le hayan asignado en
-  // secretary_doctor_access (acotado también por RLS del lado del servidor).
+  // Servicios de la institución (Configuración institucional). Sin configurar,
+  // `serviciosDe` cae a la lista por defecto de la app.
+  const { data: orgRow } = await supabase
+    .from("organizations")
+    .select(ORG_SETTINGS_COLUMNS)
+    .maybeSingle();
+  const servicios = serviciosDe(rowToOrgSettings((orgRow ?? null) as OrgSettingsRow | null));
+
+  // Lista de médicos para el filtro. Quién puede aparecer depende del rol:
+  //
+  //  · secretaría → solo los médicos que le asignaron en
+  //    secretary_doctor_access (acotado también por RLS del lado del servidor).
+  //  · admin / supervisor → todo el equipo que documenta en su organización.
+  //    Es lo que hace navegable la tabla de adopción del panel institucional:
+  //    "este médico acumula 25 notas sin firmar" → ver exactamente cuáles.
+  //
+  // Un médico no recibe lista: por RLS solo ve sus propias consultas, así que
+  // el selector no tendría nada que filtrar.
   let doctors: DoctorOption[] = [];
   let medicoFilter = "todos";
-  if (profile?.role === "secretaria") {
+  const esSecretaria = profile?.role === "secretaria";
+
+  if (esSecretaria) {
     const { data: accesos } = await supabase
       .from("secretary_doctor_access")
       .select("medico_id, profiles!secretary_doctor_access_medico_id_fkey(full_name, email)")
@@ -82,8 +106,22 @@ export default async function ConsultasPage({
       const p = Array.isArray(a.profiles) ? a.profiles[0] : a.profiles;
       return { id: a.medico_id, label: p?.full_name || p?.email || "Médico" };
     });
-    if (medico && doctors.some((d) => d.id === medico)) medicoFilter = medico;
+  } else if (profile?.role === "admin" || profile?.role === "supervisor") {
+    const { data: equipo } = await supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("role", ["medico", "supervisor"])
+      .order("full_name", { ascending: true });
+    doctors = (equipo ?? []).map((p) => ({
+      id: p.id,
+      label: p.full_name || p.email || "Médico",
+    }));
   }
+
+  // El id llega por URL: se valida contra la lista permitida en vez de pasarlo
+  // al `.eq()` tal cual. La RLS ya impediría leer fuera de la organización,
+  // pero así un id ajeno devuelve "todas" en vez de una lista vacía inexplicable.
+  if (medico && doctors.some((d) => d.id === medico)) medicoFilter = medico;
 
   let query = supabase
     .from("consultations")
@@ -140,6 +178,8 @@ export default async function ConsultasPage({
         estado={estadoFilter}
         doctors={doctors}
         initialMedico={medicoFilter}
+        showServicio={!esSecretaria}
+        servicios={servicios}
       />
 
       <div className="mt-4 flex flex-wrap gap-2" aria-label="Filtrar por estado">

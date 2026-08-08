@@ -42,6 +42,7 @@ import { EncounterAuditPanel } from "@/components/app/EncounterAuditPanel";
 import { PlanDischargePanel } from "@/components/app/PlanDischargePanel";
 import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker";
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
+import { servicioPorDefecto } from "@/lib/hospital/org";
 import { reviewGeneratedNote } from "@/lib/clinical/note-review";
 import { buildRedactor } from "@/lib/privacy/redact";
 import { createClient } from "@/lib/supabase/client";
@@ -118,6 +119,7 @@ function ConsultaActivaInner() {
     getConsultation,
     upsertConsultation,
     showToast,
+    org,
   } = useStore();
   const [associatedPatientId, setAssociatedPatientId] = useState(pacienteId || null);
   const [patientAssociationOpen, setPatientAssociationOpen] = useState(false);
@@ -467,6 +469,7 @@ function ConsultaActivaInner() {
             note: rehydratedNote,
             patient,
             transcript: transcriptDraft,
+            servicio: servicioPorDefecto(org),
             now: new Date().toISOString(),
           }),
         );

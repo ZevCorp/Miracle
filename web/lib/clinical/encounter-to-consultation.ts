@@ -78,6 +78,15 @@ export interface EncounterToConsultationInput {
   patient?: Patient;
   /** Transcripción verbatim (texto plano). Se espeja para verla en el detalle. */
   transcript?: string;
+  /**
+   * Servicio de la institución con el que nace la consulta.
+   *
+   * Se pasa desde fuera (Configuración institucional) en vez de fijarlo aquí:
+   * cuando era la constante "Consulta externa" escrita en esta función, TODAS
+   * las consultas de la base quedaron con ese servicio, y los reportes por
+   * servicio mostraban una sola barra para cualquier institución.
+   */
+  servicio?: string;
   /** ISO string; se pasa para mantener la función pura y testeable. */
   now: string;
 }
@@ -91,13 +100,15 @@ export interface EncounterToConsultationInput {
 export function encounterToConsultation(
   input: EncounterToConsultationInput,
 ): Consultation {
-  const { encounter, note, patient, transcript, now } = input;
+  const { encounter, note, patient, transcript, servicio, now } = input;
   const snapshot = encounter.template_snapshot;
   return {
     id: encounter.id,
     pacienteId: patient?.id ?? "",
     medicoId: "",
-    servicio: "Consulta externa",
+    // Sin ajuste institucional se mantiene el valor histórico, para que nada
+    // cambie en una organización que no haya entrado a Configuración.
+    servicio: servicio?.trim() || "Consulta externa",
     especialidad: specialtyDisplayName(snapshot?.specialty),
     tipo: toStoreConsultationType(encounter.consultation_type),
     estado: "borrador",

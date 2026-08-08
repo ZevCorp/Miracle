@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/Card";
 import { MetricCard } from "@/components/marketing/MetricCard";
 import { StatusBadge } from "@/components/app/StatusBadge";
 import { AuditFindingList, AuditSeverityBadge } from "@/components/app/AuditFindings";
+import { AppPage, AppPageHeader } from "@/components/app/AppPage";
 
 const POR_REVISAR_LIMIT = 24;
 
@@ -96,12 +97,12 @@ export default async function AuditoriaPage() {
     .sort((a, b) => a.report.puntaje - b.report.puntaje);
 
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-deep">Auditoría y calidad</h1>
-      <p className="text-sm text-muted">
-        Revisión de completitud, codificación y trazabilidad. Cada nota indica qué
-        se puede mejorar antes de firmar.
-      </p>
+    <AppPage>
+      <AppPageHeader
+        kicker="Institución"
+        title="Auditoría y calidad"
+        description="Revisión de completitud, codificación y trazabilidad. Cada nota indica qué se puede mejorar antes de firmar."
+      />
 
       <div className="mt-6 grid gap-5 sm:grid-cols-3">
         <MetricCard
@@ -205,6 +206,6 @@ export default async function AuditoriaPage() {
           </Link>
         </Card>
       </div>
-    </div>
+    </AppPage>
   );
 }

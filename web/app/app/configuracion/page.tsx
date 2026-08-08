@@ -1,13 +1,15 @@
 import { requireRole } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 import { FlashBanner } from "@/components/superadmin/FlashBanner";
+import { AppPage, AppPageHeader } from "@/components/app/AppPage";
+import {
+  ORG_SETTINGS_COLUMNS,
+  rowToOrgSettings,
+  type OrgSettingsRow,
+} from "@/lib/hospital/org";
 import { ConfiguracionForm } from "./ConfiguracionForm";
 
-type OrgRow = {
-  name: string | null;
-  nit: string | null;
-  use_hospital_templates: boolean | null;
-};
+export const metadata = { title: "Configuración institucional" };
 
 export default async function ConfiguracionPage({
   searchParams,
@@ -20,28 +22,24 @@ export default async function ConfiguracionPage({
   const supabase = await createClient();
   const { data } = await supabase
     .from("organizations")
-    .select("name, nit, use_hospital_templates")
+    .select(ORG_SETTINGS_COLUMNS)
     .eq("id", profile.organizationId ?? "")
     .maybeSingle();
-  const org = (data ?? null) as OrgRow | null;
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="text-2xl font-semibold text-deep">Configuración institucional</h1>
-      <p className="text-sm text-muted">
-        Ajustes de la institución, consentimiento, formatos e integraciones.
-      </p>
+    <AppPage className="mx-auto max-w-3xl">
+      <AppPageHeader
+        kicker="Institución"
+        title="Configuración institucional"
+        description="Los datos que encabezan los documentos de tus médicos y los valores que la institución rellena por ellos."
+      />
 
       <div className="mt-6 space-y-5">
         <FlashBanner ok={ok} error={error} />
         <ConfiguracionForm
-          initial={{
-            name: org?.name ?? "",
-            nit: org?.nit ?? "",
-            useHospitalTemplates: org?.use_hospital_templates ?? true,
-          }}
+          initial={rowToOrgSettings((data ?? null) as OrgSettingsRow | null)}
         />
       </div>
-    </div>
+    </AppPage>
   );
 }

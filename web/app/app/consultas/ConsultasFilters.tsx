@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
-import { SERVICIOS } from "@/lib/mock";
 
 export type DoctorOption = { id: string; label: string };
 
-/** Búsqueda por motivo + filtro de servicio (+ médico para la secretaría).
+/** Búsqueda por motivo + filtro de servicio y de médico.
  *  Empujan `?q=`/`?servicio=`/`?medico=` a la URL (preservando el chip de
  *  estado) para que la página RSC re-consulte. */
 export function ConsultasFilters({
@@ -16,12 +15,19 @@ export function ConsultasFilters({
   estado,
   doctors = [],
   initialMedico = "todos",
+  showServicio = true,
+  servicios,
 }: {
   initialQuery: string;
   initialServicio: string;
   estado: string;
   doctors?: DoctorOption[];
   initialMedico?: string;
+  /** La secretaría filtra por médico y no por servicio: su vista ya está
+   *  acotada a los médicos que le asignaron, y el servicio no le aporta. */
+  showServicio?: boolean;
+  /** Servicios de la institución (Configuración). Los resuelve la página. */
+  servicios: string[];
 }) {
   const router = useRouter();
   const [q, setQ] = useState(initialQuery);
@@ -79,9 +85,7 @@ export function ConsultasFilters({
           ))}
         </select>
       ) : null}
-      {/* La secretaría filtra por médico, no por servicio: este selector solo
-          aplica cuando no hay lista de médicos (cualquier otro rol). */}
-      {doctors.length ? null : (
+      {showServicio ? (
         <select
           value={servicio}
           onChange={(e) => {
@@ -91,13 +95,13 @@ export function ConsultasFilters({
           className="clinical-control px-3 text-sm outline-none lg:min-w-52"
         >
           <option value="todos">Todos los servicios</option>
-          {SERVICIOS.map((s) => (
+          {servicios.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
           ))}
         </select>
-      )}
+      ) : null}
     </div>
   );
 }

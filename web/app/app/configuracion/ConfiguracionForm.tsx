@@ -1,28 +1,48 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Link2, Lock } from "lucide-react";
-import { useStore } from "@/app/app/providers";
+import { Check, FileText, Lock, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { SERVICIOS } from "@/lib/mock";
+import { letterheadLines, type OrgSettings } from "@/lib/hospital/org";
 import { updateOrgSettings } from "./actions";
 
 const inputClass =
   "w-full rounded-md border border-line bg-field px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent";
 
-export function ConfiguracionForm({
-  initial,
-}: {
-  initial: {
-    name: string;
-    nit: string;
-    useHospitalTemplates: boolean;
-  };
-}) {
-  const { showToast } = useStore();
+/**
+ * Configuración institucional.
+ *
+ * Criterio de lo que se puede ajustar aquí: cosas que le AHORRAN trabajo al
+ * médico (que su nota salga con el membrete correcto sin que él escriba nada) o
+ * que la institución necesita por norma. Nada que limite su juicio clínico —
+ * ni plantillas obligatorias, ni visto bueno para firmar, ni cuotas.
+ *
+ * Los campos del encabezado se editan con vista previa en vivo: es el documento
+ * que termina en la historia clínica del paciente, y escribir a ciegas un dato
+ * que se imprime en un papel legal es pedir un error.
+ */
+export function ConfiguracionForm({ initial }: { initial: OrgSettings }) {
   const [useHospitalTemplates, setUseHospitalTemplates] = useState(
     initial.useHospitalTemplates,
   );
+
+  // Estado local solo de lo que alimenta la vista previa del membrete.
+  const [name, setName] = useState(initial.name);
+  const [nit, setNit] = useState(initial.nit ?? "");
+  const [address, setAddress] = useState(initial.address ?? "");
+  const [city, setCity] = useState(initial.city ?? "");
+  const [phone, setPhone] = useState(initial.phone ?? "");
+
+  const preview = letterheadLines({
+    ...initial,
+    name,
+    nit: nit.trim() || null,
+    address: address.trim() || null,
+    city: city.trim() || null,
+    phone: phone.trim() || null,
+  });
 
   return (
     <form action={updateOrgSettings} className="space-y-5">
@@ -34,27 +54,117 @@ export function ConfiguracionForm({
       />
 
       <Card>
-        <h2 className="font-display text-base font-semibold text-deep">Institución</h2>
+        <h2 className="font-display text-base font-semibold text-deep">
+          Identidad de la institución
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Estos datos encabezan la nota clínica y el informe de patología que
+          imprimen tus médicos.
+        </p>
+
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-deep">Nombre</label>
-            <input name="name" required defaultValue={initial.name} className={inputClass} />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-deep">NIT</label>
-            <input name="nit" defaultValue={initial.nit} className={inputClass} />
-          </div>
+          <Campo label="Nombre" hint="Como debe aparecer en el documento">
+            <input
+              name="name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputClass}
+            />
+          </Campo>
+          <Campo label="NIT">
+            <input
+              name="nit"
+              value={nit}
+              onChange={(e) => setNit(e.target.value)}
+              placeholder="890900000-1"
+              className={inputClass}
+            />
+          </Campo>
+          <Campo label="Dirección">
+            <input
+              name="address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Calle 10 #40-20"
+              className={inputClass}
+            />
+          </Campo>
+          <Campo label="Ciudad">
+            <input
+              name="city"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Medellín"
+              className={inputClass}
+            />
+          </Campo>
+          <Campo label="Teléfono">
+            <input
+              name="phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="604 000 0000"
+              className={inputClass}
+            />
+          </Campo>
+        </div>
+
+        {/* Vista previa: exactamente las líneas que imprime letterheadLines(). */}
+        <div className="mt-5 rounded-md border border-line bg-pearl p-4">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+            <FileText size={13} /> Así encabeza el documento
+          </p>
+          <p className="text-[13px] font-bold uppercase tracking-wide text-deep">
+            {name.trim() || "Nombre de la institución"}
+          </p>
+          {preview.length ? (
+            <p className="mt-0.5 text-xs text-muted">{preview.join(" · ")}</p>
+          ) : (
+            <p className="mt-0.5 text-xs text-muted">
+              Completa NIT, dirección o teléfono para que aparezcan aquí.
+            </p>
+          )}
         </div>
       </Card>
 
       <Card>
         <h2 className="font-display text-base font-semibold text-deep">
-          Plantillas
+          Valores por defecto
         </h2>
+        <p className="mt-1 text-sm text-muted">
+          Lo que la institución rellena por el médico para que él no tenga que
+          hacerlo en cada consulta.
+        </p>
+
         <div className="mt-4 space-y-4">
+          <Campo
+            label="Servicios de la institución"
+            hint="Separados por coma. El primero es el que traen las consultas nuevas. Vacío = usar la lista estándar."
+          >
+            <input
+              name="servicios"
+              defaultValue={(initial.servicios ?? []).join(", ")}
+              placeholder={SERVICIOS.join(", ")}
+              className={inputClass}
+            />
+          </Campo>
+
+          <Campo
+            label="Etiqueta de responsable"
+            hint="Aparece en el bloque de firma de la nota impresa. Si un profesional tiene su propio cargo cargado, manda el suyo."
+          >
+            <input
+              name="default_responsable_label"
+              defaultValue={initial.defaultResponsableLabel ?? ""}
+              placeholder="Médico tratante"
+              className={inputClass}
+            />
+          </Campo>
+
           <SettingRow
             title="Usar formatos internos del hospital"
-            desc="Priorizar las plantillas propias de la institución."
+            desc="Prioriza las plantillas propias de la institución sobre las de Miracle."
           >
             <Toggle
               checked={useHospitalTemplates}
@@ -65,40 +175,36 @@ export function ConfiguracionForm({
         </div>
       </Card>
 
+      {/* Esto NO son ajustes: son propiedades del producto que el admin no puede
+          cambiar. Van aparte y sin controles, para que la pantalla no aparente
+          ofrecer una decisión que no existe. Antes vivían en una tarjeta
+          "Seguridad" junto a los toggles reales, con un candado por control. */}
       <Card>
-        <h2 className="font-display text-base font-semibold text-deep">Integraciones</h2>
-        <div className="mt-4 space-y-3">
-          <IntegrationRow
-            name="Sistema de historia clínica (HIS/HCE)"
-            status="no"
-            onConnect={() =>
-              showToast("La conexión con el HIS se habilita durante el piloto.", "info")
-            }
-          />
-          <IntegrationRow name="Exportación a PDF" status="ok" />
-          <IntegrationRow name="Copiar al portapapeles" status="ok" />
-        </div>
+        <h2 className="flex items-center gap-2 font-display text-base font-semibold text-deep">
+          <ShieldCheck size={17} className="text-success" /> Garantías del producto
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          No se configuran: aplican siempre, en todas las instituciones.
+        </p>
+        <ul className="mt-4 space-y-2.5">
+          <Garantia texto="Los datos de la institución no se usan para entrenar modelos." />
+          <Garantia texto="Toda nota requiere revisión y aprobación de un profesional antes de firmarse." />
+          <Garantia texto="Cada acción sobre una nota queda registrada en la auditoría." />
+        </ul>
       </Card>
 
       <Card>
-        <h2 className="font-display text-base font-semibold text-deep">Seguridad</h2>
-        <div className="mt-4 space-y-4">
-          <SettingRow
-            title="No entrenar modelos con datos de la institución"
-            desc="Principio de diseño del producto."
-          >
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success">
-              <Lock size={14} /> Activado
-            </span>
-          </SettingRow>
-          <SettingRow
-            title="Revisión humana obligatoria"
-            desc="Toda nota requiere aprobación médica."
-          >
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success">
-              <Lock size={14} /> Activado
-            </span>
-          </SettingRow>
+        <h2 className="font-display text-base font-semibold text-deep">Integraciones</h2>
+        <div className="mt-4 space-y-3">
+          <IntegrationRow name="Exportación a PDF" estado="activa" />
+          <IntegrationRow name="Copiar nota al portapapeles" estado="activa" />
+          {/* Antes esta fila tenía un botón "Conectar" que solo mostraba un
+              toast diciendo que se habilita en el piloto. Un botón que no
+              conecta nada no debería existir. */}
+          <IntegrationRow
+            name="Sistema de historia clínica (HIS/HCE)"
+            estado="piloto"
+          />
         </div>
       </Card>
 
@@ -111,6 +217,33 @@ export function ConfiguracionForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function Campo({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-sm font-medium text-deep">{label}</label>
+      {children}
+      {hint ? <p className="mt-1 text-xs text-muted">{hint}</p> : null}
+    </div>
+  );
+}
+
+function Garantia({ texto }: { texto: string }) {
+  return (
+    <li className="flex items-start gap-2.5 text-sm text-ink-soft">
+      <Lock size={14} className="mt-0.5 shrink-0 text-success" />
+      <span>{texto}</span>
+    </li>
   );
 }
 
@@ -156,7 +289,7 @@ function SettingRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex items-center justify-between gap-4 border-t border-line pt-4">
       <div>
         <div className="text-sm font-medium text-deep">{title}</div>
         <div className="text-xs text-muted">{desc}</div>
@@ -168,31 +301,18 @@ function SettingRow({
 
 function IntegrationRow({
   name,
-  status,
-  onConnect,
+  estado,
 }: {
   name: string;
-  status: "ok" | "no";
-  onConnect?: () => void;
+  estado: "activa" | "piloto";
 }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-md border border-line px-4 py-3">
-      <div className="flex items-center gap-3">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-ice text-accent">
-          <Link2 size={16} />
-        </span>
-        <span className="text-sm font-medium text-deep">{name}</span>
-      </div>
-      {status === "ok" ? (
-        <Badge tone="success">Activo</Badge>
+      <span className="text-sm font-medium text-deep">{name}</span>
+      {estado === "activa" ? (
+        <Badge tone="success">Activa</Badge>
       ) : (
-        <button
-          type="button"
-          onClick={onConnect}
-          className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-deep hover:border-mist"
-        >
-          Conectar
-        </button>
+        <span className="text-xs text-muted">Se habilita durante el piloto</span>
       )}
     </div>
   );

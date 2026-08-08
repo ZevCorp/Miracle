@@ -2,14 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
+  AlertTriangle,
   ArrowRight,
   BarChart3,
   CheckCircle2,
   ChevronRight,
+  ClipboardList,
+  FileSignature,
   FileText,
   Mic,
+  Stethoscope,
+  Users,
 } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import {
@@ -19,11 +24,25 @@ import {
 } from "@/lib/mock";
 import { esDeHoy } from "@/lib/dates";
 import { isDemoConsultation } from "@/lib/demo";
+import { createClient } from "@/lib/supabase/client";
+import {
+  comparacion,
+  comparacionPorcentaje,
+  DASHBOARD_VACIO,
+  etiquetaEstado,
+  fetchHospitalDashboard,
+  type HospitalDashboard,
+} from "@/lib/hospital/dashboard";
+import { etiquetaPeriodoAnterior, resolverRango } from "@/lib/superadmin/rango";
 import { Card } from "@/components/ui/Card";
 import { MetricCard } from "@/components/marketing/MetricCard";
 import { AgendaHoy } from "@/components/app/AgendaHoy";
 import { ConsultationCard } from "@/components/app/ConsultationCard";
-import { BarList, MiniLine } from "@/components/app/Charts";
+import { BarList } from "@/components/app/Charts";
+import { DailyTrend } from "@/components/app/DailyTrend";
+import { AdoptionTable, AdoptionFooterLink } from "@/components/app/AdoptionTable";
+import { StatTile } from "@/components/superadmin/charts/StatTile";
+import { RangePicker } from "@/components/superadmin/RangePicker";
 import {
   AppPage,
   AppPageHeader,
@@ -33,6 +52,7 @@ import {
 export default function DashboardPage() {
   const router = useRouter();
   const { consultations, role, isDemo, loading } = useStore();
+  const searchParams = useSearchParams();
 
   // La cuenta demo siempre abre en el panel del médico, que es lo que se
   // muestra al vender. Su rol admin solo le sirve para alcanzar las demás
@@ -59,10 +79,42 @@ export default function DashboardPage() {
 
   if (loading || role === "secretaria") return <DashboardSkeleton />;
 
-  if (viewRole === "admin") return <AdminView />;
-  if (viewRole === "supervisor")
-    return <SupervisorView consultations={reales} pendientes={pendientes} />;
-  return <MedicoView hoy={hoy} pendientes={pendientes} consultations={reales} />;
+  // El proxy rebota aquí a quien abre una sección que su rol no alcanza
+  // (proxy.ts) con ?error=forbidden. Hasta ahora ese parámetro solo tenía
+  // mensaje en /login, así que el usuario aterrizaba en el panel sin ninguna
+  // explicación de por qué se le movió la pantalla.
+  const rebotado = searchParams.get("error") === "forbidden";
+
+  return (
+    <>
+      {rebotado ? <ForbiddenNotice /> : null}
+      {viewRole === "admin" ? (
+        <AdminView />
+      ) : viewRole === "supervisor" ? (
+        <SupervisorView consultations={reales} pendientes={pendientes} />
+      ) : (
+        <MedicoView hoy={hoy} pendientes={pendientes} consultations={reales} />
+      )}
+    </>
+  );
+}
+
+/** Aviso del rebote por permisos. Va sobre el panel, no lo reemplaza. */
+function ForbiddenNotice() {
+  return (
+    <div className="app-page pb-0">
+      <div
+        role="status"
+        className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning"
+      >
+        <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+        <span>
+          Tu cuenta no tiene permiso para abrir esa sección, así que te trajimos
+          a tu panel.
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function DashboardSkeleton() {
@@ -267,125 +319,236 @@ function SupervisorView({
 /* ============================ ADMIN ============================ */
 
 function AdminView() {
-  const { consultations } = useStore();
+  const searchParams = useSearchParams();
+  const supabase = useMemo(() => createClient(), []);
 
-  // Métricas calculadas desde las consultas REALES de la organización (RLS),
-  // excluyendo las de demostración. Reflejan la actividad reciente cargada
-  // (la carga del store está acotada), no cifras inventadas.
-  const reales = useMemo(
-    () => consultations.filter((c) => !isDemoConsultation(c)),
-    [consultations],
+  // El periodo vive en la URL (?rango=7|30|90|365 o ?rango=custom&desde&hasta),
+  // igual que en la consola de plataforma: así el enlace se puede compartir y
+  // sobrevive a un refresco. Una URL inválida cae al rango por defecto.
+  const rango = useMemo(
+    () =>
+      resolverRango({
+        rango: searchParams.get("rango") ?? undefined,
+        desde: searchParams.get("desde") ?? undefined,
+        hasta: searchParams.get("hasta") ?? undefined,
+      }),
+    [searchParams],
   );
 
-  const notasGeneradas = reales.length;
-  const medicosActivos = useMemo(
-    () => new Set(reales.map((c) => c.medicoId).filter(Boolean)).size,
-    [reales],
-  );
-  const pacientesAtendidos = useMemo(
-    () => new Set(reales.map((c) => c.pacienteId).filter(Boolean)).size,
-    [reales],
-  );
-  const completitudProm = useMemo(() => {
-    if (!reales.length) return 0;
-    const suma = reales.reduce((acc, c) => acc + completitud(c), 0);
-    return Math.round(suma / reales.length);
-  }, [reales]);
+  // El resultado se guarda junto a la ventana que lo produjo. Así "cargando" no
+  // es una bandera aparte que haya que recordar bajar, sino simplemente que lo
+  // que hay en memoria no corresponde al rango pedido — y de paso se evita
+  // mostrar las cifras del periodo anterior mientras llega el nuevo.
+  const clave = `${rango.desde}:${rango.hasta}`;
+  const [cargado, setCargado] = useState<{
+    clave: string;
+    data: HospitalDashboard;
+    error: string | null;
+  } | null>(null);
 
-  const porSemana = useMemo(() => weeklyCounts(reales), [reales]);
-  const porServicio = useMemo(() => countByService(reales), [reales]);
+  // Las cifras se calculan en la base (RPC hospital_dashboard), no sobre el
+  // store: el store está capado a 300 consultas y por encima de ese número los
+  // totales del panel se congelaban sin avisar.
+  useEffect(() => {
+    let vigente = true;
+    void fetchHospitalDashboard(supabase, rango).then((res) => {
+      if (!vigente) return;
+      setCargado({ clave, data: res.data, error: res.error });
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [supabase, rango, clave]);
+
+  const alDia = cargado?.clave === clave;
+  const cargando = !alDia;
+  const data = alDia ? cargado.data : DASHBOARD_VACIO;
+  const error = alDia ? cargado.error : null;
+
+  const { kpis } = data;
+  const spark = data.serie_diaria.map((d) => d.consultas);
+  const previo = etiquetaPeriodoAnterior(rango);
+  const sinHistorico = !cargando && kpis.total_historico.value === 0;
 
   return (
     <AppPage>
       <AppPageHeader
         kicker="Institución"
         title="Actividad clínica"
-        description="Volumen y calidad documental de las consultas recientes."
+        description={
+          sinHistorico
+            ? "Volumen y calidad documental de tu institución."
+            : `${kpis.total_historico.value.toLocaleString("es-CO")} notas en total · ${rango.etiqueta.toLowerCase()} en pantalla`
+        }
+        action={<RangePicker basePath="/app/dashboard" rango={rango} />}
       />
 
-      {notasGeneradas === 0 ? (
+      {error ? (
+        <div className="mt-5 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <span>No fue posible calcular las métricas: {error}</span>
+        </div>
+      ) : null}
+
+      {sinHistorico ? (
         <div className="mt-6 rounded-lg border border-dashed border-line bg-surface p-8 text-center">
           <p className="font-semibold text-deep">Aún no hay consultas registradas</p>
           <p className="mt-1 text-sm text-muted">
             Cuando el equipo genere notas, aquí verás la actividad de la
             institución.
           </p>
+          <Link
+            href="/app/usuarios"
+            className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-accent hover:underline"
+          >
+            Registrar profesionales <ArrowRight size={14} />
+          </Link>
         </div>
+      ) : cargando ? (
+        <AdminSkeleton />
       ) : (
         <>
           <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <MetricCard value={String(notasGeneradas)} label="Notas registradas" hint="Consultas recientes" />
-            <MetricCard value={String(medicosActivos)} label="Médicos con actividad" hint="Generaron notas" />
-            <MetricCard value={String(pacientesAtendidos)} label="Pacientes atendidos" hint="Identificados" />
-            <MetricCard value={`${completitudProm}%`} label="Completitud documental" hint="Promedio de la organización" />
+            <StatTile
+              label="Notas del periodo"
+              value={kpis.consultas.value.toLocaleString("es-CO")}
+              spark={spark}
+              icon={ClipboardList}
+              {...comparacion(kpis.consultas, previo)}
+            />
+            <StatTile
+              label="Profesionales activos"
+              value={kpis.medicos_activos.value}
+              icon={Stethoscope}
+              {...comparacion(kpis.medicos_activos, previo)}
+              footnote={`de ${data.por_medico.length} registrados`}
+            />
+            <StatTile
+              label="Pacientes atendidos"
+              value={kpis.pacientes.value.toLocaleString("es-CO")}
+              icon={Users}
+              {...comparacion(kpis.pacientes, previo)}
+            />
+            <StatTile
+              label="Completitud documental"
+              value={kpis.completitud.value}
+              suffix="%"
+              icon={FileSignature}
+              {...comparacionPorcentaje(kpis.completitud)}
+            />
           </div>
-          <div className="mt-8 grid gap-5 lg:grid-cols-2">
-            <Card>
-              <h2 className="mb-4 text-base font-semibold text-deep">
-                Notas por semana
-              </h2>
-              <MiniLine points={porSemana} height={90} />
-            </Card>
+
+          {/* La cola de firma no es una tarjeta más: es lo único de esta
+              pantalla sobre lo que se puede actuar hoy, y se mide sobre todo el
+              histórico (una nota sin firmar de hace tres meses sigue pendiente
+              aunque el rango sea de 7 días). */}
+          {kpis.por_firmar.value > 0 ? (
+            <Link
+              href="/app/auditoria"
+              className="mt-5 flex items-center justify-between gap-4 rounded-[14px] border border-warning/40 bg-warning-soft px-5 py-4 hover:border-warning"
+            >
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="mt-0.5 shrink-0 text-warning" />
+                <div>
+                  <p className="font-semibold text-deep">
+                    {kpis.por_firmar.value}{" "}
+                    {kpis.por_firmar.value === 1
+                      ? "nota sin firmar"
+                      : "notas sin firmar"}
+                  </p>
+                  <p className="text-sm text-muted">
+                    Pendientes en toda la institución, de cualquier fecha.
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-accent">
+                Revisar <ArrowRight size={14} />
+              </span>
+            </Link>
+          ) : null}
+
+          <Card className="mt-8">
+            <ClinicalSectionHeader title={`Notas por día · ${rango.etiqueta}`} />
+            <DailyTrend data={data.serie_diaria} periodo={rango.etiqueta.toLowerCase()} />
+          </Card>
+
+          <div className="mt-5 grid gap-5 lg:grid-cols-2">
             <Card>
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-base font-semibold text-deep">Por servicio</h2>
                 <BarChart3 size={18} className="text-muted" />
               </div>
-              {porServicio.length ? (
-                <BarList data={porServicio} />
-              ) : (
+              <BarList
+                data={data.por_servicio.map((s) => ({
+                  label: s.servicio,
+                  value: s.value,
+                }))}
+              />
+              {data.por_servicio.length === 0 ? (
                 <p className="text-sm text-muted">Sin servicios registrados aún.</p>
-              )}
+              ) : null}
+            </Card>
+
+            <Card>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-deep">Estado documental</h2>
+                <FileText size={18} className="text-muted" />
+              </div>
+              <BarList
+                data={data.por_estado.map((e) => ({
+                  label: etiquetaEstado(e.estado),
+                  value: e.value,
+                }))}
+              />
+              {data.por_estado.length === 0 ? (
+                <p className="text-sm text-muted">Sin notas en este periodo.</p>
+              ) : null}
             </Card>
           </div>
+
+          <Card className="mt-5">
+            <ClinicalSectionHeader title="Adopción por profesional" />
+            <AdoptionTable
+              medicos={data.por_medico}
+              max={6}
+              hrefDe={(m) => `/app/consultas?medico=${m.medico_id}`}
+            />
+            <AdoptionFooterLink href="/app/reportes" />
+          </Card>
         </>
       )}
 
-      <div className="mt-5 flex flex-wrap gap-3">
+      <div className="mt-6 flex flex-wrap gap-4">
         <Link href="/app/reportes" className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">
           Ver reportes completos <ArrowRight size={14} />
         </Link>
         <Link href="/app/usuarios" className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">
           Gestionar usuarios <ArrowRight size={14} />
         </Link>
+        <Link href="/app/configuracion" className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">
+          Configuración institucional <ArrowRight size={14} />
+        </Link>
       </div>
     </AppPage>
   );
 }
 
-/** Histograma de notas de las últimas `weeks` semanas, de más antigua a más reciente. */
-function weeklyCounts(
-  consultas: Consultation[],
-  weeks = 6,
-): { label: string; value: number }[] {
-  const now = Date.now();
-  const WEEK = 7 * 24 * 60 * 60 * 1000;
-  const buckets = Array.from({ length: weeks }, () => 0);
-  for (const c of consultas) {
-    const t = new Date(c.fecha).getTime();
-    if (Number.isNaN(t)) continue;
-    const ago = Math.floor((now - t) / WEEK);
-    if (ago >= 0 && ago < weeks) buckets[weeks - 1 - ago] += 1;
-  }
-  return buckets.map((value, i) => ({
-    label: i === weeks - 1 ? "Esta sem." : `-${weeks - 1 - i}`,
-    value,
-  }));
-}
-
-/** Conteo de consultas por servicio, top 6, de mayor a menor. */
-function countByService(
-  consultas: Consultation[],
-): { label: string; value: number }[] {
-  const map = new Map<string, number>();
-  for (const c of consultas) {
-    const key = c.servicio?.trim() || "Sin servicio";
-    map.set(key, (map.get(key) ?? 0) + 1);
-  }
-  return [...map.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([label, value]) => ({ label, value }));
+/** Esqueleto del panel institucional mientras la RPC responde. */
+function AdminSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Calculando métricas">
+      <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-[116px] animate-pulse rounded-[14px] bg-ice-soft" />
+        ))}
+      </div>
+      <div className="mt-8 h-64 animate-pulse rounded-[14px] bg-ice-soft" />
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <div className="h-52 animate-pulse rounded-[14px] bg-ice-soft" />
+        <div className="h-52 animate-pulse rounded-[14px] bg-ice-soft" />
+      </div>
+    </div>
+  );
 }
 
 /* ---------- helpers ---------- */

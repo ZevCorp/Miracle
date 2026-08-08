@@ -90,14 +90,14 @@
     "semantic_hash": ""
   },
   "app/app/configuracion/ConfiguracionForm.tsx": {
-    "mtime": 1785556274.3944757,
-    "ast_hash": "1dec1b04a06c97824a05ed45d9801f6a",
-    "semantic_hash": "1dec1b04a06c97824a05ed45d9801f6a"
+    "mtime": 1786209029.3516548,
+    "ast_hash": "e6df44b6bfe1cb76134d4f401223eba1",
+    "semantic_hash": ""
   },
   "app/app/configuracion/actions.ts": {
-    "mtime": 1785556274.3944757,
-    "ast_hash": "6789117f2d4a0e116cccb5ec369c31c7",
-    "semantic_hash": "6789117f2d4a0e116cccb5ec369c31c7"
+    "mtime": 1786208987.110463,
+    "ast_hash": "5f8b63597ed7f965e79e2be9e1e7cd2a",
+    "semantic_hash": ""
   },
   "app/app/configuracion/layout.tsx": {
     "mtime": 1782630119.7461617,
@@ -105,8 +105,8 @@
     "semantic_hash": "39e3e0f7d283e9a14b77c9563b8a8cd3"
   },
   "app/app/configuracion/page.tsx": {
-    "mtime": 1786206275.3647144,
-    "ast_hash": "5807db39486a0b92641ed52fda483ef2",
+    "mtime": 1786209050.2592213,
+    "ast_hash": "307cc89b9ef74d7496578ed9fa204500",
     "semantic_hash": ""
   },
   "app/app/consultas/ConsultasFilters.tsx": {
@@ -465,9 +465,9 @@
     "semantic_hash": "686640813f519fc952a615929417a2b6"
   },
   "components/app/LaboratorioWorkspace.tsx": {
-    "mtime": 1785556274.4371655,
-    "ast_hash": "7ea882bbdcf007324db224701f65794f",
-    "semantic_hash": "7ea882bbdcf007324db224701f65794f"
+    "mtime": 1786209073.2094264,
+    "ast_hash": "7cf6c0096bb8ba88f86de3020ddc32f7",
+    "semantic_hash": ""
   },
   "components/app/MedicalChat.tsx": {
     "mtime": 1785556274.4371655,
@@ -915,9 +915,9 @@
     "semantic_hash": "81cd3be6fdf92d73fee15057ea74bff9"
   },
   "lib/pdf/lab-report.ts": {
-    "mtime": 1785792521.5138543,
-    "ast_hash": "b18379e9433dac521d783fc055357275",
-    "semantic_hash": "b18379e9433dac521d783fc055357275"
+    "mtime": 1786208947.7294967,
+    "ast_hash": "808406dd98e1851209476f30d714c33f",
+    "semantic_hash": ""
   },
   "lib/privacy/redact.ts": {
     "mtime": 1785556274.4731917,
@@ -1622,6 +1622,11 @@
   "tests/superadmin-dashboard.test.ts": {
     "mtime": 1786207804.7839563,
     "ast_hash": "a7a330044655ebb346960daf8b387e9b",
+    "semantic_hash": ""
+  },
+  "tests/hospital-org.test.ts": {
+    "mtime": 1786209111.5425425,
+    "ast_hash": "6a230b1f4f840250de9e8de175c62eac",
     "semantic_hash": ""
   }
 }

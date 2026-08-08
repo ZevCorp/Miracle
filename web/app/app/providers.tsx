@@ -25,6 +25,13 @@ import { createClient } from "@/lib/supabase/client";
 import { getClinicalEncounter } from "@/lib/api/clinical";
 import { transcriptTextToTurns } from "@/lib/clinical/encounter-to-consultation";
 import type { AppRole } from "@/lib/auth/roles";
+import {
+  ORG_SETTINGS_COLUMNS,
+  ORG_SETTINGS_VACIOS,
+  rowToOrgSettings,
+  type OrgSettings,
+  type OrgSettingsRow,
+} from "@/lib/hospital/org";
 import { signConsultationNote } from "@/app/app/consultas/actions";
 
 type ToastTone = "success" | "info" | "warning";
@@ -61,6 +68,15 @@ interface StoreValue {
   role: Role;
   /** Cuenta de demostración comercial: ver canAccessPath en lib/auth/roles.ts. */
   isDemo: boolean;
+  /**
+   * Ajustes de la institución (nombre, NIT, sede, servicios…).
+   *
+   * Viven en el store porque los necesitan pantallas de cliente: el encabezado
+   * de la nota impresa y el servicio con el que nacen las consultas. Cualquier
+   * miembro los puede leer por RLS ("members read own org"); escribirlos es
+   * solo del admin, y eso pasa por la server action de Configuración.
+   */
+  org: OrgSettings;
   loading: boolean;
   /** true mientras haya escrituras pendientes de sincronizar con el servidor. */
   syncing: boolean;
@@ -205,6 +221,7 @@ export function MiracleProvider({
       }
     >
   >({});
+  const [org, setOrg] = useState<OrgSettings>(ORG_SETTINGS_VACIOS);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<Toast | null>(null);
 
@@ -223,7 +240,7 @@ export function MiracleProvider({
   // Columnas explícitas: `transcript` (el campo más pesado) se carga bajo
   // demanda con ensureTranscript; los perfiles no exponen el email al cliente.
   const load = useCallback(async () => {
-    const [patRes, conRes, profRes] = await Promise.all([
+    const [patRes, conRes, profRes, orgRes] = await Promise.all([
       supabase
         .from("patients")
         .select(
@@ -243,7 +260,12 @@ export function MiracleProvider({
         .select(
           "id, full_name, identification_number, professional_registration, honorific, responsable_label",
         ),
+      // Ajustes de la institución. Por RLS ("members read own org") esta consulta
+      // devuelve una sola fila: la organización del usuario.
+      supabase.from("organizations").select(ORG_SETTINGS_COLUMNS).maybeSingle(),
     ]);
+
+    setOrg(rowToOrgSettings((orgRes.data ?? null) as OrgSettingsRow | null));
 
     const med: Record<string, string> = {};
     const ident: typeof medicoIdentity = {};
@@ -980,6 +1002,7 @@ export function MiracleProvider({
       patients,
       role,
       isDemo,
+      org,
       loading,
       syncing: pendingWrites > 0,
       ensureTranscript,
@@ -1009,6 +1032,7 @@ export function MiracleProvider({
       patients,
       role,
       isDemo,
+      org,
       loading,
       pendingWrites,
       ensureTranscript,

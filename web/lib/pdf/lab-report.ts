@@ -33,6 +33,12 @@ export interface LabReportInput {
     sexo?: "F" | "M" | null;
   } | null;
   organizationName?: string | null;
+  /**
+   * Datos institucionales del encabezado (NIT, sede, teléfono), ya formateados
+   * por letterheadLines() en lib/hospital/org. Vacío = la institución no los
+   * cargó en Configuración y el informe sale solo con el nombre.
+   */
+  organizationLines?: string[];
   sections: LabReportSection[];
   /** Marca el documento como demostración (no válido como resultado real). */
   demo?: boolean;
@@ -135,6 +141,9 @@ function buildLabReportHtml(input: LabReportInput): string {
       </div>
       <div class="meta">
         <strong>${esc(input.organizationName ?? "Miracle")}</strong>
+        ${(input.organizationLines ?? [])
+          .map((linea) => `<span>${esc(linea)}</span>`)
+          .join("")}
         ${fecha ? `<span>${esc(fecha)}</span>` : ""}
       </div>
     </div>

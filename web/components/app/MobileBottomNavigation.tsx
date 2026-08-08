@@ -21,7 +21,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { visibleAppNav } from "@/lib/site";
+import { APP_NAV_GROUPS, APP_NAV_GROUP_LABEL, visibleAppNav } from "@/lib/site";
 import type { AuthenticatedProfile } from "@/lib/auth/server";
 import { APP_ROLE_LABEL } from "@/lib/auth/roles";
 import { signOut } from "@/app/login/actions";
@@ -136,17 +136,38 @@ export function MobileBottomNavigation({
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {secondary.map((item) => {
-                const Icon = icons[item.icon] ?? LayoutDashboard;
-                const active = isActive(pathname, item.href);
-                return (
-                  <Link key={item.href} href={item.href} onClick={(e) => { if (!confirmLeave()) { e.preventDefault(); return; } setMoreOpen(false); }} aria-current={active ? "page" : undefined} className={`flex min-h-16 items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm font-semibold ${active ? "border-accent bg-accent-soft text-accent-ink" : "border-line bg-pearl text-deep active:bg-ice-soft"}`}>
-                    <Icon size={19} /> {item.label}
-                  </Link>
-                );
-              })}
-            </div>
+            {/* Agrupado igual que el sidebar: para un administrador, las cinco
+                secciones restantes mezclaban lo clínico con la gestión de la
+                institución en una sola rejilla sin jerarquía. El encabezado solo
+                aparece si hay más de un bloque. */}
+            {(() => {
+              const bloques = APP_NAV_GROUPS.map((group) => ({
+                group,
+                items: secondary.filter((item) => item.group === group),
+              })).filter((bloque) => bloque.items.length > 0);
+              const conTitulo = bloques.length > 1;
+
+              return bloques.map((bloque, i) => (
+                <div key={bloque.group} className={i ? "mt-4" : "mt-4"}>
+                  {conTitulo ? (
+                    <h3 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+                      {APP_NAV_GROUP_LABEL[bloque.group]}
+                    </h3>
+                  ) : null}
+                  <div className="grid grid-cols-2 gap-2">
+                    {bloque.items.map((item) => {
+                      const Icon = icons[item.icon] ?? LayoutDashboard;
+                      const active = isActive(pathname, item.href);
+                      return (
+                        <Link key={item.href} href={item.href} onClick={(e) => { if (!confirmLeave()) { e.preventDefault(); return; } setMoreOpen(false); }} aria-current={active ? "page" : undefined} className={`flex min-h-16 items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm font-semibold ${active ? "border-accent bg-accent-soft text-accent-ink" : "border-line bg-pearl text-deep active:bg-ice-soft"}`}>
+                          <Icon size={19} /> {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ));
+            })()}
 
             <div className="mt-4 space-y-2 border-t border-line pt-4">
               <button type="button" onClick={onToggleTheme} className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold text-deep active:bg-ice-soft">

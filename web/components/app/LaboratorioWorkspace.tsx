@@ -22,6 +22,7 @@ import { useStore } from "@/app/app/providers";
 import { AppPageHeader } from "@/components/app/AppPage";
 import { createClient } from "@/lib/supabase/client";
 import { downloadLabReport } from "@/lib/pdf/lab-report";
+import { letterheadLines } from "@/lib/hospital/org";
 import type { Consultation, NoteSection } from "@/lib/mock";
 
 interface TemplateSectionMeta {
@@ -148,7 +149,7 @@ export function LaboratorioWorkspace({
   professional: ProfessionalInfo;
   organizationName: string | null;
 }) {
-  const { patients, getPatient, upsertConsultation, showToast } = useStore();
+  const { patients, getPatient, upsertConsultation, showToast, org } = useStore();
 
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
@@ -463,7 +464,10 @@ export function LaboratorioWorkspace({
         edad: linkedPatientId ? (getPatient(linkedPatientId)?.edad ?? null) : null,
         sexo: linkedPatientId ? (getPatient(linkedPatientId)?.sexo ?? null) : null,
       },
-      organizationName,
+      // El nombre sigue llegando por prop (lo resuelve la página en el
+      // servidor); el resto del encabezado sale de los ajustes del store.
+      organizationName: organizationName ?? (org.name || null),
+      organizationLines: letterheadLines(org),
       sections: sections.map((section) => ({ label: section.label, content: section.content })),
     });
     if (!ok) {

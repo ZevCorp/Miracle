@@ -1,16 +1,16 @@
 # Graph Report - Pagina-web-clientes-final  (2026-08-08)
 
 ## Corpus Check
-- 315 files · ~245,918 words
+- 316 files · ~247,174 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1770 nodes · 3496 edges · 164 communities (121 shown, 43 thin omitted)
+- 1771 nodes · 3496 edges · 165 communities (121 shown, 44 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 59 edges (avg confidence: 0.73)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `04a9965f`
+- Built from commit: `a7917cd6`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -153,12 +153,13 @@
 - TrendChart.tsx
 - DailyTrend.tsx
 - codes.ts
+- public.profiles
 
 ## God Nodes (most connected - your core abstractions)
 1. `createClient()` - 70 edges
 2. `formatFechaRelativa()` - 38 edges
-3. `useStore()` - 32 edges
-4. `getCurrentProfile()` - 32 edges
+3. `getCurrentProfile()` - 32 edges
+4. `useStore()` - 32 edges
 5. `Card()` - 21 edges
 6. `reportError()` - 21 edges
 7. `ConsultaActivaInner()` - 20 edges
@@ -192,7 +193,7 @@
 - **Flujo firma → inmutabilidad → exportada** — miracle_operations_integration_analysis_sign_consultation_note, miracle_operations_integration_analysis_enforce_consultation_immutability, miracle_operations_integration_analysis_secretary_mark_exported, miracle_operations_integration_analysis_marcar_exportada_rpc, miracle_operations_integration_analysis_consultation_status, miracle_operations_integration_analysis_consultations [EXTRACTED 0.90]
 - **Ejecución Windows → SAP: superficie, plan, mapeo y valores dinámicos** — miracle_operations_integration_analysis_workflow_player, miracle_operations_integration_analysis_sap_gui_surface, miracle_operations_integration_analysis_surface_locator, miracle_operations_integration_analysis_workflow_plan_endpoint, miracle_operations_integration_analysis_note_field_matcher, miracle_operations_integration_analysis_value_mode [INFERRED 0.80]
 
-## Communities (164 total, 43 thin omitted)
+## Communities (165 total, 44 thin omitted)
 
 ### Community 0 - "export/route.ts"
 Cohesion: 0.10
@@ -587,9 +588,9 @@ Nodes (3): CatalogCode, CODE_CATALOG, searchCodes()
   public/images/consulta-antes.jpg · relation: references
 
 ## Knowledge Gaps
-- **421 isolated node(s):** `Kpi`, `Dashboard`, `nf`, `Punto`, `PAD` (+416 more)
+- **421 isolated node(s):** `runtime`, `maxDuration`, `MEDIA_TYPES`, `TemplateSection`, `FilledSection` (+416 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **43 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **44 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -605,6 +606,6 @@ _Questions this graph is uniquely positioned to answer:_
 - **What is the exact relationship between `PRD v0 · Miracle como plataforma de inteligencia clínica-operativa` and `Placeholder gris azulado "Foto: el antes" — médico frente a la pantalla`?**
   _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
 - **Why does `createClient()` connect `createClient` to `export/route.ts`, `AppShell.tsx`, `TemplateBuilderPanel.tsx`, `note-from-photo/route.ts`, `superadmin/page.tsx`, `versiones.ts`, `auditoria/page.tsx`, `actividad/page.tsx`, `supabase/server.ts`, `salud/page.tsx`, `app/consultas/page.tsx`, `ConfiguracionForm.tsx`?**
-  _High betweenness centrality (0.042) - this node is a cross-community bridge._
-- **Why does `base()` connect `consultation-text.ts` to `public.hospital_dashboard`?**
-  _High betweenness centrality (0.012) - this node is a cross-community bridge._
+  _High betweenness centrality (0.030) - this node is a cross-community bridge._
+- **Why does `useStore()` connect `dashboard/page.tsx` to `AppShell.tsx`, `LaboratorioWorkspace.tsx`, `note-from-photo/route.ts`, `mock/index.ts`, `consultas/[id]/page.tsx`, `en-vivo/page.tsx`, `providers.tsx`, `AgendaHoy.tsx`, `nueva/page.tsx`, `actividad/page.tsx`, `clinical-api.test.ts`, `ConfiguracionForm.tsx`?**
+  _High betweenness centrality (0.018) - this node is a cross-community bridge._

@@ -11,8 +11,12 @@ import { CommandPalette } from "./CommandPalette";
 import { NotificationsBell } from "./NotificationsBell";
 import { HoverHint } from "@/components/ui/HoverHint";
 import type { AuthenticatedProfile } from "@/lib/auth/server";
+import { canAccessPath } from "@/lib/auth/roles";
 import { signOut } from "@/app/login/actions";
 import { Logo } from "@/components/brand/Logo";
+
+/** Ruta que abre el lanzador rápido; decide si el botón debe existir. */
+const RUTA_GRABACION = "/app/consultas/en-vivo";
 
 function initials(profile: AuthenticatedProfile) {
   const words = (profile.fullName ?? profile.email).trim().split(/\s+/);
@@ -138,15 +142,23 @@ export function AppShell({
       </div>
 
       <MobileBottomNavigation profile={profile} onToggleTheme={toggleTheme} />
-      {/* La secretaría es de solo lectura: nunca graba consultas ni usa el
-          asistente clínico. Los demás roles (admin, supervisor, médico) los
-          veían antes de esta cuenta y siguen viéndolos igual. */}
-      {profile.role !== "secretaria" ? (
-        <>
-          <QuickConsultationLauncher userId={profile.id} specialtyCode={profile.specialtyCode} />
-          <MedicalChat />
-        </>
+
+      {/* El lanzador rápido solo aparece si la cuenta puede LLEGAR a la
+          grabación. Se pregunta a canAccessPath en vez de repetir la regla aquí:
+          es la misma función que aplica el proxy, así que el botón y el permiso
+          no pueden desincronizarse.
+
+          Antes se mostraba a todo el que no fuera secretaría, incluido un
+          administrador —que no puede grabar—. El botón sí creaba el encounter
+          en la API y el proxy rebotaba después: quedaba un encounter huérfano y
+          la pantalla se movía sin explicación. */}
+      {canAccessPath(profile.role, RUTA_GRABACION, profile.isDemo) ? (
+        <QuickConsultationLauncher userId={profile.id} specialtyCode={profile.specialtyCode} />
       ) : null}
+
+      {/* El asistente clínico sí lo usan administrador y supervisor (consultar
+          sobre notas del equipo); solo la secretaría, de solo lectura, no. */}
+      {profile.role !== "secretaria" ? <MedicalChat /> : null}
       <CommandPalette open={cmdk} onOpenChange={setCmdk} />
     </div>
   );
