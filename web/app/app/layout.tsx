@@ -21,6 +21,10 @@ export default async function AppLayout({
   if (!profile) redirect("/login?error=account-not-ready");
   // El superadmin no usa el panel del hospital; tiene su consola de plataforma.
   if (profile.role === "superadmin") redirect("/superadmin");
+  // Sin acceso comercial (trial vencido, pago fallido, cancelada) no se monta
+  // nada clínico: el letrero de pago vive en /suscripcion, fuera de este shell.
+  // La RLS ("billing access gate") es la barrera real; esto es la experiencia.
+  if (profile.billing.level === "blocked") redirect("/suscripcion");
   if (profile.role === "medico" && !profile.onboardingCompletedAt) {
     redirect("/onboarding");
   }

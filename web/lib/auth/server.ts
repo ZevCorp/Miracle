@@ -2,6 +2,11 @@ import "server-only";
 
 import { redirect } from "next/navigation";
 import { isAppRole, type AppRole } from "@/lib/auth/roles";
+import {
+  deriveAccess,
+  type BillingAccess,
+  type BillingAccountRow,
+} from "@/lib/billing/entitlements";
 import { createClient } from "@/lib/supabase/server";
 
 export interface AuthenticatedProfile {
@@ -13,6 +18,15 @@ export interface AuthenticatedProfile {
   /** Cuenta de demostración comercial: ver canAccessPath en lib/auth/roles.ts. */
   isDemo: boolean;
   organizationId: string | null;
+  /** personal = B2C (consultorio de una persona); institution = hospital B2B. */
+  orgKind: "personal" | "institution" | null;
+  /**
+   * Estado comercial derivado (lib/billing/entitlements.ts). Con level
+   * "blocked", el layout de /app redirige a /suscripcion. La barrera que no se
+   * puede evadir es la RLS ("billing access gate"); esto decide redirects y
+   * banners sin viajes extra.
+   */
+  billing: BillingAccess;
   professionalType: "medico_general" | "medico_especialista" | "patologo" | null;
   specialtyCode: string | null;
   specialtyName: string | null;
@@ -43,7 +57,11 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
       .from("profiles")
       // El embed a organizations resuelve por la clave foránea
       // profiles.organization_id: sale en la misma consulta, sin viaje extra.
-      .select("is_demo, disabled_at, organizations(archived_at)")
+      // billing_accounts es 1:1 con la organización; PostgREST puede devolver
+      // el embed como objeto o como arreglo de uno — se toleran ambos.
+      .select(
+        "is_demo, disabled_at, organizations(archived_at, kind, billing_accounts(mode, stripe_status, current_period_end, cancel_at_period_end, trial_ends_at, comped_until))",
+      )
       .eq("id", userId)
       .maybeSingle(),
   ]);
@@ -59,8 +77,19 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
   // exento por seguridad — es la cuenta que tiene que poder restaurarla, y
   // dejarla fuera convertiría un archivado en un bloqueo de la plataforma.
   const orgEmbed = extraRow?.organizations;
-  const orgArchivada = Array.isArray(orgEmbed) ? orgEmbed[0] : orgEmbed;
-  if (orgArchivada?.archived_at && profile.role !== "superadmin") return null;
+  const org = Array.isArray(orgEmbed) ? orgEmbed[0] : orgEmbed;
+  if (org?.archived_at && profile.role !== "superadmin") return null;
+
+  const orgKind = org?.kind === "personal" || org?.kind === "institution" ? org.kind : null;
+  const billingEmbed = org?.billing_accounts;
+  const billingRow = (Array.isArray(billingEmbed) ? billingEmbed[0] : billingEmbed) ?? null;
+
+  // El superadmin nunca queda bloqueado comercialmente: es quien reconcilia y
+  // restaura. (El proxy además lo saca de /app hacia su consola.)
+  const billing =
+    profile.role === "superadmin"
+      ? deriveAccess(null, orgKind, null)
+      : deriveAccess(billingRow as BillingAccountRow | null, orgKind, org?.archived_at ?? null);
 
   return {
     id: profile.id,
@@ -70,6 +99,8 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
     role: profile.role,
     isDemo: extraRow?.is_demo === true,
     organizationId: profile.organization_id ?? null,
+    orgKind,
+    billing,
     professionalType:
       profile.professional_type === "medico_general" ||
       profile.professional_type === "medico_especialista" ||

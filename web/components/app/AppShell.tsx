@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { CloudUpload, Moon, Search, Sun } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import { AppSidebar } from "./AppSidebar";
+import { BillingBanner } from "./BillingBanner";
 import { MobileBottomNavigation } from "./MobileBottomNavigation";
 import { MedicalChat } from "./MedicalChat";
 import { QuickConsultationLauncher } from "./QuickConsultationLauncher";
@@ -71,6 +72,7 @@ export function AppShell({
           role={profile.role}
           professionalType={profile.professionalType}
           isDemo={profile.isDemo}
+          orgKind={profile.orgKind}
         />
       </aside>
 
@@ -137,6 +139,12 @@ export function AppShell({
             </form>
           </div>
         </header>
+
+        {/* Solo orgs personales: en un hospital paga la institución y el
+            estado comercial no es asunto del médico. */}
+        {profile.orgKind === "personal" && !profile.isDemo ? (
+          <BillingBanner billing={profile.billing} />
+        ) : null}
 
         <main className="app-main min-w-0 flex-1 px-3 py-5 sm:px-5 sm:py-6 md:px-8 md:py-9">{children}</main>
       </div>

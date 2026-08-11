@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/observability";
 import { normalizeHora, type ParsedCita } from "@/lib/agenda";
-import { rateLimit, requireApiUser } from "@/lib/api/guard";
+import { rateLimit, requireEntitledApiUser } from "@/lib/api/guard";
 import { anthropicUsage, reportAiUsage } from "@/lib/ai-usage";
 
 export const runtime = "nodejs";
@@ -62,10 +62,12 @@ function extractJsonObject(raw: string): string | null {
 }
 
 export async function POST(req: Request) {
-  const userId = await requireApiUser();
-  if (!userId) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  // Sesión + derecho comercial: cada llamada a visión cuesta dinero.
+  const gate = await requireEntitledApiUser();
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
+  const userId = gate.userId;
   if (!(await rateLimit(`parse-schedule:${userId}`, 6))) {
     return NextResponse.json(
       { error: "Demasiadas solicitudes. Espera un momento e intenta de nuevo." },

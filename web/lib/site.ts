@@ -34,6 +34,7 @@ export const marketingNav = [
   { label: "Cómo funciona", href: "/como-funciona" },
   { label: "Seguridad", href: "/seguridad" },
   { label: "Casos de uso", href: "/casos-de-uso" },
+  { label: "Precios", href: "/precios" },
   { label: "Piloto", href: "/piloto" },
   { label: "Recursos", href: "/recursos" },
 ] as const;
@@ -52,15 +53,16 @@ const allRoles: AppRole[] = ["admin", "supervisor", "medico"];
  * Un solo grupo visible ⇒ el título no se dibuja (ver AppSidebar): a un médico,
  * que solo ve secciones clínicas, un encabezado "Clínico" no le dice nada.
  */
-export type AppNavGroup = "clinico" | "institucion";
+export type AppNavGroup = "clinico" | "institucion" | "cuenta";
 
 export const APP_NAV_GROUP_LABEL: Record<AppNavGroup, string> = {
   clinico: "Atención",
   institucion: "Institución",
+  cuenta: "Cuenta",
 };
 
 /** Orden de los bloques en el menú. */
-export const APP_NAV_GROUPS: AppNavGroup[] = ["clinico", "institucion"];
+export const APP_NAV_GROUPS: AppNavGroup[] = ["clinico", "institucion", "cuenta"];
 
 export type AppNavItem = {
   label: string;
@@ -74,6 +76,12 @@ export type AppNavItem = {
    * "Patología" solo para patólogos). Ausente = solo importa el rol.
    */
   professionalTypes?: string[];
+  /**
+   * Si está presente, el ítem exige además que la organización del usuario sea
+   * de uno de estos tipos. "Suscripción" es solo de organizaciones personales:
+   * en un hospital paga la institución y el médico no tiene nada que gestionar.
+   */
+  orgKinds?: Array<"personal" | "institution">;
 };
 
 export const appNav: AppNavItem[] = [
@@ -90,6 +98,10 @@ export const appNav: AppNavItem[] = [
   { label: "Reportes", href: "/app/reportes", icon: "reportes", roles: ["admin", "supervisor"], group: "institucion" },
   { label: "Configuración", href: "/app/configuracion", icon: "configuracion", roles: ["admin"], group: "institucion" },
   { label: "Usuarios", href: "/app/usuarios", icon: "usuarios", roles: ["admin"], group: "institucion" },
+  // Solo organizaciones personales (B2C): el médico gestiona su propio plan.
+  // Vive fuera de /app a propósito — es también el paywall cuando el acceso
+  // está bloqueado, y esa página no puede depender del shell clínico.
+  { label: "Suscripción", href: "/suscripcion", icon: "suscripcion", roles: ["medico", "admin"], group: "cuenta", orgKinds: ["personal"] },
 ];
 
 /**
@@ -100,6 +112,7 @@ export function visibleAppNav(
   role: AppRole,
   professionalType?: string | null,
   isDemo = false,
+  orgKind?: "personal" | "institution" | null,
 ): AppNavItem[] {
   // La cuenta de demostración comercial se enseña a médicos: ve el menú de un
   // médico, no el de un administrador de hospital (ver DEMO_SECTIONS). Su rol
@@ -110,6 +123,9 @@ export function visibleAppNav(
   return appNav.filter((item) => {
     if (!item.roles.includes(role)) return false;
     if (item.professionalTypes && !item.professionalTypes.includes(professionalType ?? "")) {
+      return false;
+    }
+    if (item.orgKinds && !item.orgKinds.includes(orgKind ?? "institution")) {
       return false;
     }
     return true;

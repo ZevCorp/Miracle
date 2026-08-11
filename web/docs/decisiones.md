@@ -104,3 +104,59 @@ desajuste de hidratación en los componentes cliente que usan estos helpers.
 **Consecuencia:** si algún día hay operación fuera de Colombia, esto pasa a ser
 una preferencia por organización. Hasta entonces, una constante es más honesta
 que `undefined`.
+
+## D14 · El estado comercial vive por organización y el corte, en RLS
+**Decisión:** `billing_accounts` (1:1 con `organizations`) guarda los campos
+crudos de Stripe más los propios (`mode`, `trial_ends_at`, `comped_until`); el
+acceso se **deriva siempre** con `private.org_has_access()` (espejo TS en
+`lib/billing/entitlements.ts`) y se impone con políticas **RESTRICTIVE**
+(`"billing access gate"`) sobre las tablas clínicas.
+**Por qué:** D1 ya había elegido la organización como unidad de cobro. El store
+escribe directo a PostgREST (D5), así que esconder botones no corta nada: la
+única barrera inevadible es la base. Las políticas restrictivas se suman con
+AND a las permisivas existentes — ninguna política vigente cambió. El bloqueo
+por impago es **total** (lectura incluida) por decisión de producto: los datos
+quedan intactos y reaparecen al reactivar; la retención de historia clínica se
+cumple porque nada se borra y el superadmin (a quien `org_has_access()`
+cortocircuita) puede leer y exportar si la ley lo exige.
+**Consecuencia:** una org SIN fila de billing tiene acceso (fail-open
+deliberado: un bug de billing jamás debe tumbar documentación clínica). Stripe
+nunca decide el acceso: solo se sincroniza; quien decide es la base.
+
+## D15 · Una credencial privilegiada, confinada al billing
+**Decisión:** el webhook de Stripe escribe con `SUPABASE_SECRET_KEY` desde
+`lib/billing/admin.ts` (server-only), que no exporta el cliente y solo toca
+tablas `billing_*`.
+**Por qué:** el webhook llega sin sesión de usuario y `billing_accounts` no
+tiene grants para `authenticated`. La alternativa —una RPC SECURITY DEFINER con
+secreto compartido y grant a `anon`— sería una service key artesanal expuesta
+como endpoint público. La invariante del repo pasa de "sin credencial
+privilegiada" a "sin credencial privilegiada **en el camino de los datos
+clínicos**", que es lo que siempre protegió.
+
+## D16 · La organización personal nace con rol `medico`
+**Decisión:** `handle_new_user` asigna `medico` (antes `admin`) al alta B2C.
+**Por qué:** el producto que compra un médico independiente exige rol `medico`:
+`/app/consultas/nueva`, `/en-vivo` y el onboarding clínico (RPC y política RLS)
+son de ese rol. Un "admin personal" ni siquiera podía completar onboarding — y
+de paso podía invitar N médicos vía `create_org_member` pagando una sola
+suscripción; un `medico` no puede invitar a nadie.
+**Consecuencia:** las orgs personales quedan con `owner_id` NULL (la protección
+del fundador existe contra sus PARES, y ahí no hay pares). Los triggers
+protectores ganaron el carve-out `auth.uid() is null` (conexión administrativa,
+mismo patrón que `prevent_demo_flag_escalation`).
+
+## D17 · Membresías: una persona, varios mundos; una org activa
+**Decisión:** `org_memberships` registra a qué organizaciones pertenece cada
+persona; `profiles.organization_id` sigue siendo la organización **ACTIVA** y
+toda la RLS queda intacta. Un trigger sincroniza las membresías desde
+`profiles` (las vías de alta/movida existentes no cambiaron) y la RPC
+`switch_active_organization` cambia de contexto validando la membresía.
+**Por qué:** el requisito comercial es que un médico pueda pagar su Miracle
+personal Y trabajar bajo el contrato de un hospital con la misma identidad.
+Reescribir la RLS a membresías era una cirugía enorme; la org activa la deja
+intacta.
+**Consecuencia:** el trigger `prevent_foreign_org_change` cierra una
+vulnerabilidad real detectada en esta fase: la política de onboarding permitía
+a un médico auto-cambiarse `organization_id` vía PostgREST y leer otro tenant.
+El switcher de interfaz queda para cuando alguien tenga dos membresías.

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/observability";
-import { rateLimit, requireApiUser } from "@/lib/api/guard";
+import { rateLimit, requireEntitledApiUser } from "@/lib/api/guard";
 
 export const runtime = "nodejs";
 
@@ -16,10 +16,13 @@ export const runtime = "nodejs";
  * ni el audio ni la transcripción pasan por esta ruta.
  */
 export async function POST() {
-  const userId = await requireApiUser();
-  if (!userId) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  // Sesión + derecho comercial: la transcripción cuesta dinero por minuto, así
+  // que un trial vencido o un pago fallido cortan aquí aunque evadan la UI.
+  const gate = await requireEntitledApiUser();
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
+  const userId = gate.userId;
   if (!(await rateLimit(`stt:${userId}`, 10))) {
     return NextResponse.json(
       { error: "Demasiadas solicitudes. Espera un momento e intenta de nuevo." },

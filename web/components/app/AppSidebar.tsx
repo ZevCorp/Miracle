@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   ClipboardList,
+  CreditCard,
   FileText,
   LayoutDashboard,
   LayoutTemplate,
@@ -39,6 +40,7 @@ const icons: Record<string, LucideIcon> = {
   plantillas: LayoutTemplate,
   configuracion: Settings,
   usuarios: UserCog,
+  suscripcion: CreditCard,
 };
 
 /** Una entrada del menú. Extraída para no anidar el bloque dentro del map de grupos. */
@@ -74,11 +76,13 @@ export function AppSidebar({
   role,
   professionalType,
   isDemo,
+  orgKind,
   onNavigate,
 }: {
   role: AppRole;
   professionalType?: string | null;
   isDemo?: boolean;
+  orgKind?: "personal" | "institution" | null;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -91,7 +95,7 @@ export function AppSidebar({
       </div>
       <nav aria-label="Navegación de la app" className="flex-1 px-3 py-5">
         {(() => {
-          const items = visibleAppNav(role, professionalType, isDemo);
+          const items = visibleAppNav(role, professionalType, isDemo, orgKind);
           const bloques = APP_NAV_GROUPS.map((group) => ({
             group,
             items: items.filter((item) => item.group === group),
