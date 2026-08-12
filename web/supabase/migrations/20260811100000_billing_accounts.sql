@@ -195,7 +195,15 @@ begin
 end;
 $$;
 
-revoke all on function private.org_has_access(uuid) from public, anon, authenticated;
+-- OJO: `authenticated` NECESITA EXECUTE. Una política RLS se evalúa con los
+-- permisos de QUIEN consulta, así que sin este grant toda consulta a las tablas
+-- con el gate muere con "permission denied for function org_has_access" en vez
+-- de filtrar filas. Es el mismo grant que ya tienen current_org(),
+-- current_app_role(), is_admin() e is_superadmin(), que se usan igual dentro de
+-- políticas. `anon` sigue sin nada, y el schema private no se expone por
+-- PostgREST: nadie puede llamarla como endpoint.
+revoke all on function private.org_has_access(uuid) from public, anon;
+grant execute on function private.org_has_access(uuid) to authenticated;
 
 -- Envoltorio para el guard de las APIs (PostgREST no expone el schema private).
 create or replace function public.current_org_has_access()

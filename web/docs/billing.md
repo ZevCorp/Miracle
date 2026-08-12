@@ -116,14 +116,38 @@ COP). `lib/billing/plans.ts` solo tiene el texto de display
 (`precioMensualCop`, hoy `null` = "por confirmar"): al definir el precio
 comercial, actualiza ambos.
 
+## Trampa que ya nos mordió una vez
+
+`private.org_has_access()` **debe** tener `grant execute ... to authenticated`.
+Una política RLS se evalúa con los permisos de quien consulta: al revocarle el
+EXECUTE (por prudencia mal entendida), toda consulta a las tablas con el gate
+murió con `permission denied for function org_has_access` en vez de filtrar
+filas. Los otros helpers de políticas (`current_org`, `current_app_role`,
+`is_admin`, `is_superadmin`) tienen ese mismo grant; los de TRIGGER no lo
+necesitan (corren en el contexto del trigger). Si algún día añades otro helper
+a una política, sigue el patrón de los primeros, no el de los triggers.
+
+## Qué se verificó contra la base viva (2026-08-11)
+
+Con una organización de prueba y un usuario sintético, impersonando por
+`request.jwt.claims`:
+
+| Escenario | Resultado |
+|---|---|
+| Org nueva | nace `self_serve` con 14 días de trial (trigger) |
+| Trial vigente / suscripción `active` | ve y escribe |
+| Trial vencido | `org_has_access` = false |
+| Suscripción `canceled` | 0 pacientes y 0 consultas visibles; **sí** ve su perfil y su fila de billing (puede entrar y pagar) |
+| INSERT estando bloqueado | rechazado por la política `"billing access gate"` |
+| Reactivar | los datos reaparecen completos y la escritura vuelve |
+| Médico real de Hospital General de Medellín | 153 consultas y 1091 eventos de auditoría: sin cambios |
+| Cuenta demo comercial | 6 pacientes, 8 consultas, 6 citas: sin cambios |
+
 ## Pendientes conocidos
 
-- **Migraciones M2 y M3 por aplicar** (el archivo ya está en
-  `supabase/migrations/`): `20260811110000_billing_access_gate.sql` (el corte
-  en RLS — hasta aplicarla el bloqueo solo existe en servidor/UX) y
-  `20260811120000_personal_org_medico.sql` (rol `medico` al alta B2C — hasta
-  aplicarla, quien se registre queda `admin` y no puede crear consultas).
 - Switcher de contexto multi-org: la RPC `switch_active_organization` está
   lista y dormida; falta interfaz cuando alguien tenga dos membresías.
 - Emails de cobro: los manda Stripe (recibos, dunning). Miracle no envía
   correos propios de billing todavía.
+- El flujo de Stripe está escrito y tipado pero **no ejercitado con claves
+  reales**: falta la pasada con `stripe listen` cuando existan las claves test.
