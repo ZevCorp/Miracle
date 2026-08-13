@@ -27,11 +27,16 @@ import {
   friendlyClinicalMessage,
   generateClinicalNote,
   getClinicalTemplates,
-  normalizeSpecialtyCode,
   saveClinicalTranscript,
   toBackendConsultationType,
   type ClinicalTemplate,
 } from "@/lib/api/clinical";
+import {
+  getTemplatePreferences,
+  pickPreselectedTemplate,
+  pinnedTemplateIds,
+  type TemplatePreference,
+} from "@/lib/clinical/template-preferences";
 import {
   transcribeAudioFile,
   validateAudioUpload,
@@ -60,6 +65,7 @@ function NuevaConsultaForm() {
   const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [profileSpecialtyCode, setProfileSpecialtyCode] = useState<string | null>(null);
+  const [preferences, setPreferences] = useState<TemplatePreference[]>([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -176,13 +182,18 @@ function NuevaConsultaForm() {
       })();
 
       try {
-        const [list, specialtyCode] = await Promise.all([
+        const [list, specialtyCode, prefs] = await Promise.all([
           getClinicalTemplates(),
           profilePromise.catch(() => null),
+          // Sin preferencias solo se pierde el pin; nunca bloquea el formulario.
+          getTemplatePreferences(supabase).catch(
+            () => [] as TemplatePreference[],
+          ),
         ]);
         if (ignore) return;
         setTemplates(list);
         setProfileSpecialtyCode(specialtyCode);
+        setPreferences(prefs);
       } catch (error) {
         if (!ignore) {
           setTemplates([]);
@@ -208,24 +219,19 @@ function NuevaConsultaForm() {
     [templates],
   );
 
-  // Solo para elegir la preseleccionada: las suyas primero, para que un pediatra
-  // no arranque con la plantilla de otra especialidad.
-  const preferredTemplates = useMemo(() => {
-    const personal = availableTemplates.filter((template) => template.scope === "personal");
-    const institutional = availableTemplates.filter((template) => template.scope !== "personal");
-    if (!profileSpecialtyCode) return [...personal, ...institutional];
-    const wanted = normalizeSpecialtyCode(profileSpecialtyCode);
-    const matching = institutional.filter(
-      (template) => normalizeSpecialtyCode(template.specialty) === wanted,
-    );
-    return [...personal, ...(matching.length ? matching : institutional)];
-  }, [availableTemplates, profileSpecialtyCode]);
+  const pinnedIds = useMemo(() => pinnedTemplateIds(preferences), [preferences]);
 
+  // Preselección: pin del médico ("mi sugerida") > sugerida institucional de su
+  // especialidad > primera. La lógica vive en lib/clinical/template-preferences.
   const effectiveTemplateId = availableTemplates.some(
     (template) => template.id === selectedTemplateId,
   )
     ? selectedTemplateId
-    : (preferredTemplates.find((template) => template.is_default)?.id ?? preferredTemplates[0]?.id ?? "");
+    : pickPreselectedTemplate({
+        templates: availableTemplates,
+        preferences,
+        specialtyCode: profileSpecialtyCode,
+      });
 
   const matchingPatients = useMemo(() => {
     const query = patientQuery.trim().toLocaleLowerCase();
@@ -401,7 +407,7 @@ function NuevaConsultaForm() {
           ) : templatesError ? (
             <p role="alert" className="mt-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">No se pudieron cargar las plantillas. {templatesError}</p>
           ) : availableTemplates.length ? (
-            <div className="mt-4"><ClinicalTemplatePicker templates={availableTemplates} specialtyCode={profileSpecialtyCode} value={effectiveTemplateId} onChange={setSelectedTemplateId} disabled={creating} /></div>
+            <div className="mt-4"><ClinicalTemplatePicker templates={availableTemplates} specialtyCode={profileSpecialtyCode} value={effectiveTemplateId} onChange={setSelectedTemplateId} disabled={creating} pinnedTemplateIds={pinnedIds} /></div>
           ) : (
             <p className="mt-4 rounded-lg bg-pearl px-3 py-2.5 text-sm text-muted">No hay plantillas disponibles. Crea una antes de iniciar la consulta.</p>
           )}
