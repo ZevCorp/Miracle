@@ -64,18 +64,90 @@ El espejo TS (`GRACE_DAYS`, `TRIAL_DIAS`) debe cambiar con ellos.
   `customer.subscription.created|updated|deleted`, `invoice.paid`,
   `invoice.payment_failed`.
 
-### Probar en local (modo test)
+## Puesta en marcha paso a paso
 
-```bash
-stripe listen --forward-to localhost:3100/api/billing/webhook
-```
+Cuatro bloques: Stripe → Supabase → local → producción. Hazlos en orden; nada
+de esto toca la base de datos ni el código (solo variables de entorno), así que
+es reversible.
 
-1. Pega el `whsec_...` que imprime en `.env.local` → `STRIPE_WEBHOOK_SECRET`.
-2. Tarjeta `4242 4242 4242 4242` → activa al volver del checkout.
-3. Tarjeta `4000 0000 0000 0341` (falla el cobro recurrente) → `past_due` →
-   bloqueada al vencer el período.
-4. Cancela desde el portal → bloqueada al fin de período; reactiva → todo vuelve.
-5. `stripe trigger customer.subscription.updated` para simular eventos sueltos.
+### Bloque 1 · En Stripe (navegador, ~10 min)
+
+1. Entra a [dashboard.stripe.com](https://dashboard.stripe.com) y crea la
+   cuenta de la empresa (o entra a la que ya exista).
+2. Activa el **modo de prueba** con el interruptor "Test mode" arriba a la
+   derecha. **Todo el bloque 1 y 3 se hace en modo prueba.**
+3. **Crea el producto**: *Product catalog → Add product*.
+   - Nombre: `Miracle Notes`.
+   - Precio: **Recurring / mensual**, moneda **COP**, y el monto que decidas.
+     Tiene que ser *recurrente*: el código usa suscripciones, un pago único no
+     sirve.
+   - Guarda y copia el **ID del precio** (empieza por `price_...`), no el del
+     producto.
+4. **Copia la clave secreta**: *Developers → API keys → Secret key*
+   (empieza por `sk_test_...` en modo prueba).
+5. **Activa el portal de cliente**: *Settings → Billing → Customer portal* →
+   actívalo y permite "Cancel subscription" y "Update payment method". Sin esto
+   el botón "Gestionar suscripción" falla.
+
+### Bloque 2 · En Supabase (2 min)
+
+6. En [supabase.com/dashboard](https://supabase.com/dashboard) → proyecto
+   `miracle-app` → *Project Settings → API keys* → copia la **secret key**
+   (`sb_secret_...`). Es la que usa el webhook para escribir la suscripción.
+
+### Bloque 3 · En tu computador, para probar (~15 min)
+
+7. Abre `.env.local` (en la raíz del proyecto) y añade:
+   ```
+   STRIPE_SECRET_KEY=sk_test_...
+   STRIPE_PRICE_ID_PRO=price_...
+   SUPABASE_SECRET_KEY=sb_secret_...
+   STRIPE_WEBHOOK_SECRET=      # lo llenas en el paso 9
+   ```
+8. Instala el CLI de Stripe (Windows): `winget install Stripe.StripeCLI`, y
+   luego `stripe login` (abre el navegador para autorizar).
+9. En una terminal aparte, deja corriendo:
+   ```
+   stripe listen --forward-to localhost:3100/api/billing/webhook
+   ```
+   Imprime un `whsec_...`: pégalo en `STRIPE_WEBHOOK_SECRET` y **reinicia el
+   servidor de desarrollo** (las variables se leen al arrancar).
+10. Pon el precio en el sitio: en `lib/billing/plans.ts`, cambia
+    `precioMensualCop: null` por el monto (ej. `149900`). Es solo el texto que
+    se muestra; el cobro real siempre lo manda el Price de Stripe.
+11. Prueba el ciclo completo con una cuenta nueva creada en `/registro`:
+    - Tarjeta `4242 4242 4242 4242` (cualquier fecha futura y CVC) → al volver
+      del checkout la cuenta queda **activa**.
+    - En Stripe, cancela la suscripción → la cuenta queda **bloqueada** al
+      terminar el período y aparece el letrero de pago.
+    - Vuelve a suscribirte → **todo reaparece**.
+    - `stripe trigger invoice.payment_failed` simula un cobro fallido.
+
+### Bloque 4 · En producción (Vercel)
+
+12. Mergea la rama `feat/arquitectura-comercial-b2c` a `main`.
+13. En Stripe (todavía en **modo prueba** si quieres una pasada segura, o ya en
+    modo real): *Developers → Webhooks → Add endpoint*.
+    - URL: `https://itsmiracleai.com.co/api/billing/webhook`
+    - Eventos: `checkout.session.completed`,
+      `customer.subscription.created`, `customer.subscription.updated`,
+      `customer.subscription.deleted`, `invoice.paid`,
+      `invoice.payment_failed`.
+    - Copia el **Signing secret** (`whsec_...`) que genera: es **distinto** al
+      del CLI.
+14. En Vercel → proyecto `miracle-web` → *Settings → Environment Variables*,
+    entorno **Production**, añade las cuatro: `STRIPE_SECRET_KEY`,
+    `STRIPE_PRICE_ID_PRO`, `STRIPE_WEBHOOK_SECRET` (el del paso 13) y
+    `SUPABASE_SECRET_KEY`.
+15. Despliega (`vercel --prod` o push a `main`) y repite la prueba del paso 11
+    contra el sitio real.
+
+### Para cobrar de verdad
+
+Cuando Stripe apruebe la activación de la cuenta (te pide datos de la empresa y
+una cuenta bancaria), repite en **modo real** los pasos 3, 4 y 13 — producto,
+precio, clave `sk_live_...` y webhook con su propio `whsec_...` — y sustituye
+esas tres variables en Vercel. Nada del código cambia.
 
 ## Runbook
 
