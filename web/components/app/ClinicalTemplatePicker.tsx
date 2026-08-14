@@ -7,6 +7,8 @@ import {
   splitTemplatesBySpecialty,
   type ClinicalTemplate,
 } from "@/lib/api/clinical";
+import { searchList } from "@/lib/clinical/search";
+import { specialtyDisplayName } from "@/lib/clinical/medical-areas";
 
 const NO_PINS: ReadonlySet<string> = new Set();
 
@@ -39,15 +41,20 @@ export function ClinicalTemplatePicker({
   const [showOthers, setShowOthers] = useState(false);
   const selected =
     templates.find((template) => template.id === value) ?? templates[0];
-  const results = useMemo(() => {
-    const term = query.trim().toLocaleLowerCase("es");
-    if (!term) return templates;
-    return templates.filter((template) =>
-      `${template.name} ${template.specialty} ${template.description ?? ""}`
-        .toLocaleLowerCase("es")
-        .includes(term),
-    );
-  }, [query, templates]);
+  // Tolera tildes y errores de tecleo: "pediatria", "Pediatría" y "pedriatria"
+  // tienen que llegar a lo mismo. Se incluye el nombre legible de la
+  // especialidad además del código, para que buscar "Pediatría" funcione
+  // aunque el código guardado sea "pediatria".
+  const results = useMemo(
+    () =>
+      searchList(
+        templates,
+        query,
+        (template) =>
+          `${template.name} ${template.specialty} ${specialtyDisplayName(template.specialty)} ${template.description ?? ""}`,
+      ),
+    [query, templates],
+  );
 
   const { primary, others } = useMemo(
     () => splitTemplatesBySpecialty(templates, specialtyCode),

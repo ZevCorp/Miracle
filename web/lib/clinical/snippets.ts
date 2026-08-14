@@ -10,6 +10,11 @@
 // filtra por usuario, así que ninguna consulta de aquí necesita un .eq("user_id").
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  categoryMatchesSection,
+  matchesQuery,
+  normalizeForSearch,
+} from "@/lib/clinical/search";
 
 export interface Snippet {
   id: string;
@@ -182,22 +187,7 @@ export async function createSnippets(
  * Normaliza para comparar: minúsculas y sin tildes. Un médico que busca
  * "diagnostico" tiene que encontrar "Diagnóstico".
  */
-// Marcas combinantes que deja normalize("NFD") (bloque U+0300–U+036F: el tilde
-// de la "ó", la diéresis de la "ü"...). Se construye con fromCharCode en vez de
-// escribirlas en un literal: el target es ES2017, que no admite \p{Diacritic},
-// y los caracteres combinantes sueltos en el fuente son invisibles y frágiles.
-const DIACRITICS = new RegExp(
-  `[${String.fromCharCode(0x0300)}-${String.fromCharCode(0x036f)}]`,
-  "g",
-);
-
-export function normalizeForSearch(value: string): string {
-  return value
-    .toLocaleLowerCase("es")
-    .normalize("NFD")
-    .replace(DIACRITICS, "")
-    .trim();
-}
+export { normalizeForSearch };
 
 function sameText(a: string, b: string): boolean {
   return Boolean(a) && normalizeForSearch(a) === normalizeForSearch(b);
@@ -219,13 +209,17 @@ export function categoriesFrom(snippets: readonly Snippet[]): string[] {
  * Calidad de la coincidencia con el término buscado. Menor es mejor.
  * Sin término todos empatan en 0, y entonces manda el desempate por sección.
  */
-function textScore(snippet: Snippet, term: string): number {
+function textScore(snippet: Snippet, query: string, term: string): number {
   if (!term) return 0;
   const title = normalizeForSearch(snippet.title);
   if (title.startsWith(term)) return 0;
   if (title.includes(term)) return 1;
   if (normalizeForSearch(snippet.category).includes(term)) return 2;
   if (normalizeForSearch(snippet.content).includes(term)) return 3;
+  // Último recurso, para que un error de tecleo no deje la lista vacía: se
+  // acepta el parecido, pero de últimas, detrás de todo lo que coincide de
+  // verdad.
+  if (matchesQuery(`${snippet.title} ${snippet.category}`, query)) return 4;
   return -1; // no coincide
 }
 
@@ -251,10 +245,13 @@ export function filterSnippets(
 
   for (const snippet of snippets) {
     if (category && !sameText(snippet.category, category)) continue;
-    const text = textScore(snippet, term);
+    const text = textScore(snippet, query, term);
     if (text < 0) continue;
+    // Coincidencia PARCIAL, no exacta: el atajo se guarda como "Plan" y la
+    // plantilla llama a esa sección "Plan y dosis por peso". Con igualdad
+    // estricta, los atajos de un pediatra no se priorizaban en ninguna sección.
     const sameSection = sectionTitle
-      ? sameText(snippet.category, sectionTitle)
+      ? categoryMatchesSection(snippet.category, sectionTitle)
       : false;
     scored.push({ snippet, score: text * 2 + (sameSection ? 0 : 1) });
   }

@@ -25,6 +25,7 @@ import {
   type CreateClinicalTemplatePayload,
 } from "@/lib/api/clinical";
 import { specialtyDisplayName } from "@/lib/clinical/medical-areas";
+import { searchList } from "@/lib/clinical/search";
 import {
   clearTemplatePreference,
   getTemplatePreferences,
@@ -100,19 +101,19 @@ export function TemplateCatalog({
   const pinned = useMemo(() => pinnedTemplateIds(preferences), [preferences]);
 
   const visible = useMemo(() => {
-    const term = query.trim().toLocaleLowerCase("es");
-    return templates
-      .filter((template) => {
-        if (filter === "mias" && template.scope !== "personal") return false;
-        if (filter === "institucionales" && template.scope === "personal")
-          return false;
-        return (
-          !term ||
-          `${template.name} ${template.specialty} ${template.description ?? ""}`
-            .toLocaleLowerCase("es")
-            .includes(term)
-        );
-      })
+    const porAlcance = templates.filter((template) => {
+      if (filter === "mias" && template.scope !== "personal") return false;
+      if (filter === "institucionales" && template.scope === "personal") return false;
+      return true;
+    });
+    // Misma búsqueda tolerante que el selector de "Iniciar consulta": tildes y
+    // errores de tecleo no pueden dejar el catálogo en blanco.
+    return searchList(
+      porAlcance,
+      query,
+      (template) =>
+        `${template.name} ${template.specialty} ${specialtyDisplayName(template.specialty)} ${template.description ?? ""}`,
+    )
       .sort((a, b) => {
         const score = (template: ClinicalTemplate) =>
           (template.scope === "personal" ? 1 : 0) +
