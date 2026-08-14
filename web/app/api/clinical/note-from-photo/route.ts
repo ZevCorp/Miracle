@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/observability";
-import { rateLimit, requireApiUser } from "@/lib/api/guard";
+import { rateLimit, requireEntitledApiUser } from "@/lib/api/guard";
 import { getCurrentProfile } from "@/lib/auth/server";
 import { canUsePhotoNotes } from "@/lib/clinical/pathology";
 import { createClient } from "@/lib/supabase/server";
@@ -127,10 +127,12 @@ function sanitizeDynamicSections(value: unknown): FilledSection[] {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export async function POST(req: Request) {
-  const userId = await requireApiUser();
-  if (!userId) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  // Sesión + derecho comercial: cada informe desde foto cuesta una llamada de visión.
+  const gate = await requireEntitledApiUser();
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
+  const userId = gate.userId;
 
   // Exclusivo de cuentas patólogo. El resto de médicos no puede usar esta ruta.
   const profile = await getCurrentProfile();

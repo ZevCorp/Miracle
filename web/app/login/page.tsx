@@ -6,7 +6,7 @@ import { SubmitButton } from "./SubmitButton";
 
 export const metadata: Metadata = {
   title: "Ingresar",
-  description: "Acceso a la plataforma Miracle para instituciones en piloto.",
+  description: "Acceso a la plataforma Miracle para médicos e instituciones.",
 };
 
 const messages: Record<string, string> = {
@@ -40,7 +40,7 @@ export default async function LoginPage({
             Acceso a la plataforma
           </h1>
           <p className="mt-2 text-sm text-ink-soft">
-            Ingresa con la cuenta institucional autorizada por tu organización.
+            Ingresa con tu cuenta personal o con la cuenta que te asignó tu institución.
           </p>
         </div>
 
@@ -115,7 +115,10 @@ export default async function LoginPage({
           </form>
 
           <p className="mt-5 border-t border-line pt-5 text-center text-sm text-ink-soft">
-            El acceso se asigna por rol: médico, supervisor o administrador.
+            ¿Primera vez en Miracle?{" "}
+            <Link href="/registro" className="font-semibold text-accent hover:underline">
+              Crea tu cuenta gratis
+            </Link>
           </p>
 
           <div className="mt-4 text-center">

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   ClipboardList,
+  CreditCard,
   FileText,
   LayoutDashboard,
   LayoutTemplate,
@@ -38,6 +39,7 @@ const icons: Record<string, LucideIcon> = {
   plantillas: LayoutTemplate,
   configuracion: Settings,
   usuarios: UserCog,
+  suscripcion: CreditCard,
 };
 
 const primaryHrefs = new Set([
@@ -75,7 +77,7 @@ export function MobileBottomNavigation({
   // evita abandonar una grabación por un toque accidental.
   if (pathname === "/app/consultas/en-vivo" || pathname === "/app/consultas/nueva") return null;
 
-  const allowed = visibleAppNav(profile.role, profile.professionalType, profile.isDemo);
+  const allowed = visibleAppNav(profile.role, profile.professionalType, profile.isDemo, profile.orgKind);
   const primary = allowed.filter((item) => primaryHrefs.has(item.href));
   const secondary = allowed.filter((item) => !primaryHrefs.has(item.href));
   const secondaryActive = secondary.some((item) => isActive(pathname, item.href));

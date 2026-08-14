@@ -18,6 +18,48 @@ export async function requireApiUser(): Promise<string | null> {
   return userId;
 }
 
+export type EntitledApiUser =
+  | { ok: true; userId: string }
+  | { ok: false; status: 401 | 402; error: string };
+
+/**
+ * Sesión + derecho comercial. Las rutas de IA cuestan dinero por llamada, así
+ * que además de la sesión se comprueba `current_org_has_access()` en la base
+ * (trial vigente, suscripción activa, institución no archivada — ver
+ * private.org_has_access). 402 = autenticado pero sin acceso comercial: la
+ * interfaz manda a /suscripcion.
+ *
+ * Fail-open si la RPC falla, con el mismo criterio que rateLimit: el flujo
+ * clínico no debe caerse porque el billing tenga un problema. La RLS de las
+ * tablas clínicas sigue siendo la autoridad detrás de esta cortesía.
+ */
+export async function requireEntitledApiUser(): Promise<EntitledApiUser> {
+  const userId = await requireApiUser();
+  if (!userId) {
+    return { ok: false, status: 401, error: "No autorizado." };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data: allowed, error } = await supabase.rpc("current_org_has_access");
+    if (error) {
+      reportError(error, { where: "requireEntitledApiUser" });
+      return { ok: true, userId };
+    }
+    if (allowed !== true) {
+      return {
+        ok: false,
+        status: 402,
+        error: "Tu suscripción no está activa. Reactívala para seguir usando Miracle.",
+      };
+    }
+  } catch (e) {
+    reportError(e, { where: "requireEntitledApiUser" });
+  }
+
+  return { ok: true, userId };
+}
+
 // Primera barrera: contador en memoria de la instancia. Es gratis y corta el
 // abuso local; si ya excede aquí, ni se consulta la BD.
 const WINDOW_MS = 60_000;
