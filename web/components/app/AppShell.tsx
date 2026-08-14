@@ -69,7 +69,7 @@ export function AppShell({
     <div className="app-shell flex min-h-screen bg-pearl">
       <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 md:block">
         <AppSidebar
-          role={profile.role}
+          role={profile.uiRole}
           professionalType={profile.professionalType}
           isDemo={profile.isDemo}
           orgKind={profile.orgKind}

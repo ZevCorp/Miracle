@@ -95,7 +95,15 @@ export default async function ConsultasPage({
   // el selector no tendría nada que filtrar.
   let doctors: DoctorOption[] = [];
   let medicoFilter = "todos";
-  const esSecretaria = profile?.role === "secretaria";
+  // `uiRole`: la demo tiene rol `admin` en la base, pero se le enseña el
+  // producto del médico. Con el rol crudo le salía el selector de "filtrar por
+  // médico" del equipo —que un médico nunca ve— y se quedaba sin el botón
+  // "Nueva consulta".
+  const uiRole = profile?.uiRole;
+  // La comparación va contra `profile?.uiRole` y no contra la variable de
+  // arriba: así TypeScript sigue sabiendo que dentro del if `profile` no es
+  // null, que es lo que permite usar `profile.id` sin comprobarlo otra vez.
+  const esSecretaria = profile?.uiRole === "secretaria";
 
   if (esSecretaria) {
     const { data: accesos } = await supabase
@@ -106,7 +114,7 @@ export default async function ConsultasPage({
       const p = Array.isArray(a.profiles) ? a.profiles[0] : a.profiles;
       return { id: a.medico_id, label: p?.full_name || p?.email || "Médico" };
     });
-  } else if (profile?.role === "admin" || profile?.role === "supervisor") {
+  } else if (uiRole === "admin" || uiRole === "supervisor") {
     const { data: equipo } = await supabase
       .from("profiles")
       .select("id, full_name, email")
@@ -164,7 +172,7 @@ export default async function ConsultasPage({
         title="Consultas"
         description={`${total} ${total === 1 ? "consulta registrada" : "consultas registradas"}`}
         action={
-          profile?.role === "medico" ? (
+          uiRole === "medico" ? (
             <Link href="/app/consultas/nueva" className="clinical-primary w-full sm:w-auto">
               <Plus size={16} /> Nueva consulta
             </Link>

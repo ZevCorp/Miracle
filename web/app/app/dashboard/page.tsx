@@ -55,9 +55,9 @@ export default function DashboardPage() {
   const searchParams = useSearchParams();
 
   // La cuenta demo siempre abre en el panel del médico, que es lo que se
-  // muestra al vender. Su rol admin solo le sirve para alcanzar las demás
-  // secciones desde el menú, no para cambiar este inicio.
-  const viewRole = isDemo ? "medico" : role;
+  // muestra al vender. Ya no hace falta corregirlo aquí: el store recibe
+  // `uiRole` desde el layout, que para la demo ya es "medico".
+  const viewRole = role;
 
   // La secretaría no tiene un panel propio: su única sección es "Consultas".
   // Se saca de aquí apenas se conoce el rol, antes de armar ninguna métrica.

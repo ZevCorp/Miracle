@@ -30,8 +30,11 @@ export default async function AppLayout({
   }
 
   return (
+    // `uiRole`, no `role`: el store solo alimenta la interfaz, y la demo debe
+    // verse como un médico. Los permisos reales los aplican la RLS y las
+    // comprobaciones de servidor, que sí miran el rol de la base.
     <MiracleProvider
-      role={profile.role}
+      role={profile.uiRole}
       userName={profile.fullName ?? profile.email}
       isDemo={profile.isDemo}
     >

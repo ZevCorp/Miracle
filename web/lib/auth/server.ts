@@ -8,6 +8,7 @@ import {
   type BillingAccountRow,
 } from "@/lib/billing/entitlements";
 import { createClient } from "@/lib/supabase/server";
+import { reportError } from "@/lib/observability";
 
 export interface AuthenticatedProfile {
   id: string;
@@ -15,6 +16,23 @@ export interface AuthenticatedProfile {
   fullName: string | null;
   avatarUrl: string | null;
   role: AppRole;
+  /**
+   * Rol con el que se DIBUJA la interfaz. Igual a `role`, salvo en la cuenta de
+   * demostración comercial: tiene `admin` en la base para que la RLS le deje
+   * leer las consultas de su organización, pero al comprador hay que enseñarle
+   * el producto del médico, no el del administrador de hospital.
+   *
+   * LA REGLA, y el motivo de que este campo exista: para decidir QUÉ SE VE, se
+   * usa `uiRole`. Para decidir QUÉ SE PUEDE HACER, `role`. Antes esto vivía
+   * solo en `effectiveRole()`, que nadie llamaba fuera de `requireRole`, así que
+   * la demo se veía como administrador: salía "Administrador" bajo su nombre,
+   * el selector de "filtrar por médico" del equipo, y —lo peor— se quedaba sin
+   * el botón "Nueva consulta", que es el centro de la demostración.
+   *
+   * Va resuelto aquí y no en cada pantalla para que un componente de cliente
+   * pueda leerlo: `effectiveRole` vive en un módulo `server-only`.
+   */
+  uiRole: AppRole;
   /** Cuenta de demostración comercial: ver canAccessPath en lib/auth/roles.ts. */
   isDemo: boolean;
   organizationId: string | null;
@@ -51,20 +69,38 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
   // pedirla dentro del select principal haría fallar la consulta y sacaría a
   // TODOS los usuarios al login. Sin la columna, simplemente no hay cuentas
   // demo ni bajas.
-  const [{ data: profile, error: profileError }, { data: extraRow }] = await Promise.all([
-    supabase.from("profiles").select(columns).eq("id", userId).maybeSingle(),
-    supabase
-      .from("profiles")
-      // El embed a organizations resuelve por la clave foránea
-      // profiles.organization_id: sale en la misma consulta, sin viaje extra.
-      // billing_accounts es 1:1 con la organización; PostgREST puede devolver
-      // el embed como objeto o como arreglo de uno — se toleran ambos.
-      .select(
-        "is_demo, disabled_at, organizations(archived_at, kind, billing_accounts(mode, stripe_status, current_period_end, cancel_at_period_end, trial_ends_at, comped_until))",
-      )
-      .eq("id", userId)
-      .maybeSingle(),
-  ]);
+  const [{ data: profile, error: profileError }, { data: extraRow, error: extraError }] =
+    await Promise.all([
+      supabase.from("profiles").select(columns).eq("id", userId).maybeSingle(),
+      supabase
+        .from("profiles")
+        // El embed va SIEMPRE con el nombre de la clave foránea. Hoy hay tres
+        // caminos de profiles a organizations —organization_id (este),
+        // organizations.owner_id (el admin fundador) y org_memberships— y sin
+        // nombrar cuál, PostgREST responde PGRST201 y NO devuelve nada.
+        //
+        // Eso ya pasó: al añadir owner_id y org_memberships esta consulta empezó
+        // a fallar entera y, como su error se ignoraba, el fallo fue mudo. Con
+        // extraRow en null la app daba por hecho que nadie es cuenta demo, que
+        // ninguna organización es personal y que no hay datos de facturación:
+        // la demo se veía como administrador de hospital.
+        //
+        // billing_accounts es 1:1 con la organización; PostgREST puede devolver
+        // el embed como objeto o como arreglo de uno — se toleran ambos.
+        .select(
+          "is_demo, disabled_at, organizations!profiles_organization_id_fkey(archived_at, kind, billing_accounts(mode, stripe_status, current_period_end, cancel_at_period_end, trial_ends_at, comped_until))",
+        )
+        .eq("id", userId)
+        .maybeSingle(),
+    ]);
+
+  // Se sigue tolerando el fallo —si el código se despliega antes que una
+  // migración, nadie debe quedarse fuera del login— pero ya no en silencio:
+  // este error degrada permisos y estado comercial sin romper nada visible, que
+  // es justo el tipo de avería que se queda meses sin detectar.
+  if (extraError) {
+    reportError(extraError, { where: "getCurrentProfile.extraRow" });
+  }
 
   if (profileError || !profile || !isAppRole(profile.role)) return null;
 
@@ -91,13 +127,16 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
       ? deriveAccess(null, orgKind, null)
       : deriveAccess(billingRow as BillingAccountRow | null, orgKind, org?.archived_at ?? null);
 
+  const isDemo = extraRow?.is_demo === true;
+
   return {
     id: profile.id,
     email: profile.email,
     fullName: profile.full_name,
     avatarUrl: profile.avatar_url,
     role: profile.role,
-    isDemo: extraRow?.is_demo === true,
+    uiRole: isDemo ? "medico" : profile.role,
+    isDemo,
     organizationId: profile.organization_id ?? null,
     orgKind,
     billing,
@@ -117,15 +156,12 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
 }
 
 /**
- * Rol con el que se resuelven los permisos de interfaz.
- *
- * La cuenta de demostración comercial tiene rol `admin` en la base (lo necesita
- * para que la RLS le deje leer las consultas de su organización demo), pero se
- * presenta y se limita como médico: no entra a las secciones de administración
- * y sí entra a crear y grabar consultas. Ver DEMO_SECTIONS en lib/auth/roles.ts.
+ * Rol con el que se resuelven los permisos de interfaz. Alias de `uiRole`, que
+ * ya viene resuelto en el perfil; se conserva porque es el nombre con el que
+ * `requireRole` y las páginas de servidor lo piden.
  */
 export function effectiveRole(profile: AuthenticatedProfile): AppRole {
-  return profile.isDemo ? "medico" : profile.role;
+  return profile.uiRole;
 }
 
 export async function requireRole(...allowedRoles: AppRole[]) {

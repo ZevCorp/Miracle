@@ -77,7 +77,7 @@ export function MobileBottomNavigation({
   // evita abandonar una grabación por un toque accidental.
   if (pathname === "/app/consultas/en-vivo" || pathname === "/app/consultas/nueva") return null;
 
-  const allowed = visibleAppNav(profile.role, profile.professionalType, profile.isDemo, profile.orgKind);
+  const allowed = visibleAppNav(profile.uiRole, profile.professionalType, profile.isDemo, profile.orgKind);
   const primary = allowed.filter((item) => primaryHrefs.has(item.href));
   const secondary = allowed.filter((item) => !primaryHrefs.has(item.href));
   const secondaryActive = secondary.some((item) => isActive(pathname, item.href));
@@ -131,7 +131,7 @@ export function MobileBottomNavigation({
             <div className="flex items-center justify-between gap-3 px-1">
               <div className="min-w-0">
                 <h2 id="mobile-more-title" className="font-semibold text-deep">Más opciones</h2>
-                <p className="truncate text-xs text-muted">{profile.fullName ?? profile.email} · {APP_ROLE_LABEL[profile.role]}</p>
+                <p className="truncate text-xs text-muted">{profile.fullName ?? profile.email} · {APP_ROLE_LABEL[profile.uiRole]}</p>
               </div>
               <button type="button" onClick={() => setMoreOpen(false)} aria-label="Cerrar menú" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line text-muted">
                 <X size={19} />
