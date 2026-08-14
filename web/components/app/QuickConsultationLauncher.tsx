@@ -7,9 +7,15 @@ import {
   createClinicalEncounter,
   friendlyClinicalMessage,
   getClinicalTemplates,
-  normalizeSpecialtyCode,
   type ClinicalTemplate,
 } from "@/lib/api/clinical";
+import {
+  getTemplatePreferences,
+  pickPreselectedTemplate,
+  pinnedTemplateIds,
+  type TemplatePreference,
+} from "@/lib/clinical/template-preferences";
+import { createClient } from "@/lib/supabase/client";
 import { ClinicalTemplatePicker } from "./ClinicalTemplatePicker";
 import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
 
@@ -55,6 +61,7 @@ export function QuickConsultationLauncher({
   const { guardedNavigate } = useNavigationGuard();
   const [open, setOpen] = useState(false);
   const [templates, setTemplates] = useState<ClinicalTemplate[]>([]);
+  const [preferences, setPreferences] = useState<TemplatePreference[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -66,35 +73,27 @@ export function QuickConsultationLauncher({
     setLoadingTemplates(true);
     setError(null);
 
-    void getClinicalTemplates()
-      .then((items) => {
+    void Promise.all([
+      getClinicalTemplates(),
+      // Sin preferencias solo se pierde el pin; nunca bloquea el lanzador.
+      getTemplatePreferences(createClient()).catch(
+        () => [] as TemplatePreference[],
+      ),
+    ])
+      .then(([items, prefs]) => {
         const activeAll = items.filter((template) => template.status !== "archived");
         setTemplates(activeAll);
-        // Mismo criterio que /consultas/nueva: el selector ofrece TODAS, pero la
-        // preselección sale de las de su especialidad (con fallback a todas si no
-        // hay match) más las personales. Así un patólogo no arranca por defecto
-        // con la plantilla de otra especialidad.
-        const personal = activeAll.filter((template) => template.scope === "personal");
-        const institutional = activeAll.filter((template) => template.scope !== "personal");
-        const wanted = specialtyCode ? normalizeSpecialtyCode(specialtyCode) : null;
-        const matching = wanted
-          ? institutional.filter(
-              (template) => normalizeSpecialtyCode(template.specialty) === wanted,
-            )
-          : [];
-        const preferred = wanted
-          ? [...personal, ...(matching.length ? matching : institutional)]
-          : activeAll;
-        // Prioridad del preseleccionado: 1) la última que el médico usó de
-        // verdad, si sigue disponible; 2) la predeterminada de su
-        // especialidad; 3) la primera de la lista.
-        const lastUsedId = readLastTemplateId(userId);
-        const lastUsed = lastUsedId && activeAll.find((template) => template.id === lastUsedId);
+        setPreferences(prefs);
+        // Prioridad del preseleccionado (lib/clinical/template-preferences):
+        // 1) el pin "mi sugerida" del médico; 2) la última que de verdad usó;
+        // 3) la sugerida institucional de su especialidad; 4) la primera.
         setSelectedTemplateId(
-          (lastUsed ? lastUsed.id : undefined) ??
-            preferred.find((template) => template.is_default)?.id ??
-            preferred[0]?.id ??
-            "",
+          pickPreselectedTemplate({
+            templates: activeAll,
+            preferences: prefs,
+            lastUsedId: readLastTemplateId(userId),
+            specialtyCode,
+          }),
         );
       })
       .catch((reason) => {
@@ -205,7 +204,7 @@ export function QuickConsultationLauncher({
               ) : templates.length ? (
                 <div className="text-sm font-semibold text-deep">
                   Plantilla de nota
-                  <ClinicalTemplatePicker templates={templates} specialtyCode={specialtyCode} value={selectedTemplateId} onChange={setSelectedTemplateId} disabled={starting} />
+                  <ClinicalTemplatePicker templates={templates} specialtyCode={specialtyCode} value={selectedTemplateId} onChange={setSelectedTemplateId} disabled={starting} pinnedTemplateIds={pinnedTemplateIds(preferences)} />
                 </div>
               ) : !error ? (
                 <p className="rounded-md border border-line bg-pearl px-3 py-2.5 text-sm text-muted">

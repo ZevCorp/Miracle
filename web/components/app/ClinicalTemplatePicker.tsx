@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, FileText, Search, X } from "lucide-react";
+import { Check, ChevronDown, FileText, Search, Star, X } from "lucide-react";
 import {
   sortedTemplateSections,
   splitTemplatesBySpecialty,
   type ClinicalTemplate,
 } from "@/lib/api/clinical";
+
+const NO_PINS: ReadonlySet<string> = new Set();
 
 export function ClinicalTemplatePicker({
   templates,
@@ -15,6 +17,7 @@ export function ClinicalTemplatePicker({
   disabled = false,
   label = "Plantilla de nota",
   specialtyCode,
+  pinnedTemplateIds = NO_PINS,
 }: {
   /** Todas las plantillas que el médico puede usar, sin filtrar por especialidad. */
   templates: ClinicalTemplate[];
@@ -28,6 +31,8 @@ export function ClinicalTemplatePicker({
    * alcanza a todo el catálogo.
    */
   specialtyCode?: string | null;
+  /** Ids fijados por el médico como "Tu sugerida" (lib/clinical/template-preferences). */
+  pinnedTemplateIds?: ReadonlySet<string>;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -75,6 +80,11 @@ export function ClinicalTemplatePicker({
             <span className="truncate text-sm font-semibold text-deep">
               {selected.name}
             </span>
+            {pinnedTemplateIds.has(selected.id) ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-ink">
+                <Star size={11} /> Tu sugerida
+              </span>
+            ) : null}
             {selected.scope === "personal" ? (
               <span className="rounded-full bg-mint-soft px-2 py-0.5 text-xs font-semibold text-success">
                 Mía
@@ -176,6 +186,7 @@ export function ClinicalTemplatePicker({
                       key={template.id}
                       template={template}
                       active={template.id === selected.id}
+                      pinned={pinnedTemplateIds.has(template.id)}
                       onPick={pick}
                     />
                   ))}
@@ -197,6 +208,7 @@ export function ClinicalTemplatePicker({
                       key={template.id}
                       template={template}
                       active={template.id === selected.id}
+                      pinned={pinnedTemplateIds.has(template.id)}
                       onPick={pick}
                     />
                   ))}
@@ -213,6 +225,7 @@ export function ClinicalTemplatePicker({
                             key={template.id}
                             template={template}
                             active={template.id === selected.id}
+                            pinned={pinnedTemplateIds.has(template.id)}
                             onPick={pick}
                           />
                         ))
@@ -241,10 +254,12 @@ export function ClinicalTemplatePicker({
 function TemplateOption({
   template,
   active,
+  pinned,
   onPick,
 }: {
   template: ClinicalTemplate;
   active: boolean;
+  pinned: boolean;
   onPick: (templateId: string) => void;
 }) {
   return (
@@ -261,7 +276,11 @@ function TemplateOption({
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2">
           <span className="font-semibold text-deep">{template.name}</span>
-          {template.is_default ? (
+          {pinned ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-ink">
+              <Star size={11} /> Tu sugerida
+            </span>
+          ) : template.is_default ? (
             <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
               Sugerida
             </span>

@@ -10,6 +10,8 @@ import {
   Plus,
   Search,
   Sparkles,
+  Star,
+  StarOff,
   Stethoscope,
   X,
 } from "lucide-react";
@@ -23,6 +25,14 @@ import {
   type CreateClinicalTemplatePayload,
 } from "@/lib/api/clinical";
 import { specialtyDisplayName } from "@/lib/clinical/medical-areas";
+import {
+  clearTemplatePreference,
+  getTemplatePreferences,
+  pinnedTemplateIds,
+  setTemplatePreference,
+  type TemplatePreference,
+} from "@/lib/clinical/template-preferences";
+import { createClient } from "@/lib/supabase/client";
 import {
   TemplateBuilderPanel,
   type BuilderMode,
@@ -52,14 +62,24 @@ export function TemplateCatalog({
   const [creation, setCreation] = useState<CreationMode>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [pinningId, setPinningId] = useState<string | null>(null);
+  const [preferences, setPreferences] = useState<TemplatePreference[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    void getClinicalTemplates()
-      .then((result) => {
+    // Las preferencias no bloquean el catálogo: si fallan, solo se pierde el
+    // badge "Tu sugerida".
+    void Promise.all([
+      getClinicalTemplates(),
+      getTemplatePreferences(createClient()).catch(
+        () => [] as TemplatePreference[],
+      ),
+    ])
+      .then(([result, prefs]) => {
         if (cancelled) return;
         setTemplates(result);
+        setPreferences(prefs);
         setError(null);
       })
       .catch((loadError) => {
@@ -72,6 +92,8 @@ export function TemplateCatalog({
       cancelled = true;
     };
   }, [reloadKey]);
+
+  const pinned = useMemo(() => pinnedTemplateIds(preferences), [preferences]);
 
   const visible = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("es");
@@ -118,6 +140,29 @@ export function TemplateCatalog({
         : "Cambios guardados.",
     );
     reload();
+  }
+  async function togglePin(template: ClinicalTemplate) {
+    const supabase = createClient();
+    setPinningId(template.id);
+    try {
+      if (pinned.has(template.id)) {
+        await clearTemplatePreference(supabase, template.specialty);
+        setFeedback("Ya no es tu sugerida.");
+      } else {
+        await setTemplatePreference(supabase, {
+          specialtyCode: template.specialty,
+          templateId: template.id,
+        });
+        setFeedback(
+          "Fijada como tu sugerida: aparecerá preseleccionada al iniciar consultas.",
+        );
+      }
+      setPreferences(await getTemplatePreferences(supabase));
+    } catch (pinError) {
+      setFeedback(friendlyClinicalMessage(pinError));
+    } finally {
+      setPinningId(null);
+    }
   }
   async function archive(template: ClinicalTemplate) {
     if (
@@ -242,6 +287,7 @@ export function TemplateCatalog({
                 key={template.id}
                 template={template}
                 active={template.id === selected?.id}
+                pinned={pinned.has(template.id)}
                 onSelect={() => setSelectedId(template.id)}
               />
             ))}
@@ -261,6 +307,9 @@ export function TemplateCatalog({
               <TemplatePreview
                 template={selected}
                 archiving={archivingId === selected.id}
+                pinned={pinned.has(selected.id)}
+                pinning={pinningId === selected.id}
+                onTogglePin={() => void togglePin(selected)}
                 onBase={() => setBuilder({ mode: "base", baseTemplate: selected })}
                 onEdit={() => setBuilder({ mode: "edit", baseTemplate: selected })}
                 onArchive={() => void archive(selected)}
@@ -280,6 +329,9 @@ export function TemplateCatalog({
             <TemplatePreview
               template={selected}
               archiving={archivingId === selected.id}
+              pinned={pinned.has(selected.id)}
+              pinning={pinningId === selected.id}
+              onTogglePin={() => void togglePin(selected)}
               onBase={() => setBuilder({ mode: "base", baseTemplate: selected })}
               onEdit={() => setBuilder({ mode: "edit", baseTemplate: selected })}
               onArchive={() => void archive(selected)}
@@ -325,10 +377,12 @@ export function TemplateCatalog({
 function TemplateRow({
   template,
   active,
+  pinned,
   onSelect,
 }: {
   template: ClinicalTemplate;
   active: boolean;
+  pinned: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -347,7 +401,11 @@ function TemplateRow({
           <span className="text-sm font-semibold text-deep">
             {template.name}
           </span>
-          {template.is_default ? (
+          {pinned ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-[12px] font-semibold text-warning-ink">
+              <Star size={11} /> Tu sugerida
+            </span>
+          ) : template.is_default ? (
             <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[12px] font-semibold text-accent">
               Sugerida
             </span>
@@ -377,12 +435,18 @@ function TemplateRow({
 function TemplatePreview({
   template,
   archiving,
+  pinned,
+  pinning,
+  onTogglePin,
   onBase,
   onEdit,
   onArchive,
 }: {
   template: ClinicalTemplate;
   archiving: boolean;
+  pinned: boolean;
+  pinning: boolean;
+  onTogglePin: () => void;
   onBase: () => void;
   onEdit: () => void;
   onArchive: () => void;
@@ -434,6 +498,20 @@ function TemplatePreview({
           className="clinical-primary"
         >
           <Copy size={15} /> Usar como base
+        </button>
+        <button
+          type="button"
+          onClick={onTogglePin}
+          disabled={pinning}
+          title="Tu sugerida aparece preseleccionada al iniciar una consulta"
+          className="clinical-secondary"
+        >
+          {pinned ? <StarOff size={15} /> : <Star size={15} />}{" "}
+          {pinning
+            ? "Guardando…"
+            : pinned
+              ? "Quitar mi sugerida"
+              : "Fijar como mi sugerida"}
         </button>
         {personal ? (
           <>
