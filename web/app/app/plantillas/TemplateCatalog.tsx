@@ -49,8 +49,12 @@ interface BuilderState {
 
 export function TemplateCatalog({
   initialSpecialtyCode,
+  embedded = false,
 }: {
   initialSpecialtyCode?: string | null;
+  /** Dentro de las pestañas de /app/plantillas: el contenedor ya pone el
+   *  ancho y el padding de página, así que aquí no se repiten. */
+  embedded?: boolean;
 }) {
   const [templates, setTemplates] = useState<ClinicalTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,7 +189,7 @@ export function TemplateCatalog({
   }
 
   return (
-    <div className="app-page max-w-[1440px]">
+    <div className={embedded ? undefined : "app-page max-w-[1440px]"}>
       <header className="border-b border-line pb-6">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>

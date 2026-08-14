@@ -1,8 +1,33 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Check, ChevronDown, Copy, Mic, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  Mic,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+  Zap,
+} from "lucide-react";
 import type { NoteSection } from "@/lib/mock";
+import { HoverHint } from "@/components/ui/HoverHint";
+import { SnippetPopup } from "@/components/app/SnippetPopup";
+import { SnippetEditorDialog } from "@/components/app/SnippetEditorDialog";
+import type { Snippet } from "@/lib/clinical/snippets";
+import {
+  appendSnippetText,
+  insertSnippetText,
+  snippetToListItems,
+} from "@/lib/clinical/insert-text";
+import { slashQueryAt, type SlashToken } from "@/lib/clinical/slash-trigger";
+import { filenameToTitle } from "@/lib/clinical/file-to-text";
+import {
+  firstPlaceholderIn,
+  nextPlaceholderAfter,
+} from "@/lib/clinical/placeholders";
 
 export function NoteSectionView({
   section,
@@ -29,6 +54,20 @@ export function NoteSectionView({
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onChangeRef = useRef(onChange);
 
+  // --- Atajos ---
+  const [snippetPanel, setSnippetPanel] = useState(false);
+  const [slash, setSlash] = useState<SlashToken | null>(null);
+  const [saveAsSnippet, setSaveAsSnippet] = useState<{
+    title: string;
+    content: string;
+  } | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // El clic en el popup saca el foco del campo: la posición del cursor se
+  // guarda antes, mientras el textarea todavía la reporta bien.
+  const selectionRef = useRef<{ start: number; end: number } | null>(null);
+  const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
+  const dismissedSlashRef = useRef<number | null>(null);
+
   const [listening, setListening] = useState(false);
   const dictSupported = useSyncExternalStore(
     () => () => undefined,
@@ -46,6 +85,24 @@ export function NoteSectionView({
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  // Deja el cursor al final de lo insertado.
+  //
+  // Se hace aquí y no en un requestAnimationFrame: los frames no corren si la
+  // pestaña está en segundo plano, y entonces el cursor se quedaría al
+  // principio sin que nada avisara. Este efecto corre después del commit, o
+  // sea después del autoFocus del textarea recién montado, que es justo lo que
+  // había que ganarle.
+  useEffect(() => {
+    const pending = pendingSelectionRef.current;
+    if (!pending || !editing) return;
+    const node = textareaRef.current;
+    if (!node) return;
+    pendingSelectionRef.current = null;
+    node.focus();
+    node.setSelectionRange(pending.start, pending.end);
+    selectionRef.current = { start: pending.start, end: pending.end };
+  }, [texto, editing]);
 
   useEffect(() => {
     return () => {
@@ -139,6 +196,132 @@ export function NoteSectionView({
     setOpen(true);
   }
 
+  // --- Atajos -------------------------------------------------------------
+
+  function rememberSelection(node: HTMLTextAreaElement) {
+    selectionRef.current = { start: node.selectionStart, end: node.selectionEnd };
+  }
+
+  function refreshSlash(node: HTMLTextAreaElement) {
+    const token = slashQueryAt(node.value, node.selectionStart);
+    if (!token) {
+      dismissedSlashRef.current = null;
+      setSlash(null);
+      return;
+    }
+    setSlash(dismissedSlashRef.current === token.start ? null : token);
+  }
+
+  /**
+   * Inserta texto en la sección. Suma siempre, nunca reemplaza lo escrito.
+   *
+   * En las secciones de lista cada línea del atajo entra como un punto (sin su
+   * viñeta: la lista ya pinta la suya) y no aplica ni el cursor ni la "/", que
+   * son cosas del textarea.
+   */
+  function insertText(text: string, range?: { start: number; end: number }) {
+    if (esLista) {
+      const nuevos = snippetToListItems(text);
+      if (!nuevos.length) return;
+      setSavedHint(false);
+      setItems((list) => [...(editing ? list : section.items ?? []), ...nuevos]);
+      if (!editing) {
+        setTexto(section.texto ?? "");
+        setEditing(true);
+        setOpen(true);
+      }
+      return;
+    }
+
+    const base = editing ? texto : section.texto ?? "";
+    const result = range
+      ? insertSnippetText(base, range.start, range.end, text)
+      : editing
+        ? insertSnippetText(
+            base,
+            selectionRef.current?.start ?? base.length,
+            selectionRef.current?.end ?? base.length,
+            text,
+          )
+        : appendSnippetText(base, text);
+    // Si el atajo trae huecos ("[dosis]", "___"), el cursor cae en el primero.
+    const hueco = firstPlaceholderIn(result.next, result.selStart, result.selEnd);
+    pendingSelectionRef.current = hueco ?? {
+      start: result.selEnd,
+      end: result.selEnd,
+    };
+    setSavedHint(false);
+    setTexto(result.next);
+    if (!editing) {
+      setItems(section.items ?? []);
+      setEditing(true);
+      setOpen(true);
+    }
+  }
+
+  /**
+   * Tab salta al siguiente hueco por rellenar. Sin huecos, Tab hace lo de
+   * siempre y sale del campo; Shift+Tab nunca se toca.
+   */
+  function onTextareaKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Tab" || event.shiftKey) return;
+    const node = event.currentTarget;
+    const hueco = nextPlaceholderAfter(node.value, node.selectionEnd);
+    if (!hueco) return;
+    event.preventDefault();
+    node.setSelectionRange(hueco.start, hueco.end);
+    selectionRef.current = { start: hueco.start, end: hueco.end };
+  }
+
+  function pickFromPanel(snippet: Snippet) {
+    setSnippetPanel(false);
+    insertText(snippet.content);
+  }
+
+  function pickFromSlash(snippet: Snippet) {
+    const token = slash;
+    setSlash(null);
+    dismissedSlashRef.current = null;
+    if (!token) return;
+    const caret = textareaRef.current?.selectionStart ?? texto.length;
+    insertText(snippet.content, { start: token.start, end: caret });
+  }
+
+  function insertFileText(text: string, file: File) {
+    setSnippetPanel(false);
+    insertText(text);
+    setSaveAsSnippet({ title: filenameToTitle(file.name), content: text });
+  }
+
+  const snippetButton = (
+    <div className="relative">
+      <HoverHint label="Insertar un atajo — o escribe / en el texto">
+        <button
+          type="button"
+          onClick={() => setSnippetPanel((value) => !value)}
+          aria-label={`Insertar atajo en ${section.titulo}`}
+          aria-expanded={snippetPanel}
+          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+            snippetPanel
+              ? "bg-accent-soft text-accent"
+              : "text-muted hover:bg-ice-soft hover:text-accent"
+          }`}
+        >
+          <Zap size={14} /> <span className="hidden sm:inline">Atajo</span>
+        </button>
+      </HoverHint>
+      {snippetPanel ? (
+        <SnippetPopup
+          mode="panel"
+          sectionTitle={section.titulo}
+          onPick={pickFromPanel}
+          onPickFileText={insertFileText}
+          onClose={() => setSnippetPanel(false)}
+        />
+      ) : null}
+    </div>
+  );
+
   function cancel() {
     stopDictado();
     setEditing(false);
@@ -189,6 +372,7 @@ export function NoteSectionView({
               {copied ? <Check size={14} /> : <Copy size={14} />}
               <span className="hidden sm:inline">{copied ? "Copiado" : "Copiar"}</span>
             </button>
+            {editable ? snippetButton : null}
             {editable ? (
               <button
                 type="button"
@@ -247,16 +431,39 @@ export function NoteSectionView({
                   </button>
                 </div>
               ) : (
-                <textarea
-                  value={texto}
-                  onChange={(e) => {
-                    setSavedHint(false);
-                    setTexto(e.target.value);
-                  }}
-                  rows={Math.max(3, Math.ceil(texto.length / 70))}
-                  className="w-full resize-y rounded-md border border-line bg-field px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
-                  autoFocus
-                />
+                <div className="relative">
+                  <textarea
+                    ref={textareaRef}
+                    value={texto}
+                    onChange={(e) => {
+                      setSavedHint(false);
+                      setTexto(e.target.value);
+                      rememberSelection(e.target);
+                      refreshSlash(e.target);
+                    }}
+                    onSelect={(e) => {
+                      rememberSelection(e.currentTarget);
+                      refreshSlash(e.currentTarget);
+                    }}
+                    onKeyDown={onTextareaKeyDown}
+                    onBlur={(e) => rememberSelection(e.currentTarget)}
+                    rows={Math.max(3, Math.ceil(texto.length / 70))}
+                    className="w-full resize-y rounded-md border border-line bg-field px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
+                    autoFocus
+                  />
+                  {slash ? (
+                    <SnippetPopup
+                      mode="inline"
+                      sectionTitle={section.titulo}
+                      query={slash.query}
+                      onPick={pickFromSlash}
+                      onClose={() => {
+                        dismissedSlashRef.current = slash.start;
+                        setSlash(null);
+                      }}
+                    />
+                  ) : null}
+                </div>
               )}
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -279,6 +486,7 @@ export function NoteSectionView({
                     Guardado
                   </span>
                 ) : null}
+                {snippetButton}
                 {!esLista && dictSupported ? (
                   <button
                     type="button"
@@ -346,6 +554,15 @@ export function NoteSectionView({
             </div>
           )}
         </div>
+      ) : null}
+
+      {saveAsSnippet ? (
+        <SnippetEditorDialog
+          initial={{ ...saveAsSnippet, category: section.titulo }}
+          categories={[section.titulo]}
+          onClose={() => setSaveAsSnippet(null)}
+          onSaved={() => setSaveAsSnippet(null)}
+        />
       ) : null}
     </div>
   );

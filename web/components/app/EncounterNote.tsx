@@ -9,6 +9,7 @@ import {
   Info,
   Mic,
   X,
+  Zap,
 } from "lucide-react";
 import type { ClinicalNoteJson, ClinicalNoteSection } from "@/lib/api/clinical";
 import {
@@ -17,6 +18,17 @@ import {
   type NoteReview,
 } from "@/lib/clinical/note-review";
 import { AuditFindingList } from "@/components/app/AuditFindings";
+import { HoverHint } from "@/components/ui/HoverHint";
+import { SnippetPopup } from "@/components/app/SnippetPopup";
+import { SnippetEditorDialog } from "@/components/app/SnippetEditorDialog";
+import type { Snippet } from "@/lib/clinical/snippets";
+import { appendSnippetText, insertSnippetText } from "@/lib/clinical/insert-text";
+import { slashQueryAt, type SlashToken } from "@/lib/clinical/slash-trigger";
+import { filenameToTitle } from "@/lib/clinical/file-to-text";
+import {
+  firstPlaceholderIn,
+  nextPlaceholderAfter,
+} from "@/lib/clinical/placeholders";
 
 /**
  * Editor de la nota clínica estructurada (note_json del backend).
@@ -263,9 +275,129 @@ function EditableBlock({
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const onChangeRef = useRef(onChange);
 
+  // --- Atajos -------------------------------------------------------------
+  const [snippetPanel, setSnippetPanel] = useState(false);
+  const [slash, setSlash] = useState<SlashToken | null>(null);
+  const [saveAsSnippet, setSaveAsSnippet] = useState<{
+    title: string;
+    content: string;
+  } | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // El clic en el popup saca el foco del textarea, y con él selectionStart deja
+  // de ser fiable: la posición se guarda mientras el campo aún la tiene.
+  const selectionRef = useRef<{ start: number; end: number } | null>(null);
+  const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
+  // Token de "/" que el médico descartó con Escape, para no reabrirle la lista
+  // encima mientras sigue escribiendo esa misma palabra.
+  const dismissedSlashRef = useRef<number | null>(null);
+
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  // Coloca el cursor donde quedó el texto insertado.
+  //
+  // Se hace aquí y no en un requestAnimationFrame: los frames no corren con la
+  // pestaña en segundo plano y el cursor se quedaría al principio sin aviso.
+  // Este efecto corre después del commit — o sea, después del autoFocus del
+  // textarea recién montado, que es a quien había que ganarle.
+  useEffect(() => {
+    const pending = pendingSelectionRef.current;
+    if (!pending || !editing) return;
+    const node = textareaRef.current;
+    if (!node) return;
+    pendingSelectionRef.current = null;
+    node.focus();
+    node.setSelectionRange(pending.start, pending.end);
+    selectionRef.current = { start: pending.start, end: pending.end };
+  }, [draft, editing]);
+
+  function rememberSelection(node: HTMLTextAreaElement) {
+    selectionRef.current = { start: node.selectionStart, end: node.selectionEnd };
+  }
+
+  function refreshSlash(node: HTMLTextAreaElement) {
+    const token = slashQueryAt(node.value, node.selectionStart);
+    if (!token) {
+      dismissedSlashRef.current = null;
+      setSlash(null);
+      return;
+    }
+    setSlash(dismissedSlashRef.current === token.start ? null : token);
+  }
+
+  /**
+   * Inserta texto en la sección. Suma siempre: en edición entra donde está el
+   * cursor (o reemplaza lo que haya seleccionado, que es lo que una selección
+   * significa); en lectura se añade al final y el campo se abre para editar.
+   *
+   * El cambio va SOLO por setDraft: persistirlo aquí además, llamando a
+   * onChange, competiría con el autoguardado de 1200 ms y escribiría dos veces.
+   */
+  function insertText(text: string, range?: { start: number; end: number }) {
+    const base = editing ? draft : content;
+    const result = range
+      ? insertSnippetText(base, range.start, range.end, text)
+      : editing
+        ? insertSnippetText(
+            base,
+            selectionRef.current?.start ?? base.length,
+            selectionRef.current?.end ?? base.length,
+            text,
+          )
+        : appendSnippetText(base, text);
+    // Si el atajo trae huecos ("[dosis]", "___"), el cursor cae en el primero
+    // en vez de al final: es lo único que el médico tiene que escribir.
+    const hueco = firstPlaceholderIn(result.next, result.selStart, result.selEnd);
+    pendingSelectionRef.current = hueco ?? {
+      start: result.selEnd,
+      end: result.selEnd,
+    };
+    setSavedHint(false);
+    setDraft(result.next);
+    if (!editing) {
+      setEditing(true);
+      setOpen(true);
+    }
+  }
+
+  /**
+   * Tab salta al siguiente hueco por rellenar. Cuando ya no quedan, Tab vuelve
+   * a hacer lo de siempre (salir del campo), así que nadie queda atrapado; y
+   * Shift+Tab nunca se toca, que es la salida hacia atrás de quien navega con
+   * teclado.
+   */
+  function onTextareaKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Tab" || event.shiftKey) return;
+    const node = event.currentTarget;
+    const hueco = nextPlaceholderAfter(node.value, node.selectionEnd);
+    if (!hueco) return;
+    event.preventDefault();
+    node.setSelectionRange(hueco.start, hueco.end);
+    selectionRef.current = { start: hueco.start, end: hueco.end };
+  }
+
+  function pickFromPanel(snippet: Snippet) {
+    setSnippetPanel(false);
+    insertText(snippet.content);
+  }
+
+  function pickFromSlash(snippet: Snippet) {
+    const token = slash;
+    setSlash(null);
+    dismissedSlashRef.current = null;
+    if (!token) return;
+    const caret = textareaRef.current?.selectionStart ?? draft.length;
+    insertText(snippet.content, { start: token.start, end: caret });
+  }
+
+  function insertFileText(text: string, file: File) {
+    setSnippetPanel(false);
+    insertText(text);
+    // Se ofrece guardarlo: si ese texto lo va a volver a usar, mejor que quede
+    // en la biblioteca que volver a buscar el archivo cada vez.
+    setSaveAsSnippet({ title: filenameToTitle(file.name), content: text });
+  }
 
   // Autoguardado: el cambio se persiste solo tras una breve pausa al
   // escribir, sin depender de que el médico confirme nada (igual que en la
@@ -368,6 +500,34 @@ function EditableBlock({
           >
             <ClipboardCopy size={14} />
           </button>
+          {editable ? (
+            <div className="relative">
+              <HoverHint label="Insertar un atajo — o escribe / en el texto">
+                <button
+                  type="button"
+                  onClick={() => setSnippetPanel((value) => !value)}
+                  aria-label={`Insertar atajo en ${title}`}
+                  aria-expanded={snippetPanel}
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                    snippetPanel
+                      ? "bg-accent-soft text-accent"
+                      : "text-muted hover:bg-ice-soft hover:text-accent"
+                  }`}
+                >
+                  <Zap size={14} />
+                </button>
+              </HoverHint>
+              {snippetPanel ? (
+                <SnippetPopup
+                  mode="panel"
+                  sectionTitle={title}
+                  onPick={pickFromPanel}
+                  onPickFileText={insertFileText}
+                  onClose={() => setSnippetPanel(false)}
+                />
+              ) : null}
+            </div>
+          ) : null}
           {editable && onVoiceInstruction ? (
             <button
               type="button"
@@ -389,19 +549,44 @@ function EditableBlock({
         <div className="mt-2 pl-0 text-[0.95rem] leading-relaxed text-ink sm:pl-6">
           {editing ? (
             <div>
-              <textarea
-                value={draft}
-                onChange={(e) => {
-                  setSavedHint(false);
-                  setDraft(e.target.value);
-                }}
-                // Al salir del campo (p. ej. al ir a pulsar "Guardar nota") el
-                // cambio se confirma de una vez, sin esperar la pausa.
-                onBlur={confirmarCambio}
-                rows={rowsForText(draft)}
-                className="w-full resize-y rounded-md border border-line bg-field px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
-                autoFocus
-              />
+              <div className="relative">
+                <textarea
+                  ref={textareaRef}
+                  value={draft}
+                  onChange={(e) => {
+                    setSavedHint(false);
+                    setDraft(e.target.value);
+                    rememberSelection(e.target);
+                    refreshSlash(e.target);
+                  }}
+                  onSelect={(e) => {
+                    rememberSelection(e.currentTarget);
+                    refreshSlash(e.currentTarget);
+                  }}
+                  onKeyDown={onTextareaKeyDown}
+                  // Al salir del campo (p. ej. al ir a pulsar "Guardar nota") el
+                  // cambio se confirma de una vez, sin esperar la pausa.
+                  onBlur={(e) => {
+                    rememberSelection(e.currentTarget);
+                    confirmarCambio();
+                  }}
+                  rows={rowsForText(draft)}
+                  className="w-full resize-y rounded-md border border-line bg-field px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
+                  autoFocus
+                />
+                {slash ? (
+                  <SnippetPopup
+                    mode="inline"
+                    sectionTitle={title}
+                    query={slash.query}
+                    onPick={pickFromSlash}
+                    onClose={() => {
+                      dismissedSlashRef.current = slash.start;
+                      setSlash(null);
+                    }}
+                  />
+                ) : null}
+              </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {savedHint ? (
                   <span className="text-xs font-medium text-success">Guardado</span>
@@ -464,6 +649,15 @@ function EditableBlock({
           ) : null}
           {voiceError ? <p role="alert" className="mt-2 text-xs text-danger">{voiceError}</p> : null}
         </div>
+      ) : null}
+
+      {saveAsSnippet ? (
+        <SnippetEditorDialog
+          initial={{ ...saveAsSnippet, category: title }}
+          categories={[title]}
+          onClose={() => setSaveAsSnippet(null)}
+          onSaved={() => setSaveAsSnippet(null)}
+        />
       ) : null}
     </div>
   );
