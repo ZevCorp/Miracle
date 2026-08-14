@@ -1,7 +1,33 @@
-# Billing — B2C (Stripe) y B2B (institucional)
+# Billing — B2C (pasarela por decidir) y B2B (institucional)
 
 Cómo funciona la capa comercial. Decisiones D14–D17 en
 [`decisiones.md`](./decisiones.md); cuentas y roles en [`cuentas.md`](./cuentas.md).
+
+> ## ⚠️ La pasarela de pagos está SIN DECIDIR (2026-08-14)
+>
+> **Stripe quedó descartado**: no admite empresas constituidas en Colombia (de
+> los países hispanohablantes solo opera con España y México). Usarlo exigiría
+> constituir una entidad en EE.UU., camino que por ahora no se toma.
+>
+> **Candidato principal: Mercado Pago** (cobro en pesos con medios locales).
+> Pendiente de decisión final.
+>
+> La implementación de Stripe que hay en el repo **queda como referencia
+> funcional, inactiva sin claves**. Lo importante: el corte de acceso NO depende
+> de la pasarela. Siguen vivos y funcionando la prueba de 14 días, las
+> cortesías, el modo institucional y el bloqueo en RLS. Cambiar de proveedor
+> toca solo la capa de sincronización:
+>
+> | Se conserva tal cual | Se reescribe al elegir pasarela |
+> |---|---|
+> | `billing_accounts`, `private.org_has_access()` | `lib/billing/stripe.ts`, `sync.ts` |
+> | Políticas `"billing access gate"` | `app/api/billing/webhook/route.ts` |
+> | `lib/billing/entitlements.ts` + sus tests | acciones de checkout y portal en `app/suscripcion/actions.ts` |
+> | Paywall, trial, `/registro`, `/precios` | columnas `stripe_*` (renombrar o generalizar) |
+>
+> Al elegir proveedor, conviene generalizar las columnas `stripe_*` a nombres
+> neutros (`provider`, `provider_customer_id`, `provider_status`…) y mapear los
+> estados del proveedor a los mismos que ya entiende `org_has_access()`.
 
 ## La idea en una frase
 
@@ -64,7 +90,11 @@ El espejo TS (`GRACE_DAYS`, `TRIAL_DIAS`) debe cambiar con ellos.
   `customer.subscription.created|updated|deleted`, `invoice.paid`,
   `invoice.payment_failed`.
 
-## Puesta en marcha paso a paso
+## Puesta en marcha paso a paso (SOLO si se elige Stripe con entidad no colombiana)
+
+> Guardado por si algún día se constituye una entidad en EE.UU./España/México.
+> Con una empresa colombiana **estos pasos no se pueden completar**: Stripe no
+> ofrece Colombia en el registro. Ver el aviso del encabezado.
 
 Cuatro bloques: Stripe → Supabase → local → producción. Hazlos en orden; nada
 de esto toca la base de datos ni el código (solo variables de entorno), así que
@@ -217,9 +247,18 @@ Con una organización de prueba y un usuario sintético, impersonando por
 
 ## Pendientes conocidos
 
+- **Elegir pasarela** (Mercado Pago es el candidato) y escribir su adaptador.
+  Ver el aviso del encabezado para saber qué se conserva y qué se reescribe.
+- **La base va por delante del código desplegado**: las migraciones de billing
+  están aplicadas en producción, pero el paywall vive en la rama
+  `feat/arquitectura-comercial-b2c`, sin mergear. Hoy no rompe nada (las tres
+  instituciones son `institutional` y la org personal del superadmin es
+  `comped`), pero si alguien se registra por su cuenta y se le vence la prueba
+  de 14 días, con el código viejo vería pantallas vacías en vez del letrero de
+  pago. Mergear la rama cierra ese hueco.
 - Switcher de contexto multi-org: la RPC `switch_active_organization` está
   lista y dormida; falta interfaz cuando alguien tenga dos membresías.
-- Emails de cobro: los manda Stripe (recibos, dunning). Miracle no envía
-  correos propios de billing todavía.
-- El flujo de Stripe está escrito y tipado pero **no ejercitado con claves
-  reales**: falta la pasada con `stripe listen` cuando existan las claves test.
+- Emails de cobro: los manda la pasarela (recibos, reintentos). Miracle no
+  envía correos propios de billing todavía.
+- El flujo de Stripe está escrito y tipado pero **nunca ejercitado con claves
+  reales**, y probablemente no llegue a estarlo.
