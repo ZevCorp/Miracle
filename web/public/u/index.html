@@ -271,7 +271,12 @@
   }
   /* Los muebles del escritorio entran DESPUÉS del azul: primero el color
      cubre la pantalla del monitor, después aparece lo que hay encima. */
-  #dentro.empalmando .escritorio > *{opacity:var(--mueble,1)}
+  /* El :not(.d-final) es imprescindible. Esta regla gana en especificidad a
+     `.d-final{opacity:0}`, así que durante el empalme el panel de cierre se
+     encendía a media opacidad ANTES de que empezara la película — y su botón
+     caía justo encima de "Activar sonido", tapando entre el 91 % y el 100 %
+     de él. Dos botones apilados, uno de ellos fantasma. */
+  #dentro.empalmando .escritorio > *:not(.d-final){opacity:var(--mueble,1)}
   .escritorio{
     position:absolute;inset:0;
     background:linear-gradient(160deg,#3E7FF0,#2456B8 70%,#1D479C);
@@ -583,6 +588,195 @@
      Una columna: caption compacto arriba, UNA ventana visible a la vez a ancho
      completo (la que la escena tiene al frente), notificación única y bandeja
      mínima. Ü baja de tamaño y se ancla al borde de la ventana activa. */
+  /* ══════════ LA PIEZA NUEVA: enseñar señalando y hablando ══════════
+     Toda la película se reduce a un gesto que cualquiera reconoce: alguien
+     apunta con el mouse y explica en voz alta. Primero el médico enseña; al
+     final Ü hace lo mismo sola, solo escuchando la consulta. */
+
+  /* Las dos puertas del HIS. Son la primera decisión de cualquier consulta y
+     por eso son lo primero que el médico señala. */
+  .p-tabs{
+    display:flex;gap:.4rem;padding:.55rem .9rem 0;background:#EEF2F9;
+    border-bottom:1px solid #DDE5F1;
+  }
+  .p-tab{
+    font-size:.74rem;font-weight:600;color:#7C8AA8;
+    padding:.5rem .8rem;border-radius:8px 8px 0 0;
+    border:1px solid transparent;border-bottom:0;position:relative;top:1px;
+    transition:background .2s ease, color .2s ease, box-shadow .25s ease;
+  }
+  .p-tab.activa{background:#F4F6FA;color:#25314A;border-color:#DDE5F1}
+  /* Resaltado de "esto es lo que estoy señalando". Es el único subrayado
+     visual que se permite la pieza: si todo se resalta, no se resalta nada. */
+  .p-tab.senalado,
+  .campo.senalado .caja{
+    box-shadow:0 0 0 3px rgba(62,127,240,.35);
+    border-color:#3E7FF0;
+  }
+  .campo.senalado label{color:#3E7FF0}
+
+  /* Los campos se llenan UNO A UNO, cuando la escena lo dice. El escalonado
+     automático de antes contaba la historia vieja (Ü rellenando todo de
+     golpe) y aquí estorba. */
+  .v-form.abierta .campo .caja i{width:0;transition-delay:0s}
+  .v-form.abierta .campo .caja b{opacity:0;transition-delay:0s}
+  .v-form .campo.escrito .caja i{width:72%}
+  .v-form .campo.escrito .caja b{opacity:1;transition-delay:.9s}
+
+  /* El globo de voz: el mecanismo entero de la pieza. */
+  #d-voz{
+    position:absolute;left:0;top:0;z-index:9;pointer-events:none;max-width:22rem;
+    display:flex;align-items:flex-start;gap:.6rem;
+    background:rgba(12,20,40,.88);backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.14);border-radius:14px;
+    padding:.7rem .9rem;
+    box-shadow:0 18px 44px rgba(4,10,26,.5);
+    opacity:0;transform:translateY(6px) scale(.97);
+    transition:opacity .3s ease, transform .35s cubic-bezier(.16,1,.3,1);
+  }
+  #d-voz.on{opacity:1;transform:none}
+  #d-voz p{font-size:.86rem;line-height:1.45;color:#fff;margin:0}
+  /* La ondita de micrófono: cuatro barras que respiran. Dice "esto es voz"
+     sin escribir la palabra voz. */
+  #d-voz .onda{display:flex;align-items:center;gap:2px;height:1.25rem;flex:none;margin-top:.1rem}
+  #d-voz .onda i{
+    width:3px;border-radius:2px;background:#7FE3A9;height:6px;
+    animation:onda 1s ease-in-out infinite;
+  }
+  #d-voz .onda i:nth-child(2){animation-delay:.15s}
+  #d-voz .onda i:nth-child(3){animation-delay:.3s}
+  #d-voz .onda i:nth-child(4){animation-delay:.45s}
+  @keyframes onda{0%,100%{height:5px}50%{height:15px}}
+  /* Cuando habla el paciente, la voz cambia de color y de lado: se tiene que
+     notar que son DOS personas conversando, no un narrador. */
+  #d-voz.paciente{background:rgba(40,26,54,.88)}
+  #d-voz.paciente .onda i{background:#E0A33C}
+
+  /* ── La compuerta de sonido ──
+     Desenfoque PARCIAL: lo justo para que se lea "hay algo detrás esperando"
+     sin que parezca roto ni tapar del todo lo que se va a ver. */
+  .escritorio.esperando > *:not(#d-audio){
+    filter:blur(7px) saturate(.85);
+    pointer-events:none;
+  }
+  .escritorio > *{transition:filter .5s ease}
+  /* Ü y el cursor no se asoman mientras se espera: todavía no hay escena
+     montada, así que estarían parados en la esquina 0,0, a medio salir del
+     cuadro. El !important es para ganarle al opacity que el bucle escribe
+     inline en cada frame. */
+  .escritorio.esperando #u-rider,
+  .escritorio.esperando #d-cursor{opacity:0 !important}
+
+  #d-audio{
+    position:absolute;inset:0;z-index:12;display:grid;place-items:center;
+    background:rgba(8,16,36,.55);
+    opacity:0;pointer-events:none;transition:opacity .4s ease;
+  }
+  .escritorio.esperando #d-audio{opacity:1;pointer-events:auto}
+  #d-audio .caja{
+    background:rgba(14,24,48,.92);backdrop-filter:blur(16px);
+    border:1px solid rgba(255,255,255,.16);border-radius:18px;
+    padding:2rem 2.2rem;max-width:24rem;text-align:center;
+    box-shadow:0 30px 80px rgba(4,10,26,.55);
+    display:grid;justify-items:center;gap:.55rem;
+  }
+  #d-audio .bocina{
+    width:52px;height:52px;border-radius:14px;display:grid;place-items:center;
+    background:rgba(62,127,240,.18);color:#9CC4FF;margin-bottom:.3rem;
+  }
+  #d-audio h4{font-size:1.25rem;font-weight:700;letter-spacing:-.01em;color:#fff}
+  #d-audio p{font-size:.86rem;line-height:1.5;color:rgba(255,255,255,.72);margin-bottom:.5rem}
+  #d-audio p b{color:#fff;font-weight:600}
+  #d-audio button{
+    font:inherit;cursor:pointer;border-radius:10px;border:1px solid transparent;
+    padding:.8rem 1.6rem;font-size:.92rem;font-weight:700;
+  }
+  #d-audio-si{background:#fff;color:#1C3D8F;box-shadow:0 8px 26px rgba(0,0,0,.3)}
+  #d-audio-no{
+    background:none;color:rgba(255,255,255,.62);font-weight:500;font-size:.82rem;
+    padding:.2rem .4rem;text-decoration:underline;text-underline-offset:4px;
+  }
+
+  /* El aviso de que la cosa corre sola. Es la respuesta a "¿tengo que seguir
+     bajando?": no. Se queda arriba, discreto, todo el rato. */
+  /* Arriba a la IZQUIERDA, no centrado: centrado se montaba sobre los puntos
+     de capítulo, que ya viven en el centro a esa misma altura. */
+  #d-aviso{
+    position:absolute;top:1rem;left:1.2rem;
+    z-index:10;display:none;align-items:center;gap:.5rem;
+    background:rgba(8,16,36,.62);backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.12);border-radius:99px;
+    padding:.42rem .95rem;font-size:.72rem;letter-spacing:.02em;
+    color:rgba(255,255,255,.75);
+  }
+  .escritorio.corriendo #d-aviso{display:inline-flex}
+  .escritorio.terminada #d-aviso{display:none}
+  #d-aviso i{
+    width:6px;height:6px;border-radius:99px;background:#7FE3A9;flex:none;
+    animation:pulso 2s ease-out infinite;
+  }
+
+  /* TEXTO DE VERDAD en los campos, no barras grises.
+     Con barras, lo que se ve es "algo se marcó". Con el documento y el motivo
+     escribiéndose de verdad, lo que se ve es el trabajo hecho — que es lo
+     único que le importa a quien decide comprarlo. */
+  .v-form .caja .txt{
+    font-size:.82rem;color:#25314A;white-space:nowrap;overflow:hidden;
+    font-variant-numeric:tabular-nums;
+  }
+  .v-form .caja .txt::after{
+    content:"";display:inline-block;width:2px;height:1em;
+    background:#3E7FF0;vertical-align:-2px;margin-left:2px;opacity:0;
+  }
+  .v-form .campo.tecleando .caja .txt::after{opacity:1;animation:parpadeo 1s steps(1) infinite}
+
+  /* En el cierre, las notificaciones se van: 65.856 px² en la esquina opuesta
+     robándole la mirada a "Obtener acceso", que es lo único que hay que hacer
+     en esa pantalla. */
+  .escritorio:has(.d-final.on) #notifs{opacity:0;transition:opacity .4s ease}
+
+  /* Mientras corre la película, la barra de marca se retira.
+     Medido en móvil: los cuatro controles —el chip, los puntos de capítulo, la
+     barra de progreso y el botón Saltar— quedaban el 100 % debajo de #marca,
+     que es fixed con z-index 6. Y no era solo que no se vieran: quien recibía
+     el toque sobre "Saltar ›" era el "Solicitar piloto" de arriba, así que
+     saltar la película ABRÍA UN MAILTO. */
+  body.viendo-dentro #marca{opacity:0;pointer-events:none;transition:opacity .35s ease}
+  body.viendo-dentro #dentro{z-index:7}
+
+  /* El cartel de sonido en pantallas estrechas: 24rem son 384 px y a 360 se
+     salía por los dos lados con el borde redondeado cortado. */
+  #d-audio .caja{max-width:min(24rem, calc(100vw - 2.4rem))}
+  /* #d-audio button (1-0-1) le ganaba a .d-audio-no (1-0-0) y el secundario
+     salía de 154x45, casi tan pesado como el primario. */
+  #d-audio #d-audio-no{padding:.35rem .5rem}
+
+  /* El cierre se salía por los lados y la letra chica no llegaba a AA
+     (3,47:1 medido). El padding va a la caja entera, no solo al h3. */
+  .d-final{padding-left:6vw;padding-right:6vw}
+  .d-final .nota{color:rgba(255,255,255,.82)}
+  .d-final .bajada{color:rgba(255,255,255,.86)}
+
+  /* En el cierre el caption sobra: decía exactamente lo mismo que el titular
+     del CTA, dos veces en la misma pantalla. Se usa :has porque .d-caption va
+     ANTES que .d-final en el marcado y no hay combinador hacia atrás; si algún
+     navegador no lo soporta, el caption simplemente se queda, que no rompe. */
+  .escritorio:has(.d-final.on) .d-caption{opacity:0;transition:opacity .35s ease}
+
+  /* El cierre, con la misma forma que el resto del sitio. */
+  .d-final .bajada{max-width:28rem;justify-self:center;color:rgba(255,255,255,.78);line-height:1.55}
+  .d-final .cta{display:inline-flex;align-items:center;gap:.7rem}
+  .d-final .cta .glifo{
+    width:26px;height:26px;border-radius:7px;display:grid;place-items:center;
+    background:#2456B8;color:#fff;font-size:.85rem;font-weight:800;
+  }
+  .d-final .nota{justify-self:center;font-size:.76rem;color:rgba(255,255,255,.6)}
+
+  @media (prefers-reduced-motion:reduce){
+    #d-voz{transition:none}
+    #d-voz .onda i{animation:none;height:9px}
+  }
+
   @media (max-width:760px){
     .d-card,.d-card.invertida{grid-template-columns:1fr;gap:1.6rem}
     .u-ancla{display:none}
@@ -766,15 +960,25 @@
         </div>
       </div>
 
-      <!-- ventana: formulario del HIS -->
+      <!-- ventana: formulario del HIS.
+           Es la ÚNICA ventana de la película. El explorador de archivos se
+           quedó en el marcado pero ya no se abre: la historia que contamos
+           ahora es "el médico le enseña y luego ella escucha", y un explorador
+           en medio no aporta nada a esa frase. -->
       <div class="ventana v-form">
         <header>HIS — Ingreso · consulta externa<b class="wbtns"><i>─</i><i>□</i><i>✕</i></b></header>
         <div class="menus"><span>Archivo</span><span>Edición</span><span>Registro</span><span>Ayuda</span></div>
+        <!-- Las dos puertas de entrada del HIS. Son lo primero que el médico
+             señala, porque son la primera decisión de cualquier consulta. -->
+        <div class="p-tabs">
+          <div class="p-tab nuevo">Paciente nuevo</div>
+          <div class="p-tab conocida">Ya tiene historia</div>
+        </div>
         <div class="v-cuerpo form">
-          <div class="campo"><label>DOCUMENTO</label><div class="caja"><i style="--w:.9"></i><b>✓</b></div></div>
-          <div class="campo"><label>MOTIVO DE CONSULTA</label><div class="caja"><i style="--w:.75"></i><b>✓</b></div></div>
-          <div class="campo"><label>DIAGNÓSTICO CIE-10</label><div class="caja"><i style="--w:.4"></i><b>✓</b></div></div>
-          <div class="campo ultimo"><label>PROCEDIMIENTO CUPS</label><div class="caja"><i style="--w:.55"></i><span class="caret"></span></div></div>
+          <div class="campo c-doc"><label>DOCUMENTO</label><div class="caja"><span class="txt"></span><b>✓</b></div></div>
+          <div class="campo c-motivo"><label>MOTIVO DE CONSULTA</label><div class="caja"><span class="txt"></span><b>✓</b></div></div>
+          <div class="campo c-examen"><label>EXAMEN FÍSICO</label><div class="caja"><span class="txt"></span><b>✓</b></div></div>
+          <div class="campo c-dx ultimo"><label>DIAGNÓSTICO CIE-10</label><div class="caja"><span class="txt"></span><b>✓</b></div></div>
         </div>
       </div>
 
@@ -783,8 +987,12 @@
 
       <!-- CTA final sobre el escritorio -->
       <div class="d-final">
-        <h3>Tu equipo, sin el papeleo.</h3>
-        <a class="cta" href="mailto:piloto@itsmiracleai.com.co?subject=Piloto%20de%20Ü">Solicitar piloto</a>
+        <h3>Le enseñas una vez.</h3>
+        <p class="bajada">Después escribe sola, escuchando la consulta. Sobre el HIS que ya usan.</p>
+        <a class="cta" href="mailto:acceso@itsmiracleai.com.co?subject=Obtener%20acceso%20a%20Ü&amp;body=Institución%3A%0ACargo%3A%0ASistema%20que%20usan%20(HIS%2FSAP)%3A%0A">
+          <span class="glifo" aria-hidden="true">↓</span> Obtener acceso
+        </a>
+        <span class="nota">Es un registro, no una descarga: te escribimos para coordinar la instalación.</span>
       </div>
 
       <!-- barra de tareas -->
@@ -797,6 +1005,35 @@
           <span class="tray-idioma">ESP</span>
           <div class="tray-hora"><time id="d-reloj">9:07</time><small id="d-fecha"></small></div>
         </div>
+      </div>
+
+      <!-- La compuerta de sonido. La pieza es una conversación: sin audio se
+           entiende a medias. Se pide ANTES de arrancar, con el escritorio
+           desenfocado detrás para que se vea que hay algo esperando y no un
+           error. Y de paso resuelve la otra duda: aquí se dice, con todas las
+           letras, que no hay que hacer scroll. -->
+      <div id="d-audio">
+        <div class="caja">
+          <span class="bocina" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19.5 5.5a9 9 0 0 1 0 13"/>
+            </svg>
+          </span>
+          <h4>Esto se oye mejor.</h4>
+          <p>El médico le enseña <b>hablando</b>. Son 29 segundos y se reproduce solo: no tienes que hacer nada.</p>
+          <button type="button" id="d-audio-si">Activar sonido</button>
+          <button type="button" id="d-audio-no">Ver sin sonido</button>
+        </div>
+      </div>
+
+      <!-- Aviso permanente mientras corre: que nadie se quede scrolleando. -->
+      <div id="d-aviso"><i></i>Se reproduce solo</div>
+
+      <!-- El globo de voz. Es el mecanismo entero de la pieza: el médico
+           SEÑALA con el mouse y DICE una frase corta. Nada de configurar. -->
+      <div id="d-voz">
+        <span class="onda"><i></i><i></i><i></i><i></i></span>
+        <p></p>
       </div>
 
       <!-- el cursor que Ü mueve -->
@@ -853,6 +1090,8 @@
 /* La barra de marca entra sola cuando la escena ya cargó. */
 addEventListener('load', ()=> document.getElementById('marca')?.classList.add('on'));
 </script>
+<!-- Rutas ABSOLUTAS: aquí el sitio se sirve desde / por un rewrite, pero los
+     ficheros viven bajo /u/. Con "./" darían 404. -->
 <script type="module" src="/u/scene/oficina.js"></script>
 <script type="module" src="/u/dentro.js"></script>
 </body>
