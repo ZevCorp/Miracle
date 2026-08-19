@@ -13,6 +13,16 @@ const nextConfig: NextConfig = {
     // optimizar y suficiente para retina).
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
   },
+  // La home es la experiencia de Ü: un sitio estático en /public/u servido en
+  // la raíz. Se hace por rewrite y no moviendo archivos para no tocar ninguna
+  // de las rutas del producto (auth, precios, piloto, API…), que siguen vivas.
+  async rewrites() {
+    // beforeFiles: las reescrituras por defecto corren DESPUÉS del filesystem,
+    // así que app/(marketing)/page.tsx ganaba y la home seguía siendo la vieja.
+    return {
+      beforeFiles: [{ source: "/", destination: "/u/index.html" }],
+    };
+  },
   async headers() {
     return [
       {

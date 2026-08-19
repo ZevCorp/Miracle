@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ü · el agente que trabaja en su consultorio</title>
+<meta name="description" content="Ü opera las aplicaciones que tu institución ya usa — historia clínica, SAP, el HIS — mientras tú atiendes a tus pacientes.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://www.itsmiracleai.com.co/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ü · el agente que trabaja en su consultorio">
+<meta property="og:description" content="Ü opera las aplicaciones que tu institución ya usa — historia clínica, SAP, el HIS — mientras tú atiendes a tus pacientes.">
+<meta property="og:url" content="https://www.itsmiracleai.com.co/">
+<meta property="og:locale" content="es_CO">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#E8DFD2">
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="-75 -75 150 150"><path d="M74 0 C74 40 40 74 0 74 C-40 74 -74 40 -74 0 C-74 -40 -40 -74 0 -74 C40 -74 74 -40 74 0 Z" fill="white" stroke="black" stroke-opacity=".2" stroke-width="2"/><g transform="rotate(-2)" stroke="black" stroke-width="6" stroke-linecap="round" fill="none"><path d="M-40 -36 Q-30 -40.5 -20 -36"/><path d="M20 -36.5 Q30 -42.5 40 -36.5"/><line x1="-30" y1="-24" x2="-30" y2="-4"/><line x1="30" y1="-24" x2="30" y2="-4"/><path d="M-18.7 21.1 C-3.6 25.6 7.6 25.6 18.7 19.5"/></g></svg>'>
+<style>
+  :root{
+    --ink:#2A2620;
+    --dim:#8A8072;
+    --azul:#3776E3;
+    --crema:#E8DFD2;
+    --ambar:#E0A33C;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    background:var(--crema);color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  #gl{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block}
+
+  /* Viñeta del foco: se enciende cuando la cámara se clava en Ü. */
+  #vineta{
+    position:fixed;inset:0;z-index:1;pointer-events:none;opacity:0;
+    background:radial-gradient(ellipse 62% 55% at 50% 52%, transparent 55%, rgba(20,16,10,.55) 100%);
+    transition:opacity .2s linear;
+  }
+
+  /* ── Barra de marca: fija, sobrevive al 3D y al escritorio azul ──
+     Vidrio oscuro para que funcione igual sobre la crema del consultorio
+     y sobre el azul de #dentro. */
+  #marca{
+    position:fixed;top:0;left:0;right:0;z-index:6;
+    display:flex;align-items:center;gap:.9rem;
+    padding:.85rem clamp(1.1rem,7vw,3.2rem);
+    background:linear-gradient(180deg,rgba(14,12,10,.42),rgba(14,12,10,.14) 70%,transparent);
+    backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+    opacity:0;transform:translateY(-6px);
+    transition:opacity .7s ease .5s, transform .7s cubic-bezier(.16,1,.3,1) .5s;
+  }
+  #marca.on{opacity:1;transform:none}
+  #marca .logo{display:flex;align-items:center;gap:.6rem;text-decoration:none}
+  #marca .mono{
+    width:26px;height:26px;border-radius:8px;background:#fff;flex:none;
+    display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,.25);
+  }
+  #marca .mono svg{width:20px;height:20px;display:block}
+  #marca .nom{
+    color:#fff;font-weight:600;font-size:.82rem;letter-spacing:-.01em;
+    text-shadow:0 1px 8px rgba(0,0,0,.4);
+  }
+  #marca .nom i{font-style:normal;color:rgba(255,255,255,.55);font-weight:400}
+  #marca .sep{flex:1}
+  #marca .cta-top{
+    background:var(--azul);color:#fff;text-decoration:none;font-weight:600;font-size:.78rem;
+    padding:.5rem 1rem;border-radius:8px;transition:transform .15s ease,filter .15s ease;
+    box-shadow:0 4px 16px rgba(55,118,227,.35);
+  }
+  #marca .cta-top:hover{transform:translateY(-1px);filter:brightness(1.08)}
+  @media(max-width:560px){ #marca .nom i{display:none} }
+
+  #scroller{position:relative;z-index:2;pointer-events:none}
+  /* Los actos ya no llevan texto: solo miden el scroll que mueve la cámara. */
+  .acto{height:100vh}
+  /* Scrim: el texto flota sobre la escena en vez de pelear con ella.
+     Un solo tratamiento transversal para los cinco frames. */
+  /* ── Relato: capa FIJA con los textos de los actos ──
+     Antes el copy viajaba con el scroll mientras la cámara la manejaba el
+     riel: nunca coincidían y uno agarraba el texto a media pantalla. Ahora
+     vive clavado y se cruza por rango de riel. */
+  #relato{position:fixed;inset:0;z-index:2;pointer-events:none}
+  #relato .copy{
+    position:absolute;top:50%;transform:translateY(-50%);
+    max-width:min(26rem,42vw);pointer-events:auto;
+  }
+  #relato .copy.izq{left:7vw}
+  #relato .copy.der{right:7vw;text-align:right}
+  @media(max-width:760px){
+    #relato .copy{max-width:none;left:6vw;right:6vw;top:auto;bottom:14vh;transform:none;text-align:left}
+    #relato .copy.der{text-align:left}
+  }
+
+  /* Hero fijo: capa clavada que se desvanece con el primer scroll. */
+  #hero-fijo{
+    position:fixed;inset:0;z-index:3;pointer-events:none;
+    display:grid;align-items:center;padding:0 7vw;
+    transition:opacity .15s linear;
+  }
+  #hero-fijo .copy{
+    background:none;backdrop-filter:none;-webkit-backdrop-filter:none;
+    box-shadow:none;padding:0;max-width:32rem;position:relative;z-index:1;
+    opacity:1;transform:none;pointer-events:auto;
+  }
+  /* Estado del hero: la misma tipografía de eyebrow del resto del sitio.
+     Sin cápsula ni vidrio — el pill se sentía pegado encima, no parte de la
+     composición. Alinea a la misma guía que el titular. */
+  .estado{
+    display:flex;align-items:center;gap:.6rem;margin-bottom:1.15rem;
+    font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;font-weight:600;
+    color:rgba(255,255,255,.72);text-shadow:0 1px 10px rgba(0,0,0,.5);
+  }
+  .estado i{
+    width:6px;height:6px;border-radius:99px;background:#5FD08A;flex:none;
+    box-shadow:0 0 0 0 rgba(95,208,138,.6);animation:pulso 2s ease-out infinite;
+  }
+  .estado.pausa i{background:var(--ambar);box-shadow:0 0 0 0 rgba(224,163,60,.6)}
+  .estado.pausa{color:rgba(240,205,150,.9)}
+  .estado b{font-variant-numeric:tabular-nums;font-weight:600;opacity:.6;letter-spacing:.1em}
+  @keyframes pulso{
+    0%{box-shadow:0 0 0 0 rgba(95,208,138,.55)}
+    70%{box-shadow:0 0 0 7px rgba(95,208,138,0)}
+    100%{box-shadow:0 0 0 0 rgba(95,208,138,0)}
+  }
+  @media (prefers-reduced-motion:reduce){ .estado i{animation:none} }
+
+  /* Sobre el scrim oscuro la tinta se enloda: el primario del hero va en claro. */
+  /* margin-top:0 gana aquí por especificidad de id: .copy .cta traía 1.4rem
+     y dejaba el primario 22 px más abajo que el fantasma dentro del flex. */
+  #hero-fijo .cta,
+  #relato .acciones .cta{margin-top:0}
+  #hero-fijo .cta{background:var(--crema);color:var(--ink);box-shadow:0 6px 22px rgba(0,0,0,.28)}
+
+  /* Los dos botones comparten caja EXACTA: mismo padding, mismo borde (el
+     primario lo lleva transparente) y misma línea base. El margin-top que
+     heredaba .cta los dejaba a distinta altura dentro del flex. */
+  .acciones{display:flex;gap:.7rem;align-items:stretch;margin-top:1.6rem;flex-wrap:wrap}
+  .acciones > *{
+    margin-top:0;display:inline-flex;align-items:center;
+    padding:.82rem 1.35rem;border-radius:9px;font-size:.92rem;line-height:1;
+    border:1px solid transparent;
+  }
+  .btn-fantasma{
+    text-decoration:none;font-weight:500;color:#fff;border-color:rgba(255,255,255,.3);
+    background:rgba(255,255,255,.06);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    transition:background .15s ease,border-color .15s ease;
+  }
+  .btn-fantasma:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.5)}
+  #hero-fijo .eyebrow{color:#A8C8FF;font-size:.62rem}
+  #hero-fijo h2{
+    color:#fff;font-size:clamp(2rem,4.2vw,3.4rem);line-height:1.02;
+    text-shadow:0 2px 24px rgba(0,0,0,.25);
+  }
+  #hero-fijo p{
+    color:rgba(255,255,255,.78);max-width:25rem;margin-top:.95rem;font-size:1rem;line-height:1.6;
+  }
+  /* Columna izquierda oscurecida: el copy centrado cae justo sobre el piso
+     claro y el escritorio. Sin esta banda el texto se pierde a media altura. */
+  .hero-overlay{
+    position:absolute;inset:0;pointer-events:none;
+    background:
+      linear-gradient(90deg, rgba(6,8,12,.72) 0%, rgba(6,8,12,.55) 22%, rgba(6,8,12,.22) 40%, transparent 58%),
+      radial-gradient(ellipse 46% 62% at 16% 50%, rgba(6,8,12,.42), transparent 70%),
+      linear-gradient(0deg, rgba(6,8,12,.34) 0%, transparent 26%),
+      linear-gradient(180deg, rgba(6,8,12,.28) 0%, transparent 16%);
+  }
+
+  /* Gradiente lateral de los actos 3D: el contraste sin card. */
+  #lateral-grad{
+    position:fixed;inset:0;z-index:1;pointer-events:none;opacity:0;
+    transition:opacity .4s ease;
+  }
+  #lateral-grad.izq{background:linear-gradient(90deg, rgba(6,8,12,.68) 0%, rgba(6,8,12,.42) 24%, rgba(6,8,12,.14) 44%, transparent 60%)}
+  #lateral-grad.der{background:linear-gradient(270deg, rgba(6,8,12,.68) 0%, rgba(6,8,12,.42) 24%, rgba(6,8,12,.14) 44%, transparent 60%)}
+  #lateral-grad.on{opacity:1}
+
+  /* Indicador de scroll: discreto, abajo a la derecha. */
+  .scroll-ind{
+    position:absolute;right:3.2rem;bottom:9vh;z-index:1;
+    display:flex;flex-direction:column;align-items:center;gap:.7rem;
+  }
+  .scroll-ind span{
+    font-size:.6rem;letter-spacing:.3em;text-transform:uppercase;
+    color:rgba(255,255,255,.8);font-weight:600;
+    text-shadow:0 1px 10px rgba(0,0,0,.5);
+  }
+  .scroll-ind .linea{
+    width:1.5px;height:44px;background:rgba(255,255,255,.25);
+    border-radius:1px;position:relative;overflow:hidden;
+  }
+  .scroll-ind .linea i{
+    position:absolute;left:0;top:0;width:100%;height:14px;border-radius:1px;
+    background:#fff;animation:cae 1.7s cubic-bezier(.45,0,.2,1) infinite;
+  }
+  @keyframes cae{
+    0%{transform:translateY(-16px);opacity:0}
+    30%{opacity:1}
+    100%{transform:translateY(48px);opacity:0}
+  }
+  @media (prefers-reduced-motion:reduce){ .scroll-ind .linea i{animation:none;top:15px} }
+  .eyebrow{
+    font-size:.66rem;letter-spacing:.3em;text-transform:uppercase;color:var(--azul);
+    display:block;margin-bottom:.9rem;font-weight:600;
+  }
+  .copy h2{
+    font-size:clamp(1.8rem,4.2vw,3.1rem);font-weight:700;letter-spacing:-.03em;line-height:1.04;
+    color:#fff;text-shadow:0 2px 22px rgba(0,0,0,.3);
+  }
+  .copy p{
+    margin-top:.9rem;color:rgba(255,255,255,.82);font-size:clamp(.95rem,1.2vw,1.05rem);line-height:1.6;
+    text-shadow:0 1px 12px rgba(0,0,0,.3);
+  }
+  .copy .eyebrow{color:#A8C8FF}
+  .copy .cta{
+    display:inline-block;margin-top:1.4rem;background:var(--ink);color:var(--crema);
+    padding:.85rem 1.6rem;border-radius:8px;text-decoration:none;font-weight:600;font-size:.95rem;
+    transition:transform .15s ease, opacity .15s ease;
+  }
+  .copy .cta:hover{transform:translateY(-1px);opacity:.92}
+
+  /* Entra desde abajo, sale hacia arriba: el relato avanza, no parpadea. */
+  #relato .copy{
+    opacity:0;
+    transition:opacity .3s cubic-bezier(.4,0,1,1),transform .3s cubic-bezier(.4,0,1,1);
+  }
+  #relato .copy[data-on="1"]{
+    opacity:1;
+    transition:opacity .55s cubic-bezier(.16,1,.3,1),transform .55s cubic-bezier(.16,1,.3,1);
+  }
+  #relato .copy{transform:translateY(calc(-50% + 16px))}
+  #relato .copy[data-on="1"]{transform:translateY(-50%)}
+  @media(max-width:760px){
+    #relato .copy{transform:translateY(16px)}
+    #relato .copy[data-on="1"]{transform:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    #relato .copy,#relato .copy[data-on="1"]{transform:none;transition:opacity .3s linear}
+  }
+
+  #hud{
+    position:fixed;left:1.8rem;bottom:1.4rem;z-index:3;display:flex;gap:.9rem;align-items:center;
+    font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);
+  }
+  #bar{width:96px;height:1px;background:rgba(42,38,32,.2);position:relative}
+  #bar i{position:absolute;inset:0 auto 0 0;background:var(--azul);width:0%}
+
+  #loading{position:fixed;inset:0;z-index:10;display:grid;place-items:center;background:var(--crema);transition:opacity .6s ease}
+  #loading.done{opacity:0;pointer-events:none}
+  #loading span{font-size:.64rem;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}
+
+  /* Móvil: el copy sube al cuarto superior, sobre pared, y el monitor respira. */
+  @media (max-width: 640px){
+    .acto{align-items:start;padding-top:11vh}
+    .copy{max-width:100%;padding:1.2rem 1.3rem}
+    .copy.der{text-align:left;margin-left:0}
+  }
+
+  #relato .copy[data-acto="3"] .cta{background:#fff;color:var(--azul)}
+
+
+  /* ====== escenario fijo del escritorio ====== */
+  #dentro{height:220vh;padding:0}
+  .d-sticky{position:sticky;top:0;height:100vh;overflow:hidden}
+  /* Empalme: el escritorio se despega del flujo y se encaja sobre el
+     rectángulo proyectado de la pantalla del iMac (ver oficina.js). Al
+     terminar vuelve a sticky con transform identidad — sin salto. */
+  #dentro.empalmando .d-sticky{
+    position:fixed;inset:0;height:100vh;z-index:5;
+    transform-origin:50% 50%;will-change:transform,opacity;
+  }
+  /* Los muebles del escritorio entran DESPUÉS del azul: primero el color
+     cubre la pantalla del monitor, después aparece lo que hay encima. */
+  #dentro.empalmando .escritorio > *{opacity:var(--mueble,1)}
+  .escritorio{
+    position:absolute;inset:0;
+    background:linear-gradient(160deg,#3E7FF0,#2456B8 70%,#1D479C);
+  }
+
+  .d-caption{position:absolute;left:4vw;top:7vh;z-index:6;max-width:24rem}
+  /* Halo suave detrás del caption: las ventanas pasan por debajo sin pelearse
+     con el texto, y sin meter una card en un escritorio que no tiene cards. */
+  .d-caption::before{
+    content:'';position:absolute;left:-6vw;top:-9vh;width:46vw;height:42vh;z-index:-1;
+    pointer-events:none;
+    background:radial-gradient(ellipse 58% 58% at 26% 40%, rgba(8,26,72,.5), transparent 72%);
+  }
+  .d-caption h3{font-size:clamp(1.5rem,2.8vw,2.3rem);font-weight:700;letter-spacing:-.02em;margin-top:.5rem;transition:opacity .35s ease}
+  .d-caption p{color:rgba(255,255,255,.75);margin-top:.5rem;line-height:1.55;transition:opacity .35s ease}
+  .d-caption.cambiando h3,.d-caption.cambiando p{opacity:0}
+
+  /* iconos de escritorio */
+  .iconos{position:absolute;right:3vw;top:8vh;display:flex;flex-direction:column;gap:1.6rem;z-index:1}
+  .icono{display:flex;flex-direction:column;align-items:center;gap:.4rem;font-size:.72rem;color:rgba(255,255,255,.9)}
+  i.carpeta,i.doc,i.hoja{display:inline-block;width:30px;height:24px;border-radius:4px;flex:none}
+  i.carpeta{background:linear-gradient(#FFD469,#F5B93E);position:relative}
+  i.carpeta::before{content:"";position:absolute;top:-4px;left:0;width:14px;height:6px;border-radius:3px 3px 0 0;background:#F5B93E}
+  i.doc{background:#fff;border-radius:3px;width:22px;height:27px;position:relative}
+  i.doc::before{content:"";position:absolute;inset:5px 4px auto 4px;height:2.5px;background:#9DB4D8;box-shadow:0 5px 0 #9DB4D8,0 10px 0 #C9D7EC}
+  i.hoja{background:#DFF3E4;border-radius:3px;width:22px;height:27px;position:relative}
+  i.hoja::before{content:"";position:absolute;inset:5px 4px auto 4px;height:2.5px;background:#63B57F;box-shadow:0 5px 0 #63B57F,0 10px 0 #A9D9B8}
+
+  /* ventanas */
+  .ventana{
+    position:absolute;background:#F4F6FA;border-radius:12px;overflow:hidden;
+    box-shadow:0 30px 80px rgba(8,20,50,.45), 0 2px 8px rgba(8,20,50,.25);
+    color:#25314A;
+    opacity:0;transform:translateY(34px) scale(.95);pointer-events:none;
+    transition:opacity .5s cubic-bezier(.16,1,.3,1),transform .5s cubic-bezier(.16,1,.3,1);
+  }
+  .ventana.abierta{opacity:1;transform:none}
+  .ventana.atras{opacity:.55;transform:translate(-26px,-18px) scale(.97);filter:saturate(.8)}
+  .ventana header{
+    display:flex;align-items:center;background:#E6EBF4;
+    padding:.5rem .4rem .5rem .95rem;font-size:.78rem;font-weight:600;color:#4A5A7C;
+  }
+  .wbtns{margin-left:auto;display:flex;font-weight:400}
+  .wbtns i{
+    width:38px;height:26px;display:grid;place-items:center;
+    font-size:.72rem;font-style:normal;color:#5A6A8C;border-radius:5px;
+  }
+  .wbtns i:last-child{color:#8A5560}
+
+  /* toolbar del explorador: navegación + barra de dirección */
+  .toolbar{
+    display:flex;align-items:center;gap:.5rem;background:#F0F3F9;
+    padding:.45rem .8rem;border-bottom:1px solid #DFE5F0;
+  }
+  .nav{width:24px;height:24px;display:grid;place-items:center;color:#5A6A8C;font-size:.85rem;border-radius:5px}
+  .nav.dis{color:#B9C4DA}
+  .direccion{
+    flex:1;background:#fff;border:1px solid #D5DEEC;border-radius:6px;
+    font:400 .74rem ui-monospace,monospace;color:#4A5A7C;padding:.32rem .6rem;
+  }
+  .buscar{
+    width:9rem;background:#fff;border:1px solid #D5DEEC;border-radius:6px;
+    font-size:.72rem;color:#9AA6BE;padding:.32rem .6rem;
+  }
+
+  /* fila de menús del HIS */
+  .menus{
+    display:flex;gap:1.1rem;background:#EDF1F8;border-bottom:1px solid #DFE5F0;
+    padding:.35rem .95rem;font-size:.72rem;color:#5A6A8C;
+  }
+
+  /* papelera */
+  i.papelera{
+    width:22px;height:26px;border-radius:3px 3px 5px 5px;
+    background:linear-gradient(#C8D3E6,#A9B8D2);position:relative;
+  }
+  i.papelera::before{
+    content:"";position:absolute;top:-4px;left:2px;right:2px;height:3px;
+    border-radius:2px;background:#A9B8D2;
+  }
+  i.papelera::after{
+    content:"";position:absolute;top:5px;left:5px;width:2.5px;height:14px;
+    background:rgba(255,255,255,.55);box-shadow:5px 0 0 rgba(255,255,255,.55);
+  }
+
+  /* centro de notificaciones */
+  #notifs{
+    position:absolute;right:1.2rem;bottom:64px;z-index:6;
+    display:flex;flex-direction:column;gap:.55rem;width:21rem;
+  }
+  .notif{
+    background:rgba(28,34,52,.92);backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.08);border-radius:10px;
+    padding:.65rem .8rem;color:#fff;
+    box-shadow:0 14px 40px rgba(6,12,30,.45);
+    opacity:0;transform:translateX(24px);
+    transition:all .45s cubic-bezier(.16,1,.3,1);
+  }
+  .notif.on{opacity:1;transform:none}
+  .notif.vieja{opacity:.55;transform:scale(.965)}
+  .n-cab{display:flex;align-items:center;gap:.5rem;font-size:.66rem;color:rgba(255,255,255,.55)}
+  .n-cab .n-icono{width:14px;height:14px;border-radius:4px;flex:none}
+  .n-cab time{margin-left:auto}
+  .n-cab .n-x{margin-left:.4rem;color:rgba(255,255,255,.4)}
+  .notif p{font-size:.8rem;margin-top:.3rem;line-height:1.4}
+  .notif p b{font-weight:700}
+  .notif.ambar{border-left:3px solid #F5A623}
+  .notif.ok{border-left:3px solid #2E9E5B}
+
+  /* bandeja del sistema */
+  .tray{margin-left:auto;display:flex;align-items:center;gap:.9rem}
+  .tray-chev{color:rgba(255,255,255,.5);font-size:.6rem}
+  .tray-idioma{font-size:.68rem;color:rgba(255,255,255,.75);font-weight:600}
+  .tray-hora{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25}
+  .tray-hora time{font-size:.72rem;color:rgba(255,255,255,.85)}
+  .tray-hora small{font-size:.6rem;color:rgba(255,255,255,.5)}
+  #d-reloj{margin-left:0}
+
+  .v-explorador{left:8vw;top:27vh;width:min(46rem,58vw)}
+  .v-explorador .v-cuerpo{display:grid;grid-template-columns:11rem 1fr;min-height:20rem}
+  .v-explorador aside{background:#EDF1F8;padding:.9rem .6rem;display:flex;flex-direction:column;gap:.2rem}
+  .lado{display:flex;align-items:center;gap:.5rem;font-size:.8rem;padding:.45rem .6rem;border-radius:7px;color:#5A6A8C}
+  .lado i{transform:scale(.62)}
+  .lado.activo{background:#D9E5F8;color:#2456B8;font-weight:600}
+  .archivos{list-style:none;padding:.7rem .9rem}
+  .archivos li{
+    display:flex;align-items:center;gap:.7rem;font-size:.84rem;padding:.5rem .7rem;
+    border-radius:8px;position:relative;
+  }
+  .archivos li i{transform:scale(.7)}
+  .archivos time{margin-left:auto;font-size:.7rem;color:#93A2C0}
+  .v-explorador.leyendo .archivos li{animation:leer 3.2s linear infinite}
+  .v-explorador.leyendo .archivos li:nth-child(1){animation-delay:0s}
+  .v-explorador.leyendo .archivos li:nth-child(2){animation-delay:.64s}
+  .v-explorador.leyendo .archivos li:nth-child(3){animation-delay:1.28s}
+  .v-explorador.leyendo .archivos li:nth-child(4){animation-delay:1.92s}
+  .v-explorador.leyendo .archivos li:nth-child(5){animation-delay:2.56s}
+  .v-explorador.leyendo .archivos li:nth-child(6){animation-delay:.32s}
+  .v-explorador.leyendo .archivos li:nth-child(7){animation-delay:1.6s}
+  .v-explorador.leyendo .archivos li:nth-child(8){animation-delay:2.24s}
+  @keyframes leer{0%,18%{background:transparent}6%,12%{background:#DCE8FB}24%,100%{background:transparent}}
+
+  .v-form{right:9vw;top:16vh;width:min(30rem,40vw)}
+  .v-form .form{padding:1.2rem 1.4rem}
+  .v-form .campo label{color:#7C8AA8}
+  .v-form .caja{background:#fff;border-color:#D5DEEC}
+  .v-form .caja i{background:#3B4B6B;height:7px}
+  .v-form .caja b{color:#2E9E5B}
+  .v-form .caret{background:#25314A}
+  .v-form .campo.ultimo .caja{border-color:#3E7FF0}
+  .v-form.pausada .campo.ultimo .caja{border-color:#F5A623;animation:latido 2.2s ease-out infinite}
+
+
+  /* CTA final */
+  .d-final{
+    position:absolute;inset:0;display:grid;place-content:center;text-align:center;gap:1.2rem;z-index:5;
+    opacity:0;transform:scale(.96);transition:all .5s cubic-bezier(.16,1,.3,1);pointer-events:none;
+  }
+  .d-final.on{opacity:1;transform:none;pointer-events:auto}
+  .d-final h3{font-size:clamp(1.8rem,3.6vw,3rem);font-weight:700;letter-spacing:-.02em}
+  .d-final .cta{
+    justify-self:center;background:#fff;color:#2456B8;padding:1rem 2rem;border-radius:10px;
+    text-decoration:none;font-weight:700;
+  }
+
+  /* barra de tareas */
+  .barra{
+    position:absolute;left:0;right:0;bottom:0;height:52px;z-index:6;
+    background:rgba(14,22,42,.72);backdrop-filter:blur(10px);
+    display:flex;align-items:center;gap:.7rem;padding:0 1.1rem;
+  }
+  .inicio{
+    width:36px;height:36px;border-radius:9px;border:0;cursor:default;
+    background:linear-gradient(135deg,#fff,#DCE6F5);color:#2456B8;font-weight:800;font-size:1.05rem;
+  }
+  .b-app{
+    font-size:.75rem;color:rgba(255,255,255,.55);padding:.45rem .8rem;border-radius:7px;
+    border-bottom:2px solid transparent;transition:all .3s ease;
+  }
+  .b-app.on{background:rgba(255,255,255,.10);color:#fff;border-bottom-color:#8EC5FF}
+  #d-reloj{margin-left:auto;font-size:.78rem;color:rgba(255,255,255,.75)}
+
+  /* controles de la película */
+  #d-progreso{
+    position:absolute;left:0;right:0;top:0;height:3px;z-index:9;
+    background:rgba(255,255,255,.14);
+  }
+  #d-progreso i{display:block;height:100%;width:0;background:#fff;transition:width .12s linear}
+  #d-saltar{
+    position:absolute;right:1.2rem;top:1rem;z-index:9;
+    background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.28);
+    font:600 .78rem ui-sans-serif,system-ui,sans-serif;padding:.45rem .85rem;border-radius:999px;
+    cursor:pointer;backdrop-filter:blur(6px);transition:background .2s;
+  }
+  #d-saltar:hover{background:rgba(255,255,255,.24)}
+  .escritorio.terminada #d-saltar{opacity:0;pointer-events:none;transition:opacity .4s}
+  #d-capitulos{
+    position:absolute;left:50%;transform:translateX(-50%);top:1.05rem;z-index:9;
+    display:flex;gap:.45rem;
+  }
+  #d-capitulos button{
+    width:26px;height:6px;border-radius:3px;border:0;cursor:pointer;
+    background:rgba(255,255,255,.22);transition:background .25s;padding:0;
+  }
+  #d-capitulos button.on{background:#fff}
+
+  /* cursor de Ü */
+  #d-cursor{position:absolute;z-index:8;pointer-events:none;filter:drop-shadow(0 3px 8px rgba(0,0,0,.4))}
+  #d-cursor .click{
+    position:absolute;left:2px;top:2px;width:20px;height:20px;border-radius:50%;
+    border:2.5px solid #8EC5FF;opacity:0;transform:scale(.4);
+  }
+  #d-cursor.clic .click{animation:clic .5s ease-out}
+  @keyframes clic{0%{opacity:.9;transform:scale(.4)}100%{opacity:0;transform:scale(1.7)}}
+
+  /* ============== el mundo dentro del computador ============== */
+  #dentro{
+    position:relative;z-index:3;color:#fff;padding:0;
+  }
+  .d-hero{text-align:center;margin-bottom:14vh}
+  .d-eyebrow{font-size:.68rem;letter-spacing:.32em;text-transform:uppercase;color:rgba(255,255,255,.65);font-weight:600}
+  .d-hero h2{font-size:clamp(2.2rem,5vw,3.8rem);font-weight:700;letter-spacing:-.03em;margin-top:.8rem}
+  .d-hero p{color:rgba(255,255,255,.7);margin-top:.8rem}
+
+  .d-paso{min-height:88vh;display:grid;align-items:center}
+  .d-card{
+    display:grid;grid-template-columns:120px 1fr 1fr;gap:3rem;align-items:center;
+    max-width:62rem;margin:0 auto;width:100%;
+  }
+  .d-card.invertida{grid-template-columns:1fr 1fr 120px}
+  .u-ancla{width:110px;height:110px}
+
+  .d-num{font-size:.8rem;font-weight:700;letter-spacing:.25em;color:rgba(255,255,255,.55)}
+  .d-num.ambar-num{color:#FFC24B}
+  .d-texto h3{font-size:clamp(1.6rem,3.2vw,2.5rem);font-weight:700;letter-spacing:-.025em;line-height:1.08;margin-top:.6rem}
+  .d-texto p{color:rgba(255,255,255,.75);margin-top:1rem;line-height:1.65;max-width:26rem}
+  .d-texto .cta{
+    display:inline-block;margin-top:1.5rem;background:#fff;color:#2558BD;
+    padding:.9rem 1.7rem;border-radius:9px;text-decoration:none;font-weight:700;
+  }
+
+  .d-grafica{
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
+    border-radius:18px;padding:1.8rem;backdrop-filter:blur(4px);
+  }
+
+  /* paso 1: árbol UIA — los nodos se encienden en cascada */
+  .arbol .nodo{
+    font:500 .82rem ui-monospace,monospace;color:rgba(255,255,255,.5);
+    padding:.5rem .8rem;border-left:2px solid rgba(255,255,255,.25);
+    margin-left:0;opacity:.4;transform:translateX(-6px);
+    transition:all .5s cubic-bezier(.16,1,.3,1);
+  }
+  .arbol .n1{margin-left:1.2rem}
+  .arbol .hoja{margin-left:2.4rem}
+  .visto .arbol .nodo{opacity:1;transform:none;color:#fff;border-color:#8EC5FF}
+  .visto .arbol .n1{transition-delay:.25s}
+  .visto .arbol .n2{transition-delay:.5s}
+  .visto .arbol .n3{transition-delay:.75s}
+  .visto .arbol .n4{transition-delay:1s}
+
+  /* paso 2: formulario — barras que se escriben */
+  .campo{margin-bottom:1.1rem}
+  .campo label{font-size:.62rem;letter-spacing:.2em;color:rgba(255,255,255,.55)}
+  .campo .caja{
+    position:relative;height:38px;background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.22);border-radius:8px;margin-top:.35rem;
+    display:flex;align-items:center;padding:0 .8rem;overflow:hidden;
+  }
+  .campo .caja i{
+    display:block;height:8px;border-radius:4px;background:rgba(255,255,255,.85);
+    width:0;transition:width 1.1s cubic-bezier(.3,0,.2,1);
+  }
+  .visto .campo .caja i,.v-form.abierta .campo .caja i{width:calc(var(--w) * 82%)}
+  .visto .campo:nth-child(2) .caja i,.v-form.abierta .campo:nth-child(2) .caja i{transition-delay:.5s}
+  .visto .campo:nth-child(3) .caja i,.v-form.abierta .campo:nth-child(3) .caja i{transition-delay:1s}
+  .visto .campo:nth-child(4) .caja i,.v-form.abierta .campo:nth-child(4) .caja i{transition-delay:1.5s}
+  .campo .caja b{
+    margin-left:auto;color:#7FE3A9;opacity:0;transition:opacity .3s ease;
+  }
+  .visto .campo .caja b,.v-form.abierta .campo .caja b{opacity:1}
+  .visto .campo:nth-child(1) .caja b,.v-form.abierta .campo:nth-child(1) .caja b{transition-delay:1.2s}
+  .visto .campo:nth-child(2) .caja b,.v-form.abierta .campo:nth-child(2) .caja b{transition-delay:1.7s}
+  .visto .campo:nth-child(3) .caja b,.v-form.abierta .campo:nth-child(3) .caja b{transition-delay:2.2s}
+  .caret{
+    margin-left:4px;width:2px;height:16px;background:#fff;
+    animation:parpadeo 1s steps(1) infinite;
+  }
+  @keyframes parpadeo{50%{opacity:0}}
+
+  /* paso 3: la pausa ámbar */
+  .campo.ambar .caja{border-color:#FFC24B;box-shadow:0 0 0 0 rgba(255,194,75,.5);animation:latido 2.2s ease-out infinite}
+  @keyframes latido{0%{box-shadow:0 0 0 0 rgba(255,194,75,.45)}70%{box-shadow:0 0 0 14px rgba(255,194,75,0)}100%{box-shadow:0 0 0 0 rgba(255,194,75,0)}}
+  .aviso{margin-top:.7rem;font-size:.8rem;font-weight:700;color:#FFC24B;letter-spacing:.06em}
+
+  /* paso 4: la firma se dibuja */
+  .firma svg{width:100%;height:auto}
+  .firma .trazo{
+    stroke:#fff;stroke-width:3;stroke-linecap:round;
+    stroke-dasharray:520;stroke-dashoffset:520;
+  }
+  .visto .firma .trazo{transition:stroke-dashoffset 1.6s cubic-bezier(.4,0,.2,1) .3s;stroke-dashoffset:0}
+  .firmado{display:block;margin-top:.6rem;font-size:.85rem;color:#7FE3A9;opacity:0;transition:opacity .4s ease 1.8s}
+  .visto .firma .firmado, .visto .firmado{opacity:1}
+
+  .d-pie{text-align:center;padding-top:8vh;color:rgba(255,255,255,.45);font-size:.8rem;letter-spacing:.15em}
+
+  /* ── Escritorio en móvil: layout propio, no el de escritorio estrujado ──
+     Una columna: caption compacto arriba, UNA ventana visible a la vez a ancho
+     completo (la que la escena tiene al frente), notificación única y bandeja
+     mínima. Ü baja de tamaño y se ancla al borde de la ventana activa. */
+  @media (max-width:760px){
+    .d-card,.d-card.invertida{grid-template-columns:1fr;gap:1.6rem}
+    .u-ancla{display:none}
+
+    .d-caption{left:5vw;right:5vw;top:5.2rem;max-width:none}
+    .d-caption h3{font-size:1.25rem;line-height:1.15}
+    .d-caption p{font-size:.86rem;line-height:1.45;margin-top:.35rem}
+
+    /* iconos: fila compacta arriba a la derecha, debajo del caption */
+    .iconos{right:auto;left:5vw;top:auto;bottom:4.6rem;flex-direction:row;gap:1.1rem;transform:scale(.85);transform-origin:left bottom}
+    .icono span{font-size:.62rem}
+    .escritorio.tiene-ventana .iconos{display:none}
+
+    /* ventanas: ancho completo, apiladas — solo la del frente es visible */
+    .ventana{left:4vw !important;right:4vw !important;width:auto !important;top:11.5rem !important;
+      max-height:calc(100vh - 11.5rem - 5.4rem);overflow:hidden}
+    .ventana.atras{opacity:0 !important;pointer-events:none;transform:translateY(20px) scale(.97) !important}
+    .ventana header{font-size:.72rem;padding:.42rem .3rem .42rem .8rem}
+    .wbtns i{width:30px;height:22px;font-size:.62rem}
+    .toolbar{padding:.35rem .6rem;gap:.35rem}
+    .toolbar .buscar{display:none}
+    .direccion{font-size:.66rem;padding:.26rem .5rem}
+    .menus{gap:.7rem;font-size:.66rem;padding:.3rem .8rem}
+    .menus span:nth-child(n+4){display:none}
+    .v-explorador .v-cuerpo{grid-template-columns:1fr;min-height:0}
+    .v-explorador aside{display:none}
+    .archivos{padding:.4rem .5rem}
+    .archivos li{font-size:.78rem;padding:.42rem .5rem}
+    .archivos li:nth-child(n+5){display:none}
+    .v-form .form{padding:.8rem .9rem}
+    .v-form .campo{margin-bottom:.7rem}
+    .v-form .campo label{font-size:.56rem}
+    .v-form .caja{height:32px}
+
+    /* notificaciones: solo la última, ancho completo, sobre la bandeja */
+    #notifs{left:4vw;right:4vw;width:auto;bottom:3.9rem;gap:.35rem}
+    .notif.vieja{display:none}
+    .notif{padding:.5rem .65rem}
+    .notif p{font-size:.74rem}
+
+    /* CTA final centrado y legible */
+    .d-final h3{font-size:1.5rem;padding:0 6vw;line-height:1.15}
+    .d-final .cta{padding:.85rem 1.5rem;font-size:.9rem}
+
+    /* bandeja mínima */
+    .barra{height:44px;padding:0 .7rem;gap:.45rem}
+    .inicio{width:30px;height:30px;font-size:.9rem;border-radius:7px}
+    .b-app{font-size:.66rem;padding:.35rem .55rem}
+    .tray-idioma,.tray-chev{display:none}
+    .tray-hora time{font-size:.66rem}
+    .tray-hora small{display:none}
+
+    /* controles de la película */
+    #d-saltar{top:.7rem;right:.8rem;font-size:.7rem;padding:.35rem .7rem}
+    #d-capitulos{top:.85rem;gap:.35rem}
+    #d-capitulos button{width:18px;height:5px}
+
+    /* Ü más chico */
+    #u-rider{width:64px !important;height:64px !important}
+    #u-rider svg{width:64px !important;height:64px !important}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .copy{transition:none;opacity:1;transform:none}
+    .arbol .nodo,.campo .caja i,.firma .trazo{transition:none}
+    .visto .firma .trazo{stroke-dashoffset:0}
+    .campo.ambar .caja{animation:none}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gl"></canvas>
+<div id="vineta"></div>
+
+<!-- Barra de marca: quien llega ya nos conoce, pero tiene que saber de quién
+     es esto y cómo dar el siguiente paso sin llegar hasta abajo. -->
+<header id="marca">
+  <a class="logo" href="#">
+    <span class="mono"><svg viewBox="-75 -75 150 150" aria-hidden="true"><g transform="rotate(-2)" stroke="#2A2620" stroke-width="9" stroke-linecap="round" fill="none"><path d="M-40 -36 Q-30 -40.5 -20 -36"/><path d="M20 -36.5 Q30 -42.5 40 -36.5"/><line x1="-30" y1="-24" x2="-30" y2="-4"/><line x1="30" y1="-24" x2="30" y2="-4"/><path d="M-18.7 21.1 C-3.6 25.6 7.6 25.6 18.7 19.5"/></g></svg></span>
+    <span class="nom">Ü <i>· de Miracle</i></span>
+  </a>
+  <span class="sep"></span>
+  <a class="cta-top" href="mailto:piloto@itsmiracleai.com.co?subject=Piloto%20de%20Ü">Solicitar piloto</a>
+</header>
+
+<!-- Hero fijo: no viaja con el scroll — se desvanece en el sitio. -->
+<div id="hero-fijo">
+  <div class="hero-overlay"></div>
+  <div class="copy">
+    <span class="estado" id="estado-hero"><i></i><span id="estado-txt">Ü está llenando la historia clínica</span> <b id="estado-hora">7:43</b></span>
+    <h2>Un consultorio<br>que trabaja solo.</h2>
+    <p>Son las 9 de la mañana y no hay nadie en la silla. Baja para acercarte a la pantalla.</p>
+    <div class="acciones">
+      <a class="cta" href="#dentro">Ver a Ü trabajando</a>
+      <a class="btn-fantasma" href="mailto:piloto@itsmiracleai.com.co?subject=Piloto%20de%20Ü">Solicitar piloto</a>
+    </div>
+  </div>
+  <div class="scroll-ind"><span>Scroll</span><div class="linea"><i></i></div></div>
+</div>
+
+<!-- Relato: capa fija, cruzada por rango de riel (ver oficina.js). -->
+<div id="relato">
+  <div class="copy der" data-acto="1" data-desde="0.13" data-hasta="0.42">
+    <span class="eyebrow">Sin cambiar de sistema</span>
+    <h2>Sobre las aplicaciones<br>que ya tiene.</h2>
+    <p>Ü lee la interfaz, ve la pantalla y opera el ratón y el teclado como un usuario más — en el HIS, en SAP, en lo que tu institución ya usa.</p>
+  </div>
+
+  <div class="copy izq" data-acto="2" data-desde="0.46" data-hasta="0.74">
+    <span class="eyebrow">Mira quién escribe</span>
+    <h2>Campo por campo,<br>sin adivinar.</h2>
+    <p>Documento, motivo, CIE-10, CUPS. Y cuando un código no es inequívoco, Ü se detiene y espera la confirmación del médico.</p>
+  </div>
+
+  <div class="copy izq" data-acto="3" data-desde="0.80" data-hasta="1.01">
+    <span class="eyebrow">El siguiente paso</span>
+    <h2>Conoce a Ü<br>de cerca.</h2>
+    <p>El agente que devuelve las horas de papeleo. Piloto acotado, métricas de antes y después, sin migrar nada.</p>
+    <a class="cta" href="mailto:piloto@itsmiracleai.com.co?subject=Piloto%20de%20Ü">Solicitar piloto</a>
+  </div>
+</div>
+<!-- Gradiente lateral para el texto de los actos 3D (sin cards). -->
+<div id="lateral-grad"></div>
+
+<!-- Pista de scroll: cuatro pantallas que solo mueven la cámara. -->
+<div id="scroller">
+  <section class="acto"></section>
+  <section class="acto"></section>
+  <section class="acto"></section>
+  <section class="acto"></section>
+</div>
+
+<!-- ================= EL MUNDO DENTRO DEL COMPUTADOR ================= -->
+<!-- Escenario fijo: el escritorio queda clavado en pantalla y el scroll va
+     abriendo las ventanas ahí mismo. 5 escenas sobre 520vh de pista. -->
+<section id="dentro">
+  <div class="d-sticky">
+    <div class="escritorio">
+
+      <!-- caption de la escena, arriba a la izquierda -->
+      <div class="d-caption">
+        <span class="d-eyebrow">Así trabaja Ü</span>
+        <h3 id="cap-titulo">Entra al computador.</h3>
+        <p id="cap-texto">El mismo escritorio que tu equipo usa todos los días.</p>
+      </div>
+
+      <!-- iconos de escritorio -->
+      <div class="iconos">
+        <div class="icono"><i class="carpeta"></i><span>Pacientes</span></div>
+        <div class="icono"><i class="carpeta"></i><span>Remisiones</span></div>
+        <div class="icono"><i class="doc"></i><span>HIS</span></div>
+        <div class="icono papelera-icono"><i class="papelera"></i><span>Papelera</span></div>
+      </div>
+
+      <!-- ventana: explorador de archivos -->
+      <div class="ventana v-explorador">
+        <header>Explorador de archivos<b class="wbtns"><i>─</i><i>□</i><i>✕</i></b></header>
+        <div class="toolbar">
+          <span class="nav">←</span><span class="nav dis">→</span><span class="nav">↻</span>
+          <div class="direccion">C:\Clinica\Pacientes</div>
+          <div class="buscar">Buscar</div>
+        </div>
+        <div class="v-cuerpo">
+          <aside>
+            <div class="lado activo"><i class="carpeta"></i>Pacientes</div>
+            <div class="lado"><i class="carpeta"></i>Historias</div>
+            <div class="lado"><i class="carpeta"></i>Remisiones</div>
+            <div class="lado"><i class="carpeta"></i>Exportes RIPS</div>
+          </aside>
+          <ul class="archivos">
+            <li><i class="doc"></i>HC_1017442918.pdf<time>hoy 8:52</time></li>
+            <li><i class="doc"></i>HC_43208771.pdf<time>hoy 8:47</time></li>
+            <li><i class="hoja"></i>remision_cardio.xlsx<time>hoy 8:31</time></li>
+            <li><i class="doc"></i>HC_1128004567.pdf<time>ayer</time></li>
+            <li><i class="hoja"></i>rips_julio.txt<time>ayer</time></li>
+            <li><i class="doc"></i>HC_52771903.pdf<time>ayer</time></li>
+            <li><i class="hoja"></i>autorizaciones_pendientes.xlsx<time>lun</time></li>
+            <li><i class="doc"></i>HC_1094552038.pdf<time>lun</time></li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ventana: formulario del HIS -->
+      <div class="ventana v-form">
+        <header>HIS — Ingreso · consulta externa<b class="wbtns"><i>─</i><i>□</i><i>✕</i></b></header>
+        <div class="menus"><span>Archivo</span><span>Edición</span><span>Registro</span><span>Ayuda</span></div>
+        <div class="v-cuerpo form">
+          <div class="campo"><label>DOCUMENTO</label><div class="caja"><i style="--w:.9"></i><b>✓</b></div></div>
+          <div class="campo"><label>MOTIVO DE CONSULTA</label><div class="caja"><i style="--w:.75"></i><b>✓</b></div></div>
+          <div class="campo"><label>DIAGNÓSTICO CIE-10</label><div class="caja"><i style="--w:.4"></i><b>✓</b></div></div>
+          <div class="campo ultimo"><label>PROCEDIMIENTO CUPS</label><div class="caja"><i style="--w:.55"></i><span class="caret"></span></div></div>
+        </div>
+      </div>
+
+      <!-- centro de notificaciones del sistema -->
+      <div id="notifs"></div>
+
+      <!-- CTA final sobre el escritorio -->
+      <div class="d-final">
+        <h3>Tu equipo, sin el papeleo.</h3>
+        <a class="cta" href="mailto:piloto@itsmiracleai.com.co?subject=Piloto%20de%20Ü">Solicitar piloto</a>
+      </div>
+
+      <!-- barra de tareas -->
+      <div class="barra">
+        <button class="inicio">Ü</button>
+        <div class="b-app explorador-tab">Explorador</div>
+        <div class="b-app his-tab">HIS</div>
+        <div class="tray">
+          <span class="tray-chev">︿</span>
+          <span class="tray-idioma">ESP</span>
+          <div class="tray-hora"><time id="d-reloj">9:07</time><small id="d-fecha"></small></div>
+        </div>
+      </div>
+
+      <!-- el cursor que Ü mueve -->
+      <div id="d-cursor"><svg viewBox="0 0 24 24" width="22"><path d="M5 3 L19 12 L12 13.6 L9.8 20 Z" fill="#fff" stroke="#1a1a1a" stroke-width="1.4"/></svg><span class="click"></span></div>
+
+    </div>
+  </div>
+</section>
+
+<div id="hud"><span id="pct">00</span><div id="bar"><i></i></div><span>recorrido</span></div>
+<div id="loading"><span>cargando consultorio</span></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<script>
+/* Chip de estado del hero: lo único vivo antes del primer scroll.
+   Recorre la misma mañana que cuenta el resto del sitio y se detiene
+   en el CUPS ambiguo — la pausa es el argumento, no un adorno. */
+(function(){
+  const linea = document.getElementById('estado-txt');
+  const hora  = document.getElementById('estado-hora');
+  const chip  = document.getElementById('estado-hero');
+  if(!linea) return;
+  const PASOS = [
+    ['Ü está llenando la historia clínica','7:43',0],
+    ['Ü asignó el CIE-10 · J06.9','7:43',0],
+    ['Ü se detuvo: el CUPS tiene dos códigos','7:44',1],
+    ['Ü adjuntó la remisión en SAP','7:51',0],
+    ['Ü radicó la autorización','7:52',0],
+  ];
+  let i = 0;
+  const lento = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(lento) return;
+  setInterval(()=>{
+    i = (i + 1) % PASOS.length;
+    const [txt,h,pausa] = PASOS[i];
+    chip.style.opacity = '0';
+    setTimeout(()=>{
+      linea.textContent = txt;
+      hora.textContent  = h;
+      chip.classList.toggle('pausa', !!pausa);
+      chip.style.opacity = '1';
+    }, 260);
+  }, 3400);
+  chip.style.transition = 'opacity .26s ease';
+})();
+
+/* La barra de marca entra sola cuando la escena ya cargó. */
+addEventListener('load', ()=> document.getElementById('marca')?.classList.add('on'));
+</script>
+<script type="module" src="/u/scene/oficina.js"></script>
+<script type="module" src="/u/dentro.js"></script>
+</body>
+</html>
