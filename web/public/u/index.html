@@ -69,6 +69,13 @@
     box-shadow:0 4px 16px rgba(55,118,227,.35);
   }
   #marca .cta-top:hover{transform:translateY(-1px);filter:brightness(1.08)}
+  #marca .ingresar-top{
+    color:#6fa6ff;text-decoration:none;font-weight:600;font-size:.78rem;
+    padding:.5rem .3rem;text-shadow:0 1px 8px rgba(0,0,0,.4);transition:color .15s ease;
+  }
+  #marca .ingresar-top:hover{color:#fff}
+  body.en-landing #marca .ingresar-top{color:var(--azul);text-shadow:none}
+  body.en-landing #marca .ingresar-top:hover{color:var(--ink)}
   @media(max-width:560px){ #marca .nom i{display:none} }
 
   #scroller{position:relative;z-index:2;pointer-events:none}
@@ -1117,6 +1124,7 @@
     <span class="nom">Ü <i>· de Miracle</i></span>
   </a>
   <span class="sep"></span>
+  <a class="ingresar-top" href="/login">Ingresar</a>
   <a class="cta-top" href="mailto:piloto@itsmiracleai.com.co?subject=Piloto%20de%20Ü">Solicitar piloto</a>
 </header>
 

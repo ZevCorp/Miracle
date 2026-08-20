@@ -34,7 +34,7 @@ export function Header() {
         <div className="hidden items-center gap-1.5 lg:flex">
           <Link
             href="/login"
-            className="rounded-full px-4 py-2 text-[0.92rem] font-medium text-ink-soft transition-colors hover:text-deep"
+            className="rounded-full px-4 py-2 text-[0.92rem] font-semibold text-accent transition-colors hover:text-accent-hover"
           >
             Ingresar
           </Link>
