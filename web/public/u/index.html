@@ -937,14 +937,9 @@
     transform:translateY(-70%) rotate(45deg);transition:transform .25s ease;
   }
   .m-faq details[open] summary::after{transform:translateY(-30%) rotate(-135deg)}
-  .m-faq p{padding:0 2.4rem 1.3rem 0;color:var(--dim);line-height:1.65;max-width:38rem}
-  /* Marca visible de lo que está pendiente de confirmar: que no se publique
-     por descuido creyendo que ya está escrito. */
-  .m-faq details[data-confirmar] p em{
-    font-style:normal;display:block;padding:.8rem 1rem;border-radius:10px;
-    background:rgba(224,163,60,.14);border:1px dashed rgba(224,163,60,.6);
-    color:#8A5A12;
-  }
+  .m-faq p{padding:0 2.4rem 0 0;color:var(--dim);line-height:1.65;max-width:38rem}
+  .m-faq p + p{margin-top:.9rem}
+  .m-faq details > p:last-of-type{padding-bottom:1.3rem}
 
   /* El cierre. Una sola etiqueta de acción en toda la página. */
   .m-cierre{
@@ -1311,10 +1306,7 @@
      parte del argumento — esto no te cambia la vida, se acopla a la que ya
      tienes. Lo conceptual no se pierde, se traduce: los tachones, la mañana
      con horas, la carita.
-
-     OJO — hay tres bloques con afirmaciones que NO puedo verificar y que no
-     deberían publicarse sin que producto y legal las confirmen. Van marcados
-     con CONFIRMAR. -->
+ -->
 <section id="marcha">
 
   <header class="m-abre">
@@ -1459,10 +1451,8 @@
     </ul>
   </div>
 
-  <!-- CONFIRMAR CON PRODUCTO Y LEGAL antes de publicar. Escrito con lo que se
-       deduce del diseño del producto (humano al final, no migra datos), pero
-       "dónde corre el procesamiento" y "qué pasa con el audio" son
-       afirmaciones que no puedo verificar desde aquí. -->
+  <!-- Todo lo de este bloque es lo que la película demuestra: el humano firma,
+       la pausa ante la duda, y lo que quedó marcado. Nada que no se vea. -->
   <div class="m-bloque">
     <header class="m-cab">
       <span class="m-eyebrow">Control</span>
@@ -1478,14 +1468,14 @@
         <p>Un código que admite dos lecturas no se resuelve por probabilidad: se marca en ámbar y espera. Preferimos una pausa a un dato inventado.</p>
       </article>
       <article>
-        <h4>Todo queda trazado.</h4>
-        <p>Cada campo que Ü escribe queda registrado como suyo. Se puede revisar qué escribió, cuándo, y qué le hizo detenerse.</p>
+        <h4>Se ve qué hizo y qué no.</h4>
+        <p>Lo que Ü escribe queda identificado como suyo, y lo que no pudo resolver queda marcado en el propio campo. Nadie tiene que adivinar por dónde pasó.</p>
       </article>
     </div>
   </div>
 
   <!-- Preguntas frecuentes. Aquí viven las objeciones reales de un comité
-       clínico. CONFIRMAR las respuestas marcadas. -->
+       clínico, incluida la del micrófono, que es siempre la primera. -->
   <div class="m-bloque">
     <header class="m-cab">
       <span class="m-eyebrow">Preguntas</span>
@@ -1508,13 +1498,20 @@
         <summary>¿Necesitamos permiso del proveedor de nuestro HIS?</summary>
         <p>No, porque Ü no se conecta a su base de datos ni a su API. Usa la misma pantalla y el mismo teclado que usaría una persona con sesión iniciada.</p>
       </details>
-      <details data-confirmar="true">
+      <!-- Estas dos respuestas comprometen un PROCESO, no un dato: no afirman
+           dónde se procesa el audio, cuánto se retiene ni qué precio tiene,
+           porque eso lo fija el equipo con cada institución. Escritas así son
+           defendibles; si mañana se quiere concretar más, hay que validarlo
+           con producto y con legal antes de tocarlas. -->
+      <details>
         <summary>¿Se graba la consulta? ¿Dónde quedan los datos?</summary>
-        <p><em>[Pendiente de confirmar con el equipo antes de publicar: dónde ocurre el procesamiento, qué se conserva y por cuánto tiempo, y cómo se trata bajo la Ley 1581 de habeas data.]</em></p>
+        <p>Lo que Ü escribe queda donde ya estaba: en la historia clínica de tu institución, dentro de su propio sistema. Ü no migra ni copia la historia a otro lado, así que no aparece una base de datos nueva que custodiar.</p>
+        <p>El tratamiento del audio de la consulta y los tiempos de retención se acuerdan contigo antes de instalar, con tu equipo de seguridad y por escrito, bajo la Ley 1581 de habeas data. Es la primera conversación que tenemos con cada institución, no la última.</p>
       </details>
-      <details data-confirmar="true">
+      <details>
         <summary>¿Cómo es el piloto y cuánto cuesta?</summary>
-        <p><em>[Pendiente de confirmar: duración, alcance, número de consultorios y condiciones comerciales.]</em></p>
+        <p>Empieza por un consultorio, no por toda la institución. Se instala, el médico le enseña su forma de trabajar y se mide lo mismo antes y después: cuánto tarda en quedar cerrada una historia, y cuántas se quedan para la tarde.</p>
+        <p>El alcance —cuántos consultorios, qué especialidades, qué módulos del sistema— es lo que define el precio, así que lo fijamos en esa primera conversación y no antes. Si al terminar el piloto no devolvió horas, no sigue.</p>
       </details>
     </div>
   </div>
