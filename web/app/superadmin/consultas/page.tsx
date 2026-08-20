@@ -7,7 +7,7 @@ import { DeleteConsultationButton } from "@/components/superadmin/DeleteConsulta
 import { FilterBar } from "@/components/superadmin/FilterBar";
 import { Pager } from "@/components/app/Pager";
 import { EmptyState } from "@/components/app/EmptyState";
-import { StatusBadge } from "@/components/app/StatusBadge";
+import { StatusBadge, STATUS_CHIP_ACTIVE } from "@/components/app/StatusBadge";
 import { filtroBusqueda } from "@/lib/superadmin/filtros";
 import type { ConsultationStatus } from "@/lib/mock";
 
@@ -113,10 +113,12 @@ export default async function SuperadminConsultasPage({
     return `/superadmin/consultas${qs ? `?${qs}` : ""}`;
   };
 
-  const chipClass = (active: boolean) =>
+  // El chip activo toma el color de su estado (mismo código de color que los
+  // badges de la lista), igual que en la app clínica.
+  const chipClass = (active: boolean, estado: ConsultationStatus | "todas") =>
     `inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
       active
-        ? "border-accent bg-accent-soft text-accent-ink"
+        ? STATUS_CHIP_ACTIVE[estado]
         : "border-line bg-surface text-ink-soft hover:border-mist"
     }`;
 
@@ -141,7 +143,7 @@ export default async function SuperadminConsultasPage({
 
       {/* --- Chips de estado con conteo ------------------------------------ */}
       <div className="flex flex-wrap gap-2">
-        <Link href={chipHref("todas")} className={chipClass(estadoFilter === "todas")}>
+        <Link href={chipHref("todas")} className={chipClass(estadoFilter === "todas", "todas")}>
           Todas
           <span className="text-xs text-muted">{totalGlobal}</span>
         </Link>
@@ -149,7 +151,7 @@ export default async function SuperadminConsultasPage({
           <Link
             key={estado.value}
             href={chipHref(estado.value)}
-            className={chipClass(estadoFilter === estado.value)}
+            className={chipClass(estadoFilter === estado.value, estado.value)}
           >
             {estado.label}
             <span className="text-xs text-muted">{Number(counts.get(estado.value) ?? 0)}</span>

@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { useStore } from "@/app/app/providers";
-import { STATUS_LABEL } from "@/lib/mock";
 import { isDemoConsultation } from "@/lib/demo";
 import { HoverHint } from "@/components/ui/HoverHint";
+import { StatusBadge } from "./StatusBadge";
 
 export function NotificationsBell() {
   const { consultations, getPatient } = useStore();
@@ -77,8 +77,8 @@ export function NotificationsBell() {
                           {c.motivo}
                         </span>
                       </span>
-                      <span className="shrink-0 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning">
-                        {STATUS_LABEL[c.estado]}
+                      <span className="shrink-0">
+                        <StatusBadge estado={c.estado} />
                       </span>
                     </Link>
                   </li>

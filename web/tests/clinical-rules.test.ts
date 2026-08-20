@@ -21,9 +21,10 @@ function consulta(partial: Partial<Consultation>): Consultation {
 describe("statusTone", () => {
   it("mapea estados a tonos semánticos", () => {
     expect(statusTone("borrador")).toBe("neutral");
-    expect(statusTone("revisada")).toBe("accent");
-    expect(statusTone("aprobada")).toBe("success");
-    expect(statusTone("exportada")).toBe("warning");
+    expect(statusTone("revisada")).toBe("warning");
+    expect(statusTone("aprobada")).toBe("accent");
+    // Exportada es el estado definitivo: el verde solo aparece al final.
+    expect(statusTone("exportada")).toBe("success");
   });
 });
 

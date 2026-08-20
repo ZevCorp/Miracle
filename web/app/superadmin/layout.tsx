@@ -37,7 +37,7 @@ export default async function SuperadminLayout({
 
   return (
     <div className="flex min-h-screen bg-pearl">
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 md:block">
+      <aside className="app-aside sticky top-0 hidden h-screen shrink-0 md:block">
         <SuperadminSidebar counts={counts} />
       </aside>
 

@@ -42,24 +42,31 @@ export function esDeHoy(iso: string): boolean {
   return iso.slice(0, 10) === MOCK_TODAY;
 }
 
-/** Tono semántico de un estado de consulta (para badges). */
+/**
+ * Tono semántico de un estado de consulta (para badges).
+ *
+ * El color sigue el avance del flujo borrador → revisada → aprobada → exportada:
+ * gris (sin empezar) → ámbar (requiere atención del médico) → azul (firmada) →
+ * verde (exportada a la historia clínica, el estado definitivo). Así el verde
+ * significa siempre "terminado" y no aparece a mitad del camino.
+ *
+ * `en_curso` comparte el ámbar de `revisada`: es transitorio, nunca se persiste
+ * (no puede aparecer junto a una revisada en la misma lista).
+ */
 export function statusTone(
   estado: ConsultationStatus,
-): "neutral" | "warning" | "accent" | "success" | "mint" {
+): "neutral" | "warning" | "accent" | "success" {
   switch (estado) {
     case "en_curso":
       return "warning";
     case "borrador":
       return "neutral";
     case "revisada":
-      return "accent";
-    case "aprobada":
-      return "success";
-    case "exportada":
-      // Antes usaba "mint" (mismo verde que "success"/aprobada, casi
-      // indistinguible a simple vista). "warning" no lo usa ningún otro
-      // estado visible hoy (en_curso nunca se persiste), así que resalta.
       return "warning";
+    case "aprobada":
+      return "accent";
+    case "exportada":
+      return "success";
   }
 }
 

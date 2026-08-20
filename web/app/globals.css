@@ -602,6 +602,122 @@
   display: block;
 }
 
+/* Entrada de la vista rápida de una consulta. Es una animación (no una
+   transición disparada desde JS) a propósito: arranca sola al aplicarse la
+   clase y termina siempre en opacidad 1, aunque el navegador no haya podido
+   entregar el primer cuadro a tiempo. */
+@keyframes preview-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.preview-in {
+  animation: preview-in 150ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-in {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   Menú lateral contraíble (solo escritorio: debajo de 768px el
+   aside está oculto y manda la barra inferior)
+   ============================================================ */
+/* El estado vive en <html data-sidebar>, igual que el tema. Así el script que
+   corre antes del primer pintado ya deja el menú del ancho correcto: si
+   dependiera de estado de React, el menú abriría siempre expandido y se
+   encogería un instante después, a la vista del usuario. */
+.app-aside {
+  width: 248px;
+  transition: width 200ms ease;
+}
+
+html[data-sidebar="collapsed"] .app-aside {
+  width: 72px;
+}
+
+/* Las tres reglas se limitan a `.app-aside` a propósito: el mismo componente de
+   menú se reutiliza dentro del cajón móvil de la consola, donde no hay nada que
+   contraer. Sin ese límite, contraer el menú en el escritorio dejaba el cajón
+   del teléfono sin rótulos ni conteos. */
+.sidebar-collapsed-only {
+  display: none;
+}
+
+html[data-sidebar="collapsed"] .app-aside .sidebar-expanded-only {
+  display: none;
+}
+
+html[data-sidebar="collapsed"] .app-aside .sidebar-collapsed-only {
+  display: block;
+}
+
+/* El botón de contraer solo tiene sentido en el menú fijo del escritorio. */
+.sidebar-toggle {
+  display: none;
+}
+
+.app-aside .sidebar-toggle {
+  display: inline-flex;
+}
+
+/* Contraído solo quedan los íconos, centrados en la franja de 72px. */
+html[data-sidebar="collapsed"] .app-aside .sidebar-item,
+html[data-sidebar="collapsed"] .app-aside .sidebar-header {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+/* La etiqueta no desaparece: se convierte en la pista que sale a la derecha al
+   apuntar el ícono, para no obligar a memorizar nueve dibujos. */
+html[data-sidebar="collapsed"] .app-aside .sidebar-label {
+  position: absolute;
+  left: calc(100% + 14px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+  white-space: nowrap;
+  border-radius: 8px;
+  background: var(--color-night);
+  color: #fff;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  pointer-events: none;
+  /* Sin transición aquí a propósito: al contraer el menú la etiqueta pasa de
+     1 a 0 y, con transición, las nueve cruzarían la pantalla como globos
+     desvaneciéndose. Contraer debe ser instantáneo. */
+}
+
+html[data-sidebar="collapsed"] .app-aside .sidebar-item:hover .sidebar-label,
+html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-label {
+  opacity: 1;
+  /* El retardo evita que salten globos al recorrer los íconos de paso. */
+  transition: opacity 120ms ease 200ms;
+}
+
+/* Los selectores repiten la especificidad de las reglas de arriba: una consulta
+   @media no aporta especificidad, así que un `.app-aside .sidebar-label` suelto
+   perdería contra ellas y el movimiento seguiría activo. */
+@media (prefers-reduced-motion: reduce) {
+  .app-aside,
+  html[data-sidebar="collapsed"] .app-aside .sidebar-item:hover .sidebar-label,
+  html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-label {
+    transition: none;
+  }
+}
+
 /* ============================================================
    App móvil: zonas seguras, controles táctiles y teclado de iOS
    ============================================================ */

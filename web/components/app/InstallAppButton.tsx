@@ -70,10 +70,10 @@ export function InstallAppButton({ onNavigate }: { onNavigate?: () => void }) {
     <button
       type="button"
       onClick={handleClick}
-      className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm text-mist hover:bg-white/8 hover:text-white"
+      className="sidebar-item relative flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm text-mist hover:bg-white/8 hover:text-white"
     >
-      <Download size={16} />
-      Instalar app
+      <Download size={16} className="shrink-0" />
+      <span className="sidebar-label">Instalar app</span>
     </button>
   );
 }

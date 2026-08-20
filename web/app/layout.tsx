@@ -83,7 +83,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var s=null;try{s=localStorage.getItem('miracle-theme')}catch(e){}var d=s==='dark'||(s!=='light'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.toggle('dark',d);r.dataset.theme=d?'dark':'light';r.style.colorScheme=d?'dark':'light'})()`,
+            __html: `(function(){var s=null,b=null;try{s=localStorage.getItem('miracle-theme');b=localStorage.getItem('miracle-sidebar')}catch(e){}var d=s==='dark'||(s!=='light'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.toggle('dark',d);r.dataset.theme=d?'dark':'light';r.style.colorScheme=d?'dark':'light';if(b==='collapsed'){r.dataset.sidebar='collapsed'}})()`,
           }}
         />
       </head>

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { InstallAppButton } from "@/components/app/InstallAppButton";
+import { SidebarToggle } from "@/components/app/SidebarToggle";
 import {
   APP_NAV_GROUPS,
   APP_NAV_GROUP_LABEL,
@@ -59,14 +60,15 @@ function NavLink({
       href={item.href}
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      className={`relative flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-semibold transition-colors ${
+      className={`sidebar-item relative flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-semibold transition-colors ${
         active
           ? "bg-sidebar-active text-sidebar-text before:absolute before:-left-3 before:h-6 before:w-[3px] before:rounded-r-full before:bg-white"
           : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-text"
       }`}
     >
-      <Icon size={18} className={active ? "text-sidebar-text" : "text-sidebar-muted"} />
-      {item.label}
+      <Icon size={18} className={`shrink-0 ${active ? "text-sidebar-text" : "text-sidebar-muted"}`} />
+      {/* Contraído, esta etiqueta se convierte en la pista flotante (globals.css). */}
+      <span className="sidebar-label">{item.label}</span>
     </Link>
   );
 }
@@ -90,8 +92,12 @@ export function AppSidebar({
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-text">
-      <div className="flex h-16 items-center border-b border-white/10 px-5">
-        <Logo onDark size={28} />
+      <div className="sidebar-header flex h-16 items-center gap-2 border-b border-white/10 px-5">
+        {/* Contraído desaparece el logotipo y el botón queda solo, centrado. */}
+        <span className="sidebar-expanded-only min-w-0 flex-1">
+          <Logo onDark size={28} />
+        </span>
+        <SidebarToggle />
       </div>
       <nav aria-label="Navegación de la app" className="flex-1 px-3 py-5">
         {(() => {
@@ -109,7 +115,7 @@ export function AppSidebar({
           return bloques.map((bloque, i) => (
             <div key={bloque.group} className={i ? "mt-6" : ""}>
               {conTitulo ? (
-                <h2 className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted/70">
+                <h2 className="sidebar-expanded-only mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted/70">
                   {APP_NAV_GROUP_LABEL[bloque.group]}
                 </h2>
               ) : null}
@@ -144,10 +150,10 @@ export function AppSidebar({
         <form action={signOut}>
           <button
             type="submit"
-            className="flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-semibold text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-text"
+            className="sidebar-item relative flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-semibold text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-text"
           >
-            <LogOut size={16} />
-            Cerrar sesión
+            <LogOut size={16} className="shrink-0" />
+            <span className="sidebar-label">Cerrar sesión</span>
           </button>
         </form>
       </div>
