@@ -37,6 +37,7 @@ export default async function AppLayout({
       role={profile.uiRole}
       userName={profile.fullName ?? profile.email}
       isDemo={profile.isDemo}
+      orgKind={profile.orgKind}
     >
       <UnsavedChangesProvider>
         <AppShell profile={profile}>{children}</AppShell>

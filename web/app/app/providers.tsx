@@ -69,6 +69,12 @@ interface StoreValue {
   /** Cuenta de demostración comercial: ver canAccessPath en lib/auth/roles.ts. */
   isDemo: boolean;
   /**
+   * personal = consultorio de una persona (B2C); institution = hospital (B2B).
+   * Lo necesitan pantallas de cliente para decidir qué es propio de una
+   * institución, como el rótulo (número de caso de laboratorio).
+   */
+  orgKind: "personal" | "institution" | null;
+  /**
    * Ajustes de la institución (nombre, NIT, sede, servicios…).
    *
    * Viven en el store porque los necesitan pantallas de cliente: el encabezado
@@ -197,11 +203,13 @@ export function MiracleProvider({
   role,
   userName,
   isDemo = false,
+  orgKind = null,
 }: {
   children: ReactNode;
   role: AppRole;
   userName?: string;
   isDemo?: boolean;
+  orgKind?: "personal" | "institution" | null;
 }) {
   const supabase = useMemo(() => createClient(), []);
   // El actor de auditoría es siempre el usuario real; nunca un nombre ficticio.
@@ -1002,6 +1010,7 @@ export function MiracleProvider({
       patients,
       role,
       isDemo,
+      orgKind,
       org,
       loading,
       syncing: pendingWrites > 0,
@@ -1032,6 +1041,7 @@ export function MiracleProvider({
       patients,
       role,
       isDemo,
+      orgKind,
       org,
       loading,
       pendingWrites,

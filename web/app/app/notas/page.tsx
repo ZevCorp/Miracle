@@ -3,7 +3,7 @@ import { FileText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { STATUS_LABEL, type ConsultationStatus } from "@/lib/mock";
 import { formatFechaRelativa } from "@/lib/dates";
-import { StatusBadge } from "@/components/app/StatusBadge";
+import { StatusBadge, STATUS_CHIP_ACTIVE } from "@/components/app/StatusBadge";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Pager } from "@/components/app/Pager";
 import { AppPage, AppPageHeader } from "@/components/app/AppPage";
@@ -23,13 +23,19 @@ type Row = {
   especialidad: string | null;
   fecha: string;
   estado: ConsultationStatus;
+  paciente_nombre: string | null;
+  paciente_documento: string | null;
   patients: { nombre: string | null } | { nombre: string | null }[] | null;
 };
 
-function patientName(p: Row["patients"]): string {
-  if (!p) return "Paciente sin identificar";
-  const row = Array.isArray(p) ? p[0] : p;
-  return row?.nombre || "Paciente sin identificar";
+/**
+ * Un paciente registrado y asociado a mano manda sobre el nombre copiado de la
+ * nota; el de la nota es mejor que rendirse con "Paciente sin identificar".
+ */
+function patientName(row: Row): string {
+  const p = row.patients;
+  const asociado = (Array.isArray(p) ? p[0] : p)?.nombre?.trim();
+  return asociado || row.paciente_nombre?.trim() || "Paciente sin identificar";
 }
 
 export default async function NotasPage({
@@ -49,7 +55,10 @@ export default async function NotasPage({
 
   let query = supabase
     .from("consultations")
-    .select("id, motivo, especialidad, fecha, estado, patients(nombre)", { count: "exact" })
+    .select(
+      "id, motivo, especialidad, fecha, estado, paciente_nombre, paciente_documento, patients(nombre)",
+      { count: "exact" },
+    )
     .order("fecha", { ascending: false })
     .range(from, to);
   if (estadoFilter !== "todas") query = query.eq("estado", estadoFilter);
@@ -87,12 +96,18 @@ export default async function NotasPage({
               href={href}
               className={`inline-flex items-center gap-2 rounded-[9px] border px-3.5 py-2 text-sm font-semibold transition-colors ${
                 active
-                  ? "border-accent bg-accent-soft text-accent-ink"
+                  ? STATUS_CHIP_ACTIVE[e]
                   : "border-line bg-surface text-ink-soft hover:border-mist"
               }`}
             >
               {e === "todas" ? "Todas" : STATUS_LABEL[e]}
-              <span className="rounded-full bg-ice px-1.5 text-[12px] text-muted">
+              {/* Activo: el contador hereda el color del chip (si no, el azul
+                  fijo peleaba con el ámbar/verde del estado seleccionado). */}
+              <span
+                className={`rounded-full px-1.5 text-[12px] tabular-nums ${
+                  active ? "bg-surface/70 text-current" : "bg-ice text-muted"
+                }`}
+              >
                 {chipCount(e)}
               </span>
             </Link>
@@ -113,7 +128,7 @@ export default async function NotasPage({
               </span>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold text-deep">
-                  {patientName(c.patients)}
+                  {patientName(c)}
                 </div>
                 <div className="mt-0.5 truncate text-[13px] text-muted">
                   {c.motivo || "Motivo sin registrar"} · {c.especialidad} · {formatFechaRelativa(c.fecha)}

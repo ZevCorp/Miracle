@@ -10,6 +10,7 @@ import {
   type OrgSettingsRow,
 } from "@/lib/hospital/org";
 import { ConsultationCard } from "@/components/app/ConsultationCard";
+import { STATUS_CHIP_ACTIVE } from "@/components/app/StatusBadge";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Pager } from "@/components/app/Pager";
 import { ConsultasFilters, type DoctorOption } from "./ConsultasFilters";
@@ -34,6 +35,12 @@ type Row = {
   fecha: string;
   servicio: string | null;
   rotulo: string | null;
+  // Solo alimentan la vista rápida al pasar el cursor sobre la tarjeta.
+  resumen: string | null;
+  duracion_min: number | null;
+  // Copias que la base extrae de la nota (migración consultation_patient_identity).
+  paciente_nombre: string | null;
+  paciente_documento: string | null;
   patients: { nombre: string | null } | { nombre: string | null }[] | null;
 };
 
@@ -74,6 +81,11 @@ export default async function ConsultasPage({
 
   const supabase = await createClient();
   const profile = await getCurrentProfile();
+
+  // El rótulo es el número de caso de un laboratorio: existe en una institución
+  // (B2B) y no en un consultorio personal (B2C). Ante un orgKind desconocido se
+  // asume institución, como ya hace visibleAppNav en lib/site.ts.
+  const muestraRotulo = (profile?.orgKind ?? "institution") === "institution";
 
   // Servicios de la institución (Configuración institucional). Sin configurar,
   // `serviciosDe` cae a la lista por defecto de la app.
@@ -134,7 +146,7 @@ export default async function ConsultasPage({
   let query = supabase
     .from("consultations")
     .select(
-      "id, patient_id, especialidad, tipo, estado, motivo, fecha, servicio, rotulo, patients(nombre)",
+      "id, patient_id, especialidad, tipo, estado, motivo, fecha, servicio, rotulo, resumen, duracion_min, paciente_nombre, paciente_documento, patients(nombre)",
       { count: "exact" },
     )
     .order("fecha", { ascending: false })
@@ -144,11 +156,16 @@ export default async function ConsultasPage({
   if (medicoFilter !== "todos") query = query.eq("medico_id", medicoFilter);
   if (term) {
     const safe = term.replace(/[%,()*\\]/g, " ").trim();
-    // Transversal a cualquier especialidad: `rotulo` viene de la columna
-    // sincronizada por trigger (ver migración consultations_rotulo_column),
-    // null cuando la plantilla no tiene esa sección, sin casos especiales
-    // por especialidad.
-    if (safe) query = query.or(`motivo.ilike.%${safe}%,rotulo.ilike.%${safe}%`);
+    // Transversal a cualquier especialidad: `rotulo`, `paciente_nombre` y
+    // `paciente_documento` vienen de columnas sincronizadas por trigger desde la
+    // nota, null cuando la plantilla no trae esa sección. Buscar por el nombre o
+    // la cédula del paciente es lo que de verdad pide una secretaría, y ahora
+    // que las columnas existen sale gratis.
+    if (safe) {
+      query = query.or(
+        `motivo.ilike.%${safe}%,rotulo.ilike.%${safe}%,paciente_nombre.ilike.%${safe}%,paciente_documento.ilike.%${safe}%`,
+      );
+    }
   }
 
   const { data, count } = await query;
@@ -197,7 +214,7 @@ export default async function ConsultasPage({
             href={chipHref(e)}
             className={`rounded-[9px] border px-3.5 py-2 text-sm font-semibold transition-colors ${
               estadoFilter === e
-                ? "border-accent bg-accent-soft text-accent-ink"
+                ? STATUS_CHIP_ACTIVE[e]
                 : "border-line bg-surface text-ink-soft hover:border-mist"
             }`}
           >
@@ -213,6 +230,7 @@ export default async function ConsultasPage({
               key={r.id}
               patientName={patientName(r.patients)}
               rotulo={r.rotulo}
+              showRotulo={muestraRotulo}
               consultation={{
                 id: r.id,
                 pacienteId: r.patient_id ?? "",
@@ -221,6 +239,11 @@ export default async function ConsultasPage({
                 estado: r.estado,
                 motivo: r.motivo ?? "",
                 fecha: r.fecha,
+                servicio: r.servicio,
+                resumen: r.resumen,
+                duracionMin: r.duracion_min,
+                pacienteNombre: r.paciente_nombre,
+                pacienteDocumento: r.paciente_documento,
               }}
             />
           ))}

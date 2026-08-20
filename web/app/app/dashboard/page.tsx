@@ -143,7 +143,10 @@ function MedicoView({
   pendientes: Consultation[];
   consultations: Consultation[];
 }) {
-  const { getPatient } = useStore();
+  const { getPatient, orgKind } = useStore();
+  // El rótulo es propio de una institución; ante orgKind desconocido se asume
+  // institución, igual que en visibleAppNav (lib/site.ts).
+  const muestraRotulo = (orgKind ?? "institution") === "institution";
   const recientes = useMemo(
     () => recentPatients(consultations, 4, getPatient),
     [consultations, getPatient],
@@ -199,6 +202,7 @@ function MedicoView({
                     key={c.id}
                     consultation={c}
                     presentation="row"
+                    showRotulo={muestraRotulo}
                   />
                 ))}
               {pendientes.length > 5 ? (
@@ -271,6 +275,8 @@ function SupervisorView({
   consultations: Consultation[];
   pendientes: Consultation[];
 }) {
+  const { orgKind } = useStore();
+  const muestraRotulo = (orgKind ?? "institution") === "institution";
   const promedio = consultations.length
     ? Math.round(
         consultations.reduce((acc, c) => acc + completitud(c), 0) /
@@ -305,7 +311,7 @@ function SupervisorView({
         {pendientes.length ? (
           <div className="grid gap-3 sm:grid-cols-2">
             {pendientes.map((c) => (
-              <ConsultationCard key={c.id} consultation={c} />
+              <ConsultationCard key={c.id} consultation={c} showRotulo={muestraRotulo} />
             ))}
           </div>
         ) : (
