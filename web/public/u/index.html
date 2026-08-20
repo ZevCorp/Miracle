@@ -777,6 +777,268 @@
     #d-voz .onda i{animation:none;height:9px}
   }
 
+  /* La barra de marca está pensada para fondos oscuros: degradado negro y
+     texto blanco con sombra. Sobre la crema de la tercera sección eso deja un
+     manchón arriba y el nombre en blanco sobre beige, ilegible. Se le da la
+     vuelta entera mientras la landing está en pantalla. */
+  body.en-landing #marca{
+    background:linear-gradient(180deg,rgba(232,223,210,.94),rgba(232,223,210,.72) 60%,transparent);
+  }
+  body.en-landing #marca .nom{color:var(--ink);text-shadow:none}
+  body.en-landing #marca .nom i{color:rgba(42,38,32,.55)}
+  body.en-landing #marca .mono{box-shadow:0 2px 8px rgba(42,38,32,.18)}
+
+  /* ══════════ TERCERA MACROSECCIÓN: cómo se pone en marcha ══════════
+     Vuelve a la crema del consultorio. Después de 29 segundos de azul, el
+     descanso es parte del argumento: esto no te cambia la vida, se acopla a la
+     que ya tienes. */
+  #marcha{
+    position:relative;z-index:4;background:var(--crema);color:var(--ink);
+    padding:clamp(5rem,12vh,9rem) clamp(1.4rem,7vw,4rem) 0;
+  }
+  /* Un filo de luz arriba: el corte con el azul del escritorio no puede ser
+     una línea seca, porque el escritorio queda congelado justo detrás. */
+  #marcha::before{
+    content:"";position:absolute;left:0;right:0;top:0;height:5rem;
+    background:linear-gradient(180deg,rgba(29,71,156,.22),transparent);
+    pointer-events:none;
+  }
+  .m-abre{max-width:44rem;margin:0 auto clamp(3rem,7vh,5rem)}
+  .m-abre-acc{display:flex;flex-wrap:wrap;align-items:center;gap:1.4rem;margin-top:2rem}
+  .m-link{
+    color:var(--ink);font-weight:600;font-size:.92rem;text-decoration:underline;
+    text-underline-offset:5px;text-decoration-color:rgba(42,38,32,.35);
+  }
+  .m-cta.chico{padding:.9rem 1.6rem;font-size:.95rem;margin-top:0}
+
+  /* Ritmo general de la landing: cada bloque respira igual. */
+  .m-bloque{max-width:56rem;margin:0 auto;padding:clamp(3rem,8vh,6rem) 0}
+  .m-cab{max-width:40rem;margin-bottom:clamp(2rem,5vh,3.4rem)}
+  .m-cab h2{
+    font-size:clamp(1.7rem,3.8vw,2.8rem);font-weight:800;letter-spacing:-.03em;
+    line-height:1.06;margin-top:.7rem;
+  }
+  .m-cab-p{margin-top:1rem;color:var(--dim);line-height:1.65;max-width:34rem}
+
+  /* La mañana. La misma que cuenta el chip del hero, desplegada con horas:
+     el ahorro como imagen, no como adjetivo. */
+  .m-dia{
+    max-width:56rem;margin:0 auto;padding:clamp(2rem,5vh,3rem) clamp(1.4rem,4vw,2.6rem);
+    border-radius:20px;background:rgba(255,255,255,.5);
+    border:1px solid rgba(42,38,32,.12);
+  }
+  .m-linea{list-style:none;margin-top:1.6rem;display:grid;gap:1.15rem}
+  .m-linea li{
+    display:grid;grid-template-columns:4.2rem 1fr;gap:.2rem 1.1rem;
+    align-items:baseline;position:relative;padding-bottom:1.15rem;
+    border-bottom:1px solid rgba(42,38,32,.09);
+  }
+  .m-linea li:last-child{border-bottom:0;padding-bottom:0}
+  .m-linea time{
+    font-variant-numeric:tabular-nums;font-weight:700;font-size:.92rem;
+    color:var(--azul);letter-spacing:.02em;
+  }
+  .m-linea b{font-weight:700;font-size:clamp(.98rem,1.6vw,1.1rem)}
+  .m-linea span{grid-column:2;color:var(--dim);font-size:.92rem;line-height:1.55}
+  .m-linea li.alto b{color:var(--azul)}
+
+  /* Los pasos, cosidos por una línea: sin ella son cuatro tarjetas sueltas y
+     se pierde que hay un orden. */
+  .m-pasos{
+    list-style:none;position:relative;padding-left:clamp(3.4rem,7vw,5rem);
+  }
+  .m-pasos::before{
+    content:"";position:absolute;left:clamp(1.15rem,2.4vw,1.65rem);top:.7rem;bottom:4rem;
+    width:1px;background:linear-gradient(180deg,var(--azul),rgba(42,38,32,.18));
+  }
+  .m-pasos li{position:relative;padding-bottom:clamp(2.6rem,6vh,4rem)}
+  .m-num{
+    position:absolute;left:calc(-1 * clamp(3.4rem,7vw,5rem));top:-.15rem;
+    width:clamp(2.3rem,4.8vw,3.3rem);height:clamp(2.3rem,4.8vw,3.3rem);
+    display:grid;place-items:center;border-radius:999px;
+    background:var(--crema);border:1px solid rgba(42,38,32,.18);
+    font-size:.76rem;font-weight:700;letter-spacing:.04em;color:var(--azul);
+  }
+  .m-cuerpo h3{
+    font-size:clamp(1.15rem,2.3vw,1.6rem);font-weight:700;letter-spacing:-.02em;
+    line-height:1.2;
+  }
+  .m-cuerpo > p{
+    margin-top:.6rem;line-height:1.65;color:var(--dim);
+    font-size:clamp(.92rem,1.4vw,1.02rem);max-width:34rem;
+  }
+  .m-detalle{list-style:none;margin-top:1rem;display:grid;gap:.5rem;max-width:34rem}
+  .m-detalle li{
+    position:relative;padding-left:1.3rem;font-size:.92rem;line-height:1.5;
+    color:var(--ink);
+  }
+  .m-detalle li::before{
+    content:"";position:absolute;left:0;top:.55em;width:5px;height:5px;
+    border-radius:99px;background:var(--azul);
+  }
+  .m-chip{
+    display:inline-block;margin-top:1.1rem;font-size:.72rem;font-weight:600;
+    letter-spacing:.02em;color:var(--azul);
+    background:rgba(55,118,227,.09);border:1px solid rgba(55,118,227,.2);
+    padding:.34rem .7rem;border-radius:999px;
+  }
+
+  /* Antes / con Ü. */
+  .m-compara{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
+  .m-col{padding:clamp(1.4rem,3vw,2rem);border-radius:16px}
+  .m-col h4{
+    font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;font-weight:700;
+    margin-bottom:1.1rem;
+  }
+  .m-col ul{list-style:none;display:grid;gap:.85rem}
+  .m-col li{font-size:.95rem;line-height:1.5;padding-left:1.5rem;position:relative}
+  .m-col.antes{background:rgba(42,38,32,.05);border:1px solid rgba(42,38,32,.1)}
+  .m-col.antes h4{color:rgba(42,38,32,.5)}
+  .m-col.antes li{color:rgba(42,38,32,.62)}
+  .m-col.antes li::before{
+    content:"";position:absolute;left:0;top:.62em;width:11px;height:1px;
+    background:rgba(42,38,32,.4);
+  }
+  .m-col.con{background:var(--ink);color:var(--crema);border:1px solid var(--ink)}
+  .m-col.con h4{color:rgba(232,223,210,.55)}
+  .m-col.con li::before{
+    content:"";position:absolute;left:0;top:.42em;width:7px;height:7px;
+    border-radius:99px;background:var(--azul);
+  }
+
+  /* Sobre qué corre. */
+  .m-sistemas{display:flex;flex-wrap:wrap;gap:.7rem}
+  .m-sistemas span{
+    font-size:.88rem;font-weight:600;padding:.7rem 1.1rem;border-radius:999px;
+    background:rgba(255,255,255,.6);border:1px solid rgba(42,38,32,.14);
+  }
+
+  /* Tarjetas de control. */
+  .m-tarjetas{display:grid;grid-template-columns:repeat(3,1fr);gap:1.1rem}
+  .m-tarjetas article{
+    padding:clamp(1.3rem,2.6vw,1.8rem);border-radius:16px;
+    background:rgba(255,255,255,.5);border:1px solid rgba(42,38,32,.12);
+  }
+  .m-tarjetas h4{font-size:1.02rem;font-weight:700;letter-spacing:-.01em}
+  .m-tarjetas p{margin-top:.6rem;font-size:.92rem;line-height:1.6;color:var(--dim)}
+
+  /* Preguntas. <details> nativo: sin JS y accesible con teclado. */
+  .m-faq{display:grid;gap:.1rem;max-width:44rem}
+  .m-faq details{border-bottom:1px solid rgba(42,38,32,.13)}
+  .m-faq summary{
+    cursor:pointer;list-style:none;padding:1.15rem 2.4rem 1.15rem 0;
+    font-size:clamp(1rem,1.7vw,1.12rem);font-weight:600;letter-spacing:-.01em;
+    position:relative;
+  }
+  .m-faq summary::-webkit-details-marker{display:none}
+  .m-faq summary::after{
+    content:"";position:absolute;right:.5rem;top:50%;width:11px;height:11px;
+    border-right:2px solid rgba(42,38,32,.45);border-bottom:2px solid rgba(42,38,32,.45);
+    transform:translateY(-70%) rotate(45deg);transition:transform .25s ease;
+  }
+  .m-faq details[open] summary::after{transform:translateY(-30%) rotate(-135deg)}
+  .m-faq p{padding:0 2.4rem 1.3rem 0;color:var(--dim);line-height:1.65;max-width:38rem}
+  /* Marca visible de lo que está pendiente de confirmar: que no se publique
+     por descuido creyendo que ya está escrito. */
+  .m-faq details[data-confirmar] p em{
+    font-style:normal;display:block;padding:.8rem 1rem;border-radius:10px;
+    background:rgba(224,163,60,.14);border:1px dashed rgba(224,163,60,.6);
+    color:#8A5A12;
+  }
+
+  /* El cierre. Una sola etiqueta de acción en toda la página. */
+  .m-cierre{
+    max-width:40rem;margin:clamp(2rem,6vh,4rem) auto 0;text-align:center;
+    display:grid;justify-items:center;gap:.9rem;
+  }
+  .m-cierre h2{
+    font-size:clamp(1.9rem,4.6vw,3.2rem);font-weight:800;letter-spacing:-.03em;
+    line-height:1.05;margin-top:.4rem;
+  }
+  .m-cierre p{color:var(--dim);line-height:1.6;max-width:30rem}
+  .m-cta{
+    margin-top:.8rem;display:inline-flex;align-items:center;gap:.7rem;
+    background:var(--ink);color:var(--crema);text-decoration:none;
+    padding:1.15rem 2.4rem;border-radius:12px;font-weight:700;font-size:1.05rem;
+    box-shadow:0 14px 36px rgba(42,38,32,.24);
+    transition:transform .25s cubic-bezier(.16,1,.3,1),box-shadow .25s ease;
+  }
+  .m-cta:hover{transform:translateY(-2px);box-shadow:0 20px 48px rgba(42,38,32,.3)}
+  .m-cta .glifo{
+    width:26px;height:26px;border-radius:7px;display:grid;place-items:center;
+    background:var(--crema);color:var(--ink);font-size:.85rem;font-weight:800;
+  }
+  .m-nota{font-size:.78rem;color:rgba(42,38,32,.55)}
+
+  .m-pie{
+    margin-top:clamp(4rem,10vh,7rem);padding:1.6rem 0 2.2rem;
+    border-top:1px solid rgba(42,38,32,.12);
+    display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.6rem;
+    font-size:.8rem;color:rgba(42,38,32,.55);
+  }
+  .m-pie .mono{width:22px;height:22px;display:block;flex:none}
+  .m-pie .mono svg{width:100%;height:100%;display:block}
+  .m-pie a{color:rgba(42,38,32,.55)}
+  .m-pie-sep{opacity:.5}
+
+  .m-eyebrow{
+    font-size:.66rem;letter-spacing:.22em;text-transform:uppercase;
+    font-weight:600;color:var(--azul);
+  }
+  .m-abre h2{
+    font-size:clamp(2.1rem,5.4vw,4rem);font-weight:800;letter-spacing:-.035em;
+    line-height:1.02;margin-top:.9rem;
+  }
+  .m-abre p{
+    margin-top:1.1rem;font-size:clamp(1rem,1.6vw,1.2rem);line-height:1.6;
+    color:var(--dim);max-width:32rem;
+  }
+
+  /* Los pasos, cosidos por una línea. La línea es el paso a paso: sin ella son
+     cuatro tarjetas sueltas y se pierde que hay un orden. */
+
+  /* Las objeciones, con el gesto del tachón que abre la película en el 3D:
+     lo que se tacha es lo que NO hay que hacer. */
+  .m-no{
+    max-width:46rem;margin:clamp(1rem,3vh,2rem) auto 0;
+    padding:clamp(1.8rem,4vw,2.6rem);
+    border:1px solid rgba(42,38,32,.14);border-radius:18px;
+    background:rgba(255,255,255,.42);
+  }
+  .m-no h3{font-size:clamp(1.1rem,2vw,1.35rem);font-weight:700;letter-spacing:-.02em}
+  .m-no h3 em{font-style:normal;color:var(--azul)}
+  .m-no ul{list-style:none;margin-top:1.2rem;display:grid;gap:.85rem}
+  .m-no li{
+    display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .7rem;
+    padding-bottom:.85rem;border-bottom:1px solid rgba(42,38,32,.09);
+  }
+  .m-no li:last-child{border-bottom:0;padding-bottom:0}
+  .m-no s{
+    color:rgba(42,38,32,.42);text-decoration-thickness:1.5px;
+    font-size:clamp(.92rem,1.4vw,1rem);
+  }
+  .m-no b{font-weight:600;font-size:clamp(.92rem,1.4vw,1rem)}
+
+  /* El cierre. Una sola etiqueta de acción en toda la página. */
+
+  /* La landing en un teléfono: una columna, y los bloques que eran rejilla
+     se apilan. La comparación "hoy / con Ü" pierde el efecto lado a lado,
+     así que el orden importa: primero el problema, después la solución. */
+  @media (max-width:760px){
+    #marcha{padding-top:clamp(3.5rem,9vh,5rem)}
+    .m-compara{grid-template-columns:1fr}
+    .m-tarjetas{grid-template-columns:1fr}
+    .m-linea li{grid-template-columns:1fr;gap:.15rem}
+    .m-linea span{grid-column:1}
+    .m-linea time{font-size:.8rem}
+    .m-abre-acc{gap:1rem}
+    .m-abre-acc .m-cta.chico{width:100%;justify-content:center}
+    .m-faq summary{font-size:1rem;padding-right:2rem}
+    .m-no li{gap:.1rem}
+    .m-pie{flex-direction:column;gap:.4rem;text-align:center}
+    .m-pie-sep{display:none}
+  }
+
   @media (max-width:760px){
     .d-card,.d-card.invertida{grid-template-columns:1fr;gap:1.6rem}
     .u-ancla{display:none}
@@ -1040,6 +1302,238 @@
       <div id="d-cursor"><svg viewBox="0 0 24 24" width="22"><path d="M5 3 L19 12 L12 13.6 L9.8 20 Z" fill="#fff" stroke="#1a1a1a" stroke-width="1.4"/></svg><span class="click"></span></div>
 
     </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ TERCERA MACROSECCIÓN ═══════════════════
+     Después del 3D y del video, la parte de landing. Vuelve a la crema del
+     consultorio a propósito: después de 29 segundos de azul, el descanso es
+     parte del argumento — esto no te cambia la vida, se acopla a la que ya
+     tienes. Lo conceptual no se pierde, se traduce: los tachones, la mañana
+     con horas, la carita.
+
+     OJO — hay tres bloques con afirmaciones que NO puedo verificar y que no
+     deberían publicarse sin que producto y legal las confirmen. Van marcados
+     con CONFIRMAR. -->
+<section id="marcha">
+
+  <header class="m-abre">
+    <span class="m-eyebrow">Cómo se pone en marcha</span>
+    <h2>No hay que montar<br>un sistema nuevo.</h2>
+    <p>Ü aprende a usar el que tu equipo ya tiene abierto todos los días. Se instala en el computador del consultorio, mira cómo trabaja el médico, y a partir de ahí escribe.</p>
+    <div class="m-abre-acc">
+      <a class="m-cta chico" href="#registro"><span class="glifo" aria-hidden="true">↓</span> Obtener acceso</a>
+      <a class="m-link" href="#pasos">Ver cómo funciona</a>
+    </div>
+  </header>
+
+  <!-- La mañana. Es la misma que cuenta el chip del hero y el 3D: aquí se
+       despliega entera, con horas, para que el ahorro sea una imagen y no un
+       adjetivo. -->
+  <div class="m-dia">
+    <span class="m-eyebrow">Una mañana cualquiera</span>
+    <ol class="m-linea">
+      <li><time>7:40</time><b>Llega el primer paciente.</b><span>El médico abre el HIS y empieza a escribir.</span></li>
+      <li><time>7:43</time><b>Ü está llenando la historia.</b><span>Documento, motivo, examen físico. Mientras la consulta sigue.</span></li>
+      <li><time>8:15</time><b>Un CUPS admite dos lecturas.</b><span>Ü se detiene y pregunta. No adivina.</span></li>
+      <li class="alto"><time>9:14</time><b>El médico firma.</b><span>Doce historias listas. Ninguna se quedó para la tarde.</span></li>
+    </ol>
+  </div>
+
+  <!-- Los cuatro pasos, cosidos por una línea. -->
+  <div id="pasos" class="m-bloque">
+    <header class="m-cab">
+      <span class="m-eyebrow">Paso a paso</span>
+      <h2>Cuatro pasos, una sola vez.</h2>
+    </header>
+    <ol class="m-pasos">
+      <li>
+        <span class="m-num">01</span>
+        <div class="m-cuerpo">
+          <h3>Se instala en el computador del consultorio.</h3>
+          <p>Una aplicación de Windows sobre el equipo que ya está ahí. No hay servidor que montar, ni ambiente que aprovisionar, ni integración que pedirle al proveedor del HIS.</p>
+          <ul class="m-detalle">
+            <li>Corre en el mismo equipo donde ya está abierto el sistema.</li>
+            <li>No toca la base de datos de la historia clínica.</li>
+            <li>Si se apaga, el consultorio sigue funcionando igual que ayer.</li>
+          </ul>
+          <span class="m-chip">Minutos, no meses</span>
+        </div>
+      </li>
+      <li>
+        <span class="m-num">02</span>
+        <div class="m-cuerpo">
+          <h3>El médico le enseña su forma de trabajar.</h3>
+          <p>Señalando con el mouse y hablando, como se le enseña a alguien que entra nuevo al consultorio. Aquí va el paciente que viene por primera vez, aquí el que ya tiene historia, los datos siempre primero.</p>
+          <ul class="m-detalle">
+            <li>Se le enseña en el idioma del consultorio, no en el de un manual.</li>
+            <li>Cada institución tiene su orden: Ü aprende el de la tuya.</li>
+            <li>Si mañana cambia el flujo, se le vuelve a decir. No hay ticket.</li>
+          </ul>
+          <span class="m-chip">Es lo que acabas de ver arriba</span>
+        </div>
+      </li>
+      <li>
+        <span class="m-num">03</span>
+        <div class="m-cuerpo">
+          <h3>Ü escucha la consulta y escribe.</h3>
+          <p>En los mismos campos del mismo HIS, con el mismo teclado. Lee la interfaz y opera la pantalla como un usuario más — por eso no necesita que nadie le abra una puerta.</p>
+          <ul class="m-detalle">
+            <li>Documento, motivo de consulta, examen físico, CIE-10, CUPS.</li>
+            <li>Cuando algo no es inequívoco, se detiene y pregunta.</li>
+            <li>Nunca escribe un dato que no haya salido de la consulta.</li>
+          </ul>
+          <span class="m-chip">La pausa es la función</span>
+        </div>
+      </li>
+      <li>
+        <span class="m-num">04</span>
+        <div class="m-cuerpo">
+          <h3>El médico revisa y firma.</h3>
+          <p>Nada entra a la historia clínica sin que un médico lo apruebe. Ü prepara el trabajo; el criterio, la decisión y la firma siguen siendo suyos.</p>
+          <ul class="m-detalle">
+            <li>Siempre hay una persona al final de la cadena.</li>
+            <li>Lo que Ü no supo resolver queda marcado, no escondido.</li>
+          </ul>
+          <span class="m-chip">Siempre hay una persona al final</span>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- Antes / con Ü. Es el bloque que convierte: pone el día del médico al
+       lado del día con Ü, sin adjetivos. -->
+  <div class="m-bloque">
+    <header class="m-cab">
+      <span class="m-eyebrow">Qué cambia</span>
+      <h2>El mismo consultorio,<br>otra jornada.</h2>
+    </header>
+    <div class="m-compara">
+      <div class="m-col antes">
+        <h4>Hoy</h4>
+        <ul>
+          <li>El médico escribe mientras el paciente habla.</li>
+          <li>La historia se termina en la noche, de memoria.</li>
+          <li>El RIPS se arma a final de mes, a mano.</li>
+          <li>Cada sistema nuevo es otra capacitación.</li>
+        </ul>
+      </div>
+      <div class="m-col con">
+        <h4>Con Ü</h4>
+        <ul>
+          <li>El médico mira al paciente. Ü escribe.</li>
+          <li>La historia queda lista al terminar la consulta.</li>
+          <li>Los códigos salen de lo que de verdad se dijo.</li>
+          <li>El sistema es el mismo. No hay nada que aprender.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sobre qué corre. Es el diferenciador técnico y hay que decirlo simple. -->
+  <div class="m-bloque">
+    <header class="m-cab">
+      <span class="m-eyebrow">Sobre qué funciona</span>
+      <h2>Si tu equipo puede usarlo,<br>Ü puede usarlo.</h2>
+      <p class="m-cab-p">Ü no se conecta por una API: lee la pantalla y opera el ratón y el teclado, como una persona. Por eso funciona sobre software que nunca fue pensado para automatizarse.</p>
+    </header>
+    <div class="m-sistemas">
+      <span>Historia clínica (HIS)</span>
+      <span>SAP</span>
+      <span>Módulos de facturación</span>
+      <span>RIPS</span>
+      <span>Autorizaciones</span>
+      <span>Cualquier ventana de Windows</span>
+    </div>
+  </div>
+
+  <!-- Las objeciones, con el gesto del tachón que abre la película en el 3D. -->
+  <div class="m-no">
+    <h3>Lo que <em>no</em> hay que hacer.</h3>
+    <ul>
+      <li><s>Migrar la historia clínica</s><b>Sigue donde está hoy.</b></li>
+      <li><s>Pedirle una integración al proveedor</s><b>Ü opera la interfaz, como un usuario.</b></li>
+      <li><s>Cambiarle el sistema al equipo</s><b>Siguen con el HIS que ya conocen.</b></li>
+      <li><s>Capacitar a todo el mundo</s><b>Se le enseña a Ü, no a la gente.</b></li>
+      <li><s>Esperar al próximo presupuesto</s><b>Empieza por un consultorio.</b></li>
+    </ul>
+  </div>
+
+  <!-- CONFIRMAR CON PRODUCTO Y LEGAL antes de publicar. Escrito con lo que se
+       deduce del diseño del producto (humano al final, no migra datos), pero
+       "dónde corre el procesamiento" y "qué pasa con el audio" son
+       afirmaciones que no puedo verificar desde aquí. -->
+  <div class="m-bloque">
+    <header class="m-cab">
+      <span class="m-eyebrow">Control</span>
+      <h2>Quién responde por lo que queda escrito.</h2>
+    </header>
+    <div class="m-tarjetas">
+      <article>
+        <h4>El médico firma.</h4>
+        <p>Ü no cierra historias. Prepara el registro y lo deja listo para que un profesional lo revise y lo firme. La responsabilidad clínica no se mueve de sitio.</p>
+      </article>
+      <article>
+        <h4>Cuando duda, se detiene.</h4>
+        <p>Un código que admite dos lecturas no se resuelve por probabilidad: se marca en ámbar y espera. Preferimos una pausa a un dato inventado.</p>
+      </article>
+      <article>
+        <h4>Todo queda trazado.</h4>
+        <p>Cada campo que Ü escribe queda registrado como suyo. Se puede revisar qué escribió, cuándo, y qué le hizo detenerse.</p>
+      </article>
+    </div>
+  </div>
+
+  <!-- Preguntas frecuentes. Aquí viven las objeciones reales de un comité
+       clínico. CONFIRMAR las respuestas marcadas. -->
+  <div class="m-bloque">
+    <header class="m-cab">
+      <span class="m-eyebrow">Preguntas</span>
+      <h2>Lo que siempre nos preguntan.</h2>
+    </header>
+    <div class="m-faq">
+      <details>
+        <summary>¿Hay que cambiar el sistema que ya usamos?</summary>
+        <p>No. Ü trabaja encima del que ya está instalado. No migra datos, no pide integración y no obliga a nadie a aprender una herramienta nueva: la única que aprende es ella.</p>
+      </details>
+      <details>
+        <summary>¿Cuánto tarda en estar funcionando?</summary>
+        <p>La instalación es la de una aplicación de escritorio. Lo que toma tiempo no es el software, es enseñarle el orden de tu consultorio — y eso son minutos, señalando y hablando.</p>
+      </details>
+      <details>
+        <summary>¿Qué pasa si Ü escribe algo mal?</summary>
+        <p>No llega a la historia. Ü prepara el registro y el médico lo revisa antes de firmar; lo que no supo resolver queda marcado para que salte a la vista, no escondido entre lo demás.</p>
+      </details>
+      <details>
+        <summary>¿Necesitamos permiso del proveedor de nuestro HIS?</summary>
+        <p>No, porque Ü no se conecta a su base de datos ni a su API. Usa la misma pantalla y el mismo teclado que usaría una persona con sesión iniciada.</p>
+      </details>
+      <details data-confirmar="true">
+        <summary>¿Se graba la consulta? ¿Dónde quedan los datos?</summary>
+        <p><em>[Pendiente de confirmar con el equipo antes de publicar: dónde ocurre el procesamiento, qué se conserva y por cuánto tiempo, y cómo se trata bajo la Ley 1581 de habeas data.]</em></p>
+      </details>
+      <details data-confirmar="true">
+        <summary>¿Cómo es el piloto y cuánto cuesta?</summary>
+        <p><em>[Pendiente de confirmar: duración, alcance, número de consultorios y condiciones comerciales.]</em></p>
+      </details>
+    </div>
+  </div>
+
+  <footer id="registro" class="m-cierre">
+    <span class="m-eyebrow">El siguiente paso</span>
+    <h2>Empieza por un consultorio.</h2>
+    <p>Un piloto acotado, con métricas de antes y después, sobre el sistema que ya usan. Si no devuelve horas, no sigue.</p>
+    <a class="m-cta" href="mailto:acceso@itsmiracleai.com.co?subject=Obtener%20acceso%20a%20Ü&amp;body=Institución%3A%0ACargo%3A%0ASistema%20que%20usan%20(HIS%2FSAP)%3A%0ANúmero%20aproximado%20de%20consultas%20al%20día%3A%0A">
+      <span class="glifo" aria-hidden="true">↓</span> Obtener acceso
+    </a>
+    <span class="m-nota">Es un registro, no una descarga: te escribimos para coordinar la instalación.</span>
+  </footer>
+
+  <div class="m-pie">
+    <span class="mono"><svg viewBox="-75 -75 150 150" aria-hidden="true"><g transform="rotate(-2)" stroke="#2A2620" stroke-width="9" stroke-linecap="round" fill="none"><path d="M-40 -36 Q-30 -40.5 -20 -36"/><path d="M20 -36.5 Q30 -42.5 40 -36.5"/><line x1="-30" y1="-24" x2="-30" y2="-4"/><line x1="30" y1="-24" x2="30" y2="-4"/><path d="M-18.7 21.1 C-3.6 25.6 7.6 25.6 18.7 19.5"/></g></svg></span>
+    <span>Ü · de Miracle</span>
+    <span class="m-pie-sep">·</span>
+    <a href="mailto:acceso@itsmiracleai.com.co">acceso@itsmiracleai.com.co</a>
   </div>
 </section>
 

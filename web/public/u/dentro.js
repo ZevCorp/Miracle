@@ -349,19 +349,29 @@ function montar() {
    * 29 segundos por delante, sin nada debajo y sin manera de volver.
    * La salida sigue existiendo y ahora se ve: el botón "Saltar ›", que ya no
    * está debajo de la barra de marca. */
-  // `overflow:hidden` NO basta: ni con trackpad inercial ni en móvil. Hay que
-  // cortar también los eventos. (Es la misma lección que ya estaba escrita
-  // para la fase B de v5, y aquí se volvió a tropezar con ella.)
-  const comer = (e) => { if (bloqueado) e.preventDefault(); };
+  /* El bloqueo, en tres capas, porque con menos NO aguanta.
+   *
+   * 1. `overflow:hidden` se descartó: quita la barra de scroll, cambia el
+   *    ancho del layout y el navegador reajusta la posición — la página
+   *    pegaba un salto justo en el instante del clic.
+   * 2. Cortar los eventos tampoco basta por sí solo. Corta la rueda y el
+   *    touch, pero se lo salta todo lo demás: la inercia del trackpad, el
+   *    arrastre de la barra de scroll, y cualquier scroll programático.
+   *    Medido: con solo eventos, la página se movía 1500 px durante la
+   *    película, la sección salía de vista y el tramo se ABORTABA a medias.
+   * 3. Lo que sí aguanta es ANCLAR la posición: se recuerda dónde estaba y
+   *    se vuelve ahí en cada scroll, venga de donde venga. Sin tocar el
+   *    layout, así que sigue sin haber salto. */
   let bloqueado = false;
+  let yAncla = 0;
+  const comer = (e) => { if (bloqueado) e.preventDefault(); };
   function bloquear(si) {
-    /* Solo se cortan los EVENTOS. Nada de overflow:hidden.
-     * Poner overflow en html/body quita la barra de scroll, cambia el ancho
-     * del layout y el navegador reajusta la posición: la página pegaba un
-     * salto justo al pulsar el botón. Cortando los eventos no se toca el
-     * layout, así que no hay nada que saltar. */
+    if (si && !bloqueado) yAncla = window.scrollY;
     bloqueado = si;
   }
+  addEventListener("scroll", () => {
+    if (bloqueado && Math.abs(window.scrollY - yAncla) > 1) window.scrollTo(0, yAncla);
+  }, { passive: true });
   addEventListener("wheel", comer, { passive: false });
   addEventListener("touchmove", comer, { passive: false });
   addEventListener("keydown", (e) => {
@@ -423,6 +433,12 @@ function montar() {
     const dt = Math.min((now - ultimo) / 1000, 0.05);
     ultimo = now;
 
+    /* Seguro contra el bloqueo colgado. Un scroll anclado que no se suelte deja
+     * la página congelada para siempre, que es mucho peor que el problema que
+     * resuelve. Si está bloqueado y NO hay una película corriendo a la vista,
+     * se suelta pase lo que pase. */
+    if (bloqueado && !(arrancado && !terminada && dentro.getBoundingClientRect().top <= 4)) bloquear(false);
+
     const rd = dentro.getBoundingClientRect();
     const enganchado = rd.top <= 4 && rd.bottom > innerHeight * 0.5;
     const dentroVista = rd.top < innerHeight && rd.bottom > 0;
@@ -432,7 +448,15 @@ function montar() {
     rider.style.opacity = enganchado ? "1" : "0";
     if (!enganchado) { cursor.style.opacity = "0"; voz.classList.remove("on"); }
     const hud = document.getElementById("hud");
-    if (hud) hud.style.opacity = enganchado ? "0" : "";
+    if (hud) {
+      // También se apaga sobre la tercera sección: ahí ya no hay recorrido 3D
+      // que medir, y el contador quedaba flotando sobre la landing.
+      const marcha = document.getElementById("marcha");
+      const enLanding = marcha && marcha.getBoundingClientRect().top < innerHeight * 0.6;
+      hud.style.opacity = enganchado || enLanding ? "0" : "";
+      // La barra de marca se invierte sobre la crema de la landing.
+      document.body.classList.toggle("en-landing", !!enLanding);
+    }
 
     if (enganchado) {
       /* Ya no arranca sola al engancharse: primero se pregunta por el sonido.
@@ -445,9 +469,13 @@ function montar() {
          * pulsarlo. Se espera a que el empalme suelte el transform. */
         const empalmando = dentro.classList.contains("empalmando");
         escritorio.classList.toggle("esperando", !empalmando);
-        // Y se bloquea el scroll YA, con el cartel puesto: si se bloquea al
-        // pulsar, la página se mueve justo en el instante del clic.
-        bloquear(!empalmando);
+        /* Con el cartel puesto NO se bloquea. El bloqueo es para que nadie
+         * scrollee DURANTE la película, no para retener a quien todavía no ha
+         * decidido verla. Desde que hay una tercera sección debajo, bloquear
+         * aquí dejaba encerrado a quien no pulsara ningún botón: la landing se
+         * volvía inalcanzable. Bloquear ya no da salto —solo se cortan
+         * eventos— así que hacerlo en el clic no mueve nada. */
+        bloquear(false);
         requestAnimationFrame(frame);
         return;
       }
