@@ -9,10 +9,13 @@ import { Pager } from "@/components/app/Pager";
 import { AppPage, AppPageHeader } from "@/components/app/AppPage";
 
 const PAGE_SIZE = 20;
+// "revisada" no aparece como pestana: es un paso intermedio que el equipo no
+// usa (0 notas), y una pestana que siempre marca cero solo gasta espacio. El
+// estado sigue existiendo en la base y en el flujo, y esas notas se ven en
+// "Todas"; esto es solo el filtro.
 const ESTADOS: (ConsultationStatus | "todas")[] = [
   "todas",
   "borrador",
-  "revisada",
   "aprobada",
   "exportada",
 ];
