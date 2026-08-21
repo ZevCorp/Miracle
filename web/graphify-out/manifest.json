@@ -160,8 +160,8 @@
     "semantic_hash": ""
   },
   "app/app/layout.tsx": {
-    "mtime": 1787271336.1295104,
-    "ast_hash": "3ebfeff6cf05fa82fce396175d23de36",
+    "mtime": 1787276091.5925312,
+    "ast_hash": "5a8e758872f71c6e045cba4dc98630b4",
     "semantic_hash": ""
   },
   "app/app/notas/page.tsx": {
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "app/app/providers.tsx": {
-    "mtime": 1787271336.131531,
-    "ast_hash": "796eff94d2efc90234743fd26b92153f",
+    "mtime": 1787276091.5925312,
+    "ast_hash": "d679a4ff9dad7333a445ac46dbeac59e",
     "semantic_hash": ""
   },
   "app/app/reportes/page.tsx": {
@@ -405,8 +405,8 @@
     "semantic_hash": ""
   },
   "components/app/AppSidebar.tsx": {
-    "mtime": 1787271335.9966953,
-    "ast_hash": "0da32dd2657dc43b7dc334f285e3670c",
+    "mtime": 1787276070.3179555,
+    "ast_hash": "a4d39b86f538e9d37c561a5f192aa5d9",
     "semantic_hash": ""
   },
   "components/app/AuditFindings.tsx": {
@@ -430,9 +430,9 @@
     "semantic_hash": "a557e7d8ab0505798e7c472239fde064"
   },
   "components/app/CommandPalette.tsx": {
-    "mtime": 1785556274.4316266,
-    "ast_hash": "22415897488fcb5a0663a5841e443f71",
-    "semantic_hash": "22415897488fcb5a0663a5841e443f71"
+    "mtime": 1787276231.807757,
+    "ast_hash": "0e3e3b24ea17e74bef330d3383955ba8",
+    "semantic_hash": ""
   },
   "components/app/ConsultationCard.tsx": {
     "mtime": 1787271336.131531,
@@ -2052,6 +2052,16 @@
   "public/u/assets/voz/06-medico-tension.mp3": {
     "mtime": 1787201188.0431838,
     "ast_hash": "12ceb80f2f9758085420a65a43e41f6e",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260820120000_seed_atajos_cuentas_prueba.sql": {
+    "mtime": 1787273956.5712142,
+    "ast_hash": "e9460d0b4877f1d739b18ddd0314c532",
+    "semantic_hash": ""
+  },
+  "components/app/nav-icons.ts": {
+    "mtime": 1787276038.6359642,
+    "ast_hash": "06f7a19b75fcfd2b278fa210bc789f2a",
     "semantic_hash": ""
   }
 }

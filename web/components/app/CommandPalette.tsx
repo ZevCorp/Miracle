@@ -1,18 +1,34 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Plus, Search, User } from "lucide-react";
+import { CornerDownLeft, FileText, Plus, Search, User, type LucideIcon } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
+import { NAV_ICONS, NAV_ICON_FALLBACK } from "@/components/app/nav-icons";
+import { STATUS_BAR } from "@/components/app/StatusBadge";
+import { extractPatientIdentity } from "@/lib/clinical/patient-identity";
+import { matchesQuery } from "@/lib/clinical/search";
+import { formatFechaRelativa } from "@/lib/dates";
+import { STATUS_LABEL, type ConsultationStatus } from "@/lib/mock";
+import { visibleAppNav } from "@/lib/site";
 
 type Item = {
   id: string;
   label: string;
   hint?: string;
+  /** Texto corto alineado a la derecha (fecha de la consulta). */
+  meta?: string;
+  /** Punto del color del estado, solo en consultas. */
+  estado?: ConsultationStatus;
   href: string;
-  icon: typeof User;
+  icon: LucideIcon;
 };
+
+type Grupo = { titulo: string; items: Item[] };
+
+/** Cuántos resultados por grupo. Más que esto y la lista deja de ser un atajo. */
+const TOPE_POR_GRUPO = 5;
 
 export function CommandPalette({
   open,
@@ -22,11 +38,16 @@ export function CommandPalette({
   onOpenChange: (v: boolean) => void;
 }) {
   const router = useRouter();
-  const { patients, consultations, getPatient, role } = useStore();
+  const { patients, consultations, getPatient, role, isDemo, orgKind, professionalType } =
+    useStore();
   const { guardedNavigate } = useNavigationGuard();
   const [query, setQuery] = useState("");
+  const [activoPedido, setActivo] = useState(0);
+  const listaRef = useRef<HTMLDivElement>(null);
+
   const closePalette = useCallback(() => {
     setQuery("");
+    setActivo(0);
     onOpenChange(false);
   }, [onOpenChange]);
 
@@ -45,12 +66,29 @@ export function CommandPalette({
     return () => window.removeEventListener("keydown", onKey);
   }, [closePalette, open, onOpenChange]);
 
-  const items = useMemo<Item[]>(() => {
-    const q = query.trim().toLowerCase();
-    // "Nueva consulta" es una acción exclusiva del médico: la secretaría (y
-    // cualquier otro rol de solo lectura) no debe verla ni activarla desde acá.
+  const grupos = useMemo<Grupo[]>(() => {
+    const q = query.trim();
+
+    // Ir a: las mismas secciones del menú lateral, filtradas por rol con la
+    // función que ya aplica el proxy. Sin escribir nada no se muestran: quien
+    // abre el buscador casi siempre viene a buscar un paciente, no a navegar.
+    const navegacion: Item[] = q
+      ? visibleAppNav(role, professionalType, isDemo, orgKind)
+          .filter((item) => matchesQuery(item.label, q))
+          .slice(0, TOPE_POR_GRUPO)
+          .map((item) => ({
+            id: `nav-${item.href}`,
+            label: item.label,
+            hint: "Ir a la sección",
+            href: item.href,
+            icon: NAV_ICONS[item.icon] ?? NAV_ICON_FALLBACK,
+          }))
+      : [];
+
+    // "Nueva consulta" es exclusiva del médico: la secretaría (y cualquier rol
+    // de solo lectura) no debe verla ni activarla desde acá.
     const acciones: Item[] =
-      role === "medico"
+      role === "medico" && (!q || matchesQuery("Nueva consulta", q))
         ? [
             {
               id: "nueva",
@@ -61,56 +99,106 @@ export function CommandPalette({
             },
           ]
         : [];
+
     const pac: Item[] = patients
-      .filter(
-        (p) =>
-          !q ||
-          p.nombre.toLowerCase().includes(q) ||
-          p.documento.toLowerCase().includes(q),
-      )
-      .slice(0, 5)
+      .filter((p) => !q || matchesQuery(`${p.nombre} ${p.documento}`, q))
+      .slice(0, TOPE_POR_GRUPO)
       .map((p) => ({
         id: `pac-${p.id}`,
         label: p.nombre,
-        hint: p.edad > 0 ? `${p.edad} años · ${p.documento}` : "Paciente",
+        // El documento es como se busca a una persona en Colombia: si existe,
+        // se muestra aunque no haya edad registrada.
+        hint: [p.edad > 0 ? `${p.edad} años` : null, p.documento || null]
+          .filter(Boolean)
+          .join(" · "),
         href: `/app/pacientes/${p.id}`,
         icon: User,
       }));
+
     const cons: Item[] = consultations
-      .filter((c) => {
-        if (!q) return true;
-        const nombre = getPatient(c.pacienteId)?.nombre.toLowerCase() ?? "";
-        // Transversal a cualquier especialidad: el rótulo (si la consulta lo
-        // tiene) también cuenta como coincidencia de búsqueda.
+      .map((c) => {
+        // El nombre casi nunca está en `patients`: la consulta no obliga a
+        // asociar un paciente registrado. Se cae a lo que diga la nota, igual
+        // que hacen las tarjetas de la lista.
+        const identidad = extractPatientIdentity(c.note);
+        const nombre = getPatient(c.pacienteId)?.nombre ?? identidad.nombre;
         const rotulo =
-          c.note
-            .find((s) => s.id === "rotulo" || s.titulo === "Rótulo")
-            ?.texto?.toLowerCase() ?? "";
-        return (
-          nombre.includes(q) || c.motivo.toLowerCase().includes(q) || rotulo.includes(q)
-        );
+          c.note.find((s) => s.id === "rotulo" || s.titulo === "Rótulo")?.texto ?? "";
+        return { c, nombre, documento: identidad.documento ?? "", rotulo };
       })
-      .slice(0, 5)
-      .map((c) => ({
+      .filter(
+        ({ c, nombre, documento, rotulo }) =>
+          !q || matchesQuery(`${nombre ?? ""} ${documento} ${c.motivo} ${rotulo}`, q),
+      )
+      .slice(0, TOPE_POR_GRUPO)
+      .map(({ c, nombre, rotulo }) => ({
         id: `con-${c.id}`,
-        label: getPatient(c.pacienteId)?.nombre ?? "Paciente sin identificar",
-        hint: c.motivo,
+        label: nombre ?? "Paciente sin identificar",
+        hint: [rotulo, c.motivo].filter(Boolean).join(" · "),
+        meta: formatFechaRelativa(c.fecha),
+        estado: c.estado,
         href: `/app/consultas/${c.id}`,
         icon: FileText,
       }));
-    return q
-      ? [...acciones.filter((a) => a.label.toLowerCase().includes(q)), ...pac, ...cons]
-      : [...acciones, ...pac, ...cons];
-  }, [query, patients, consultations, getPatient, role]);
+
+    return [
+      { titulo: "Acciones", items: acciones },
+      { titulo: "Ir a", items: navegacion },
+      { titulo: "Pacientes", items: pac },
+      { titulo: "Consultas", items: cons },
+    ].filter((g) => g.items.length > 0);
+  }, [query, patients, consultations, getPatient, role, isDemo, orgKind, professionalType]);
+
+  // Lista plana: es sobre la que se mueven las flechas, atravesando los grupos.
+  const planos = useMemo(() => grupos.flatMap((g) => g.items), [grupos]);
+
+  // El resaltado se ACOTA al vuelo en vez de guardarse ya acotado: la lista se
+  // encoge al teclear, y un índice guardado fuera de rango dejaría el Enter
+  // apuntando a un resultado que ya no está en pantalla.
+  const activo = planos.length ? Math.min(activoPedido, planos.length - 1) : 0;
+
+  useEffect(() => {
+    if (!open) return;
+    listaRef.current
+      ?.querySelector('[data-activo="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [activo, open]);
+
+  const go = useCallback(
+    (href: string) => {
+      guardedNavigate(() => {
+        closePalette();
+        router.push(href);
+      });
+    },
+    [closePalette, guardedNavigate, router],
+  );
 
   if (!open) return null;
 
-  function go(href: string) {
-    guardedNavigate(() => {
-      closePalette();
-      router.push(href);
-    });
+  function alTeclear(e: React.KeyboardEvent<HTMLInputElement>) {
+    // Se cuenta desde `activo` (el acotado), no desde el guardado: si la lista
+    // se encogio al teclear, el guardado apunta fuera y la flecha saltaria a un
+    // sitio que no es el que esta resaltado en pantalla.
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActivo(planos.length ? (activo + 1) % planos.length : 0);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActivo(planos.length ? (activo - 1 + planos.length) % planos.length : 0);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setActivo(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setActivo(Math.max(0, planos.length - 1));
+    } else if (e.key === "Enter") {
+      const destino = planos[activo];
+      if (destino) go(destino.href);
+    }
   }
+
+  let indice = -1;
 
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-center p-0 sm:p-4 sm:pt-[12vh]">
@@ -124,49 +212,111 @@ export function CommandPalette({
           <input
             autoFocus
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && items[0]) go(items[0].href);
+            onChange={(e) => {
+              setQuery(e.target.value);
+              // Vuelve arriba: dejar el resaltado donde estaba lo pondría sobre
+              // un resultado distinto del que el médico está viendo.
+              setActivo(0);
             }}
-            placeholder="Buscar paciente, consulta o acción…"
+            onKeyDown={alTeclear}
+            role="combobox"
+            aria-expanded
+            aria-controls="paleta-resultados"
+            aria-activedescendant={planos[activo]?.id}
+            placeholder="Buscar paciente, cédula, consulta o sección…"
             className="w-full bg-transparent py-3.5 text-base outline-none placeholder:text-muted sm:text-sm"
           />
           <kbd className="hidden rounded border border-line px-1.5 py-0.5 text-xs font-medium text-muted sm:block">
             ESC
           </kbd>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2 sm:max-h-80">
-          {items.length ? (
-            items.map((it) => {
-              const Icon = it.icon;
-              return (
-                <button
-                  key={it.id}
-                  type="button"
-                  onClick={() => go(it.href)}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-ice-soft"
-                >
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ice text-accent">
-                    <Icon size={16} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-deep">
-                      {it.label}
-                    </span>
-                    {it.hint ? (
-                      <span className="block truncate text-xs text-muted">
-                        {it.hint}
+
+        <div
+          ref={listaRef}
+          id="paleta-resultados"
+          role="listbox"
+          className="min-h-0 flex-1 overflow-y-auto p-2 sm:max-h-96"
+        >
+          {planos.length ? (
+            grupos.map((grupo) => (
+              <div key={grupo.titulo} className="mb-1 last:mb-0">
+                <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
+                  {grupo.titulo}
+                </p>
+                {grupo.items.map((it) => {
+                  const Icon = it.icon;
+                  indice += 1;
+                  const esActivo = indice === activo;
+                  const posicion = indice;
+                  return (
+                    <button
+                      key={it.id}
+                      id={it.id}
+                      type="button"
+                      role="option"
+                      aria-selected={esActivo}
+                      data-activo={esActivo}
+                      onMouseMove={() => setActivo(posicion)}
+                      onClick={() => go(it.href)}
+                      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
+                        esActivo ? "bg-ice-soft" : ""
+                      }`}
+                    >
+                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ice text-accent">
+                        <Icon size={16} />
                       </span>
-                    ) : null}
-                  </span>
-                </button>
-              );
-            })
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-deep">
+                          {it.label}
+                        </span>
+                        {it.hint ? (
+                          <span className="block truncate text-xs text-muted">
+                            {it.hint}
+                          </span>
+                        ) : null}
+                      </span>
+                      {it.meta ? (
+                        <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted">
+                          {it.estado ? (
+                            <span
+                              title={STATUS_LABEL[it.estado]}
+                              className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_BAR[it.estado]}`}
+                            />
+                          ) : null}
+                          {it.meta}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            ))
           ) : (
             <p className="px-3 py-6 text-center text-sm text-muted">
-              Sin resultados para «{query}».
+              {query.trim()
+                ? `Sin resultados para «${query.trim()}».`
+                : "Escribe para buscar un paciente, una cédula o una consulta."}
             </p>
           )}
+        </div>
+
+        {/* Las teclas a la vista: es como se aprende que la lista se maneja sin
+            soltar el teclado. */}
+        <div className="hidden items-center gap-4 border-t border-line px-4 py-2 text-[11px] text-muted sm:flex">
+          <span className="flex items-center gap-1">
+            <kbd className="rounded border border-line px-1 py-px font-semibold">↑</kbd>
+            <kbd className="rounded border border-line px-1 py-px font-semibold">↓</kbd>
+            moverse
+          </span>
+          <span className="flex items-center gap-1">
+            <kbd className="rounded border border-line px-1 py-px font-semibold">
+              <CornerDownLeft size={10} />
+            </kbd>
+            abrir
+          </span>
+          <span className="ml-auto">
+            {planos.length} {planos.length === 1 ? "resultado" : "resultados"}
+          </span>
         </div>
       </div>
     </div>

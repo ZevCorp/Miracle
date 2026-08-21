@@ -2,24 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  BarChart3,
-  ClipboardList,
-  CreditCard,
-  FileText,
-  LayoutDashboard,
-  LayoutTemplate,
-  LogOut,
-  Microscope,
-  Settings,
-  ShieldCheck,
-  UserCog,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { InstallAppButton } from "@/components/app/InstallAppButton";
 import { SidebarToggle } from "@/components/app/SidebarToggle";
+import { NAV_ICONS, NAV_ICON_FALLBACK } from "@/components/app/nav-icons";
 import {
   APP_NAV_GROUPS,
   APP_NAV_GROUP_LABEL,
@@ -29,20 +16,6 @@ import {
 import type { AppRole } from "@/lib/auth/roles";
 import { signOut } from "@/app/login/actions";
 import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
-
-const icons: Record<string, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  consultas: ClipboardList,
-  laboratorio: Microscope,
-  pacientes: Users,
-  notas: FileText,
-  auditoria: ShieldCheck,
-  reportes: BarChart3,
-  plantillas: LayoutTemplate,
-  configuracion: Settings,
-  usuarios: UserCog,
-  suscripcion: CreditCard,
-};
 
 /** Una entrada del menú. Extraída para no anidar el bloque dentro del map de grupos. */
 function NavLink({
@@ -54,7 +27,7 @@ function NavLink({
   active: boolean;
   onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
-  const Icon = icons[item.icon] ?? LayoutDashboard;
+  const Icon = NAV_ICONS[item.icon] ?? NAV_ICON_FALLBACK;
   return (
     <Link
       href={item.href}

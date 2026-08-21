@@ -74,6 +74,8 @@ interface StoreValue {
    * institución, como el rótulo (número de caso de laboratorio).
    */
   orgKind: "personal" | "institution" | null;
+  /** División de cuenta (p. ej. "patologia"): decide qué secciones existen. */
+  professionalType: string | null;
   /**
    * Ajustes de la institución (nombre, NIT, sede, servicios…).
    *
@@ -204,12 +206,14 @@ export function MiracleProvider({
   userName,
   isDemo = false,
   orgKind = null,
+  professionalType = null,
 }: {
   children: ReactNode;
   role: AppRole;
   userName?: string;
   isDemo?: boolean;
   orgKind?: "personal" | "institution" | null;
+  professionalType?: string | null;
 }) {
   const supabase = useMemo(() => createClient(), []);
   // El actor de auditoría es siempre el usuario real; nunca un nombre ficticio.
@@ -1011,6 +1015,7 @@ export function MiracleProvider({
       role,
       isDemo,
       orgKind,
+      professionalType,
       org,
       loading,
       syncing: pendingWrites > 0,
@@ -1042,6 +1047,7 @@ export function MiracleProvider({
       role,
       isDemo,
       orgKind,
+      professionalType,
       org,
       loading,
       pendingWrites,
