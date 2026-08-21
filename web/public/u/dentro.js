@@ -591,8 +591,8 @@ function montar() {
       const marcha = document.getElementById("marcha");
       const enLanding = marcha && marcha.getBoundingClientRect().top < innerHeight * 0.6;
       hud.style.opacity = enganchado || enLanding ? "0" : "";
-      // La barra de marca se invierte sobre la crema de la landing.
-      document.body.classList.toggle("en-landing", !!enLanding);
+      // Ya no se invierte la barra: la landing volvió al azul y su tratamiento
+      // oscuro de siempre vuelve a funcionar.
     }
 
     if (enganchado) {
