@@ -23,6 +23,35 @@ const nextConfig: NextConfig = {
       beforeFiles: [{ source: "/", destination: "/u/index.html" }],
     };
   },
+  /* Las subpáginas de marketing se retiran del sitio.
+   *
+   * La home pasó a ser la experiencia completa de Ü —el recorrido 3D, la
+   * película y la landing de "cómo se pone en marcha"— y estas ocho repetían,
+   * peor y en frío, lo que la home ya cuenta.
+   *
+   * Se retiran REDIRIGIENDO, no borrando el código: revertirlo es quitar este
+   * bloque. El copy y el fuente de las ocho quedan guardados en
+   * `contexto-viejo.md`, en el repo del sitio conceptual.
+   *
+   * Ojo con lo que NO está aquí: /login, /registro, /onboarding, /suscripcion,
+   * /app/* y /superadmin/* son el PRODUCTO, no el sitio, y siguen intactas.
+   * Tumbarlas dejaría fuera a quien ya esté usando la plataforma. */
+  async redirects() {
+    const retiradas = [
+      "casos-de-uso",
+      "como-funciona",
+      "contacto",
+      "demo",
+      "piloto",
+      "precios",
+      "recursos",
+      "seguridad",
+    ];
+    return retiradas.flatMap((r) => [
+      { source: `/${r}`, destination: "/", permanent: false },
+      { source: `/${r}/:ruta*`, destination: "/", permanent: false },
+    ]);
+  },
   async headers() {
     return [
       {
