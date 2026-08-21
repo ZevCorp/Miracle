@@ -45,11 +45,11 @@ function montar() {
   // Acumulativas: cada escena puede sumar una. Las viejas se apilan atenuadas.
 
   const NOTIFS = [
-    { esc: 1, icono: "#3776E3", app: "Ü", texto: "Aprendido: <b>dónde va cada tipo de paciente</b>" },
-    { esc: 2, icono: "#3776E3", app: "Ü", texto: "Aprendido: <b>los datos van primero</b>" },
-    { esc: 3, icono: "#3776E3", app: "Ü", texto: "Aprendido: <b>después del dato, el examen</b>" },
-    { esc: 4, icono: "#F5B93E", app: "Ü", texto: "<b>Motivo de consulta</b> escrito — solo escuchando" },
-    { esc: 5, icono: "#2E9E5B", app: "Ü", clase: "ok", texto: "<b>Historia lista</b> para que el médico firme" },
+    { esc: 3, icono: "#3776E3", app: "Ü", texto: "Aprendí <b>tu sistema</b> mirándote trabajar" },
+    { esc: 6, icono: "#3776E3", app: "Ü", texto: "Aprendido: <b>los datos van primero</b>" },
+    { esc: 9, icono: "#F5B93E", app: "Ü", texto: "<b>Motivo de consulta</b> escrito — solo escuchando" },
+    { esc: 10, icono: "#F5B93E", app: "Ü", texto: "<b>Examen y diagnóstico</b> escritos" },
+    { esc: 11, icono: "#2E9E5B", app: "Ü", clase: "ok", texto: "<b>Historia lista</b> para que la firmes" },
   ];
 
   function pintarNotifs(escena) {
@@ -145,71 +145,183 @@ function montar() {
    * directo por el botón sin haber visto el 3D, y tiene que salir de aquí
    * sabiendo no solo cómo se le enseña sino para qué sirve. */
 
+  const cita = $("#d-cita");
+
+  /* Ü se planta AL LADO de lo que señala, no en una esquina fija.
+   * Es como se señala de verdad: uno se para junto a la cosa y apunta. Y de
+   * paso resuelve lo que se veía raro antes — el cursor iba por un lado y la
+   * voz salía por otro, así que no parecía que Ü estuviera manejando nada. */
+  function junto(sel, lado = -1) {
+    const el = dentro.querySelector(sel);
+    if (!el) return centro(0.5, 0.5);
+    const r = rectEsc(), b = el.getBoundingClientRect(), t = RID();
+    const x = lado < 0 ? (b.left - r.left) - t - 22 : (b.right - r.left) + 22;
+    const y = (b.top - r.top) + b.height / 2 - t / 2;
+    return {
+      x: Math.max(10, Math.min(r.width - t - 10, x)),
+      y: Math.max(10, Math.min(r.height - t - 80, y)),
+    };
+  }
+
+  function presentando(si) {
+    rider.classList.toggle("presentando", si);
+    escritorio.classList.toggle("presentacion", si);
+  }
+  function hablaEnCita(quien) {
+    cita.querySelectorAll(".quien").forEach((q) => q.classList.toggle("hablando", q.classList.contains(quien)));
+  }
+
+  /* ------------------------------- el guion -------------------------------
+   * Ü NARRA. Ese fue el hallazgo de la reunión: viéndolo, cualquiera asume
+   * que la que habla y mueve el mouse es Ü — no un médico invisible. Así que
+   * la voz es suya y el cursor va pegado a ella.
+   *
+   * Tres actos:
+   *   1. Se presenta en el centro y dice a qué vino.
+   *   2. Abre el sistema y enseña lo que aprendió, señalando.
+   *   3. Atiende una cita real: entra la conversación y Ü escribe sola.
+   * Y se despide bajando ella misma hasta el botón de registro. */
+
   const ESCENAS = [
     {
-      titulo: "Se le enseña señalando.",
-      texto: "El médico apunta con el mouse y lo dice en voz alta. No hay nada que configurar.",
-      set() { montarForm({ tab: "nuevo", senala: "tab:nuevo" }); face.thinking = false; },
-      u: () => rincon(),
-      cursor: () => punto(".p-tab.nuevo", 0.5, 0.6),
-      voz: { de: "medico", dice: "Aquí registro al paciente que viene por primera vez.", pista: "01-medico-nuevo", dur: 4000 },
+      titulo: "Hola, soy Ü.",
+      texto: "El asistente que escribe la historia clínica mientras tú atiendes.",
+      set() {
+        explorador.classList.remove("abierta", "leyendo", "atras");
+        vform.classList.remove("abierta", "pausada");
+        tabExp.classList.remove("on"); tabHis.classList.remove("on");
+        dFinal.classList.remove("on"); cita.classList.remove("on");
+        presentando(true); face.thinking = false;
+      },
+      u: () => centro(0.5, 0.38),
+      cursor: () => null,
+      voz: { de: "u", dice: "Hola, soy Ü. Soy el asistente de inteligencia artificial para médicos.", pista: "u-01-hola", dur: 6200 },
     },
     {
-      titulo: "Y hablando.",
-      texto: "Cada cosa que señala, Ü la anota. Como se le enseña a alguien que entra nuevo.",
+      titulo: "Para que sueltes el teclado.",
+      texto: "La idea es simple: que mires al paciente y no a la pantalla.",
+      set() { presentando(true); face.thinking = false; },
+      u: () => centro(0.5, 0.38),
+      cursor: () => null,
+      voz: { de: "u", dice: "Mi objetivo es que puedas dejar de usar el computador y concentrarte en tu paciente.", pista: "u-02-objetivo", dur: 6200 },
+    },
+    {
+      titulo: "Primero miro cómo trabajas.",
+      texto: "Unos días observando tu pantalla. Nadie tiene que enseñarme nada aparte.",
+      set() { presentando(true); face.thinking = true; },
+      u: () => centro(0.5, 0.38),
+      cursor: () => null,
+      voz: { de: "u", dice: "Para eso, primero miro tu pantalla unos días y aprendo cómo trabajas.", pista: "u-03-aprendo", dur: 5900 },
+    },
+    {
+      titulo: "Y abro tu sistema.",
+      texto: "El mismo de siempre. No hay que instalar ni cambiar nada.",
+      set() {
+        presentando(false);
+        montarForm({ tab: "nuevo" });
+        face.thinking = false;
+      },
+      u: () => junto(".iconos .icono:nth-child(3)", -1),
+      cursor: () => punto(".iconos .icono:nth-child(3)", 0.5, 0.5),
+      clic: true,
+      voz: { de: "u", dice: "Cuando ya aprendí, abro tu sistema. El mismo que usas todos los días.", pista: "u-04-abro", dur: 6200 },
+    },
+    {
+      titulo: "Aquí va el paciente nuevo.",
+      texto: "Lo aprendí mirándote: cada tipo de paciente entra por su lado.",
+      set() { montarForm({ tab: "nuevo", senala: "tab:nuevo" }); face.thinking = false; },
+      u: () => junto(".p-tab.nuevo", -1),
+      cursor: () => punto(".p-tab.nuevo", 0.5, 0.6),
+      voz: { de: "u", dice: "Aquí registras al paciente que viene por primera vez.", pista: "u-05-nuevo", dur: 4200 },
+    },
+    {
+      titulo: "Y aquí el que ya conoces.",
+      texto: "Entramos por este, que es el caso de hoy.",
       set() { montarForm({ tab: "conocida", senala: "tab:conocida" }); face.thinking = false; },
-      u: () => rincon(),
+      u: () => junto(".p-tab.conocida", 1),
       cursor: () => punto(".p-tab.conocida", 0.5, 0.6),
       clic: true,
-      voz: { de: "medico", dice: "Y aquí, al que ya tiene historia con nosotros. Entremos por este.", pista: "02-medico-historia", dur: 4930 },
+      voz: { de: "u", dice: "Y aquí al que ya tiene historia contigo. Entremos por este.", pista: "u-06-conocido", dur: 4800 },
     },
     {
-      titulo: "El orden del consultorio.",
-      texto: "Dicho una sola vez, con las palabras de siempre.",
+      titulo: "Los datos van primero.",
+      texto: "En el orden en que tú los pides, no en el que se me ocurra.",
       set() { montarForm({ tab: "conocida", escritos: ["doc"], senala: "doc" }); face.thinking = false; },
-      u: () => rincon(),
+      u: () => junto(".v-form .c-doc .caja", -1),
       cursor: () => punto(".v-form .c-doc .caja", 0.3, 0.5),
-      voz: { de: "medico", dice: "Primero siempre van los datos, cuando el paciente me los confirma.", pista: "03-medico-datos", dur: 4370 },
+      voz: { de: "u", dice: "Primero van los datos, cuando el paciente te los confirma.", pista: "u-07-datos", dur: 4800 },
     },
     {
-      titulo: "Y ya está enseñada.",
-      texto: "Cuatro frases. Ese es todo el entrenamiento.",
+      titulo: "Después el examen físico.",
+      texto: "Ese es tu orden. Es el que aprendí.",
       set() { montarForm({ tab: "conocida", escritos: ["doc"], senala: "examen" }); face.thinking = false; },
-      u: () => rincon(),
+      u: () => junto(".v-form .c-examen .caja", -1),
       cursor: () => punto(".v-form .c-examen .caja", 0.3, 0.5),
-      voz: { de: "medico", dice: "Después le pregunto el examen físico.", pista: "04-medico-examen", dur: 3070 },
+      voz: { de: "u", dice: "Después, el examen físico.", pista: "u-08-examen", dur: 2900 },
     },
     {
-      titulo: "Ahora lo hace sola.",
-      texto: "Sin señalar y sin dictar: Ü escucha la consulta y escribe.",
-      set() { montarForm({ tab: "conocida", escritos: ["doc", "motivo"] }); face.thinking = true; },
-      u: () => rincon(),
+      titulo: "Atendamos una cita real.",
+      texto: "Tú habla con tu paciente. Del teclado me encargo yo.",
+      set() {
+        montarForm({ tab: "conocida", escritos: ["doc"] });
+        cita.classList.add("on"); hablaEnCita("ninguno");
+        face.thinking = false;
+      },
+      u: () => junto("#d-cita", 1),
       cursor: () => null,
-      voz: { de: "paciente", dice: "Vengo por un dolor de cabeza hace tres días.", pista: "05-paciente-motivo", dur: 3490 },
+      voz: { de: "u", dice: "Ahora atendamos una cita de verdad. Tú habla con tu paciente; yo escribo.", pista: "u-09-cita", dur: 6600 },
     },
     {
-      titulo: "Solo escuchando.",
-      texto: "Lo que se habla en la consulta ya está en la historia clínica.",
-      set() { montarForm({ tab: "conocida", escritos: ["doc", "motivo", "examen", "dx"] }); face.thinking = false; },
-      u: () => rincon(),
+      titulo: "Escuchando.",
+      texto: "Lo que dice el paciente entra al motivo de consulta.",
+      set() {
+        montarForm({ tab: "conocida", escritos: ["doc", "motivo"] });
+        cita.classList.add("on"); hablaEnCita("paciente");
+        face.thinking = true;
+      },
+      u: () => junto(".v-form .c-motivo .caja", -1),
       cursor: () => null,
-      voz: { de: "medico", dice: "Tensión 130 sobre 85, sin signos de alarma.", pista: "06-medico-tension", dur: 4930 },
+      voz: { de: "paciente", dice: "Vengo por un dolor de cabeza hace tres días.", pista: "c-01-paciente", dur: 3600 },
     },
     {
-      titulo: "Le enseñas una vez.",
-      texto: "Después escribe sola, sobre el HIS que tu equipo ya usa.",
+      titulo: "Y lo que dices tú.",
+      texto: "La tensión, los signos, el diagnóstico. Cada cosa en su campo.",
+      set() {
+        montarForm({ tab: "conocida", escritos: ["doc", "motivo", "examen", "dx"] });
+        cita.classList.add("on"); hablaEnCita("medico");
+        face.thinking = true;
+      },
+      u: () => junto(".v-form .c-examen .caja", -1),
+      cursor: () => null,
+      voz: { de: "medico", dice: "¿Y la tensión cómo va? Ciento treinta sobre ochenta y cinco. Sin signos de alarma.", pista: "c-02-medico", dur: 5900 },
+    },
+    {
+      titulo: "Y no tocaste el teclado.",
+      texto: "La historia queda completa, lista para que la firmes.",
+      set() {
+        montarForm({ tab: "conocida", escritos: ["doc", "motivo", "examen", "dx"] });
+        cita.classList.remove("on"); hablaEnCita("ninguno");
+        face.thinking = false;
+      },
+      u: () => junto(".v-form .c-dx .caja", -1),
+      cursor: () => null,
+      voz: { de: "u", dice: "Listo. La historia quedó completa y tú no tocaste el teclado.", pista: "u-10-listo", dur: 5100 },
+    },
+    {
+      titulo: "Pruébame.",
+      texto: "Te bajo yo hasta el botón.",
       set() {
         explorador.classList.remove("abierta", "atras", "leyendo");
         vform.classList.remove("abierta", "pausada");
         tabExp.classList.remove("on"); tabHis.classList.remove("on");
+        cita.classList.remove("on");
         dFinal.classList.add("on");
-        face.thinking = false;
+        presentando(false); face.thinking = false;
       },
       u: () => centro(0.5, 0.26),
-      // Sobre el botón, no bajo él: ahí abajo está la letra chica y el cursor
-      // se paraba justo encima de la palabra "descarga".
       cursor: () => punto(".d-final .cta", 0.72, 0.55),
-      voz: null,
+      voz: { de: "u", dice: "Si quieres probarme, regístrate aquí abajo.", pista: "u-11-registrate", dur: 4000 },
+      alFinal: true,
     },
   ];
 
@@ -252,8 +364,10 @@ function montar() {
   /* ------------------------------- el montaje ------------------------------- */
 
   const posU = { x: 0, y: 0 };
+  let escalaU = 1;                    // se suaviza igual que la posición
   const posC = { x: 0, y: 0 };
   let escena = -1;
+  let yaBajo = false;                 // el auto-scroll del final, una sola vez
   let ultimo = performance.now();
 
   function irAEscena(i) {
@@ -279,18 +393,41 @@ function montar() {
     if (linea) {
       setTimeout(() => {
         voz.querySelector("p").textContent = linea.dice;
+        // Tres voces distintas y hay que poder distinguirlas de un vistazo:
+        // Ü narrando, el paciente y el médico.
         voz.classList.toggle("paciente", linea.de === "paciente");
+        voz.classList.toggle("medico", linea.de === "medico");
+        voz.classList.toggle("es-u", linea.de === "u");
+        const eti = voz.querySelector(".quien");
+        if (eti) eti.textContent = linea.de === "paciente" ? "Paciente" : linea.de === "medico" ? "Médico" : "Ü";
         voz.classList.add("on");
       }, REDUCED ? 60 : 420);
     }
 
+    /* Al final, Ü baja ella misma hasta el botón de registro. Es el remate que
+     * pidió Dani: "baja hasta la parte baja, hace clic y desliza él solito".
+     * Se suelta el scroll antes, claro, y solo se hace UNA vez: si el usuario
+     * ya se movió por su cuenta, no se le pelea la página. */
+    if (ESCENAS[i].alFinal && !yaBajo) {
+      yaBajo = true;
+      setTimeout(() => {
+        bloquear(false);
+        const destino = document.getElementById("registro");
+        if (destino) destino.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "center" });
+      }, REDUCED ? 200 : 2600);
+    }
+
     // El clic del cursor llega medio segundo después de que aterriza.
     if (ESCENAS[i].clic && !REDUCED) {
-      setTimeout(() => {
+      const pulsa = (t) => setTimeout(() => {
         cursor.classList.remove("clic");
         void cursor.offsetWidth;
         cursor.classList.add("clic");
-      }, 900);
+      }, t);
+      pulsa(900);
+      // Abrir el sistema es DOBLE clic, como en cualquier escritorio: con uno
+      // solo no se lee que está abriendo un programa.
+      if (ESCENAS[i].u && String(ESCENAS[i].voz && ESCENAS[i].voz.pista).includes("abro")) pulsa(1160);
     }
   }
 
@@ -509,7 +646,13 @@ function montar() {
       const vx = oU.x - posU.x;
       face.eyeShift = Math.max(-3.2, Math.min(3.2, vx / 55));
       const tilt = Math.max(-8, Math.min(8, vx / 32));
-      rider.style.transform = `translate(${posU.x}px, ${posU.y}px) rotate(${tilt}deg)`;
+      /* La escala se compone AQUÍ, junto al translate. Si se pone en CSS, pisa
+       * el translate y Ü se queda en la esquina. Y se suaviza en JS, no con
+       * una transición CSS: el bucle reescribe el transform en cada frame y
+       * una transición encima se pelearía con este mismo suavizado. */
+      const escalaObj = rider.classList.contains("presentando") ? 1.9 : 1;
+      escalaU += (escalaObj - escalaU) * (REDUCED ? 1 : 1 - Math.exp(-dt / 0.22));
+      rider.style.transform = `translate(${posU.x}px, ${posU.y}px) rotate(${tilt}deg) scale(${escalaU.toFixed(3)})`;
       cursor.style.transform = `translate(${posC.x}px, ${posC.y}px)`;
 
       /* El globo se cuelga de quien habla: del cursor cuando el médico está
@@ -536,9 +679,13 @@ function montar() {
           const debajo = (b.bottom - r.top) + 12;
           const encima = (b.top - r.top) - vb.height - 12;
           y = debajo + vb.height < r.height - 64 ? debajo : encima;
+        } else if (escritorio.classList.contains("presentacion")) {
+          // Ü presentándose en el centro: el globo va justo debajo de ella.
+          x = r.width / 2 - vb.width / 2;
+          y = r.height * 0.38 + RID() * 1.35;
         } else {
-          // Acto 2: no señala nadie. El globo se pone bajo la ventana, en el
-          // azul libre, que es donde no estorba a los campos llenándose.
+          // Nadie señala nada: el globo se pone bajo la ventana, en el azul
+          // libre, que es donde no estorba a los campos llenándose.
           const v = vform.getBoundingClientRect();
           x = (v.left - r.left);
           y = (v.bottom - r.top) + 14;
