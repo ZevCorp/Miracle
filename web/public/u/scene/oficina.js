@@ -1230,9 +1230,18 @@ let qEmpalme = 0;
 const elDentro = document.getElementById("dentro");
 
 if (MODO_RECORRIDO) {
+  /* El recorrido ARRANCA EN LA ESCENA 2, no en el principio del riel.
+   * En la reunión del 20 de agosto: "esta escena no me gusta, podríamos hacer
+   * que iniciara desde la siguiente… ahí me parece que tiene mucho más
+   * sentido". El primer tramo era un plano general del cuarto que no contaba
+   * nada; empezando aquí ya se ve el puesto de trabajo y la pantalla.
+   * El riel completo se conserva: sólo se recorre de 0.46 a 1. */
+  const P_INICIO = 0.46;
+
   const leerScroll = () => {
     const fin = elDentro ? elDentro.offsetTop - innerHeight : document.body.scrollHeight - innerHeight;
-    pTarget = fin > 0 ? Math.min(1, Math.max(0, scrollY / fin)) : 0;
+    const q = fin > 0 ? Math.min(1, Math.max(0, scrollY / fin)) : 0;
+    pTarget = P_INICIO + (1 - P_INICIO) * q;
     // Empalme: los 100vh muertos entre el final del riel y el pin de #dentro.
     // Ahí la pantalla del iMac SE CONVIERTE en el escritorio — no hay reveal.
     qEmpalme = elDentro

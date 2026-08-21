@@ -710,24 +710,6 @@
     padding:.2rem .4rem;text-decoration:underline;text-underline-offset:4px;
   }
 
-  /* El aviso de que la cosa corre sola. Es la respuesta a "¿tengo que seguir
-     bajando?": no. Se queda arriba, discreto, todo el rato. */
-  /* Arriba a la IZQUIERDA, no centrado: centrado se montaba sobre los puntos
-     de capítulo, que ya viven en el centro a esa misma altura. */
-  #d-aviso{
-    position:absolute;top:1rem;left:1.2rem;
-    z-index:10;display:none;align-items:center;gap:.5rem;
-    background:rgba(8,16,36,.62);backdrop-filter:blur(8px);
-    border:1px solid rgba(255,255,255,.12);border-radius:99px;
-    padding:.42rem .95rem;font-size:.72rem;letter-spacing:.02em;
-    color:rgba(255,255,255,.75);
-  }
-  .escritorio.corriendo #d-aviso{display:inline-flex}
-  .escritorio.terminada #d-aviso{display:none}
-  #d-aviso i{
-    width:6px;height:6px;border-radius:99px;background:#7FE3A9;flex:none;
-    animation:pulso 2s ease-out infinite;
-  }
 
   /* TEXTO DE VERDAD en los campos, no barras grises.
      Con barras, lo que se ve es "algo se marcó". Con el documento y el motivo
@@ -1357,9 +1339,6 @@
         </div>
       </div>
 
-      <!-- Aviso permanente mientras corre: que nadie se quede scrolleando. -->
-      <div id="d-aviso"><i></i>Se reproduce solo</div>
-
       <!-- La cita real: un video flotante en una esquina con la conversación
            entre médico y paciente, mientras Ü va escribiendo en el sistema.
            Hoy son dos avatares con su onda de voz; aquí es donde entra la
@@ -1493,8 +1472,8 @@
 /* La barra de marca entra sola cuando la escena ya cargó. */
 addEventListener('load', ()=> document.getElementById('marca')?.classList.add('on'));
 </script>
-<!-- Rutas ABSOLUTAS: aquí el sitio se sirve desde / por un rewrite, pero los
-     ficheros viven bajo /u/. Con "./" darían 404. -->
+<!-- Rutas ABSOLUTAS: el sitio se sirve desde / por un rewrite y los ficheros
+     viven bajo /u/. Con "./" darían 404. -->
 <script type="module" src="/u/scene/oficina.js"></script>
 <script type="module" src="/u/dentro.js"></script>
 </body>
