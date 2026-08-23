@@ -841,6 +841,32 @@
      Vuelve a la crema del consultorio. Después de 29 segundos de azul, el
      descanso es parte del argumento: esto no te cambia la vida, se acopla a la
      que ya tienes. */
+  /* Los CTA son <button>, no enlaces: copian el correo en vez de abrir el
+     cliente de correo, que en un computador ajeno abre cualquier cosa o nada.
+     Como botones heredan estilos del navegador, se les quita todo para que se
+     vean exactamente igual que cuando eran <a>. */
+  button.cta, button.cta-top, button.btn-fantasma, button.m-cta{
+    font:inherit;cursor:pointer;border:1px solid transparent;
+    -webkit-appearance:none;appearance:none;
+  }
+  button.cta-top{font-size:.78rem}
+  /* El del pie era un enlace y tiene que seguir pareciéndolo. */
+  .m-pie button[data-correo]{
+    background:none;padding:0;border:0;color:rgba(232,223,210,.6);
+    text-decoration:underline;text-underline-offset:3px;font-size:.8rem;
+  }
+  /* El aviso de copiado: aparece donde estaba el botón, sin mover nada. */
+  .copiado{
+    position:fixed;left:50%;bottom:2.2rem;transform:translateX(-50%) translateY(10px);
+    z-index:99;background:rgba(12,20,40,.94);color:#fff;
+    border:1px solid rgba(255,255,255,.18);border-radius:999px;
+    padding:.7rem 1.2rem;font-size:.86rem;font-weight:600;
+    box-shadow:0 18px 44px rgba(4,10,26,.5);pointer-events:none;
+    opacity:0;transition:opacity .25s ease, transform .35s cubic-bezier(.16,1,.3,1);
+  }
+  .copiado.on{opacity:1;transform:translateX(-50%)}
+  .copiado b{font-weight:700;color:#9CC4FF}
+
   /* La landing SE QUEDA EN EL MUNDO DEL PRODUCTO.
      Estuvo en crema con tipografía negra y se caía: después del consultorio y
      del escritorio azul, aterrizar en una página blanca rompía la línea
@@ -1175,7 +1201,7 @@
     <span class="nom">Ü <i>· de Miracle</i></span>
   </a>
   <span class="sep"></span>
-  <a class="cta-top" href="mailto:piloto@itsmiracleai.com.co?subject=Piloto%20de%20Ü">Solicitar piloto</a>
+  <button type="button" class="cta-top" data-correo="dev@itsmiracleai.com">Solicitar piloto</button>
 </header>
 
 <!-- Hero fijo: no viaja con el scroll — se desvanece en el sitio. -->
@@ -1187,7 +1213,7 @@
     <p>Son las 9 de la mañana y no hay nadie en la silla. Baja para acercarte a la pantalla.</p>
     <div class="acciones">
       <a class="cta" href="#dentro">Ver a Ü trabajando</a>
-      <a class="btn-fantasma" href="mailto:piloto@itsmiracleai.com.co?subject=Piloto%20de%20Ü">Solicitar piloto</a>
+      <button type="button" class="btn-fantasma" data-correo="dev@itsmiracleai.com">Solicitar piloto</button>
     </div>
   </div>
   <div class="scroll-ind"><span>Scroll</span><div class="linea"><i></i></div></div>
@@ -1211,7 +1237,7 @@
     <span class="eyebrow">El siguiente paso</span>
     <h2>Aprende como<br>tú trabajas.</h2>
     <p>Mira cómo usas tu sistema y aprende tu forma de hacer las cosas. No hay que cambiar nada de lo que ya tienes.</p>
-    <a class="cta" href="mailto:piloto@itsmiracleai.com.co?subject=Piloto%20de%20Ü">Solicitar piloto</a>
+    <button type="button" class="cta" data-correo="dev@itsmiracleai.com">Solicitar piloto</button>
   </div>
 </div>
 <!-- Gradiente lateral para el texto de los actos 3D (sin cards). -->
@@ -1304,9 +1330,9 @@
       <div class="d-final">
         <h3>Le enseñas una vez.</h3>
         <p class="bajada">Después escribe sola, escuchando la consulta. Sobre el HIS que ya usan.</p>
-        <a class="cta" href="mailto:acceso@itsmiracleai.com.co?subject=Obtener%20acceso%20a%20Ü&amp;body=Institución%3A%0ACargo%3A%0ASistema%20que%20usan%20(HIS%2FSAP)%3A%0A">
+        <button type="button" class="cta" data-correo="dev@itsmiracleai.com">
           <span class="glifo" aria-hidden="true">↓</span> Obtener acceso
-        </a>
+        </button>
         <span class="nota">Es un registro, no una descarga: te escribimos para coordinar la instalación.</span>
       </div>
 
@@ -1413,9 +1439,9 @@
     <span class="m-eyebrow">El siguiente paso</span>
     <h2>Empieza por un consultorio.</h2>
     <p>Un piloto acotado, con métricas de antes y después, sobre el sistema que ya usan. Si no devuelve horas, no sigue.</p>
-    <a class="m-cta" href="mailto:acceso@itsmiracleai.com.co?subject=Obtener%20acceso%20a%20Ü&amp;body=Institución%3A%0ACargo%3A%0ASistema%20que%20usan%20(HIS%2FSAP)%3A%0ANúmero%20aproximado%20de%20consultas%20al%20día%3A%0A">
+    <button type="button" class="m-cta" data-correo="dev@itsmiracleai.com">
       <span class="glifo" aria-hidden="true">↓</span> Obtener acceso
-    </a>
+    </button>
     <span class="m-nota">Es un registro, no una descarga: te escribimos para coordinar la instalación.</span>
   </footer>
 
@@ -1423,9 +1449,11 @@
     <span class="mono"><svg viewBox="-75 -75 150 150" aria-hidden="true"><g transform="rotate(-2)" stroke="rgba(232,223,210,.7)" stroke-width="9" stroke-linecap="round" fill="none"><path d="M-40 -36 Q-30 -40.5 -20 -36"/><path d="M20 -36.5 Q30 -42.5 40 -36.5"/><line x1="-30" y1="-24" x2="-30" y2="-4"/><line x1="30" y1="-24" x2="30" y2="-4"/><path d="M-18.7 21.1 C-3.6 25.6 7.6 25.6 18.7 19.5"/></g></svg></span>
     <span>Ü · de Miracle</span>
     <span class="m-pie-sep">·</span>
-    <a href="mailto:acceso@itsmiracleai.com.co">acceso@itsmiracleai.com.co</a>
+    <button type="button"  data-correo="dev@itsmiracleai.com">dev@itsmiracleai.com</button>
   </div>
 </section>
+
+<div class="copiado" id="copiado" role="status" aria-live="polite"></div>
 
 <div id="hud"><span id="pct">00</span><div id="bar"><i></i></div><span>recorrido</span></div>
 <div id="loading"><span>cargando consultorio</span></div>
@@ -1439,6 +1467,40 @@
 }
 </script>
 <script>
+/* Los CTA copian el correo al portapapeles en vez de abrir el cliente de
+   correo. Un mailto en el computador de una clínica abre lo que sea —o nada—
+   y el usuario se queda sin saber a dónde escribir. Copiando, la dirección
+   se la lleva puesta. */
+(function correoAlPortapapeles(){
+  const aviso = document.getElementById('copiado');
+  let temporizador = 0;
+  function decir(txt){
+    if (!aviso) return;
+    aviso.innerHTML = txt;
+    aviso.classList.add('on');
+    clearTimeout(temporizador);
+    temporizador = setTimeout(() => aviso.classList.remove('on'), 2800);
+  }
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-correo]');
+    if (!b) return;
+    e.preventDefault();
+    const correo = b.getAttribute('data-correo');
+    try {
+      await navigator.clipboard.writeText(correo);
+      decir('Correo copiado: <b>' + correo + '</b>');
+    } catch (err) {
+      // Sin permiso de portapapeles (o sin https) queda el camino de siempre:
+      // se selecciona el texto para que se pueda copiar a mano.
+      const tmp = document.createElement('input');
+      tmp.value = correo; document.body.appendChild(tmp);
+      tmp.select(); try { document.execCommand('copy'); } catch (_) {}
+      tmp.remove();
+      decir('Escríbenos a <b>' + correo + '</b>');
+    }
+  });
+})();
+
 /* Chip de estado del hero: lo único vivo antes del primer scroll.
    Recorre la misma mañana que cuenta el resto del sitio y se detiene
    en el CUPS ambiguo — la pausa es el argumento, no un adorno. */
