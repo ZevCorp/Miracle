@@ -60,3 +60,30 @@ export function snippetToListItems(content: string): string[] {
     .map((line) => line.replace(BULLET, "").trim())
     .filter(Boolean);
 }
+
+/**
+ * ¿Dónde debe quedar el cursor cuando entra un segmento dictado?
+ *
+ * El médico puede corregir la transcripción mientras sigue dictando, y el
+ * dictado siempre agrega AL FINAL. Pero el textarea es controlado: cada vez que
+ * cambia `value`, el navegador manda el cursor al final, y al médico se le
+ * salta de donde estaba escribiendo. Por eso el campo estaba bloqueado durante
+ * la grabación.
+ *
+ * La regla tiene dos casos, y la diferencia importa:
+ *
+ * - El cursor estaba AL FINAL → devuelve `null`: que siga al final, pegado a lo
+ *   que se acaba de dictar. Es lo que espera quien va escribiendo a la par.
+ * - El cursor estaba ANTES del final → devuelve los mismos desplazamientos.
+ *   Como lo dictado entra después, esos desplazamientos siguen apuntando al
+ *   mismo carácter y el médico no se entera de que algo se agregó abajo.
+ *
+ * `lengthBefore` es el largo del texto ANTES de agregar el segmento.
+ */
+export function caretAfterDictation(
+  caret: { start: number; end: number },
+  lengthBefore: number,
+): { start: number; end: number } | null {
+  if (caret.start >= lengthBefore && caret.end >= lengthBefore) return null;
+  return { start: Math.max(0, caret.start), end: Math.max(0, caret.end) };
+}

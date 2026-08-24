@@ -3,6 +3,7 @@ import {
   appendSnippetText,
   insertSnippetText,
   snippetToListItems,
+  caretAfterDictation,
 } from "@/lib/clinical/insert-text";
 
 describe("insertSnippetText", () => {
@@ -78,5 +79,36 @@ describe("snippetToListItems", () => {
     expect(snippetToListItems("Control médico-quirúrgico")).toEqual([
       "Control médico-quirúrgico",
     ]);
+  });
+});
+
+describe("caretAfterDictation", () => {
+  it("con el cursor al final, lo deja seguir al texto dictado", () => {
+    // Quien escribe a la par del dictado espera quedar pegado a lo último.
+    expect(caretAfterDictation({ start: 40, end: 40 }, 40)).toBeNull();
+  });
+
+  it("corrigiendo a mitad del texto, el cursor no se mueve", () => {
+    // Este es el caso que obligaba a bloquear el campo: el médico corrige una
+    // cifra en la línea 2 y un segmento nuevo le mandaba el cursor al final.
+    expect(caretAfterDictation({ start: 12, end: 12 }, 40)).toEqual({
+      start: 12,
+      end: 12,
+    });
+  });
+
+  it("conserva una selección hecha a mitad del texto", () => {
+    expect(caretAfterDictation({ start: 5, end: 18 }, 40)).toEqual({
+      start: 5,
+      end: 18,
+    });
+  });
+
+  it("una selección que llega hasta el final sigue al texto nuevo", () => {
+    expect(caretAfterDictation({ start: 40, end: 45 }, 40)).toBeNull();
+  });
+
+  it("sobre un campo vacío no hay nada que restaurar", () => {
+    expect(caretAfterDictation({ start: 0, end: 0 }, 0)).toBeNull();
   });
 });

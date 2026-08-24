@@ -44,6 +44,7 @@ import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker"
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
 import { servicioPorDefecto } from "@/lib/hospital/org";
 import { reviewGeneratedNote } from "@/lib/clinical/note-review";
+import { caretAfterDictation } from "@/lib/clinical/insert-text";
 import { buildRedactor } from "@/lib/privacy/redact";
 import { createClient } from "@/lib/supabase/client";
 import type { Patient } from "@/lib/mock";
@@ -166,6 +167,11 @@ function ConsultaActivaInner() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [transcriptDraft, setTranscriptDraft] = useState("");
+  const transcriptRef = useRef<HTMLTextAreaElement | null>(null);
+  // Dónde devolver el cursor (y el scroll) tras un segmento dictado. En null
+  // cuando el cursor iba al final y debe seguir al texto nuevo.
+  const caretPendiente = useRef<{ start: number; end: number } | null>(null);
+  const scrollPendiente = useRef<number | null>(null);
   // Última transcripción confirmada por el backend (para detectar cambios).
   const [savedTranscript, setSavedTranscript] = useState("");
   // true mientras la grabación con transcripción en vivo está activa.
@@ -509,13 +515,39 @@ function ConsultaActivaInner() {
 
   // Cada segmento final de la dictación se agrega al texto acumulado.
   // setState funcional: inmune a renders concurrentes durante la grabación.
-  const appendFinal = (text: string) =>
+  const appendFinal = (text: string) => {
+    // El médico puede estar corrigiendo el texto mientras dicta. Como el
+    // textarea es controlado, al crecer `value` el navegador le mandaría el
+    // cursor al final; se anota dónde estaba para devolvérselo tras el render.
+    const el = transcriptRef.current;
+    if (el && document.activeElement === el) {
+      caretPendiente.current = caretAfterDictation(
+        { start: el.selectionStart, end: el.selectionEnd },
+        el.value.length,
+      );
+      scrollPendiente.current = caretPendiente.current ? el.scrollTop : null;
+    }
     setTranscriptDraft((prev) => {
       // Cada segmento se redacta al llegar: el nombre nunca queda visible en
       // el contexto acumulado ni viaja después al backend.
       const clean = redactor.redact(text);
       return prev.trim() ? `${prev.replace(/\s+$/, "")} ${clean}` : clean;
     });
+  };
+
+  // Devolver el cursor ANTES de pintar (useLayoutEffect, no useEffect): con
+  // useEffect el salto al final alcanza a verse.
+  useLayoutEffect(() => {
+    const caret = caretPendiente.current;
+    const scroll = scrollPendiente.current;
+    caretPendiente.current = null;
+    scrollPendiente.current = null;
+    const el = transcriptRef.current;
+    if (!caret || !el || document.activeElement !== el) return;
+    const max = el.value.length;
+    el.setSelectionRange(Math.min(caret.start, max), Math.min(caret.end, max));
+    if (scroll !== null) el.scrollTop = scroll;
+  }, [transcriptDraft]);
 
   // Respaldo para entornos donde la API moderna del portapapeles no está
   // disponible (equipos de hospital con políticas de TI restrictivas,
@@ -1013,14 +1045,14 @@ function ConsultaActivaInner() {
               <label className="mt-4 block text-[12px] font-semibold uppercase tracking-wide text-muted">
                 Transcripción de la consulta
                 <textarea
+                  ref={transcriptRef}
                   value={transcriptDraft}
                   onChange={(e) => setTranscriptDraft(e.target.value)}
                   onBlur={() => setTranscriptDraft((prev) => redactor.redact(prev))}
                   disabled={completed || busy}
-                  readOnly={dictando}
                   rows={10}
                   placeholder="Paciente consulta por…"
-                  className="mt-2 w-full resize-y rounded-md border border-line bg-field px-3.5 py-2.5 text-sm font-normal normal-case tracking-normal leading-relaxed text-ink outline-none transition-colors focus:border-accent disabled:cursor-not-allowed read-only:bg-pearl"
+                  className="mt-2 w-full resize-y rounded-md border border-line bg-field px-3.5 py-2.5 text-sm font-normal normal-case tracking-normal leading-relaxed text-ink outline-none transition-colors focus:border-accent disabled:cursor-not-allowed"
                 />
               </label>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[13px] text-muted">
@@ -1040,7 +1072,7 @@ function ConsultaActivaInner() {
                       { hour: "2-digit", minute: "2-digit" },
                     )}`
                   ) : (
-                    "Puedes corregir el texto antes de generar la nota."
+                    "Puedes corregir el texto mientras dictas; lo que se dicte entra al final."
                   )}
                 </span>
                 <span className="flex items-center gap-2">
