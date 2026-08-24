@@ -115,8 +115,8 @@
     "semantic_hash": ""
   },
   "app/app/consultas/[id]/page.tsx": {
-    "mtime": 1787581598.788793,
-    "ast_hash": "17d4beed5e4c130aef655fca1118b92b",
+    "mtime": 1787583741.66505,
+    "ast_hash": "864cc5c807449b5d198cc47cebb01371",
     "semantic_hash": ""
   },
   "app/app/consultas/actions.ts": {
@@ -125,8 +125,8 @@
     "semantic_hash": "c06cd84a142c90e329b391747d49b86f"
   },
   "app/app/consultas/en-vivo/page.tsx": {
-    "mtime": 1787582593.9799318,
-    "ast_hash": "fa94e092a183905baa4ce86e526fb921",
+    "mtime": 1787584832.7357614,
+    "ast_hash": "a44e1f957df7f49e585005a78417f2e0",
     "semantic_hash": ""
   },
   "app/app/consultas/nueva/layout.tsx": {
@@ -140,13 +140,13 @@
     "semantic_hash": ""
   },
   "app/app/consultas/page.tsx": {
-    "mtime": 1787581003.0776014,
-    "ast_hash": "f9554c992aa44113afc3a1f57ed9d39d",
+    "mtime": 1787583741.66505,
+    "ast_hash": "8ff1eee91846e69722e574b32b745359",
     "semantic_hash": ""
   },
   "app/app/dashboard/page.tsx": {
-    "mtime": 1787581247.652619,
-    "ast_hash": "c9c10f3cec84aea47acb5b166e8a754f",
+    "mtime": 1787583741.66505,
+    "ast_hash": "442309d5e4b141362b10dcf69afe9f85",
     "semantic_hash": ""
   },
   "app/app/error.tsx": {
@@ -165,8 +165,8 @@
     "semantic_hash": ""
   },
   "app/app/notas/page.tsx": {
-    "mtime": 1787581077.4016993,
-    "ast_hash": "f763d35fb609bdd9c276a03bf1311f13",
+    "mtime": 1787583741.66505,
+    "ast_hash": "dcffd46ae5325ed604d8b2c525d8e20d",
     "semantic_hash": ""
   },
   "app/app/pacientes/PacientesSearch.tsx": {
@@ -180,13 +180,13 @@
     "semantic_hash": "4940510f8ac3149ace7795936bd1c2af"
   },
   "app/app/pacientes/page.tsx": {
-    "mtime": 1787581091.496994,
-    "ast_hash": "23a021395e77beb3248eacf8dcf7b908",
+    "mtime": 1787583741.66505,
+    "ast_hash": "82b02824b4717a6c0bb4280f86107152",
     "semantic_hash": ""
   },
   "app/app/plantillas/TemplateCatalog.tsx": {
-    "mtime": 1787582318.4140358,
-    "ast_hash": "4bf0ad73170324203727cb693e66c7b2",
+    "mtime": 1787583741.66505,
+    "ast_hash": "6542ffb6d4f0b25953b300ba43d03d2d",
     "semantic_hash": ""
   },
   "app/app/plantillas/page.tsx": {
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "app/app/providers.tsx": {
-    "mtime": 1787582226.2042167,
-    "ast_hash": "7886ef8e9a1f8d9da4b6b15d8bc1f9cc",
+    "mtime": 1787583741.66505,
+    "ast_hash": "dacbc1f465f56091248d5c7bad7fc1ad",
     "semantic_hash": ""
   },
   "app/app/reportes/page.tsx": {
@@ -405,8 +405,8 @@
     "semantic_hash": ""
   },
   "components/app/AppSidebar.tsx": {
-    "mtime": 1787582801.4581919,
-    "ast_hash": "ce6832c60d6adb571647479ecc9a3e8a",
+    "mtime": 1787583741.6707518,
+    "ast_hash": "2b60f3066197ca1282917d992c8ae02c",
     "semantic_hash": ""
   },
   "components/app/AuditFindings.tsx": {
@@ -430,8 +430,8 @@
     "semantic_hash": "a557e7d8ab0505798e7c472239fde064"
   },
   "components/app/CommandPalette.tsx": {
-    "mtime": 1787580750.6787925,
-    "ast_hash": "155d148c263980d5416c70f0f9d9ce91",
+    "mtime": 1787583741.6707518,
+    "ast_hash": "8979800e5a318b7f25ef4f12b538f68b",
     "semantic_hash": ""
   },
   "components/app/ConsultationCard.tsx": {
@@ -475,8 +475,8 @@
     "semantic_hash": "d59b4c5c15ab9126a6ff3d0d84a7978c"
   },
   "components/app/MobileBottomNavigation.tsx": {
-    "mtime": 1787582844.2288213,
-    "ast_hash": "1cfe17fe1ae0a41c098c2b91cea0e2a1",
+    "mtime": 1787583741.6707518,
+    "ast_hash": "7d8eea1e946f470dba9376774de8ecd0",
     "semantic_hash": ""
   },
   "components/app/NoteExportStatus.tsx": {
@@ -540,8 +540,8 @@
     "semantic_hash": "898d08ed89d4a13ce0de2be91678e1ed"
   },
   "components/app/TemplateBuilderPanel.tsx": {
-    "mtime": 1787582663.6603456,
-    "ast_hash": "5ce9a0829a15736ab496e931f2c75f8b",
+    "mtime": 1787583741.6790361,
+    "ast_hash": "48e3d91b8a2f5e709880d1355e6e9672",
     "semantic_hash": ""
   },
   "components/app/Timeline.tsx": {
@@ -550,8 +550,8 @@
     "semantic_hash": "5cb449b89f79eb79d4262fde9fb0aab6"
   },
   "components/app/UnsavedChangesProvider.tsx": {
-    "mtime": 1787582759.974152,
-    "ast_hash": "e4287192769ad7bf722878e502c21ca0",
+    "mtime": 1787583741.6790361,
+    "ast_hash": "d6796101a045dcde59bd5e25d4d833bd",
     "semantic_hash": ""
   },
   "components/app/Waveform.tsx": {
@@ -785,8 +785,8 @@
     "semantic_hash": "66352abdc96cee6334c9d8ddd2a780fc"
   },
   "lib/api/clinical.ts": {
-    "mtime": 1787583334.4723566,
-    "ast_hash": "941a879437059404cc2e15c9ae934bf0",
+    "mtime": 1787583742.1111364,
+    "ast_hash": "9ca0b03ad60a7803de54c9c7683b9f21",
     "semantic_hash": ""
   },
   "lib/api/guard.ts": {
@@ -1280,8 +1280,8 @@
     "semantic_hash": "1ad3410dc64e5d5773456d231fe54da8"
   },
   "tests/clinical-api.test.ts": {
-    "mtime": 1787582144.7669518,
-    "ast_hash": "9722f0f6c21943894a764213caf0aa5f",
+    "mtime": 1787583742.1111364,
+    "ast_hash": "6952f705f5f990fb3d310b4fb2ec0441",
     "semantic_hash": ""
   },
   "tests/clinical-assistant.test.ts": {
@@ -1485,8 +1485,8 @@
     "semantic_hash": "1d0a8d39bfa2afb63ab9eb356b313b11"
   },
   "docs/pendiente-patologia-api-key.md": {
-    "mtime": 1787583288.3790424,
-    "ast_hash": "3577f8e65fcfff163b35b5e261176ca2",
+    "mtime": 1787583742.0950992,
+    "ast_hash": "e0acfb9b8b2548908c10f3646207674a",
     "semantic_hash": ""
   },
   "docs/prd-miracle-v0.md": {
@@ -1720,8 +1720,8 @@
     "semantic_hash": ""
   },
   "scripts/validate-template-migrations.mjs": {
-    "mtime": 1787582534.2314332,
-    "ast_hash": "ed328bdb683f9fd05ff5b614cfd1fde7",
+    "mtime": 1787583742.1111364,
+    "ast_hash": "d17509ecf96933f3753c960b93fdd798",
     "semantic_hash": ""
   },
   "supabase/migrations/20260811100000_billing_accounts.sql": {
@@ -1825,8 +1825,8 @@
     "semantic_hash": ""
   },
   "app/app/plantillas/AtajosManager.tsx": {
-    "mtime": 1787582318.4140358,
-    "ast_hash": "593be58954a7e268400a369539d5f273",
+    "mtime": 1787583741.66505,
+    "ast_hash": "cecf0f9fa7a83b809ad08bfaa0dfbf00",
     "semantic_hash": ""
   },
   "app/app/plantillas/PlantillasTabs.tsx": {
@@ -1875,8 +1875,8 @@
     "semantic_hash": ""
   },
   "lib/clinical/insert-text.ts": {
-    "mtime": 1786687786.9570713,
-    "ast_hash": "e828f70b26ed5516c6566207d6333060",
+    "mtime": 1787584782.8343225,
+    "ast_hash": "556b605f6767ba104630fb3954f314c4",
     "semantic_hash": ""
   },
   "lib/clinical/placeholders.ts": {
@@ -1900,8 +1900,8 @@
     "semantic_hash": ""
   },
   "tests/insert-text.test.ts": {
-    "mtime": 1786687786.9856122,
-    "ast_hash": "7142f421e43ba0b65f247cd8700e0c0d",
+    "mtime": 1787584799.5999794,
+    "ast_hash": "09cd005c60a7aadcc53aa09bed15697e",
     "semantic_hash": ""
   },
   "tests/placeholders.test.ts": {
@@ -1980,8 +1980,8 @@
     "semantic_hash": ""
   },
   "public/u/dentro.js": {
-    "mtime": 1787271335.7572587,
-    "ast_hash": "435bdde192a2203e09af3eabe9ab06dd",
+    "mtime": 1787583741.52848,
+    "ast_hash": "b399d724f9f058e1a972d91d1d29e517",
     "semantic_hash": ""
   },
   "public/u/face-canvas.js": {
@@ -2005,8 +2005,8 @@
     "semantic_hash": ""
   },
   "public/u/scene/oficina.js": {
-    "mtime": 1787201188.0555322,
-    "ast_hash": "901281150b5b0a1f53439baae8f589cb",
+    "mtime": 1787583741.5318942,
+    "ast_hash": "6b2a0b383c509c067b9d9f275b671543",
     "semantic_hash": ""
   },
   "public/u/scene/pbr.js": {
@@ -2020,8 +2020,8 @@
     "semantic_hash": ""
   },
   "public/u/index.html": {
-    "mtime": 1787271335.7580974,
-    "ast_hash": "2774988a24f7cb393cb89a1f56c55a9e",
+    "mtime": 1787583741.5308907,
+    "ast_hash": "3a8f855860c1abea3e0965f7c99ff4c4",
     "semantic_hash": ""
   },
   "public/u/assets/voz/01-medico-nuevo.mp3": {
@@ -2065,23 +2065,88 @@
     "semantic_hash": ""
   },
   "components/app/QueryErrorBanner.tsx": {
-    "mtime": 1787580933.4528048,
-    "ast_hash": "475d79f80a7da3df50eb82692705a349",
+    "mtime": 1787583741.6790361,
+    "ast_hash": "f6370887f05801db09a948bd89dc8a79",
     "semantic_hash": ""
   },
   "components/ui/ConfirmDialog.tsx": {
-    "mtime": 1787583153.9718325,
-    "ast_hash": "232dbfea2bd166883fa728d2d267f455",
+    "mtime": 1787583741.6790361,
+    "ast_hash": "4693b1a1a1afa1bc0c51a3bb07d058d4",
     "semantic_hash": ""
   },
   "supabase/migrations/20260824100000_fix_create_org_member_tokens.sql": {
-    "mtime": 1787582050.1249619,
-    "ast_hash": "b44094db311add4cb0a6ca1e8aaff437",
+    "mtime": 1787583742.2130141,
+    "ast_hash": "c89bc849fb70656edf155570decfe16b",
     "semantic_hash": ""
   },
   "supabase/migrations/20260824110000_templates_urgencias_refuerzo.sql": {
-    "mtime": 1787582462.7998056,
-    "ast_hash": "e90592dccf82ce81286ea95c140c8fa6",
+    "mtime": 1787585221.5915773,
+    "ast_hash": "5ecb19c6c13d573a2348d2c7dc4ee55c",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/c-01-paciente.mp3": {
+    "mtime": 1787583741.506641,
+    "ast_hash": "b21002d8a0f9e234ad75bc462e303106",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/c-02-medico.mp3": {
+    "mtime": 1787583741.5086465,
+    "ast_hash": "82d298e66c14b0b5736887db873d7197",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/u-01-hola.mp3": {
+    "mtime": 1787583741.5086465,
+    "ast_hash": "601e8a07cac1e2ff06b529cf4461ce8c",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/u-02-objetivo.mp3": {
+    "mtime": 1787583741.5106523,
+    "ast_hash": "6ce13d28f41ffe91e99ab5efbeb0b955",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/u-03-aprendo.mp3": {
+    "mtime": 1787583741.512402,
+    "ast_hash": "d229a7c02659ab20dff4a4caa0929e27",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/u-04-abro.mp3": {
+    "mtime": 1787583741.512402,
+    "ast_hash": "1b9c1367912b1d74edfd220cf85f28b0",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/u-05-nuevo.mp3": {
+    "mtime": 1787583741.512402,
+    "ast_hash": "ec301a39e0738619163d17ae4d874d85",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/u-06-conocido.mp3": {
+    "mtime": 1787583741.512402,
+    "ast_hash": "df5d205ca6b7646a31a8d6b34649d99a",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/u-07-datos.mp3": {
+    "mtime": 1787583741.512402,
+    "ast_hash": "f5a5022f081028cfc9596ed4bddc2826",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/u-08-examen.mp3": {
+    "mtime": 1787583741.512402,
+    "ast_hash": "bedc70938fe9654ba9f5f635d8ac2666",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/u-09-cita.mp3": {
+    "mtime": 1787583741.512402,
+    "ast_hash": "a6934273fbdef57ac13b0bbaed8a56fa",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/u-10-listo.mp3": {
+    "mtime": 1787583741.512402,
+    "ast_hash": "cccb9d0dfc24542e1327864ac0dece1f",
+    "semantic_hash": ""
+  },
+  "public/u/assets/voz/u-11-registrate.mp3": {
+    "mtime": 1787583741.512402,
+    "ast_hash": "027d814bd30bb7338a4481e24fc05605",
     "semantic_hash": ""
   }
 }

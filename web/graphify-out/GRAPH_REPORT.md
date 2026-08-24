@@ -1,26 +1,26 @@
 # Graph Report - Pagina-web-clientes-final  (2026-08-24)
 
 ## Corpus Check
-- 400 files · ~417,503 words
+- 400 files · ~418,642 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2435 nodes · 4868 edges · 219 communities (169 shown, 50 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 68 edges (avg confidence: 0.71)
+- 2439 nodes · 4824 edges · 232 communities (180 shown, 52 thin omitted)
+- Extraction: 98% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 68 edges (avg confidence: 0.71)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f57485e6`
+- Built from commit: `082f4a61`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- piloto/page.tsx
+- createClient
 - login/actions.ts
-- dashboard/page.tsx
+- Card.tsx
 - TemplateBuilderPanel.tsx
 - useDictation.ts
-- reportError
+- suscripcion/actions.ts
 - devDependencies
 - actividad/page.tsx
 - snippets.ts
@@ -31,15 +31,15 @@
 - oficina.js
 - redact.ts
 - TypeScript Build Config
-- mantenimiento/page.tsx
+- piloto/page.tsx
 - clinical.ts
 - motion
 - search.ts
-- Button.tsx
+- DailyTrend.tsx
 - Skeletons.tsx
 - face-geometry.js
 - mock/index.ts
-- getCurrentProfile
+- superadmin/actions.ts
 - formatFechaRelativa
 - LaboratorioWorkspace.tsx
 - dates.ts
@@ -47,13 +47,13 @@
 - PlanDischargePanel.tsx
 - superadmin/page.tsx
 - Graphify Setup Guide
-- AppShell.tsx
-- UnsavedChangesProvider.tsx
+- auditoria/page.tsx
+- note-export.test.ts
 - Modelo ClinicalEncounter (template_snapshot congelado)
 - note-review.ts
 - SnippetImportDialog.tsx
 - Alternativa A — cola en Postgres + long-poll con claim/lease
-- entitlements.ts
+- reportes/export/route.ts
 - autenticacion-interna-plan.md — enrolamiento per-install (planificado)
 - tabla clinical_encounters (Graph)
 - app/api/generate-note/route.ts — generación de nota
@@ -68,12 +68,12 @@
 - Clinical HTTP API Client
 - Multi-tenant Data Model & Audit
 - Platform Diagnostics & Store
-- superadmin/layout.tsx
+- encounter-to-consultation.ts
 - Multi-tenant Organizations Migration
 - Superadmin Activity Feed
 - Superadmin Destructive Operations
 - Clinical API Integration Architecture
-- auth/server.ts
+- entitlements.ts
 - Las 7 prioridades reales de la auditoría
 - Frontend Stack, Auth and CI
 - dev-session.mjs
@@ -140,21 +140,21 @@
 - User Profiles Table
 - Organizations Table
 - User Profiles Table
-- ReportesView.tsx
-- patient-identity.ts
-- providers.tsx
+- dashboard/page.tsx
+- rango.ts
+- superadmin/layout.tsx
 - validate-template-migrations.mjs
-- signature-hash.test.ts
-- onboarding/actions.ts
+- consultas/actions.ts
+- getCurrentProfile
 - 20260808140000_protect_org_owner.sql
 - salud/page.tsx
 - Workflow / Step / WorkflowBranch (Neo4j)
 - public.consultations
-- Header.tsx
+- Logo.tsx
 - dependencies
 - site.ts
-- canAccessPath
-- org.ts
+- supabase/proxy.ts
+- providers.tsx
 - TemplateCatalog.tsx
 - pintarPantalla
 - Endpoints de plantillas (GET/POST/PUT/DELETE /templates)
@@ -169,28 +169,41 @@
 - src/domain/windowsEngines.js — catálogo de motores
 - package.json
 - public.user_template_preferences
-- createClient
-- como-funciona/page.tsx
+- supabase/server.ts
+- AgendaHoy.tsx
 - 20260813120000_user_snippets.sql
 - stripe
 - vitest
-- demo.ts
-- supabase/server.ts
+- AppShell.tsx
+- notas/page.tsx
 - public.superadmin_ai_usage
-- precios/page.tsx
+- suscripcion/page.tsx
 - metrics.ts
 - procedural.js
 - consultas/[id]/page.tsx
-- contacto/page.tsx
-- CommandPalette.tsx
-- DailyTrend.tsx
+- CTA.tsx
+- AppSidebar.tsx
+- note-from-photo/route.ts
 - public.create_org_member
-- rango.ts
-- MedicalChat.tsx
+- consumo/page.tsx
+- PlantillasTabs.tsx
 - FaceTexture
+- superadmin/consultas/page.tsx
 - pbr.js
 - atril
 - matResplandor
+- org.ts
+- auth.users
+- public.organizations
+- public.profiles
+- auth/server.ts
+- ConfiguracionForm.tsx
+- app/consultas/page.tsx
+- MobileBottomNavigation.tsx
+- UnsavedChangesProvider.tsx
+- SnippetPopup.tsx
+- ConfirmDialog.tsx
+- registro/actions.ts
 
 ## God Nodes (most connected - your core abstractions)
 1. `createClient()` - 81 edges
@@ -198,11 +211,11 @@
 3. `getCurrentProfile()` - 41 edges
 4. `reportError()` - 34 edges
 5. `useStore()` - 28 edges
-6. `createClient()` - 27 edges
-7. `ConsultaActivaInner()` - 22 edges
-8. `Card()` - 22 edges
-9. `resolverRango()` - 22 edges
-10. `requireRole()` - 19 edges
+6. `createClient()` - 26 edges
+7. `Card()` - 22 edges
+8. `resolverRango()` - 22 edges
+9. `requireRole()` - 19 edges
+10. `Badge()` - 18 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `DIAGNOSTICO.pdf (archivo vacío)` --semantically_similar_to--> `Las 7 prioridades reales de la auditoría`  [AMBIGUOUS] [semantically similar]
@@ -230,59 +243,59 @@
 - **Flujo firma → inmutabilidad → exportada** — miracle_operations_integration_analysis_sign_consultation_note, miracle_operations_integration_analysis_enforce_consultation_immutability, miracle_operations_integration_analysis_secretary_mark_exported, miracle_operations_integration_analysis_marcar_exportada_rpc, miracle_operations_integration_analysis_consultation_status, miracle_operations_integration_analysis_consultations [EXTRACTED 0.90]
 - **Ejecución Windows → SAP: superficie, plan, mapeo y valores dinámicos** — miracle_operations_integration_analysis_workflow_player, miracle_operations_integration_analysis_sap_gui_surface, miracle_operations_integration_analysis_surface_locator, miracle_operations_integration_analysis_workflow_plan_endpoint, miracle_operations_integration_analysis_note_field_matcher, miracle_operations_integration_analysis_value_mode [INFERRED 0.80]
 
-## Communities (219 total, 50 thin omitted)
+## Communities (232 total, 52 thin omitted)
 
-### Community 0 - "piloto/page.tsx"
-Cohesion: 0.18
-Nodes (12): annotations, DemoPage(), metadata, measures, metadata, phases, PilotoPage(), CTAProps (+4 more)
+### Community 0 - "createClient"
+Cohesion: 0.10
+Nodes (36): GET(), runtime, extractJsonObject(), maxDuration, MEDIA_TYPES, POST(), runtime, sanitizeCitas() (+28 more)
 
 ### Community 1 - "login/actions.ts"
-Cohesion: 0.11
-Nodes (18): appUrl(), configured(), loginErrorUrl(), requestPasswordReset(), safeNext(), signInWithGoogle(), signInWithPassword(), messages (+10 more)
+Cohesion: 0.13
+Nodes (15): appUrl(), configured(), loginErrorUrl(), requestPasswordReset(), safeNext(), signInWithGoogle(), signInWithPassword(), messages (+7 more)
 
-### Community 2 - "dashboard/page.tsx"
-Cohesion: 0.14
-Nodes (12): EventoRow, RevisarRow, Stats, MedicoView(), recentPatients(), AppPage(), AppPageHeader(), ClinicalSectionHeader() (+4 more)
+### Community 2 - "Card.tsx"
+Cohesion: 0.15
+Nodes (11): PacienteDetallePage(), DashboardOrgs, OrganizacionesPage(), EmptyState(), MetricCard(), Alerta, AlertPanel(), ESTILO (+3 more)
 
 ### Community 3 - "TemplateBuilderPanel.tsx"
-Cohesion: 0.09
-Nodes (42): COMMON_SECTIONS, MODE_SUBTITLE, MODE_TITLE, TemplateBuilderPanel(), ClinicalTemplateSection, ClinicalTemplateSectionInput, createClinicalTemplate(), updateClinicalTemplate() (+34 more)
+Cohesion: 0.08
+Nodes (44): COMMON_SECTIONS, MODE_SUBTITLE, MODE_TITLE, TemplateBuilderPanel(), useConfirm(), CreateClinicalTemplatePayload, areaBySpecialtyKey, getAreaForSpecialty() (+36 more)
 
 ### Community 4 - "useDictation.ts"
 Cohesion: 0.06
 Nodes (33): DictationPanel(), mmss(), STATUS_TEXT, BARS, Waveform(), MiracleDeepgramDictation, createDictation, DictationHandle (+25 more)
 
-### Community 5 - "reportError"
-Cohesion: 0.05
-Nodes (81): GET(), runtime, POST(), runtime, subscriptionIdFrom(), alignSections(), FilledSection, maxDuration (+73 more)
+### Community 5 - "suscripcion/actions.ts"
+Cohesion: 0.20
+Nodes (25): POST(), runtime, subscriptionIdFrom(), appUrl(), createCheckoutSession(), createPortalSession(), refreshFromStripe(), requirePersonalOwner() (+17 more)
 
 ### Community 6 - "devDependencies"
 Cohesion: 0.12
 Nodes (17): eslint, eslint-config-next, devDependencies, eslint, eslint-config-next, tailwindcss, @tailwindcss/postcss, @types/node (+9 more)
 
 ### Community 7 - "actividad/page.tsx"
-Cohesion: 0.15
-Nodes (27): CABECERAS, dynamic, GET(), CABECERAS, dynamic, GET(), Params, SuperadminActividadPage() (+19 more)
+Cohesion: 0.26
+Nodes (16): CABECERAS, dynamic, GET(), Params, SuperadminActividadPage(), cargarOpciones(), ClienteServidor, construirConsulta() (+8 more)
 
 ### Community 8 - "snippets.ts"
-Cohesion: 0.15
-Nodes (23): AtajosManager(), EditorState, SnippetEditorDialog(), SnippetPopup(), SnippetPopupMode, SNIPPET_FILE_ACCEPT, categoriesFrom(), clampSnippetDraft() (+15 more)
+Cohesion: 0.20
+Nodes (16): EditorState, SnippetImportDialog(), SnippetEditorDialog(), clampSnippetDraft(), countSnippets(), createSnippet(), createSnippets(), deleteSnippet() (+8 more)
 
 ### Community 9 - "types.ts"
-Cohesion: 0.09
-Nodes (17): StoreValue, RoleSwitcher(), CLINICAL_TEMPLATE_COUNT, clinicalTemplateCatalog, OrgSettings, doctors, ESPECIALIDADES, patients (+9 more)
+Cohesion: 0.17
+Nodes (9): doctors, ESPECIALIDADES, patients, CodeStatus, CodeSystem, ConsultationType, Doctor, Role (+1 more)
 
 ### Community 10 - "(marketing)/page.tsx"
-Cohesion: 0.12
+Cohesion: 0.11
 Nodes (15): Figure(), FigureProps, Impact, ImpactStats(), items, phases, PilotoTeaser(), StatementBand() (+7 more)
 
 ### Community 11 - "en-vivo/page.tsx"
-Cohesion: 0.08
-Nodes (24): ConsultaActivaInner(), FlowPhase, PHASE_LABEL, ReviewView, STATUS_LABEL, TYPE_LABEL, useTranscriptAutosave(), PatientHeader() (+16 more)
+Cohesion: 0.07
+Nodes (20): ConsultaActivaInner(), FlowPhase, PHASE_LABEL, ReviewView, STATUS_LABEL, TYPE_LABEL, useTranscriptAutosave(), Failure (+12 more)
 
 ### Community 12 - "EncounterNote.tsx"
-Cohesion: 0.14
-Nodes (20): EditableBlock(), EncounterNote(), rowsForText(), SpeechRecognitionConstructor, SpeechRecognitionEventLike, SpeechRecognitionLike, SpeechRecognitionResultLike, ClinicalNoteSection (+12 more)
+Cohesion: 0.12
+Nodes (22): EditableBlock(), EncounterNote(), rowsForText(), SpeechRecognitionConstructor, SpeechRecognitionEventLike, SpeechRecognitionLike, SpeechRecognitionResultLike, NoteSectionView() (+14 more)
 
 ### Community 13 - "oficina.js"
 Cohesion: 0.01
@@ -296,21 +309,21 @@ Nodes (20): ACCENT_CLASSES, buildDocumentoRegex(), buildNombreRegex(), buildReda
 Cohesion: 0.07
 Nodes (28): dom, dom.iterable, esnext, **/*.mts, .next/dev/types/**/*.ts, next-env.d.ts, .next/types/**/*.ts, node_modules (+20 more)
 
-### Community 16 - "mantenimiento/page.tsx"
-Cohesion: 0.17
-Nodes (8): OrgFila, UsuarioFila, DashboardOrgs, EmptyState(), DangerZoneDialog(), FilterBar(), FilterSelect, FlashBanner()
+### Community 16 - "piloto/page.tsx"
+Cohesion: 0.11
+Nodes (17): DemoPage(), measures, metadata, phases, PilotoPage(), ContactForm(), roles, Footer() (+9 more)
 
 ### Community 17 - "clinical.ts"
-Cohesion: 0.06
-Nodes (45): apiBaseUrl(), archiveClinicalTemplate(), ASSISTANT_TIMEOUT_MS, AssistantChatMessage, AssistantChatPayload, AssistantChatResult, AssistantScreenContext, BackendConsultationType (+37 more)
+Cohesion: 0.05
+Nodes (48): apiBaseUrl(), ASSISTANT_TIMEOUT_MS, AssistantChatMessage, AssistantChatPayload, AssistantChatResult, AssistantScreenContext, BackendConsultationType, buildClinicalRequest() (+40 more)
 
 ### Community 19 - "search.ts"
-Cohesion: 0.41
-Nodes (10): categoryMatchesSection(), DIACRITICS, editDistance(), fuzzyWordMatch(), matchesQuery(), normalizeForSearch(), searchList(), tolerancia() (+2 more)
+Cohesion: 0.31
+Nodes (13): categoryMatchesSection(), DIACRITICS, editDistance(), fuzzyWordMatch(), matchesQuery(), normalizeForSearch(), searchList(), tolerancia() (+5 more)
 
-### Community 20 - "Button.tsx"
-Cohesion: 0.18
-Nodes (9): PacienteDetallePage(), ContactForm(), roles, Button(), ButtonProps, Size, sizes, Variant (+1 more)
+### Community 20 - "DailyTrend.tsx"
+Cohesion: 0.60
+Nodes (4): DailyTrend(), formatDia(), niceTicks(), PAD
 
 ### Community 21 - "Skeletons.tsx"
 Cohesion: 0.17
@@ -318,19 +331,19 @@ Nodes (5): SkeletonCard(), SkeletonChips(), SkeletonTable(), SkeletonTileRow(), 
 
 ### Community 22 - "face-geometry.js"
 Cohesion: 0.08
-Nodes (14): dentro, montar(), el(), Face, brow(), R, squirclePath(), squirclePoints() (+6 more)
+Nodes (13): dentro, el(), Face, brow(), R, squirclePath(), squirclePoints(), STROKE (+5 more)
 
 ### Community 23 - "mock/index.ts"
 Cohesion: 0.16
-Nodes (13): CodificacionTab(), SupervisorView(), consultations, MOCK_TODAY, acceptedCodes(), completitud(), formatFechaRelativa(), formatHora() (+5 more)
+Nodes (14): AuditoriaTab(), CodificacionTab(), consultations, MOCK_TODAY, acceptedCodes(), completitud(), formatFechaRelativa(), formatHora() (+6 more)
 
-### Community 24 - "getCurrentProfile"
-Cohesion: 0.15
-Nodes (29): LaboratorioPage(), PlantillasPage(), PlantillasTabs(), AccionCritica, archiveOrganization(), assignUserToOrg(), back(), baseOrg() (+21 more)
+### Community 24 - "superadmin/actions.ts"
+Cohesion: 0.21
+Nodes (19): AccionCritica, archiveOrganization(), assignUserToOrg(), back(), baseOrg(), changeOrgMemberRole(), deactivateUser(), deleteOrganization() (+11 more)
 
 ### Community 25 - "formatFechaRelativa"
-Cohesion: 0.13
-Nodes (26): UsuariosPage(), Encabezado(), SuperadminAnaliticaPage(), MantenimientoPage(), ConsultaRow, DashboardOrg, SuperadminOrganizacionDetallePage(), OrganizacionesPage() (+18 more)
+Cohesion: 0.17
+Nodes (22): Encabezado(), SuperadminAnaliticaPage(), ConsultaRow, DashboardOrg, SuperadminOrganizacionDetallePage(), OrgRow, SuperadminUsuariosPage(), MiembroOrg (+14 more)
 
 ### Community 26 - "LaboratorioWorkspace.tsx"
 Cohesion: 0.15
@@ -349,40 +362,40 @@ Cohesion: 0.12
 Nodes (11): ListKind, medicationLine(), PlanDischargePanel(), SpeechRecognitionConstructor, SpeechRecognitionEventLike, SpeechRecognitionLike, SpeechRecognitionResultLike, ClinicalAlarmSign (+3 more)
 
 ### Community 30 - "superadmin/page.tsx"
-Cohesion: 0.18
-Nodes (10): Dashboard, Kpi, nf, Sparkline(), StatTile(), formatDia(), niceTicks(), PAD (+2 more)
+Cohesion: 0.17
+Nodes (11): Dashboard, Kpi, nf, SuperadminResumenPage(), Sparkline(), StatTile(), formatDia(), niceTicks() (+3 more)
 
 ### Community 31 - "Graphify Setup Guide"
 Cohesion: 0.11
 Nodes (18): 1. Instalar uv, 2. Instalar graphify, 3. Registrar la skill y los hooks, 4. Traer el grafo, Actualizar el grafo a mano, Camino entre dos partes del sistema, Comandos útiles, Encontrar los archivos más conectados (los críticos) (+10 more)
 
-### Community 32 - "AppShell.tsx"
-Cohesion: 0.24
-Nodes (12): ConsultaDetallePage(), DashboardPage(), useStore(), AppShell(), initials(), BillingBanner(), fechaCorta(), NotificationsBell() (+4 more)
+### Community 32 - "auditoria/page.tsx"
+Cohesion: 0.13
+Nodes (27): AuditoriaPage(), EventoRow, nombreDe(), RevisarRow, Stats, AuditFindingList(), AuditSeverityBadge(), SEVERITY_STYLE (+19 more)
 
-### Community 33 - "UnsavedChangesProvider.tsx"
-Cohesion: 0.15
-Nodes (12): AppLayout(), metadata, GuardState, UnsavedChangesContext, UnsavedChangesProvider(), UnsavedChangesValue, useUnsavedChangesGuard(), ConfirmContext (+4 more)
+### Community 33 - "note-export.test.ts"
+Cohesion: 0.20
+Nodes (14): cancelNoteExport(), ClinicalApiError, createNoteExport(), getNoteExport(), isNoteExportRetryable(), isNoteExportTerminal(), NoteExport, NoteExportStatus (+6 more)
 
 ### Community 34 - "Modelo ClinicalEncounter (template_snapshot congelado)"
 Cohesion: 0.36
 Nodes (8): Cierre clínico universal: discharge, plan, alarm_signs, private_notes, Modelo ClinicalEncounter (template_snapshot congelado), Modelo ClinicalTemplate (secciones normalizadas), Contrato API Clínica /api/clinical/* (copia local del backend Graph), POST /encounters/:id/generate-note (LLM, rate limit reforzado), Envelope de errores y tabla de códigos (TEMPLATE_NOT_FOUND, LLM_NOT_CONFIGURED…), Modelo NoteJson (secciones exactas del snapshot + confidence), Suite verify-clinical-workflow.js (Supabase y LLM fake)
 
 ### Community 35 - "note-review.ts"
-Cohesion: 0.05
-Nodes (64): AuditoriaPage(), nombreDe(), AgentPairPanel(), AuditFindingList(), AuditSeverityBadge(), SEVERITY_STYLE, CONCEPT_LABEL, COVERAGE_STYLE (+56 more)
+Cohesion: 0.06
+Nodes (55): AgentPairPanel(), CONCEPT_LABEL, COVERAGE_STYLE, EncounterAuditPanel(), fecha(), NoteReviewPanel(), EncounterTemplateSnapshot, AuditFinding (+47 more)
 
 ### Community 36 - "SnippetImportDialog.tsx"
-Cohesion: 0.27
-Nodes (10): Phase, SnippetImportDialog(), MAX_IMPORT_FILES, applySuggestions(), CATEGORIZE_CHUNK, CATEGORIZE_TEXT_CHARS, chunk(), ImportRow (+2 more)
+Cohesion: 0.29
+Nodes (9): Phase, MAX_IMPORT_FILES, applySuggestions(), CATEGORIZE_CHUNK, CATEGORIZE_TEXT_CHARS, chunk(), ImportRow, rowsToSave() (+1 more)
 
 ### Community 37 - "Alternativa A — cola en Postgres + long-poll con claim/lease"
 Cohesion: 0.13
 Nodes (16): Alternativa A — cola en Postgres + long-poll con claim/lease, Alternativa C — híbrida: cola + push + Realtime para ver, POST /api/v1/autofill/match, POST /api/v1/operations/jobs/claim (long-poll ~40 s), ClinicalNoteJson (note_json: sections, discharge, warnings), ensureClinicalDischarge — normalización de discharge, Fase 3 — escritura real en SAP/HIS y fallos parciales, Fase 6 — tiempo real (Alternativa C) (+8 more)
 
-### Community 38 - "entitlements.ts"
-Cohesion: 0.23
-Nodes (9): accessOf(), BillingAccountRow, BillingMode, BillingStatus, deriveAccess(), GRACE_DAYS, StripeStatus, AHORA (+1 more)
+### Community 38 - "reportes/export/route.ts"
+Cohesion: 0.20
+Nodes (14): CABECERAS, dynamic, GET(), ClienteRpc, estadoAdopcion, fetchHospitalDashboard(), cabecerasCsv(), celda() (+6 more)
 
 ### Community 39 - "autenticacion-interna-plan.md — enrolamiento per-install (planificado)"
 Cohesion: 0.16
@@ -409,8 +422,8 @@ Cohesion: 0.20
 Nodes (12): Rate-limit 120/min por IP y riesgo NAT hospitalario, Patrón SSE 50 s + bye (registerWindowsPanelRoutes), Alternativa A — Trabajo persistente + pull (elegida), Alternativa C — Sin tabla nueva (descartada), Command bridge (N3, pospuesto), RPC graph_claim_next_note_export, graph_note_exports — tabla de trabajos (nueva), Idempotencia por UNIQUE(consultation_id) (+4 more)
 
 ### Community 45 - "file-to-text.ts"
-Cohesion: 0.29
-Nodes (11): ACCEPTED_TYPES, decodeEntities(), extractTextFromFile(), filenameToTitle(), htmlToSnippetText(), isDocx(), MammothLike, MAX_SNIPPET_FILE_BYTES (+3 more)
+Cohesion: 0.26
+Nodes (12): ACCEPTED_TYPES, decodeEntities(), extractTextFromFile(), filenameToTitle(), htmlToSnippetText(), isDocx(), MammothLike, MAX_SNIPPET_FILE_BYTES (+4 more)
 
 ### Community 46 - "Superadmin Activity Schema"
 Cohesion: 0.17
@@ -440,9 +453,9 @@ Nodes (10): Tabla audit_events (append-only), Tabla consultations, Modelo multi-
 Cohesion: 0.24
 Nodes (10): useStore — app/app/providers.tsx, Supabase miracle-app (zyvfamlhlmztliexvmej), DIAGNÓSTICO de plataforma (2026-07-06), C2 — Toast afirma exportación que no ocurrió, F1 — Consulta en vivo simulada firmable, F2/P1 — Store bloquea la plataforma al cargar, F9 — 'Exportar a HC' es un placebo, I1 — No hay recuperación de contraseña (+2 more)
 
-### Community 53 - "superadmin/layout.tsx"
-Cohesion: 0.20
-Nodes (13): signOut(), initials(), metadata, SuperadminLayout(), alternar(), escribiendo(), SidebarToggle(), usarAtajo() (+5 more)
+### Community 53 - "encounter-to-consultation.ts"
+Cohesion: 0.36
+Nodes (11): ClinicalEncounter, ClinicalNoteJson, deriveMotivo(), encounterToConsultation(), EncounterToConsultationInput, noteJsonToSections(), specialtyDisplayName(), toStoreConsultationType() (+3 more)
 
 ### Community 54 - "Multi-tenant Organizations Migration"
 Cohesion: 0.36
@@ -456,9 +469,9 @@ Nodes (9): public.superadmin_activity(), auth.users, public.audit_events, public
 Cohesion: 0.25
 Nodes (9): Graph = una función serverless (maxDuration 60 s), Análisis técnico de integración (previo), No existe cola de trabajos en ningún repo, u-windows-backend muerto (deployment ERROR), exportNote() — embudo de exportación, lib/api/clinical.ts — cliente clínico único, registerClinicalRoutes.js (carril /api/clinical), requireAccountAuth (Provider Studio) (+1 more)
 
-### Community 58 - "auth/server.ts"
+### Community 58 - "entitlements.ts"
 Cohesion: 0.15
-Nodes (16): AuditoriaLayout(), ConfiguracionLayout(), ConfiguracionPage(), metadata, NuevaConsultaLayout(), back(), updateUserRole(), ProfileRow (+8 more)
+Nodes (14): BillingBanner(), fechaCorta(), AppRole, AuthenticatedProfile, accessOf(), BillingAccess, BillingAccountRow, BillingMode (+6 more)
 
 ### Community 59 - "Las 7 prioridades reales de la auditoría"
 Cohesion: 0.25
@@ -485,8 +498,8 @@ Cohesion: 0.33
 Nodes (7): Modelo multi-tenant por organización, RLS por organización con helpers en schema private, Tablas public: organizations, profiles, patients, consultations, audit_events, clinical_templates, D1 · Todos pertenecen a una organización, D3 · Nota, códigos y transcripción como JSONB, D4 · Auditoría en tabla aparte append-only, Correcciones: falsos positivos descartados contra la base viva
 
 ### Community 65 - "ConsultationCard.tsx"
-Cohesion: 0.21
-Nodes (12): CardConsultation, ConsultationCard(), rotuloDe(), acotar(), ConsultationCardPreview(), Posicion, ubicar(), STATUS_BAR (+4 more)
+Cohesion: 0.15
+Nodes (17): CardConsultation, ConsultationCard(), rotuloDe(), acotar(), ConsultationCardPreview(), Posicion, ubicar(), CLASES (+9 more)
 
 ### Community 66 - "Consultation Immutability and Addenda"
 Cohesion: 0.25
@@ -509,8 +522,8 @@ Cohesion: 0.33
 Nodes (4): public.agent_links, public.agent_values_for_code(), auth.users, public.organizations
 
 ### Community 71 - "consultation-text.ts"
-Cohesion: 0.16
-Nodes (16): CodeSuggestion(), Bloque, bloquesDeConsulta(), buildConsultationHtml(), buildConsultationPlainText(), ConsultationTextAddendum, ConsultationTextInput, ConsultationTextPatient (+8 more)
+Cohesion: 0.20
+Nodes (12): Bloque, bloquesDeConsulta(), buildConsultationHtml(), buildConsultationPlainText(), ConsultationTextAddendum, ConsultationTextPatient, copyRichTextWithFallback(), copyTextWithFallback() (+4 more)
 
 ### Community 72 - "Superadmin Overview RPC"
 Cohesion: 0.33
@@ -560,69 +573,69 @@ Nodes (3): .github/workflows/ci.yml — lint, typecheck, test, build, completitu
 Cohesion: 0.67
 Nodes (3): rateLimit — doble barrera memoria + Postgres, fail-open, requireApiUser (lib/api/guard.ts), app/api/stt/session/route.ts — servidor Notes → Graph con MIRACLE_API_KEY
 
-### Community 149 - "ReportesView.tsx"
-Cohesion: 0.16
-Nodes (22): AdminView(), metadata, ReportesPage(), AdoptionFooterLink(), AdoptionTable(), TONO, ReportesView(), ClienteRpc (+14 more)
+### Community 149 - "dashboard/page.tsx"
+Cohesion: 0.12
+Nodes (23): AdminView(), MedicoView(), recentPatients(), SupervisorView(), AdoptionFooterLink(), AdoptionTable(), TONO, BarList() (+15 more)
 
-### Community 150 - "patient-identity.ts"
-Cohesion: 0.26
-Nodes (12): buscarSeccion(), documentoEnProsa(), esSeccionDeIdentidad(), extractPatientIdentity(), limpiarDocumento(), limpiarNombre(), NO_ES_NOMBRE, nombreDeSeccion() (+4 more)
+### Community 150 - "rango.ts"
+Cohesion: 0.19
+Nodes (17): metadata, ReportesPage(), ETIQUETA_CORTA, RangePicker(), claveDeMs(), ClavePreset, ClaveRango, construir() (+9 more)
 
-### Community 151 - "providers.tsx"
-Cohesion: 0.14
-Nodes (23): ConsultationAddendum, DURACION_MS, MiracleProvider(), NewPatientInput, rowToConsultation(), rowToPatient(), StoreContext, Toast (+15 more)
+### Community 151 - "superadmin/layout.tsx"
+Cohesion: 0.22
+Nodes (12): initials(), metadata, SuperadminLayout(), alternar(), escribiendo(), SidebarToggle(), usarAtajo(), MobileSidebar() (+4 more)
 
 ### Community 152 - "validate-template-migrations.mjs"
 Cohesion: 0.10
-Nodes (16): errors, expectedInserts, factoryIdToSpecialty, files, inventory, INVENTORY_PATH, laterFiles, MIGRATIONS_DIR (+8 more)
+Nodes (15): errors, expectedInserts, factoryIdToSpecialty, files, inventory, INVENTORY_PATH, laterFiles, MIGRATIONS_DIR (+7 more)
 
-### Community 153 - "signature-hash.test.ts"
-Cohesion: 0.50
-Nodes (6): canonicalSignaturePayload(), computeSignatureHash(), signatureHashMatches(), SignedConsultationContent, cases, VectorCase
+### Community 153 - "consultas/actions.ts"
+Cohesion: 0.35
+Nodes (8): signConsultationNote(), SignNoteResult, canonicalSignaturePayload(), computeSignatureHash(), signatureHashMatches(), SignedConsultationContent, cases, VectorCase
 
-### Community 154 - "onboarding/actions.ts"
-Cohesion: 0.36
-Nodes (6): completeClinicalOnboarding(), OnboardingState, ClinicalOnboardingForm(), initialState, OnboardingPage(), getClinicalSpecialty()
+### Community 154 - "getCurrentProfile"
+Cohesion: 0.29
+Nodes (9): completeClinicalOnboarding(), OnboardingState, ClinicalOnboardingForm(), initialState, OnboardingPage(), createOrganization(), MantenimientoPage(), getCurrentProfile() (+1 more)
 
 ### Community 156 - "20260808140000_protect_org_owner.sql"
 Cohesion: 0.13
 Nodes (11): private.protect_org_owner, private.protect_org_owner_column, prevent_last_admin_removal, private.sync_org_owner(), protect_org_owner, protect_org_owner_column, private.prevent_last_admin_removal, private.sync_org_owner (+3 more)
 
 ### Community 157 - "salud/page.tsx"
-Cohesion: 0.14
-Nodes (19): DashboardSalud, ESTADO_WEB_LABEL, EXPORT_STATUS_LABEL, SuperadminSaludPage(), Alerta, AlertPanel(), ESTILO, ORDEN (+11 more)
+Cohesion: 0.17
+Nodes (16): DashboardSalud, ESTADO_WEB_LABEL, EXPORT_STATUS_LABEL, SuperadminSaludPage(), DeviceRow, DeviceTable(), ActivityUser, ENCOUNTER_PIPELINE_ORDER (+8 more)
 
 ### Community 160 - "Workflow / Step / WorkflowBranch (Neo4j)"
 Cohesion: 0.20
 Nodes (10): AgentTurnService.handleTurn — turno stateless, costura sagrada, assembleTools — catálogo MCP por superficie, CONTEXTO.md — describe mal a Graph ('repo viejo/aparte'), Fase 0 — desbloquear y validar el riesgo caro (PoC SAP), Neo4jWorkflowRepository, windows-client/src/Domain/Protocol.cs — contrato espejo, registerMcpRoutes.js — POST /api/v1/mcp (devuelve el PLAN), R7 — la escritura en SAP no está probada (+2 more)
 
-### Community 162 - "Header.tsx"
-Cohesion: 0.18
-Nodes (9): metadata, BrandMark(), BrandMarkProps, Logo(), LogoProps, Footer(), legalNav, Header() (+1 more)
+### Community 162 - "Logo.tsx"
+Cohesion: 0.21
+Nodes (7): signOut(), metadata, BrandMark(), BrandMarkProps, Logo(), LogoProps, legalNav
 
 ### Community 164 - "dependencies"
 Cohesion: 0.12
 Nodes (17): lucide-react, mammoth, next, dependencies, lucide-react, mammoth, next, react (+9 more)
 
 ### Community 165 - "site.ts"
+Cohesion: 0.12
+Nodes (15): display, metadata, mono, sans, viewport, metadata, allRoles, APP_NAV_GROUP_LABEL (+7 more)
+
+### Community 166 - "supabase/proxy.ts"
+Cohesion: 0.53
+Nodes (4): redirectWithSession(), updateSession(), config, proxy()
+
+### Community 168 - "providers.tsx"
 Cohesion: 0.16
-Nodes (11): display, metadata, mono, sans, viewport, allRoles, appNav, AppNavGroup (+3 more)
-
-### Community 166 - "canAccessPath"
-Cohesion: 0.33
-Nodes (7): canAccessPath(), DEMO_SECTIONS, isDemoSection(), redirectWithSession(), updateSession(), config, proxy()
-
-### Community 168 - "org.ts"
-Cohesion: 0.15
-Nodes (15): back(), texto(), updateOrgSettings(), ConfiguracionForm(), letterheadLines(), limpiar(), ORG_SETTINGS_VACIOS, OrgSettingsRow (+7 more)
+Nodes (14): ConsultationAddendum, DURACION_MS, MiracleProvider(), NewPatientInput, rowToConsultation(), rowToPatient(), StoreContext, StoreValue (+6 more)
 
 ### Community 170 - "TemplateCatalog.tsx"
 Cohesion: 0.10
-Nodes (36): modalities, NuevaConsultaForm(), BuilderState, CreationMode, ExampleDialog(), ScopeFilter, TemplateCatalog(), TemplatePreview() (+28 more)
+Nodes (37): modalities, NuevaConsultaForm(), BuilderState, CreationMode, ScopeFilter, TemplateCatalog(), TemplatePreview(), TemplateRow() (+29 more)
 
 ### Community 172 - "pintarPantalla"
-Cohesion: 0.17
-Nodes (12): aplicarEmpalme(), caraBlink(), caraMirada(), easeEmpalme, estadoCampo(), fovParaAspect(), frame(), muestrearRiel() (+4 more)
+Cohesion: 0.15
+Nodes (13): montar(), aplicarEmpalme(), caraBlink(), caraMirada(), easeEmpalme, estadoCampo(), fovParaAspect(), frame() (+5 more)
 
 ### Community 175 - "Endpoints de plantillas (GET/POST/PUT/DELETE /templates)"
 Cohesion: 0.40
@@ -668,29 +681,33 @@ Nodes (3): name, private, version
 Cohesion: 0.50
 Nodes (3): public.clinical_templates, public.user_template_preferences, auth.users
 
-### Community 194 - "createClient"
-Cohesion: 0.36
-Nodes (6): signConsultationNote(), SignNoteResult, PacientesPage(), GET(), safeNext(), createClient()
+### Community 194 - "supabase/server.ts"
+Cohesion: 0.25
+Nodes (10): back(), updateUserRole(), ProfileRow, roleTone, UsuariosPage(), UsuariosFilters(), createDoctorAccount(), ASSIGNABLE_ROLES (+2 more)
+
+### Community 195 - "AgendaHoy.tsx"
+Cohesion: 0.32
+Nodes (11): AgendaHoy(), FilaRevision, ImportarFotoModal(), sortCitas(), Appointment, appointmentImportFingerprint(), AppointmentStatus, normalizeHora() (+3 more)
 
 ### Community 197 - "20260813120000_user_snippets.sql"
 Cohesion: 0.40
 Nodes (4): on_user_snippets_updated, public.user_snippets, auth.users, private.set_updated_at
 
-### Community 200 - "demo.ts"
-Cohesion: 0.29
-Nodes (5): Timeline(), DEMO_AUDIT_ACCION, DEMO_MOTIVO, AuditEvent, SpeakerTurn
+### Community 200 - "AppShell.tsx"
+Cohesion: 0.27
+Nodes (10): ConsultaDetallePage(), DashboardPage(), useStore(), AppShell(), initials(), NotificationsBell(), RoleSwitcher(), HoverHint() (+2 more)
 
-### Community 201 - "supabase/server.ts"
-Cohesion: 0.09
-Nodes (27): ConsultasFilters(), DoctorOption, AccessRow, ConsultasPage(), ESTADOS, patientName(), Row, ESTADOS (+19 more)
+### Community 201 - "notas/page.tsx"
+Cohesion: 0.19
+Nodes (12): ESTADOS, NotasPage(), patientName(), Row, PacientesSearch(), PacientesPage(), PatientRow, AppPage() (+4 more)
 
 ### Community 202 - "public.superadmin_ai_usage"
 Cohesion: 0.25
 Nodes (7): public.ai_usage_events, public.superadmin_ai_usage(), actual, previo, public.organizations, public.profiles, tot
 
-### Community 203 - "precios/page.tsx"
-Cohesion: 0.24
-Nodes (9): faqItems, metadata, PreciosPage(), PlanCard(), FAQ(), FAQItem, PLAN, precioDisplay() (+1 more)
+### Community 203 - "suscripcion/page.tsx"
+Cohesion: 0.22
+Nodes (11): faqItems, metadata, PreciosPage(), FLASH_ERROR, FLASH_OK, PlanCard(), FAQ(), FAQItem (+3 more)
 
 ### Community 204 - "metrics.ts"
 Cohesion: 0.33
@@ -701,32 +718,36 @@ Cohesion: 0.31
 Nodes (9): lerp(), makeContactShadow(), makeDustAlpha(), makeGlassSmudge(), makeLeafAlpha(), makeRoughnessMap(), makeTerrazzoMap(), makeWoodMap() (+1 more)
 
 ### Community 206 - "consultas/[id]/page.tsx"
-Cohesion: 0.10
-Nodes (12): AuditoriaTab(), COMBINING_MARKS_RE, BADGE_TONE, NoteExportButton(), NoteExportStatus(), NoteSectionView(), TabItem, Tabs() (+4 more)
+Cohesion: 0.09
+Nodes (14): COMBINING_MARKS_RE, CodeSuggestion(), BADGE_TONE, NoteExportButton(), NoteExportStatus(), Timeline(), CatalogCode, CODE_CATALOG (+6 more)
 
-### Community 207 - "contacto/page.tsx"
-Cohesion: 0.14
-Nodes (11): metadata, metadata, metadata, resources, metadata, FeatureCard(), PageHero(), SecurityBadge() (+3 more)
+### Community 207 - "CTA.tsx"
+Cohesion: 0.11
+Nodes (17): metadata, metadata, annotations, metadata, metadata, resources, metadata, CTAProps (+9 more)
 
-### Community 208 - "CommandPalette.tsx"
-Cohesion: 0.15
-Nodes (17): AppSidebar(), CommandPalette(), Grupo, Item, BeforeInstallPromptEvent, InstallAppButton(), icons, isActive() (+9 more)
+### Community 208 - "AppSidebar.tsx"
+Cohesion: 0.27
+Nodes (6): Grupo, Item, BeforeInstallPromptEvent, InstallAppButton(), NAV_ICON_FALLBACK, NAV_ICONS
 
-### Community 209 - "DailyTrend.tsx"
-Cohesion: 0.60
-Nodes (4): DailyTrend(), formatDia(), niceTicks(), PAD
+### Community 209 - "note-from-photo/route.ts"
+Cohesion: 0.16
+Nodes (16): alignSections(), FilledSection, maxDuration, MEDIA_TYPES, parseTemplateSections(), POST(), runtime, sanitizeDynamicSections() (+8 more)
 
 ### Community 210 - "public.create_org_member"
 Cohesion: 0.40
-Nodes (4): public.create_org_member(), auth.users, public.organizations, public.profiles
+Nodes (4): auth.users, public.organizations, public.profiles, public.create_org_member()
 
-### Community 212 - "rango.ts"
-Cohesion: 0.15
-Nodes (23): SuperadminConsumoPage(), SuperadminResumenPage(), ETIQUETA_CORTA, RangePicker(), ConsumoIa, ETIQUETA_FEATURE, formatTokens(), formatUsd() (+15 more)
+### Community 212 - "consumo/page.tsx"
+Cohesion: 0.27
+Nodes (8): SuperadminConsumoPage(), BarItem, BarList(), ConsumoIa, ETIQUETA_FEATURE, formatTokens(), formatUsd(), Kpi
 
-### Community 213 - "MedicalChat.tsx"
-Cohesion: 0.15
-Nodes (10): Failure, MedicalChat(), Msg, RETRYABLE_CODES, SUGERENCIAS, adjustNoteWithAssistant(), CLINICAL_ERROR_MESSAGES, sendAssistantChat() (+2 more)
+### Community 213 - "PlantillasTabs.tsx"
+Cohesion: 0.32
+Nodes (5): AtajosManager(), PlantillasPage(), PlantillasTabs(), TabItem, Tabs()
+
+### Community 216 - "superadmin/consultas/page.tsx"
+Cohesion: 0.19
+Nodes (10): deleteConsultationAsSuperadmin(), ConsultaRow, ESTADOS, OneOrMany, SuperadminConsultasPage(), uno(), DeleteConsultationButton(), FilterBar() (+2 more)
 
 ### Community 217 - "pbr.js"
 Cohesion: 0.67
@@ -735,6 +756,42 @@ Nodes (3): aplicarPBR(), cargadorTex, tex()
 ### Community 218 - "atril"
 Cohesion: 0.67
 Nodes (3): atril(), caja(), std()
+
+### Community 220 - "org.ts"
+Cohesion: 0.31
+Nodes (9): ConfiguracionForm(), letterheadLines(), limpiar(), responsableLabelDe(), rowToOrgSettings(), servicioPorDefecto(), serviciosDe(), tieneEncabezado() (+1 more)
+
+### Community 224 - "auth/server.ts"
+Cohesion: 0.30
+Nodes (7): AuditoriaLayout(), ConfiguracionLayout(), ConfiguracionPage(), metadata, NuevaConsultaLayout(), effectiveRole(), requireRole()
+
+### Community 225 - "ConfiguracionForm.tsx"
+Cohesion: 0.23
+Nodes (5): back(), texto(), updateOrgSettings(), OrgSettings, parseServicios()
+
+### Community 226 - "app/consultas/page.tsx"
+Cohesion: 0.24
+Nodes (9): ConsultasFilters(), DoctorOption, AccessRow, ConsultasPage(), ESTADOS, patientName(), Row, ORG_SETTINGS_COLUMNS (+1 more)
+
+### Community 227 - "MobileBottomNavigation.tsx"
+Cohesion: 0.36
+Nodes (8): AppSidebar(), CommandPalette(), icons, isActive(), MobileBottomNavigation(), primaryHrefs, useNavigationGuard(), visibleAppNav()
+
+### Community 228 - "UnsavedChangesProvider.tsx"
+Cohesion: 0.29
+Nodes (6): AppLayout(), metadata, GuardState, UnsavedChangesContext, UnsavedChangesProvider(), UnsavedChangesValue
+
+### Community 229 - "SnippetPopup.tsx"
+Cohesion: 0.40
+Nodes (4): SnippetPopup(), SnippetPopupMode, SNIPPET_FILE_ACCEPT, categoriesFrom()
+
+### Community 230 - "ConfirmDialog.tsx"
+Cohesion: 0.33
+Nodes (4): ConfirmContext, ConfirmOptions, ConfirmProvider(), Peticion
+
+### Community 231 - "registro/actions.ts"
+Cohesion: 0.83
+Nodes (3): appUrl(), configured(), signUpWithEmail()
 
 ## Ambiguous Edges - Review These
 - `U-Windows-App (cliente C# / U.exe)` → `windows-app sin remoto GitHub (límite del análisis)`  [AMBIGUOUS]
@@ -749,9 +806,9 @@ Nodes (3): atril(), caja(), std()
   public/images/consulta-antes.jpg · relation: references
 
 ## Knowledge Gaps
-- **649 isolated node(s):** `supabase`, `metadata`, `metadata`, `metadata`, `metadata` (+644 more)
+- **653 isolated node(s):** `STATUS_LABEL`, `TYPE_LABEL`, `FlowPhase`, `ReviewView`, `PHASE_LABEL` (+648 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **50 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **52 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -766,7 +823,7 @@ _Questions this graph is uniquely positioned to answer:_
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
 - **What is the exact relationship between `PRD v0 · Miracle como plataforma de inteligencia clínica-operativa` and `Placeholder gris azulado "Foto: el antes" — médico frente a la pantalla`?**
   _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
-- **Why does `createClient()` connect `createClient` to `login/actions.ts`, `dashboard/page.tsx`, `note-review.ts`, `reportError`, `actividad/page.tsx`, `org.ts`, `supabase/server.ts`, `onboarding/actions.ts`, `mantenimiento/page.tsx`, `rango.ts`, `ReportesView.tsx`, `superadmin/layout.tsx`, `getCurrentProfile`, `formatFechaRelativa`, `auth/server.ts`, `salud/page.tsx`, `superadmin/page.tsx`?**
-  _High betweenness centrality (0.038) - this node is a cross-community bridge._
-- **Why does `createClient()` connect `TemplateCatalog.tsx` to `login/actions.ts`, `dashboard/page.tsx`, `note-review.ts`, `SnippetImportDialog.tsx`, `reportError`, `snippets.ts`, `en-vivo/page.tsx`, `clinical.ts`, `ReportesView.tsx`, `providers.tsx`, `LaboratorioWorkspace.tsx`?**
-  _High betweenness centrality (0.019) - this node is a cross-community bridge._
+- **Why does `createClient()` connect `createClient` to `login/actions.ts`, `Card.tsx`, `actividad/page.tsx`, `rango.ts`, `superadmin/layout.tsx`, `superadmin/actions.ts`, `consultas/actions.ts`, `getCurrentProfile`, `formatFechaRelativa`, `salud/page.tsx`, `superadmin/page.tsx`, `auditoria/page.tsx`, `Logo.tsx`, `reportes/export/route.ts`, `supabase/server.ts`, `notas/page.tsx`, `note-from-photo/route.ts`, `consumo/page.tsx`, `superadmin/consultas/page.tsx`, `auth/server.ts`, `ConfiguracionForm.tsx`, `app/consultas/page.tsx`, `registro/actions.ts`?**
+  _High betweenness centrality (0.034) - this node is a cross-community bridge._
+- **Why does `base()` connect `consultation-text.ts` to `public.hospital_dashboard`?**
+  _High betweenness centrality (0.016) - this node is a cross-community bridge._
