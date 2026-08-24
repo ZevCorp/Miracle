@@ -47,6 +47,7 @@ import { reviewGeneratedNote } from "@/lib/clinical/note-review";
 import { buildRedactor } from "@/lib/privacy/redact";
 import { createClient } from "@/lib/supabase/client";
 import type { Patient } from "@/lib/mock";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import {
   adjustNoteWithAssistant,
   ensureClinicalDischarge,
@@ -103,6 +104,7 @@ const PHASE_LABEL: Record<Exclude<FlowPhase, "idle" | "saving_private">, string>
 };
 
 function ConsultaActivaInner() {
+  const confirm = useConfirm();
   const router = useRouter();
   const sp = useSearchParams();
   const encounterId = sp.get("encounter");
@@ -365,10 +367,13 @@ function ConsultaActivaInner() {
       return;
     }
     if (note && noteDirty) {
-      const confirmed = window.confirm(
-        "Regenerar la nota reemplaza las ediciones que no hayas guardado. ¿Continuar?",
-      );
-      if (!confirmed) return;
+      const ok = await confirm({
+        titulo: "¿Regenerar la nota?",
+        descripcion: "Se reemplazarán las ediciones que no hayas guardado.",
+        confirmLabel: "Regenerar",
+        tono: "peligro",
+      });
+      if (!ok) return;
     }
 
     setFlowError(null);
@@ -696,7 +701,13 @@ function ConsultaActivaInner() {
 
   async function regenerarConPlantilla() {
     if (!encounterId || !selectedTemplateId || busy) return;
-    if (!window.confirm("Se creará una nueva revisión con la misma transcripción. La nota original se conservará en auditoría.")) return;
+    const ok = await confirm({
+      titulo: "¿Regenerar con otra plantilla?",
+      descripcion:
+        "Se creará una nueva revisión con la misma transcripción. La nota original se conserva en auditoría.",
+      confirmLabel: "Regenerar",
+    });
+    if (!ok) return;
     setPhase("regenerating");
     setFlowError(null);
     try {
@@ -719,10 +730,14 @@ function ConsultaActivaInner() {
     const instruction = aiInstruction.trim();
     if (!encounterId || !note || busy || !instruction) return;
     if (noteDirty) {
-      const confirmed = window.confirm(
-        "El ajuste se calcula sobre la última nota guardada y reemplazará tus cambios sin guardar. ¿Continuar?",
-      );
-      if (!confirmed) return;
+      const ok = await confirm({
+        titulo: "Tienes cambios sin guardar",
+        descripcion:
+          "El ajuste se calcula sobre la última nota guardada, así que reemplazará esos cambios.",
+        confirmLabel: "Ajustar de todos modos",
+        tono: "peligro",
+      });
+      if (!ok) return;
     }
     setPhase("adjusting");
     setFlowError(null);
@@ -748,10 +763,14 @@ function ConsultaActivaInner() {
   async function applyVoiceInstruction(sectionTitle: string, instruction: string) {
     if (!encounterId || !note || busy) return;
     if (noteDirty) {
-      const confirmed = window.confirm(
-        "El cambio por voz se calcula sobre la última nota guardada y puede reemplazar ediciones sin guardar. ¿Continuar?",
-      );
-      if (!confirmed) return;
+      const ok = await confirm({
+        titulo: "Tienes cambios sin guardar",
+        descripcion:
+          "El cambio por voz se calcula sobre la última nota guardada y puede reemplazar esas ediciones.",
+        confirmLabel: "Continuar",
+        tono: "peligro",
+      });
+      if (!ok) return;
     }
     setPhase("adjusting");
     setFlowError(null);

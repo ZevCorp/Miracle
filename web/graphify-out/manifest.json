@@ -115,8 +115,8 @@
     "semantic_hash": ""
   },
   "app/app/consultas/[id]/page.tsx": {
-    "mtime": 1786465710.7326157,
-    "ast_hash": "b43590440ee870d05dcd96d5ef0ab867",
+    "mtime": 1787581598.788793,
+    "ast_hash": "17d4beed5e4c130aef655fca1118b92b",
     "semantic_hash": ""
   },
   "app/app/consultas/actions.ts": {
@@ -125,8 +125,8 @@
     "semantic_hash": "c06cd84a142c90e329b391747d49b86f"
   },
   "app/app/consultas/en-vivo/page.tsx": {
-    "mtime": 1786465710.7326157,
-    "ast_hash": "2d238148c33dbf55939a258197a6a25d",
+    "mtime": 1787582593.9799318,
+    "ast_hash": "fa94e092a183905baa4ce86e526fb921",
     "semantic_hash": ""
   },
   "app/app/consultas/nueva/layout.tsx": {
@@ -140,13 +140,13 @@
     "semantic_hash": ""
   },
   "app/app/consultas/page.tsx": {
-    "mtime": 1787271960.786777,
-    "ast_hash": "e9e1e6d685e5d8693bba3f422d73260e",
+    "mtime": 1787581003.0776014,
+    "ast_hash": "f9554c992aa44113afc3a1f57ed9d39d",
     "semantic_hash": ""
   },
   "app/app/dashboard/page.tsx": {
-    "mtime": 1787271336.1279948,
-    "ast_hash": "3f344d5c464791b5606743d364a4d7e4",
+    "mtime": 1787581247.652619,
+    "ast_hash": "c9c10f3cec84aea47acb5b166e8a754f",
     "semantic_hash": ""
   },
   "app/app/error.tsx": {
@@ -165,8 +165,8 @@
     "semantic_hash": ""
   },
   "app/app/notas/page.tsx": {
-    "mtime": 1787271960.786777,
-    "ast_hash": "3bc1cb14a8ab6c0e7f524c920f7c7640",
+    "mtime": 1787581077.4016993,
+    "ast_hash": "f763d35fb609bdd9c276a03bf1311f13",
     "semantic_hash": ""
   },
   "app/app/pacientes/PacientesSearch.tsx": {
@@ -180,13 +180,13 @@
     "semantic_hash": "4940510f8ac3149ace7795936bd1c2af"
   },
   "app/app/pacientes/page.tsx": {
-    "mtime": 1785556274.4065373,
-    "ast_hash": "77b420689dcce963fc36ed0fded299e8",
-    "semantic_hash": "77b420689dcce963fc36ed0fded299e8"
+    "mtime": 1787581091.496994,
+    "ast_hash": "23a021395e77beb3248eacf8dcf7b908",
+    "semantic_hash": ""
   },
   "app/app/plantillas/TemplateCatalog.tsx": {
-    "mtime": 1786726682.7816875,
-    "ast_hash": "4b55cfe84218dbd17ec62dcd0d9ef7ff",
+    "mtime": 1787582318.4140358,
+    "ast_hash": "4bf0ad73170324203727cb693e66c7b2",
     "semantic_hash": ""
   },
   "app/app/plantillas/page.tsx": {
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "app/app/providers.tsx": {
-    "mtime": 1787276091.5925312,
-    "ast_hash": "d679a4ff9dad7333a445ac46dbeac59e",
+    "mtime": 1787582226.2042167,
+    "ast_hash": "7886ef8e9a1f8d9da4b6b15d8bc1f9cc",
     "semantic_hash": ""
   },
   "app/app/reportes/page.tsx": {
@@ -405,8 +405,8 @@
     "semantic_hash": ""
   },
   "components/app/AppSidebar.tsx": {
-    "mtime": 1787276070.3179555,
-    "ast_hash": "a4d39b86f538e9d37c561a5f192aa5d9",
+    "mtime": 1787582801.4581919,
+    "ast_hash": "ce6832c60d6adb571647479ecc9a3e8a",
     "semantic_hash": ""
   },
   "components/app/AuditFindings.tsx": {
@@ -430,8 +430,8 @@
     "semantic_hash": "a557e7d8ab0505798e7c472239fde064"
   },
   "components/app/CommandPalette.tsx": {
-    "mtime": 1787276231.807757,
-    "ast_hash": "0e3e3b24ea17e74bef330d3383955ba8",
+    "mtime": 1787580750.6787925,
+    "ast_hash": "155d148c263980d5416c70f0f9d9ce91",
     "semantic_hash": ""
   },
   "components/app/ConsultationCard.tsx": {
@@ -475,8 +475,8 @@
     "semantic_hash": "d59b4c5c15ab9126a6ff3d0d84a7978c"
   },
   "components/app/MobileBottomNavigation.tsx": {
-    "mtime": 1786725738.8497064,
-    "ast_hash": "96562ba6fba5fdfb762db5650cc542fd",
+    "mtime": 1787582844.2288213,
+    "ast_hash": "1cfe17fe1ae0a41c098c2b91cea0e2a1",
     "semantic_hash": ""
   },
   "components/app/NoteExportStatus.tsx": {
@@ -540,9 +540,9 @@
     "semantic_hash": "898d08ed89d4a13ce0de2be91678e1ed"
   },
   "components/app/TemplateBuilderPanel.tsx": {
-    "mtime": 1785556274.442856,
-    "ast_hash": "3336c03a26401c6bb89d844463aabbc3",
-    "semantic_hash": "3336c03a26401c6bb89d844463aabbc3"
+    "mtime": 1787582663.6603456,
+    "ast_hash": "5ce9a0829a15736ab496e931f2c75f8b",
+    "semantic_hash": ""
   },
   "components/app/Timeline.tsx": {
     "mtime": 1785556274.442856,
@@ -550,9 +550,9 @@
     "semantic_hash": "5cb449b89f79eb79d4262fde9fb0aab6"
   },
   "components/app/UnsavedChangesProvider.tsx": {
-    "mtime": 1785556274.4438682,
-    "ast_hash": "ddc9b34021a0b51b90b601ec7065208f",
-    "semantic_hash": "ddc9b34021a0b51b90b601ec7065208f"
+    "mtime": 1787582759.974152,
+    "ast_hash": "e4287192769ad7bf722878e502c21ca0",
+    "semantic_hash": ""
   },
   "components/app/Waveform.tsx": {
     "mtime": 1783367405.1133623,
@@ -785,8 +785,8 @@
     "semantic_hash": "66352abdc96cee6334c9d8ddd2a780fc"
   },
   "lib/api/clinical.ts": {
-    "mtime": 1786465710.7483428,
-    "ast_hash": "be7dd545b887d7d01e25023ab99aea5e",
+    "mtime": 1787583334.4723566,
+    "ast_hash": "941a879437059404cc2e15c9ae934bf0",
     "semantic_hash": ""
   },
   "lib/api/guard.ts": {
@@ -1010,8 +1010,8 @@
     "semantic_hash": "cd1487b25595cacc5a85aa7b221ecaf0"
   },
   "next.config.ts": {
-    "mtime": 1787201188.0266788,
-    "ast_hash": "ca1291785a78d2c1fb3d2189dfd19a53",
+    "mtime": 1787282429.0250058,
+    "ast_hash": "facdcb2c76578b6e0edd3cecd4867a5e",
     "semantic_hash": ""
   },
   "package.json": {
@@ -1280,9 +1280,9 @@
     "semantic_hash": "1ad3410dc64e5d5773456d231fe54da8"
   },
   "tests/clinical-api.test.ts": {
-    "mtime": 1785867625.57293,
-    "ast_hash": "1d76a93698d7032521018c0317f73698",
-    "semantic_hash": "1d76a93698d7032521018c0317f73698"
+    "mtime": 1787582144.7669518,
+    "ast_hash": "9722f0f6c21943894a764213caf0aa5f",
+    "semantic_hash": ""
   },
   "tests/clinical-assistant.test.ts": {
     "mtime": 1784090721.3066306,
@@ -1485,9 +1485,9 @@
     "semantic_hash": "1d0a8d39bfa2afb63ab9eb356b313b11"
   },
   "docs/pendiente-patologia-api-key.md": {
-    "mtime": 1785556274.4553156,
-    "ast_hash": "59979e323d4a1f081ce4304d43c8867f",
-    "semantic_hash": "59979e323d4a1f081ce4304d43c8867f"
+    "mtime": 1787583288.3790424,
+    "ast_hash": "3577f8e65fcfff163b35b5e261176ca2",
+    "semantic_hash": ""
   },
   "docs/prd-miracle-v0.md": {
     "mtime": 1782577947.807387,
@@ -1720,8 +1720,8 @@
     "semantic_hash": ""
   },
   "scripts/validate-template-migrations.mjs": {
-    "mtime": 1786466957.5135593,
-    "ast_hash": "f0be4caf62aacc5cb620b9e49aa0cd46",
+    "mtime": 1787582534.2314332,
+    "ast_hash": "ed328bdb683f9fd05ff5b614cfd1fde7",
     "semantic_hash": ""
   },
   "supabase/migrations/20260811100000_billing_accounts.sql": {
@@ -1825,8 +1825,8 @@
     "semantic_hash": ""
   },
   "app/app/plantillas/AtajosManager.tsx": {
-    "mtime": 1786687786.9288568,
-    "ast_hash": "4b3c1065f0ea2202355094ff1ecb8748",
+    "mtime": 1787582318.4140358,
+    "ast_hash": "593be58954a7e268400a369539d5f273",
     "semantic_hash": ""
   },
   "app/app/plantillas/PlantillasTabs.tsx": {
@@ -2062,6 +2062,26 @@
   "components/app/nav-icons.ts": {
     "mtime": 1787276038.6359642,
     "ast_hash": "06f7a19b75fcfd2b278fa210bc789f2a",
+    "semantic_hash": ""
+  },
+  "components/app/QueryErrorBanner.tsx": {
+    "mtime": 1787580933.4528048,
+    "ast_hash": "475d79f80a7da3df50eb82692705a349",
+    "semantic_hash": ""
+  },
+  "components/ui/ConfirmDialog.tsx": {
+    "mtime": 1787583153.9718325,
+    "ast_hash": "232dbfea2bd166883fa728d2d267f455",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260824100000_fix_create_org_member_tokens.sql": {
+    "mtime": 1787582050.1249619,
+    "ast_hash": "b44094db311add4cb0a6ca1e8aaff437",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260824110000_templates_urgencias_refuerzo.sql": {
+    "mtime": 1787582462.7998056,
+    "ast_hash": "e90592dccf82ce81286ea95c140c8fa6",
     "semantic_hash": ""
   }
 }

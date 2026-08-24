@@ -143,7 +143,7 @@ function MedicoView({
   pendientes: Consultation[];
   consultations: Consultation[];
 }) {
-  const { getPatient, orgKind } = useStore();
+  const { getPatient, orgKind, loadError, retryLoad } = useStore();
   // El rótulo es propio de una institución; ante orgKind desconocido se asume
   // institución, igual que en visibleAppNav (lib/site.ts).
   const muestraRotulo = (orgKind ?? "institution") === "institution";
@@ -213,6 +213,21 @@ function MedicoView({
                   Ver las {pendientes.length - 5} restantes
                 </Link>
               ) : null}
+            </div>
+          ) : loadError ? (
+            /* Sin esto, un fallo de lectura se celebraba como "Estás al día" —
+               justo la respuesta contraria a la verdad. */
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-warning-soft text-warning">
+                <AlertTriangle size={24} />
+              </span>
+              <p className="font-medium text-deep">No se pudieron cargar tus notas</p>
+              <p className="text-sm text-muted">
+                No sabemos si tienes pendientes: no fue posible leerlas.
+              </p>
+              <button type="button" onClick={retryLoad} className="clinical-secondary mt-1">
+                Reintentar
+              </button>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 py-8 text-center">

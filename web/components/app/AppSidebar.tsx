@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { InstallAppButton } from "@/components/app/InstallAppButton";
@@ -61,7 +61,8 @@ export function AppSidebar({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const { confirmLeave } = useNavigationGuard();
+  const { hasGuard, guardedNavigate } = useNavigationGuard();
+  const router = useRouter();
 
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-text">
@@ -101,11 +102,18 @@ export function AppSidebar({
                         pathname === item.href || pathname.startsWith(item.href + "/")
                       }
                       onClick={(e) => {
-                        if (!confirmLeave()) {
-                          e.preventDefault();
+                        // Con cambios sin guardar se frena el enlace y se
+                        // navega a mano tras confirmar: el diálogo es
+                        // asíncrono y el <Link> no sabe esperarlo.
+                        if (!hasGuard()) {
+                          onNavigate?.();
                           return;
                         }
-                        onNavigate?.();
+                        e.preventDefault();
+                        guardedNavigate(() => {
+                          onNavigate?.();
+                          router.push(item.href);
+                        });
                       }}
                     />
                   </li>

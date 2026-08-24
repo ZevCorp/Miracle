@@ -66,6 +66,34 @@ export function CommandPalette({
     return () => window.removeEventListener("keydown", onKey);
   }, [closePalette, open, onOpenChange]);
 
+  /**
+   * Identidad de cada consulta, calculada UNA vez por apertura (o cuando cambian
+   * los datos), no en cada tecla.
+   *
+   * `extractPatientIdentity` recorre las secciones de la nota, y el store guarda
+   * hasta 300 consultas: hacerlo dentro del memo de la búsqueda significaba 300
+   * recorridos por pulsación, justo en la pantalla que debe sentirse instantánea.
+   */
+  const indiceConsultas = useMemo(
+    () =>
+      open
+        ? consultations.map((c) => {
+            // El nombre casi nunca está en `patients`: la consulta no obliga a
+            // asociar un paciente registrado. Se cae a lo que diga la nota,
+            // igual que hacen las tarjetas de la lista.
+            const identidad = extractPatientIdentity(c.note);
+            return {
+              c,
+              nombre: getPatient(c.pacienteId)?.nombre ?? identidad.nombre,
+              documento: identidad.documento ?? "",
+              rotulo:
+                c.note.find((s) => s.id === "rotulo" || s.titulo === "Rótulo")?.texto ?? "",
+            };
+          })
+        : [],
+    [open, consultations, getPatient],
+  );
+
   const grupos = useMemo<Grupo[]>(() => {
     const q = query.trim();
 
@@ -115,17 +143,7 @@ export function CommandPalette({
         icon: User,
       }));
 
-    const cons: Item[] = consultations
-      .map((c) => {
-        // El nombre casi nunca está en `patients`: la consulta no obliga a
-        // asociar un paciente registrado. Se cae a lo que diga la nota, igual
-        // que hacen las tarjetas de la lista.
-        const identidad = extractPatientIdentity(c.note);
-        const nombre = getPatient(c.pacienteId)?.nombre ?? identidad.nombre;
-        const rotulo =
-          c.note.find((s) => s.id === "rotulo" || s.titulo === "Rótulo")?.texto ?? "";
-        return { c, nombre, documento: identidad.documento ?? "", rotulo };
-      })
+    const cons: Item[] = indiceConsultas
       .filter(
         ({ c, nombre, documento, rotulo }) =>
           !q || matchesQuery(`${nombre ?? ""} ${documento} ${c.motivo} ${rotulo}`, q),
@@ -147,7 +165,7 @@ export function CommandPalette({
       { titulo: "Pacientes", items: pac },
       { titulo: "Consultas", items: cons },
     ].filter((g) => g.items.length > 0);
-  }, [query, patients, consultations, getPatient, role, isDemo, orgKind, professionalType]);
+  }, [query, patients, indiceConsultas, role, isDemo, orgKind, professionalType]);
 
   // Lista plana: es sobre la que se mueven las flechas, atravesando los grupos.
   const planos = useMemo(() => grupos.flatMap((g) => g.items), [grupos]);

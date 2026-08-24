@@ -110,12 +110,15 @@ export default function ConsultaDetallePage() {
     showToast,
     loading,
     ensureTranscript,
+    transcriptFailed,
     role,
     org,
   } = useStore();
   const [tab, setTab] = useState("historia");
   const [aiEditing, setAiEditing] = useState(false);
   const [addenda, setAddenda] = useState<ConsultationAddendum[]>([]);
+  // Distinto de "no tiene": aquí guardamos que no se PUDO leer.
+  const [addendaError, setAddendaError] = useState(false);
   const [focusAddenda, setFocusAddenda] = useState(false);
 
   const c = getConsultation(id);
@@ -127,7 +130,9 @@ export default function ConsultaDetallePage() {
     if (!signed) return;
     let ignore = false;
     listAddenda(id).then((rows) => {
-      if (!ignore) setAddenda(rows);
+      if (ignore) return;
+      setAddendaError(rows === null);
+      setAddenda(rows ?? []);
     });
     return () => {
       ignore = true;
@@ -643,7 +648,11 @@ export default function ConsultaDetallePage() {
           <ResumenTab texto={c.resumen} onCopy={() => void copyResumen()} />
         ) : null}
         {tab === "transcripcion" ? (
-          <TranscripcionTab consultation={c} ensureTranscript={ensureTranscript} />
+          <TranscripcionTab
+            consultation={c}
+            ensureTranscript={ensureTranscript}
+            fallo={Boolean(transcriptFailed[c.id])}
+          />
         ) : null}
         {tab === "auditoria" ? <AuditoriaTab consultation={c} /> : null}
       </div>
@@ -651,6 +660,13 @@ export default function ConsultaDetallePage() {
       {signed ? (
         <AddendaSection
           addenda={addenda}
+          addendaError={addendaError}
+          onRetryAddenda={() => {
+            void listAddenda(id).then((rows) => {
+              setAddendaError(rows === null);
+              setAddenda(rows ?? []);
+            });
+          }}
           autoFocus={focusAddenda}
           // Redactar una adenda queda para quien ya podía hacerlo antes de
           // esta cuenta (médico, admin, supervisor); la secretaria (solo
@@ -693,11 +709,15 @@ export default function ConsultaDetallePage() {
 // como adendas append-only con autor y fecha automáticos, sin tocar el original.
 function AddendaSection({
   addenda,
+  addendaError,
+  onRetryAddenda,
   autoFocus,
   canAdd,
   onAdd,
 }: {
   addenda: ConsultationAddendum[];
+  addendaError: boolean;
+  onRetryAddenda: () => void;
   autoFocus: boolean;
   canAdd: boolean;
   onAdd: (contenido: string) => Promise<boolean>;
@@ -750,6 +770,19 @@ function AddendaSection({
             </li>
           ))}
         </ol>
+      ) : addendaError ? (
+        /* Afirmar "no tiene adendas" sobre una nota firmada cuando la consulta
+           falló sería un error de contenido en un documento clínico-legal. */
+        <p className="mt-4 rounded-md border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
+          No se pudieron cargar las adendas de esta nota.{" "}
+          <button
+            type="button"
+            onClick={onRetryAddenda}
+            className="font-semibold underline underline-offset-2"
+          >
+            Reintentar
+          </button>
+        </p>
       ) : (
         <p className="mt-4 rounded-md border border-dashed border-line px-4 py-3 text-sm text-muted">
           Esta nota aún no tiene adendas.
@@ -1096,9 +1129,11 @@ function ResumenTab({ texto, onCopy }: { texto: string; onCopy: () => void }) {
 function TranscripcionTab({
   consultation,
   ensureTranscript,
+  fallo,
 }: {
   consultation: Consultation;
   ensureTranscript: (id: string) => Promise<void>;
+  fallo: boolean;
 }) {
   // La transcripción no viene en la carga inicial (es el campo más pesado);
   // se trae al abrir esta pestaña.
@@ -1124,6 +1159,25 @@ function TranscripcionTab({
   }
 
   if (!consultation.transcript.length) {
+    // "No se pudo leer" y "no existe" son respuestas distintas: la
+    // transcripción es la evidencia de la que se derivó la nota.
+    if (fallo) {
+      return (
+        <p className="rounded-lg border border-warning/40 bg-warning-soft p-6 text-sm text-warning">
+          No se pudo cargar la transcripción de esta consulta.{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setFetching(true);
+              void ensureTranscript(consultation.id).finally(() => setFetching(false));
+            }}
+            className="font-semibold underline underline-offset-2"
+          >
+            Reintentar
+          </button>
+        </p>
+      );
+    }
     return (
       <p className="rounded-lg border border-line bg-surface p-6 text-sm text-muted">
         Esta consulta no tiene transcripción registrada.

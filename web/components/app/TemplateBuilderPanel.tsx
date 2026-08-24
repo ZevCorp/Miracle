@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import {
   CheckCircle2,
   ChevronDown,
@@ -81,6 +82,7 @@ export function TemplateBuilderPanel({
   onClose: () => void;
   onSaved: (template: ClinicalTemplate, action: "created" | "updated") => void;
 }) {
+  const confirm = useConfirm();
   const resolvedSpecialty = useMemo(() => {
     // La especialidad inicial sale de la plantilla origen o del filtro actual;
     // se resuelve a un code con guiones (el de specialties.ts) para los selects.
@@ -137,7 +139,7 @@ export function TemplateBuilderPanel({
   // Cerrar con Escape (respetando el aviso de cambios sin guardar).
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") attemptClose();
+      if (event.key === "Escape") void attemptClose();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -148,12 +150,15 @@ export function TemplateBuilderPanel({
     if (!dirty) setDirty(true);
   }
 
-  function attemptClose() {
-    if (
-      dirty &&
-      !window.confirm("Tienes cambios sin guardar. ¿Cerrar de todos modos?")
-    ) {
-      return;
+  async function attemptClose() {
+    if (dirty) {
+      const ok = await confirm({
+        titulo: "Tienes cambios sin guardar",
+        descripcion: "Si cierras ahora, se pierden los cambios de esta plantilla.",
+        confirmLabel: "Cerrar sin guardar",
+        tono: "peligro",
+      });
+      if (!ok) return;
     }
     onClose();
   }
@@ -228,7 +233,7 @@ export function TemplateBuilderPanel({
       <button
         type="button"
         aria-label="Cerrar"
-        onClick={attemptClose}
+        onClick={() => void attemptClose()}
         className="absolute inset-0 bg-overlay backdrop-blur-[1px]"
       />
 
@@ -248,7 +253,7 @@ export function TemplateBuilderPanel({
           </div>
           <button
             type="button"
-            onClick={attemptClose}
+            onClick={() => void attemptClose()}
             aria-label="Cerrar"
             className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-ice-soft hover:text-deep"
           >
@@ -385,7 +390,7 @@ export function TemplateBuilderPanel({
         <div className="mobile-bottom-sheet grid grid-cols-2 gap-2 border-t border-line bg-surface px-4 py-3 sm:flex sm:items-center sm:justify-end sm:px-7 sm:py-4">
           <button
             type="button"
-            onClick={attemptClose}
+            onClick={() => void attemptClose()}
             className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-deep hover:border-mist"
           >
             Cancelar

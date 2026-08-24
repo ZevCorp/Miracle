@@ -21,6 +21,8 @@ import {
   type Patient,
   type Role,
 } from "@/lib/mock";
+import { X } from "lucide-react";
+import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 import { createClient } from "@/lib/supabase/client";
 import { getClinicalEncounter } from "@/lib/api/clinical";
 import { transcriptTextToTurns } from "@/lib/clinical/encounter-to-consultation";
@@ -39,7 +41,23 @@ interface Toast {
   id: number;
   message: string;
   tone: ToastTone;
+  /** Se guarda para poder reiniciar la cuenta al soltar el cursor. */
+  duracionMs: number;
 }
+
+/** Más de tres avisos a la vez tapan la pantalla en vez de informar. */
+const TOPE_AVISOS = 3;
+
+/**
+ * Una advertencia dura el doble: "No se pudo guardar la nota" no puede
+ * desaparecer al mismo ritmo que "Código agregado". Si el médico estaba
+ * mirando al paciente, el aviso de fallo tiene que seguir ahí al volver.
+ */
+const DURACION_MS: Record<ToastTone, number> = {
+  success: 3200,
+  info: 3200,
+  warning: 6500,
+};
 
 interface NewPatientInput {
   nombre: string;
@@ -86,10 +104,16 @@ interface StoreValue {
    */
   org: OrgSettings;
   loading: boolean;
+  /** true si la carga inicial falló: las listas están vacías por error, no porque no haya datos. */
+  loadError: boolean;
+  /** Vuelve a intentar la carga inicial. */
+  retryLoad: () => void;
   /** true mientras haya escrituras pendientes de sincronizar con el servidor. */
   syncing: boolean;
   /** Carga bajo demanda la transcripción de una consulta (no viene en la carga inicial). */
   ensureTranscript: (id: string) => Promise<void>;
+  /** Consultas cuya transcripción falló al leerse (≠ "no tiene transcripción"). */
+  transcriptFailed: Record<string, true>;
   getConsultation: (id: string) => Consultation | undefined;
   getPatient: (id: string | null | undefined) => Patient | undefined;
   getMedicoName: (id: string) => string | undefined;
@@ -136,15 +160,17 @@ interface StoreValue {
    * solo cuando Supabase confirmó la escritura.
    */
   upsertConsultation: (c: Consultation) => Promise<{ ok: boolean }>;
-  /** Adendas de una nota firmada (bajo demanda; no viven en Consultation). */
-  listAddenda: (consultationId: string) => Promise<ConsultationAddendum[]>;
+  /** Adendas de una nota firmada (bajo demanda; no viven en Consultation).
+   *  `null` = no se pudo leer, que NO es lo mismo que "no tiene". */
+  listAddenda: (consultationId: string) => Promise<ConsultationAddendum[] | null>;
   addAddendum: (
     consultationId: string,
     contenido: string,
   ) => Promise<{ ok: boolean; addendum?: ConsultationAddendum }>;
   resetDemo: () => void;
-  toast: Toast | null;
+  toasts: Toast[];
   showToast: (message: string, tone?: ToastTone) => void;
+  dismissToast: (id: number) => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -235,17 +261,72 @@ export function MiracleProvider({
   >({});
   const [org, setOrg] = useState<OrgSettings>(ORG_SETTINGS_VACIOS);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<Toast | null>(null);
+  // Si la carga inicial falla, el store se queda con listas vacías — y sin esta
+  // bandera el panel diría "Estás al día" cuando en realidad no pudo leer nada.
+  const [loadError, setLoadError] = useState(false);
+  // Consultas cuya transcripción no se pudo leer. Sin esto, un fallo de red se
+  // mostraba como "esta consulta no tiene transcripción", que es afirmar algo
+  // falso sobre la evidencia de la que se derivó una nota clínica.
+  const [transcriptFailed, setTranscriptFailed] = useState<Record<string, true>>({});
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  // Ids de un contador, no de Date.now(): dos avisos en el mismo milisegundo
+  // (guardar + confirmar) colisionaban y uno cerraba al otro.
+  const idAvisoRef = useRef(0);
+  const temporizadoresRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
 
   const consultationsRef = useRef<Consultation[]>([]);
   useEffect(() => {
     consultationsRef.current = consultations;
   }, [consultations]);
 
-  const showToast = useCallback((message: string, tone: ToastTone = "success") => {
-    const id = Date.now();
-    setToast({ id, message, tone });
-    setTimeout(() => setToast((t) => (t?.id === id ? null : t)), 3200);
+  const dismissToast = useCallback((id: number) => {
+    const pendiente = temporizadoresRef.current.get(id);
+    if (pendiente) {
+      clearTimeout(pendiente);
+      temporizadoresRef.current.delete(id);
+    }
+    setToasts((lista) => lista.filter((t) => t.id !== id));
+  }, []);
+
+  const programarCierre = useCallback(
+    (id: number, ms: number) => {
+      const pendiente = temporizadoresRef.current.get(id);
+      if (pendiente) clearTimeout(pendiente);
+      temporizadoresRef.current.set(id, setTimeout(() => dismissToast(id), ms));
+    },
+    [dismissToast],
+  );
+
+  const pausarCierre = useCallback((id: number) => {
+    const pendiente = temporizadoresRef.current.get(id);
+    if (pendiente) {
+      clearTimeout(pendiente);
+      temporizadoresRef.current.delete(id);
+    }
+  }, []);
+
+  const showToast = useCallback(
+    (message: string, tone: ToastTone = "success") => {
+      const id = (idAvisoRef.current += 1);
+      const duracionMs = DURACION_MS[tone];
+      // Se APILAN: antes había una sola ranura y un aviso nuevo borraba al
+      // anterior, así que un éxito podía tapar una advertencia sin que nadie
+      // la leyera.
+      setToasts((lista) => {
+        const siguiente = [...lista, { id, message, tone, duracionMs }];
+        return siguiente.slice(-TOPE_AVISOS);
+      });
+      programarCierre(id, duracionMs);
+    },
+    [programarCierre],
+  );
+
+  useEffect(() => {
+    const temporizadores = temporizadoresRef.current;
+    return () => {
+      for (const t of temporizadores.values()) clearTimeout(t);
+      temporizadores.clear();
+    };
   }, []);
 
   // ---- Carga inicial desde Supabase ----------------------------------------
@@ -324,6 +405,16 @@ export function MiracleProvider({
     setLoading(false);
   }, [supabase]);
 
+  const retryLoad = useCallback(() => {
+    setLoadError(false);
+    setLoading(true);
+    void load().catch((e) => {
+      console.error("[store] reintento de carga falló", e);
+      setLoadError(true);
+      setLoading(false);
+    });
+  }, [load]);
+
   useEffect(() => {
     // Limpieza: el store anterior guardaba en localStorage; ya no se usa.
     try {
@@ -335,9 +426,13 @@ export function MiracleProvider({
     (async () => {
       try {
         await load();
+        if (!ignore) setLoadError(false);
       } catch (e) {
         console.error("[store] carga inicial falló", e);
-        if (!ignore) setLoading(false);
+        if (!ignore) {
+          setLoadError(true);
+          setLoading(false);
+        }
       }
     })();
     return () => {
@@ -420,8 +515,15 @@ export function MiracleProvider({
       if (error) {
         transcriptFetched.current.delete(id);
         console.error("[store] transcript", error.message);
+        setTranscriptFailed((m) => ({ ...m, [id]: true }));
         return;
       }
+      setTranscriptFailed((m) => {
+        if (!m[id]) return m;
+        const resto = { ...m };
+        delete resto[id];
+        return resto;
+      });
       let transcript = (data?.transcript as Consultation["transcript"]) ?? [];
 
       // 2) Respaldo: consultas antiguas cuya transcripción quedó solo en el backend
@@ -757,7 +859,7 @@ export function MiracleProvider({
   );
 
   const listAddenda = useCallback(
-    async (consultationId: string): Promise<ConsultationAddendum[]> => {
+    async (consultationId: string): Promise<ConsultationAddendum[] | null> => {
       const { data, error } = await supabase
         .from("consultation_addenda")
         .select("id, consultation_id, author_name, contenido, created_at")
@@ -765,7 +867,10 @@ export function MiracleProvider({
         .order("created_at", { ascending: true });
       if (error) {
         console.error("[store] listar adendas", error.message);
-        return [];
+        // null, NO lista vacía: devolver [] hacía que la pantalla afirmara
+        // "esta nota no tiene adendas" sobre un documento clínico firmado
+        // cuando lo único cierto es que no se pudo leer.
+        return null;
       }
       return (data ?? []).map((r) => ({
         id: r.id,
@@ -1018,8 +1123,11 @@ export function MiracleProvider({
       professionalType,
       org,
       loading,
+      loadError,
+      retryLoad,
       syncing: pendingWrites > 0,
       ensureTranscript,
+      transcriptFailed,
       getConsultation,
       getPatient,
       getMedicoName,
@@ -1038,8 +1146,9 @@ export function MiracleProvider({
       listAddenda,
       addAddendum,
       resetDemo,
-      toast,
+      toasts,
       showToast,
+      dismissToast,
     }),
     [
       consultations,
@@ -1050,8 +1159,11 @@ export function MiracleProvider({
       professionalType,
       org,
       loading,
+      loadError,
+      retryLoad,
       pendingWrites,
       ensureTranscript,
+      transcriptFailed,
       getConsultation,
       getPatient,
       getMedicoName,
@@ -1070,8 +1182,9 @@ export function MiracleProvider({
       listAddenda,
       addAddendum,
       resetDemo,
-      toast,
+      toasts,
       showToast,
+      dismissToast,
     ],
   );
 
@@ -1079,8 +1192,13 @@ export function MiracleProvider({
   // `loading`, y la navegación queda usable desde el primer render.
   return (
     <StoreContext.Provider value={value}>
-      {children}
-      <ToastHost toast={toast} />
+      <ConfirmProvider>{children}</ConfirmProvider>
+      <ToastHost
+        toasts={toasts}
+        onDismiss={dismissToast}
+        onPause={pausarCierre}
+        onResume={(t) => programarCierre(t.id, t.duracionMs)}
+      />
     </StoreContext.Provider>
   );
 }
@@ -1091,22 +1209,61 @@ export function useStore(): StoreValue {
   return ctx;
 }
 
-function ToastHost({ toast }: { toast: Toast | null }) {
-  if (!toast) return null;
-  const tone =
-    toast.tone === "success"
-      ? "border-success/30 bg-success-soft text-success"
-      : toast.tone === "warning"
-        ? "border-warning/30 bg-warning-soft text-warning"
-        : "border-accent/30 bg-accent-soft text-accent-ink";
+const TONO_AVISO: Record<ToastTone, string> = {
+  success: "border-success/30 bg-success-soft text-success",
+  warning: "border-warning/30 bg-warning-soft text-warning",
+  info: "border-accent/30 bg-accent-soft text-accent-ink",
+};
+
+/**
+ * Los avisos de la app.
+ *
+ * El contenedor está SIEMPRE montado, aunque no haya nada que decir: antes el
+ * nodo con `aria-live` nacía junto a su texto, y un lector de pantalla que ve
+ * aparecer la región y el contenido a la vez suele no anunciar nada.
+ *
+ * La posición libra la barra de navegación inferior del móvil (que ocupa unos
+ * 62px más el área segura): antes el aviso se pintaba encima de ella y tapaba
+ * los iconos justo cuando el médico acababa de hacer algo.
+ */
+function ToastHost({
+  toasts,
+  onDismiss,
+  onPause,
+  onResume,
+}: {
+  toasts: Toast[];
+  onDismiss: (id: number) => void;
+  onPause: (id: number) => void;
+  onResume: (toast: Toast) => void;
+}) {
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[100] flex justify-center px-4">
-      <div
-        role="status"
-        className={`pointer-events-auto rounded-full border px-5 py-2.5 text-sm font-semibold shadow-[var(--shadow-lg)] ${tone}`}
-      >
-        {toast.message}
-      </div>
+    <div
+      role="region"
+      aria-live="polite"
+      aria-label="Notificaciones"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] z-[100] flex flex-col items-center gap-2 px-4 md:bottom-6"
+    >
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          // Al apuntar con el cursor se detiene la cuenta: leer un aviso no
+          // debería ser una carrera contra el reloj.
+          onMouseEnter={() => onPause(t.id)}
+          onMouseLeave={() => onResume(t)}
+          className={`preview-in pointer-events-auto flex max-w-[min(30rem,100%)] items-center gap-3 rounded-full border py-2.5 pl-5 pr-2.5 text-sm font-semibold shadow-[var(--shadow-lg)] ${TONO_AVISO[t.tone]}`}
+        >
+          <span className="min-w-0">{t.message}</span>
+          <button
+            type="button"
+            onClick={() => onDismiss(t.id)}
+            aria-label="Cerrar aviso"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-current opacity-60 transition-opacity hover:opacity-100"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

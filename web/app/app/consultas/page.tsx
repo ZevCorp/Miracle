@@ -12,6 +12,7 @@ import {
 import { ConsultationCard } from "@/components/app/ConsultationCard";
 import { STATUS_CHIP_ACTIVE } from "@/components/app/StatusBadge";
 import { EmptyState } from "@/components/app/EmptyState";
+import { QueryErrorBanner } from "@/components/app/QueryErrorBanner";
 import { Pager } from "@/components/app/Pager";
 import { ConsultasFilters, type DoctorOption } from "./ConsultasFilters";
 import { AppPage, AppPageHeader } from "@/components/app/AppPage";
@@ -171,7 +172,7 @@ export default async function ConsultasPage({
     }
   }
 
-  const { data, count } = await query;
+  const { data, count, error: queryError } = await query;
   const rows = (data ?? []) as Row[];
   const total = count ?? 0;
 
@@ -190,7 +191,11 @@ export default async function ConsultasPage({
       <AppPageHeader
         kicker="Documentación clínica"
         title="Consultas"
-        description={`${total} ${total === 1 ? "consulta registrada" : "consultas registradas"}`}
+        description={
+          queryError
+            ? "No se pudieron cargar las consultas"
+            : `${total} ${total === 1 ? "consulta registrada" : "consultas registradas"}`
+        }
         action={
           uiRole === "medico" ? (
             <Link href="/app/consultas/nueva" className="clinical-primary w-full sm:w-auto">
@@ -226,6 +231,18 @@ export default async function ConsultasPage({
         ))}
       </div>
 
+      {/* Un fallo de lectura NO puede verse como "no hay consultas": son dos
+          respuestas distintas y el médico necesita distinguirlas. */}
+      {queryError ? (
+        <div className="mt-6">
+          <QueryErrorBanner
+            titulo="No se pudieron cargar las consultas"
+            detalle="No es que no tengas consultas: no fue posible leerlas."
+            reintentarHref={chipHref(estadoFilter)}
+          />
+        </div>
+      ) : null}
+
       {rows.length ? (
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((r) => (
@@ -251,7 +268,7 @@ export default async function ConsultasPage({
             />
           ))}
         </div>
-      ) : (
+      ) : queryError ? null : (
         <div className="mt-6">
           <EmptyState
             icon={<ClipboardList size={22} />}

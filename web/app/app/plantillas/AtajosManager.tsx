@@ -13,6 +13,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { SnippetEditorDialog } from "@/components/app/SnippetEditorDialog";
 import { SnippetImportDialog } from "./SnippetImportDialog";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 type EditorState = { id?: string; initial?: Partial<Snippet> } | null;
 
@@ -23,6 +24,7 @@ type EditorState = { id?: string; initial?: Partial<Snippet> } | null;
  * "mis textos guardados".
  */
 export function AtajosManager() {
+  const confirm = useConfirm();
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +71,13 @@ export function AtajosManager() {
   }
 
   async function remove(snippet: Snippet) {
-    if (!window.confirm(`¿Eliminar «${snippet.title}»? No se puede deshacer.`)) return;
+    const ok = await confirm({
+      titulo: `¿Eliminar «${snippet.title}»?`,
+      descripcion: "El atajo desaparece de tu biblioteca. No se puede deshacer.",
+      confirmLabel: "Eliminar",
+      tono: "peligro",
+    });
+    if (!ok) return;
     setDeletingId(snippet.id);
     try {
       await deleteSnippet(createClient(), snippet.id);

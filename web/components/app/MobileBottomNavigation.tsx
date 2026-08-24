@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
   ClipboardList,
@@ -62,7 +62,8 @@ export function MobileBottomNavigation({
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
-  const { confirmLeave } = useNavigationGuard();
+  const { hasGuard, guardedNavigate } = useNavigationGuard();
+  const router = useRouter();
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -97,7 +98,9 @@ export function MobileBottomNavigation({
                 key={item.href}
                 href={item.href}
                 onClick={(e) => {
-                  if (!confirmLeave()) e.preventDefault();
+                  if (!hasGuard()) return;
+                  e.preventDefault();
+                  guardedNavigate(() => router.push(item.href));
                 }}
                 aria-current={active ? "page" : undefined}
                 className={`flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-xs font-semibold transition-colors ${
@@ -161,7 +164,7 @@ export function MobileBottomNavigation({
                       const Icon = icons[item.icon] ?? LayoutDashboard;
                       const active = isActive(pathname, item.href);
                       return (
-                        <Link key={item.href} href={item.href} onClick={(e) => { if (!confirmLeave()) { e.preventDefault(); return; } setMoreOpen(false); }} aria-current={active ? "page" : undefined} className={`flex min-h-16 items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm font-semibold ${active ? "border-accent bg-accent-soft text-accent-ink" : "border-line bg-pearl text-deep active:bg-ice-soft"}`}>
+                        <Link key={item.href} href={item.href} onClick={(e) => { if (!hasGuard()) { setMoreOpen(false); return; } e.preventDefault(); guardedNavigate(() => { setMoreOpen(false); router.push(item.href); }); }} aria-current={active ? "page" : undefined} className={`flex min-h-16 items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm font-semibold ${active ? "border-accent bg-accent-soft text-accent-ink" : "border-line bg-pearl text-deep active:bg-ice-soft"}`}>
                           <Icon size={19} /> {item.label}
                         </Link>
                       );

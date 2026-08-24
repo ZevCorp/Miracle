@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Pager } from "@/components/app/Pager";
+import { QueryErrorBanner } from "@/components/app/QueryErrorBanner";
 import { PacientesSearch } from "./PacientesSearch";
 import { AppPage, AppPageHeader } from "@/components/app/AppPage";
 
@@ -41,7 +42,7 @@ export default async function PacientesPage({
     if (safe) query = query.or(`nombre.ilike.%${safe}%,documento.ilike.%${safe}%`);
   }
 
-  const { data, count } = await query;
+  const { data, count, error: queryError } = await query;
   const patients = (data ?? []) as PatientRow[];
   const total = count ?? 0;
 
@@ -57,10 +58,25 @@ export default async function PacientesPage({
       <AppPageHeader
         kicker="Directorio clínico"
         title="Pacientes"
-        description={`${total} ${total === 1 ? "paciente registrado" : "pacientes registrados"}`}
+        description={
+          queryError
+            ? "No se pudieron cargar los pacientes"
+            : `${total} ${total === 1 ? "paciente registrado" : "pacientes registrados"}`
+        }
       />
 
       <PacientesSearch initialQuery={term} />
+
+      {/* Un fallo de lectura no es un directorio vacío. */}
+      {queryError ? (
+        <div className="mt-5">
+          <QueryErrorBanner
+            titulo="No se pudieron cargar los pacientes"
+            detalle="No es que no haya pacientes: no fue posible leerlos."
+            reintentarHref={term ? `/app/pacientes?q=${encodeURIComponent(term)}` : "/app/pacientes"}
+          />
+        </div>
+      ) : null}
 
       <div className="clinical-list mt-5">
         {patients.map((p) => (
@@ -87,7 +103,7 @@ export default async function PacientesPage({
             <ChevronRight size={18} className="text-muted" />
           </Link>
         ))}
-        {patients.length === 0 ? (
+        {patients.length === 0 && !queryError ? (
           <div className="px-5 py-6 text-sm text-muted">
             {term ? "Sin coincidencias." : "Aún no hay pacientes."}
           </div>

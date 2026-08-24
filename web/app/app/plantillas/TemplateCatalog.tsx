@@ -34,6 +34,7 @@ import {
   type TemplatePreference,
 } from "@/lib/clinical/template-preferences";
 import { createClient } from "@/lib/supabase/client";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import {
   TemplateBuilderPanel,
   type BuilderMode,
@@ -57,6 +58,7 @@ export function TemplateCatalog({
    *  ancho y el padding de página, así que aquí no se repiten. */
   embedded?: boolean;
 }) {
+  const confirm = useConfirm();
   const [templates, setTemplates] = useState<ClinicalTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -170,12 +172,13 @@ export function TemplateCatalog({
     }
   }
   async function archive(template: ClinicalTemplate) {
-    if (
-      !window.confirm(
-        `¿Archivar «${template.name}»? Ya no aparecerá al iniciar consultas.`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      titulo: `¿Archivar «${template.name}»?`,
+      descripcion: "Dejará de aparecer al iniciar una consulta. Las notas ya escritas con ella no cambian.",
+      confirmLabel: "Archivar",
+      tono: "peligro",
+    });
+    if (!ok) return;
     setArchivingId(template.id);
     try {
       await archiveClinicalTemplate(template.id);

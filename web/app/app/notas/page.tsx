@@ -5,6 +5,7 @@ import { STATUS_LABEL, type ConsultationStatus } from "@/lib/mock";
 import { formatFechaRelativa } from "@/lib/dates";
 import { StatusBadge, STATUS_CHIP_ACTIVE } from "@/components/app/StatusBadge";
 import { EmptyState } from "@/components/app/EmptyState";
+import { QueryErrorBanner } from "@/components/app/QueryErrorBanner";
 import { Pager } from "@/components/app/Pager";
 import { AppPage, AppPageHeader } from "@/components/app/AppPage";
 
@@ -66,7 +67,7 @@ export default async function NotasPage({
     .range(from, to);
   if (estadoFilter !== "todas") query = query.eq("estado", estadoFilter);
 
-  const { data, count } = await query;
+  const { data, count, error: queryError } = await query;
   const rows = (data ?? []) as Row[];
   const total = count ?? 0;
 
@@ -86,7 +87,11 @@ export default async function NotasPage({
       <AppPageHeader
         kicker="Revisión médica"
         title="Notas clínicas"
-        description={`${total} ${total === 1 ? "nota en la bandeja" : "notas en la bandeja"}`}
+        description={
+          queryError
+            ? "No se pudieron cargar las notas"
+            : `${total} ${total === 1 ? "nota en la bandeja" : "notas en la bandeja"}`
+        }
       />
 
       <div className="flex flex-wrap gap-2" aria-label="Filtrar notas por estado">
@@ -118,6 +123,17 @@ export default async function NotasPage({
         })}
       </div>
 
+      {/* Que la lectura falle no significa que no haya notas. */}
+      {queryError ? (
+        <div className="mt-5">
+          <QueryErrorBanner
+            titulo="No se pudieron cargar las notas"
+            detalle="No es que no tengas notas pendientes: no fue posible leerlas."
+            reintentarHref={estadoFilter === "todas" ? "/app/notas" : `/app/notas?estado=${estadoFilter}`}
+          />
+        </div>
+      ) : null}
+
       {rows.length ? (
         <div className="clinical-list mt-5">
           {rows.map((c) => (
@@ -141,7 +157,7 @@ export default async function NotasPage({
             </Link>
           ))}
         </div>
-      ) : (
+      ) : queryError ? null : (
         <div className="mt-5">
           <EmptyState title="Sin notas en este estado" />
         </div>
