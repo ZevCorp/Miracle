@@ -8,6 +8,9 @@
 //  - el JSON de sections cumple el contrato (6–12 secciones, keys snake_case
 //    únicas, order consecutivo, label ≤90, instruction presente ≤400) y los
 //    límites de name/description.
+// Y en un segundo paso, sobre cualquier migración de plantillas POSTERIOR al
+// lote de 2026-08-11: solo el contrato de secciones y el cambio de Sugerida,
+// sin exigirle el inventario, que describe una operación ya cerrada.
 // Uso: node scripts/validate-template-migrations.mjs
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -261,6 +264,104 @@ for (const file of files) {
     errors.push(`${file}: statement inesperado (solo se admiten UPDATE/INSERT a clinical_templates) → ${statement.slice(0, 80)}…`);
   }
   console.log(`${file}: ${updates} updates, ${inserts} inserts`);
+}
+
+/* ------------------------------------------------------------------ */
+/* Segundo paso: migraciones de plantillas POSTERIORES a la renovación  */
+/* ------------------------------------------------------------------ */
+//
+// El inventario de arriba describe una operación cerrada: la renovación del
+// 11-08-2026, con su lista fija de qué id de fábrica se reescribe y qué id nuevo
+// se inserta. Una migración posterior no tiene por qué aparecer ahí, así que
+// exigirle el inventario la rechazaría sin motivo.
+//
+// Lo que sí tiene que cumplir es el contrato de secciones, que es lo que el
+// modelo lee para redactar la nota: 6–12 secciones, order consecutivo, keys
+// únicas, instruction presente y dentro del límite. Eso es lo que valida este
+// paso, y nada más.
+const LATER_PATTERN = /^\d{14}_templates_.+\.sql$/;
+const laterFiles = readdirSync(MIGRATIONS_DIR)
+  .filter((file) => LATER_PATTERN.test(file) && !FILE_PATTERN.test(file))
+  .sort();
+
+for (const file of laterFiles) {
+  const sql = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
+  let updates = 0;
+  let inserts = 0;
+  let defaults = 0;
+  for (const statement of splitStatements(sql)) {
+    const normalized = statement.toLowerCase().replace(/\s+/g, " ");
+    const literals = stringLiterals(statement);
+
+    if (normalized.startsWith("update public.clinical_templates")) {
+      if (!normalized.includes("owner_id is null")) {
+        errors.push(`${file}: UPDATE sin "owner_id is null" → ${statement.slice(0, 80)}…`);
+      }
+      if (!normalized.includes("updated_at = now()")) {
+        errors.push(`${file}: UPDATE sin updated_at = now() → ${statement.slice(0, 80)}…`);
+      }
+
+      // Cambio de la Sugerida. La invariante del catálogo es exactamente un
+      // is_default por especialidad, así que apagar y encender tienen que ir en
+      // el mismo statement y acotados a una especialidad: si se parten en dos,
+      // el catálogo queda con dos sugeridas o con ninguna entre uno y otro.
+      if (normalized.includes("is_default =")) {
+        if (!normalized.includes("specialty_code =")) {
+          errors.push(`${file}: UPDATE de is_default sin acotar por specialty_code`);
+        }
+        if (!/is_default = \(\s*id =/i.test(statement)) {
+          errors.push(
+            `${file}: el cambio de Sugerida debe apagar y encender en el mismo statement ` +
+              `(is_default = (id = '…')), no en dos UPDATEs`,
+          );
+        }
+        defaults++;
+        continue;
+      }
+
+      // Reescritura completa: name, description, sections, id.
+      if (literals.length !== 4) {
+        errors.push(`${file}: UPDATE con ${literals.length} literales (esperado 4: name, description, sections, id)`);
+        continue;
+      }
+      const [name, description, sectionsJson] = literals;
+      const id = literals.at(-1);
+      if (protectedIds.has(id)) {
+        errors.push(`${file}: UPDATE a id PROTEGIDO ${id}`);
+      }
+      const label = `${file} [${id.slice(0, 8)} "${name?.slice(0, 40)}"]`;
+      validateNameAndDescription(label, name, description);
+      validateSections(label, sectionsJson);
+      updates++;
+      continue;
+    }
+
+    if (normalized.startsWith("insert into public.clinical_templates")) {
+      if (literals.length !== 8) {
+        errors.push(`${file}: INSERT con ${literals.length} literales (esperado 8)`);
+        continue;
+      }
+      const [id, name, description, specialtyCode, specialtyName, scope, status, sectionsJson] = literals;
+      const label = `${file} [${specialtyCode} INSERT "${name?.slice(0, 40)}"]`;
+      if (protectedIds.has(id)) errors.push(`${label}: INSERT con id PROTEGIDO ${id}`);
+      if (scope !== "institutional") errors.push(`${label}: scope "${scope}" ≠ institutional`);
+      if (status !== "active") errors.push(`${label}: status "${status}" ≠ active`);
+      if (!specialtyName?.trim()) errors.push(`${label}: specialty_name vacío`);
+      if (!/'institutional',\s*false,\s*'active'/i.test(statement)) {
+        errors.push(`${label}: is_default debe ir en false (la Sugerida se asigna en su propio statement)`);
+      }
+      if (!normalized.includes("on conflict (id) do update")) {
+        errors.push(`${label}: falta on conflict (id) do update (idempotencia)`);
+      }
+      validateNameAndDescription(label, name, description);
+      validateSections(label, sectionsJson);
+      inserts++;
+      continue;
+    }
+
+    errors.push(`${file}: statement inesperado (solo UPDATE/INSERT a clinical_templates) → ${statement.slice(0, 80)}…`);
+  }
+  console.log(`${file}: ${updates} updates, ${inserts} inserts, ${defaults} cambio(s) de Sugerida`);
 }
 
 const missingUpdates = [...factoryIdToSpecialty.keys()].filter((id) => !seenUpdates.has(id));
