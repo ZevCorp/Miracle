@@ -12,6 +12,9 @@ import {
   CLINICAL_ERROR_MESSAGES,
   ClinicalApiError,
   createClinicalEncounter,
+  DEFAULT_TIMEOUT_MS,
+  generateClinicalNote,
+  GENERATE_NOTE_TIMEOUT_MS,
   createClinicalTemplateDraftFromExample,
   emptyClinicalDischarge,
   ensureClinicalDischarge,
@@ -485,5 +488,49 @@ describe("API client (requests reales al contrato)", () => {
       code: "NETWORK_ERROR",
       friendlyMessage: CLINICAL_ERROR_MESSAGES.NETWORK_ERROR,
     });
+  });
+
+  it("agotar el tiempo es TIMEOUT, no NETWORK_ERROR", async () => {
+    // Lo que lanza AbortSignal.timeout al vencer: un error con name
+    // "TimeoutError". El consejo al médico es distinto (reintentar, no revisar
+    // la conexión), así que el código tiene que distinguirlos.
+    const timeout = new Error("The operation was aborted due to timeout");
+    timeout.name = "TimeoutError";
+    fetchMock.mockRejectedValue(timeout);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(getClinicalTemplates()).rejects.toMatchObject({
+        code: "TIMEOUT",
+        friendlyMessage: CLINICAL_ERROR_MESSAGES.TIMEOUT,
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("toda petición sale con señal de tiempo límite", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { templates: [] }));
+    await getClinicalTemplates();
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("generar la nota espera más que una petición corriente", async () => {
+    // Generar corre un modelo sobre la transcripción entera: cortarla con los
+    // 30 s de una petición normal convertiría un caso lento en un error.
+    expect(GENERATE_NOTE_TIMEOUT_MS).toBeGreaterThan(DEFAULT_TIMEOUT_MS);
+
+    const lento = new Error("The operation was aborted due to timeout");
+    lento.name = "TimeoutError";
+    fetchMock.mockRejectedValue(lento);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(generateClinicalNote("enc_1")).rejects.toMatchObject({ code: "TIMEOUT" });
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.stringContaining(`TIMEOUT tras ${GENERATE_NOTE_TIMEOUT_MS} ms`),
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });

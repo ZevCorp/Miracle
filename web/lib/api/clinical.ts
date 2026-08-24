@@ -275,6 +275,8 @@ export const CLINICAL_ERROR_MESSAGES: Record<string, string> = {
     "La automatización de historia clínica no está configurada. Contacta al administrador.",
   NETWORK_ERROR:
     "No pudimos conectar con el servidor clínico. Revisa tu conexión e inténtalo de nuevo.",
+  TIMEOUT:
+    "El servidor clínico tardó demasiado en responder. Lo que ya estaba guardado no se perdió: inténtalo de nuevo.",
   API_NOT_CONFIGURED:
     "Falta configurar la URL del backend clínico (NEXT_PUBLIC_API_BASE_URL).",
   INTERNAL_ERROR: "Ocurrió un error inesperado. Intenta de nuevo.",
@@ -468,7 +470,26 @@ export interface ClinicalRequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   query?: Record<string, string | undefined>;
+  /** Tiempo límite en ms. Por defecto DEFAULT_TIMEOUT_MS. */
+  timeoutMs?: number;
 }
+
+/**
+ * Presupuestos de espera.
+ *
+ * Sin esto, un backend atascado dejaba la pantalla en vivo colgada para siempre
+ * en "Generando la nota clínica… Mantén esta pantalla abierta", sin forma de
+ * salir. Los valores largos no son generosidad: generar o regenerar una nota
+ * llama a un modelo sobre una transcripción entera y tardar dos minutos es
+ * normal; cortar antes convertiría un caso lento en un error.
+ */
+export const DEFAULT_TIMEOUT_MS = 30_000;
+/** Generar o regenerar la nota: el modelo trabaja sobre la transcripción entera. */
+export const GENERATE_NOTE_TIMEOUT_MS = 180_000;
+/** Subir la transcripción: hasta 200 000 caracteres de cuerpo. */
+export const TRANSCRIPT_TIMEOUT_MS = 60_000;
+/** Asistente (chat y ajuste de nota): también es una llamada a modelo, pero más corta. */
+export const ASSISTANT_TIMEOUT_MS = 90_000;
 
 /** Construye URL + RequestInit del contrato. Puro: testeable sin red ni sesión. */
 export function buildClinicalRequest(
@@ -530,10 +551,23 @@ async function clinicalRequest<T>(
   const token = await getAccessToken();
   const { url, init } = buildClinicalRequest(base, path, token, options);
 
+  // La señal se arma aquí y no en buildClinicalRequest porque esa función es
+  // pura (se testea sin red ni sesión) y AbortSignal.timeout arranca un
+  // temporizador real en cada llamada.
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
   let response: Response;
   try {
-    response = await fetch(url, init);
-  } catch {
+    response = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  } catch (error) {
+    // Se agotó el tiempo: distinto de un fallo de red, y con otro consejo para
+    // el médico (reintentar, no revisar la conexión). Se mira el `name` y no
+    // `instanceof`: lo que lanza AbortSignal.timeout es un DOMException, que no
+    // en todo runtime hereda de Error.
+    if ((error as { name?: string } | null)?.name === "TimeoutError") {
+      console.error(`[clinical-api] ${init.method} ${path} → TIMEOUT tras ${timeoutMs} ms`);
+      throw new ClinicalApiError("TIMEOUT", 0);
+    }
     // Error de red/CORS: nunca hubo respuesta del backend.
     throw new ClinicalApiError("NETWORK_ERROR", 0);
   }
@@ -646,7 +680,7 @@ export async function saveClinicalTranscript(
 ): Promise<SaveTranscriptResult> {
   return clinicalRequest<SaveTranscriptResult>(
     `/api/clinical/encounters/${encodeURIComponent(encounterId)}/transcript`,
-    { method: "POST", body: { transcript } },
+    { method: "POST", body: { transcript }, timeoutMs: TRANSCRIPT_TIMEOUT_MS },
   );
 }
 
@@ -655,7 +689,7 @@ export async function generateClinicalNote(
 ): Promise<GenerateNoteResult> {
   return clinicalRequest<GenerateNoteResult>(
     `/api/clinical/encounters/${encodeURIComponent(encounterId)}/generate-note`,
-    { method: "POST" },
+    { method: "POST", timeoutMs: GENERATE_NOTE_TIMEOUT_MS },
   );
 }
 
@@ -707,7 +741,7 @@ export async function regenerateClinicalEncounterWithTemplate(
 ): Promise<RegenerateWithTemplateResult> {
   return clinicalRequest<RegenerateWithTemplateResult>(
     `/api/clinical/encounters/${encodeURIComponent(encounterId)}/regenerate-with-template`,
-    { method: "POST", body: { template_id: templateId } },
+    { method: "POST", body: { template_id: templateId }, timeoutMs: GENERATE_NOTE_TIMEOUT_MS },
   );
 }
 
@@ -762,6 +796,7 @@ export async function sendAssistantChat(
   return clinicalRequest<AssistantChatResult>("/api/clinical/assistant/chat", {
     method: "POST",
     body: payload,
+    timeoutMs: ASSISTANT_TIMEOUT_MS,
   });
 }
 
@@ -786,7 +821,7 @@ export async function adjustNoteWithAssistant(
 ): Promise<NoteAdjustmentResult> {
   return clinicalRequest<NoteAdjustmentResult>(
     "/api/clinical/assistant/note-adjustment",
-    { method: "POST", body: payload },
+    { method: "POST", body: payload, timeoutMs: ASSISTANT_TIMEOUT_MS },
   );
 }
 
