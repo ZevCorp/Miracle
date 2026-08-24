@@ -88,10 +88,18 @@ Informe de histopatología / biopsia, y las 3 base de patología del catálogo i
 `medico@miracle.app` / `MiracleMedico2026!` también quedó como patólogo (y ve todas las
 plantillas). Las demás cuentas demo están en [`cuentas.md`](./cuentas.md).
 
-## Otro pendiente, aparte (ya está en producción)
+## Otro pendiente, aparte — RESUELTO (2026-08-24)
 
-`create_org_member` deja en `NULL` los campos de token de GoTrue (`confirmation_token`,
-`recovery_token`, `email_change_token_new`, `email_change`), y GoTrue los lee como texto →
-revienta y responde "credenciales inválidas". **Consecuencia: todo médico creado desde la
-consola de admin/superadmin no puede iniciar sesión** hasta normalizar esos campos a `''`.
-Está reproducido. Golpea el alta B2B del piloto.
+`create_org_member` dejaba en `NULL` los campos de token de GoTrue (`confirmation_token`,
+`recovery_token`, `email_change_token_new`, `email_change`, `email_change_token_current`), y
+GoTrue los lee como texto → reventaba y respondía "credenciales inválidas". **Todo médico creado
+desde la consola de admin/superadmin quedaba sin poder iniciar sesión** hasta normalizar esos
+campos a `''` a mano.
+
+Arreglado en `supabase/migrations/20260824100000_fix_create_org_member_tokens.sql`: la función
+inserta las cinco columnas en cadena vacía, y la migración normaliza de paso cualquier fila que
+hubiera quedado en `NULL`. Verificado de punta a punta: cuenta creada por la RPC → `POST
+/auth/v1/token?grant_type=password` responde 200 (y 400 con clave incorrecta).
+
+**La regla, para que no se pierda otra vez:** al insertar en `auth.users` por SQL, esas cinco
+columnas van en `''`. No tienen `default` en la base.
