@@ -87,3 +87,38 @@ export function caretAfterDictation(
   if (caret.start >= lengthBefore && caret.end >= lengthBefore) return null;
   return { start: Math.max(0, caret.start), end: Math.max(0, caret.end) };
 }
+
+/**
+ * Margen, en pixeles, para dar por bueno que el cuadro esta mirando el final.
+ *
+ * Una linea de holgura, por dos razones. La primera es humana: el medico no
+ * deja el scroll clavado al pixel. La segunda es que NO PUEDE SER 0 aunque se
+ * quisiera: el navegador trabaja en subpixeles y, con el cuadro pegado al
+ * fondo, la distancia medida da valores fraccionarios (-0,33 px en la prueba
+ * sobre Chrome), no un cero exacto.
+ */
+export const MARGEN_FONDO_PX = 28;
+
+/**
+ * ¿Debe el cuadro de la transcripcion bajar solo cuando entra un segmento?
+ *
+ * Un cuadro que se escribe solo y no baja obliga a arrastrar la barra cada pocos
+ * segundos para ver lo ultimo, que es justo lo que el dictado venia a evitar.
+ * Pero bajar SIEMPRE es peor de otra forma:
+ *
+ * - Si el medico se subio a releer algo, arrastrarlo al fondo cada dos segundos
+ *   hace imposible leer.
+ * - Si esta corrigiendo a mitad del texto, moverle la vista le esconde lo que
+ *   esta escribiendo.
+ *
+ * Asi que sigue el final solo mientras ya lo estuviera mirando. Es la misma
+ * regla de cualquier consola o chat que se autodesplaza.
+ */
+export function shouldFollowDictation(
+  view: { scrollTop: number; scrollHeight: number; clientHeight: number },
+  corrigiendoAtras: boolean,
+): boolean {
+  if (corrigiendoAtras) return false;
+  const distanciaAlFondo = view.scrollHeight - view.scrollTop - view.clientHeight;
+  return distanciaAlFondo <= MARGEN_FONDO_PX;
+}

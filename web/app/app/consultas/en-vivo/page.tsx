@@ -44,7 +44,7 @@ import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker"
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
 import { servicioPorDefecto } from "@/lib/hospital/org";
 import { reviewGeneratedNote } from "@/lib/clinical/note-review";
-import { caretAfterDictation } from "@/lib/clinical/insert-text";
+import { caretAfterDictation, shouldFollowDictation } from "@/lib/clinical/insert-text";
 import { buildRedactor } from "@/lib/privacy/redact";
 import { createClient } from "@/lib/supabase/client";
 import type { Patient } from "@/lib/mock";
@@ -172,6 +172,8 @@ function ConsultaActivaInner() {
   // cuando el cursor iba al final y debe seguir al texto nuevo.
   const caretPendiente = useRef<{ start: number; end: number } | null>(null);
   const scrollPendiente = useRef<number | null>(null);
+  // Si el cuadro debe bajar solo tras el segmento que viene en camino.
+  const seguirAlFinal = useRef(false);
   // Última transcripción confirmada por el backend (para detectar cambios).
   const [savedTranscript, setSavedTranscript] = useState("");
   // true mientras la grabación con transcripción en vivo está activa.
@@ -520,12 +522,19 @@ function ConsultaActivaInner() {
     // textarea es controlado, al crecer `value` el navegador le mandaría el
     // cursor al final; se anota dónde estaba para devolvérselo tras el render.
     const el = transcriptRef.current;
-    if (el && document.activeElement === el) {
-      caretPendiente.current = caretAfterDictation(
-        { start: el.selectionStart, end: el.selectionEnd },
-        el.value.length,
-      );
+    if (el) {
+      const corrigiendo = document.activeElement === el;
+      caretPendiente.current = corrigiendo
+        ? caretAfterDictation(
+            { start: el.selectionStart, end: el.selectionEnd },
+            el.value.length,
+          )
+        : null;
       scrollPendiente.current = caretPendiente.current ? el.scrollTop : null;
+      // El cuadro baja solo para que se vea lo ultimo dictado, pero solo si el
+      // medico ya estaba mirando el final: si se subio a releer o esta
+      // corrigiendo atras, moverle la vista es peor que no moverla.
+      seguirAlFinal.current = shouldFollowDictation(el, caretPendiente.current !== null);
     }
     setTranscriptDraft((prev) => {
       // Cada segmento se redacta al llegar: el nombre nunca queda visible en
@@ -540,13 +549,26 @@ function ConsultaActivaInner() {
   useLayoutEffect(() => {
     const caret = caretPendiente.current;
     const scroll = scrollPendiente.current;
+    const seguir = seguirAlFinal.current;
     caretPendiente.current = null;
     scrollPendiente.current = null;
+    seguirAlFinal.current = false;
+
     const el = transcriptRef.current;
-    if (!caret || !el || document.activeElement !== el) return;
-    const max = el.value.length;
-    el.setSelectionRange(Math.min(caret.start, max), Math.min(caret.end, max));
-    if (scroll !== null) el.scrollTop = scroll;
+    if (!el) return;
+
+    // Corrigiendo a mitad del texto: se le devuelve el sitio y no se le mueve
+    // la vista.
+    if (caret && document.activeElement === el) {
+      const max = el.value.length;
+      el.setSelectionRange(Math.min(caret.start, max), Math.min(caret.end, max));
+      if (scroll !== null) el.scrollTop = scroll;
+      return;
+    }
+
+    // Mirando el final: el cuadro baja solo. Sin esto, el dictado seguia
+    // escribiendo fuera de la vista y tocaba arrastrar la barra a mano.
+    if (seguir) el.scrollTop = el.scrollHeight;
   }, [transcriptDraft]);
 
   // Respaldo para entornos donde la API moderna del portapapeles no está

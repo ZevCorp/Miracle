@@ -4,6 +4,7 @@ import {
   insertSnippetText,
   snippetToListItems,
   caretAfterDictation,
+  shouldFollowDictation,
 } from "@/lib/clinical/insert-text";
 
 describe("insertSnippetText", () => {
@@ -110,5 +111,35 @@ describe("caretAfterDictation", () => {
 
   it("sobre un campo vacío no hay nada que restaurar", () => {
     expect(caretAfterDictation({ start: 0, end: 0 }, 0)).toBeNull();
+  });
+});
+
+describe("shouldFollowDictation", () => {
+  // Un cuadro de 200px de alto con 1000px de contenido: el fondo esta en 800.
+  const alFondo = { scrollTop: 800, scrollHeight: 1000, clientHeight: 200 };
+  const subidoALeer = { scrollTop: 120, scrollHeight: 1000, clientHeight: 200 };
+
+  it("mirando el final, el cuadro sigue bajando", () => {
+    expect(shouldFollowDictation(alFondo, false)).toBe(true);
+  });
+
+  it("a una linea del fondo todavia cuenta como mirar el final", () => {
+    // Nadie deja el scroll clavado al pixel.
+    expect(shouldFollowDictation({ ...alFondo, scrollTop: 780 }, false)).toBe(true);
+  });
+
+  it("si se subio a releer, no lo arrastra al fondo", () => {
+    expect(shouldFollowDictation(subidoALeer, false)).toBe(false);
+  });
+
+  it("corrigiendo a mitad del texto no se mueve, aunque este al fondo", () => {
+    // Mover la vista mientras escribe le esconde lo que esta escribiendo.
+    expect(shouldFollowDictation(alFondo, true)).toBe(false);
+  });
+
+  it("un cuadro sin nada que desplazar no estorba", () => {
+    expect(
+      shouldFollowDictation({ scrollTop: 0, scrollHeight: 200, clientHeight: 200 }, false),
+    ).toBe(true);
   });
 });
