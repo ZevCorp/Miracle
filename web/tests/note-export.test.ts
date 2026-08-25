@@ -26,7 +26,11 @@ import {
   type NoteExport,
   type NoteExportStatus,
 } from "@/lib/api/clinical";
-import { noteExportLabel, STALE_PENDING_MS } from "@/lib/hooks/useNoteExport";
+import {
+  NOTE_EXPORT_DETAIL_MESSAGES,
+  noteExportLabel,
+  STALE_PENDING_MS,
+} from "@/lib/hooks/useNoteExport";
 
 const CONSULTATION_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddd01";
 const EXPORT_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee01";
@@ -154,6 +158,57 @@ describe("textos de estado", () => {
     expect(tone).toBe("danger");
     expect(detail).toContain("HIS_LOGIN_FAILED");
     expect(detail).toMatch(/reintentar/i);
+  });
+
+  // El fallo del 2026-08-25: el ejecutor sabía que SAP no tenía sesión activa y el
+  // portal solo enseñaba «EXECUTOR_ERROR». El detalle YA venía en el payload.
+  it("un fallo con detail_code explica QUÉ falló, no solo que falló", () => {
+    const { detail } = noteExportLabel(job({
+      status: "failed",
+      error_code: "EXECUTOR_ERROR",
+      result_summary: {
+        outcome: "error", folio: null, unresolved_fields: [], detail_code: "NAVEGACION_FALLIDA",
+      },
+    }));
+    // El código sigue visible (es lo que se busca en el log del equipo)...
+    expect(detail).toContain("NAVEGACION_FALLIDA");
+    // ...y ya no se queda en el genérico del servidor.
+    expect(detail).not.toBe("La exportación falló (EXECUTOR_ERROR). Puedes reintentarla.");
+    expect(detail).toMatch(/sesión iniciada/i);
+  });
+
+  it("un detail_code desconocido se enseña en crudo en vez de perderse", () => {
+    const { detail } = noteExportLabel(job({
+      status: "failed",
+      error_code: "EXECUTOR_ERROR",
+      result_summary: {
+        outcome: "error", folio: null, unresolved_fields: [], detail_code: "ALGO_NUEVO",
+      },
+    }));
+    expect(detail).toContain("ALGO_NUEVO");
+  });
+
+  it("sin detail_code se conserva el comportamiento de antes", () => {
+    const { detail } = noteExportLabel(job({ status: "failed", error_code: "HIS_LOGIN_FAILED" }));
+    expect(detail).toContain("HIS_LOGIN_FAILED");
+    expect(detail).toMatch(/reintentar/i);
+  });
+
+  it("needs_doctor sin lista de campos usa el detalle del ejecutor si lo hay", () => {
+    const { badge, detail } = noteExportLabel(job({
+      status: "needs_doctor",
+      result_summary: {
+        outcome: "needs_doctor", folio: null, unresolved_fields: [], detail_code: "PANTALLA_INESPERADA",
+      },
+    }));
+    expect(badge).toBe("Requiere acción");
+    expect(detail).toContain("PANTALLA_INESPERADA");
+  });
+
+  it("ningún texto de detalle afirma que la nota quedó exportada", () => {
+    for (const mensaje of Object.values(NOTE_EXPORT_DETAIL_MESSAGES)) {
+      expect(mensaje).not.toMatch(/exportad/i);
+    }
   });
 
   it("ningún estado no-completado usa la palabra 'Exportada' como badge", () => {

@@ -217,6 +217,52 @@ export function useNoteExport(
   };
 }
 
+/**
+ * Lo que reporta el ejecutor de escritorio en `detail_code`, traducido a algo
+ * que el médico pueda usar.
+ *
+ * POR QUÉ EXISTE ESTE MAPA: el 2026-08-25 una exportación falló a los 2,2 s y en
+ * el portal solo se leía «La exportación falló (EXECUTOR_ERROR)». El log del
+ * equipo decía exactamente qué pasó —«SAP GUI está abierto pero no hay ninguna
+ * conexión activa»— y esa frase no cruzaba la red: el trabajo llegaba con
+ * `detail_code: NAVEGACION_FALLIDA`, el servidor lo guardaba, y aquí se tiraba.
+ * La causa estaba a un campo de distancia de la pantalla del médico.
+ *
+ * CADA TEXTO DESCRIBE EL PASO QUE FALLÓ; NINGUNO CONCLUYE UNA CAUSA. Hoy
+ * `NAVEGACION_FALLIDA` cubre varias situaciones distintas (SAP sin sesión, Graph
+ * inalcanzable, workflow sin pasos, la navegación fallando de verdad), así que
+ * afirmar una sola sería inventarla. Cuando el ejecutor aprenda a distinguirlas,
+ * los códigos nuevos entran aquí y el texto se estrecha.
+ */
+export const NOTE_EXPORT_DETAIL_MESSAGES: Record<string, string> = {
+  NAVEGACION_FALLIDA:
+    "El asistente no llegó a la pantalla de la historia clínica. Lo más frecuente: "
+    + "SAP GUI abierto pero sin sesión iniciada. Comprueba que hay una conexión activa y reintenta.",
+  PANTALLA_INESPERADA:
+    "El asistente terminó en otra pantalla de SAP y no escribió nada, para no meter datos "
+    + "en el formulario equivocado. Déjalo en la pantalla de triage y reintenta.",
+  PAYLOAD_SIN_NOTA:
+    "El trabajo llegó sin texto de nota. Revisa que la nota tenga contenido y vuelve a enviarla.",
+  PLAN_RESOLUTION_FAILED:
+    "No se pudo preparar el plan de automatización de la historia clínica. Contacta al administrador.",
+  PLAN_UNRESOLVED_FIELDS:
+    "El plan necesitaba datos que no estaban disponibles.",
+};
+
+/** Lo que se puede decir del fallo: el detalle del ejecutor si lo hay, y si no el código. */
+function failureDetail(job: NoteExport): string {
+  const detailCode = job.result_summary?.detail_code ?? null;
+  const known = detailCode ? NOTE_EXPORT_DETAIL_MESSAGES[detailCode] : undefined;
+  if (known) return `${known} (${detailCode})`;
+  // Sin traducción: se enseña el código en crudo igualmente. Un código que no
+  // reconocemos sigue siendo más útil que «falló» a secas — es lo que se busca
+  // en el log del equipo.
+  const code = detailCode || job.error_code;
+  return code
+    ? `La exportación falló (${code}). Puedes reintentarla.`
+    : "La exportación falló. Puedes reintentarla.";
+}
+
 /** Textos de UI por estado. Nunca dicen "exportada" antes de la confirmación. */
 export function noteExportLabel(job: NoteExport | null): {
   badge: string;
@@ -260,19 +306,17 @@ export function noteExportLabel(job: NoteExport | null): {
         tone: "warning",
         detail: fields.length
           ? `Quedaron campos sin completar en la historia clínica: ${fields.join(", ")}.`
-          : "El asistente necesita que completes datos en la historia clínica.",
+          // Sin lista de campos, el detalle del ejecutor es lo único que explica
+          // por qué quedó parado; antes se caía a una frase que no decía nada.
+          : job.result_summary?.detail_code
+            ? failureDetail(job)
+            : "El asistente necesita que completes datos en la historia clínica.",
       };
     }
     case "cancelled":
       return { badge: "Cancelada", tone: "warning", detail: "La exportación se canceló antes de ejecutarse." };
     case "failed":
     default:
-      return {
-        badge: "Error",
-        tone: "danger",
-        detail: job.error_code
-          ? `La exportación falló (${job.error_code}). Puedes reintentarla.`
-          : "La exportación falló. Puedes reintentarla.",
-      };
+      return { badge: "Error", tone: "danger", detail: failureDetail(job) };
   }
 }
