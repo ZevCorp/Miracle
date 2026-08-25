@@ -344,7 +344,7 @@
     background:linear-gradient(160deg,#3E7FF0,#2456B8 70%,#1D479C);
   }
 
-  .d-caption{position:absolute;left:4vw;top:7vh;z-index:6;max-width:24rem}
+  .d-caption{position:absolute;left:4vw;top:max(7vh, calc(var(--marca-h,0px) + 1rem));z-index:6;max-width:24rem}
   /* Halo suave detrás del caption: las ventanas pasan por debajo sin pelearse
      con el texto, y sin meter una card en un escritorio que no tiene cards. */
   .d-caption::before{
@@ -506,7 +506,7 @@
 
   /* barra de tareas */
   .barra{
-    position:absolute;left:0;right:0;bottom:0;height:52px;z-index:6;
+    position:absolute;left:0;right:0;bottom:0;height:var(--alto-barra,52px);z-index:6;
     background:rgba(14,22,42,.72);backdrop-filter:blur(10px);
     display:flex;align-items:center;gap:.7rem;padding:0 1.1rem;
   }
@@ -523,7 +523,7 @@
 
   /* controles de la película */
   #d-progreso{
-    position:absolute;left:0;right:0;top:0;height:3px;z-index:9;
+    position:absolute;left:0;right:0;top:0;height:3px;z-index:9;  /* top real: --marca-h */
     background:rgba(255,255,255,.14);
   }
   #d-progreso i{display:block;height:100%;width:0;background:#fff;transition:width .12s linear}
@@ -853,14 +853,25 @@
   #d-cita .quien.hablando .onda i:nth-child(4){animation-delay:.3s}
   #d-cita .quien.hablando .onda i:nth-child(5){animation-delay:.4s}
 
-  /* Mientras corre la película, la barra de marca se retira.
-     Medido en móvil: los cuatro controles —el chip, los puntos de capítulo, la
-     barra de progreso y el botón Saltar— quedaban el 100 % debajo de #marca,
-     que es fixed con z-index 6. Y no era solo que no se vieran: quien recibía
-     el toque sobre "Saltar ›" era el "Obtener acceso" de arriba, así que
-     saltar la película ABRÍA UN MAILTO. */
-  body.viendo-dentro #marca{opacity:0;pointer-events:none;transition:opacity .35s ease}
+  /* Los controles de la película —barra de progreso, puntos de capítulo y
+     "Saltar ›"— viven en el top de .escritorio, exactamente donde está #marca,
+     que es fixed. Chocaban: quedaban el 100 % debajo de la cabecera y quien
+     recibía el toque sobre "Saltar ›" era el CTA de arriba, así que saltar la
+     película ABRÍA UN MAILTO.
+
+     La primera salida fue retirar #marca durante la película, y se llevó por
+     delante la navegación de secciones justo en el tramo más largo del sitio.
+     Ahora se aparta lo que estorba: los controles bajan la altura real de la
+     cabecera (--marca-h, medida en vivo porque en móvil son dos filas) y la
+     cabecera se queda donde está. */
+  body.viendo-dentro #marca{z-index:8}
   body.viendo-dentro #dentro{z-index:7}
+  #d-progreso{top:var(--marca-h,0px)}
+  /* "Saltar ›" no cabe arriba a la derecha: bajarlo por la cabecera lo metía
+     encima de la primera carpeta del escritorio (Pacientes). Se va abajo, que
+     está vacío, justo encima de la barra de tareas. */
+  #d-saltar{top:auto;bottom:calc(var(--alto-barra,52px) + 1rem)}
+  #d-capitulos{top:calc(var(--marca-h,0px) + 1.05rem)}
 
   /* El cartel de sonido en pantallas estrechas: 24rem son 384 px y a 360 se
      salía por los dos lados con el borde redondeado cortado. */
@@ -1184,7 +1195,7 @@
     .d-card,.d-card.invertida{grid-template-columns:1fr;gap:1.6rem}
     .u-ancla{display:none}
 
-    .d-caption{left:5vw;right:5vw;top:5.2rem;max-width:none}
+    .d-caption{left:5vw;right:5vw;top:calc(var(--marca-h,0px) + 1.9rem);max-width:none}
     .d-caption h3{font-size:1.25rem;line-height:1.15}
     .d-caption p{font-size:.86rem;line-height:1.45;margin-top:.35rem}
 
@@ -1225,16 +1236,21 @@
     .d-final .cta{padding:.85rem 1.5rem;font-size:.9rem}
 
     /* bandeja mínima */
-    .barra{height:44px;padding:0 .7rem;gap:.45rem}
+    .escritorio{--alto-barra:44px}
+    .barra{padding:0 .7rem;gap:.45rem}
     .inicio{width:30px;height:30px;font-size:.9rem;border-radius:7px}
     .b-app{font-size:.66rem;padding:.35rem .55rem}
     .tray-idioma,.tray-chev{display:none}
     .tray-hora time{font-size:.66rem}
     .tray-hora small{display:none}
 
-    /* controles de la película */
-    #d-saltar{top:.7rem;right:.8rem;font-size:.7rem;padding:.35rem .7rem}
-    #d-capitulos{top:.85rem;gap:.35rem}
+    /* Controles de la película. Estas reglas van DESPUÉS de las que los
+       apartan de la cabecera, así que con la misma especificidad ganaban y
+       devolvían los capítulos debajo de #marca — el bug del mailto otra vez,
+       y en móvil, que es donde se midió. Aquí solo se toca el tamaño; la
+       posición la sigue mandando --marca-h / --alto-barra. */
+    #d-saltar{right:.8rem;font-size:.7rem;padding:.35rem .7rem}
+    #d-capitulos{gap:.35rem}
     #d-capitulos button{width:18px;height:5px}
 
     /* Ü más chico */
@@ -1547,6 +1563,17 @@
 (function navegacion(){
   const nav = document.getElementById('nav-secciones');
   if (!nav) return;
+
+  /* Los controles de la película se apartan de la cabecera por debajo, y para
+     eso hace falta su alto REAL: en escritorio es una fila y en móvil son dos
+     (la navegación baja), así que un número fijo mentiría en una de las dos. */
+  const marca = document.getElementById('marca');
+  if (marca && window.ResizeObserver) {
+    const medir = () => document.documentElement.style.setProperty(
+      '--marca-h', Math.round(marca.getBoundingClientRect().height) + 'px');
+    new ResizeObserver(medir).observe(marca);
+    medir();
+  }
   const destino = (k) => k === 'arriba' ? null : document.getElementById(k);
 
   nav.addEventListener('click', (e) => {
