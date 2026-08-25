@@ -195,7 +195,7 @@ function montar() {
       },
       u: () => centro(0.5, 0.38),
       cursor: () => null,
-      voz: { de: "u", dice: "Hola, soy Ü. Soy el asistente de inteligencia artificial para médicos.", pista: "u-01-hola", dur: 4700 },
+      voz: { de: "u", dice: "Hola, soy Ü. Soy el asistente de inteligencia artificial para médicos.", pista: "u-01-hola", dur: 4500 },
     },
     {
       titulo: "Para que sueltes el teclado.",
@@ -203,7 +203,7 @@ function montar() {
       set() { presentando(true); face.thinking = false; },
       u: () => centro(0.5, 0.38),
       cursor: () => null,
-      voz: { de: "u", dice: "Mi objetivo es que puedas dejar de usar el computador y concentrarte en tu paciente.", pista: "u-02-objetivo", dur: 4750 },
+      voz: { de: "u", dice: "Mi objetivo es que puedas dejar de usar el computador y concentrarte en tu paciente.", pista: "u-02-objetivo", dur: 5250 },
     },
     {
       titulo: "Primero miro cómo trabajas.",
@@ -211,7 +211,7 @@ function montar() {
       set() { presentando(true); face.thinking = true; },
       u: () => centro(0.5, 0.38),
       cursor: () => null,
-      voz: { de: "u", dice: "Para eso, primero miro tu pantalla unos días y aprendo cómo trabajas.", pista: "u-03-aprendo", dur: 4050 },
+      voz: { de: "u", dice: "Para eso, primero miro tu pantalla unos días y aprendo cómo trabajas.", pista: "u-03-aprendo", dur: 5050 },
     },
     {
       titulo: "Y abro tu sistema.",
@@ -224,7 +224,7 @@ function montar() {
       u: () => junto(".iconos .icono:nth-child(3)", -1),
       cursor: () => punto(".iconos .icono:nth-child(3)", 0.5, 0.5),
       clic: true,
-      voz: { de: "u", dice: "Cuando ya aprendí, abro tu sistema. El mismo que usas todos los días.", pista: "u-04-abro", dur: 4400 },
+      voz: { de: "u", dice: "Cuando ya aprendí, abro tu sistema. El mismo que usas todos los días.", pista: "u-04-abro", dur: 5250 },
     },
     {
       titulo: "Aquí va el paciente nuevo.",
@@ -241,7 +241,7 @@ function montar() {
       u: () => junto(".p-tab.conocida", 1),
       cursor: () => punto(".p-tab.conocida", 0.5, 0.6),
       clic: true,
-      voz: { de: "u", dice: "Y aquí al que ya tiene historia contigo. Entremos por este.", pista: "u-06-conocido", dur: 3650 },
+      voz: { de: "u", dice: "Y aquí al que ya tiene historia contigo. Entremos por este.", pista: "u-06-conocido", dur: 3850 },
     },
     {
       titulo: "Los datos van primero.",
@@ -249,7 +249,7 @@ function montar() {
       set() { montarForm({ tab: "conocida", escritos: ["doc"], senala: "doc" }); face.thinking = false; },
       u: () => junto(".v-form .c-doc .caja", -1),
       cursor: () => punto(".v-form .c-doc .caja", 0.3, 0.5),
-      voz: { de: "u", dice: "Primero van los datos, cuando el paciente te los confirma.", pista: "u-07-datos", dur: 3400 },
+      voz: { de: "u", dice: "Primero van los datos, cuando el paciente te los confirma.", pista: "u-07-datos", dur: 3650 },
     },
     {
       titulo: "Después el examen físico.",
@@ -257,7 +257,7 @@ function montar() {
       set() { montarForm({ tab: "conocida", escritos: ["doc"], senala: "examen" }); face.thinking = false; },
       u: () => junto(".v-form .c-examen .caja", -1),
       cursor: () => punto(".v-form .c-examen .caja", 0.3, 0.5),
-      voz: { de: "u", dice: "Después, el examen físico.", pista: "u-08-examen", dur: 2400 },
+      voz: { de: "u", dice: "Después, el examen físico.", pista: "u-08-examen", dur: 2300 },
     },
     {
       titulo: "Atendamos una cita real.",
@@ -269,7 +269,7 @@ function montar() {
       },
       u: () => junto("#d-cita", 1),
       cursor: () => null,
-      voz: { de: "u", dice: "Ahora atendamos una cita de verdad. Tú habla con tu paciente; yo escribo.", pista: "u-09-cita", dur: 5250 },
+      voz: { de: "u", dice: "Ahora atendamos una cita de verdad. Tú habla con tu paciente; yo escribo.", pista: "u-09-cita", dur: 5200 },
     },
     {
       titulo: "Escuchando.",
@@ -305,7 +305,7 @@ function montar() {
       },
       u: () => junto(".v-form .c-dx .caja", -1),
       cursor: () => null,
-      voz: { de: "u", dice: "Listo. La historia quedó completa y tú no tocaste el teclado.", pista: "u-10-listo", dur: 3750 },
+      voz: { de: "u", dice: "Listo. La historia quedó completa y tú no tocaste el teclado.", pista: "u-10-listo", dur: 3800 },
     },
     {
       titulo: "Pruébame.",
