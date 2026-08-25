@@ -7,6 +7,17 @@
 <meta name="description" content="Ü opera las aplicaciones que tu institución ya usa — historia clínica, SAP, el HIS — mientras tú atiendes a tus pacientes.">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://www.itsmiracleai.com.co/">
+
+<!-- El camino crítico es three.js, que llega por CDN y es un import de módulo:
+     hasta que no resuelve DNS y negocia TLS no empieza ni a descargar. Abrir
+     las dos conexiones aquí arriba se come ese tiempo muerto.
+     dl.polyhaven.org va como dns-prefetch y no preconnect: sus texturas NO
+     bloquean nada —la escena arranca con materiales procedurales y las
+     cambia cuando llegan— así que no vale la pena gastarle una conexión al
+     arranque, solo adelantar el DNS. -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://dl.polyhaven.org">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js" crossorigin>
 <meta property="og:type" content="website">
 <meta property="og:title" content="Ü · el agente que trabaja en su consultorio">
 <meta property="og:description" content="Ü opera las aplicaciones que tu institución ya usa — historia clínica, SAP, el HIS — mientras tú atiendes a tus pacientes.">
@@ -69,6 +80,51 @@
     box-shadow:0 4px 16px rgba(55,118,227,.35);
   }
   #marca .cta-top:hover{transform:translateY(-1px);filter:brightness(1.08)}
+
+  /* La navegación de secciones. Píldoras discretas: tienen que estar ahí sin
+     competir con lo que pasa detrás, que es lo que la gente vino a ver. */
+  #nav-secciones{display:flex;align-items:center;gap:.15rem;
+    background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:.2rem;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  }
+  #nav-secciones button{
+    font:inherit;cursor:pointer;border:0;background:none;border-radius:999px;
+    color:rgba(255,255,255,.72);font-size:.75rem;font-weight:600;
+    padding:.42rem .85rem;white-space:nowrap;
+    transition:background .2s ease, color .2s ease;
+  }
+  #nav-secciones button:hover{color:#fff;background:rgba(255,255,255,.12)}
+  /* La sección en la que estás, marcada: si no, la barra no dice dónde estoy. */
+  #nav-secciones button.aqui{background:#fff;color:#1C3D8F}
+
+  /* Entrar: el acceso de quien YA es cliente. Va a la derecha del todo y en
+     tratamiento secundario — no compite con el CTA de captación. */
+  #marca .entrar{
+    text-decoration:none;font-weight:600;font-size:.78rem;color:#fff;
+    padding:.5rem .95rem;border-radius:8px;
+    border:1px solid rgba(255,255,255,.34);background:rgba(255,255,255,.08);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    transition:background .18s ease, border-color .18s ease;
+  }
+  #marca .entrar:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.6)}
+
+  /* En pantallas estrechas la navegación no cabe en la misma fila que la
+     marca y Entrar. Antes se ocultaba, y en móvil la página quedaba sin
+     ninguna forma de volver atrás por seis pantallas de scroll: baja a una
+     segunda fila, a lo ancho, en vez de desaparecer. */
+  @media(max-width:900px){
+    #marca{flex-wrap:wrap;row-gap:.5rem}
+    #nav-secciones{
+      order:9;width:100%;justify-content:center;
+      overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+    }
+    #nav-secciones::-webkit-scrollbar{display:none}
+    #nav-secciones button{font-size:.7rem;padding:.36rem .7rem}
+  }
+  @media(max-width:560px){
+    #marca .cta-top{display:none}
+  }
   @media(max-width:560px){ #marca .nom i{display:none} }
 
   #scroller{position:relative;z-index:2;pointer-events:none}
@@ -100,9 +156,15 @@
   }
   #hero-fijo .copy{
     background:none;backdrop-filter:none;-webkit-backdrop-filter:none;
-    box-shadow:none;padding:0;max-width:32rem;position:relative;z-index:1;
+    /* 32rem partía el titular nuevo ("Un asistente que escribe / la historia
+       clínica por ti.") en cuatro líneas desiguales, ignorando el <br>. */
+    box-shadow:none;padding:0;max-width:42rem;position:relative;z-index:1;
     opacity:1;transform:none;pointer-events:auto;
   }
+  /* Sin <br> forzado: a 42rem el titular cae en dos líneas en escritorio y en
+     tres parejas en móvil. balance evita la línea huérfana. */
+  #hero-fijo .copy h2{text-wrap:balance}
+
   /* Estado del hero: la misma tipografía de eyebrow del resto del sitio.
      Sin cápsula ni vidrio — el pill se sentía pegado encima, no parte de la
      composición. Alinea a la misma guía que el titular. */
@@ -795,7 +857,7 @@
      Medido en móvil: los cuatro controles —el chip, los puntos de capítulo, la
      barra de progreso y el botón Saltar— quedaban el 100 % debajo de #marca,
      que es fixed con z-index 6. Y no era solo que no se vieran: quien recibía
-     el toque sobre "Saltar ›" era el "Solicitar piloto" de arriba, así que
+     el toque sobre "Saltar ›" era el "Obtener acceso" de arriba, así que
      saltar la película ABRÍA UN MAILTO. */
   body.viendo-dentro #marca{opacity:0;pointer-events:none;transition:opacity .35s ease}
   body.viendo-dentro #dentro{z-index:7}
@@ -1201,7 +1263,20 @@
     <span class="nom">Ü <i>· de Miracle</i></span>
   </a>
   <span class="sep"></span>
-  <button type="button" class="cta-top" data-correo="dev@itsmiracleai.com">Solicitar piloto</button>
+
+  <!-- Navegación de secciones. Va al centro y se calcula sola: cada botón
+       lleva al ancla de su sección y se enciende cuando esa sección está en
+       pantalla. Es la única forma de volver atrás sin scrollear a ciegas por
+       una página que dura seis pantallas. -->
+  <nav id="nav-secciones" aria-label="Secciones">
+    <button type="button" data-ir="arriba">El consultorio</button>
+    <button type="button" data-ir="dentro">Cómo trabaja</button>
+    <button type="button" data-ir="marcha">Cómo se instala</button>
+  </nav>
+
+  <span class="sep"></span>
+  <button type="button" class="cta-top" data-correo="dev@itsmiracleai.com">Obtener acceso</button>
+  <a class="entrar" href="https://www.itsmiracleai.com.co/login">Entrar</a>
 </header>
 
 <!-- Hero fijo: no viaja con el scroll — se desvanece en el sitio. -->
@@ -1209,11 +1284,11 @@
   <div class="hero-overlay"></div>
   <div class="copy">
     <span class="estado" id="estado-hero"><i></i><span id="estado-txt">Ü está llenando la historia clínica</span> <b id="estado-hora">7:43</b></span>
-    <h2>Un consultorio<br>que trabaja solo.</h2>
-    <p>Son las 9 de la mañana y no hay nadie en la silla. Baja para acercarte a la pantalla.</p>
+    <h2>Un asistente que escribe la historia clínica por ti.</h2>
+    <p>Tú hablas con tu paciente. Ü escribe en tu sistema, al mismo tiempo.</p>
     <div class="acciones">
-      <a class="cta" href="#dentro">Ver a Ü trabajando</a>
-      <button type="button" class="btn-fantasma" data-correo="dev@itsmiracleai.com">Solicitar piloto</button>
+      <a class="cta" href="#dentro">Ver cómo trabaja</a>
+      <button type="button" class="btn-fantasma" data-correo="dev@itsmiracleai.com">Obtener acceso</button>
     </div>
   </div>
   <div class="scroll-ind"><span>Scroll</span><div class="linea"><i></i></div></div>
@@ -1221,23 +1296,22 @@
 
 <!-- Relato: capa fija, cruzada por rango de riel (ver oficina.js). -->
 <div id="relato">
-  <div class="copy der" data-acto="1" data-desde="0.13" data-hasta="0.42">
-    <span class="eyebrow">Sin cambiar de sistema</span>
-    <h2>Sobre las aplicaciones<br>que ya tiene.</h2>
-    <p>Ü lee la interfaz, ve la pantalla y opera el ratón y el teclado como un usuario más — en el HIS, en SAP, en lo que tu institución ya usa.</p>
-  </div>
+  <!-- El acto 1 vivía en el tramo 0.13–0.42 del riel, que desde que el
+       recorrido arranca en la escena 2 (p=0.46) ya no se recorre: su copy no
+       podía aparecer nunca. Decía "Sobre las aplicaciones que ya tiene" y está
+       guardado en contexto-viejo.md por si vuelve el tramo. -->
 
-  <div class="copy izq" data-acto="2" data-desde="0.46" data-hasta="0.74">
+  <div class="copy izq" data-acto="2" data-desde="0.56" data-hasta="0.80">
     <span class="eyebrow">Mira quién escribe</span>
-    <h2>Un asistente que completa<br>la historia clínica por ti.</h2>
+    <h2>Escribe mientras<br>tú atiendes.</h2>
     <p>Escribe el documento, el motivo y el examen físico mientras tú atiendes. Y si algo no le queda claro, se detiene y te pregunta.</p>
   </div>
 
-  <div class="copy izq" data-acto="3" data-desde="0.80" data-hasta="1.01">
+  <div class="copy izq" data-acto="3" data-desde="0.85" data-hasta="1.01">
     <span class="eyebrow">El siguiente paso</span>
     <h2>Aprende como<br>tú trabajas.</h2>
     <p>Mira cómo usas tu sistema y aprende tu forma de hacer las cosas. No hay que cambiar nada de lo que ya tienes.</p>
-    <button type="button" class="cta" data-correo="dev@itsmiracleai.com">Solicitar piloto</button>
+    <button type="button" class="cta" data-correo="dev@itsmiracleai.com">Obtener acceso</button>
   </div>
 </div>
 <!-- Gradiente lateral para el texto de los actos 3D (sin cards). -->
@@ -1467,6 +1541,53 @@
 }
 </script>
 <script>
+/* La navegación de secciones: llevar y, sobre todo, DECIR dónde estás.
+   En una página de seis pantallas donde el escritorio se clava y la película
+   corre sola, sin esto no hay manera de orientarse ni de volver atrás. */
+(function navegacion(){
+  const nav = document.getElementById('nav-secciones');
+  if (!nav) return;
+  const destino = (k) => k === 'arriba' ? null : document.getElementById(k);
+
+  nav.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ir]');
+    if (!b) return;
+    /* Si la película está corriendo, el scroll está anclado y la navegación
+       no movería nada: el botón se quedaba muerto al pulsarlo, que es peor
+       que no tenerlo. Pulsar la barra equivale a saltar la película. */
+    const D = window.__dentro;
+    if (D && D.corriendo && D.corriendo()) D.saltar();
+    const el = destino(b.dataset.ir);
+    // Un respiro para que el salto suelte el ancla antes de mover la página.
+    setTimeout(() => {
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, D && D.corriendo && D.corriendo() ? 60 : 0);
+  });
+
+  /* Cuál está activa. Se mira en cada frame de scroll con rAF en vez de un
+     IntersectionObserver porque #dentro es sticky y su caja no se comporta
+     como la de una sección normal: lo fiable aquí es la posición. */
+  let pedido = false;
+  function marcar(){
+    pedido = false;
+    const dentro = document.getElementById('dentro');
+    const marcha = document.getElementById('marcha');
+    let aqui = 'arriba';
+    if (marcha && marcha.getBoundingClientRect().top < innerHeight * 0.5) aqui = 'marcha';
+    else if (dentro && dentro.getBoundingClientRect().top < innerHeight * 0.5) aqui = 'dentro';
+    nav.querySelectorAll('[data-ir]').forEach((b) => {
+      b.classList.toggle('aqui', b.dataset.ir === aqui);
+    });
+  }
+  addEventListener('scroll', () => {
+    if (pedido) return;
+    pedido = true;
+    requestAnimationFrame(marcar);
+  }, { passive: true });
+  marcar();
+})();
+
 /* Los CTA copian el correo al portapapeles en vez de abrir el cliente de
    correo. Un mailto en el computador de una clínica abre lo que sea —o nada—
    y el usuario se queda sin saber a dónde escribir. Copiando, la dirección
@@ -1536,8 +1657,6 @@
 /* La barra de marca entra sola cuando la escena ya cargó. */
 addEventListener('load', ()=> document.getElementById('marca')?.classList.add('on'));
 </script>
-<!-- Rutas ABSOLUTAS: el sitio se sirve desde / por un rewrite y los ficheros
-     viven bajo /u/. Con "./" darían 404. -->
 <script type="module" src="/u/scene/oficina.js"></script>
 <script type="module" src="/u/dentro.js"></script>
 </body>

@@ -1225,19 +1225,17 @@ function resolverK3() {
 }
 resolverK3();
 
-let pTarget = 0, pPos = 0;
+/* El recorrido ARRANCA EN LA ESCENA 2, no en el principio del riel.
+ * En la reunión: "esta escena no me gusta, podríamos hacer que iniciara desde
+ * la siguiente… ahí me parece que tiene mucho más sentido". El primer tramo
+ * era un plano general del cuarto que no contaba nada.
+ * El riel completo se conserva: sólo se recorre de aquí a 1. */
+const P_INICIO = 0.46;
+let pTarget = P_INICIO, pPos = P_INICIO;
 let qEmpalme = 0;
 const elDentro = document.getElementById("dentro");
 
 if (MODO_RECORRIDO) {
-  /* El recorrido ARRANCA EN LA ESCENA 2, no en el principio del riel.
-   * En la reunión del 20 de agosto: "esta escena no me gusta, podríamos hacer
-   * que iniciara desde la siguiente… ahí me parece que tiene mucho más
-   * sentido". El primer tramo era un plano general del cuarto que no contaba
-   * nada; empezando aquí ya se ve el puesto de trabajo y la pantalla.
-   * El riel completo se conserva: sólo se recorre de 0.46 a 1. */
-  const P_INICIO = 0.46;
-
   const leerScroll = () => {
     const fin = elDentro ? elDentro.offsetTop - innerHeight : document.body.scrollHeight - innerHeight;
     const q = fin > 0 ? Math.min(1, Math.max(0, scrollY / fin)) : 0;
@@ -1417,7 +1415,14 @@ function frame(now) {
     // El hero fijo se desvanece con el primer scroll — no viaja con la página.
     const heroFijo = document.getElementById("hero-fijo");
     if (heroFijo) {
-      const op = Math.max(0, 1 - pPos / 0.06);
+      /* Contra el avance del SCROLL, no contra p.
+       * Desde que el riel arranca en P_INICIO (it. de la escena 2), pPos vale
+       * 0.46 en el primer frame: `1 - pPos/0.06` daba -6.7, o sea que el hero
+       * nacía invisible y la primera pantalla salía sin una sola palabra.
+       * Normalizando el avance, el hero vuelve a estar entero al principio y
+       * se va en el mismo tramo de scroll de siempre. */
+      const avance = (pPos - P_INICIO) / (1 - P_INICIO);
+      const op = Math.max(0, 1 - avance / 0.06);
       heroFijo.style.opacity = op.toFixed(3);
       heroFijo.style.visibility = op <= 0.01 ? "hidden" : "visible";
     }

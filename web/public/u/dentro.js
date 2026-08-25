@@ -454,21 +454,37 @@ function montar() {
    * un autoplay que el navegador va a bloquear igual.
    * `arrancado` es la compuerta: hasta que el usuario elija, el escritorio se
    * queda desenfocado y el reloj no corre. */
+  /* Las pistas NO se cargan al abrir la página.
+   *
+   * Estaban creándose aquí con preload="auto", así que el navegador se bajaba
+   * medio mega de voz nada más entrar — cuatro pantallas antes de que nadie
+   * llegue a la película, compitiendo por ancho de banda con three.js y las
+   * texturas, que sí hacen falta ya.
+   *
+   * Ahora se preparan cuando el escritorio se acerca (a menos de una pantalla
+   * y media), que da tiempo de sobra para que estén listas al pulsar, y se
+   * fuerza la carga si alguien pulsa antes de tiempo.
+   *
+   * Relativo al MÓDULO, no a la página: en producción el sitio cuelga de /u/
+   * y una ruta relativa a la página daría 404. */
   const PISTAS = {};
-  for (const e of ESCENAS) {
-    if (!e.voz || !e.voz.pista) continue;
-    // Relativo al MÓDULO, no a la página. En local el sitio se sirve desde la
-    // raíz del proyecto, pero en producción cuelga de /u/ y una ruta relativa
-    // a la página daría 404. import.meta.url resuelve bien en los dos.
-    const a = new Audio(new URL(`assets/voz/${e.voz.pista}.mp3`, import.meta.url));
-    a.preload = "auto";
-    PISTAS[e.voz.pista] = a;
+  let pistasPreparadas = false;
+  function prepararPistas() {
+    if (pistasPreparadas) return;
+    pistasPreparadas = true;
+    for (const e of ESCENAS) {
+      if (!e.voz || !e.voz.pista || PISTAS[e.voz.pista]) continue;
+      const a = new Audio(new URL(`assets/voz/${e.voz.pista}.mp3`, import.meta.url));
+      a.preload = "auto";
+      PISTAS[e.voz.pista] = a;
+    }
   }
   let conSonido = false;
   let arrancado = false;
 
   function sonar(i) {
     if (!conSonido) return;
+    prepararPistas();                 // por si se pulsa antes de tiempo
     for (const a of Object.values(PISTAS)) { a.pause(); a.currentTime = 0; }
     const v = ESCENAS[i].voz;
     if (!v || !v.pista) return;
@@ -519,6 +535,7 @@ function montar() {
   });
 
   function arrancar(sonido) {
+    prepararPistas();
     conSonido = sonido;
     arrancado = true;
     escritorio.classList.remove("esperando");
@@ -575,6 +592,10 @@ function montar() {
      * resuelve. Si está bloqueado y NO hay una película corriendo a la vista,
      * se suelta pase lo que pase. */
     if (bloqueado && !(arrancado && !terminada && dentro.getBoundingClientRect().top <= 4)) bloquear(false);
+
+    /* A pantalla y media de distancia se empiezan a traer las pistas: llegan
+     * holgadas y no estorban al arranque. */
+    if (!pistasPreparadas && dentro.getBoundingClientRect().top < innerHeight * 2.5) prepararPistas();
 
     const rd = dentro.getBoundingClientRect();
     const enganchado = rd.top <= 4 && rd.bottom > innerHeight * 0.5;
@@ -718,6 +739,9 @@ function montar() {
     escena: () => escena,
     irA: (i) => { irATiempo(t0Escena(i)); sonar(i); },
     saltar: () => btnSaltar.click(),
+    // Lo consulta la barra de navegación: mientras corre, el scroll está
+    // anclado y hay que soltarlo antes de llevar a ninguna parte.
+    corriendo: () => arrancado && !terminada,
     arrancar,                       // arrancar(true|false) sin tocar el cartel
     DURS, INICIOS, TOTAL,
   };
