@@ -189,7 +189,6 @@ export default async function ConsultasPage({
   return (
     <AppPage>
       <AppPageHeader
-        kicker="Documentación clínica"
         title="Consultas"
         description={
           queryError

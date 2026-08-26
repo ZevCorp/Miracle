@@ -29,7 +29,6 @@ export default async function ConfiguracionPage({
   return (
     <AppPage className="mx-auto max-w-3xl">
       <AppPageHeader
-        kicker="Institución"
         title="Configuración institucional"
         description="Los datos que encabezan los documentos de tus médicos y los valores que la institución rellena por ellos."
       />

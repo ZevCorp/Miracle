@@ -906,8 +906,8 @@ function ConsultaActivaInner() {
   return (
     <div className="app-page max-w-5xl pb-6">
       {/* Cabecera compacta: en esta pantalla lo que importa es la captura, no
-          el título. Se sacrifica el kicker y el tamaño grande para que la
-          transcripción y el asistente empiecen más arriba, sin scroll. */}
+          el título. Se sacrifica el tamaño grande para que la transcripción y
+          el asistente empiecen más arriba, sin scroll. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="app-page-heading min-w-0 py-0.5">
           <h1 className="font-display text-[1.3rem] font-[650] leading-tight tracking-[-0.03em] text-deep">

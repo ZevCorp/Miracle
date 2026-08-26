@@ -97,8 +97,7 @@ export function AtajosManager() {
       <header className="border-b border-line pb-6">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
-            <p className="app-page-kicker text-accent">Biblioteca clínica</p>
-            <h1 className="app-page-title mt-1">Mis atajos</h1>
+            <h1 className="app-page-title">Mis atajos</h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
               Los textos que repites en cada consulta. Se insertan en cualquier
               sección de la nota con el botón{" "}

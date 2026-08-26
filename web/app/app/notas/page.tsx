@@ -85,7 +85,6 @@ export default async function NotasPage({
   return (
     <AppPage>
       <AppPageHeader
-        kicker="Revisión médica"
         title="Notas clínicas"
         description={
           queryError

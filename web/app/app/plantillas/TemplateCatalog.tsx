@@ -196,10 +196,7 @@ export function TemplateCatalog({
       <header className="border-b border-line pb-6">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
-            <p className="app-page-kicker text-accent">
-              Biblioteca clínica
-            </p>
-            <h1 className="app-page-title mt-1">
+            <h1 className="app-page-title">
               Plantillas de nota
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">

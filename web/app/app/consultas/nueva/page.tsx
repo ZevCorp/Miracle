@@ -381,7 +381,6 @@ function NuevaConsultaForm() {
   return (
     <div className="app-page max-w-4xl pb-4 sm:pb-8">
       <AppPageHeader
-        kicker="Captura clínica"
         title="Iniciar consulta"
         description="Confirma la plantilla y comienza a grabar. El paciente es opcional."
         action={

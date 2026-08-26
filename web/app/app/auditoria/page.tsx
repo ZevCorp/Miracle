@@ -101,7 +101,6 @@ export default async function AuditoriaPage() {
   return (
     <AppPage>
       <AppPageHeader
-        kicker="Institución"
         title="Auditoría y calidad"
         description="Revisión de completitud, codificación y trazabilidad. Cada nota indica qué se puede mejorar antes de firmar."
       />

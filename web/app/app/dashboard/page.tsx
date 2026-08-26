@@ -159,7 +159,6 @@ function MedicoView({
       <section className="clinical-panel border-l-[3px] border-l-accent p-5 sm:p-6 md:p-7">
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="app-page-kicker">Jornada clínica</p>
             <h1 className="app-page-title">
               Tu día en Miracle
             </h1>
@@ -305,7 +304,6 @@ function SupervisorView({
   return (
     <AppPage>
       <AppPageHeader
-        kicker="Supervisión"
         title="Documentación clínica"
         description={`${pendientes.length} notas por revisar`}
       />
@@ -394,7 +392,6 @@ function AdminView() {
   return (
     <AppPage>
       <AppPageHeader
-        kicker="Institución"
         title="Actividad clínica"
         description={
           sinHistorico

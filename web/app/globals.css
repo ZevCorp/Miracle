@@ -392,16 +392,6 @@
   content: "";
 }
 
-.app-page-kicker {
-  margin-bottom: 0.25rem;
-  color: var(--color-muted);
-  font-size: 0.78rem;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  line-height: 1.35;
-  text-transform: uppercase;
-}
-
 .app-page-title {
   color: var(--color-deep);
   font-family: var(--font-display);

@@ -480,7 +480,6 @@ export function LaboratorioWorkspace({
   return (
     <div className="app-page max-w-4xl pb-24 sm:pb-8">
       <AppPageHeader
-        kicker="Patología"
         title="Informe desde foto de la hoja"
         description="Toma una foto de tu hoja de trabajo y Miracle la vuelca en la plantilla. Revisa las casillas y descarga el informe para tu HIS."
         action={

@@ -74,7 +74,6 @@ export default async function UsuariosPage({
   return (
     <AppPage>
       <AppPageHeader
-        kicker="Institución"
         title="Usuarios y roles"
         description={
           <>

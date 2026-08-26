@@ -45,7 +45,6 @@ export function ReportesView({
   return (
     <AppPage>
       <AppPageHeader
-        kicker="Institución"
         title="Reportes de gerencia"
         description={`${rango.etiqueta} · ${rango.desde} a ${rango.hasta}`}
         action={<RangePicker basePath="/app/reportes" rango={rango} />}

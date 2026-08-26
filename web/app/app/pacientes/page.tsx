@@ -56,7 +56,6 @@ export default async function PacientesPage({
   return (
     <AppPage>
       <AppPageHeader
-        kicker="Directorio clínico"
         title="Pacientes"
         description={
           queryError
