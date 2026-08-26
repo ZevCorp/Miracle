@@ -40,6 +40,16 @@ import {
  *   (eso lo garantiza updateNoteSectionContent en lib/api/clinical).
  * - Nada de parsear markdown ni inventar/eliminar secciones.
  */
+/**
+ * A qué escribe el micrófono. Lleva `key` además del rótulo porque el dictado
+ * literal se escribe en la sección, y `onChangeSection` va por key. El resumen
+ * no es una sección de la plantilla: viaja con key vacía.
+ */
+export interface VoiceTarget {
+  key: string;
+  label: string;
+}
+
 export function EncounterNote({
   note,
   review,
@@ -61,7 +71,7 @@ export function EncounterNote({
   onChangeSection: (key: string, content: string) => void;
   onChangeSummary: (summary: string) => void;
   /** Instrucción hablada para modificar una sección con el asistente clínico. */
-  onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
+  onVoiceInstruction?: (section: VoiceTarget, dictado: string) => void;
   voiceProcessingSection?: string | null;
 }) {
   return (
@@ -198,11 +208,12 @@ function SummaryBlock({
   summary: string;
   editable: boolean;
   onChange: (summary: string) => void;
-  onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
+  onVoiceInstruction?: (section: VoiceTarget, dictado: string) => void;
   voiceProcessing: boolean;
 }) {
   return (
     <EditableBlock
+      target={{ key: "", label: "Resumen" }}
       title="Resumen"
       content={summary}
       editable={editable}
@@ -223,11 +234,12 @@ function SectionBlock({
   section: ClinicalNoteSection;
   editable: boolean;
   onChange: (content: string) => void;
-  onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
+  onVoiceInstruction?: (section: VoiceTarget, dictado: string) => void;
   voiceProcessing: boolean;
 }) {
   return (
     <EditableBlock
+      target={{ key: section.key, label: section.label }}
       title={section.label}
       content={section.content}
       editable={editable}
@@ -252,6 +264,7 @@ function rowsForText(text: string): number {
 }
 
 function EditableBlock({
+  target,
   title,
   content,
   editable,
@@ -259,11 +272,12 @@ function EditableBlock({
   onVoiceInstruction,
   voiceProcessing,
 }: {
+  target: VoiceTarget;
   title: string;
   content: string;
   editable: boolean;
   onChange: (content: string) => void;
-  onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
+  onVoiceInstruction?: (section: VoiceTarget, dictado: string) => void;
   voiceProcessing: boolean;
 }) {
   const [open, setOpen] = useState(true);
@@ -460,7 +474,7 @@ function EditableBlock({
         .map((result) => result[0]?.transcript ?? "")
         .join(" ")
         .trim();
-      if (instruction) onVoiceInstruction(title, instruction);
+      if (instruction) onVoiceInstruction(target, instruction);
     };
     recognition.onerror = () => {
       setVoiceError("No pudimos entender el cambio. Intenta dictarlo de nuevo.");

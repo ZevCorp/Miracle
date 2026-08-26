@@ -34,7 +34,7 @@ import {
 import { useStore } from "@/app/app/providers";
 import { useUnsavedChangesGuard } from "@/components/app/UnsavedChangesProvider";
 import { PatientHeader } from "@/components/app/PatientHeader";
-import { EncounterNote } from "@/components/app/EncounterNote";
+import { EncounterNote, type VoiceTarget } from "@/components/app/EncounterNote";
 import { DictationPanel } from "@/components/app/DictationPanel";
 import { MedicalChat } from "@/components/app/MedicalChat";
 import { AgentPairPanel } from "@/components/app/AgentPairPanel";
@@ -44,6 +44,10 @@ import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker"
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
 import { useEncounterUsage } from "@/lib/clinical/encounter-usage";
 import type { DictationUsageSnapshot } from "@/lib/stt/useDictation";
+import {
+  aplicarDictadoLiteral,
+  parseVoiceInstruction,
+} from "@/lib/clinical/voice-instruction";
 import { SectionDraftsPanel } from "@/components/app/SectionDraftsPanel";
 import {
   buildTranscriptWithSectionDrafts,
@@ -889,8 +893,36 @@ function ConsultaActivaInner() {
     }
   }
 
-  async function applyVoiceInstruction(sectionTitle: string, instruction: string) {
+  /**
+   * El micrófono de una sección. Dos caminos, y los elige el médico al hablar.
+   *
+   * LITERAL ("quiero que diga esto: …"): lo escribe él, no el modelo. Se aplica
+   * aquí mismo, sin llamada ni espera. Es lo que hace posible AGREGAR un dato
+   * que no se dijo en voz alta: el prompt de ajuste tiene prohibido inventar
+   * datos clínicos nuevos, y ante "agrega que el paciente niega fiebre"
+   * devolvía la sección intacta. Por esta vía no hay nada que inventar.
+   *
+   * AJUSTE ("hazla más corta"): eso sí es trabajo del modelo, que reescribe la
+   * sección respetando lo que ya había.
+   */
+  async function applyVoiceInstruction(section: VoiceTarget, dictado: string) {
     if (!encounterId || !note || busy) return;
+    const intencion = parseVoiceInstruction(dictado);
+    if (!intencion) return;
+
+    if (intencion.modo === "literal") {
+      if (section.key) {
+        const actual =
+          note.sections.find((item) => item.key === section.key)?.content ?? "";
+        editarSeccion(section.key, aplicarDictadoLiteral(actual, intencion.texto));
+      } else {
+        editarResumen(aplicarDictadoLiteral(note.summary, intencion.texto));
+      }
+      setFlowError(null);
+      setAiExplanation(`Se escribió tal cual en «${section.label}».`);
+      return;
+    }
+
     if (noteDirty) {
       const ok = await confirm({
         titulo: "Tienes cambios sin guardar",
@@ -904,12 +936,27 @@ function ConsultaActivaInner() {
     setPhase("adjusting");
     setFlowError(null);
     setAiExplanation(null);
-    setVoiceEditingSection(sectionTitle);
+    setVoiceEditingSection(section.label);
     try {
       const result = await adjustNoteWithAssistant({
         encounter_id: encounterId,
-        instruction: `En la sección "${sectionTitle}", aplica esta instrucción dictada por el médico: "${redactor.redact(instruction)}". Modifica únicamente lo necesario para cumplirla y conserva el resto de la nota.`,
+        instruction: `En la sección "${section.label}", aplica esta instrucción dictada por el médico: "${redactor.redact(intencion.instruccion)}". Modifica únicamente lo necesario para cumplirla y conserva el resto de la nota.`,
+        // El contrato acepta la sección como campo propio y el prompt la usa
+        // para acotar el ajuste. Antes solo viajaba dentro del texto libre.
+        section_key: section.key || undefined,
       });
+
+      // El backend dice qué secciones cambió de verdad. Sin mirarlo, una
+      // instrucción que el modelo se negó a aplicar se anunciaba igual que una
+      // aplicada: el médico leía "Cambio dictado aplicado" y la nota seguía
+      // intacta. Ahí es donde el micrófono parecía roto.
+      if (!result.changed_sections?.length) {
+        setAiExplanation(
+          `${result.explanation?.trim() || "No se aplicó ningún cambio."} Si quieres que quede escrito tal cual, díctalo empezando por «quiero que diga».`,
+        );
+        return;
+      }
+
       setNote(result.proposed_note_json);
       setNoteDirty(true);
       setNoteSaved(false);
