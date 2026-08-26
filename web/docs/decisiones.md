@@ -211,3 +211,28 @@ plantillas que lo llevan ni siquiera tienen la casilla de identificación. De
 paso se corrigió una corrupción silenciosa: arrasar con los no-dígitos convertía
 el pasaporte "AY123456" en "123456", así que ahora se distingue el documento
 numérico (cédula, TI, RC, CE, NUIP) del alfanumérico (pasaporte, PPT).
+
+## D20 · Notas por sección durante la consulta
+**Decisión:** el médico ve las secciones de la plantilla activa mientras graba y
+puede escribir dentro de cada una. Ese texto vive en `encounter_section_drafts`
+(tabla de esta app, privada por médico, autoguardada con copia en localStorage)
+y, al generar, se suma a la transcripción como un bloque rotulado —una línea por
+sección, marcado como escrito y no hablado—.
+**Por qué por sección y no una caja suelta:** la plantilla ya es el contrato
+entre esta app y el motor de notas. Colgar el texto de la MISMA sección quita la
+ambigüedad sobre dónde debe aterrizar y funciona con cualquier plantilla, porque
+se apoya en las `key` del snapshot congelado del encounter.
+**Por qué por la transcripción y no por un campo propio:** el prompt de
+generación vive en el backend clínico y solo recibe transcripción + plantilla; no
+hay tercer canal. El endpoint de AJUSTE de nota sí acepta instrucción por
+sección, pero NO sirve: su prompt lleva "PROHIBIDO agregar datos clínicos nuevos
+(síntomas, hallazgos, medicamentos, diagnósticos, valores)", así que ante
+"Sospecha de cáncer" devolvería la sección intacta. Está construido para impedir
+exactamente el caso que hay que soportar.
+**Consecuencia:** el bloque queda dentro de `encounter.transcript`, rotulado para
+no falsear el origen. El cuadro de transcripción de la pantalla lo esconde
+(`stripSectionDraftsBlock`), porque ahí va lo que se habló; y al regenerar se
+quita antes de volver a añadirlo, o las anotaciones se duplicarían.
+**Pendiente (mejor camino, otro repo):** que el backend acepte `section_inputs`
+como campo propio y el prompt las trate sección por sección. Cuando exista, aquí
+solo cambia `buildTranscriptWithSectionDrafts`.

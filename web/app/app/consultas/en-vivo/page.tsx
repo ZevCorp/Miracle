@@ -42,6 +42,12 @@ import { EncounterAuditPanel } from "@/components/app/EncounterAuditPanel";
 import { PlanDischargePanel } from "@/components/app/PlanDischargePanel";
 import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker";
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
+import { SectionDraftsPanel } from "@/components/app/SectionDraftsPanel";
+import {
+  buildTranscriptWithSectionDrafts,
+  stripSectionDraftsBlock,
+} from "@/lib/clinical/section-drafts";
+import { useSectionDrafts } from "@/lib/clinical/use-section-drafts";
 import { extractPatientIdentity } from "@/lib/clinical/patient-identity";
 import { servicioPorDefecto } from "@/lib/hospital/org";
 import { reviewGeneratedNote } from "@/lib/clinical/note-review";
@@ -168,6 +174,10 @@ function ConsultaActivaInner() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [transcriptDraft, setTranscriptDraft] = useState("");
+  // Lo que el médico escribe por sección mientras la consulta va corriendo.
+  // Vive en su propio hook a propósito: teclear ahí no debe re-renderizar el
+  // dictado ni tocar el WebSocket de la grabación.
+  const sectionDrafts = useSectionDrafts(encounterId);
   const transcriptRef = useRef<HTMLTextAreaElement | null>(null);
   // Dónde devolver el cursor (y el scroll) tras un segmento dictado. En null
   // cuando el cursor iba al final y debe seguir al texto nuevo.
@@ -271,7 +281,13 @@ function ConsultaActivaInner() {
         if (ignore) return;
         setEncounter(data);
         if (data.patient_id) setAssociatedPatientId(data.patient_id);
-        setTranscriptDraft(data.transcript ?? "");
+        // El cuadro de transcripción enseña SOLO lo que se habló. Lo guardado
+        // puede traer el bloque de anotaciones por sección que se añadió al
+        // generar; se le quita aquí, o al recargar el médico se encontraría sus
+        // notas escritas metidas dentro de la transcripción. `savedTranscript`
+        // sí conserva el texto completo: es lo que hay en el servidor, y con lo
+        // que se compara para no reenviarlo sin necesidad.
+        setTranscriptDraft(stripSectionDraftsBlock(data.transcript ?? ""));
         setSavedTranscript(data.transcript ?? "");
         setNote(data.note_json ?? null);
         setNoteDirty(false);
@@ -379,7 +395,22 @@ function ConsultaActivaInner() {
       setFlowError(CLINICAL_ERROR_MESSAGES.TRANSCRIPT_REQUIRED);
       return;
     }
-    if (text.length > MAX_TRANSCRIPT_LENGTH) {
+    // Antes de nada se vuelca lo que el médico acabara de teclear y aún
+    // estuviera esperando el autoguardado: generar no puede dejarse un dato
+    // fuera por 900 ms de diferencia.
+    await sectionDrafts.flush();
+    // Lo escrito por sección viaja como un bloque rotulado al final de la
+    // transcripción. Es el único canal que llega al prompt de generación (el
+    // backend solo recibe transcripción + plantilla), y va marcado como
+    // escrito-no-hablado para no falsear el origen. `strip` primero: al
+    // REGENERAR, la transcripción guardada ya puede traer el bloque anterior y
+    // sin quitarlo se duplicarían las anotaciones dentro de la nota.
+    const textoParaGenerar = buildTranscriptWithSectionDrafts(
+      stripSectionDraftsBlock(text),
+      sectionDrafts.drafts,
+      encounter?.template_snapshot?.sections,
+    );
+    if (textoParaGenerar.length > MAX_TRANSCRIPT_LENGTH) {
       setFlowError(CLINICAL_ERROR_MESSAGES.TRANSCRIPT_TOO_LONG);
       return;
     }
@@ -394,13 +425,15 @@ function ConsultaActivaInner() {
     }
 
     setFlowError(null);
-    // La pantalla refleja exactamente lo que se envió (con placeholders).
+    // La pantalla refleja exactamente lo que se dictó (con placeholders). El
+    // cuadro de transcripción NO enseña el bloque de anotaciones: ahí va lo que
+    // se habló, y lo escrito ya se ve en su propia sección.
     if (text !== transcriptDraft) setTranscriptDraft(text);
     try {
-      if (text !== savedTranscript.trim()) {
+      if (textoParaGenerar !== savedTranscript.trim()) {
         setPhase("saving_transcript");
-        const saved = await saveClinicalTranscript(encounterId, text);
-        setSavedTranscript(text);
+        const saved = await saveClinicalTranscript(encounterId, textoParaGenerar);
+        setSavedTranscript(textoParaGenerar);
         applyStatus(saved.status);
       }
       setPhase("generating");
@@ -1118,6 +1151,22 @@ function ConsultaActivaInner() {
                   </button>
                 </span>
               </div>
+
+              {/* Las secciones de la plantilla, escribibles mientras se graba.
+                  Van aquí —bajo la transcripción y antes del botón de
+                  generar— porque ese es el orden en que se usan: se escucha,
+                  se anota, se genera. Una vez completada la consulta no se
+                  ofrecen: lo que manda entonces es la nota. */}
+              {!completed ? (
+                <SectionDraftsPanel
+                  sections={snapshot?.sections}
+                  drafts={sectionDrafts.drafts}
+                  onChange={sectionDrafts.setDraft}
+                  saveState={sectionDrafts.saveState}
+                  loading={sectionDrafts.loading}
+                  disabled={Boolean(signedMirror)}
+                />
+              ) : null}
 
               {!completed ? (
                 <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
