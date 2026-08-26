@@ -42,11 +42,14 @@ const icons: Record<string, LucideIcon> = {
   suscripcion: CreditCard,
 };
 
+// Las pestañas fijas de la barra inferior. Al salir "Notas" del menú entra
+// "Plantillas" en su puesto: si no, el médico se quedaba con tres pestañas y un
+// "Más" que escondía una sola sección.
 const primaryHrefs = new Set([
   "/app/dashboard",
   "/app/consultas",
   "/app/pacientes",
-  "/app/notas",
+  "/app/plantillas",
 ]);
 
 function isActive(pathname: string, href: string) {
@@ -82,6 +85,12 @@ export function MobileBottomNavigation({
   const primary = allowed.filter((item) => primaryHrefs.has(item.href));
   const secondary = allowed.filter((item) => !primaryHrefs.has(item.href));
   const secondaryActive = secondary.some((item) => isActive(pathname, item.href));
+  // El número de columnas se calcula: con la rejilla fija en cinco, un rol que
+  // ve tres pestañas las dejaba amontonadas a la izquierda y media barra vacía.
+  // "Más" SIEMPRE cuenta, aunque no le queden secciones detrás: su hoja es el
+  // único sitio en móvil con cerrar sesión y cambio de tema (en AppShell los dos
+  // están ocultos por debajo de sm/lg).
+  const columnas = primary.length + 1;
 
   return (
     <>
@@ -89,7 +98,10 @@ export function MobileBottomNavigation({
         aria-label="Navegación principal"
         className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface shadow-[0_-4px_18px_rgb(14_23_38_/_0.06)] md:hidden"
       >
-        <div className="mx-auto grid max-w-lg grid-cols-5 px-1.5 pt-1.5">
+        <div
+          className="mx-auto grid max-w-lg px-1.5 pt-1.5"
+          style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}
+        >
           {primary.map((item) => {
             const Icon = icons[item.icon] ?? LayoutDashboard;
             const active = isActive(pathname, item.href);
@@ -117,7 +129,7 @@ export function MobileBottomNavigation({
             onClick={() => setMoreOpen(true)}
             aria-expanded={moreOpen}
             className={`flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-xs font-semibold transition-colors ${
-               secondaryActive ? "text-accent" : "text-muted active:bg-ice-soft"
+              secondaryActive ? "text-accent" : "text-muted active:bg-ice-soft"
             }`}
           >
             <Menu size={20} />

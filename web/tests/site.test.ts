@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { whatsappLink, visibleAppNav, SITE, WHATSAPP_BASE } from "@/lib/site";
+import { canAccessPath } from "@/lib/auth/roles";
 
 describe("whatsappLink", () => {
   it("arma el enlace con el mensaje codificado", () => {
@@ -26,7 +27,6 @@ describe("visibleAppNav · cuenta demo comercial", () => {
       "/app/dashboard",
       "/app/consultas",
       "/app/pacientes",
-      "/app/notas",
       "/app/plantillas",
     ]);
   });
@@ -35,6 +35,31 @@ describe("visibleAppNav · cuenta demo comercial", () => {
     const hrefs = visibleAppNav("admin").map((item) => item.href);
     expect(hrefs).toContain("/app/usuarios");
     expect(hrefs).toContain("/app/reportes");
+  });
+});
+
+describe("visibleAppNav · Notas salió del menú", () => {
+  /* Quitarla del menú NO es apagarla: la campana de notificaciones enlaza a
+     /app/notas. Si alguien borra la ruta o la saca de la lista blanca de roles,
+     esos enlaces mueren en silencio. */
+  it("no ofrece Notas como sección navegable", () => {
+    for (const role of ["medico", "admin", "supervisor"] as const) {
+      const hrefs = visibleAppNav(role).map((item) => item.href);
+      expect(hrefs).not.toContain("/app/notas");
+    }
+  });
+
+  it("mantiene su ruta viva y permitida", () => {
+    for (const role of ["medico", "admin", "supervisor"] as const) {
+      expect(canAccessPath(role, "/app/notas")).toBe(true);
+    }
+  });
+
+  it("Pacientes sigue en el menú", () => {
+    for (const role of ["medico", "admin", "supervisor"] as const) {
+      const hrefs = visibleAppNav(role).map((item) => item.href);
+      expect(hrefs).toContain("/app/pacientes");
+    }
   });
 });
 

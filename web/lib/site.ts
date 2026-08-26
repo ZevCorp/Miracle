@@ -92,7 +92,9 @@ export const appNav: AppNavItem[] = [
   { label: "Consultas", href: "/app/consultas", icon: "consultas", roles: [...allRoles, "secretaria"], group: "clinico" },
   { label: "Patología", href: "/app/laboratorio", icon: "laboratorio", roles: allRoles, professionalTypes: ["patologo"], group: "clinico" },
   { label: "Pacientes", href: "/app/pacientes", icon: "pacientes", roles: allRoles, group: "clinico" },
-  { label: "Notas", href: "/app/notas", icon: "notas", roles: allRoles, group: "clinico" },
+  // "Notas" salió del menú, no de la app: repetía lo que ya hacen Consultas y
+  // la campana de notificaciones. La ruta sigue viva y permitida por rol,
+  // porque la campana enlaza a ella.
   { label: "Plantillas", href: "/app/plantillas", icon: "plantillas", roles: allRoles, group: "clinico" },
   { label: "Auditoría", href: "/app/auditoria", icon: "auditoria", roles: ["admin", "supervisor"], group: "institucion" },
   { label: "Reportes", href: "/app/reportes", icon: "reportes", roles: ["admin", "supervisor"], group: "institucion" },

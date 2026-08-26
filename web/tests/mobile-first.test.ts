@@ -24,9 +24,35 @@ describe("experiencia mobile-first Miracle", () => {
     expect(navigation).toContain('pathname === "/app/consultas/nueva"');
     expect(navigation).toContain('"/app/dashboard"');
     expect(navigation).toContain('"/app/consultas"');
-    expect(navigation).toContain('"/app/pacientes"');
-    expect(navigation).toContain('"/app/notas"');
+    expect(navigation).toContain('"/app/plantillas"');
     expect(shell).toContain("<MobileBottomNavigation");
+  });
+
+  it("deja cerrar sesion y cambiar de tema desde la hoja «Más»", () => {
+    /* En AppShell el botón de tema es sm:inline-flex y el de salir lg:inline:
+       en un teléfono ninguno de los dos existe. Si «Más» deja de
+       dibujarse (por ejemplo, condicionado a que queden secciones detrás), el
+       médico se queda sin forma de cerrar sesión. */
+    const navigation = source("components/app/MobileBottomNavigation.tsx");
+
+    expect(navigation).toContain("Cerrar sesión");
+    expect(navigation).toContain("signOut");
+    expect(navigation).toContain("Cambiar modo claro u oscuro");
+  });
+
+  it("deja cerrar sesión en TODOS los anchos, sin huecos entre breakpoints", () => {
+    /* Dos zonas y quién cubre cada una, tras retirar el pie del sidebar:
+         < md   → hoja «Más» de la barra inferior (`md:hidden`)
+         ≥ md   → botón "Salir" de la cabecera
+       Si ese "Salir" vuelve a `lg:inline`, entre 768 y 1024 px el médico se
+       queda encerrado en la sesión: el sidebar ya no tiene salida. */
+    const shell = source("components/app/AppShell.tsx");
+    const sidebar = source("components/app/AppSidebar.tsx");
+
+    expect(shell).toMatch(/md:inline[\s\S]{0,80}Salir/);
+    expect(shell).not.toMatch(/lg:inline[\s\S]{0,80}Salir/);
+    // El sidebar es solo navegación: ya no ofrece salir (ni instalar).
+    expect(sidebar).not.toContain("signOut");
   });
 
   it("mantiene pausa, reanudación y confirmación antes de finalizar", () => {

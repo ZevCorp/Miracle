@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
-import { InstallAppButton } from "@/components/app/InstallAppButton";
 import { SidebarToggle } from "@/components/app/SidebarToggle";
 import { NAV_ICONS, NAV_ICON_FALLBACK } from "@/components/app/nav-icons";
 import {
@@ -14,7 +12,6 @@ import {
   type AppNavItem,
 } from "@/lib/site";
 import type { AppRole } from "@/lib/auth/roles";
-import { signOut } from "@/app/login/actions";
 import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
 
 /** Una entrada del menú. Extraída para no anidar el bloque dentro del map de grupos. */
@@ -123,21 +120,9 @@ export function AppSidebar({
           ));
         })()}
       </nav>
-      <div className="space-y-1 border-t border-white/10 p-3">
-        {/* Solo aparece cuando el navegador ofrece instalar la app (PWA). */}
-        <InstallAppButton onNavigate={onNavigate} />
-        {/* Siempre visible (también en el drawer móvil): en equipos compartidos
-            debe poderse cerrar sesión desde cualquier tamaño de pantalla. */}
-        <form action={signOut}>
-          <button
-            type="submit"
-            className="sidebar-item relative flex min-h-11 w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-semibold text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-text"
-          >
-            <LogOut size={16} className="shrink-0" />
-            <span className="sidebar-label">Cerrar sesión</span>
-          </button>
-        </form>
-      </div>
+      {/* El pie del sidebar (instalar app + cerrar sesión) se retiró: salir vive
+          en la cabecera y, en móvil, en la hoja «Más». El sidebar es solo
+          navegación. */}
     </div>
   );
 }

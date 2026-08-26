@@ -133,7 +133,11 @@ export function AppShell({
               >
                 {initials(profile)}
               </span>
-              <button type="submit" className="hidden text-sm font-semibold text-muted hover:text-deep lg:inline">
+              {/* Desde `md`, no desde `lg`: `md` es justo donde aparece el
+                  sidebar y desaparece la barra inferior. Con el pie del sidebar
+                  retirado, entre 768 y 1024 px no quedaba NINGUNA forma de
+                  cerrar sesión — ni este botón, ni la hoja «Más». */}
+              <button type="submit" className="hidden text-sm font-semibold text-muted hover:text-deep md:inline">
                 Salir
               </button>
             </form>
