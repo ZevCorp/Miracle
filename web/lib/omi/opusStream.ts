@@ -5,7 +5,6 @@
 // solo le sacamos la cabecera propietaria de Omi a cada paquete BLE antes de
 // pasárselo.
 
-import { OpusDecoder } from "opus-decoder";
 import { OMI_CHANNELS, OMI_PACKET_HEADER_BYTES, OMI_SAMPLE_RATE_HZ } from "./constants";
 
 export interface OmiOpusDecoderHandle {
@@ -15,6 +14,10 @@ export interface OmiOpusDecoderHandle {
 }
 
 export async function createOmiOpusDecoder(): Promise<OmiOpusDecoderHandle> {
+  // Import dinámico a propósito: el WASM del decoder pesa ~200 KB y solo hace
+  // falta si el médico conecta un Omi. Estático, entraría en el bundle de la
+  // consulta en vivo y lo pagaría también quien dicta con el micrófono normal.
+  const { OpusDecoder } = await import("opus-decoder");
   const decoder = new OpusDecoder({ sampleRate: OMI_SAMPLE_RATE_HZ, channels: OMI_CHANNELS });
   await decoder.ready;
 

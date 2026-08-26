@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // `opus-decoder` (audio del Omi) arrastra `@eshaz/web-worker`, cuyo build de
+  // Node hace un `import(variable)` que el bundler no puede resolver y rompe el
+  // build de servidor. El paquete solo se ejecuta en el navegador y bajo demanda
+  // (ver lib/omi/opusStream.ts), así que se saca del bundle de servidor.
+  serverExternalPackages: ["opus-decoder"],
   images: {
     // Un sitio de marketing no necesita variantes de 2048/3840 px; capar aquí
     // evita que next/image reescale las fotos a tamaños enormes (más rápido de
