@@ -195,7 +195,12 @@ function montar() {
       },
       u: () => centro(0.5, 0.38),
       cursor: () => null,
-      voz: { de: "u", dice: "Hola, soy Ü. Soy el asistente de inteligencia artificial para médicos.", pista: "u-01-hola", dur: 5800 },
+      /* `fon` es lo que se le da al generador de voz; `dice` es lo que se lee
+         en pantalla. El TTS leia "Ü" como "u" a secas, y la marca se pronuncia
+         "iu". Solo esta linea la nombra. */
+      voz: { de: "u", dice: "Hola, soy Ü. Soy el asistente de inteligencia artificial para médicos.",
+             fon: "Hola, soy Iu. Soy el asistente de inteligencia artificial para médicos.",
+             pista: "u-01-hola", dur: 4700 },
     },
     {
       titulo: "Para que sueltes el teclado.",
@@ -203,7 +208,7 @@ function montar() {
       set() { presentando(true); face.thinking = false; },
       u: () => centro(0.5, 0.38),
       cursor: () => null,
-      voz: { de: "u", dice: "Mi objetivo es que puedas dejar de usar el computador y concentrarte en tu paciente.", pista: "u-02-objetivo", dur: 6100 },
+      voz: { de: "u", dice: "Mi objetivo es que puedas dejar de usar el computador y concentrarte en tu paciente.", pista: "u-02-objetivo", dur: 5400 },
     },
     {
       titulo: "Primero miro cómo trabajas.",
@@ -211,7 +216,7 @@ function montar() {
       set() { presentando(true); face.thinking = true; },
       u: () => centro(0.5, 0.38),
       cursor: () => null,
-      voz: { de: "u", dice: "Para eso, primero miro tu pantalla unos días y aprendo cómo trabajas.", pista: "u-03-aprendo", dur: 5250 },
+      voz: { de: "u", dice: "Para eso, primero miro tu pantalla unos días y aprendo cómo trabajas.", pista: "u-03-aprendo", dur: 5300 },
     },
     {
       titulo: "Y abro tu sistema.",
@@ -224,7 +229,7 @@ function montar() {
       u: () => junto(".iconos .icono:nth-child(3)", -1),
       cursor: () => punto(".iconos .icono:nth-child(3)", 0.5, 0.5),
       clic: true,
-      voz: { de: "u", dice: "Cuando ya aprendí, abro tu sistema. El mismo que usas todos los días.", pista: "u-04-abro", dur: 5500 },
+      voz: { de: "u", dice: "Cuando ya aprendí, abro tu sistema. El mismo que usas todos los días.", pista: "u-04-abro", dur: 4550 },
     },
     {
       titulo: "Aquí va el paciente nuevo.",
@@ -232,7 +237,7 @@ function montar() {
       set() { montarForm({ tab: "nuevo", senala: "tab:nuevo" }); face.thinking = false; },
       u: () => junto(".p-tab.nuevo", -1),
       cursor: () => punto(".p-tab.nuevo", 0.5, 0.6),
-      voz: { de: "u", dice: "Aquí registras al paciente que viene por primera vez.", pista: "u-05-nuevo", dur: 4000 },
+      voz: { de: "u", dice: "Aquí registras al paciente que viene por primera vez.", pista: "u-05-nuevo", dur: 3550 },
     },
     {
       titulo: "Y aquí el que ya conoces.",
@@ -241,7 +246,7 @@ function montar() {
       u: () => junto(".p-tab.conocida", 1),
       cursor: () => punto(".p-tab.conocida", 0.5, 0.6),
       clic: true,
-      voz: { de: "u", dice: "Y aquí al que ya tiene historia contigo. Entremos por este.", pista: "u-06-conocido", dur: 4500 },
+      voz: { de: "u", dice: "Y aquí al que ya tiene historia contigo. Entremos por este.", pista: "u-06-conocido", dur: 3700 },
     },
     {
       titulo: "Los datos van primero.",
@@ -249,7 +254,7 @@ function montar() {
       set() { montarForm({ tab: "conocida", escritos: ["doc"], senala: "doc" }); face.thinking = false; },
       u: () => junto(".v-form .c-doc .caja", -1),
       cursor: () => punto(".v-form .c-doc .caja", 0.3, 0.5),
-      voz: { de: "u", dice: "Primero van los datos, cuando el paciente te los confirma.", pista: "u-07-datos", dur: 4250 },
+      voz: { de: "u", dice: "Primero van los datos, cuando el paciente te los confirma.", pista: "u-07-datos", dur: 3650 },
     },
     {
       titulo: "Después el examen físico.",
@@ -269,7 +274,7 @@ function montar() {
       },
       u: () => junto("#d-cita", 1),
       cursor: () => null,
-      voz: { de: "u", dice: "Ahora atendamos una cita de verdad. Tú habla con tu paciente; yo escribo.", pista: "u-09-cita", dur: 6200 },
+      voz: { de: "u", dice: "Ahora atendamos una cita de verdad. Tú habla con tu paciente; yo escribo.", pista: "u-09-cita", dur: 5250 },
     },
     {
       titulo: "Escuchando.",
@@ -305,7 +310,7 @@ function montar() {
       },
       u: () => junto(".v-form .c-dx .caja", -1),
       cursor: () => null,
-      voz: { de: "u", dice: "Listo. La historia quedó completa y tú no tocaste el teclado.", pista: "u-10-listo", dur: 4950 },
+      voz: { de: "u", dice: "Listo. La historia quedó completa y tú no tocaste el teclado.", pista: "u-10-listo", dur: 3950 },
     },
     {
       titulo: "Pruébame.",
@@ -320,7 +325,7 @@ function montar() {
       },
       u: () => centro(0.5, 0.26),
       cursor: () => punto(".d-final .cta", 0.72, 0.55),
-      voz: { de: "u", dice: "Si quieres probarme, regístrate aquí abajo.", pista: "u-11-registrate", dur: 3100 },
+      voz: { de: "u", dice: "Si quieres probarme, regístrate aquí abajo.", pista: "u-11-registrate", dur: 2800 },
       alFinal: true,
     },
   ];
@@ -454,21 +459,37 @@ function montar() {
    * un autoplay que el navegador va a bloquear igual.
    * `arrancado` es la compuerta: hasta que el usuario elija, el escritorio se
    * queda desenfocado y el reloj no corre. */
+  /* Las pistas NO se cargan al abrir la página.
+   *
+   * Estaban creándose aquí con preload="auto", así que el navegador se bajaba
+   * medio mega de voz nada más entrar — cuatro pantallas antes de que nadie
+   * llegue a la película, compitiendo por ancho de banda con three.js y las
+   * texturas, que sí hacen falta ya.
+   *
+   * Ahora se preparan cuando el escritorio se acerca (a menos de una pantalla
+   * y media), que da tiempo de sobra para que estén listas al pulsar, y se
+   * fuerza la carga si alguien pulsa antes de tiempo.
+   *
+   * Relativo al MÓDULO, no a la página: en producción el sitio cuelga de /u/
+   * y una ruta relativa a la página daría 404. */
   const PISTAS = {};
-  for (const e of ESCENAS) {
-    if (!e.voz || !e.voz.pista) continue;
-    // Relativo al MÓDULO, no a la página. En local el sitio se sirve desde la
-    // raíz del proyecto, pero en producción cuelga de /u/ y una ruta relativa
-    // a la página daría 404. import.meta.url resuelve bien en los dos.
-    const a = new Audio(new URL(`assets/voz/${e.voz.pista}.mp3`, import.meta.url));
-    a.preload = "auto";
-    PISTAS[e.voz.pista] = a;
+  let pistasPreparadas = false;
+  function prepararPistas() {
+    if (pistasPreparadas) return;
+    pistasPreparadas = true;
+    for (const e of ESCENAS) {
+      if (!e.voz || !e.voz.pista || PISTAS[e.voz.pista]) continue;
+      const a = new Audio(new URL(`assets/voz/${e.voz.pista}.mp3`, import.meta.url));
+      a.preload = "auto";
+      PISTAS[e.voz.pista] = a;
+    }
   }
   let conSonido = false;
   let arrancado = false;
 
   function sonar(i) {
     if (!conSonido) return;
+    prepararPistas();                 // por si se pulsa antes de tiempo
     for (const a of Object.values(PISTAS)) { a.pause(); a.currentTime = 0; }
     const v = ESCENAS[i].voz;
     if (!v || !v.pista) return;
@@ -499,6 +520,10 @@ function montar() {
    * 3. Lo que sí aguanta es ANCLAR la posición: se recuerda dónde estaba y
    *    se vuelve ahí en cada scroll, venga de donde venga. Sin tocar el
    *    layout, así que sigue sin haber salto. */
+  /* Se pone a true al encajar la seccion bajo el cartel y solo se suelta al
+     alejarse mas de media pantalla: si no, cada frame volveria a llamar a
+     scrollTo y la pagina no dejaria de temblar. */
+  let encajado = false;
   let bloqueado = false;
   let yAncla = 0;
   const comer = (e) => { if (bloqueado) e.preventDefault(); };
@@ -519,6 +544,7 @@ function montar() {
   });
 
   function arrancar(sonido) {
+    prepararPistas();
     conSonido = sonido;
     arrancado = true;
     escritorio.classList.remove("esperando");
@@ -576,6 +602,10 @@ function montar() {
      * se suelta pase lo que pase. */
     if (bloqueado && !(arrancado && !terminada && dentro.getBoundingClientRect().top <= 4)) bloquear(false);
 
+    /* A pantalla y media de distancia se empiezan a traer las pistas: llegan
+     * holgadas y no estorban al arranque. */
+    if (!pistasPreparadas && dentro.getBoundingClientRect().top < innerHeight * 2.5) prepararPistas();
+
     const rd = dentro.getBoundingClientRect();
     const enganchado = rd.top <= 4 && rd.bottom > innerHeight * 0.5;
     const dentroVista = rd.top < innerHeight && rd.bottom > 0;
@@ -606,6 +636,21 @@ function montar() {
          * pulsarlo. Se espera a que el empalme suelte el transform. */
         const empalmando = dentro.classList.contains("empalmando");
         escritorio.classList.toggle("esperando", !empalmando);
+
+        /* Encajar la seccion bajo el cartel. Los 900 px de aproximacion son el
+           empalme —ahi el scroll ES la animacion y no se puede tocar—, y el
+           cartel sale justo en top 0. El problema es pasarse: con inercia de
+           trackpad se cruza el punto, la seccion se descuelga y el cartel se va
+           antes de que el dedo llegue al boton.
+           Asi que solo se corrige cuando ya te pasaste, una vez, y con tope: mas
+           alla de un cuarto de pantalla se entiende que vas de paso hacia la
+           landing y no se te toca el scroll. */
+        if (!empalmando && !encajado && rd.top < -2 && rd.top > -innerHeight * 0.25) {
+          encajado = true;
+          window.scrollTo({ top: Math.round(window.scrollY + rd.top),
+                            behavior: REDUCED ? "auto" : "smooth" });
+        }
+
         /* Con el cartel puesto NO se bloquea. El bloqueo es para que nadie
          * scrollee DURANTE la película, no para retener a quien todavía no ha
          * decidido verla. Desde que hay una tercera sección debajo, bloquear
@@ -696,6 +741,7 @@ function montar() {
         voz.style.top = y + "px";
       }
     } else if (!enganchado && !arrancado) {
+      if (rd.top > innerHeight * 0.8) encajado = false;
       // Fuera del punto de anclaje no hay cartel ni bloqueo.
       escritorio.classList.remove("esperando");
       bloquear(false);
@@ -718,7 +764,13 @@ function montar() {
     escena: () => escena,
     irA: (i) => { irATiempo(t0Escena(i)); sonar(i); },
     saltar: () => btnSaltar.click(),
+    // Lo consulta la barra de navegación: mientras corre, el scroll está
+    // anclado y hay que soltarlo antes de llevar a ninguna parte.
+    corriendo: () => arrancado && !terminada,
     arrancar,                       // arrancar(true|false) sin tocar el cartel
+    // Las pistas son objetos Audio del módulo, no elementos del DOM: sin esto
+    // no hay forma de comprobar desde fuera que la voz suena de verdad.
+    pistas: () => PISTAS,
     DURS, INICIOS, TOTAL,
   };
 
