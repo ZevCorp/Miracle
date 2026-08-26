@@ -495,8 +495,8 @@ function EditableBlock({
         .trim();
       if (instruction) onVoiceInstruction(target, instruction);
     };
-    recognition.onerror = () => {
-      setVoiceError("No pudimos entender el cambio. Intenta dictarlo de nuevo.");
+    recognition.onerror = (event) => {
+      setVoiceError(mensajeDeErrorDeVoz(event?.error));
     };
     recognition.onend = () => {
       recognitionRef.current = null;
@@ -561,7 +561,7 @@ function EditableBlock({
               ) : null}
             </div>
           ) : null}
-          {editable && onVoiceInstruction ? (
+          {(editable || voiceProcessing) && onVoiceInstruction ? (
             <button
               type="button"
               onClick={dictateChange}
@@ -703,11 +703,39 @@ type SpeechRecognitionLike = {
   interimResults: boolean;
   continuous: boolean;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
   onend: (() => void) | null;
   start: () => void;
 };
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+/**
+ * Por qué falló el dictado, dicho de forma que el médico pueda actuar.
+ *
+ * Antes todo caía en "No pudimos entender el cambio": con el permiso del
+ * micrófono denegado, el médico reintentaba una y otra vez contra una pared,
+ * sin que nada le dijera que el problema era el permiso. Los códigos son los
+ * del evento de la Web Speech API.
+ */
+function mensajeDeErrorDeVoz(codigo?: string): string {
+  switch (codigo) {
+    case "not-allowed":
+    case "service-not-allowed":
+      return "El navegador bloqueó el micrófono. Permítelo en el candado de la barra de direcciones y vuelve a intentarlo.";
+    case "audio-capture":
+      return "No encontramos un micrófono en este dispositivo.";
+    case "network":
+      return "El dictado necesita conexión y no pudimos conectar. Revísala e inténtalo de nuevo.";
+    case "no-speech":
+      return "No se escuchó nada. Acerca el micrófono y dicta de nuevo.";
+    case "aborted":
+      // Lo cancela el propio médico (otra grabación, cambio de pestaña): no es
+      // un fallo y no merece una alerta roja.
+      return "";
+    default:
+      return "No pudimos entender el cambio. Intenta dictarlo de nuevo.";
+  }
+}
 
 function getSpeechRecognition(): SpeechRecognitionConstructor | null {
   if (typeof window === "undefined") return null;
