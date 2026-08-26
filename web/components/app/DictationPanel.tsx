@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Loader2, Mic, Pause, Play, Square, Wifi } from "lucide-react";
+import { AlertTriangle, Bluetooth, Loader2, Mic, Pause, Play, Square, Wifi } from "lucide-react";
 import { Waveform } from "@/components/app/Waveform";
 import { useDictation, type DictationStatus } from "@/lib/stt/useDictation";
+import { useOmiMicrophone } from "@/lib/omi/useOmiMicrophone";
 
 const STATUS_TEXT: Partial<Record<DictationStatus, string>> = {
   requesting_mic: "Solicitando acceso al micrófono…",
@@ -49,6 +50,19 @@ export function DictationPanel({
   const autoStartHandled = useRef(false);
   const [finishConfirm, setFinishConfirm] = useState(false);
 
+  // Fuente de audio: "mic" usa getUserMedia normal; "omi" instala el shim que
+  // hace pasar el audio del collar Omi como si fuera el micrófono (ver
+  // lib/omi/getUserMediaShim.ts). Piloto: Chrome/Edge de escritorio solamente.
+  const omi = useOmiMicrophone();
+  const [source, setSource] = useState<"mic" | "omi">("mic");
+
+  // Nunca dejar el shim instalado fuera de este panel: si el médico navega
+  // sin desconectar el Omi, una futura grabación normal se rompería.
+  useEffect(() => {
+    return () => omi.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // "Activo" = cualquier estado que implique micrófono/conexión en curso.
   const active = status !== "idle" && status !== "error";
   useEffect(() => {
@@ -78,6 +92,7 @@ export function DictationPanel({
   async function finishRecording() {
     setFinishConfirm(false);
     await stop();
+    if (source === "omi") omi.disconnect();
     onRecordingStopped?.();
   }
 
@@ -101,6 +116,50 @@ export function DictationPanel({
       </div>
 
       <div className="p-4">
+        {!active ? (
+          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2.5">
+            <span className="text-xs font-semibold text-muted">Fuente de audio:</span>
+            <div className="flex overflow-hidden rounded-lg border border-line">
+              <button
+                type="button"
+                onClick={() => setSource("mic")}
+                className={`px-3 py-1.5 text-xs font-semibold ${source === "mic" ? "bg-accent text-white" : "bg-pearl text-deep"}`}
+              >
+                Micrófono del navegador
+              </button>
+              <button
+                type="button"
+                onClick={() => setSource("omi")}
+                disabled={!omi.supported}
+                className={`px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${source === "omi" ? "bg-accent text-white" : "bg-pearl text-deep"}`}
+              >
+                Omi
+              </button>
+            </div>
+            {!omi.supported ? (
+              <span className="text-xs text-muted">Omi solo está disponible en Chrome/Edge de escritorio.</span>
+            ) : null}
+            {source === "omi" && omi.supported ? (
+              <button
+                type="button"
+                onClick={() => (omi.isConnected ? omi.disconnect() : void omi.connect())}
+                disabled={omi.connecting}
+                className={`ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-60 ${omi.isConnected ? "border border-success/35 bg-success-soft text-success" : "border border-line bg-pearl text-deep"}`}
+              >
+                {omi.connecting ? <Loader2 size={13} className="animate-spin" /> : <Bluetooth size={13} />}
+                {omi.connecting ? "Conectando…" : omi.isConnected ? "Omi conectado" : "Conectar Omi"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {source === "omi" && omi.error ? (
+          <p role="alert" className="mb-4 flex items-start gap-2 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            {omi.error}
+          </p>
+        ) : null}
+
         {capturing ? (
           <div className="mb-4 rounded-lg border border-danger/15 bg-surface px-3 py-3">
             <Waveform active={status === "recording"} />
@@ -117,7 +176,7 @@ export function DictationPanel({
               <Pause size={17} /> Pausar
             </button>
           ) : (
-            <button type="button" onClick={() => void startOrContinue()} disabled={disabled || inFlight} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60">
+            <button type="button" onClick={() => void startOrContinue()} disabled={disabled || inFlight || (source === "omi" && !omi.isConnected)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60">
               {inFlight ? <Loader2 size={17} className="animate-spin" /> : paused ? <Play size={17} /> : <Mic size={17} />}
               {paused ? "Continuar grabación" : status === "error" ? "Intentar de nuevo" : "Iniciar grabación"}
             </button>
