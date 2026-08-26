@@ -29,13 +29,21 @@ type AnthropicUsage = {
 export type AiUsageReport = {
   userId: string;
   feature: string;
-  provider: "anthropic" | "openai" | "google" | "deepgram";
+  provider: "anthropic" | "openai" | "google" | "deepgram" | "soniox";
   apiFamily?: string;
   requestedModel: string;
   servedModel?: string;
   inputTokens: number;
   outputTokens: number;
   cachedInputTokens?: number;
+  /** Segundos de audio procesados (STT); el costo por minuto sale de ai_model_prices. */
+  audioSeconds?: number;
+  /**
+   * Id de sesión del ledger. Para consumo con alcance de consulta va el
+   * encounter_id: es lo que permite atribuir tokens/minutos a una consulta
+   * (ver docs/graph-metrics-contract.md).
+   */
+  sessionId?: string;
   status?: "ok" | "error";
   errorCode?: string;
   latencyMs?: number;
@@ -92,6 +100,8 @@ export async function reportAiUsage(report: AiUsageReport): Promise<void> {
         inputTokens: report.inputTokens,
         outputTokens: report.outputTokens,
         cachedInputTokens: report.cachedInputTokens ?? 0,
+        audioSeconds: report.audioSeconds ?? 0,
+        sessionId: report.sessionId ?? "",
         status: report.status ?? "ok",
         errorCode: report.errorCode ?? "",
         latencyMs: report.latencyMs,

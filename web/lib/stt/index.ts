@@ -34,6 +34,12 @@ export interface DictationOptions {
     segmentId: string;
     transcript: string;
     language: string | null;
+    /**
+     * Timing por token del segmento: hablante e inicio/fin en ms RELATIVOS AL
+     * SOCKET en curso. Solo números — la telemetría no debe recibir texto por
+     * este canal. Ausente si el motor vendoreado es anterior a este campo.
+     */
+    tokens?: { speaker?: number; start_ms: number; end_ms: number }[];
   }) => void;
   onError?: (message: string) => void;
   onDebug?: (event: string, data: unknown) => void;

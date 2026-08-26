@@ -20,6 +20,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createDictation, type DictationHandle, type VoiceStreamSession } from "./index";
 import { dictationErrorMessage, DICTATION_MESSAGES } from "./messages";
 import { assertMicrophoneDelivers, watchMicrophoneDrop } from "./mic-health";
+import {
+  appendTokenSegments,
+  hasDiarization,
+  type TimelineSegment,
+} from "./usage-segments";
 
 export type DictationStatus =
   | "idle"
@@ -51,6 +56,24 @@ async function fetchStreamSession(): Promise<VoiceStreamSession> {
   return payload;
 }
 
+/**
+ * Foto de la telemetría de grabación acumulada en este montaje.
+ *
+ * `recordingMs` se mide con performance.now() en las transiciones de tramo
+ * (no con el interval de `elapsedSec`, que deriva ~1 s/min). `segments` es la
+ * línea de tiempo de hablantes SIN texto sobre el eje de grabación acumulada
+ * (las pausas manuales quedan descontadas por construcción; ver
+ * lib/stt/usage-segments.ts). `provider`/`model` vienen de la última sesión
+ * STT, para reportar los minutos transcritos al ledger de consumo.
+ */
+export interface DictationUsageSnapshot {
+  recordingMs: number;
+  segments: TimelineSegment[];
+  diarization: boolean;
+  provider: string | null;
+  model: string | null;
+}
+
 export function useDictation(onFinal: (text: string) => void): {
   status: DictationStatus;
   partialText: string;
@@ -60,6 +83,8 @@ export function useDictation(onFinal: (text: string) => void): {
   start: () => Promise<void>;
   pause: () => Promise<void>;
   stop: () => Promise<void>;
+  /** Telemetría acumulada de este montaje. Estable entre renders. */
+  getUsageSnapshot: () => DictationUsageSnapshot;
 } {
   const [status, setStatus] = useState<DictationStatus>("idle");
   const [partialText, setPartialText] = useState("");
@@ -80,6 +105,60 @@ export function useDictation(onFinal: (text: string) => void): {
   // Última señal de actividad de transcripción (parcial o final): base del
   // watchdog. Se marca al iniciar la grabación para no disparar de inmediato.
   const lastActivityAtRef = useRef<number>(0);
+
+  // --- Telemetría de grabación (ver DictationUsageSnapshot) -----------------
+  // Tramo = intervalo con captura abierta (recording/reconnecting). Se abre al
+  // conseguir el socket y se cierra en pause/stop/error. El acumulado NUNCA se
+  // resetea dentro del montaje: re-grabar en la misma consulta sigue sumando
+  // sobre el mismo eje, que es lo que la fila de encounter_metrics espera.
+  const recAccumMsRef = useRef(0);
+  const recTramoStartRef = useRef<number | null>(null);
+  const segmentsRef = useRef<TimelineSegment[]>([]);
+  // Ordinal del socket y cuánta grabación llevaba la consulta cuando arrancó:
+  // el offset que traduce los ms relativos del proveedor al eje acumulado.
+  const streamIndexRef = useRef(-1);
+  const streamOffsetRef = useRef(0);
+  const sessionInfoRef = useRef<{ provider: string | null; model: string | null }>({
+    provider: null,
+    model: null,
+  });
+
+  const currentRecordingMs = useCallback(() => {
+    const abierto =
+      recTramoStartRef.current === null
+        ? 0
+        : Math.max(0, performance.now() - recTramoStartRef.current);
+    return Math.round(recAccumMsRef.current + abierto);
+  }, []);
+
+  const openTramo = useCallback(() => {
+    if (recTramoStartRef.current === null) recTramoStartRef.current = performance.now();
+  }, []);
+
+  const closeTramo = useCallback(() => {
+    if (recTramoStartRef.current !== null) {
+      recAccumMsRef.current += Math.max(0, performance.now() - recTramoStartRef.current);
+      recTramoStartRef.current = null;
+    }
+  }, []);
+
+  /** Un socket nuevo (inicio, reanudación o reconexión) reinicia el reloj del
+      proveedor: el offset ancla sus ms al eje de grabación acumulada. */
+  const markSocketStart = useCallback(() => {
+    streamIndexRef.current += 1;
+    streamOffsetRef.current = currentRecordingMs();
+  }, [currentRecordingMs]);
+
+  const getUsageSnapshot = useCallback(
+    (): DictationUsageSnapshot => ({
+      recordingMs: currentRecordingMs(),
+      segments: segmentsRef.current.map((seg) => [...seg] as TimelineSegment),
+      diarization: hasDiarization(segmentsRef.current),
+      provider: sessionInfoRef.current.provider,
+      model: sessionInfoRef.current.model,
+    }),
+    [currentRecordingMs],
+  );
 
   const markActivity = useCallback(() => {
     lastActivityAtRef.current = Date.now();
@@ -126,7 +205,8 @@ export function useDictation(onFinal: (text: string) => void): {
     setError(DICTATION_MESSAGES.connectionLost);
     setStatusSafe("error");
     stopTimer();
-  }, [setStatusSafe, stopTimer]);
+    closeTramo();
+  }, [closeTramo, setStatusSafe, stopTimer]);
 
   // Reintento de reconexión ENCADENADO: cada fallo programa el siguiente hasta
   // agotar el presupuesto. No depende de que el motor re-dispare onUnexpectedClose
@@ -149,6 +229,8 @@ export function useDictation(onFinal: (text: string) => void): {
         engineRef.current
           .start()
           .then(() => {
+            // Socket nuevo: sus timestamps arrancan en cero otra vez.
+            markSocketStart();
             if (intentRef.current === "recording") {
               markActivity();
               setStatusSafe("recording");
@@ -169,13 +251,29 @@ export function useDictation(onFinal: (text: string) => void): {
   const getEngine = useCallback((): DictationHandle => {
     if (engineRef.current) return engineRef.current;
     engineRef.current = createDictation({
-      createStreamSession: fetchStreamSession,
+      createStreamSession: () =>
+        fetchStreamSession().then((session) => {
+          // Para reportar los minutos transcritos al ledger de consumo.
+          sessionInfoRef.current = {
+            provider: session.provider ?? null,
+            model: session.model ?? null,
+          };
+          return session;
+        }),
       onPartialTranscript: (text) => {
         markActivity();
         setPartialText(text);
       },
-      onFinalTranscript: ({ transcript }) => {
+      onFinalTranscript: ({ transcript, tokens }) => {
         markActivity();
+        // Telemetría: el timing se ancla al eje acumulado ANTES de filtrar el
+        // texto — números sin PHI, ver lib/stt/usage-segments.ts.
+        appendTokenSegments(
+          segmentsRef.current,
+          tokens,
+          streamOffsetRef.current,
+          Math.max(streamIndexRef.current, 0),
+        );
         const clean = (transcript ?? "").trim();
         if (!clean) return;
         // Texto llegó: la conexión sirve → resetea el presupuesto de reintentos.
@@ -225,6 +323,9 @@ export function useDictation(onFinal: (text: string) => void): {
       setStatusSafe("connecting");
       await engine.start();
       if (!resuming) setElapsedSec(0);
+      // Socket listo: anclar sus timestamps al eje acumulado y abrir el tramo.
+      markSocketStart();
+      openTramo();
       markActivity();
       startTimer();
       setStatusSafe("recording");
@@ -233,10 +334,11 @@ export function useDictation(onFinal: (text: string) => void): {
       setError(dictationErrorMessage(e ?? lastEngineErrorRef.current ?? undefined));
       setStatusSafe("error");
       stopTimer();
+      closeTramo();
     } finally {
       startGuardRef.current = false;
     }
-  }, [detachMicWatch, getEngine, markActivity, setStatusSafe, startTimer, stopTimer]);
+  }, [closeTramo, detachMicWatch, getEngine, markActivity, markSocketStart, openTramo, setStatusSafe, startTimer, stopTimer]);
 
   const pause = useCallback(async () => {
     if (statusRef.current !== "recording" && statusRef.current !== "reconnecting") return;
@@ -251,10 +353,12 @@ export function useDictation(onFinal: (text: string) => void): {
     } catch {
       /* los segmentos confirmados permanecen en la transcripción */
     } finally {
+      // Cerrar el tramo DESPUÉS del stop: el finalize aún emite audio/tokens.
+      closeTramo();
       setPartialText("");
       setStatusSafe("paused");
     }
-  }, [clearReconnectTimer, detachMicWatch, setStatusSafe, stopTimer]);
+  }, [clearReconnectTimer, closeTramo, detachMicWatch, setStatusSafe, stopTimer]);
 
   const stop = useCallback(async () => {
     if (statusRef.current === "paused") {
@@ -277,10 +381,11 @@ export function useDictation(onFinal: (text: string) => void): {
     } catch {
       /* el texto ya acumulado no se pierde */
     } finally {
+      closeTramo();
       setPartialText("");
       setStatusSafe("idle");
     }
-  }, [clearReconnectTimer, detachMicWatch, setStatusSafe, stopTimer]);
+  }, [clearReconnectTimer, closeTramo, detachMicWatch, setStatusSafe, stopTimer]);
 
   // Watchdog de inactividad: solo mientras se graba. Si con el micrófono
   // abierto no llega ningún fragmento en STALL_THRESHOLD_MS, se marca stalled
@@ -323,10 +428,11 @@ export function useDictation(onFinal: (text: string) => void): {
       clearReconnectTimer();
       detachMicWatch();
       stopTimer();
+      closeTramo();
       engineRef.current?.dispose();
       engineRef.current = null;
     };
-  }, [clearReconnectTimer, detachMicWatch, stopTimer]);
+  }, [clearReconnectTimer, closeTramo, detachMicWatch, stopTimer]);
 
-  return { status, partialText, error, elapsedSec, stalled, start, pause, stop };
+  return { status, partialText, error, elapsedSec, stalled, start, pause, stop, getUsageSnapshot };
 }

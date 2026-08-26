@@ -42,6 +42,8 @@ import { EncounterAuditPanel } from "@/components/app/EncounterAuditPanel";
 import { PlanDischargePanel } from "@/components/app/PlanDischargePanel";
 import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker";
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
+import { useEncounterUsage } from "@/lib/clinical/encounter-usage";
+import type { DictationUsageSnapshot } from "@/lib/stt/useDictation";
 import { SectionDraftsPanel } from "@/components/app/SectionDraftsPanel";
 import {
   buildTranscriptWithSectionDrafts,
@@ -189,6 +191,9 @@ function ConsultaActivaInner() {
   const [savedTranscript, setSavedTranscript] = useState("");
   // true mientras la grabación con transcripción en vivo está activa.
   const [dictando, setDictando] = useState(false);
+  // Captura ABIERTA (no incluye "pausada"): alimenta el reloj de uso, que
+  // cuenta la grabación aunque la pestaña esté oculta.
+  const [capturando, setCapturando] = useState(false);
 
   const [note, setNote] = useState<ClinicalNoteJson | null>(null);
   // Espejo en ref de la nota: `guardarNota` corre desde un onClick cuyo closure
@@ -226,6 +231,26 @@ function ConsultaActivaInner() {
   const status = encounter?.status ?? "created";
   const completed = status === "completed";
   const busy = phase !== "idle";
+
+  // --- Telemetría de la consulta (encounter_metrics) ------------------------
+  // El lector de recordingMs/timeline lo entrega el DictationPanel al montarse;
+  // vive en un ref porque el reloj lo consulta en cada flush, no en cada render.
+  const usageSnapshotRef = useRef<(() => DictationUsageSnapshot) | null>(null);
+  const onUsageSnapshotReady = useCallback((get: () => DictationUsageSnapshot) => {
+    usageSnapshotRef.current = get;
+  }, []);
+  const getDictationSnapshot = useCallback(
+    () => usageSnapshotRef.current?.() ?? null,
+    [],
+  );
+  const encounterUsage = useEncounterUsage({
+    encounterId,
+    capturing: capturando,
+    // "Esperando al sistema": cualquier fase en curso (generar, guardar,
+    // ajustar) cuenta como uso si la pestaña está visible.
+    waiting: busy,
+    getDictationSnapshot,
+  });
 
   // Espejo local ya firmado → la nota es inmutable (el trigger de la BD lo
   // refuerza). La captura no puede pisarla: las correcciones van como adenda.
@@ -511,6 +536,7 @@ function ConsultaActivaInner() {
       // consulta estaba en su lista cuando no aparecía por ningún lado.
       let enHistorial = true;
       if (encounter) {
+        const usageSnap = usageSnapshotRef.current?.() ?? null;
         const espejo = await upsertConsultation(
           encounterToConsultation({
             encounter: {
@@ -526,12 +552,19 @@ function ConsultaActivaInner() {
             transcript: transcriptDraft,
             servicio: servicioPorDefecto(org),
             now: new Date().toISOString(),
+            duracionMin:
+              usageSnap && usageSnap.recordingMs > 0
+                ? Math.max(1, Math.round(usageSnap.recordingMs / 60000))
+                : 0,
           }),
         );
         enHistorial = espejo.ok;
       }
       setNoteSaved(enHistorial);
       void completeLinkedAppointment();
+      // Sella la fila de telemetría y computa interrogatorio/silencios. No
+      // bloquea al médico: si falla, el próximo guardado vuelve a sellar.
+      void encounterUsage.finalize();
     } catch (error) {
       setFlowError(friendlyClinicalMessage(error));
     } finally {
@@ -1094,6 +1127,8 @@ function ConsultaActivaInner() {
                     disabled={busy || signedMirror}
                     onAppendFinal={appendFinal}
                     onActiveChange={setDictando}
+                    onCapturingChange={setCapturando}
+                    onUsageSnapshotReady={onUsageSnapshotReady}
                     autoStart={autoStartOnArrival && !completed && !signedMirror}
                     onRecordingStopped={() => setFinishAfterRecording(true)}
                     finishLabel="Finalizar y generar nota"

@@ -4,10 +4,8 @@ import {
   FileWarning,
   HeartPulse,
   MonitorSmartphone,
-  MonitorX,
   Send,
   ShieldCheck,
-  Smartphone,
   Stethoscope,
   TimerOff,
   UserX,
@@ -18,7 +16,7 @@ import { StatTile } from "@/components/superadmin/charts/StatTile";
 import { BarList } from "@/components/superadmin/charts/BarList";
 import { AlertPanel, type Alerta } from "@/components/superadmin/AlertPanel";
 import { AutoRefresh } from "@/components/superadmin/AutoRefresh";
-import { DeviceTable, type DeviceRow } from "@/components/superadmin/DeviceTable";
+import type { DeviceRow } from "@/components/superadmin/DeviceTable";
 import { estaDesactualizada, versionMasReciente } from "@/lib/superadmin/versiones";
 import {
   ENCOUNTER_PIPELINE_ORDER,
@@ -221,6 +219,7 @@ export default async function SuperadminSaludPage() {
           count: equiposViejos,
           severity: "info",
           icon: MonitorSmartphone,
+          href: "/superadmin/dispositivos",
         },
       ]
     : [];
@@ -350,32 +349,10 @@ export default async function SuperadminSaludPage() {
         </Card>
       </div>
 
-      {/* --- Flotas de apps ------------------------------------------------- */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <DeviceTable
-          title="App de escritorio (Windows)"
-          icon={MonitorSmartphone}
-          emptyLabel="Nadie ha conectado la app de Windows todavía."
-          rows={filasWindows}
-          total={dispositivos.windows_total}
-          versionActual={versionWindows}
-        />
-        <DeviceTable
-          title="App móvil"
-          icon={Smartphone}
-          emptyLabel="Ningún dispositivo móvil registrado."
-          rows={filasMoviles}
-          total={dispositivos.moviles_total}
-          versionActual={versionMovil}
-        />
-      </div>
-
-      {filasWindows.length === 0 && filasMoviles.length === 0 ? (
-        <p className="flex items-center gap-2 text-xs text-muted">
-          <MonitorX size={13} />
-          Las flotas se llenan solas cuando alguien instala y abre las apps.
-        </p>
-      ) : null}
+      {/* El inventario de las apps instaladas vive en /superadmin/dispositivos:
+          un inventario no es una alerta, y aquí solo estorbaba a la pregunta
+          "¿algo está roto ahora?". La alerta de versiones viejas (arriba)
+          enlaza allí. */}
     </div>
   );
 }
@@ -388,8 +365,8 @@ function Encabezado({ generadoEn }: { generadoEn?: string }) {
           <HeartPulse size={22} className="text-accent" /> Salud del servicio
         </h1>
         <p className="text-sm text-muted">
-          Qué se está rompiendo y qué necesita a alguien: consultas atascadas, notas fallidas,
-          exportaciones y las apps instaladas.
+          Qué se está rompiendo y qué necesita a alguien: consultas atascadas, notas fallidas y
+          exportaciones. El inventario de apps vive en Dispositivos.
         </p>
       </div>
       {/* El sello y el auto-refresco usan el `generated_at` de la RPC, no

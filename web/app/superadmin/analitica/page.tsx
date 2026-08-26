@@ -190,9 +190,12 @@ function Encabezado({ generadoEn }: { generadoEn?: string }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-deep">Analítica</h1>
+        {/* La URL sigue siendo /analitica para no romper enlaces guardados;
+            el nombre nuevo dice lo que la página siempre midió: adopción. */}
+        <h1 className="font-display text-2xl font-semibold text-deep">Adopción</h1>
         <p className="text-sm text-muted">
-          Quién usa Miracle de verdad y qué se adopta. Lo que se rompe vive en Salud.
+          Quién usa Miracle de verdad y qué se adopta. Lo que ocurre dentro de cada consulta
+          vive en Métricas; lo que se rompe, en Salud.
         </p>
       </div>
       {generadoEn ? (

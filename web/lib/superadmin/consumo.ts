@@ -85,6 +85,7 @@ export const ETIQUETA_FEATURE: Record<string, string> = {
   parse_schedule: "Agenda desde foto",
   snippet_categorization: "Categorización de atajos",
   note_from_photo: "Nota desde foto",
+  live_transcription: "Transcripción en vivo",
 };
 
 /**

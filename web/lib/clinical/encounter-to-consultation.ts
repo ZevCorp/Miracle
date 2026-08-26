@@ -90,6 +90,12 @@ export interface EncounterToConsultationInput {
   servicio?: string;
   /** ISO string; se pasa para mantener la función pura y testeable. */
   now: string;
+  /**
+   * Minutos de grabación medidos por la telemetría de la consulta (redondeo
+   * de encounter_metrics.recording_ms). Opcional: una consulta escrita a mano
+   * no tiene grabación y se queda en 0, como siempre.
+   */
+  duracionMin?: number;
 }
 
 /**
@@ -101,7 +107,7 @@ export interface EncounterToConsultationInput {
 export function encounterToConsultation(
   input: EncounterToConsultationInput,
 ): Consultation {
-  const { encounter, note, patient, transcript, servicio, now } = input;
+  const { encounter, note, patient, transcript, servicio, now, duracionMin } = input;
   const snapshot = encounter.template_snapshot;
   return {
     id: encounter.id,
@@ -114,7 +120,7 @@ export function encounterToConsultation(
     tipo: toStoreConsultationType(encounter.consultation_type),
     estado: "borrador",
     fecha: encounter.created_at ?? now,
-    duracionMin: 0,
+    duracionMin: Math.max(0, Math.round(duracionMin ?? 0)),
     plantilla: snapshot?.name ?? "",
     motivo: deriveMotivo(note),
     note: noteJsonToSections(note),

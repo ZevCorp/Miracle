@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ClipboardList } from "lucide-react";
+import { BarChart3, ClipboardList } from "lucide-react";
 import { formatFechaRelativa } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 import { FlashBanner } from "@/components/superadmin/FlashBanner";
@@ -210,7 +210,16 @@ export default async function SuperadminConsultasPage({
                 <StatusBadge estado={c.estado} />
               </div>
               <div className="text-sm text-muted">{formatFechaRelativa(c.fecha)}</div>
-              <div className="sm:text-right">
+              <div className="flex items-center gap-2 sm:justify-end">
+                {/* La consulta espejo comparte id con el encounter: el detalle
+                    de métricas responde aunque no tenga telemetría (lo dice). */}
+                <Link
+                  href={`/superadmin/metricas/${c.id}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-line px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:border-mist hover:text-deep"
+                  title="Métricas de esta consulta"
+                >
+                  <BarChart3 size={13} /> Métricas
+                </Link>
                 <DeleteConsultationButton consultationId={c.id} label={label} returnTo={currentUrl} />
               </div>
             </div>

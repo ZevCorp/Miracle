@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Loader2, Mic, Pause, Play, Square, Wifi } from "lucide-react";
 import { Waveform } from "@/components/app/Waveform";
-import { useDictation, type DictationStatus } from "@/lib/stt/useDictation";
+import {
+  useDictation,
+  type DictationStatus,
+  type DictationUsageSnapshot,
+} from "@/lib/stt/useDictation";
 import { useOmiMicrophone } from "@/lib/omi/useOmiMicrophone";
 
 const STATUS_TEXT: Partial<Record<DictationStatus, string>> = {
@@ -34,6 +38,8 @@ export function DictationPanel({
   autoStart = false,
   onRecordingStopped,
   finishLabel,
+  onCapturingChange,
+  onUsageSnapshotReady,
 }: {
   disabled: boolean;
   onAppendFinal: (text: string) => void;
@@ -44,11 +50,24 @@ export function DictationPanel({
   onRecordingStopped?: () => void;
   /** Etiqueta para una detención que termina la cita. */
   finishLabel?: string;
+  /**
+   * Captura ABIERTA (recording/reconnecting/pausing/stopping) — más estricto
+   * que `onActiveChange`, que incluye "paused". El reloj de uso de la consulta
+   * (lib/clinical/encounter-usage.ts) cuenta la captura aunque la pestaña esté
+   * oculta; una grabación pausada, no.
+   */
+  onCapturingChange?: (capturing: boolean) => void;
+  /** Entrega el lector de telemetría del dictado (recordingMs + timeline). */
+  onUsageSnapshotReady?: (getSnapshot: () => DictationUsageSnapshot) => void;
 }) {
-  const { status, partialText, error, elapsedSec, stalled, start, pause, stop } =
+  const { status, partialText, error, elapsedSec, stalled, start, pause, stop, getUsageSnapshot } =
     useDictation(onAppendFinal);
   const autoStartHandled = useRef(false);
   const [finishConfirm, setFinishConfirm] = useState(false);
+
+  useEffect(() => {
+    onUsageSnapshotReady?.(getUsageSnapshot);
+  }, [getUsageSnapshot, onUsageSnapshotReady]);
 
   // Fuente de audio: "mic" usa getUserMedia normal; "omi" aprovecha el shim
   // que instaló la conexión global (widget flotante junto a "Grabar
@@ -66,6 +85,15 @@ export function DictationPanel({
   useEffect(() => {
     onActiveChange(active);
   }, [active, onActiveChange]);
+
+  const captureOpen =
+    status === "recording" ||
+    status === "reconnecting" ||
+    status === "pausing" ||
+    status === "stopping";
+  useEffect(() => {
+    onCapturingChange?.(captureOpen);
+  }, [captureOpen, onCapturingChange]);
 
   // El encounter ya se creó desde una acción explícita del médico. Arrancar
   // aquí elimina un segundo clic sin tocar el flujo normal de la consulta.

@@ -96,3 +96,19 @@ components/app/  UI plataforma             components/{marketing,brand,ui}
 lib/mock/  tipos + helpers                 lib/clinical/codes.ts  catálogo CIE-10/CUPS
 lib/{auth,supabase}/                       supabase/migrations/
 ```
+
+## 8. Telemetría por consulta (2026-08)
+
+Cada consulta de Notes produce una fila en **`encounter_metrics`** (migración
+`20260827000000`): tiempo de uso real (`active_ms`, reloj con reglas
+anti-pestaña-abandonada en `lib/clinical/encounter-usage.ts`), grabación
+(`recording_ms`), y línea de tiempo de hablantes SIN texto de la que Postgres
+deriva interrogatorio y silencios (`private.compute_conversation_metrics`,
+recomputable por `algo_version`). Única escritura: RPC
+`record_encounter_usage` (definer, clampa deltas contra reloj de pared).
+Los tokens se atribuyen por `ai_usage_events.session_id = encounter_id`
+(contrato con Graph: [`graph-metrics-contract.md`](./graph-metrics-contract.md)).
+La consola los lee en `/superadmin/metricas` (RPCs
+`superadmin_encounter_metrics` / `superadmin_encounter_detail`), que excluye
+cuentas demo/`@miracle.app` por defecto y declara su cobertura en vez de
+promediar sobre huecos.
