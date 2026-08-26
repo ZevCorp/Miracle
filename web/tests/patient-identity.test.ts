@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { extractPatientIdentity } from "@/lib/clinical/patient-identity";
+import {
+  canonicalizeDocumento,
+  canonicalizeNoteIdentity,
+  extractPatientIdentity,
+  PATIENT_IDENTITY_SECTION_KEY,
+} from "@/lib/clinical/patient-identity";
 
 /** Secciones como las guarda el store local (`texto` + `titulo`). */
 function seccion(id: string, titulo: string, texto: string) {
@@ -251,4 +256,196 @@ describe("sección canónica de identificación", () => {
       expect(extractPatientIdentity(identificacion(`Nombre: ${nombre}`)).nombre).toBe(nombre);
     },
   );
+});
+
+/* ------------------------------------------------------------------ */
+/* El documento: una sola forma canónica                               */
+/* ------------------------------------------------------------------ */
+
+describe("canonicalizeDocumento", () => {
+  it.each([
+    ["1036457892", "1036457892"],
+    ["1 036 457 892", "1036457892"],
+    ["1.036.457.892", "1036457892"],
+    // La forma que mete el proveedor de transcripción al dictar por grupos.
+    ["23-45-67-75-43", "2345677543"],
+    ["23-47-48", "234748"],
+    ["  1036457892  ", "1036457892"],
+  ])("quita los separadores de %j", (bruto, esperado) => {
+    expect(canonicalizeDocumento(bruto)?.numero).toBe(esperado);
+  });
+
+  it.each([
+    ["uno cero tres seis cuatro cinco siete ocho nueve dos", "1036457892"],
+    ["veintitrés cuarenta y siete cuarenta y ocho", "234748"],
+    ["dos tres cuatro siete cuatro ocho", "234748"],
+  ])("entiende las cifras dictadas en palabras: %j", (bruto, esperado) => {
+    expect(canonicalizeDocumento(bruto)?.numero).toBe(esperado);
+  });
+
+  it("no adivina cuando la cifra dictada sale de lo que sabe leer", () => {
+    // "mil" abre la puerta a un número a medio traducir: mejor vacío que mal.
+    expect(canonicalizeDocumento("un millón veintitrés mil")).toBeUndefined();
+  });
+
+  it("conserva el tipo dictado y lo normaliza a su sigla", () => {
+    expect(canonicalizeDocumento("CC 1.023.456.789")).toMatchObject({
+      tipo: "CC",
+      numero: "1023456789",
+      texto: "CC 1023456789",
+    });
+    expect(canonicalizeDocumento("cédula de ciudadanía 1023456789")?.tipo).toBe("CC");
+    expect(canonicalizeDocumento("tarjeta de identidad 1023456789")?.tipo).toBe("TI");
+  });
+
+  it("no le quita las letras a un pasaporte", () => {
+    // Arrasar con los no-dígitos convertía "AY123456" en "123456": el
+    // documento de nadie.
+    expect(canonicalizeDocumento("AY123456")).toMatchObject({
+      numero: "AY123456",
+      texto: "AY123456",
+    });
+    expect(canonicalizeDocumento("PA ay-123456")?.texto).toBe("PA AY123456");
+  });
+
+  it("no se traga lo que viene detrás del número", () => {
+    expect(canonicalizeDocumento("1023456789, expedida en 2015")?.numero).toBe("1023456789");
+    expect(canonicalizeDocumento("1023456789 expedida en Bogotá")?.numero).toBe("1023456789");
+  });
+
+  it.each([
+    "No referido en la consulta.",
+    "1234",
+    "12345678901234567",
+    "",
+    "   ",
+  ])("no devuelve documento para %j", (bruto) => {
+    expect(canonicalizeDocumento(bruto)).toBeUndefined();
+  });
+});
+
+describe("canonicalizeNoteIdentity", () => {
+  const seccionCon = (texto: string) => ({
+    sections: [
+      { key: PATIENT_IDENTITY_SECTION_KEY, label: "Identificación del paciente", content: texto },
+      { key: "motivo_de_consulta", label: "Motivo de consulta", content: "Dolor de cabeza 23-45-67." },
+    ],
+  });
+
+  it("deja el documento sin separadores en la nota, no solo en la columna", () => {
+    const note = canonicalizeNoteIdentity(
+      seccionCon("Nombre: María Fernanda López\nDocumento: 23-45-67-75-43"),
+    );
+    expect(note?.sections?.[0].content).toBe(
+      "Nombre: María Fernanda López\nDocumento: 2345677543",
+    );
+  });
+
+  it("no toca ninguna otra sección de la nota", () => {
+    const note = canonicalizeNoteIdentity(
+      seccionCon("Nombre: Ana Gómez\nDocumento: 1.023.456.789"),
+    );
+    // El "23-45-67" del motivo de consulta es texto clínico, no un documento.
+    expect(note?.sections?.[1].content).toBe("Dolor de cabeza 23-45-67.");
+  });
+
+  it("conserva lo que el médico escribió detrás del número", () => {
+    const note = canonicalizeNoteIdentity(
+      seccionCon("Documento: 1.023.456.789, expedida en Medellín"),
+    );
+    expect(note?.sections?.[0].content).toBe("Documento: 1023456789, expedida en Medellín");
+  });
+
+  it("deja intacta la línea cuando no hay un documento que reconocer", () => {
+    const texto = "Nombre: Ana Gómez\nDocumento: No referido en la consulta.";
+    expect(canonicalizeNoteIdentity(seccionCon(texto))?.sections?.[0].content).toBe(texto);
+  });
+
+  it("devuelve la MISMA nota si no había nada que arreglar", () => {
+    const original = seccionCon("Nombre: Ana Gómez\nDocumento: 1023456789");
+    expect(canonicalizeNoteIdentity(original)).toBe(original);
+  });
+
+  it("aguanta notas vacías, nulas y sin secciones", () => {
+    expect(canonicalizeNoteIdentity(null)).toBeNull();
+    expect(canonicalizeNoteIdentity(undefined)).toBeUndefined();
+    expect(canonicalizeNoteIdentity({ sections: [] })).toEqual({ sections: [] });
+  });
+});
+
+describe("el documento con separadores llega limpio a la columna", () => {
+  it.each([
+    ["Nombre: Ana Gómez\nDocumento: 23-45-67-75-43", "2345677543"],
+    ["Nombre: Ana Gómez\nDocumento: 1 036 457 892", "1036457892"],
+    ["Nombre: Ana Gómez\nDocumento: uno cero tres seis cuatro cinco siete ocho nueve dos", "1036457892"],
+  ])("extrae %j", (texto, esperado) => {
+    const note = [
+      { id: PATIENT_IDENTITY_SECTION_KEY, titulo: "Identificación del paciente", texto },
+    ];
+    expect(extractPatientIdentity(note).documento).toBe(esperado);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Rótulo ≠ documento                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * El rótulo es el número de caso del laboratorio ("26-2931": año y
+ * consecutivo). Sus guiones SIGNIFICAN algo, al revés que los que el proveedor
+ * de transcripción le mete a una cédula dictada. Vive en su propia sección
+ * (`rotulo`), tiene su propia columna y su propio trigger, y nada de lo que
+ * hace la canonización del documento puede tocarlo.
+ */
+describe("el rótulo de patología no se canoniza", () => {
+  const notaPatologia = [
+    { key: "rotulo", label: "Rótulo", content: "26-2931" },
+    { key: "nombre_paciente", label: "Nombre del paciente", content: "Rafael Enrique Vanegas" },
+    { key: "cedula", label: "Cédula", content: "8171924" },
+  ];
+
+  it("no lo confunde con el documento del paciente", () => {
+    const r = extractPatientIdentity(notaPatologia);
+    expect(r.documento).toBe("8171924");
+    expect(r.documento).not.toBe("262931");
+  });
+
+  it("no le quita los guiones: la nota sale igual que entró", () => {
+    const note = canonicalizeNoteIdentity({ sections: notaPatologia });
+    expect(note?.sections?.[0].content).toBe("26-2931");
+    // Y como nada cambió, ni siquiera se reconstruye el objeto.
+    expect(note?.sections).toBe(notaPatologia);
+  });
+
+  it("tampoco lo toca cuando convive con la casilla de identificación", () => {
+    // Una plantilla puede tener rótulo Y sección canónica a la vez.
+    const mixta = {
+      sections: [
+        { key: "rotulo", label: "Rótulo", content: "26-2931" },
+        {
+          key: PATIENT_IDENTITY_SECTION_KEY,
+          label: "Identificación del paciente",
+          content: "Nombre: Ana Gómez\nDocumento: 10-23-45-67-89",
+        },
+      ],
+    };
+    const note = canonicalizeNoteIdentity(mixta);
+    expect(note?.sections?.[0].content).toBe("26-2931");
+    expect(note?.sections?.[1].content).toBe("Nombre: Ana Gómez\nDocumento: 1023456789");
+  });
+
+  it("una línea de rótulo DENTRO de la casilla tampoco se canoniza", () => {
+    // Solo se reescribe la línea etiquetada como documento; cualquier otra
+    // etiqueta se queda como está.
+    const note = canonicalizeNoteIdentity({
+      sections: [
+        {
+          key: PATIENT_IDENTITY_SECTION_KEY,
+          label: "Identificación del paciente",
+          content: "Rótulo: 26-2931\nDocumento: 10-23-45-67-89",
+        },
+      ],
+    });
+    expect(note?.sections?.[0].content).toBe("Rótulo: 26-2931\nDocumento: 1023456789");
+  });
 });

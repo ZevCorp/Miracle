@@ -13,6 +13,22 @@
 // - No se imprimen transcripciones ni notas (PHI) en consola.
 
 import { createClient } from "@/lib/supabase/client";
+import { canonicalizeNoteIdentity } from "@/lib/clinical/patient-identity";
+
+/**
+ * Deja el documento del paciente en su forma canónica al cruzar esta frontera.
+ *
+ * AQUÍ Y NO EN LA PANTALLA: por este módulo pasan TODAS las notas —generación,
+ * regeneración, ajuste del asistente y guardado—, así que es el único sitio
+ * donde arreglarlo una vez sirve para todos. El número llega partido en grupos
+ * desde el proveedor de transcripción ("23-45-67-75-43") y el generador lo
+ * copia tal cual por su regla de fidelidad; se canoniza tanto al ENTRAR (lo que
+ * ve el médico y se espeja en `consultations`) como al SALIR (lo que queda
+ * guardado en el backend). Ver lib/clinical/patient-identity.ts.
+ */
+function conDocumentoCanonico<T extends ClinicalNoteJson | null | undefined>(note: T): T {
+  return canonicalizeNoteIdentity(note) as T;
+}
 
 /* ------------------------------------------------------------------ */
 /* Modelos del contrato                                                */
@@ -671,7 +687,10 @@ export async function getClinicalEncounter(
   const data = await clinicalRequest<{ encounter: ClinicalEncounter }>(
     `/api/clinical/encounters/${encodeURIComponent(encounterId)}`,
   );
-  return data.encounter;
+  return {
+    ...data.encounter,
+    note_json: conDocumentoCanonico(data.encounter.note_json),
+  };
 }
 
 export async function saveClinicalTranscript(
@@ -687,20 +706,24 @@ export async function saveClinicalTranscript(
 export async function generateClinicalNote(
   encounterId: string,
 ): Promise<GenerateNoteResult> {
-  return clinicalRequest<GenerateNoteResult>(
+  const result = await clinicalRequest<GenerateNoteResult>(
     `/api/clinical/encounters/${encodeURIComponent(encounterId)}/generate-note`,
     { method: "POST", timeoutMs: GENERATE_NOTE_TIMEOUT_MS },
   );
+  return { ...result, note_json: conDocumentoCanonico(result.note_json) };
 }
 
 export async function saveEditedClinicalNote(
   encounterId: string,
   noteJson: ClinicalNoteJson,
 ): Promise<SaveNoteResult> {
-  return clinicalRequest<SaveNoteResult>(
+  const result = await clinicalRequest<SaveNoteResult>(
     `/api/clinical/encounters/${encodeURIComponent(encounterId)}/note`,
-    { method: "PUT", body: { note_json: noteJson } },
+    // También al salir: lo que queda guardado en el backend es la forma
+    // canónica, no la que trajo la transcripción.
+    { method: "PUT", body: { note_json: conDocumentoCanonico(noteJson) } },
   );
+  return { ...result, note_json: conDocumentoCanonico(result.note_json) };
 }
 
 /** Asocia o retira un paciente sin modificar la transcripción ni la plantilla. */
@@ -739,10 +762,17 @@ export async function regenerateClinicalEncounterWithTemplate(
   encounterId: string,
   templateId: string,
 ): Promise<RegenerateWithTemplateResult> {
-  return clinicalRequest<RegenerateWithTemplateResult>(
+  const result = await clinicalRequest<RegenerateWithTemplateResult>(
     `/api/clinical/encounters/${encodeURIComponent(encounterId)}/regenerate-with-template`,
     { method: "POST", body: { template_id: templateId }, timeoutMs: GENERATE_NOTE_TIMEOUT_MS },
   );
+  return {
+    ...result,
+    encounter: {
+      ...result.encounter,
+      note_json: conDocumentoCanonico(result.encounter.note_json),
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -819,10 +849,14 @@ export interface NoteAdjustmentResult {
 export async function adjustNoteWithAssistant(
   payload: NoteAdjustmentPayload,
 ): Promise<NoteAdjustmentResult> {
-  return clinicalRequest<NoteAdjustmentResult>(
+  const result = await clinicalRequest<NoteAdjustmentResult>(
     "/api/clinical/assistant/note-adjustment",
     { method: "POST", body: payload, timeoutMs: ASSISTANT_TIMEOUT_MS },
   );
+  return {
+    ...result,
+    proposed_note_json: conDocumentoCanonico(result.proposed_note_json),
+  };
 }
 
 /* ------------------------------------------------------------------ */

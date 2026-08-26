@@ -82,12 +82,17 @@ export const PATIENT_IDENTITY_SECTION_LABEL = "Identificación del paciente";
  *   campo. La prosa libre se perdía en una de cada tres consultas.
  * - QUÉ HACER SIN EL DATO. Una frase prudente explícita, para que el modelo no
  *   sienta que tiene que rellenar el hueco con algo.
+ * - CÓMO ESCRIBIR EL DOCUMENTO. Sin separadores, y dicho explícitamente
+ *   "aunque la transcripción lo traiga separado": el proveedor de STT parte las
+ *   cifras dictadas de a grupos como si fueran un teléfono ("23-45-67-75-43") y
+ *   la regla de fidelidad del generador le manda copiarlas tal cual. Ver
+ *   canonicalizeDocumento.
  *
  * Máximo 400 caracteres: es el límite del editor de plantillas
  * (MAX_INSTRUCTION_LENGTH en template-builder), más estricto que el del backend.
  */
 export const PATIENT_IDENTITY_SECTION_INSTRUCTION =
-  "Identifica al PACIENTE, nunca al médico ni al acompañante: usa solo el nombre y el documento que el paciente da de sí mismo o que el médico dice del paciente. Escribe exactamente dos líneas: «Nombre: …» y «Documento: …». Si un dato no se dijo o no se entendió con certeza, escribe «No referido en la consulta.» en esa línea. Nunca lo deduzcas ni lo tomes de otra persona.";
+  "Identifica al PACIENTE, nunca al médico ni al acompañante. Escribe dos líneas: «Nombre: …» y «Documento: …». El documento va como una sola cifra corrida, sin puntos, espacios ni guiones, aunque la transcripción lo traiga separado en grupos. Si un dato no se dijo o no se entendió con certeza, escribe «No referido en la consulta.» en esa línea. Nunca lo deduzcas ni lo tomes de otra persona.";
 
 /**
  * No es obligatoria a propósito. Marcarla `required` haría que toda consulta sin
@@ -219,29 +224,250 @@ function limpiarNombre(bruto: string): string | undefined {
   return nombre;
 }
 
+/* ------------------------------------------------------------------ */
+/* El documento: una sola forma canónica                               */
+/* ------------------------------------------------------------------ */
+
 /**
- * Un documento colombiano tiene entre 5 y 12 dígitos (cédula, tarjeta de
- * identidad, NUIP). Se guardan solo las cifras: al dictar se agrupan de mil
- * maneras ("23-47-48", "1.089.934.418") y todas significan lo mismo.
+ * POR QUÉ ESTO EXISTE: el número llega partido en grupos.
+ *
+ * No lo parte el modelo ni esta app: lo parte el PROVEEDOR DE TRANSCRIPCIÓN.
+ * Deepgram (`smart_format`) y Soniox aplican normalización inversa de texto y,
+ * ante una corrida larga de cifras dictadas de a pocas, la escriben como si
+ * fuera un teléfono: "23-45-67-75-43". El cliente de dictado
+ * (lib/stt/deepgram-dictation.js) solo concatena los tokens del proveedor —no
+ * inserta nada— y el generador la copia tal cual, obedeciendo su propia regla
+ * de fidelidad ("no reformatees rótulos tipo 26-3456"). Para cuando el texto
+ * llega aquí, los guiones ya venían en la transcripción: se comprobó sobre los
+ * datos reales (las 3 notas con guiones los tienen idénticos en su
+ * transcripción, y 21 transcripciones más los traen).
+ *
+ * La transcripción NO se toca: es la evidencia de lo que se dijo. Lo que se
+ * normaliza es el CAMPO, que tiene un formato declarado y una forma canónica.
+ *
+ * TIPOS QUE MANEJA MIRACLE: no hay un campo de tipo de documento; el tipo viaja
+ * dentro del texto, como en `patients.documento` ("CC 1.023.456.789"). Los
+ * documentos colombianos son numéricos —cédula, tarjeta de identidad, registro
+ * civil, cédula de extranjería, NUIP— y su forma canónica es la cifra corrida
+ * sin separadores. El pasaporte y el PPT son ALFANUMÉRICOS: quitarles las
+ * letras, como se hacía antes, convertía "AY123456" en "123456", el documento
+ * de nadie. Por eso la canonización mira si hay letras antes de decidir.
  */
-function limpiarDocumento(bruto: string): string | undefined {
-  const digitos = bruto.replace(/\D/g, "");
-  if (digitos.length < 5 || digitos.length > 12) return undefined;
-  return digitos;
+export interface DocumentoCanonico {
+  /** Sigla del tipo tal como se dictó, en mayúsculas ("CC", "TI", "PA"). */
+  tipo?: string;
+  /** El identificador sin separadores: la forma que se guarda y se compara. */
+  numero: string;
+  /** Cómo se escribe en la nota: "CC 1023456789" o "1023456789". */
+  texto: string;
+  /**
+   * Cuántos caracteres del texto de entrada ocupó el documento. Lo necesita
+   * quien reescribe la línea, para conservar intacto lo que venga detrás
+   * ("…, expedida en Medellín") en vez de recortarlo.
+   */
+  consumido: number;
+}
+
+/** Siglas de documento de identidad usadas en Colombia. */
+const SIGLAS_DOCUMENTO = new Set([
+  "CC", "TI", "RC", "CE", "PA", "PP", "PPT", "PEP", "NUIP", "NIT", "MS", "AS", "CN", "SC",
+]);
+
+/** Palabras con las que se dicta el tipo, y la sigla a la que corresponden. */
+const TIPO_DICTADO: Record<string, string> = {
+  cedula: "CC",
+  ciudadania: "CC",
+  tarjeta: "TI",
+  registro: "RC",
+  extranjeria: "CE",
+  pasaporte: "PA",
+  nuip: "NUIP",
+};
+
+/** Un documento numérico va de 5 a 12 dígitos (cédula, TI, RC, CE, NUIP). */
+const MIN_DIGITOS = 5;
+const MAX_DIGITOS = 12;
+/** El alfanumérico (pasaporte, PPT) es más corto y más variado. */
+const MIN_ALFANUMERICO = 5;
+const MAX_ALFANUMERICO = 20;
+
+/**
+ * Lleva un documento dictado a su forma canónica.
+ *
+ * Devuelve `undefined` cuando lo que hay no es un documento —una frase
+ * prudente, un año suelto, una cifra fuera de rango—: igual que con el nombre,
+ * un campo vacío lo llena el médico en dos segundos y uno equivocado puede no
+ * verlo nadie.
+ */
+/**
+ * Cifras dictadas EN PALABRAS ("uno cero tres seis…", "veintitrés cuarenta y
+ * siete…"). Normalmente el proveedor de transcripción ya las convierte, pero
+ * cuando no lo hace el número se perdía entero.
+ *
+ * Cobertura deliberadamente corta: unidades y decenas (0–99), que es como se
+ * dicta un documento —cifra a cifra o en grupos de dos—. Ante cualquier palabra
+ * fuera de esa lista ("mil", "millones") NO se adivina: se devuelve vacío y el
+ * campo queda pendiente. Un documento a medio traducir es peor que uno vacío.
+ */
+const PALABRA_A_NUMERO: Record<string, number> = {
+  cero: 0, uno: 1, una: 1, un: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6,
+  siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13,
+  catorce: 14, quince: 15, dieciseis: 16, diecisiete: 17, dieciocho: 18,
+  diecinueve: 19, veinte: 20, veintiuno: 21, veintiuna: 21, veintidos: 22,
+  veintitres: 23, veinticuatro: 24, veinticinco: 25, veintiseis: 26,
+  veintisiete: 27, veintiocho: 28, veintinueve: 29, treinta: 30, cuarenta: 40,
+  cincuenta: 50, sesenta: 60, setenta: 70, ochenta: 80, noventa: 90,
+};
+const DECENAS = new Set([30, 40, 50, 60, 70, 80, 90]);
+
+function digitosDePalabras(texto: string): string | undefined {
+  const palabras = texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .split(/[\s.,-]+/)
+    .filter(Boolean);
+  if (!palabras.length) return undefined;
+
+  let salida = "";
+  let pendiente: number | null = null;
+  for (const palabra of palabras) {
+    if (palabra === "y") {
+      // Solo une una decena con su unidad: "cuarenta y siete".
+      if (pendiente === null || !DECENAS.has(pendiente)) return undefined;
+      continue;
+    }
+    const valor = PALABRA_A_NUMERO[palabra];
+    if (valor === undefined) return undefined;
+    if (pendiente !== null && DECENAS.has(pendiente) && valor >= 1 && valor <= 9) {
+      salida += String(pendiente + valor);
+      pendiente = null;
+      continue;
+    }
+    if (pendiente !== null) salida += String(pendiente);
+    pendiente = valor;
+  }
+  if (pendiente !== null) salida += String(pendiente);
+  return salida || undefined;
+}
+
+export function canonicalizeDocumento(
+  bruto: string | null | undefined,
+): DocumentoCanonico | undefined {
+  const entrada = bruto ?? "";
+  const inicio = entrada.length - entrada.trimStart().length;
+  const texto = entrada.trim();
+  if (!texto) return undefined;
+
+  // El tipo puede venir como sigla ("CC 1023456789") o dictado en palabras
+  // ("cédula de ciudadanía 1023456789"). Se separa del identificador para no
+  // confundir sus letras con las de un pasaporte.
+  let tipo: string | undefined;
+  let resto = texto;
+  const sigla = /^([A-Za-z]{2,4})[\s.:-]+(.+)$/.exec(resto);
+  if (sigla && SIGLAS_DOCUMENTO.has(sigla[1].toUpperCase())) {
+    tipo = sigla[1].toUpperCase();
+    resto = sigla[2];
+  } else {
+    const palabras = /^((?:[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+[\s.]+){1,4})(.*)$/.exec(resto);
+    if (palabras) {
+      const sueltas = palabras[1]
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .split(/[\s.]+/);
+      for (const palabra of sueltas) {
+        const encontrado = TIPO_DICTADO[palabra];
+        if (encontrado) {
+          tipo = encontrado;
+          resto = palabras[2];
+          break;
+        }
+      }
+    }
+  }
+  const prefijo = texto.length - resto.length;
+  const espacios = resto.length - resto.trimStart().length;
+  resto = resto.trimStart();
+
+  // DOS FORMAS, y hay que distinguirlas antes de recortar:
+  //
+  //   alfanumérica (pasaporte, PPT): UN token pegado, sin espacios, que mezcla
+  //     letras y cifras ("AY123456").
+  //   numérica (cédula, TI, RC, CE, NUIP): una corrida de cifras que SÍ puede
+  //     traer separadores, porque así es como llega del dictado
+  //     ("1 036 457 892", "23-45-67-75-43", "1.023.456.789").
+  //
+  // La distinción importa: una corrida que aceptara letras Y espacios se
+  // tragaría lo que viene detrás —"1023456789 expedida en Bogotá" acabaría
+  // siendo un "documento" de treinta caracteres— y el campo se perdería entero.
+  // El token alfanumérico admite separadores INTERNOS pero nunca espacios
+  // ("ay-123456" es un pasaporte; "1023456789 expedida en Bogotá" no es un
+  // token alfanumérico de treinta caracteres).
+  const token = (/^[0-9A-Za-z]+(?:[.\-][0-9A-Za-z]+)*/.exec(resto)?.[0] ?? "")
+    .replace(/[.\-]/g, "");
+  const esAlfanumerico = /[A-Za-z]/.test(token) && /[0-9]/.test(token);
+  const crudo = esAlfanumerico
+    ? (/^[0-9A-Za-z]+(?:[.\-][0-9A-Za-z]+)*/.exec(resto)?.[0] ?? "")
+    : (/^[0-9][0-9 .\-]*/.exec(resto)?.[0] ?? "");
+
+  // Sin una sola cifra escrita, aún puede estar dictado en palabras.
+  if (!crudo) {
+    if (/[0-9]/.test(resto)) return undefined;
+    const enPalabras = digitosDePalabras(resto);
+    if (!enPalabras) return undefined;
+    if (enPalabras.length < MIN_DIGITOS || enPalabras.length > MAX_DIGITOS) {
+      return undefined;
+    }
+    return {
+      tipo,
+      numero: enPalabras,
+      texto: tipo ? `${tipo} ${enPalabras}` : enPalabras,
+      consumido: entrada.length,
+    };
+  }
+
+  const numero = crudo.replace(/[\s.\-]/g, "").toUpperCase();
+  if (esAlfanumerico) {
+    if (numero.length < MIN_ALFANUMERICO || numero.length > MAX_ALFANUMERICO) {
+      return undefined;
+    }
+  } else if (numero.length < MIN_DIGITOS || numero.length > MAX_DIGITOS) {
+    return undefined;
+  }
+
+  return {
+    tipo,
+    numero,
+    texto: tipo ? `${tipo} ${numero}` : numero,
+    consumido: inicio + prefijo + espacios + crudo.trimEnd().length,
+  };
 }
 
 /**
- * Primer número utilizable de una línea etiquetada. Se recorre corrida a
- * corrida en vez de arrasar con todos los no-dígitos porque en "1023456789,
- * expedida en 2015" lo segundo NO es parte del documento: pegarlos daría un
- * número de catorce cifras que no es de nadie.
+ * El identificador canónico solo, que es lo que se guarda en la columna y con
+ * lo que se compara y se busca.
  */
-const CORRIDA_DE_DIGITOS = /[0-9][0-9 .\-]*/g;
+function limpiarDocumento(bruto: string): string | undefined {
+  return canonicalizeDocumento(bruto)?.numero;
+}
 
-function primerDocumentoDeLinea(linea: string): string | undefined {
-  for (const m of linea.matchAll(CORRIDA_DE_DIGITOS)) {
-    const limpio = limpiarDocumento(m[0]);
-    if (limpio) return limpio;
+/**
+ * Documento de una línea etiquetada ("Documento: CC 1.023.456.789").
+ *
+ * La línea entera va a la canonización, que ya sabe separar el tipo del
+ * identificador y quedarse con la primera corrida: si se buscara "el primer
+ * número" a secas, "CC 1023456789" perdería el "CC" y "PA AY123456" perdería
+ * las letras del pasaporte.
+ */
+function primerDocumentoDeLinea(linea: string): DocumentoCanonico | undefined {
+  const directo = canonicalizeDocumento(linea);
+  if (directo) return directo;
+  // La línea puede empezar con algo que no es el documento ("Número de
+  // documento 1023456789"): se reintenta desde cada cifra.
+  for (const m of linea.matchAll(/[0-9][0-9A-Za-z .\-]*/g)) {
+    const canonico = canonicalizeDocumento(m[0]);
+    if (canonico) return canonico;
   }
   return undefined;
 }
@@ -315,8 +541,8 @@ function leerCampoCanonico(texto: string): LecturaDelCampo {
   const lineaDocumento = LINEA_DOCUMENTO.exec(contenido);
   if (lineaDocumento?.[1]) {
     declarado.documento = true;
-    const limpio = primerDocumentoDeLinea(lineaDocumento[1]);
-    if (limpio) salida.documento = limpio;
+    const canonico = primerDocumentoDeLinea(lineaDocumento[1]);
+    if (canonico) salida.documento = canonico.numero;
   } else {
     const doc = documentoEnProsa(contenido);
     if (doc) salida.documento = doc;
@@ -403,4 +629,80 @@ export function extractPatientIdentity(
   }
 
   return salida;
+}
+
+/* ------------------------------------------------------------------ */
+/* Dejar el campo canónico en su forma canónica antes de persistirlo   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Reescribe la línea "Documento:" del campo de identificación con la forma
+ * canónica del documento. Devuelve el MISMO texto si no hay nada que arreglar.
+ *
+ * POR QUÉ SE REESCRIBE EL TEXTO Y NO SOLO LA COLUMNA: la columna
+ * `paciente_documento` ya guardaba solo las cifras, así que las listas y el
+ * buscador siempre estuvieron bien. Lo que quedaba mal era la nota —lo que el
+ * médico lee y lo que sale impreso en el PDF—, porque ahí vive el texto tal
+ * como lo escribió el generador, con los guiones que puso el proveedor de
+ * transcripción.
+ *
+ * POR QUÉ ES SEGURO HACERLO: esto NO edita la historia clínica a espaldas de
+ * nadie. Toca una sola línea de un CAMPO CON FORMATO DECLARADO —la instrucción
+ * de la sección pide exactamente "Documento: <cifra corrida>"— y solo cuando la
+ * línea existe y su contenido resuelve a un documento válido. Los mismos
+ * dígitos, en el orden en que se dijeron, sin separadores: no se añade ni se
+ * quita información. Si el modelo escribió prosa en vez del formato pedido, no
+ * se toca nada; y la TRANSCRIPCIÓN nunca se modifica, porque es la evidencia de
+ * lo que de verdad se dijo.
+ */
+export function canonicalizeIdentitySectionText(texto: string): string {
+  const contenido = texto ?? "";
+  if (!contenido.trim()) return contenido;
+  return contenido.replace(
+    /^([ \t]*(?:documento|c[ée]dula|identificaci[óo]n|cc|ti|nuip)\b[^:\n]*:[ \t]*)(.+)$/gim,
+    (completo, etiqueta: string, valor: string) => {
+      const canonico = canonicalizeDocumento(valor);
+      // Solo se reescribe lo que se reconoce como documento. Si el modelo puso
+      // prosa, una frase prudente o algo que no cuadra, la línea se deja intacta.
+      if (!canonico) return completo;
+      // Lo que venga DESPUÉS del documento ("…, expedida en Medellín") se
+      // conserva tal cual: el campo se canoniza, no se recorta.
+      const cola = valor.slice(canonico.consumido);
+      return `${etiqueta}${canonico.texto}${cola}`;
+    },
+  );
+}
+
+/** Sección de una nota, en cualquiera de las dos formas que conviven en el repo. */
+type SeccionEditable = NoteSectionLike & { content?: string; texto?: string };
+
+/**
+ * Deja el campo de identificación de una nota en su forma canónica.
+ *
+ * Se aplica en el borde por el que la nota entra y sale de la app
+ * (`lib/api/clinical.ts`), que es el único punto por el que pasan la
+ * generación, la regeneración, el ajuste del asistente y el guardado. Así lo
+ * que el médico ve, lo que vuelve al backend y lo que se espeja en
+ * `consultations` dicen todos lo mismo, sin que ninguna pantalla tenga que
+ * reinterpretar el número.
+ */
+export function canonicalizeNoteIdentity<T extends { sections?: SeccionEditable[] }>(
+  note: T | null | undefined,
+): T | null | undefined {
+  if (!note || !Array.isArray(note.sections)) return note;
+  let cambio = false;
+  const sections = note.sections.map((section) => {
+    if (!section) return section;
+    const nombre = `${section.key ?? ""} ${section.id ?? ""}`;
+    if (!nombre.includes(PATIENT_IDENTITY_SECTION_KEY)) return section;
+    const original = section.content ?? section.texto ?? "";
+    const canonico = canonicalizeIdentitySectionText(original);
+    if (canonico === original) return section;
+    cambio = true;
+    return section.content !== undefined
+      ? { ...section, content: canonico }
+      : { ...section, texto: canonico };
+  });
+  // Misma referencia si nada cambió: deja a React hacer bail-out en los efectos.
+  return cambio ? { ...note, sections } : note;
 }

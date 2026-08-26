@@ -185,3 +185,29 @@ mismo dato es peor que no pedirlo). La casilla NO es obligatoria: en urgencias
 hay pacientes que no pueden identificarse, y marcarla obligatoria llenaría de
 avisos falsos las notas correctas. La consola de superadmin sigue mostrando solo
 el nombre del paciente registrado: no se le amplía la exposición a PHI por esto.
+
+## D19 · El documento del paciente tiene una sola forma canónica
+**Decisión:** el número de documento se guarda y se escribe sin separadores
+(`canonicalizeDocumento` en lib/clinical/patient-identity.ts, con espejo en el
+trigger de `consultations`). La canonización se aplica en `lib/api/clinical.ts`,
+el borde por el que pasan generación, regeneración, ajuste del asistente y
+guardado, así que la nota, el backend y el espejo dicen todos lo mismo.
+**Por qué:** al dictar, el número llegaba partido ("23-45-67-75-43"). No lo
+parte el modelo ni la app: lo parte el PROVEEDOR DE TRANSCRIPCIÓN (Deepgram
+`smart_format` / Soniox aplican normalización inversa y escriben una corrida
+larga de cifras como si fuera un teléfono). Se comprobó en los datos: las 3
+notas con guiones los traen idénticos en su transcripción, y otras 21
+transcripciones los traen también. El cliente de dictado solo concatena tokens
+del proveedor y el generador los copia por su regla de fidelidad. El interruptor
+que los produce vive en el runtime de voz, fuera de este repo y del backend
+clínico; por eso la corrección se hace en el CAMPO, que tiene formato declarado.
+**Consecuencia:** se canoniza UNA línea —la etiquetada como documento dentro de
+la casilla de identificación— y solo cuando resuelve a un documento válido; si
+el modelo escribió prosa, no se toca. **La transcripción nunca se modifica**: es
+la evidencia de lo que se dijo. **El rótulo tampoco**: el número de caso de
+patología ("26-2931") vive en su propia sección, con su propia columna y su
+propio trigger, sus guiones sí significan algo (año y consecutivo), y las
+plantillas que lo llevan ni siquiera tienen la casilla de identificación. De
+paso se corrigió una corrupción silenciosa: arrasar con los no-dígitos convertía
+el pasaporte "AY123456" en "123456", así que ahora se distingue el documento
+numérico (cédula, TI, RC, CE, NUIP) del alfanumérico (pasaporte, PPT).
