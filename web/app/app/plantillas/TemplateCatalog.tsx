@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   Copy,
@@ -12,7 +12,6 @@ import {
   Sparkles,
   Star,
   StarOff,
-  Stethoscope,
   X,
 } from "lucide-react";
 import {
@@ -288,64 +287,44 @@ export function TemplateCatalog({
         </div>
       ) : null}
       {!loading && !error ? (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
-          <section aria-label="Plantillas disponibles" className="space-y-3">
-            {visible.map((template) => (
-              <TemplateRow
-                key={template.id}
-                template={template}
-                active={template.id === selected?.id}
-                pinned={pinned.has(template.id)}
-                onSelect={() => setSelectedId(template.id)}
-              />
-            ))}
-            {visible.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-line bg-surface p-10 text-center">
-                <p className="font-semibold text-deep">
-                  No hay plantillas que coincidan
-                </p>
-                <p className="mt-1 text-sm text-muted">
-                  Cambia la búsqueda o crea una nueva estructura clínica.
-                </p>
-              </div>
-            ) : null}
-          </section>
-          {selected ? (
-            <div className="hidden lg:block">
-              <TemplatePreview
-                template={selected}
-                archiving={archivingId === selected.id}
-                pinned={pinned.has(selected.id)}
-                pinning={pinningId === selected.id}
-                onTogglePin={() => void togglePin(selected)}
-                onBase={() => setBuilder({ mode: "base", baseTemplate: selected })}
-                onEdit={() => setBuilder({ mode: "edit", baseTemplate: selected })}
-                onArchive={() => void archive(selected)}
-              />
+        /* Una sola columna a todo el ancho. La vista de la nota vivía aquí al
+           lado, en un panel fijo de 420 px que le comía a la lista casi la
+           mitad de la pantalla y dejaba cada plantilla con el nombre y la
+           descripción cortados. Ahora el detalle se abre en un diálogo. */
+        <section aria-label="Plantillas disponibles" className="mt-6 space-y-2.5">
+          {visible.map((template) => (
+            <TemplateRow
+              key={template.id}
+              template={template}
+              pinned={pinned.has(template.id)}
+              onSelect={() => setSelectedId(template.id)}
+            />
+          ))}
+          {visible.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-line bg-surface p-10 text-center">
+              <p className="font-semibold text-deep">
+                No hay plantillas que coincidan
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                Cambia la búsqueda o crea una nueva estructura clínica.
+              </p>
             </div>
           ) : null}
-        </div>
+        </section>
       ) : null}
 
       {selectedId && selected ? (
-        <div className="fixed inset-0 z-50 flex items-end bg-overlay lg:hidden">
-          <button type="button" aria-label="Cerrar vista previa" onClick={() => setSelectedId(null)} className="absolute inset-0" />
-          <div className="mobile-bottom-sheet relative max-h-[88dvh] w-full overflow-y-auto rounded-t-3xl bg-surface p-3 shadow-[var(--shadow-xl)]">
-            <div className="mb-2 flex justify-end">
-              <button type="button" onClick={() => setSelectedId(null)} aria-label="Cerrar vista previa" className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-line text-muted"><X size={18} /></button>
-            </div>
-            <TemplatePreview
-              template={selected}
-              archiving={archivingId === selected.id}
-              pinned={pinned.has(selected.id)}
-              pinning={pinningId === selected.id}
-              onTogglePin={() => void togglePin(selected)}
-              onBase={() => setBuilder({ mode: "base", baseTemplate: selected })}
-              onEdit={() => setBuilder({ mode: "edit", baseTemplate: selected })}
-              onArchive={() => void archive(selected)}
-            />
-          </div>
-        </div>
+        <TemplateDialog
+          template={selected}
+          archiving={archivingId === selected.id}
+          pinned={pinned.has(selected.id)}
+          pinning={pinningId === selected.id}
+          onClose={() => setSelectedId(null)}
+          onTogglePin={() => void togglePin(selected)}
+          onBase={() => setBuilder({ mode: "base", baseTemplate: selected })}
+          onEdit={() => setBuilder({ mode: "edit", baseTemplate: selected })}
+          onArchive={() => void archive(selected)}
+        />
       ) : null}
 
       {creation === "choice" ? (
@@ -384,67 +363,79 @@ export function TemplateCatalog({
 
 function TemplateRow({
   template,
-  active,
   pinned,
   onSelect,
 }: {
   template: ClinicalTemplate;
-  active: boolean;
   pinned: boolean;
   onSelect: () => void;
 }) {
   return (
+    /* Sin el cuadro del icono: era el mismo dibujo en las 204 filas, así que no
+       distinguía una plantilla de otra y solo empujaba el texto hacia dentro.
+       Lo que sí identifica a cada una —nombre, especialidad, cuántas secciones
+       tiene y para qué sirve— es lo que queda. */
     <button
       type="button"
       onClick={onSelect}
-      className={`group flex w-full items-center gap-4 rounded-[14px] border p-4 text-left transition-colors ${active ? "border-accent bg-accent-soft/25" : "border-line bg-surface hover:border-mist hover:bg-ice-soft/40"}`}
+      aria-haspopup="dialog"
+      className="group flex w-full flex-col gap-1 rounded-[14px] border border-line bg-surface p-4 text-left transition-colors hover:border-accent/40 hover:bg-ice-soft/40"
     >
-      <span
-        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${active ? "bg-accent text-white" : "bg-ice text-accent"}`}
-      >
-        <FileText size={19} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-deep">
-            {template.name}
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-[15px] font-semibold leading-tight text-deep">
+          {template.name}
+        </span>
+        {pinned ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-[12px] font-semibold text-warning-ink">
+            <Star size={11} /> Tu sugerida
           </span>
-          {pinned ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-[12px] font-semibold text-warning-ink">
-              <Star size={11} /> Tu sugerida
-            </span>
-          ) : template.is_default ? (
-            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[12px] font-semibold text-accent">
-              Sugerida
-            </span>
-          ) : null}
-          {template.scope === "personal" ? (
-            <span className="rounded-full bg-mint-soft px-2 py-0.5 text-[12px] font-semibold text-success">
-              Personal
-            </span>
-          ) : null}
-        </span>
-        <span className="mt-1 block truncate text-[13px] text-muted">
-          {specialtyDisplayName(template.specialty)} ·{" "}
-          {template.description ||
-            `${template.sections.length} secciones clínicas`}
-        </span>
+        ) : template.is_default ? (
+          <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[12px] font-semibold text-accent">
+            Sugerida
+          </span>
+        ) : null}
+        {template.scope === "personal" ? (
+          <span className="rounded-full bg-mint-soft px-2 py-0.5 text-[12px] font-semibold text-success">
+            Personal
+          </span>
+        ) : null}
       </span>
-      <span className="hidden text-right text-xs text-muted sm:block">
-        <strong className="block text-sm text-deep">
-          {template.sections.length}
-        </strong>
-        secciones
+      {/* La especialidad y el número de secciones son el dato que se compara
+          entre plantillas, así que van juntos y sin recortar; la descripción
+          va debajo y es la única que cede espacio. */}
+      <span className="text-[13px] font-medium text-ink-soft">
+        {specialtyDisplayName(template.specialty)} ·{" "}
+        <span className="tabular-nums">{template.sections.length}</span>{" "}
+        {template.sections.length === 1 ? "sección" : "secciones"}
       </span>
+      {template.description ? (
+        <span className="line-clamp-1 text-[13px] text-muted">
+          {template.description}
+        </span>
+      ) : null}
     </button>
   );
 }
 
-function TemplatePreview({
+/**
+ * El detalle de la plantilla, en diálogo.
+ *
+ * Vivía como panel fijo al lado de la lista, ocupando 420 px de ancho de forma
+ * permanente: apretaba las tarjetas hasta cortarles el nombre y la descripción
+ * y, aun así, solo servía cuando había una plantilla seleccionada. Como diálogo
+ * aparece cuando se pide, y con sitio de sobra para leer las secciones.
+ *
+ * Hoja inferior en móvil y ventana centrada desde `sm`, que es el patrón que ya
+ * siguen los otros diálogos de esta pantalla. Antes esto eran dos renders
+ * distintos del mismo panel —uno para móvil y otro para escritorio— que había
+ * que mantener en paralelo.
+ */
+function TemplateDialog({
   template,
   archiving,
   pinned,
   pinning,
+  onClose,
   onTogglePin,
   onBase,
   onEdit,
@@ -454,94 +445,143 @@ function TemplatePreview({
   archiving: boolean;
   pinned: boolean;
   pinning: boolean;
+  onClose: () => void;
   onTogglePin: () => void;
   onBase: () => void;
   onEdit: () => void;
   onArchive: () => void;
 }) {
   const personal = template.scope === "personal";
+  const dialogRef = useRef<HTMLElement>(null);
+
+  // Misma accesibilidad que el resto de diálogos: foco al abrir y Escape cierra.
+  useEffect(() => {
+    dialogRef.current?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <aside className="h-fit rounded-[14px] border border-line bg-surface p-4 shadow-[var(--shadow-xs)] lg:sticky lg:top-4">
-      <div className="flex items-start gap-3">
-        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ice text-accent">
-          <Stethoscope size={19} />
-        </span>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.13em] text-muted">
-            Vista de la nota
-          </p>
-          <h2 className="mt-1 text-lg font-semibold text-deep">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-overlay backdrop-blur-[2px] sm:items-center sm:p-4">
+      <button
+        type="button"
+        aria-label="Cerrar"
+        onClick={onClose}
+        className="absolute inset-0"
+      />
+      <section
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label={template.name}
+        /* Ancho de lectura cómodo y alto acotado: el cuerpo se desplaza solo,
+           así una plantilla de 13 secciones no empuja los botones fuera de la
+           pantalla. */
+        className="mobile-bottom-sheet relative flex max-h-[92dvh] w-full max-w-3xl flex-col rounded-t-3xl border border-b-0 border-line bg-surface shadow-[var(--shadow-xl)] outline-none sm:max-h-[85vh] sm:rounded-2xl sm:border-b"
+      >
+        <header className="border-b border-line p-5 pr-14">
+          <h2 className="font-display text-xl font-semibold leading-tight text-deep">
             {template.name}
           </h2>
-          <p className="mt-1 text-sm text-muted">
-            {template.description || specialtyDisplayName(template.specialty)}
+          <p className="mt-1 text-[13px] font-medium text-ink-soft">
+            {specialtyDisplayName(template.specialty)} ·{" "}
+            <span className="tabular-nums">{template.sections.length}</span>{" "}
+            {template.sections.length === 1 ? "sección" : "secciones"}
           </p>
-        </div>
-      </div>
-      <div className="mt-4 border-l border-line pl-3">
-        {sortedTemplateSections(template.sections).map((section, index) => (
-          <div key={section.key} className="relative flex min-h-8 items-start justify-between gap-3 pb-2 last:pb-0">
-            <span className="absolute -left-[18px] top-2 h-2 w-2 rounded-full border-2 border-surface bg-accent" />
-            <p className="min-w-0 text-sm font-medium leading-5 text-deep">
-              {String(index + 1).padStart(2, "0")} · {section.label}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            title="Cerrar"
+            className="absolute right-4 top-4 rounded-lg p-2 text-muted hover:bg-ice-soft"
+          >
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          {template.description ? (
+            <p className="text-sm leading-relaxed text-muted">
+              {template.description}
             </p>
-            <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${section.required ? "bg-accent-soft text-accent-ink" : "bg-ice-soft text-muted"}`}>
-              {section.required ? "Obligatoria" : "Opcional"}
-            </span>
+          ) : null}
+          <div
+            className={`border-l border-line pl-3 ${template.description ? "mt-5" : ""}`}
+          >
+            {sortedTemplateSections(template.sections).map((section, index) => (
+              <div
+                key={section.key}
+                className="relative flex min-h-8 items-start justify-between gap-3 pb-2 last:pb-0"
+              >
+                <span className="absolute -left-[18px] top-2 h-2 w-2 rounded-full border-2 border-surface bg-accent" />
+                <p className="min-w-0 text-sm font-medium leading-5 text-deep">
+                  {String(index + 1).padStart(2, "0")} · {section.label}
+                </p>
+                <span
+                  className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${section.required ? "bg-accent-soft text-accent-ink" : "bg-ice-soft text-muted"}`}
+                >
+                  {section.required ? "Obligatoria" : "Opcional"}
+                </span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="mt-4 border-l-2 border-accent bg-accent-soft/20 px-3 py-2.5">
-        <p className="text-[13px] font-semibold text-accent-ink">
-          Cierre clínico universal
-        </p>
-        <p className="mt-1 text-[13px] leading-relaxed text-muted">
-          Incluye plan, recomendaciones y signos de alarma.
-        </p>
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={onBase}
-          className="clinical-primary"
-        >
-          <Copy size={15} /> Usar como base
-        </button>
-        <button
-          type="button"
-          onClick={onTogglePin}
-          disabled={pinning}
-          title="Tu sugerida aparece preseleccionada al iniciar una consulta"
-          className="clinical-secondary"
-        >
-          {pinned ? <StarOff size={15} /> : <Star size={15} />}{" "}
-          {pinning
-            ? "Guardando…"
-            : pinned
-              ? "Quitar mi sugerida"
-              : "Fijar como mi sugerida"}
-        </button>
-        {personal ? (
-          <>
-            <button
-              type="button"
-              onClick={onEdit}
-              className="clinical-secondary"
-            >
-              <Pencil size={15} /> Editar
-            </button>
-            <button
-              type="button"
-              onClick={onArchive}
-              disabled={archiving}
-              className="clinical-secondary border-danger/35 text-danger hover:bg-danger-soft"
-            >
-              <Archive size={15} /> {archiving ? "Archivando…" : "Archivar"}
-            </button>
-          </>
-        ) : null}
-      </div>
-    </aside>
+          <div className="mt-5 border-l-2 border-accent bg-accent-soft/20 px-3 py-2.5">
+            <p className="text-[13px] font-semibold text-accent-ink">
+              Cierre clínico universal
+            </p>
+            <p className="mt-1 text-[13px] leading-relaxed text-muted">
+              Incluye plan, recomendaciones y signos de alarma.
+            </p>
+          </div>
+        </div>
+
+        {/* Las acciones se quedan fijas abajo: con el cuerpo desplazándose, un
+            pie que se va con el scroll obliga a bajar hasta el final para
+            fijar una sugerida. */}
+        <footer className="flex flex-wrap gap-2 border-t border-line p-5">
+          <button type="button" onClick={onBase} className="clinical-primary">
+            <Copy size={15} /> Usar como base
+          </button>
+          <button
+            type="button"
+            onClick={onTogglePin}
+            disabled={pinning}
+            title="Tu sugerida aparece preseleccionada al iniciar una consulta"
+            className="clinical-secondary"
+          >
+            {pinned ? <StarOff size={15} /> : <Star size={15} />}{" "}
+            {pinning
+              ? "Guardando…"
+              : pinned
+                ? "Quitar mi sugerida"
+                : "Fijar como mi sugerida"}
+          </button>
+          {personal ? (
+            <>
+              <button
+                type="button"
+                onClick={onEdit}
+                className="clinical-secondary"
+              >
+                <Pencil size={15} /> Editar
+              </button>
+              <button
+                type="button"
+                onClick={onArchive}
+                disabled={archiving}
+                className="clinical-secondary border-danger/35 text-danger hover:bg-danger-soft"
+              >
+                <Archive size={15} /> {archiving ? "Archivando…" : "Archivar"}
+              </button>
+            </>
+          ) : null}
+        </footer>
+      </section>
+    </div>
   );
 }
 
