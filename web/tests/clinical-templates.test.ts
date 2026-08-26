@@ -10,6 +10,9 @@ import {
 import {
   buildTemplatePayload,
   createBlock,
+  ensurePatientIdentityBlock,
+  isPatientIdentityBlock,
+  MAX_INSTRUCTION_LENGTH,
   MAX_TEMPLATE_SECTIONS,
   moveBlock,
   removeBlock,
@@ -21,6 +24,11 @@ import {
   validateBlocks,
   type SectionBlock,
 } from "@/lib/clinical/template-builder";
+import {
+  PATIENT_IDENTITY_SECTION_INSTRUCTION,
+  PATIENT_IDENTITY_SECTION_KEY,
+  PATIENT_IDENTITY_SECTION_LABEL,
+} from "@/lib/clinical/patient-identity";
 import type { ClinicalTemplate } from "@/lib/api/clinical";
 
 /* ------------------------------------------------------------------ */
@@ -185,6 +193,86 @@ describe("starterBlocksForSpecialty", () => {
     const keys = starter.map((b) => sectionKeyFromLabel(b.label));
     expect(new Set(keys).size).toBe(keys.length);
   });
+
+  it.each(["medicina-general", "cardiologia", "psiquiatria"])(
+    "abre con la identificación del paciente (%s)",
+    (especialidad) => {
+      const starter = starterBlocksForSpecialty(especialidad);
+      expect(sectionKeyFromLabel(starter[0].label)).toBe(PATIENT_IDENTITY_SECTION_KEY);
+    },
+  );
+});
+
+/* ------------------------------------------------------------------ */
+/* La identificación del paciente va en TODA plantilla                 */
+/* ------------------------------------------------------------------ */
+
+describe("ensurePatientIdentityBlock", () => {
+  it("la agrega de primera cuando no está", () => {
+    const out = ensurePatientIdentityBlock(blocks(["Motivo de consulta", "Plan"]));
+    expect(out).toHaveLength(3);
+    expect(out[0].key).toBe(PATIENT_IDENTITY_SECTION_KEY);
+    expect(out[0].label).toBe(PATIENT_IDENTITY_SECTION_LABEL);
+    expect(out[0].instruction).toBe(PATIENT_IDENTITY_SECTION_INSTRUCTION);
+  });
+
+  it("no la duplica ni cambia nada si ya está de primera", () => {
+    const yaEsta = ensurePatientIdentityBlock(blocks(["Motivo de consulta"]));
+    expect(ensurePatientIdentityBlock(yaEsta)).toBe(yaEsta);
+  });
+
+  it("la sube al primer puesto si quedó en medio", () => {
+    const desordenada = [
+      ...blocks(["Motivo de consulta"]),
+      createBlock({
+        key: PATIENT_IDENTITY_SECTION_KEY,
+        label: PATIENT_IDENTITY_SECTION_LABEL,
+        instruction: PATIENT_IDENTITY_SECTION_INSTRUCTION,
+      }),
+      ...blocks(["Plan"]),
+    ];
+    const out = ensurePatientIdentityBlock(desordenada);
+    expect(out.map((b) => b.label)).toEqual([
+      PATIENT_IDENTITY_SECTION_LABEL,
+      "Motivo de consulta",
+      "Plan",
+    ]);
+  });
+
+  it("la reconoce por el label cuando el bloque todavía no tiene key", () => {
+    // Es el caso de «usar como base»: el backend derivará la misma key del label.
+    const copia = [
+      createBlock({ label: PATIENT_IDENTITY_SECTION_LABEL, instruction: "Solo el nombre." }),
+      ...blocks(["Plan"]),
+    ];
+    const out = ensurePatientIdentityBlock(copia);
+    expect(out).toHaveLength(2);
+    expect(out[0].instruction).toBe("Solo el nombre.");
+  });
+
+  it("repone la instrucción si alguien la dejó en blanco", () => {
+    // Sin instrucción el backend genera una genérica que no dice a quién
+    // identificar ni en qué formato: justo lo que hace falta aquí.
+    const sinInstruccion = [
+      createBlock({ key: PATIENT_IDENTITY_SECTION_KEY, label: PATIENT_IDENTITY_SECTION_LABEL, instruction: "  " }),
+      ...blocks(["Plan"]),
+    ];
+    expect(ensurePatientIdentityBlock(sinInstruccion)[0].instruction).toBe(
+      PATIENT_IDENTITY_SECTION_INSTRUCTION,
+    );
+  });
+
+  it("la instrucción cabe en el límite del editor", () => {
+    expect(PATIENT_IDENTITY_SECTION_INSTRUCTION.length).toBeLessThanOrEqual(
+      MAX_INSTRUCTION_LENGTH,
+    );
+  });
+
+  it("isPatientIdentityBlock solo marca la casilla de identificación", () => {
+    const [identidad, motivo] = ensurePatientIdentityBlock(blocks(["Motivo de consulta"]));
+    expect(isPatientIdentityBlock(identidad)).toBe(true);
+    expect(isPatientIdentityBlock(motivo)).toBe(false);
+  });
 });
 
 /* ------------------------------------------------------------------ */
@@ -206,15 +294,25 @@ const baseTemplate: ClinicalTemplate = {
 describe("templateToBlocks / templateToDraftBlocks", () => {
   it("editar conserva las keys de las secciones existentes", () => {
     const built = templateToBlocks(baseTemplate);
-    expect(built.map((b) => b.key)).toEqual(["motivo_consulta", "plan"]);
-    expect(built[0].required).toBe(true);
-    expect(built[0].instruction).toBe("Resume el motivo.");
+    // La identificación se antepone: una plantilla vieja que no la tenía se
+    // abre en el editor ya con su casilla, en vez de guardarse otra vez sin ella.
+    expect(built.map((b) => b.key)).toEqual([
+      PATIENT_IDENTITY_SECTION_KEY,
+      "motivo_consulta",
+      "plan",
+    ]);
+    expect(built[1].required).toBe(true);
+    expect(built[1].instruction).toBe("Resume el motivo.");
   });
 
   it("«usar como base» copia labels pero NO keys (plantilla nueva)", () => {
     const draft = templateToDraftBlocks(baseTemplate);
-    expect(draft.map((b) => b.key)).toEqual([undefined, undefined]);
-    expect(draft.map((b) => b.label)).toEqual(["Motivo de consulta", "Plan"]);
+    expect(draft.map((b) => b.key)).toEqual([undefined, undefined, undefined]);
+    expect(draft.map((b) => b.label)).toEqual([
+      PATIENT_IDENTITY_SECTION_LABEL,
+      "Motivo de consulta",
+      "Plan",
+    ]);
   });
 });
 
@@ -235,25 +333,33 @@ describe("buildTemplatePayload", () => {
     expect(payload.specialty).toBe("medicina_general");
     expect(payload.description).toBe("Seguimiento");
     expect(payload.sections).toEqual([
-      { label: "Motivo del control", order: 1, required: true, instruction: "Resume el motivo." },
-      { label: "Adherencia", order: 2, required: true },
+      {
+        key: PATIENT_IDENTITY_SECTION_KEY,
+        label: PATIENT_IDENTITY_SECTION_LABEL,
+        order: 1,
+        required: false,
+        instruction: PATIENT_IDENTITY_SECTION_INSTRUCTION,
+      },
+      { label: "Motivo del control", order: 2, required: true, instruction: "Resume el motivo." },
+      { label: "Adherencia", order: 3, required: true },
     ]);
   });
 
   it("preserva key al editar y omite instrucción vacía", () => {
     const editedBlocks = templateToBlocks(baseTemplate);
-    // El médico renombra la primera sección pero es la MISMA (misma key).
-    editedBlocks[0].label = "Motivo del control";
-    editedBlocks[0].instruction = "";
+    // [0] es la identificación del paciente; el médico renombra la siguiente,
+    // que es la MISMA sección de antes (misma key).
+    editedBlocks[1].label = "Motivo del control";
+    editedBlocks[1].instruction = "";
     const payload = buildTemplatePayload({
       name: "Editada",
       specialtyCode: "medicina_general",
       blocks: editedBlocks,
     });
-    expect(payload.sections[0]).toEqual({
+    expect(payload.sections[1]).toEqual({
       key: "motivo_consulta",
       label: "Motivo del control",
-      order: 1,
+      order: 2,
       required: true,
     });
     // description undefined cuando no se pasa.

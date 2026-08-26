@@ -31,6 +31,8 @@ type RevisarRow = {
   note: unknown;
   resumen: string | null;
   firma: unknown;
+  /** Copia que la base extrae de la nota; ver lib/clinical/patient-identity.ts. */
+  paciente_nombre: string | null;
   patients: { nombre: string | null } | { nombre: string | null }[] | null;
 };
 
@@ -58,7 +60,7 @@ export default async function AuditoriaPage() {
     supabase.rpc("consultation_audit_stats"),
     supabase
       .from("consultations")
-      .select("id, motivo, fecha, estado, codigos, note, resumen, firma, patients(nombre)")
+      .select("id, motivo, fecha, estado, codigos, note, resumen, firma, paciente_nombre, patients(nombre)")
       .in("estado", ["borrador", "revisada"])
       .order("fecha", { ascending: false })
       .limit(POR_REVISAR_LIMIT),
@@ -141,7 +143,9 @@ export default async function AuditoriaPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="truncate font-medium text-deep">
-                            {nombreDe(c.patients) ?? "Paciente sin identificar"}
+                            {nombreDe(c.patients) ??
+                              c.paciente_nombre?.trim() ??
+                              "Paciente sin identificar"}
                             {c.motivo ? ` · ${c.motivo}` : ""}
                           </div>
                           <div className="text-xs text-muted">

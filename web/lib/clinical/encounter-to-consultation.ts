@@ -13,6 +13,7 @@
 
 import { normalizeSpecialtyCode, type ClinicalEncounter, type ClinicalNoteJson } from "@/lib/api/clinical";
 import { clinicalSpecialties } from "@/lib/clinical/specialties";
+import { extractPatientIdentity } from "@/lib/clinical/patient-identity";
 import type {
   Consultation,
   ConsultationType,
@@ -121,5 +122,18 @@ export function encounterToConsultation(
     resumen: note.summary ?? "",
     codigos: [],
     auditoria: [],
+    // Misma lectura que hará el trigger de la base al guardar esta fila. Se
+    // adelanta aquí para que la consulta recién terminada aparezca ya con el
+    // nombre en la lista, sin esperar a recargar; no es una segunda forma de
+    // averiguarlo, es la misma función.
+    ...identidadDeLaNota(note),
+  };
+}
+
+function identidadDeLaNota(note: ClinicalNoteJson) {
+  const identidad = extractPatientIdentity(note.sections);
+  return {
+    pacienteNombre: identidad.nombre ?? null,
+    pacienteDocumento: identidad.documento ?? null,
   };
 }

@@ -160,3 +160,28 @@ intacta.
 vulnerabilidad real detectada en esta fase: la política de onboarding permitía
 a un médico auto-cambiarse `organization_id` vía PostgREST y leer otro tenant.
 El switcher de interfaz queda para cuando alguien tenga dos membresías.
+
+## D18 · La identificación del paciente es una sección de la plantilla
+**Decisión:** toda plantilla lleva garantizada una sección canónica
+`identificacion_del_paciente`, cuya instrucción pide dos líneas fijas
+(`Nombre:` / `Documento:`), distinguir al paciente del médico y una frase
+prudente cuando el dato no se dijo. La garantía vive en un trigger sobre
+`clinical_templates` (institucionales, personales, presentes y futuras) y se
+refuerza en el constructor del editor. De ahí, el trigger de `consultations`
+promueve el dato a `paciente_nombre` / `paciente_documento`, que son la ÚNICA
+fuente de la que leen listas, detalle, buscador y PDF.
+**Por qué:** el arreglo de 2026-08-20 extraía la identidad de la nota YA escrita
+y eso tapaba el síntoma, no la causa. La renovación del catálogo (2026-08-11)
+dejó 195 de 204 plantillas activas sin ninguna casilla donde escribirla, y el
+generador llena exactamente las secciones del `template_snapshot` y ni una más:
+sin casilla no hay dato que extraer. Se ve en los números: patología, que sí
+tiene el nombre como campo (`nombre_paciente` + `cedula`), iba 599/601; la
+plantilla renovada de medicina general, 0/18. La plantilla es el único contrato
+entre esta app y el motor de notas, así que es ahí donde se pide el dato.
+**Consecuencia:** las consultas ya guardadas no cambian —`template_snapshot` se
+congela al crear el encounter, así que el versionado queda intacto—; solo las
+nuevas nacen con la casilla. Patología se deja como está (pedir dos veces el
+mismo dato es peor que no pedirlo). La casilla NO es obligatoria: en urgencias
+hay pacientes que no pueden identificarse, y marcarla obligatoria llenaría de
+avisos falsos las notas correctas. La consola de superadmin sigue mostrando solo
+el nombre del paciente registrado: no se le amplía la exposición a PHI por esto.

@@ -25,6 +25,7 @@ import {
 import {
   buildTemplatePayload,
   createBlock,
+  isPatientIdentityBlock,
   MAX_DESCRIPTION_LENGTH,
   MAX_INSTRUCTION_LENGTH,
   MAX_LABEL_LENGTH,
@@ -438,6 +439,11 @@ function SectionCard({
     block.instruction.trim().length > 0,
   );
   const dragOverRef = useRef(false);
+  // La identificación del paciente la lleva toda plantilla: si no existe la
+  // casilla, la nota no tiene dónde traer el nombre y la consulta termina como
+  // "Paciente sin identificar". Se puede reordenar y afinar su instrucción,
+  // pero no borrar ni renombrar (su nombre es lo que la app usa para leerla).
+  const identidad = isPatientIdentityBlock(block);
 
   return (
     <div
@@ -479,11 +485,20 @@ function SectionCard({
           <input
             value={block.label}
             onChange={(e) => onChange({ label: e.target.value })}
+            readOnly={identidad}
             placeholder="Nombre de la sección (ej. Motivo de consulta)"
             maxLength={MAX_LABEL_LENGTH}
             aria-label={`Nombre de la sección ${index + 1}`}
-            className="w-full rounded-md border border-line bg-field px-3 py-2 text-sm font-medium text-deep outline-none focus:border-accent"
+            className={`w-full rounded-md border border-line px-3 py-2 text-sm font-medium text-deep outline-none focus:border-accent ${
+              identidad ? "cursor-default bg-ice-soft" : "bg-field"
+            }`}
           />
+          {identidad ? (
+            <p className="mt-1.5 flex items-center gap-1 text-[12px] text-muted">
+              <Info size={11} /> Toda plantilla la incluye: es de donde salen el
+              nombre y el documento del paciente en tus consultas.
+            </p>
+          ) : null}
 
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
             <label className="inline-flex items-center gap-2 text-xs font-medium text-deep">
@@ -550,9 +565,14 @@ function SectionCard({
           <button
             type="button"
             onClick={onRemove}
+            disabled={identidad}
             aria-label="Eliminar sección"
-            title="Eliminar sección"
-            className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-danger/10 hover:text-danger"
+            title={
+              identidad
+                ? "La identificación del paciente va en todas las plantillas"
+                : "Eliminar sección"
+            }
+            className="inline-flex h-6 w-6 items-center justify-center rounded text-muted hover:bg-danger/10 hover:text-danger disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted"
           >
             <Trash2 size={14} />
           </button>

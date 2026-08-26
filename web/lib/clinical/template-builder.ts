@@ -21,6 +21,11 @@ import type {
   CreateClinicalTemplatePayload,
 } from "@/lib/api/clinical";
 import { clinicalSpecialties } from "./specialties";
+import {
+  PATIENT_IDENTITY_SECTION_INSTRUCTION,
+  PATIENT_IDENTITY_SECTION_KEY,
+  PATIENT_IDENTITY_SECTION_LABEL,
+} from "./patient-identity";
 
 export const MIN_TEMPLATE_SECTIONS = 2;
 export const MAX_TEMPLATE_SECTIONS = 30;
@@ -59,18 +64,70 @@ export function createBlock(partial?: Partial<SectionBlock>): SectionBlock {
   };
 }
 
+/**
+ * ¿Es el bloque de identificación del paciente? Se reconoce por su key estable
+ * y, en los bloques nuevos (que aún no tienen key), por el label: el backend
+ * deriva la misma key de ese label.
+ */
+export function isPatientIdentityBlock(block: SectionBlock): boolean {
+  const key = block.key?.trim()
+    ? sectionKeyFromLabel(block.key)
+    : sectionKeyFromLabel(block.label);
+  return key === PATIENT_IDENTITY_SECTION_KEY;
+}
+
+/**
+ * Garantiza el bloque de identificación, de primero.
+ *
+ * Toda plantilla lo lleva: sin una casilla donde escribirla, el generador no
+ * tiene dónde poner la identificación del paciente y la consulta termina como
+ * "Paciente sin identificar". La base también lo garantiza (trigger
+ * `clinical_templates_ensure_patient_identity`); aquí se hace además para que el
+ * médico lo VEA en el editor, en vez de descubrir una sección que no puso.
+ */
+export function ensurePatientIdentityBlock(
+  blocks: SectionBlock[],
+): SectionBlock[] {
+  const index = blocks.findIndex(isPatientIdentityBlock);
+  if (index >= 0) {
+    // Sin instrucción, el backend genera una genérica ("Redacta la sección…")
+    // que no dice a quién identificar ni en qué formato: justo lo que hace
+    // falta aquí. Se repone la canónica antes que perderla.
+    const propio = blocks[index];
+    const bloque = propio.instruction.trim()
+      ? propio
+      : { ...propio, instruction: PATIENT_IDENTITY_SECTION_INSTRUCTION };
+    // La identificación abre la historia clínica: va de primera.
+    if (index === 0 && bloque === propio) return blocks;
+    const next = [...blocks];
+    next.splice(index, 1);
+    return [bloque, ...next];
+  }
+  return [
+    createBlock({
+      key: PATIENT_IDENTITY_SECTION_KEY,
+      label: PATIENT_IDENTITY_SECTION_LABEL,
+      required: false,
+      instruction: PATIENT_IDENTITY_SECTION_INSTRUCTION,
+    }),
+    ...blocks,
+  ];
+}
+
 /** Convierte las secciones de una plantilla del backend en bloques editables. */
 export function templateToBlocks(template: ClinicalTemplate): SectionBlock[] {
-  return [...(template.sections ?? [])]
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-    .map((section) =>
-      createBlock({
-        key: section.key,
-        label: section.label,
-        required: section.required === true,
-        instruction: section.instruction ?? "",
-      }),
-    );
+  return ensurePatientIdentityBlock(
+    [...(template.sections ?? [])]
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((section) =>
+        createBlock({
+          key: section.key,
+          label: section.label,
+          required: section.required === true,
+          instruction: section.instruction ?? "",
+        }),
+      ),
+  );
 }
 
 /**
@@ -209,7 +266,9 @@ export interface BuildPayloadInput {
 export function buildTemplatePayload(
   input: BuildPayloadInput,
 ): CreateClinicalTemplatePayload {
-  const sections = input.blocks
+  // Última línea antes de salir del navegador: pase lo que pase en el editor,
+  // la plantilla se guarda con su casilla de identificación.
+  const sections = ensurePatientIdentityBlock(input.blocks)
     .map((block) => ({
       key: block.key?.trim() || undefined,
       label: block.label.trim(),
@@ -239,13 +298,15 @@ export function buildTemplatePayload(
 /** Secciones iniciales sugeridas al crear desde cero, según la especialidad. */
 export function starterBlocksForSpecialty(specialtyCode: string): SectionBlock[] {
   if (specialtyCode.replace(/_/g, "-") === "medicina-general") {
-    return [
-      { label: "Motivo de consulta", required: true },
-      { label: "Enfermedad actual", required: true },
-      { label: "Antecedentes relevantes", required: false },
-      { label: "Examen físico dirigido", required: false },
-      { label: "Impresión diagnóstica", required: true },
-    ].map((block) => createBlock(block));
+    return ensurePatientIdentityBlock(
+      [
+        { label: "Motivo de consulta", required: true },
+        { label: "Enfermedad actual", required: true },
+        { label: "Antecedentes relevantes", required: false },
+        { label: "Examen físico dirigido", required: false },
+        { label: "Impresión diagnóstica", required: true },
+      ].map((block) => createBlock(block)),
+    );
   }
   const specialty = clinicalSpecialties.find(
     (item) => item.code === specialtyCode,
@@ -261,14 +322,16 @@ export function starterBlocksForSpecialty(specialtyCode: string): SectionBlock[]
   ];
   // Evita duplicar el bloque de foco si coincide con uno estándar.
   const seen = new Set<string>();
-  return labels
-    .filter((item) => {
-      const key = sectionKeyFromLabel(item.label);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .map((item) => createBlock({ label: item.label, required: item.required }));
+  return ensurePatientIdentityBlock(
+    labels
+      .filter((item) => {
+        const key = sectionKeyFromLabel(item.label);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((item) => createBlock({ label: item.label, required: item.required })),
+  );
 }
 
 function capitalize(value: string): string {

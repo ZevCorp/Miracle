@@ -58,14 +58,19 @@ function bloquesDeConsulta(input: ConsultationTextInput): Bloque[] {
   } = input;
   const bloques: Bloque[] = [];
 
-  bloques.push({ tipo: "texto", texto: patient?.nombre ?? "Paciente sin identificar" });
+  // `||` y no `??`: la identidad puede venir de la nota con documento pero sin
+  // nombre, y un encabezado en blanco es peor que decir que no se identificó.
+  bloques.push({
+    tipo: "texto",
+    texto: patient?.nombre?.trim() || "Paciente sin identificar",
+  });
   const datos: string[] = [];
   if (patient && patient.edad > 0) {
     datos.push(
       `${patient.edad} años${patient.sexo ? ` · ${patient.sexo === "F" ? "Femenino" : "Masculino"}` : ""}`,
     );
   }
-  if (patient?.documento) datos.push(`Doc: ${patient.documento}`);
+  if (patient?.documento?.trim()) datos.push(`Doc: ${patient.documento.trim()}`);
   datos.push(`${especialidad} · ${servicio}`);
   if (medicoNombre) datos.push(medicoNombre);
   const identidad = [

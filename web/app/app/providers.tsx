@@ -26,6 +26,7 @@ import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 import { createClient } from "@/lib/supabase/client";
 import { getClinicalEncounter } from "@/lib/api/clinical";
 import { transcriptTextToTurns } from "@/lib/clinical/encounter-to-consultation";
+import { extractPatientIdentity } from "@/lib/clinical/patient-identity";
 import type { AppRole } from "@/lib/auth/roles";
 import {
   ORG_SETTINGS_COLUMNS,
@@ -222,6 +223,10 @@ function rowToConsultation(r: any, auditoria: AuditEvent[]): Consultation {
     codigos: (r.codigos as ClinicalCode[]) ?? [],
     auditoria,
     firma: r.firma ?? undefined,
+    // Copias que la base extrae de la nota. Se traen para que las tarjetas no
+    // tengan que volver a buscar el nombre dentro del JSON de la nota.
+    pacienteNombre: r.paciente_nombre ?? null,
+    pacienteDocumento: r.paciente_documento ?? null,
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -344,7 +349,7 @@ export function MiracleProvider({
       supabase
         .from("consultations")
         .select(
-          "id, patient_id, medico_id, servicio, especialidad, tipo, estado, fecha, duracion_min, plantilla, motivo, note, resumen, codigos, firma",
+          "id, patient_id, medico_id, servicio, especialidad, tipo, estado, fecha, duracion_min, plantilla, motivo, note, resumen, codigos, firma, paciente_nombre, paciente_documento",
         )
         .order("fecha", { ascending: false })
         .limit(CONSULTATIONS_CAP),
@@ -763,6 +768,17 @@ export function MiracleProvider({
         );
         return { ok: false };
       }
+
+      // La identidad se recalcula desde la nota con la MISMA función que
+      // reproduce el trigger de la base, para que la fila local y la de
+      // Supabase digan lo mismo sin esperar a una recarga. Cualquier edición de
+      // la nota (asistente, laboratorio, corrección a mano) pasa por aquí.
+      const identidad = extractPatientIdentity(c.note);
+      c = {
+        ...c,
+        pacienteNombre: identidad.nombre ?? null,
+        pacienteDocumento: identidad.documento ?? null,
+      };
 
       const isNew = !existing;
       const audit = isNew

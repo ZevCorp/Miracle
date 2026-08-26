@@ -47,6 +47,8 @@ export interface NoteSectionLike {
   label?: string | null;
   titulo?: string | null;
   key?: string | null;
+  /** La misma key, como la guarda el store local (`NoteSection.id` en lib/mock). */
+  id?: string | null;
 }
 
 /** Llave canónica de un dato clínico. Es el contrato con el agente de escritorio. */

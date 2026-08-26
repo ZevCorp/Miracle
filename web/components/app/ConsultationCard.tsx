@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { TYPE_LABEL, type Consultation, type NoteSection } from "@/lib/mock";
 import { formatFechaRelativa } from "@/lib/dates";
 import { useStore } from "@/app/app/providers";
-import { extractPatientIdentity } from "@/lib/clinical/patient-identity";
 import { Avatar } from "@/components/ui/Avatar";
+import { resolveConsultationIdentity } from "@/lib/clinical/patient-identity";
 import { StatusBadge } from "./StatusBadge";
 import { ConsultationCardPreview } from "./ConsultationCardPreview";
 
@@ -73,18 +73,19 @@ export function ConsultationCard({
   const rotulo = showRotulo ? (rotuloProp ?? rotuloDe(consultation.note)) : undefined;
 
   // La identidad se busca de lo más fiable a lo menos: un paciente registrado y
-  // asociado a mano manda sobre cualquier cosa extraída de un texto.
-  const identidadDeNota = consultation.pacienteNombre
-    ? { nombre: consultation.pacienteNombre, documento: consultation.pacienteDocumento ?? undefined }
-    : extractPatientIdentity(consultation.note);
-  const pacienteRegistrado = getPatient(consultation.pacienteId);
-  const nombre =
-    patientName ?? pacienteRegistrado?.nombre ?? identidadDeNota.nombre ?? undefined;
-  const documento =
-    pacienteRegistrado?.documento ??
-    consultation.pacienteDocumento ??
-    identidadDeNota.documento ??
-    undefined;
+  // asociado a mano manda sobre la identificación que quedó en la nota.
+  //
+  // Esta tarjeta NO vuelve a buscar el nombre dentro de la nota: lee el dato ya
+  // resuelto (columnas `paciente_nombre` / `paciente_documento`, que sincroniza
+  // la base y el store trae al cargar). Cuando cada pantalla lo extraía por su
+  // cuenta, la misma consulta podía aparecer con un nombre en la lista y sin él
+  // en el dashboard.
+  const identidad = resolveConsultationIdentity(
+    getPatient(consultation.pacienteId),
+    consultation,
+  );
+  const nombre = patientName ?? identidad.nombre;
+  const documento = identidad.documento;
 
   // Rectángulo de la tarjeta en el momento de abrir: ancla la vista rápida.
   const [ancla, setAncla] = useState<DOMRect | null>(null);

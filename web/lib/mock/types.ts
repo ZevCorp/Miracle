@@ -96,6 +96,18 @@ export interface Consultation {
   auditoria: AuditEvent[];
   /** Firma electrónica del profesional al aprobar la nota. */
   firma?: { por: string; fecha: string; hash?: string };
+  /**
+   * Identidad del paciente de ESTA consulta, tal como quedó en la nota. La
+   * calcula la base (columnas `paciente_nombre` / `paciente_documento`,
+   * sincronizadas por trigger desde la sección "Identificación del paciente")
+   * y es la única fuente para las listas: ninguna pantalla vuelve a buscar el
+   * nombre por su cuenta. Nula cuando la consulta no se identificó.
+   *
+   * No sustituye a `pacienteId`: un paciente registrado y asociado a mano manda
+   * sobre esta copia. Ver lib/clinical/patient-identity.ts.
+   */
+  pacienteNombre?: string | null;
+  pacienteDocumento?: string | null;
 }
 
 export interface Template {

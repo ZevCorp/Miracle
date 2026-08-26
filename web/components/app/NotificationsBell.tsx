@@ -71,6 +71,7 @@ export function NotificationsBell() {
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium text-deep">
                           {getPatient(c.pacienteId)?.nombre ??
+                            c.pacienteNombre ??
                             "Paciente sin identificar"}
                         </span>
                         <span className="block truncate text-xs text-muted">

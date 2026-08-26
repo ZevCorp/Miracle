@@ -50,6 +50,7 @@ import { formatFechaRelativa } from "@/lib/dates";
 import { letterheadLines, responsableLabelDe } from "@/lib/hospital/org";
 import { searchCodes } from "@/lib/clinical/codes";
 import { auditConsultation } from "@/lib/clinical/note-audit";
+import { resolveConsultationIdentity } from "@/lib/clinical/patient-identity";
 import { useStore, type ConsultationAddendum } from "@/app/app/providers";
 import { Tabs } from "@/components/app/Tabs";
 import { StatusBadge } from "@/components/app/StatusBadge";
@@ -184,7 +185,28 @@ export default function ConsultaDetallePage() {
   }
 
   const patient = getPatient(c.pacienteId);
+  // Quién es el paciente de esta consulta, con la misma regla que usan las
+  // listas: el paciente registrado si el médico lo asoció; si no, la
+  // identificación que quedó en la nota. Sin esto, el detalle y el PDF decían
+  // "Paciente sin identificar" en consultas cuyo nombre sí se dijo.
+  const identidad = resolveConsultationIdentity(patient, c);
   const medicoNombre = getMedicoName(c.medicoId);
+
+  /**
+   * Cabecera del documento (el texto copiado y el PDF salen de la misma lista
+   * de bloques). Edad y sexo solo existen en la ficha del paciente registrado:
+   * si la identidad viene de la nota se omiten, no se inventan.
+   */
+  function identidadParaDocumento() {
+    if (!identidad.nombre && !identidad.documento) return null;
+    return {
+      nombre: identidad.nombre ?? "",
+      edad: patient?.edad ?? 0,
+      sexo: patient?.sexo ?? null,
+      documento: identidad.documento ?? "",
+    };
+  }
+
   const medicoIdentidad = getMedicoIdentity(c.medicoId);
   const sugeridos = suggestedCodes(c);
   const demo = isDemoConsultation(c);
@@ -219,9 +241,7 @@ export default function ConsultaDetallePage() {
       fecha: c.fecha,
       note: c.note,
       codigos: c.codigos,
-      patient: patient
-        ? { nombre: patient.nombre, edad: patient.edad, sexo: patient.sexo, documento: patient.documento }
-        : null,
+      patient: identidadParaDocumento(),
       medicoNombre,
       medicoIdentificacion: medicoIdentidad?.identificationNumber,
       medicoRegistro: medicoIdentidad?.professionalRegistration,
@@ -363,7 +383,7 @@ export default function ConsultaDetallePage() {
       : `<p class="muted">Sin códigos aceptados.</p>`;
     const fecha = new Date(c!.fecha).toLocaleString("es-CO");
     w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Nota clínica · ${esc(
-      patient?.nombre ?? "Paciente",
+      identidad.nombre ?? "Paciente",
     )}</title><style>
       *{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#0e1726;margin:40px;line-height:1.5}
       h1{font-size:20px;margin:0 0 2px}h2{font-size:14px;margin:18px 0 4px;color:#0c1424;text-transform:uppercase;letter-spacing:.02em}
@@ -388,14 +408,14 @@ export default function ConsultaDetallePage() {
       }
       ${membrete}
       <div class="head">
-        <h1>${esc(patient?.nombre ?? "Paciente sin identificar")}</h1>
+        <h1>${esc(identidad.nombre ?? "Paciente sin identificar")}</h1>
         <div class="grid">
           ${
             patient && patient.edad > 0
               ? `<span>${patient.edad} años${patient.sexo ? ` · ${patient.sexo === "F" ? "Femenino" : "Masculino"}` : ""}</span>`
               : ""
           }
-          ${patient?.documento ? `<span>Doc: ${esc(patient.documento)}</span>` : ""}
+          ${identidad.documento ? `<span>Doc: ${esc(identidad.documento)}</span>` : ""}
           <span>${esc(c!.especialidad)} · ${esc(c!.servicio)}</span>
           <span>${esc(medicoNombre ?? "")}</span>
           ${
@@ -456,14 +476,14 @@ export default function ConsultaDetallePage() {
       <div className="mt-3 flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-night text-sm font-semibold text-white">
-            {patient
-              ? patient.nombre.split(" ").map((p) => p[0]).slice(0, 2).join("")
+            {identidad.nombre
+              ? identidad.nombre.split(" ").map((p) => p[0]).slice(0, 2).join("")
               : "?"}
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="font-display text-2xl font-semibold tracking-tight text-deep">
-                {patient?.nombre ?? "Paciente sin identificar"}
+                {identidad.nombre ?? "Paciente sin identificar"}
               </h1>
               <StatusBadge estado={c.estado} />
             </div>

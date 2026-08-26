@@ -134,3 +134,121 @@ describe("documento", () => {
     expect(extractPatientIdentity(note).documento).toBe("8171924");
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* La sección canónica: el camino de las consultas nuevas              */
+/* ------------------------------------------------------------------ */
+
+/** Sección como la guarda el store local: la key viaja en `id`, no en `key`. */
+function campo(id: string, titulo: string, texto: string) {
+  return { id, titulo, kind: "texto" as const, texto };
+}
+
+function identificacion(texto: string) {
+  return [campo("identificacion_del_paciente", "Identificación del paciente", texto)];
+}
+
+describe("sección canónica de identificación", () => {
+  it("Caso 1 · nombre y documento dichos en la consulta", () => {
+    const r = extractPatientIdentity(
+      identificacion("Nombre: María Fernanda López\nDocumento: 123456789"),
+    );
+    expect(r).toEqual({ nombre: "María Fernanda López", documento: "123456789" });
+  });
+
+  it("Caso 2 · solo el nombre: el documento queda pendiente, no inventado", () => {
+    const r = extractPatientIdentity(
+      identificacion("Nombre: Carlos Andrés Pérez\nDocumento: No referido en la consulta."),
+    );
+    expect(r.nombre).toBe("Carlos Andrés Pérez");
+    expect(r.documento).toBeUndefined();
+  });
+
+  it("Caso 3 · sin identificación: los dos campos quedan vacíos", () => {
+    const r = extractPatientIdentity(
+      identificacion(
+        "Nombre: No referido en la consulta.\nDocumento: No referido en la consulta.",
+      ),
+    );
+    expect(r).toEqual({});
+  });
+
+  it("Caso 4 · el nombre del médico no se cuela desde otra sección", () => {
+    // El médico se presenta primero y su nombre es el primero de la
+    // transcripción: si la lectura no estuviera atada a la casilla, ganaría él.
+    const note = [
+      campo("identificacion_del_paciente", "Identificación del paciente", "Nombre: Carlos Andrés Pérez\nDocumento: No referido en la consulta."),
+      campo("motivo_de_consulta", "Motivo de consulta", "Atendido por el doctor Juan David Gómez, médico general."),
+    ];
+    expect(extractPatientIdentity(note).nombre).toBe("Carlos Andrés Pérez");
+  });
+
+  it("lee el documento aunque venga con el tipo delante", () => {
+    const r = extractPatientIdentity(
+      identificacion("Nombre: Ana Sofía Ramírez\nDocumento: CC 1.023.456.789"),
+    );
+    expect(r.documento).toBe("1023456789");
+  });
+
+  it("no pega el año de expedición al número de documento", () => {
+    // Arrasando con los no-dígitos salía un número de catorce cifras.
+    const r = extractPatientIdentity(
+      identificacion("Nombre: Jorge Niño\nDocumento: 1023456789, expedida en 2015"),
+    );
+    expect(r.documento).toBe("1023456789");
+  });
+
+  it("recorta la edad pegada al nombre", () => {
+    expect(
+      extractPatientIdentity(identificacion("Nombre: María Fernanda López (28 años)")).nombre,
+    ).toBe("María Fernanda López");
+    expect(
+      extractPatientIdentity(identificacion("Nombre: María Fernanda López, 28 años")).nombre,
+    ).toBe("María Fernanda López");
+  });
+
+  it("no parte un nombre escrito con el apellido primero", () => {
+    // Sin cifras detrás, la coma es parte del nombre y no un dato pegado.
+    expect(
+      extractPatientIdentity(identificacion("Nombre: López, María Fernanda")).nombre,
+    ).toBe("López, María Fernanda");
+  });
+
+  it("rescata el dato aunque el modelo se salga del formato de dos líneas", () => {
+    const r = extractPatientIdentity(
+      identificacion("Paciente identificada como Camila Flores, con cédula 1089934418."),
+    );
+    expect(r).toEqual({ nombre: "Camila Flores", documento: "1089934418" });
+  });
+
+  it("manda sobre la prosa de la plantilla vieja", () => {
+    const note = [
+      campo("identificacion_del_paciente", "Identificación del paciente", "Nombre: Ana Gómez\nDocumento: 1040181619"),
+      campo("identificacion", "Identificación", "Paciente identificado como Pablo Maldonado, cédula 8171924."),
+    ];
+    expect(extractPatientIdentity(note)).toEqual({
+      nombre: "Ana Gómez",
+      documento: "1040181619",
+    });
+  });
+
+  it.each([
+    "Nombre: No se mencionó",
+    "Nombre: Sin datos de identificación",
+    "Nombre: Pendiente",
+    "Nombre: Desconocido",
+    "Nombre: Anónimo",
+    "Nombre: Paciente sin identificar",
+    "Nombre: NN",
+    "Nombre: Por establecer",
+  ])("no acepta un relleno como nombre: %j", (texto) => {
+    expect(extractPatientIdentity(identificacion(texto)).nombre).toBeUndefined();
+  });
+
+  it.each(["Nora Restrepo", "Noelia Vargas", "Nadia Sánchez", "Ninoska Ramírez"])(
+    "sí acepta nombres que empiezan como un relleno: %j",
+    (nombre) => {
+      expect(extractPatientIdentity(identificacion(`Nombre: ${nombre}`)).nombre).toBe(nombre);
+    },
+  );
+});

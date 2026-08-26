@@ -42,6 +42,7 @@ import { EncounterAuditPanel } from "@/components/app/EncounterAuditPanel";
 import { PlanDischargePanel } from "@/components/app/PlanDischargePanel";
 import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker";
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
+import { extractPatientIdentity } from "@/lib/clinical/patient-identity";
 import { servicioPorDefecto } from "@/lib/hospital/org";
 import { reviewGeneratedNote } from "@/lib/clinical/note-review";
 import { caretAfterDictation, shouldFollowDictation } from "@/lib/clinical/insert-text";
@@ -230,6 +231,14 @@ function ConsultaActivaInner() {
   const displayNote = useMemo(
     () => (note ? redactor.rehydrateNote(note) : note),
     [note, redactor],
+  );
+
+  // Identificación que la nota trae de la propia consulta. Misma función que
+  // reproduce el trigger de la base, así que lo que se ve aquí es exactamente
+  // lo que después aparecerá en el listado de consultas.
+  const identidadDeLaNota = useMemo(
+    () => extractPatientIdentity(displayNote?.sections),
+    [displayNote],
   );
 
   // Revisión determinista de la nota: qué falta, qué quedó incompleto y qué
@@ -1356,8 +1365,22 @@ function ConsultaActivaInner() {
                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-ice font-semibold text-muted">
                   ?
                 </span>
-                <div className="text-sm font-semibold text-deep">
-                  Paciente sin identificar
+                <div className="min-w-0">
+                  {/* Sin paciente registrado, lo que sabemos es lo que se dijo
+                      en la consulta. Se muestra ETIQUETADO como tal: es la
+                      identificación que quedó en la nota, no una ficha
+                      verificada, y el médico tiene que poder distinguirlas. */}
+                  <div className="truncate text-sm font-semibold text-deep">
+                    {identidadDeLaNota.nombre ?? "Paciente sin identificar"}
+                  </div>
+                  {identidadDeLaNota.nombre || identidadDeLaNota.documento ? (
+                    <div className="truncate text-[13px] text-muted">
+                      {identidadDeLaNota.documento
+                        ? `${identidadDeLaNota.documento} · `
+                        : ""}
+                      según la consulta
+                    </div>
+                  ) : null}
                 </div>
               </div>
             )}
