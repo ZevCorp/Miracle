@@ -116,7 +116,7 @@ export function DictationPanel({
       </div>
 
       <div className="p-4">
-        {!active ? (
+        {!capturing && !inFlight ? (
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2.5">
             <span className="text-xs font-semibold text-muted">Fuente de audio:</span>
             <div className="flex overflow-hidden rounded-lg border border-line">
