@@ -29,6 +29,7 @@ import {
 import { createOmiOpusDecoder, type OmiOpusDecoderHandle } from "./opusStream";
 import { createSyntheticMicStream, type SyntheticMicStream } from "./syntheticMicStream";
 import { installOmiMicrophoneShim } from "./getUserMediaShim";
+import { omiConnectErrorMessage } from "./messages";
 
 export interface OmiMicrophoneValue {
   supported: boolean;
@@ -87,7 +88,9 @@ function useOmiMicrophoneState(): OmiMicrophoneValue {
     } catch (e) {
       teardown();
       setStatus("disconnected");
-      setError(e instanceof Error ? e.message : "No fue posible conectar con el Omi.");
+      // null = el médico cerró el selector de dispositivos sin elegir uno:
+      // cancelación, no error, no hay nada que mostrar.
+      setError(omiConnectErrorMessage(e));
       throw e;
     } finally {
       setConnecting(false);
