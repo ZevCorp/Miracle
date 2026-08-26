@@ -428,6 +428,25 @@ function EditableBlock({
   }, [editing, draft, content]);
 
   /**
+   * Reengancha el borrador cuando la seccion cambia DESDE FUERA.
+   *
+   * Pasa con el microfono: el dictado literal lo escribe el padre, y si el
+   * medico tenia la seccion abierta en edicion, este textarea seguia con el
+   * texto viejo. A los 1200 ms su autoguardado lo confirmaba y se llevaba por
+   * delante lo recien dictado, sin que nada lo avisara.
+   *
+   * Solo cuando el campo NO tiene el foco: si el medico esta tecleando ahi
+   * dentro, manda lo que escribe y no se le toca el cursor.
+   */
+  useEffect(() => {
+    if (!editing) return;
+    if (typeof document !== "undefined" && document.activeElement === textareaRef.current) {
+      return;
+    }
+    setDraft(content);
+  }, [content, editing]);
+
+  /**
    * Confirma YA lo que haya escrito, sin esperar la pausa de 1200 ms.
    *
    * Sin esto, escribir y pulsar "Guardar nota" enseguida dejaba el último
