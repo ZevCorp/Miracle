@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app/AppShell";
 import { MiracleProvider } from "./providers";
 import { UnsavedChangesProvider } from "@/components/app/UnsavedChangesProvider";
+import { OmiProvider } from "@/lib/omi/useOmiMicrophone";
 import { getCurrentProfile } from "@/lib/auth/server";
 
 export const metadata: Metadata = {
@@ -41,7 +42,9 @@ export default async function AppLayout({
       professionalType={profile.professionalType}
     >
       <UnsavedChangesProvider>
-        <AppShell profile={profile}>{children}</AppShell>
+        <OmiProvider>
+          <AppShell profile={profile}>{children}</AppShell>
+        </OmiProvider>
       </UnsavedChangesProvider>
     </MiracleProvider>
   );

@@ -4,8 +4,22 @@
 // getUserMedia detrás de una API simple: connect()/disconnect(). Mientras
 // está "connected", cualquier `useDictation().start()` posterior grabará del
 // Omi en vez del micrófono del navegador.
+//
+// Vive en un Context (OmiProvider, montado una vez en app/app/layout.tsx) en
+// vez de ser un hook local: la conexión BLE tiene que sobrevivir la
+// navegación entre el dashboard (donde el médico la arranca) y la consulta en
+// vivo (donde se usa). Si fuera local a DictationPanel, cada vez que se
+// desmonta ese panel se perdía la conexión y había que repetir el
+// emparejamiento por consulta.
 
-import { useCallback, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   connectOmi,
   isWebBluetoothSupported,
@@ -16,7 +30,19 @@ import { createOmiOpusDecoder, type OmiOpusDecoderHandle } from "./opusStream";
 import { createSyntheticMicStream, type SyntheticMicStream } from "./syntheticMicStream";
 import { installOmiMicrophoneShim } from "./getUserMediaShim";
 
-export function useOmiMicrophone() {
+export interface OmiMicrophoneValue {
+  supported: boolean;
+  status: OmiBleStatus;
+  connecting: boolean;
+  error: string | null;
+  isConnected: boolean;
+  connect: () => Promise<void>;
+  disconnect: () => void;
+}
+
+const OmiContext = createContext<OmiMicrophoneValue | null>(null);
+
+function useOmiMicrophoneState(): OmiMicrophoneValue {
   const [status, setStatus] = useState<OmiBleStatus>("disconnected");
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -83,4 +109,15 @@ export function useOmiMicrophone() {
     connect,
     disconnect,
   };
+}
+
+export function OmiProvider({ children }: { children: ReactNode }) {
+  const value = useOmiMicrophoneState();
+  return <OmiContext.Provider value={value}>{children}</OmiContext.Provider>;
+}
+
+export function useOmiMicrophone(): OmiMicrophoneValue {
+  const ctx = useContext(OmiContext);
+  if (!ctx) throw new Error("useOmiMicrophone debe usarse dentro de OmiProvider");
+  return ctx;
 }

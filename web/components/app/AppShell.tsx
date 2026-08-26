@@ -8,6 +8,7 @@ import { BillingBanner } from "./BillingBanner";
 import { MobileBottomNavigation } from "./MobileBottomNavigation";
 import { MedicalChat } from "./MedicalChat";
 import { QuickConsultationLauncher } from "./QuickConsultationLauncher";
+import { OmiFloatingWidget } from "./OmiFloatingWidget";
 import { CommandPalette } from "./CommandPalette";
 import { NotificationsBell } from "./NotificationsBell";
 import { HoverHint } from "@/components/ui/HoverHint";
@@ -165,7 +166,10 @@ export function AppShell({
           en la API y el proxy rebotaba después: quedaba un encounter huérfano y
           la pantalla se movía sin explicación. */}
       {canAccessPath(profile.role, RUTA_GRABACION, profile.isDemo) ? (
-        <QuickConsultationLauncher userId={profile.id} specialtyCode={profile.specialtyCode} />
+        <>
+          <QuickConsultationLauncher userId={profile.id} specialtyCode={profile.specialtyCode} />
+          <OmiFloatingWidget />
+        </>
       ) : null}
 
       {/* El asistente clínico sí lo usan administrador y supervisor (consultar
