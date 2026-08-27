@@ -112,3 +112,23 @@ La consola los lee en `/superadmin/metricas` (RPCs
 `superadmin_encounter_metrics` / `superadmin_encounter_detail`), que excluye
 cuentas demo/`@miracle.app` por defecto y declara su cobertura en vez de
 promediar sobre huecos.
+
+### Calidad de la nota (migración `20260828000000`)
+
+Lo anterior mide **cuánto se usa** Notes. Esto mide **si sirve**:
+`superadmin_note_quality` compara sección a sección `note_json_ai` (lo que
+generó la IA, congelado) contra `note_json` (lo que el médico firmó) — dos
+columnas que `clinical_encounters` ya guardaba y que nadie leía. De ahí salen
+el % de nota corregida, las notas que salen sin tocar y qué sección de qué
+plantilla se reescribe siempre (la lista que dice qué prompt arreglar).
+
+Parte de `clinical_encounters` y **no** de la telemetría, a propósito: así
+alcanza a las consultas anteriores a que `encounter_metrics` existiera, que al
+escribir esto eran la mayoría. La comparación ocurre dentro de Postgres y solo
+salen números y etiquetas de sección; ni un carácter de la nota cruza.
+
+La misma migración añade `app_version`, `audio_source` y `active_ms_by_phase`
+(captura/generación/revisión, cuya suma equivale a `active_ms` porque cada
+flush aporta a una sola fase), y le pone p50/p90 a cada duración: el promedio
+del tiempo hasta la nota es 200 s cuando la mediana real es 95, por un único
+outlier de nueve horas.

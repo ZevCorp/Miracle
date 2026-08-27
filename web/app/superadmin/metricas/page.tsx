@@ -4,9 +4,13 @@ import {
   AlertTriangle,
   ClipboardList,
   Clock3,
+  Coins,
   Cpu,
+  FileCheck2,
   Gauge,
+  Hourglass,
   MessagesSquare,
+  PencilLine,
   Timer,
   VolumeX,
 } from "lucide-react";
@@ -21,10 +25,16 @@ import { EmptyState } from "@/components/app/EmptyState";
 import { Pager } from "@/components/app/Pager";
 import { resolverRango, type RangoResuelto } from "@/lib/superadmin/rango";
 import { formatTokens } from "@/lib/superadmin/consumo";
+import { formatUsd } from "@/lib/superadmin/consumo";
 import {
+  ETIQUETA_FASE,
+  ETIQUETA_FUENTE,
+  formatDelta,
   formatMs,
   formatPct,
+  formatSeg,
   resolverFranjaHoraria,
+  type CalidadNota,
   type MetricasConsultas,
 } from "@/lib/superadmin/metricas";
 
@@ -79,17 +89,32 @@ export default async function SuperadminMetricasPage({
   const orgFilter = orgs.some((o) => o.id === sp.org) ? (sp.org as string) : "";
   const usuarioFilter = medicos.some((m) => m.id === sp.usuario) ? (sp.usuario as string) : "";
 
-  const { data, error } = await db.rpc("superadmin_encounter_metrics", {
-    ...rango.rpcArgs,
-    p_hour_from: franja.desde,
-    p_hour_to: franja.hasta,
-    p_org: orgFilter || null,
-    p_user: usuarioFilter || null,
-    p_incluir_prueba: incluirPrueba,
-    p_page: page,
-    p_page_size: PAGE_SIZE,
-  });
+  // Las dos RPC van juntas: la de telemetría parte de `encounter_metrics` y la
+  // de calidad parte de `clinical_encounters`, así que la segunda alcanza a las
+  // consultas anteriores a la telemetría. Son universos distintos a propósito y
+  // cada bloque declara el suyo.
+  const [{ data, error }, calidadRes] = await Promise.all([
+    db.rpc("superadmin_encounter_metrics", {
+      ...rango.rpcArgs,
+      p_hour_from: franja.desde,
+      p_hour_to: franja.hasta,
+      p_org: orgFilter || null,
+      p_user: usuarioFilter || null,
+      p_incluir_prueba: incluirPrueba,
+      p_page: page,
+      p_page_size: PAGE_SIZE,
+    }),
+    db.rpc("superadmin_note_quality", {
+      ...rango.rpcArgs,
+      p_org: orgFilter || null,
+      p_user: usuarioFilter || null,
+      p_incluir_prueba: incluirPrueba,
+    }),
+  ]);
   const metricas = (data ?? null) as MetricasConsultas | null;
+  // Si la calidad falla, el resto de la pantalla sigue sirviendo: su bloque se
+  // oculta en vez de tumbar la página entera.
+  const calidad = (calidadRes.data ?? null) as CalidadNota | null;
 
   if (error || !metricas) {
     return (
@@ -191,14 +216,17 @@ export default async function SuperadminMetricasPage({
         <StatTile
           label="Duración promedio"
           value={formatMs(kpis.recording_ms_prom)}
-          footnote={`grabación total: ${formatMs(kpis.recording_ms_total)}`}
+          footnote={`mediana ${formatMs(kpis.recording_ms_p50)} · p90 ${formatMs(kpis.recording_ms_p90)}`}
           spark={sparkDuracion}
           icon={Timer}
         />
+        {/* La mediana y el p90 van al lado del promedio a propósito: si la
+            media se despega de la mediana, hay una consulta larguísima
+            arrastrándola y el titular por sí solo engaña. */}
         <StatTile
           label="Tiempo de uso promedio"
           value={formatMs(kpis.active_ms_prom)}
-          footnote={`mediana ${formatMs(kpis.active_ms_p50)} · total ${formatMs(kpis.active_ms_total)}`}
+          footnote={`mediana ${formatMs(kpis.active_ms_p50)} · p90 ${formatMs(kpis.active_ms_p90)}`}
           icon={Clock3}
         />
         <StatTile
@@ -227,6 +255,20 @@ export default async function SuperadminMetricasPage({
           }
           icon={VolumeX}
         />
+        {/* Cuánto cuesta operar una consulta: el objetivo declarado de toda
+            esta capa. Mientras haya llamadas sin tarifa el número es un SUELO
+            y lo dice el pie, no una nota al margen en otra pantalla. */}
+        <StatTile
+          label="Costo por consulta"
+          value={kpis.costo_usd_prom === null ? "—" : formatUsd(kpis.costo_usd_prom)}
+          footnote={
+            kpis.consultas_sin_tarifa > 0
+              ? `al menos · ${kpis.consultas_sin_tarifa} consultas con modelos sin tarifar`
+              : `${formatUsd(kpis.costo_usd_total)} en la ventana`
+          }
+          footnoteTone={kpis.consultas_sin_tarifa > 0 ? "warning" : undefined}
+          icon={Coins}
+        />
         <StatTile
           label="Minutos procesados"
           value={Math.round(kpis.recording_ms_total / 60000).toLocaleString("es-CO")}
@@ -240,6 +282,188 @@ export default async function SuperadminMetricasPage({
           footnote={`${cobertura.con_tokens} consultas con consumo atribuido`}
           icon={Cpu}
         />
+      </div>
+
+      {/* --- Calidad de la nota ---------------------------------------------
+          El bloque que dice si el producto SIRVE, no cuánto se usa. Sale de
+          comparar la nota que generó la IA contra la que el médico firmó: dos
+          versiones que el backend ya guardaba y que nadie leía. Es retroactivo,
+          así que mide también las consultas anteriores a la telemetría. */}
+      {calidad && calidad.kpis.consultas > 0 ? (
+        <div className="space-y-4">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-deep">Calidad de la nota</h2>
+            <p className="text-sm text-muted">
+              Cuánto trabajo le queda al médico después de que la IA escribió.{" "}
+              {calidad.cobertura.medibles} de {calidad.cobertura.encuentros} consultas del periodo
+              se pueden comparar ({calidad.cobertura.pct_medible}%); el resto no guardó la versión
+              original de la IA y no se puede juzgar.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatTile
+              label="Nota corregida"
+              value={formatPct(calidad.kpis.pct_secciones_editadas)}
+              footnote={`${calidad.kpis.editadas_prom} de ${calidad.kpis.secciones_prom} secciones por nota`}
+              icon={PencilLine}
+              invertido
+            />
+            <StatTile
+              label="Notas sin tocar"
+              value={formatPct(calidad.kpis.pct_sin_tocar)}
+              footnote={`${calidad.kpis.sin_tocar} de ${calidad.kpis.consultas} salieron listas`}
+              icon={FileCheck2}
+            />
+            <StatTile
+              label="Texto que añade el médico"
+              value={formatDelta(calidad.kpis.delta_chars_prom)}
+              suffix="car."
+              footnote={`${calidad.kpis.secciones_rellenadas} secciones que la IA dejó vacías`}
+              icon={ClipboardList}
+            />
+            {/* El promedio va DESPUÉS de la mediana en el pie porque es el que
+                miente: una consulta olvidada de horas lo dobla. */}
+            <StatTile
+              label="Espera hasta la nota"
+              value={formatSeg(calidad.espera_nota.p50_s)}
+              footnote={`p90 ${formatSeg(calidad.espera_nota.p90_s)} · promedio ${formatSeg(calidad.espera_nota.prom_s)}`}
+              icon={Hourglass}
+            />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+            {/* Qué sección hay que reescribir. Es la lista accionable: una
+                sección corregida el 98 % de las veces es un prompt que no
+                sirve, no un médico quisquilloso. */}
+            <div className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-xs)]">
+              <div className="border-b border-line px-5 py-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">
+                  Secciones que más se corrigen
+                </h3>
+                <p className="mt-1 text-xs text-muted">
+                  Solo secciones con 5 o más apariciones: con menos, un 100 % es una anécdota.
+                </p>
+              </div>
+              {calidad.por_seccion.length === 0 ? (
+                <div className="p-5">
+                  <EmptyState
+                    icon={<PencilLine size={20} />}
+                    title="Sin secciones suficientes para comparar"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <div className="hidden grid-cols-[1.6fr_1fr_auto_auto] gap-4 border-b border-line px-5 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted sm:grid">
+                    <span>Sección</span>
+                    <span>Especialidad</span>
+                    <span className="text-right">Corregida</span>
+                    <span className="text-right">Texto</span>
+                  </div>
+                  {calidad.por_seccion.map((sec, i) => (
+                    <div
+                      key={`${sec.especialidad}-${sec.seccion}`}
+                      className={`grid grid-cols-1 gap-1 px-5 py-3 sm:grid-cols-[1.6fr_1fr_auto_auto] sm:items-center sm:gap-4 ${
+                        i ? "border-t border-line" : ""
+                      }`}
+                    >
+                      <div className="min-w-0 truncate text-sm font-medium text-deep">
+                        {sec.seccion}
+                      </div>
+                      <div className="min-w-0 truncate text-sm text-muted">{sec.especialidad}</div>
+                      <div
+                        className={`text-sm font-semibold sm:text-right ${
+                          sec.pct >= 80 ? "text-warning" : "text-deep"
+                        }`}
+                      >
+                        {sec.pct}%
+                        <span className="ml-1 text-xs font-normal text-muted">
+                          ({sec.editadas}/{sec.total})
+                        </span>
+                      </div>
+                      <div className="text-sm text-muted sm:text-right">
+                        {formatDelta(sec.delta_chars_prom)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Card className="p-5">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">
+                Por especialidad
+              </h3>
+              <div className="mt-4">
+                <BarList
+                  items={calidad.por_especialidad.map((e) => ({
+                    label: `${e.especialidad} · ${e.consultas}`,
+                    value: Math.round(e.pct_editadas),
+                  }))}
+                  formatValue={(v) => `${v}%`}
+                  emptyLabel="Sin consultas comparables."
+                />
+              </div>
+              <p className="mt-3 text-xs text-muted">
+                Porcentaje de la nota que el médico corrige. Es la cifra que debería bajar cuando
+                se ajusta un prompt.
+              </p>
+            </Card>
+          </div>
+        </div>
+      ) : null}
+
+      {/* --- En qué se va el tiempo + embudo -------------------------------- */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+            En qué se va el tiempo
+          </h2>
+          <div className="mt-4">
+            <BarList
+              items={Object.entries(metricas.fases)
+                .sort((a, b) => b[1] - a[1])
+                .map(([fase, ms]) => ({
+                  label: ETIQUETA_FASE[fase] ?? fase,
+                  value: ms,
+                }))}
+              formatValue={(v) => formatMs(v)}
+              emptyLabel="Aún sin consultas con fases medidas."
+            />
+          </div>
+          <p className="mt-3 text-xs text-muted">
+            La revisión es el trabajo que le queda al médico después de la IA: si una versión
+            nueva sirve, esa barra se encoge aunque la captura dure lo mismo.
+          </p>
+        </Card>
+
+        {calidad ? (
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+              Dónde se cae una consulta
+            </h2>
+            <div className="mt-4">
+              <BarList
+                items={[
+                  { label: "Creadas", value: calidad.embudo.creadas },
+                  { label: "Con transcripción", value: calidad.embudo.con_transcripcion },
+                  { label: "Con nota", value: calidad.embudo.con_nota },
+                  { label: "Completadas", value: calidad.embudo.completadas },
+                ]}
+                emptyLabel="Sin consultas en el periodo."
+              />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs">
+              <span className={calidad.embudo.abandonadas > 0 ? "text-warning" : "text-muted"}>
+                {calidad.embudo.abandonadas} abandonadas
+              </span>
+              <span className={calidad.embudo.fallidas > 0 ? "text-warning" : "text-muted"}>
+                {calidad.embudo.fallidas} fallidas
+              </span>
+              <span className="text-muted">{calidad.embudo.con_reintento} con reintento</span>
+            </div>
+          </Card>
+        ) : null}
       </div>
 
       {/* --- Por hora + por organización ------------------------------------ */}

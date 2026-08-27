@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatMs, formatPct, resolverFranjaHoraria } from "@/lib/superadmin/metricas";
+import {
+  formatDelta,
+  formatMs,
+  formatPct,
+  formatSeg,
+  resolverFranjaHoraria,
+} from "@/lib/superadmin/metricas";
 
 // Regla de oro heredada de resolverRango: una URL inválida NUNCA lanza; cae a
 // "sin franja". Y NULL significa "no medido", jamás se pinta como cero.
@@ -52,5 +58,46 @@ describe("formatPct", () => {
     expect(formatPct(null)).toBe("—");
     expect(formatPct(0)).toBe("0%");
     expect(formatPct(37.4)).toBe("37%");
+  });
+});
+
+// Los formateadores del bloque de calidad de nota. Todos comparten la misma
+// regla que el resto de la consola: NULL es "no medido" y se dice, nunca se
+// pinta como cero.
+
+describe("formatSeg", () => {
+  it("segundos a forma legible", () => {
+    expect(formatSeg(95)).toBe("1m 35s");
+    expect(formatSeg(45)).toBe("45s");
+  });
+
+  it("no medido se dice, no se inventa", () => {
+    expect(formatSeg(null)).toBe("—");
+    expect(formatSeg(undefined)).toBe("—");
+  });
+
+  it("cero segundos es cero, no 'sin dato'", () => {
+    // Una nota que salió instantánea es un dato real; borrarlo escondería el
+    // caso más interesante.
+    expect(formatSeg(0)).toBe("0s");
+  });
+});
+
+describe("formatDelta", () => {
+  it("lo que el médico AÑADE lleva signo explícito", () => {
+    // Sin el "+", 148 se lee como un total de caracteres y no como un saldo.
+    expect(formatDelta(148)).toBe("+148");
+  });
+
+  it("recortar sale en negativo", () => {
+    expect(formatDelta(-90)).toBe("-90");
+  });
+
+  it("cero neto no lleva signo", () => {
+    expect(formatDelta(0)).toBe("0");
+  });
+
+  it("sin dato, guion", () => {
+    expect(formatDelta(null)).toBe("—");
   });
 });

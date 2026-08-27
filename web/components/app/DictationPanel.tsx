@@ -40,6 +40,7 @@ export function DictationPanel({
   finishLabel,
   onCapturingChange,
   onUsageSnapshotReady,
+  onAudioSourceChange,
 }: {
   disabled: boolean;
   onAppendFinal: (text: string) => void;
@@ -59,6 +60,12 @@ export function DictationPanel({
   onCapturingChange?: (capturing: boolean) => void;
   /** Entrega el lector de telemetría del dictado (recordingMs + timeline). */
   onUsageSnapshotReady?: (getSnapshot: () => DictationUsageSnapshot) => void;
+  /**
+   * Con qué se está grabando, en el vocabulario del backend
+   * ("browser_microphone" | "omi"). El panel lo dice en vez de que la pantalla
+   * lo adivine: aquí es donde el médico lo elige.
+   */
+  onAudioSourceChange?: (source: string) => void;
 }) {
   const { status, partialText, error, elapsedSec, stalled, start, pause, stop, getUsageSnapshot } =
     useDictation(onAppendFinal);
@@ -85,6 +92,10 @@ export function DictationPanel({
   useEffect(() => {
     onActiveChange(active);
   }, [active, onActiveChange]);
+
+  useEffect(() => {
+    onAudioSourceChange?.(source === "omi" ? "omi" : "browser_microphone");
+  }, [source, onAudioSourceChange]);
 
   const captureOpen =
     status === "recording" ||

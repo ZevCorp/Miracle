@@ -18,8 +18,16 @@ export type MetricasConsultas = {
     active_ms_total: number;
     active_ms_prom: number;
     active_ms_p50: number;
+    active_ms_p90: number;
     recording_ms_total: number;
     recording_ms_prom: number;
+    recording_ms_p50: number;
+    recording_ms_p90: number;
+    /** Suelo, no total, mientras `consultas_sin_tarifa` sea > 0. */
+    costo_usd_total: number;
+    costo_usd_prom: number | null;
+    costo_usd_por_minuto: number | null;
+    consultas_sin_tarifa: number;
     tokens_total: number;
     tokens_por_minuto: number | null;
     interrogation_ms_prom: number | null;
@@ -73,6 +81,21 @@ export type MetricasConsultas = {
     costo_usd: number;
     sin_tarifa: number;
   }[];
+  /** Tiempo activo repartido por etapa. La suma equivale a active_ms_total. */
+  fases: Record<string, number>;
+  por_version: {
+    version: string;
+    consultas: number;
+    active_ms_prom: number;
+    recording_ms_prom: number;
+    revision_ms_prom: number;
+  }[];
+  por_fuente: {
+    fuente: string;
+    consultas: number;
+    recording_ms_prom: number;
+    silence_pct: number;
+  }[];
   consultas: {
     total: number;
     page: number;
@@ -93,6 +116,11 @@ export type FilaConsulta = {
   silence_ms: number | null;
   tokens: number;
   tokens_por_minuto: number | null;
+  /** null cuando ninguna llamada de la consulta tenía tarifa. */
+  costo_usd: number | null;
+  sin_tarifa: number;
+  app_version: string | null;
+  audio_source: string | null;
 };
 
 export type DetalleConsulta = {
@@ -208,3 +236,117 @@ export function formatPct(pct: number | null | undefined): string {
   if (pct === null || pct === undefined || Number.isNaN(pct)) return "—";
   return `${Math.round(pct)}%`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Calidad de la nota — contrato de `superadmin_note_quality`          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cuánto trabajo le queda al médico DESPUÉS de que la IA escribió.
+ *
+ * Sale de comparar las dos notas que el backend ya guardaba y nadie leía:
+ * `note_json_ai` (lo que produjo la IA, congelado) contra `note_json` (lo que
+ * el médico firmó). Es retroactivo y es la única métrica que dice si el
+ * producto mejora: el tiempo y los tokens miden cuánto se usa, no si sirve.
+ */
+export type CalidadNota = {
+  generated_at: string;
+  rango: { desde: string; hasta: string };
+  /** Una consulta sin `note_json_ai` no es perfecta: es no medible. */
+  cobertura: { encuentros: number; medibles: number; pct_medible: number };
+  kpis: {
+    consultas: number;
+    secciones_prom: number;
+    editadas_prom: number;
+    pct_secciones_editadas: number;
+    sin_tocar: number;
+    pct_sin_tocar: number;
+    /** Caracteres netos que añade el médico. Negativo = recorta. */
+    delta_chars_prom: number;
+    /** La IA las dejó vacías y el médico las escribió. */
+    secciones_rellenadas: number;
+    /** La IA escribió algo que el médico borró entero. */
+    secciones_vaciadas: number;
+  };
+  espera_nota: {
+    consultas: number;
+    p50_s: number | null;
+    p90_s: number | null;
+    prom_s: number | null;
+    max_s: number | null;
+  };
+  embudo: {
+    creadas: number;
+    con_transcripcion: number;
+    con_nota: number;
+    completadas: number;
+    fallidas: number;
+    abandonadas: number;
+    con_reintento: number;
+  };
+  por_seccion: {
+    seccion: string;
+    especialidad: string;
+    total: number;
+    editadas: number;
+    pct: number;
+    rellenadas: number;
+    delta_chars_prom: number;
+  }[];
+  por_especialidad: {
+    especialidad: string;
+    consultas: number;
+    pct_editadas: number;
+    sin_tocar: number;
+    delta_chars_prom: number;
+  }[];
+  por_medico: {
+    id: string;
+    nombre: string;
+    consultas: number;
+    pct_editadas: number;
+    delta_chars_prom: number;
+  }[];
+  serie_diaria: { date: string; consultas: number; pct_editadas: number | null }[];
+};
+
+/**
+ * Segundos en forma corta ("1m 35s"). Se usa para el tiempo de espera, que se
+ * mide en minutos y no en horas: reutilizar `formatMs` obligaría a multiplicar
+ * en cada punto de uso y es justo donde se cuelan los errores de factor 1000.
+ */
+export function formatSeg(seg: number | null | undefined): string {
+  if (seg === null || seg === undefined || Number.isNaN(seg)) return "—";
+  return formatMs(seg * 1000);
+}
+
+/**
+ * Caracteres netos con signo explícito: "+148" se lee como "el médico AÑADE",
+ * que es lo que significa. Sin el "+", 148 parece un total y no un saldo.
+ */
+export function formatDelta(chars: number | null | undefined): string {
+  if (chars === null || chars === undefined || Number.isNaN(chars)) return "—";
+  const n = Math.round(chars);
+  if (n === 0) return "0";
+  return `${n > 0 ? "+" : ""}${n.toLocaleString("es-CO")}`;
+}
+
+/**
+ * Nombre legible de la etapa. El vocabulario técnico lo fija la base
+ * (`active_ms_by_phase`); traducirlo aquí evita tocar una migración cuando
+ * cambie cómo le decimos a algo de cara al equipo.
+ */
+export const ETIQUETA_FASE: Record<string, string> = {
+  captura: "Captura",
+  generacion: "Generación",
+  revision: "Revisión",
+  otro: "Sin clasificar",
+};
+
+/** Igual para la fuente de audio. */
+export const ETIQUETA_FUENTE: Record<string, string> = {
+  browser_microphone: "Micrófono",
+  omi: "Omi",
+  mixto: "Mixto",
+  "sin declarar": "Sin declarar",
+};

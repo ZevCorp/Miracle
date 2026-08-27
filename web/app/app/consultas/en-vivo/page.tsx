@@ -194,6 +194,10 @@ function ConsultaActivaInner() {
   // Captura ABIERTA (no incluye "pausada"): alimenta el reloj de uso, que
   // cuenta la grabación aunque la pestaña esté oculta.
   const [capturando, setCapturando] = useState(false);
+  // Con qué se grabó. El panel lo reporta al elegirlo; hasta entonces es null
+  // (que la telemetría distingue de "micrófono", porque no es lo mismo no
+  // haber grabado todavía que haber grabado con el micrófono).
+  const [fuenteAudio, setFuenteAudio] = useState<string | null>(null);
 
   const [note, setNote] = useState<ClinicalNoteJson | null>(null);
   // Espejo en ref de la nota: `guardarNota` corre desde un onClick cuyo closure
@@ -249,6 +253,11 @@ function ConsultaActivaInner() {
     // "Esperando al sistema": cualquier fase en curso (generar, guardar,
     // ajustar) cuenta como uso si la pestaña está visible.
     waiting: busy,
+    // Con nota generada, el tiempo que sigue es REVISIÓN. Es la separación que
+    // permite ver si una versión nueva le ahorra trabajo al médico después de
+    // que la IA escribió, en vez de solo mover el total de un lado a otro.
+    hasNote: note !== null,
+    audioSource: fuenteAudio,
     getDictationSnapshot,
   });
 
@@ -1129,6 +1138,7 @@ function ConsultaActivaInner() {
                     onActiveChange={setDictando}
                     onCapturingChange={setCapturando}
                     onUsageSnapshotReady={onUsageSnapshotReady}
+                    onAudioSourceChange={setFuenteAudio}
                     autoStart={autoStartOnArrival && !completed && !signedMirror}
                     onRecordingStopped={() => setFinishAfterRecording(true)}
                     finishLabel="Finalizar y generar nota"
