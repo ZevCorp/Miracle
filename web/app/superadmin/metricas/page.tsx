@@ -9,6 +9,7 @@ import {
   FileCheck2,
   Gauge,
   Hourglass,
+  LayoutTemplate,
   MessagesSquare,
   PencilLine,
   Timer,
@@ -27,6 +28,7 @@ import { resolverRango, type RangoResuelto } from "@/lib/superadmin/rango";
 import { formatTokens } from "@/lib/superadmin/consumo";
 import { formatUsd } from "@/lib/superadmin/consumo";
 import {
+  ETIQUETA_ALCANCE,
   ETIQUETA_FASE,
   ETIQUETA_FUENTE,
   formatDelta,
@@ -410,6 +412,87 @@ export default async function SuperadminMetricasPage({
               </p>
             </Card>
           </div>
+        </div>
+      ) : null}
+
+      {/* --- Plantillas: qué se usa y qué tan bien sale ----------------------
+          Uso y calidad en la misma tabla porque la decisión los necesita
+          juntos: una plantilla muy usada cuya nota se reescribe siempre es un
+          prompt que arreglar, y una que nadie usa es ruido en la lista que el
+          médico recorre antes de cada consulta. */}
+      {calidad && calidad.por_plantilla.length > 0 ? (
+        <div className="space-y-4">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-deep">Plantillas</h2>
+            <p className="text-sm text-muted">
+              {calidad.catalogo.usadas_alguna_vez} de {calidad.catalogo.activas} plantillas del
+              catálogo se han usado alguna vez
+              {calidad.catalogo.personales > 0
+                ? ` · ${calidad.catalogo.personales} las creó un médico`
+                : " · ninguna la creó un médico"}
+              .
+            </p>
+          </div>
+
+          <div className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-xs)]">
+            <div className="hidden grid-cols-[2fr_1fr_auto_auto_auto] gap-4 border-b border-line px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted lg:grid">
+              <span>Plantilla</span>
+              <span>Especialidad</span>
+              <span className="text-right">Usos</span>
+              <span className="text-right">Médicos</span>
+              <span className="text-right">Nota corregida</span>
+            </div>
+            {calidad.por_plantilla.map((t, i) => (
+              <div
+                key={`${t.plantilla}-${t.especialidad}`}
+                className={`grid grid-cols-1 gap-1 px-5 py-4 lg:grid-cols-[2fr_1fr_auto_auto_auto] lg:items-center lg:gap-4 ${
+                  i ? "border-t border-line" : ""
+                }`}
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-deep">{t.plantilla}</div>
+                  <div className="truncate text-xs text-muted">
+                    {ETIQUETA_ALCANCE[t.alcance] ?? t.alcance}
+                    {t.secciones ? ` · ${t.secciones} secciones` : ""}
+                  </div>
+                </div>
+                <div className="min-w-0 truncate text-sm text-muted">{t.especialidad}</div>
+                <div className="text-sm font-semibold text-deep lg:text-right">
+                  {t.usos.toLocaleString("es-CO")}
+                </div>
+                <div className="text-sm text-muted lg:text-right">{t.medicos}</div>
+                <div className="lg:text-right">
+                  {/* Sin consultas comparables no hay porcentaje que dar: la
+                      plantilla se usó pero no guardó la versión de la IA. */}
+                  {t.pct_corregida === null || t.comparables === 0 ? (
+                    <span className="text-sm text-muted">—</span>
+                  ) : (
+                    <>
+                      <span
+                        className={`text-sm font-semibold ${
+                          t.pct_corregida >= 40 ? "text-warning" : "text-success"
+                        }`}
+                      >
+                        {formatPct(t.pct_corregida)}
+                      </span>
+                      <div className="text-xs text-muted">
+                        {t.sin_tocar}/{t.comparables} sin tocar
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {calidad.catalogo.activas - calidad.catalogo.usadas_alguna_vez > 0 ? (
+            <p className="flex items-start gap-2 text-xs text-muted">
+              <LayoutTemplate size={14} className="mt-0.5 shrink-0" />
+              {calidad.catalogo.activas - calidad.catalogo.usadas_alguna_vez} plantillas activas
+              no se han usado nunca. No son gratis: alargan la lista que el médico recorre antes
+              de cada consulta.
+            </p>
+          ) : null}
         </div>
       ) : null}
 

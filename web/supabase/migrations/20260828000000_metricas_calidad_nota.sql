@@ -247,9 +247,16 @@ begin
   enc as (
     select ce.*,
       coalesce(nullif(ce.template_snapshot->>'specialty', ''), 'sin_plantilla') as especialidad,
+      -- El nombre vivo del catálogo manda sobre el del snapshot: si a una
+      -- plantilla la renombraron, sus consultas viejas y nuevas tienen que
+      -- salir en la MISMA fila o el reparto se parte en dos.
+      coalesce(nullif(btrim(t.name), ''), nullif(ce.template_snapshot->>'name', ''),
+               'Sin plantilla') as plantilla,
+      coalesce(t.scope, 'desconocido') as alcance,
       coalesce(nullif(btrim(p.full_name), ''), p.email, 'Sin nombre') as medico,
       p.organization_id as org_id
     from public.clinical_encounters ce
+    left join public.clinical_templates t on t.id = ce.template_id
     left join public.profiles p on p.id = ce.doctor_id
     where ce.created_at >= v_ini and ce.created_at < v_fin
       and (p_org  is null or p.organization_id = p_org)
@@ -269,7 +276,7 @@ begin
   -- El emparejamiento va por `key`, que es lo que congela el snapshot de
   -- plantilla; el orden no se usa porque el médico puede reordenar.
   secciones as (
-    select c.id, c.doctor_id, c.especialidad, c.medico, c.created_at,
+    select c.id, c.doctor_id, c.especialidad, c.medico, c.plantilla, c.created_at,
       coalesce(nullif(ia.value->>'label', ''), ia.value->>'key') as etiqueta,
       coalesce(ia.value->>'content', '') as texto_ia,
       coalesce((
@@ -291,14 +298,14 @@ begin
     from secciones s
   ),
   por_consulta as (
-    select id, doctor_id, medico, especialidad, created_at,
+    select id, doctor_id, medico, especialidad, plantilla, created_at,
       count(*) as secciones,
       count(*) filter (where editada)   as editadas,
       count(*) filter (where rellenada) as rellenadas,
       count(*) filter (where vaciada)   as vaciadas,
       sum(delta) as delta_chars
     from marcadas
-    group by 1, 2, 3, 4, 5
+    group by 1, 2, 3, 4, 5, 6
   ),
   -- Tiempo hasta la nota: lo que el médico pasa esperando frente a la
   -- pantalla. Se excluyen las no positivas (relojes cruzados) para no
@@ -394,6 +401,57 @@ begin
         order by count(*) filter (where editada)::numeric / nullif(count(*), 0) desc nulls last
         limit 15
       ) x), '[]'::jsonb),
+
+    -- USO Y CALIDAD EN LA MISMA FILA, que es lo que las hace accionables.
+    -- Una plantilla muy usada cuya nota se reescribe siempre es un prompt que
+    -- hay que arreglar; una poco usada que sale limpia no urge. Separadas en
+    -- dos tablas, esa lectura hay que hacerla a ojo cruzando pantallas.
+    --
+    -- `usos` sale de TODAS las consultas y `pct_corregida` solo de las
+    -- comparables: por eso van con su propio `comparables` al lado, para que
+    -- no parezca que el porcentaje se calculó sobre los 437 usos cuando se
+    -- calculó sobre menos.
+    'por_plantilla', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'plantilla', u.plantilla,
+        'especialidad', u.especialidad,
+        'alcance', u.alcance,
+        'usos', u.usos,
+        'medicos', u.medicos,
+        'comparables', coalesce(q.n, 0),
+        'secciones', q.secciones,
+        'pct_corregida', q.pct,
+        'sin_tocar', coalesce(q.sin_tocar, 0)
+      ) order by u.usos desc)
+      from (
+        select plantilla, especialidad, alcance,
+          count(*) as usos, count(distinct doctor_id) as medicos
+        from enc group by 1, 2, 3
+        order by count(*) desc limit 20
+      ) u
+      left join (
+        select plantilla, count(*) as n,
+          round(avg(secciones), 1) as secciones,
+          round(avg(editadas::numeric / nullif(secciones, 0)) * 100, 1) as pct,
+          count(*) filter (where editadas = 0) as sin_tocar
+        from por_consulta group by 1
+      ) q on q.plantilla = u.plantilla), '[]'::jsonb),
+
+    -- Salud del catálogo. Una plantilla que nadie usa no es neutra: alarga la
+    -- lista que el médico recorre antes de cada consulta. Al escribir esto,
+    -- 208 en el catálogo y 3 con algún uso.
+    'catalogo', (
+      select jsonb_build_object(
+        'activas', count(*) filter (where coalesce(status, 'active') <> 'archived'),
+        'archivadas', count(*) filter (where status = 'archived'),
+        'institucionales', count(*) filter (where scope = 'institutional'),
+        'personales', count(*) filter (where scope = 'personal'),
+        'usadas_alguna_vez', (
+          select count(distinct ce.template_id)
+          from public.clinical_encounters ce where ce.template_id is not null),
+        'usadas_en_periodo', (
+          select count(distinct template_id) from enc where template_id is not null)
+      ) from public.clinical_templates),
 
     'por_especialidad', coalesce((
       select jsonb_agg(jsonb_build_object(

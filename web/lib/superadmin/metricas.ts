@@ -293,6 +293,33 @@ export type CalidadNota = {
     rellenadas: number;
     delta_chars_prom: number;
   }[];
+  /**
+   * Uso y calidad de cada plantilla EN LA MISMA FILA.
+   *
+   * `usos` cuenta todas las consultas; `pct_corregida` solo las `comparables`.
+   * Los dos números van juntos para que no se lea el porcentaje como calculado
+   * sobre el total de usos cuando se calculó sobre menos.
+   */
+  por_plantilla: {
+    plantilla: string;
+    especialidad: string;
+    alcance: string;
+    usos: number;
+    medicos: number;
+    comparables: number;
+    secciones: number | null;
+    pct_corregida: number | null;
+    sin_tocar: number;
+  }[];
+  /** Cuánto del catálogo se usa de verdad. */
+  catalogo: {
+    activas: number;
+    archivadas: number;
+    institucionales: number;
+    personales: number;
+    usadas_alguna_vez: number;
+    usadas_en_periodo: number;
+  };
   por_especialidad: {
     especialidad: string;
     consultas: number;
@@ -349,4 +376,11 @@ export const ETIQUETA_FUENTE: Record<string, string> = {
   omi: "Omi",
   mixto: "Mixto",
   "sin declarar": "Sin declarar",
+};
+
+/** Alcance de una plantilla, en el vocabulario del catálogo. */
+export const ETIQUETA_ALCANCE: Record<string, string> = {
+  institutional: "Institucional",
+  personal: "Personal",
+  desconocido: "Sin catálogo",
 };

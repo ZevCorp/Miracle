@@ -127,6 +127,13 @@ alcanza a las consultas anteriores a que `encounter_metrics` existiera, que al
 escribir esto eran la mayoría. La comparación ocurre dentro de Postgres y solo
 salen números y etiquetas de sección; ni un carácter de la nota cruza.
 
+La misma RPC cruza **uso y calidad por plantilla** en una sola fila, que es lo
+que las hace accionables juntas: al escribir esto, Histopatología acumula 634
+usos y su nota se reescribe el 52 % de las veces, mientras Consulta inicial
+(mismo modelo, mismas ~9 secciones) sale limpia el 97 % — o sea que el problema
+es esa plantilla, no la IA. Va con el estado del catálogo, donde 3 de 208
+plantillas activas concentran todo el uso.
+
 La misma migración añade `app_version`, `audio_source` y `active_ms_by_phase`
 (captura/generación/revisión, cuya suma equivale a `active_ms` porque cada
 flush aporta a una sola fase), y le pone p50/p90 a cada duración: el promedio
