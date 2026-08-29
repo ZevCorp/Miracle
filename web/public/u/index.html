@@ -940,7 +940,7 @@
   .copiado.on{opacity:1;transform:translateX(-50%)}
   .copiado b{font-weight:700;color:#9CC4FF}
 
-  /* ══════════ Agendar: la llamada de 25 minutos ══════════
+  /* ══════════ Agendar: la llamada de 30 minutos ══════════
      Los CTA dejaron de copiar el correo. Copiar la dirección deja al médico con
      la tarea pendiente —abrir el correo, redactar, esperar respuesta— y ahí se
      cae la mitad. Ahora el sitio abre el calendario y la reunión queda cerrada
@@ -1507,7 +1507,7 @@
         <button type="button" class="cta" data-agendar>
           <span class="glifo" aria-hidden="true">↓</span> Obtener acceso
         </button>
-        <span class="nota">Eliges tú la hora: 25 minutos por videollamada, sin instalar nada.</span>
+        <span class="nota">Eliges tú la hora: 30 minutos por videollamada, sin instalar nada.</span>
       </div>
 
       <!-- barra de tareas -->
@@ -1616,7 +1616,7 @@
     <button type="button" class="m-cta" data-agendar>
       <span class="glifo" aria-hidden="true">↓</span> Obtener acceso
     </button>
-    <span class="m-nota">Eliges tú la hora: 25 minutos por videollamada, sin instalar nada.</span>
+    <span class="m-nota">Eliges tú la hora: 30 minutos por videollamada, sin instalar nada.</span>
   </footer>
 
   <div class="m-pie">
@@ -1629,13 +1629,13 @@
 
 <div class="copiado" id="copiado" role="status" aria-live="polite"></div>
 
-<!-- El calendario de la llamada de 25 minutos. Nace vacío: el iframe de Cal solo
+<!-- El calendario de la llamada de 30 minutos. Nace vacío: el iframe de Cal solo
      se pide cuando alguien abre el diálogo, para no cargarle una conexión más al
      arranque, que ya compite con three.js. -->
 <dialog id="agendar" aria-labelledby="ag-titulo">
   <div class="ag-cab">
     <div>
-      <h3 id="ag-titulo">Una llamada de 25 minutos</h3>
+      <h3 id="ag-titulo">Una llamada de 30 minutos</h3>
       <p>Elige la hora que te sirva. Es por videollamada: te mostramos Ü sobre un caso tuyo y salimos con una fecha de instalación, o con un no.</p>
     </div>
     <button type="button" class="ag-x" id="ag-cerrar" aria-label="Cerrar">✕</button>
@@ -1756,7 +1756,7 @@
   });
 })();
 
-/* Los CTA abren el calendario de la llamada de 25 minutos.
+/* Los CTA abren el calendario de la llamada de 30 minutos.
    Antes copiaban el correo, que deja la pelota del lado del médico: tiene que
    abrir su correo, redactar y esperar. Aquí sale con una hora reservada. */
 (function agendarLlamada(){
@@ -1766,7 +1766,7 @@
      Vacío = la cuenta todavía no existe. En ese caso el diálogo enseña
      directamente el plan B en lugar de un iframe roto, así que esto se puede
      desplegar hoy y encender después pegando el enlace aquí. */
-  const CAL_LINK  = '';
+  const CAL_LINK  = 'miracle-ai-ujjv1u/30min';
   const CAL_ORIGIN = 'https://cal.com';
   // Nombre del espacio de Cal en esta página. Sin número: la duración se cambia
   // en Cal.com, y un '20' aquí quedaría mintiendo al primer ajuste.
@@ -1779,7 +1779,7 @@
 
   const CORREO   = 'dev@itsmiracleai.com';
   const WHATSAPP = 'https://wa.me/573172550953?text=' + encodeURIComponent(
-    'Hola, vengo del sitio de Ü y quiero agendar la llamada de 25 minutos.'
+    'Hola, vengo del sitio de Ü y quiero agendar la llamada de 30 minutos.'
   );
 
   /* Plan B: el calendario no llegó. Pasa de verdad — la red de un hospital
