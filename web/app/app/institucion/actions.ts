@@ -12,7 +12,7 @@ const MAX_TEXTO = 120;
 const MAX_SERVICIOS = 20;
 
 function back(kind: "ok" | "error", message: string): never {
-  redirect(`/app/configuracion?${kind}=${encodeURIComponent(message)}`);
+  redirect(`/app/institucion?${kind}=${encodeURIComponent(message)}`);
 }
 
 /** Campo libre del encabezado: recortado, o null si queda vacío. */
@@ -60,7 +60,7 @@ export async function updateOrgSettings(formData: FormData) {
     back("error", "No se pudo guardar. Verifica que la migración esté aplicada (políticas RLS).");
   }
 
-  revalidatePath("/app/configuracion");
+  revalidatePath("/app/institucion");
   // El encabezado y el selector de servicios se arman con estos datos: sin esto
   // el médico seguiría imprimiendo con el membrete viejo hasta recargar.
   revalidatePath("/app/consultas");

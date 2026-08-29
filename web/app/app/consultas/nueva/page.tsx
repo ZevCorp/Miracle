@@ -35,8 +35,11 @@ import {
   getTemplatePreferences,
   pickPreselectedTemplate,
   pinnedTemplateIds,
+  readLastTemplateId,
+  rememberTemplateId,
   type TemplatePreference,
 } from "@/lib/clinical/template-preferences";
+import { useUserPreferences } from "@/lib/preferences/client";
 import {
   transcribeAudioFile,
   validateAudioUpload,
@@ -56,6 +59,7 @@ function NuevaConsultaForm() {
   // la URL: quedaría en el historial del navegador y en logs de acceso.
   const preselectedPatientId = sp.get("paciente")?.trim() ?? "";
 
+  const { preferences: userPreferences } = useUserPreferences();
   const [patientQuery, setPatientQuery] = useState("");
   const [patientId, setPatientId] = useState<string | null | undefined>(undefined);
   const [patientPickerOpen, setPatientPickerOpen] = useState(false);
@@ -65,6 +69,9 @@ function NuevaConsultaForm() {
   const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [profileSpecialtyCode, setProfileSpecialtyCode] = useState<string | null>(null);
+  // La memoria de "última usada" se guarda por médico, así que hace falta su id
+  // aquí también: hasta ahora solo el acceso rápido la leía y la escribía.
+  const [userId, setUserId] = useState<string | null>(null);
   const [preferences, setPreferences] = useState<TemplatePreference[]>([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -171,12 +178,13 @@ function NuevaConsultaForm() {
       const supabase = createClient();
       const profilePromise = (async () => {
         const { data: userData } = await supabase.auth.getUser();
-        const userId = userData.user?.id;
-        if (!userId) return null;
+        const uid = userData.user?.id;
+        if (!uid) return null;
+        setUserId(uid);
         const { data: profile } = await supabase
           .from("profiles")
           .select("specialty_code")
-          .eq("id", userId)
+          .eq("id", uid)
           .maybeSingle();
         return profile?.specialty_code ?? null;
       })();
@@ -221,8 +229,13 @@ function NuevaConsultaForm() {
 
   const pinnedIds = useMemo(() => pinnedTemplateIds(preferences), [preferences]);
 
-  // Preselección: pin del médico ("mi sugerida") > sugerida institucional de su
-  // especialidad > primera. La lógica vive en lib/clinical/template-preferences.
+  // Preselección: la decide el médico en Configuración (su pin, la última que
+  // usó, o ninguna). La lógica vive en lib/clinical/template-preferences.
+  //
+  // `lastUsedId` faltaba aquí: esta pantalla ignoraba la memoria de "última
+  // usada" —y tampoco la escribía al arrancar—, así que esa señal solo
+  // funcionaba entrando por el acceso rápido. Con el modo ya elegible, media
+  // preferencia funcionando según por dónde entres no es una opción.
   const effectiveTemplateId = availableTemplates.some(
     (template) => template.id === selectedTemplateId,
   )
@@ -230,7 +243,9 @@ function NuevaConsultaForm() {
     : pickPreselectedTemplate({
         templates: availableTemplates,
         preferences,
+        lastUsedId: readLastTemplateId(userId),
         specialtyCode: profileSpecialtyCode,
+        mode: userPreferences.templateStartMode,
       });
 
   const matchingPatients = useMemo(() => {
@@ -256,6 +271,7 @@ function NuevaConsultaForm() {
         template_id: effectiveTemplateId,
       });
 
+      rememberTemplateId(userId, effectiveTemplateId);
       await linkAppointment(result.encounter_id);
 
       const params = new URLSearchParams({ encounter: result.encounter_id, record: "1" });

@@ -98,8 +98,16 @@ export const appNav: AppNavItem[] = [
   { label: "Plantillas", href: "/app/plantillas", icon: "plantillas", roles: allRoles, group: "clinico" },
   { label: "Auditoría", href: "/app/auditoria", icon: "auditoria", roles: ["admin", "supervisor"], group: "institucion" },
   { label: "Reportes", href: "/app/reportes", icon: "reportes", roles: ["admin", "supervisor"], group: "institucion" },
-  { label: "Configuración", href: "/app/configuracion", icon: "configuracion", roles: ["admin"], group: "institucion" },
+  { label: "Institución", href: "/app/institucion", icon: "institucion", roles: ["admin"], group: "institucion" },
   { label: "Usuarios", href: "/app/usuarios", icon: "usuarios", roles: ["admin"], group: "institucion" },
+  // Preferencias personales del médico (plantilla de arranque, micrófono,
+  // Omi, asistente, apariencia, su propio perfil). Va en "cuenta" y no en
+  // "institucion" porque no es gestión de nadie más: es lo suyo. La
+  // configuración de la INSTITUCIÓN es otra entrada y otra ruta a propósito —
+  // un médico no debe poder cambiar el membrete del hospital desde su pantalla
+  // de ajustes, y un admin no debe tener que bucear entre ajustes personales
+  // para encontrar el NIT.
+  { label: "Configuración", href: "/app/configuracion", icon: "configuracion", roles: allRoles, group: "cuenta" },
   // Solo organizaciones personales (B2C): el médico gestiona su propio plan.
   // Vive fuera de /app a propósito — es también el paywall cuando el acceso
   // está bloqueado, y esa página no puede depender del shell clínico.

@@ -38,6 +38,9 @@ type Payload = {
   timeline?: unknown;
   diarization?: unknown;
   finalize?: unknown;
+  phase?: unknown;
+  appVersion?: unknown;
+  audioSource?: unknown;
   stt?: { audioSeconds?: unknown; provider?: unknown; model?: unknown } | null;
 };
 
@@ -75,6 +78,11 @@ export async function POST(request: NextRequest) {
         p_timeline: timeline,
         p_diarization: typeof body.diarization === "boolean" ? body.diarization : null,
         p_finalize: finalize,
+        // Pasan crudos: el RPC los valida contra su lista cerrada y los acota,
+        // igual que ya hace con los deltas. Esta ruta sigue siendo transporte.
+        p_phase: typeof body.phase === "string" ? body.phase : null,
+        p_app_version: typeof body.appVersion === "string" ? body.appVersion : null,
+        p_audio_source: typeof body.audioSource === "string" ? body.audioSource : null,
       });
       if (error) {
         reportError(new Error(error.message), { route: "telemetry/encounter-usage" });

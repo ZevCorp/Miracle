@@ -27,6 +27,8 @@ import {
   ClinicalApiError,
 } from "@/lib/api/clinical";
 import { noteJsonToSections } from "@/lib/clinical/encounter-to-consultation";
+import { buildDoctorContext } from "@/lib/preferences/assistant";
+import { useUserPreferences } from "@/lib/preferences/client";
 import { useNoteExport } from "@/lib/hooks/useNoteExport";
 import { NoteExportButton, NoteExportStatus } from "@/components/app/NoteExportStatus";
 import {
@@ -115,6 +117,7 @@ export default function ConsultaDetallePage() {
     role,
     org,
   } = useStore();
+  const { preferences: userPreferences, firstName } = useUserPreferences();
   const [tab, setTab] = useState("historia");
   const [aiEditing, setAiEditing] = useState(false);
   const [addenda, setAddenda] = useState<ConsultationAddendum[]>([]);
@@ -279,6 +282,7 @@ export default function ConsultaDetallePage() {
       const proposal = await adjustNoteWithAssistant({
         encounter_id: c.id,
         instruction: redactor.redact(texto),
+        doctor: buildDoctorContext(userPreferences, firstName),
       });
       const saved = await saveEditedClinicalNote(
         c.id,

@@ -3,44 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  BarChart3,
-  ClipboardList,
-  CreditCard,
-  FileText,
-  LayoutDashboard,
-  LayoutTemplate,
-  LogOut,
-  Menu,
-  Microscope,
-  Moon,
-  Settings,
-  ShieldCheck,
-  Sun,
-  UserCog,
-  Users,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { LogOut, Menu, Moon, Sun, X } from "lucide-react";
+import { NAV_ICONS, NAV_ICON_FALLBACK } from "@/components/app/nav-icons";
 import { APP_NAV_GROUPS, APP_NAV_GROUP_LABEL, visibleAppNav } from "@/lib/site";
 import type { AuthenticatedProfile } from "@/lib/auth/server";
 import { APP_ROLE_LABEL } from "@/lib/auth/roles";
 import { signOut } from "@/app/login/actions";
 import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
-
-const icons: Record<string, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  consultas: ClipboardList,
-  laboratorio: Microscope,
-  pacientes: Users,
-  notas: FileText,
-  auditoria: ShieldCheck,
-  reportes: BarChart3,
-  plantillas: LayoutTemplate,
-  configuracion: Settings,
-  usuarios: UserCog,
-  suscripcion: CreditCard,
-};
 
 // Las pestañas fijas de la barra inferior. Al salir "Notas" del menú entra
 // "Plantillas" en su puesto: si no, el médico se quedaba con tres pestañas y un
@@ -103,7 +72,7 @@ export function MobileBottomNavigation({
           style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}
         >
           {primary.map((item) => {
-            const Icon = icons[item.icon] ?? LayoutDashboard;
+            const Icon = NAV_ICONS[item.icon] ?? NAV_ICON_FALLBACK;
             const active = isActive(pathname, item.href);
             return (
               <Link
@@ -173,7 +142,7 @@ export function MobileBottomNavigation({
                   ) : null}
                   <div className="grid grid-cols-2 gap-2">
                     {bloque.items.map((item) => {
-                      const Icon = icons[item.icon] ?? LayoutDashboard;
+                      const Icon = NAV_ICONS[item.icon] ?? NAV_ICON_FALLBACK;
                       const active = isActive(pathname, item.href);
                       return (
                         <Link key={item.href} href={item.href} onClick={(e) => { if (!hasGuard()) { setMoreOpen(false); return; } e.preventDefault(); guardedNavigate(() => { setMoreOpen(false); router.push(item.href); }); }} aria-current={active ? "page" : undefined} className={`flex min-h-16 items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm font-semibold ${active ? "border-accent bg-accent-soft text-accent-ink" : "border-line bg-pearl text-deep active:bg-ice-soft"}`}>

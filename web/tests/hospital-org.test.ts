@@ -7,6 +7,7 @@ import {
   responsableLabelDe,
   rowToOrgSettings,
   servicioPorDefecto,
+  servicioPreferidoDe,
   serviciosDe,
   tieneEncabezado,
   type OrgSettings,
@@ -61,6 +62,35 @@ describe("serviciosDe / servicioPorDefecto", () => {
   it("configurada, el primero es el servicio de las consultas nuevas", () => {
     const conServicios = org({ servicios: ["Dermatología", "Consulta prioritaria"] });
     expect(servicioPorDefecto(conServicios)).toBe("Dermatología");
+  });
+});
+
+describe("servicioPreferidoDe", () => {
+  /* La institución define la LISTA; el médico elige cuál de ella es el suyo.
+     Es la misma resolución "lo personal manda, lo institucional rellena" que ya
+     aplica responsableLabelDe. */
+  const conServicios = org({ servicios: ["Consulta externa", "Urgencias", "Hospitalización"] });
+
+  it("el servicio del médico manda sobre el de la casa", () => {
+    expect(servicioPreferidoDe(conServicios, "Urgencias")).toBe("Urgencias");
+  });
+
+  it("sin preferencia usa el de la institución", () => {
+    expect(servicioPreferidoDe(conServicios, null)).toBe("Consulta externa");
+    expect(servicioPreferidoDe(conServicios, "   ")).toBe("Consulta externa");
+  });
+
+  it("una preferencia que ya no está en la lista NO se imprime", () => {
+    // El admin renombró o quitó el servicio: seguir usándolo pondría en la nota
+    // un servicio que la institución ya no reconoce.
+    expect(servicioPreferidoDe(conServicios, "Urgencias pediátricas")).toBe(
+      "Consulta externa",
+    );
+  });
+
+  it("sin lista configurada resuelve contra la lista estándar de la app", () => {
+    expect(servicioPreferidoDe(org(), SERVICIOS[1])).toBe(SERVICIOS[1]);
+    expect(servicioPreferidoDe(org(), "Inventado")).toBe(SERVICIOS[0]);
   });
 });
 

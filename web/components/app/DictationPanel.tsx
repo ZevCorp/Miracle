@@ -9,6 +9,7 @@ import {
   type DictationUsageSnapshot,
 } from "@/lib/stt/useDictation";
 import { useOmiMicrophone } from "@/lib/omi/useOmiMicrophone";
+import { OmiStatusDot } from "@/components/app/OmiStatusDot";
 
 const STATUS_TEXT: Partial<Record<DictationStatus, string>> = {
   requesting_mic: "Solicitando acceso al micrófono…",
@@ -40,6 +41,7 @@ export function DictationPanel({
   finishLabel,
   onCapturingChange,
   onUsageSnapshotReady,
+  onAudioSourceChange,
 }: {
   disabled: boolean;
   onAppendFinal: (text: string) => void;
@@ -59,6 +61,12 @@ export function DictationPanel({
   onCapturingChange?: (capturing: boolean) => void;
   /** Entrega el lector de telemetría del dictado (recordingMs + timeline). */
   onUsageSnapshotReady?: (getSnapshot: () => DictationUsageSnapshot) => void;
+  /**
+   * Con qué se está grabando, en el vocabulario del backend
+   * ("browser_microphone" | "omi"). El panel lo dice en vez de que la pantalla
+   * lo adivine: aquí es donde el médico lo elige.
+   */
+  onAudioSourceChange?: (source: string) => void;
 }) {
   const { status, partialText, error, elapsedSec, stalled, start, pause, stop, getUsageSnapshot } =
     useDictation(onAppendFinal);
@@ -72,7 +80,7 @@ export function DictationPanel({
   // Fuente de audio: "mic" usa getUserMedia normal; "omi" aprovecha el shim
   // que instaló la conexión global (widget flotante junto a "Grabar
   // consulta", ver lib/omi/useOmiMicrophone.tsx) para que el audio del Omi
-  // entre como si fuera el micrófono (lib/omi/getUserMediaShim.ts). La
+  // entre como si fuera el micrófono (lib/stt/microphone-source.ts). La
   // conexión BLE vive fuera de este panel a propósito: si el médico ya
   // conectó el Omi desde el panel principal, el acceso rápido (que arranca
   // grabando solo) ya lo usa sin pausar para elegirlo. Piloto: Chrome/Edge de
@@ -85,6 +93,10 @@ export function DictationPanel({
   useEffect(() => {
     onActiveChange(active);
   }, [active, onActiveChange]);
+
+  useEffect(() => {
+    onAudioSourceChange?.(source === "omi" ? "omi" : "browser_microphone");
+  }, [source, onAudioSourceChange]);
 
   const captureOpen =
     status === "recording" ||
@@ -137,7 +149,12 @@ export function DictationPanel({
             </p>
           </div>
         </div>
-        <span className="shrink-0 font-mono text-lg font-semibold tabular-nums text-deep">{mmss(elapsedSec)}</span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* Solo cuando el Omi es la fuente: grabando con el micrófono normal
+              no hay collar que vigilar y el punto sería ruido. */}
+          {source === "omi" || omi.isConnected ? <OmiStatusDot /> : null}
+          <span className="font-mono text-lg font-semibold tabular-nums text-deep">{mmss(elapsedSec)}</span>
+        </div>
       </div>
 
       <div className="p-4">
@@ -160,8 +177,20 @@ export function DictationPanel({
                 Omi
               </button>
             </div>
+            {/* Se ofrece conectar AQUÍ mismo. Antes este texto mandaba al
+                botón flotante que ya no existe, y sin esto elegir "Omi" sin
+                tenerlo conectado dejaba el botón de iniciar deshabilitado sin
+                salida a la vista. */}
             {source === "omi" && !omi.isConnected ? (
-              <span className="text-xs text-muted">Conectá el Omi desde el botón junto a «Grabar consulta».</span>
+              <button
+                type="button"
+                onClick={() => void omi.connect().catch(() => {})}
+                disabled={omi.connecting}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent-soft px-2.5 py-1.5 text-xs font-semibold text-accent-ink disabled:opacity-60"
+              >
+                {omi.connecting ? <Loader2 size={12} className="animate-spin" /> : null}
+                {omi.connecting ? "Conectando…" : "Conectar Omi"}
+              </button>
             ) : null}
           </div>
         ) : null}

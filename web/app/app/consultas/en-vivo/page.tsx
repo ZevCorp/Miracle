@@ -55,7 +55,9 @@ import {
 } from "@/lib/clinical/section-drafts";
 import { useSectionDrafts } from "@/lib/clinical/use-section-drafts";
 import { extractPatientIdentity } from "@/lib/clinical/patient-identity";
-import { servicioPorDefecto } from "@/lib/hospital/org";
+import { servicioPreferidoDe } from "@/lib/hospital/org";
+import { buildDoctorContext } from "@/lib/preferences/assistant";
+import { useUserPreferences } from "@/lib/preferences/client";
 import { reviewGeneratedNote } from "@/lib/clinical/note-review";
 import { caretAfterDictation, shouldFollowDictation } from "@/lib/clinical/insert-text";
 import { buildRedactor } from "@/lib/privacy/redact";
@@ -137,6 +139,10 @@ function ConsultaActivaInner() {
     showToast,
     org,
   } = useStore();
+  const { preferences: userPreferences, firstName } = useUserPreferences();
+  // Las preferencias del asistente valen también aquí: `explanation` es texto
+  // que el médico lee ("ya quedó actualizada"), no un dato estructurado.
+  const doctorContext = buildDoctorContext(userPreferences, firstName);
   const [associatedPatientId, setAssociatedPatientId] = useState(pacienteId || null);
   const [patientAssociationOpen, setPatientAssociationOpen] = useState(false);
   const patient = getPatient(associatedPatientId);
@@ -198,6 +204,10 @@ function ConsultaActivaInner() {
   // Captura ABIERTA (no incluye "pausada"): alimenta el reloj de uso, que
   // cuenta la grabación aunque la pestaña esté oculta.
   const [capturando, setCapturando] = useState(false);
+  // Con qué se grabó. El panel lo reporta al elegirlo; hasta entonces es null
+  // (que la telemetría distingue de "micrófono", porque no es lo mismo no
+  // haber grabado todavía que haber grabado con el micrófono).
+  const [fuenteAudio, setFuenteAudio] = useState<string | null>(null);
 
   const [note, setNote] = useState<ClinicalNoteJson | null>(null);
   // Espejo en ref de la nota: `guardarNota` corre desde un onClick cuyo closure
@@ -253,6 +263,11 @@ function ConsultaActivaInner() {
     // "Esperando al sistema": cualquier fase en curso (generar, guardar,
     // ajustar) cuenta como uso si la pestaña está visible.
     waiting: busy,
+    // Con nota generada, el tiempo que sigue es REVISIÓN. Es la separación que
+    // permite ver si una versión nueva le ahorra trabajo al médico después de
+    // que la IA escribió, en vez de solo mover el total de un lado a otro.
+    hasNote: note !== null,
+    audioSource: fuenteAudio,
     getDictationSnapshot,
   });
 
@@ -554,7 +569,9 @@ function ConsultaActivaInner() {
             note: rehydratedNote,
             patient,
             transcript: transcriptDraft,
-            servicio: servicioPorDefecto(org),
+            // El servicio del médico manda sobre el de la casa; si no eligió
+            // ninguno (o el suyo ya no está en la lista) cae al institucional.
+            servicio: servicioPreferidoDe(org, userPreferences.defaultServicio),
             now: new Date().toISOString(),
             duracionMin:
               usageSnap && usageSnap.recordingMs > 0
@@ -880,6 +897,7 @@ function ConsultaActivaInner() {
         encounter_id: encounterId,
         // Si el médico escribe el nombre en la instrucción, también se tapa.
         instruction: redactor.redact(instruction),
+        doctor: doctorContext,
       });
       setNote(result.proposed_note_json);
       setNoteDirty(true);
@@ -944,6 +962,7 @@ function ConsultaActivaInner() {
         // El contrato acepta la sección como campo propio y el prompt la usa
         // para acotar el ajuste. Antes solo viajaba dentro del texto libre.
         section_key: section.key || undefined,
+        doctor: doctorContext,
       });
 
       // El backend dice qué secciones cambió de verdad. Sin mirarlo, una
@@ -1176,6 +1195,7 @@ function ConsultaActivaInner() {
                     onActiveChange={setDictando}
                     onCapturingChange={setCapturando}
                     onUsageSnapshotReady={onUsageSnapshotReady}
+                    onAudioSourceChange={setFuenteAudio}
                     autoStart={autoStartOnArrival && !completed && !signedMirror}
                     onRecordingStopped={() => setFinishAfterRecording(true)}
                     finishLabel="Finalizar y generar nota"

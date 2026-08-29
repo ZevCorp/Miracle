@@ -58,6 +58,34 @@ export function shouldAccumulate(input: UsageClockInput, idleMs = IDLE_MS): bool
   return input.msSinceInteraction <= idleMs;
 }
 
+/** Las tres etapas por las que pasa una consulta dentro de Notes. */
+export type UsagePhase = "captura" | "generacion" | "revision";
+
+/**
+ * En qué etapa está la consulta AHORA.
+ *
+ * El orden de las guardas no es cosmético: grabar manda sobre todo lo demás
+ * (el médico puede estar dictando una corrección sobre una nota ya generada, y
+ * eso sigue siendo captura), y esperar al sistema manda sobre revisar. Solo
+ * cuando no ocurre ninguna de las dos, tener nota decide entre revisar lo que
+ * la IA escribió y seguir reuniendo material.
+ *
+ * Es lo que separa "cuánto dura la consulta" de "cuánto trabajo le queda al
+ * médico después de la IA" — la cifra que debería encogerse versión a versión.
+ */
+export function currentPhase(input: {
+  capturing: boolean;
+  waiting: boolean;
+  hasNote: boolean;
+}): UsagePhase {
+  if (input.capturing) return "captura";
+  if (input.waiting) return "generacion";
+  return input.hasNote ? "revision" : "captura";
+}
+
+/** Build que atendió la consulta. "dev" fuera de un despliegue real. */
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
+
 interface FlushOptions {
   finalize?: boolean;
   /** Anexar los segmentos de timeline aún no enviados. */
@@ -72,6 +100,10 @@ export function useEncounterUsage(opts: {
   encounterId: string | null;
   capturing: boolean;
   waiting: boolean;
+  /** Ya hay nota generada: lo que venga después es revisión, no captura. */
+  hasNote?: boolean;
+  /** Micrófono del computador u Omi, si la pantalla ya lo sabe. */
+  audioSource?: string | null;
   /** Foto de telemetría del dictado (null si aún no hay motor). */
   getDictationSnapshot: () => DictationUsageSnapshot | null;
 }): {
@@ -79,6 +111,8 @@ export function useEncounterUsage(opts: {
   finalize: () => Promise<void>;
 } {
   const { encounterId, capturing, waiting, getDictationSnapshot } = opts;
+  const hasNote = opts.hasNote ?? false;
+  const audioSource = opts.audioSource ?? null;
 
   const sessionIdRef = useRef<string | null>(null);
   const leaderRef = useRef(false);
@@ -95,6 +129,8 @@ export function useEncounterUsage(opts: {
   // Props vigentes para los listeners/intervalos sin recrearlos.
   const capturingRef = useRef(capturing);
   const waitingRef = useRef(waiting);
+  const hasNoteRef = useRef(hasNote);
+  const audioSourceRef = useRef(audioSource);
   const snapshotRef = useRef(getDictationSnapshot);
   useEffect(() => {
     capturingRef.current = capturing;
@@ -102,6 +138,12 @@ export function useEncounterUsage(opts: {
   useEffect(() => {
     waitingRef.current = waiting;
   }, [waiting]);
+  useEffect(() => {
+    hasNoteRef.current = hasNote;
+  }, [hasNote]);
+  useEffect(() => {
+    audioSourceRef.current = audioSource;
+  }, [audioSource]);
   useEffect(() => {
     snapshotRef.current = getDictationSnapshot;
   }, [getDictationSnapshot]);
@@ -134,6 +176,16 @@ export function useEncounterUsage(opts: {
           ? Math.max(0, (snapshot.recordingMs - lastSttReportedMsRef.current) / 1000)
           : 0;
 
+      // La fase se decide AL MANDAR, no al acumular: el delta que se envía es
+      // el tiempo transcurrido desde el flush anterior, y la etapa que lo
+      // describe es la que estaba corriendo durante ese tramo. Con flushes cada
+      // 30 s el reparto es fiel sin tener que llevar un reloj por fase.
+      const phase = currentPhase({
+        capturing: capturingRef.current,
+        waiting: waitingRef.current,
+        hasNote: hasNoteRef.current,
+      });
+
       if (options.beacon) {
         // La página se va: no hay tiempo para respuestas. Se drena optimista;
         // perder este beacon cuesta como mucho 30 s de uso, no la consulta.
@@ -145,6 +197,9 @@ export function useEncounterUsage(opts: {
           timeline,
           diarization: snapshot?.diarization ?? null,
           finalize: Boolean(options.finalize),
+          phase,
+          appVersion: APP_VERSION,
+          audioSource: audioSourceRef.current,
           stt:
             sttDeltaSec >= 1 && snapshot
               ? {
@@ -182,6 +237,9 @@ export function useEncounterUsage(opts: {
           p_timeline: timeline,
           p_diarization: snapshot?.diarization ?? null,
           p_finalize: Boolean(options.finalize),
+          p_phase: phase,
+          p_app_version: APP_VERSION,
+          p_audio_source: audioSourceRef.current,
         });
         if (!error) {
           pendingActiveMsRef.current = Math.max(0, pendingActiveMsRef.current - activeMs);

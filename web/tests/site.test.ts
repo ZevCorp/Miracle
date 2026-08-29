@@ -63,6 +63,36 @@ describe("visibleAppNav · Notas salió del menú", () => {
   });
 });
 
+describe("visibleAppNav · configuración personal vs institucional", () => {
+  /* Son dos entradas distintas con nombres casi iguales. El riesgo real no es
+     que falten, es que alguien las funda en una sola y deje al médico sin
+     ajustes propios o al admin sin el membrete. */
+  it("todos los roles clínicos ven su Configuración personal", () => {
+    for (const role of ["medico", "admin", "supervisor"] as const) {
+      const hrefs = visibleAppNav(role).map((item) => item.href);
+      expect(hrefs).toContain("/app/configuracion");
+    }
+  });
+
+  it("solo el admin ve la Institución", () => {
+    expect(visibleAppNav("admin").map((i) => i.href)).toContain("/app/institucion");
+    expect(visibleAppNav("medico").map((i) => i.href)).not.toContain("/app/institucion");
+    expect(visibleAppNav("supervisor").map((i) => i.href)).not.toContain("/app/institucion");
+  });
+
+  it("la personal va en el bloque «Cuenta» y la institucional en «Institución»", () => {
+    const nav = visibleAppNav("admin");
+    expect(nav.find((i) => i.href === "/app/configuracion")?.group).toBe("cuenta");
+    expect(nav.find((i) => i.href === "/app/institucion")?.group).toBe("institucion");
+  });
+
+  it("la demo no ve ninguna de las dos", () => {
+    const hrefs = visibleAppNav("admin", "medico_especialista", true).map((i) => i.href);
+    expect(hrefs).not.toContain("/app/configuracion");
+    expect(hrefs).not.toContain("/app/institucion");
+  });
+});
+
 describe("datos de contacto del sitio", () => {
   it("expone un correo real (dominio propio, no un placeholder)", () => {
     expect(SITE.email).toBe("dev@itsmiracleai.com");

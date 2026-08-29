@@ -4,6 +4,8 @@ import { AppShell } from "@/components/app/AppShell";
 import { MiracleProvider } from "./providers";
 import { UnsavedChangesProvider } from "@/components/app/UnsavedChangesProvider";
 import { OmiProvider } from "@/lib/omi/useOmiMicrophone";
+import { PreferencesProvider } from "@/lib/preferences/client";
+import { getUserPreferences } from "@/lib/preferences/server";
 import { getCurrentProfile } from "@/lib/auth/server";
 
 export const metadata: Metadata = {
@@ -18,7 +20,16 @@ export default async function AppLayout({
 }) {
   // This is a second, server-side authorization check. proxy.ts improves the
   // navigation experience, but must never be the only protection for /app.
-  const profile = await getCurrentProfile();
+  //
+  // Las preferencias van en el mismo Promise.all: las dos consultas solo
+  // necesitan la cookie de sesión, así que encadenarlas sería un viaje de ida y
+  // vuelta de más en la carga de TODA pantalla de /app. getUserPreferences
+  // nunca lanza (cae a los valores por defecto), así que no puede tumbar el
+  // layout ni dejar a nadie fuera si la migración aún no está aplicada.
+  const [profile, preferences] = await Promise.all([
+    getCurrentProfile(),
+    getUserPreferences(),
+  ]);
   if (!profile) redirect("/login?error=account-not-ready");
   // El superadmin no usa el panel del hospital; tiene su consola de plataforma.
   if (profile.role === "superadmin") redirect("/superadmin");
@@ -42,9 +53,15 @@ export default async function AppLayout({
       professionalType={profile.professionalType}
     >
       <UnsavedChangesProvider>
-        <OmiProvider>
-          <AppShell profile={profile}>{children}</AppShell>
-        </OmiProvider>
+        <PreferencesProvider
+          initial={preferences}
+          fullName={profile.fullName}
+          specialtyCode={profile.specialtyCode}
+        >
+          <OmiProvider>
+            <AppShell profile={profile}>{children}</AppShell>
+          </OmiProvider>
+        </PreferencesProvider>
       </UnsavedChangesProvider>
     </MiracleProvider>
   );

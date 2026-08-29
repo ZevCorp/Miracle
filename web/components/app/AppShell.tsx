@@ -8,12 +8,13 @@ import { BillingBanner } from "./BillingBanner";
 import { MobileBottomNavigation } from "./MobileBottomNavigation";
 import { MedicalChat } from "./MedicalChat";
 import { QuickConsultationLauncher } from "./QuickConsultationLauncher";
-import { OmiFloatingWidget } from "./OmiFloatingWidget";
 import { CommandPalette } from "./CommandPalette";
 import { NotificationsBell } from "./NotificationsBell";
 import { HoverHint } from "@/components/ui/HoverHint";
 import type { AuthenticatedProfile } from "@/lib/auth/server";
 import { canAccessPath } from "@/lib/auth/roles";
+import { applyTheme, watchSystemTheme } from "@/lib/theme";
+import { restorePreferredMic } from "@/lib/stt/microphone-source";
 import { signOut } from "@/app/login/actions";
 import { Logo } from "@/components/brand/Logo";
 
@@ -36,34 +37,19 @@ export function AppShell({
   const { syncing } = useStore();
 
   // Si aún no hay una elección explícita, el tema sigue los cambios del SO.
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const syncWithSystem = (event: MediaQueryListEvent) => {
-      let saved: string | null = null;
-      try {
-        saved = localStorage.getItem("miracle-theme");
-      } catch {
-        /* almacenamiento no disponible */
-      }
-      if (saved === "dark" || saved === "light") return;
-      document.documentElement.classList.toggle("dark", event.matches);
-      document.documentElement.dataset.theme = event.matches ? "dark" : "light";
-      document.documentElement.style.colorScheme = event.matches ? "dark" : "light";
-    };
-    media.addEventListener("change", syncWithSystem);
-    return () => media.removeEventListener("change", syncWithSystem);
-  }, []);
+  useEffect(() => watchSystemTheme(), []);
 
+  // El micrófono elegido en Configuración se reaplica en cada carga: el desvío
+  // de getUserMedia vive en memoria, así que sin esto la preferencia duraría
+  // hasta el primer refresco y el médico creería que no se guardó.
+  useEffect(() => restorePreferredMic(), []);
+
+  // El botón de la cabecera es un interruptor de dos posiciones: pasa a claro o
+  // a oscuro, siempre explícito. Volver a "seguir al sistema" solo se puede
+  // desde Configuración > Apariencia, porque es una tercera opción y este botón
+  // no tiene sitio donde enseñarla sin volverse un menú.
   function toggleTheme() {
-    const next = !document.documentElement.classList.contains("dark");
-    document.documentElement.classList.toggle("dark", next);
-    document.documentElement.dataset.theme = next ? "dark" : "light";
-    document.documentElement.style.colorScheme = next ? "dark" : "light";
-    try {
-      localStorage.setItem("miracle-theme", next ? "dark" : "light");
-    } catch {
-      /* almacenamiento no disponible */
-    }
+    applyTheme(document.documentElement.classList.contains("dark") ? "light" : "dark");
   }
 
   return (
@@ -161,15 +147,18 @@ export function AppShell({
           es la misma función que aplica el proxy, así que el botón y el permiso
           no pueden desincronizarse.
 
+          Aquí vivía también un botón flotante de "Conectar Omi", encima de la
+          pantalla clínica en todo momento y en toda pantalla. Se retiró: el
+          emparejamiento vive en Configuración > Audio y dispositivos, y en la
+          consulta queda un punto de estado dentro del panel de grabación
+          (OmiStatusDot), que es donde el médico mira cuando el Omi le importa.
+
           Antes se mostraba a todo el que no fuera secretaría, incluido un
           administrador —que no puede grabar—. El botón sí creaba el encounter
           en la API y el proxy rebotaba después: quedaba un encounter huérfano y
           la pantalla se movía sin explicación. */}
       {canAccessPath(profile.role, RUTA_GRABACION, profile.isDemo) ? (
-        <>
-          <QuickConsultationLauncher userId={profile.id} specialtyCode={profile.specialtyCode} />
-          <OmiFloatingWidget />
-        </>
+        <QuickConsultationLauncher userId={profile.id} specialtyCode={profile.specialtyCode} />
       ) : null}
 
       {/* El asistente clínico sí lo usan administrador y supervisor (consultar

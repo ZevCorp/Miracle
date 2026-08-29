@@ -7,6 +7,17 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  env: {
+    // Qué versión atendió cada consulta. Sin esto, "¿mejoró el producto con el
+    // cambio de ayer?" no se puede responder: la telemetría sabría cuánto se
+    // corrigió una nota pero no con qué build. Se congela en el build porque es
+    // exactamente lo que identifica a ese build.
+    //
+    // En local queda "dev" a propósito: un número de versión inventado en la
+    // máquina de alguien ensuciaría la comparación entre versiones reales.
+    NEXT_PUBLIC_APP_VERSION:
+      process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || "dev",
+  },
   // `opus-decoder` (audio del Omi) arrastra `@eshaz/web-worker`, cuyo build de
   // Node hace un `import(variable)` que el bundler no puede resolver y rompe el
   // build de servidor. El paquete solo se ejecuta en el navegador y bajo demanda
