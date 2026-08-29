@@ -914,10 +914,10 @@
      Vuelve a la crema del consultorio. Después de 29 segundos de azul, el
      descanso es parte del argumento: esto no te cambia la vida, se acopla a la
      que ya tienes. */
-  /* Los CTA son <button>, no enlaces: copian el correo en vez de abrir el
-     cliente de correo, que en un computador ajeno abre cualquier cosa o nada.
-     Como botones heredan estilos del navegador, se les quita todo para que se
-     vean exactamente igual que cuando eran <a>. */
+  /* Los CTA son <button>, no enlaces: no navegan a ninguna parte, abren el
+     diálogo del calendario sobre la misma página. Como botones heredan estilos
+     del navegador, se les quita todo para que se vean exactamente igual que
+     cuando eran <a>. */
   button.cta, button.cta-top, button.btn-fantasma, button.m-cta{
     font:inherit;cursor:pointer;border:1px solid transparent;
     -webkit-appearance:none;appearance:none;
@@ -939,6 +939,90 @@
   }
   .copiado.on{opacity:1;transform:translateX(-50%)}
   .copiado b{font-weight:700;color:#9CC4FF}
+
+  /* ══════════ Agendar: la llamada de 20 minutos ══════════
+     Los CTA dejaron de copiar el correo. Copiar la dirección deja al médico con
+     la tarea pendiente —abrir el correo, redactar, esperar respuesta— y ahí se
+     cae la mitad. Ahora el sitio abre el calendario y la reunión queda cerrada
+     en el mismo gesto, sin salir de la página.
+
+     Es un <dialog> nativo y no un div con z-index: showModal() ya trae el
+     atrapado de foco, el cierre con Escape y la capa superior — que aquí importa
+     porque detrás hay un canvas 3D fijo y una barra fija con los que un div
+     tendría que pelear. */
+  #agendar{
+    /* `margin:auto` es lo que centra un <dialog> modal, y el reset de arriba
+       (`*{margin:0}`) se lo había quitado: sin esto queda pegado arriba a la
+       izquierda. */
+    width:min(980px,94vw);max-height:92vh;padding:0;margin:auto;
+    border:1px solid rgba(255,255,255,.14);border-radius:20px;
+    background:linear-gradient(180deg,#12244C 0%,#101F42 100%);
+    color:var(--crema);overflow:hidden;
+    box-shadow:0 40px 120px rgba(3,8,22,.66);
+  }
+  #agendar::backdrop{
+    background:rgba(6,11,26,.74);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  }
+  #agendar[open]{animation:agendar-entra .38s cubic-bezier(.16,1,.3,1)}
+  @keyframes agendar-entra{
+    from{opacity:0;transform:translateY(14px) scale(.985)}
+    to{opacity:1;transform:none}
+  }
+
+  .ag-cab{
+    display:flex;align-items:flex-start;gap:1rem;
+    padding:1.15rem clamp(1.1rem,3vw,1.7rem) .95rem;
+    border-bottom:1px solid rgba(255,255,255,.1);
+  }
+  .ag-cab h3{font-size:clamp(1.02rem,2.4vw,1.28rem);font-weight:700;letter-spacing:-.01em}
+  .ag-cab p{margin-top:.28rem;font-size:.84rem;line-height:1.5;color:rgba(232,223,210,.62)}
+  .ag-x{
+    margin-left:auto;flex:none;width:2rem;height:2rem;border-radius:999px;
+    display:grid;place-items:center;cursor:pointer;font:inherit;font-size:1.05rem;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
+    color:var(--crema);line-height:1;transition:background .18s ease;
+  }
+  .ag-x:hover{background:rgba(255,255,255,.16)}
+
+  /* El iframe de Cal trae su propio tema oscuro; el marco solo le presta el
+     fondo para que no se vea un rectángulo flotando sobre el azul. */
+  #ag-cal{
+    max-height:min(680px,72vh);overflow:auto;background:#0D1A38;
+    -webkit-overflow-scrolling:touch;
+  }
+  /* La altura fija solo cuando de verdad hay calendario: el plan B son cuatro
+     líneas y con `height` dejaba medio diálogo en vacío. */
+  #ag-cal.con-cal{height:min(680px,72vh)}
+  #ag-cal iframe{border:0}
+
+  .ag-cargando,.ag-planb{
+    display:grid;place-content:center;justify-items:center;gap:.85rem;
+    padding:clamp(2rem,7vh,3.6rem) 1.4rem;text-align:center;min-height:16rem;
+  }
+  .ag-cargando span{font-size:.86rem;color:rgba(232,223,210,.6)}
+  .ag-planb h4{font-size:1rem;font-weight:700}
+  .ag-planb p{font-size:.86rem;line-height:1.6;color:rgba(232,223,210,.62);max-width:34ch}
+  .ag-planb .vias{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;margin-top:.3rem}
+  .ag-planb a,.ag-planb button{
+    font:inherit;font-size:.85rem;font-weight:600;cursor:pointer;
+    padding:.62rem 1.05rem;border-radius:999px;text-decoration:none;
+    background:#2456B8;color:#fff;border:1px solid transparent;
+  }
+  .ag-planb .secundario{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:var(--crema)}
+
+  /* El punto que gira mientras Cal baja. */
+  .ag-giro{
+    width:1.5rem;height:1.5rem;border-radius:999px;
+    border:2px solid rgba(255,255,255,.18);border-top-color:#9CC4FF;
+    animation:ag-girar .8s linear infinite;
+  }
+  @keyframes ag-girar{to{transform:rotate(360deg)}}
+
+  @media (prefers-reduced-motion:reduce){
+    #agendar[open]{animation:none}
+    .ag-giro{animation:none}
+  }
 
   /* La landing SE QUEDA EN EL MUNDO DEL PRODUCTO.
      Estuvo en crema con tipografía negra y se caía: después del consultorio y
@@ -1291,7 +1375,7 @@
   </nav>
 
   <span class="sep"></span>
-  <button type="button" class="cta-top" data-correo="dev@itsmiracleai.com">Obtener acceso</button>
+  <button type="button" class="cta-top" data-agendar>Obtener acceso</button>
   <a class="entrar" href="https://www.itsmiracleai.com.co/login">Entrar</a>
 </header>
 
@@ -1304,7 +1388,7 @@
     <p>Tú hablas con tu paciente. Ü escribe en tu sistema, al mismo tiempo.</p>
     <div class="acciones">
       <a class="cta" href="#dentro">Ver cómo trabaja</a>
-      <button type="button" class="btn-fantasma" data-correo="dev@itsmiracleai.com">Obtener acceso</button>
+      <button type="button" class="btn-fantasma" data-agendar>Obtener acceso</button>
     </div>
   </div>
   <div class="scroll-ind"><span>Scroll</span><div class="linea"><i></i></div></div>
@@ -1327,7 +1411,7 @@
     <span class="eyebrow">El siguiente paso</span>
     <h2>Aprende como<br>tú trabajas.</h2>
     <p>Mira cómo usas tu sistema y aprende tu forma de hacer las cosas. No hay que cambiar nada de lo que ya tienes.</p>
-    <button type="button" class="cta" data-correo="dev@itsmiracleai.com">Obtener acceso</button>
+    <button type="button" class="cta" data-agendar>Obtener acceso</button>
   </div>
 </div>
 <!-- Gradiente lateral para el texto de los actos 3D (sin cards). -->
@@ -1420,10 +1504,10 @@
       <div class="d-final">
         <h3>Le enseñas una vez.</h3>
         <p class="bajada">Después escribe sola, escuchando la consulta. Sobre el HIS que ya usan.</p>
-        <button type="button" class="cta" data-correo="dev@itsmiracleai.com">
+        <button type="button" class="cta" data-agendar>
           <span class="glifo" aria-hidden="true">↓</span> Obtener acceso
         </button>
-        <span class="nota">Es un registro, no una descarga: te escribimos para coordinar la instalación.</span>
+        <span class="nota">Eliges tú la hora: 20 minutos por videollamada, sin instalar nada.</span>
       </div>
 
       <!-- barra de tareas -->
@@ -1529,10 +1613,10 @@
     <span class="m-eyebrow">El siguiente paso</span>
     <h2>Empieza por un consultorio.</h2>
     <p>Un piloto acotado, con métricas de antes y después, sobre el sistema que ya usan. Si no devuelve horas, no sigue.</p>
-    <button type="button" class="m-cta" data-correo="dev@itsmiracleai.com">
+    <button type="button" class="m-cta" data-agendar>
       <span class="glifo" aria-hidden="true">↓</span> Obtener acceso
     </button>
-    <span class="m-nota">Es un registro, no una descarga: te escribimos para coordinar la instalación.</span>
+    <span class="m-nota">Eliges tú la hora: 20 minutos por videollamada, sin instalar nada.</span>
   </footer>
 
   <div class="m-pie">
@@ -1544,6 +1628,25 @@
 </section>
 
 <div class="copiado" id="copiado" role="status" aria-live="polite"></div>
+
+<!-- El calendario de la llamada de 20 minutos. Nace vacío: el iframe de Cal solo
+     se pide cuando alguien abre el diálogo, para no cargarle una conexión más al
+     arranque, que ya compite con three.js. -->
+<dialog id="agendar" aria-labelledby="ag-titulo">
+  <div class="ag-cab">
+    <div>
+      <h3 id="ag-titulo">Una llamada de 20 minutos</h3>
+      <p>Elige la hora que te sirva. Es por videollamada: te mostramos Ü sobre un caso tuyo y salimos con una fecha de instalación, o con un no.</p>
+    </div>
+    <button type="button" class="ag-x" id="ag-cerrar" aria-label="Cerrar">✕</button>
+  </div>
+  <div id="ag-cal">
+    <div class="ag-cargando" id="ag-cargando">
+      <div class="ag-giro" aria-hidden="true"></div>
+      <span>Abriendo el calendario…</span>
+    </div>
+  </div>
+</dialog>
 
 <div id="hud"><span id="pct">00</span><div id="bar"><i></i></div><span>recorrido</span></div>
 <div id="loading"><span>cargando consultorio</span></div>
@@ -1615,10 +1718,14 @@
   marcar();
 })();
 
-/* Los CTA copian el correo al portapapeles en vez de abrir el cliente de
-   correo. Un mailto en el computador de una clínica abre lo que sea —o nada—
-   y el usuario se queda sin saber a dónde escribir. Copiando, la dirección
-   se la lleva puesta. */
+/* Copiar el correo al portapapeles en vez de abrir el cliente de correo: un
+   mailto en el computador de una clínica abre lo que sea —o nada— y el usuario
+   se queda sin saber a dónde escribir. Copiando, la dirección se la lleva
+   puesta.
+
+   Ya no es lo que hacen los CTA grandes —esos abren el calendario—, sino el
+   botón del pie y el del plan B: ahí el texto ES la dirección, y lo que se
+   espera de un clic sobre una dirección es llevársela. */
 (function correoAlPortapapeles(){
   const aviso = document.getElementById('copiado');
   let temporizador = 0;
@@ -1646,6 +1753,175 @@
       tmp.remove();
       decir('Escríbenos a <b>' + correo + '</b>');
     }
+  });
+})();
+
+/* Los CTA abren el calendario de la llamada de 20 minutos.
+   Antes copiaban el correo, que deja la pelota del lado del médico: tiene que
+   abrir su correo, redactar y esperar. Aquí sale con una hora reservada. */
+(function agendarLlamada(){
+  /* Cuenta y evento en Cal.com, tal como salen del enlace público
+     (cal.com/USUARIO/EVENTO ⇒ 'USUARIO/EVENTO').
+
+     Vacío = la cuenta todavía no existe. En ese caso el diálogo enseña
+     directamente el plan B en lugar de un iframe roto, así que esto se puede
+     desplegar hoy y encender después pegando el enlace aquí. */
+  const CAL_LINK  = '';
+  const CAL_ORIGIN = 'https://cal.com';
+  const NS = 'u20';
+
+  const dlg      = document.getElementById('agendar');
+  const caja     = document.getElementById('ag-cal');
+  const cargando = document.getElementById('ag-cargando');
+  if (!dlg || !caja) return;
+
+  const CORREO   = 'dev@itsmiracleai.com';
+  const WHATSAPP = 'https://wa.me/573172550953?text=' + encodeURIComponent(
+    'Hola, vengo del sitio de Ü y quiero agendar la llamada de 20 minutos.'
+  );
+
+  /* Plan B: el calendario no llegó. Pasa de verdad — la red de un hospital
+     bloquea dominios que no conoce y un bloqueador de anuncios se lleva por
+     delante los scripts de terceros. Dejar el punto girando para siempre sería
+     perder al médico justo en el momento en que decidió escribir. */
+  let resuelto = false;
+  function planB(porFallo){
+    if (resuelto) return;
+    resuelto = true;
+    caja.classList.remove('con-cal');
+    /* Dos motivos distintos, dos frases distintas: culpar a la red cuando lo
+       que pasa es que todavía no hay calendario conectado sería mentirle al
+       visitante sobre algo que puede comprobar. */
+    const razon = porFallo
+      ? 'El calendario no cargó desde esta red. Por aquí llegamos igual de rápido.'
+      : 'Te respondemos el mismo día para dejar la hora fijada.';
+    caja.innerHTML =
+      '<div class="ag-planb">' +
+        '<h4>Escríbenos y coordinamos la hora</h4>' +
+        '<p>' + razon + '</p>' +
+        '<div class="vias">' +
+          '<a href="' + WHATSAPP + '" target="_blank" rel="noopener noreferrer">Escribir por WhatsApp</a>' +
+          '<button type="button" class="secundario" data-correo="' + CORREO + '">Copiar ' + CORREO + '</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  /* Cargador oficial de Cal. Definirlo no cuesta red: el <script> de Cal solo
+     se pide en la primera llamada a Cal(), y esa no ocurre hasta que alguien
+     abre el diálogo. Importa porque el arranque ya compite con three.js. */
+  function stub(C, A, L){
+    const p = function(a, ar){ a.q.push(ar); };
+    const d = C.document;
+    C.Cal = C.Cal || function(){
+      const cal = C.Cal, ar = arguments;
+      if (!cal.loaded) {
+        cal.ns = {}; cal.q = cal.q || [];
+        d.head.appendChild(d.createElement('script')).src = A;
+        cal.loaded = true;
+      }
+      if (ar[0] === L) {
+        const api = function(){ p(api, arguments); };
+        const ns = ar[1];
+        api.q = api.q || [];
+        if (typeof ns === 'string') {
+          cal.ns[ns] = cal.ns[ns] || api;
+          p(cal.ns[ns], ar);
+          p(cal, ['initNamespace', ns]);
+        } else p(cal, ar);
+        return;
+      }
+      p(cal, ar);
+    };
+  }
+
+  let montado = false;
+  function montar(){
+    if (montado) return;
+    montado = true;
+    if (!CAL_LINK) { planB(); return; }
+
+    caja.classList.add('con-cal');
+    stub(window, 'https://app.cal.com/embed/embed.js', 'init');
+    Cal('init', NS, { origin: CAL_ORIGIN });
+    // Aquí siempre hay ancho de sobra: abrir() ya mandó los móviles a la
+    // pestaña de Cal, así que el mes es la vista que corresponde.
+    Cal.ns[NS]('inline', {
+      elementOrSelector: '#ag-cal',
+      calLink: CAL_LINK,
+      config: { theme: 'dark', layout: 'month_view' },
+    });
+    Cal.ns[NS]('ui', {
+      theme: 'dark',
+      layout: 'month_view',
+      hideEventTypeDetails: false,
+      cssVarsPerTheme: { dark: { 'cal-brand': '#9CC4FF' } },
+    });
+    Cal.ns[NS]('on', { action: 'linkReady', callback: () => {
+      resuelto = true;
+      cargando?.remove();
+    }});
+    Cal.ns[NS]('on', { action: 'linkFailed', callback: () => planB(true) });
+    /* Si el script de Cal ni siquiera llega, no hay evento que esperar: nadie
+       va a disparar linkFailed. El reloj es la única salida. */
+    setTimeout(() => planB(true), 9000);
+  }
+
+  function enPestana(){
+    window.open(CAL_LINK ? CAL_ORIGIN + '/' + CAL_LINK : WHATSAPP, '_blank', 'noopener,noreferrer');
+  }
+
+  function abrir(){
+    if (dlg.open) return;
+
+    /* Sin <dialog> (navegador viejo) no hay diálogo que abrir: el calendario se
+       atiende en su propia pestaña antes que no atenderlo. */
+    if (typeof dlg.showModal !== 'function') { enPestana(); return; }
+
+    /* El embed necesita unos 700 px para dibujar el mes. Por debajo de eso Cal
+       NO se reacomoda —dentro de un iframe da por hecho que el anfitrión le dio
+       el ancho, e ignora incluso un `layout` más estrecho si el event type no
+       lo tiene habilitado— y el calendario se sale por el costado del teléfono.
+       Su propia página sí es responsive, así que en móvil se va allá: es la
+       única vez que el sitio suelta al visitante, y es a cambio de que la
+       reserva funcione de verdad. Sin CAL_LINK no aplica, porque entonces lo
+       que abre el diálogo es el plan B, que cabe en cualquier pantalla. */
+    if (CAL_LINK && !matchMedia('(min-width: 720px)').matches) { enPestana(); return; }
+
+    /* El fondo no puede seguir corriendo: en este sitio el scroll mueve la
+       cámara 3D, así que dejarlo suelto bajo el diálogo desplazaría la escena a
+       ciegas. No se compensa el ancho de la barra porque el telón oscuro y
+       borroso ya tapa el reflujo. */
+    document.documentElement.style.overflow = 'hidden';
+    dlg.showModal();
+    // Montar DESPUÉS de abrir: con el diálogo cerrado el contenedor mide 0 y
+    // Cal calcularía mal el alto del calendario.
+    montar();
+  }
+
+  /* Devolver el scroll va aquí y NO colgado del evento `close`: hay navegadores
+     donde ese evento no llega, y entonces el diálogo se cierra pero el sitio se
+     queda tieso para siempre —sin scroll no hay nada que ver, es la peor avería
+     posible en una página que se cuenta bajando—. El listener de `close` se
+     conserva como red por si algo cierra el diálogo por un camino que no pasa
+     por aquí. */
+  function liberar(){ document.documentElement.style.overflow = ''; }
+  function cerrar(){ liberar(); if (dlg.open) dlg.close(); }
+  dlg.addEventListener('close', liberar);
+
+  /* Escape a mano, además del que trae <dialog>: el cierre nativo depende de que
+     el foco no se lo haya llevado el iframe de Cal, que es de otro origen y se
+     traga sus propias teclas. Cerrar dos veces no hace nada. */
+  dlg.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrar(); });
+  // Clic en el telón: con padding 0 y los hijos llenando la caja, el único
+  // clic que aterriza en el <dialog> mismo es el de fuera del panel.
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) cerrar(); });
+  document.getElementById('ag-cerrar')?.addEventListener('click', cerrar);
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-agendar]');
+    if (!b) return;
+    e.preventDefault();
+    abrir();
   });
 })();
 
