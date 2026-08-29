@@ -1766,7 +1766,7 @@
      Vacío = la cuenta todavía no existe. En ese caso el diálogo enseña
      directamente el plan B en lugar de un iframe roto, así que esto se puede
      desplegar hoy y encender después pegando el enlace aquí. */
-  const CAL_LINK  = 'miracle-ai-ujjv1u/30min';
+  const CAL_LINK  = 'cal.com-miracle-30min/30min';
   const CAL_ORIGIN = 'https://cal.com';
   // Nombre del espacio de Cal en esta página. Sin número: la duración se cambia
   // en Cal.com, y un '20' aquí quedaría mintiendo al primer ajuste.
@@ -1836,6 +1836,12 @@
     };
   }
 
+  // El calendario llegó: ya no hay nada que esperar ni a qué rendirse.
+  function listo(){
+    resuelto = true;
+    cargando?.remove();
+  }
+
   let montado = false;
   function montar(){
     if (montado) return;
@@ -1858,14 +1864,31 @@
       hideEventTypeDetails: false,
       cssVarsPerTheme: { dark: { 'cal-brand': '#9CC4FF' } },
     });
-    Cal.ns[NS]('on', { action: 'linkReady', callback: () => {
-      resuelto = true;
-      cargando?.remove();
-    }});
+    Cal.ns[NS]('on', { action: 'linkReady', callback: listo });
+
+    /* El aviso "Abriendo el calendario…" se retira en cuanto aparece el iframe,
+       sin esperar a linkReady: ese evento puede llegar diez segundos DESPUÉS de
+       que el calendario ya se ve, y mientras tanto el aviso se queda flotando
+       encima, empujando hacia abajo un calendario que ya se podía usar. El
+       iframe trae su propio esqueleto de carga, así que no queda hueco. */
+    const vigia = new MutationObserver(() => {
+      if (caja.querySelector('iframe')) { listo(); vigia.disconnect(); }
+    });
+    vigia.observe(caja, { childList: true });
     Cal.ns[NS]('on', { action: 'linkFailed', callback: () => planB(true) });
+
     /* Si el script de Cal ni siquiera llega, no hay evento que esperar: nadie
-       va a disparar linkFailed. El reloj es la única salida. */
-    setTimeout(() => planB(true), 9000);
+       va a disparar linkFailed, y el reloj es la única salida.
+
+       Pero el reloj SOLO puede rendirse si además no hay iframe. Con un plazo
+       corto y a secas, el plan B tumbaba un calendario que estaba a punto de
+       aparecer —Cal tarda del orden de diez segundos la primera vez, más en una
+       red lenta— y el visitante veía "no cargó" con el calendario ya en camino.
+       Que exista el iframe prueba que el script llegó; a partir de ahí el que
+       manda es linkFailed, que sabe de verdad si la reserva se puede hacer. */
+    setTimeout(() => {
+      if (!caja.querySelector('iframe')) planB(true);
+    }, 20000);
   }
 
   function enPestana(){
