@@ -795,6 +795,27 @@ export interface AssistantScreenContext {
   user_intent_surface?: string;
 }
 
+/**
+ * Quién es el médico y cómo quiere que le hablen (Configuración > Asistente).
+ *
+ * Va al NIVEL RAÍZ del payload y no dentro de `screen_context` a propósito: ese
+ * objeto tiene una whitelist cerrada de siete campos en el backend y cualquier
+ * clave nueva se descarta en silencio. Además son cosas distintas —
+ * `screen_context` describe lo que se ve en pantalla y el prompt le dice al
+ * modelo que puede estar desactualizado; esto es una preferencia estable.
+ *
+ * El backend lo sanea otra vez (whitelist + topes) antes de que toque el
+ * prompt: lo que manda el navegador nunca se cree a ciegas.
+ */
+export interface AssistantDoctorContext {
+  /** Nombre de pila, para que el asistente pueda usarlo de vez en cuando. */
+  display_name?: string;
+  /** Tratamiento: "tu" | "usted". */
+  address?: string;
+  /** Extensión de la respuesta: "breve" | "equilibrado" | "detallado". */
+  detail?: string;
+}
+
 export interface AssistantChatPayload {
   /** Pregunta o instrucción del médico (máx. 8000 caracteres). */
   message: string;
@@ -804,6 +825,7 @@ export interface AssistantChatPayload {
   encounter_id?: string;
   specialty?: string;
   screen_context?: AssistantScreenContext;
+  doctor?: AssistantDoctorContext;
 }
 
 export interface AssistantChatResult {
@@ -836,6 +858,12 @@ export interface NoteAdjustmentPayload {
   instruction: string;
   /** Limita el ajuste a una sección concreta. */
   section_key?: string;
+  /**
+   * Mismas preferencias que el chat. Aquí importan por el campo `explanation`
+   * de la respuesta, que es el texto que el médico lee al ajustar una sección
+   * ("Juan, la enfermedad actual ya quedó actualizada").
+   */
+  doctor?: AssistantDoctorContext;
 }
 
 export interface NoteAdjustmentResult {

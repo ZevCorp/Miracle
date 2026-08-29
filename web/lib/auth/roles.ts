@@ -108,7 +108,14 @@ export function canAccessPath(
 
   // /app/laboratorio no se decide aquí: lo gobierna el professional_type en la
   // propia página (canUsePhotoNotes).
-  if (pathname.startsWith("/app/usuarios") || pathname.startsWith("/app/configuracion")) {
+  //
+  // OJO con el parecido de nombres: la ruta acotada a admin es
+  // /app/institucion (membrete, servicios, valores por defecto del hospital).
+  // /app/configuracion es la pantalla de ajustes PERSONALES y la alcanza
+  // cualquier rol clínico por la regla permisiva del final — un supervisor
+  // también tiene nombre, cédula y micrófono. La secretaría sigue fuera por su
+  // lista blanca de arriba, y la demo por la suya.
+  if (pathname.startsWith("/app/usuarios") || pathname.startsWith("/app/institucion")) {
     return role === "admin";
   }
 

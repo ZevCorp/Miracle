@@ -92,6 +92,27 @@ export function servicioPorDefecto(org: OrgSettings): string {
 }
 
 /**
+ * Servicio con el que nacen las consultas de UN médico concreto.
+ *
+ * Gemela de responsableLabelDe(): la institución define la LISTA de servicios y
+ * el valor de la casa; el médico elige cuál de esa lista es el suyo. Un médico
+ * de urgencias no debería ver nacer todas sus notas como "Consulta externa"
+ * solo porque es el primero de la lista del hospital.
+ *
+ * Si su preferencia ya no está en la lista (el admin la quitó o la renombró) se
+ * cae al institucional en vez de imprimir un servicio que la institución ya no
+ * reconoce. La pantalla de Configuración avisa de ese caso; aquí solo se decide.
+ */
+export function servicioPreferidoDe(
+  org: OrgSettings,
+  preferido: string | null | undefined,
+): string {
+  const elegido = limpiar(preferido);
+  if (elegido && serviciosDe(org).includes(elegido)) return elegido;
+  return servicioPorDefecto(org);
+}
+
+/**
  * Líneas del encabezado institucional, en orden de impresión.
  *
  * Devuelve solo las que tienen dato: una institución que no cargó teléfono no

@@ -1,7 +1,9 @@
 "use client";
 
-// Orquesta BLE + decodificación Opus + stream sintético + shim de
-// getUserMedia detrás de una API simple: connect()/disconnect(). Mientras
+// Orquesta BLE + decodificación Opus + stream sintético detrás de una API
+// simple: connect()/disconnect(). El desvío de getUserMedia lo administra
+// lib/stt/microphone-source.ts, que es el único dueño de ese parche (lo
+// comparte con la preferencia de micrófono de Configuración). Mientras
 // está "connected", cualquier `useDictation().start()` posterior grabará del
 // Omi en vez del micrófono del navegador.
 //
@@ -28,7 +30,7 @@ import {
 } from "./bleClient";
 import { createOmiOpusDecoder, type OmiOpusDecoderHandle } from "./opusStream";
 import { createSyntheticMicStream, type SyntheticMicStream } from "./syntheticMicStream";
-import { installOmiMicrophoneShim } from "./getUserMediaShim";
+import { setOmiStream } from "@/lib/stt/microphone-source";
 import { omiConnectErrorMessage } from "./messages";
 
 export interface OmiMicrophoneValue {
@@ -51,15 +53,16 @@ function useOmiMicrophoneState(): OmiMicrophoneValue {
   const bleRef = useRef<OmiBleHandle | null>(null);
   const decoderRef = useRef<OmiOpusDecoderHandle | null>(null);
   const micRef = useRef<SyntheticMicStream | null>(null);
-  const uninstallShimRef = useRef<(() => void) | null>(null);
 
   const supported = isWebBluetoothSupported();
 
   const teardown = useCallback(() => {
     bleRef.current?.disconnect();
     bleRef.current = null;
-    uninstallShimRef.current?.();
-    uninstallShimRef.current = null;
+    // Devolver la fuente al micrófono normal es lo PRIMERO que hay que soltar:
+    // si quedara puesta apuntando a un stream ya cerrado, la siguiente
+    // grabación abriría un micrófono mudo.
+    setOmiStream(null);
     micRef.current?.close();
     micRef.current = null;
     decoderRef.current?.free();
@@ -84,7 +87,7 @@ function useOmiMicrophoneState(): OmiMicrophoneValue {
         onError: (message) => setError(message),
       });
       bleRef.current = handle;
-      uninstallShimRef.current = installOmiMicrophoneShim(mic.stream);
+      setOmiStream(mic.stream);
     } catch (e) {
       teardown();
       setStatus("disconnected");

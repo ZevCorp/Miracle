@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Building2,
   ClipboardList,
   CreditCard,
   FileText,
@@ -16,10 +17,11 @@ import {
 /**
  * Ícono de cada entrada del menú, por la clave `icon` de AppNavItem.
  *
- * Vive aparte porque lo usan dos pantallas: el menú lateral y el buscador
- * (⌘K), que ofrece esas mismas entradas como acciones de navegación. Tenerlo
+ * Vive aparte porque lo usan tres pantallas: el menú lateral, el buscador (⌘K)
+ * y la barra inferior del móvil, que ofrecen las mismas entradas. Tenerlo
  * duplicado significaba que añadir una sección al menú la dejaba sin ícono en
- * el buscador, o al revés.
+ * alguna de ellas: la barra móvil arrastró su propia copia hasta que se añadió
+ * "Configuración" y ahí salió con el ícono de reserva.
  */
 export const NAV_ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -30,7 +32,10 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   auditoria: ShieldCheck,
   reportes: BarChart3,
   plantillas: LayoutTemplate,
+  // "configuracion" son los ajustes PERSONALES del médico; la configuración de
+  // la institución es "institucion" y lleva un edificio, no un engranaje.
   configuracion: Settings,
+  institucion: Building2,
   usuarios: UserCog,
   suscripcion: CreditCard,
 };

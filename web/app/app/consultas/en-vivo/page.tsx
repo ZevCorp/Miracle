@@ -51,7 +51,9 @@ import {
 } from "@/lib/clinical/section-drafts";
 import { useSectionDrafts } from "@/lib/clinical/use-section-drafts";
 import { extractPatientIdentity } from "@/lib/clinical/patient-identity";
-import { servicioPorDefecto } from "@/lib/hospital/org";
+import { servicioPreferidoDe } from "@/lib/hospital/org";
+import { buildDoctorContext } from "@/lib/preferences/assistant";
+import { useUserPreferences } from "@/lib/preferences/client";
 import { reviewGeneratedNote } from "@/lib/clinical/note-review";
 import { caretAfterDictation, shouldFollowDictation } from "@/lib/clinical/insert-text";
 import { buildRedactor } from "@/lib/privacy/redact";
@@ -133,6 +135,10 @@ function ConsultaActivaInner() {
     showToast,
     org,
   } = useStore();
+  const { preferences: userPreferences, firstName } = useUserPreferences();
+  // Las preferencias del asistente valen también aquí: `explanation` es texto
+  // que el médico lee ("ya quedó actualizada"), no un dato estructurado.
+  const doctorContext = buildDoctorContext(userPreferences, firstName);
   const [associatedPatientId, setAssociatedPatientId] = useState(pacienteId || null);
   const [patientAssociationOpen, setPatientAssociationOpen] = useState(false);
   const patient = getPatient(associatedPatientId);
@@ -559,7 +565,9 @@ function ConsultaActivaInner() {
             note: rehydratedNote,
             patient,
             transcript: transcriptDraft,
-            servicio: servicioPorDefecto(org),
+            // El servicio del médico manda sobre el de la casa; si no eligió
+            // ninguno (o el suyo ya no está en la lista) cae al institucional.
+            servicio: servicioPreferidoDe(org, userPreferences.defaultServicio),
             now: new Date().toISOString(),
             duracionMin:
               usageSnap && usageSnap.recordingMs > 0
@@ -885,6 +893,7 @@ function ConsultaActivaInner() {
         encounter_id: encounterId,
         // Si el médico escribe el nombre en la instrucción, también se tapa.
         instruction: redactor.redact(instruction),
+        doctor: doctorContext,
       });
       setNote(result.proposed_note_json);
       setNoteDirty(true);
@@ -918,6 +927,7 @@ function ConsultaActivaInner() {
       const result = await adjustNoteWithAssistant({
         encounter_id: encounterId,
         instruction: `En la sección "${sectionTitle}", aplica esta instrucción dictada por el médico: "${redactor.redact(instruction)}". Modifica únicamente lo necesario para cumplirla y conserva el resto de la nota.`,
+        doctor: doctorContext,
       });
       setNote(result.proposed_note_json);
       setNoteDirty(true);

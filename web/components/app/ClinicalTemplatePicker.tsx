@@ -39,8 +39,12 @@ export function ClinicalTemplatePicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [showOthers, setShowOthers] = useState(false);
-  const selected =
-    templates.find((template) => template.id === value) ?? templates[0];
+  // null = todavía no hay plantilla elegida. Antes esto caía a `templates[0]`,
+  // que pintaba la primera del catálogo como si el médico la hubiera escogido.
+  // Con el modo "Elegir cada vez" de Configuración eso pasó de rareza a mentira
+  // diaria: el selector enseñaba un nombre y el botón de iniciar no arrancaba,
+  // porque arriba el id seguía vacío.
+  const selected = templates.find((template) => template.id === value) ?? null;
   // Tolera tildes y errores de tecleo: "pediatria", "Pediatría" y "pedriatria"
   // tienen que llegar a lo mismo. Se incluye el nombre legible de la
   // especialidad además del código, para que buscar "Pediatría" funcione
@@ -68,8 +72,9 @@ export function ClinicalTemplatePicker({
     setQuery("");
   }
 
-  if (!selected) return null;
-  const sections = sortedTemplateSections(selected.sections).slice(0, 4);
+  // Sin catálogo no hay nada que ofrecer; quien llama ya pinta su propio aviso.
+  if (!templates.length) return null;
+  const sections = selected ? sortedTemplateSections(selected.sections).slice(0, 4) : [];
 
   return (
     <>
@@ -77,11 +82,23 @@ export function ClinicalTemplatePicker({
         type="button"
         disabled={disabled}
         onClick={() => setOpen(true)}
-        className="mt-3 flex w-full items-center gap-3 rounded-xl border border-line bg-surface p-3.5 text-left shadow-[var(--shadow-xs)] transition hover:border-accent/50 hover:bg-ice-soft focus:outline-none focus:ring-2 focus:ring-accent/25 disabled:cursor-not-allowed disabled:opacity-60"
+        className={`mt-3 flex w-full items-center gap-3 rounded-xl border bg-surface p-3.5 text-left shadow-[var(--shadow-xs)] transition hover:border-accent/50 hover:bg-ice-soft focus:outline-none focus:ring-2 focus:ring-accent/25 disabled:cursor-not-allowed disabled:opacity-60 ${
+          selected ? "border-line" : "border-dashed border-accent/50"
+        }`}
       >
         <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ice text-accent">
           <FileText size={18} />
         </span>
+        {!selected ? (
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-deep">
+              Elige una plantilla
+            </span>
+            <span className="mt-0.5 block text-xs text-muted">
+              {templates.length} disponibles
+            </span>
+          </span>
+        ) : (
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
             <span className="truncate text-sm font-semibold text-deep">
@@ -107,25 +124,28 @@ export function ClinicalTemplatePicker({
             {selected.sections.length} secciones
           </span>
         </span>
+        )}
         <span className="inline-flex items-center gap-1 text-xs font-semibold text-accent">
-          Cambiar <ChevronDown size={15} />
+          {selected ? "Cambiar" : "Ver"} <ChevronDown size={15} />
         </span>
       </button>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {sections.map((section) => (
-          <span
-            key={section.key}
-            className="rounded-full border border-line bg-pearl px-2 py-1 text-xs text-ink-soft"
-          >
-            {section.label}
-          </span>
-        ))}
-        {selected.sections.length > sections.length ? (
-          <span className="px-1 py-1 text-xs text-muted">
-            +{selected.sections.length - sections.length}
-          </span>
-        ) : null}
-      </div>
+      {selected ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {sections.map((section) => (
+            <span
+              key={section.key}
+              className="rounded-full border border-line bg-pearl px-2 py-1 text-xs text-ink-soft"
+            >
+              {section.label}
+            </span>
+          ))}
+          {selected.sections.length > sections.length ? (
+            <span className="px-1 py-1 text-xs text-muted">
+              +{selected.sections.length - sections.length}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {open ? (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-overlay p-0 backdrop-blur-[2px] sm:items-center sm:p-6">
@@ -192,7 +212,7 @@ export function ClinicalTemplatePicker({
                     <TemplateOption
                       key={template.id}
                       template={template}
-                      active={template.id === selected.id}
+                      active={template.id === selected?.id}
                       pinned={pinnedTemplateIds.has(template.id)}
                       onPick={pick}
                     />
@@ -214,7 +234,7 @@ export function ClinicalTemplatePicker({
                     <TemplateOption
                       key={template.id}
                       template={template}
-                      active={template.id === selected.id}
+                      active={template.id === selected?.id}
                       pinned={pinnedTemplateIds.has(template.id)}
                       onPick={pick}
                     />
@@ -231,7 +251,7 @@ export function ClinicalTemplatePicker({
                           <TemplateOption
                             key={template.id}
                             template={template}
-                            active={template.id === selected.id}
+                            active={template.id === selected?.id}
                             pinned={pinnedTemplateIds.has(template.id)}
                             onPick={pick}
                           />

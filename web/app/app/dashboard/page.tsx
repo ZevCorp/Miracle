@@ -543,7 +543,7 @@ function AdminView() {
         <Link href="/app/usuarios" className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">
           Gestionar usuarios <ArrowRight size={14} />
         </Link>
-        <Link href="/app/configuracion" className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">
+        <Link href="/app/institucion" className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">
           Configuración institucional <ArrowRight size={14} />
         </Link>
       </div>

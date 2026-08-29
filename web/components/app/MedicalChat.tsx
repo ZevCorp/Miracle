@@ -8,6 +8,8 @@ import {
   friendlyClinicalMessage,
   sendAssistantChat,
 } from "@/lib/api/clinical";
+import { buildDoctorContext } from "@/lib/preferences/assistant";
+import { useUserPreferences } from "@/lib/preferences/client";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -42,6 +44,7 @@ const SUGERENCIAS = [
 
 export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
   const pathname = usePathname();
+  const { preferences, firstName, specialtyCode } = useUserPreferences();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -74,6 +77,12 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
         message: content,
         history,
         screen_context: pathname ? { route: pathname } : undefined,
+        // `specialty` estaba en el contrato desde el principio y el backend SÍ
+        // lo usa para adaptar el razonamiento (pediatría, gineco-obstetricia,
+        // psiquiatría tienen reglas propias en su prompt). Nadie se lo mandaba,
+        // así que todo el mundo recibía la respuesta "general".
+        specialty: specialtyCode ?? undefined,
+        doctor: buildDoctorContext(preferences, firstName),
       });
       const reply = result.answer?.trim();
       if (!reply) {

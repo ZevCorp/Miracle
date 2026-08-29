@@ -11,6 +11,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeSpecialtyCode, type ClinicalTemplate } from "@/lib/api/clinical";
+import type { TemplateStartMode } from "@/lib/preferences/types";
 
 export interface TemplatePreference {
   specialtyCode: string;
@@ -90,12 +91,59 @@ export function isPinned(
   return preferences.some((preference) => preference.templateId === template.id);
 }
 
+
+// ---- Memoria de la última plantilla usada ----------------------------------
+// Recuerda, por médico, la última plantilla con la que de verdad INICIÓ una
+// grabación (no solo la que miró en el selector). Es la señal implícita más
+// honesta de "la que más usa" — más confiable que asumir la de su especialidad,
+// que no siempre coincide con lo que realmente elige día a día.
+//
+// Vive en localStorage y no en la base a propósito: es una señal de uso, no una
+// decisión del médico. Su decisión explícita es el pin, y esa sí se guarda.
+//
+// Estas dos funciones vivían dentro de QuickConsultationLauncher, y por eso la
+// pantalla /consultas/nueva ni leía ni escribía esta memoria: la "última usada"
+// solo funcionaba entrando por el acceso rápido. Al volverse un modo que el
+// médico puede ELEGIR en Configuración, tenía que funcionar por las dos puertas.
+
+function lastTemplateKey(userId: string) {
+  return `miracle-last-template:${userId}`;
+}
+
+export function readLastTemplateId(userId?: string | null): string | null {
+  if (!userId || typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(lastTemplateKey(userId));
+  } catch {
+    return null;
+  }
+}
+
+export function rememberTemplateId(
+  userId: string | null | undefined,
+  templateId: string,
+) {
+  if (!userId || !templateId || typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(lastTemplateKey(userId), templateId);
+  } catch {
+    /* almacenamiento no disponible: sin memoria, no rompe el flujo */
+  }
+}
+
 /**
- * Plantilla preseleccionada al iniciar una consulta. Orden de prioridad:
- *  1. Pin personal más reciente cuya plantilla siga activa — es una decisión
- *     explícita del médico y gana a cualquier heurística.
- *  2. Última usada (localStorage; solo la pasa el lanzador rápido). Conserva su
- *     lugar sobre la institucional: es la señal implícita más honesta.
+ * Plantilla preseleccionada al iniciar una consulta.
+ *
+ * El médico decide en Configuración QUÉ debe pasar al empezar (`mode`):
+ *
+ *  - "fixed"  (por defecto histórico) — manda su pin "mi sugerida". Es una
+ *    decisión explícita y gana a cualquier heurística. Si la plantilla fijada
+ *    ya no existe, cae al resto de la cadena en vez de dejarlo sin nada.
+ *  - "last" — manda la última que de verdad usó. Los pines se saltan: si eligió
+ *    "la última", respetar el pin sería ignorar lo que pidió.
+ *  - "manual" — no se preselecciona nada; la elige cada vez.
+ *
+ * El resto de la cadena, común a "fixed" y "last":
  *  3. Sugerida institucional (is_default) dentro de la lista "preferida"
  *     (personales + institucionales de su especialidad, con fallback a todas).
  *  4. Primera de esa lista.
@@ -105,20 +153,32 @@ export function pickPreselectedTemplate({
   preferences,
   lastUsedId,
   specialtyCode,
+  mode = "fixed",
 }: {
   templates: readonly ClinicalTemplate[];
   preferences: readonly TemplatePreference[];
   lastUsedId?: string | null;
   specialtyCode?: string | null;
+  /**
+   * Preferencia del médico. Por defecto "fixed" —el comportamiento que la app
+   * tuvo siempre— para que quien llame sin pasarlo no cambie de conducta.
+   */
+  mode?: TemplateStartMode;
 }): string {
+  // Elegir cada vez es una respuesta completa: no se cae a ninguna heurística,
+  // porque el médico pidió expresamente que no se adivine por él.
+  if (mode === "manual") return "";
+
   const active = templates.filter((template) => template.status !== "archived");
 
-  const byRecency = [...preferences].sort((a, b) =>
-    b.updatedAt.localeCompare(a.updatedAt),
-  );
-  for (const preference of byRecency) {
-    if (active.some((template) => template.id === preference.templateId)) {
-      return preference.templateId;
+  if (mode !== "last") {
+    const byRecency = [...preferences].sort((a, b) =>
+      b.updatedAt.localeCompare(a.updatedAt),
+    );
+    for (const preference of byRecency) {
+      if (active.some((template) => template.id === preference.templateId)) {
+        return preference.templateId;
+      }
     }
   }
 

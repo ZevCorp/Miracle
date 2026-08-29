@@ -35,11 +35,21 @@ describe("canAccessPath", () => {
     expect(canAccessPath("supervisor", "/app/consultas/nueva")).toBe(false);
   });
 
-  it("usuarios y configuración solo para admin", () => {
+  it("usuarios y la configuración institucional solo para admin", () => {
     expect(canAccessPath("admin", "/app/usuarios")).toBe(true);
-    expect(canAccessPath("admin", "/app/configuracion")).toBe(true);
+    expect(canAccessPath("admin", "/app/institucion")).toBe(true);
     expect(canAccessPath("medico", "/app/usuarios")).toBe(false);
-    expect(canAccessPath("supervisor", "/app/configuracion")).toBe(false);
+    expect(canAccessPath("supervisor", "/app/institucion")).toBe(false);
+  });
+
+  // /app/configuracion son los ajustes PERSONALES y se parece demasiado de
+  // nombre a /app/institucion: este test es el que avisa si alguien vuelve a
+  // meterlos en la misma cláusula y deja a los médicos sin su propia pantalla.
+  it("la configuración personal la alcanza cualquier rol clínico", () => {
+    expect(canAccessPath("medico", "/app/configuracion")).toBe(true);
+    expect(canAccessPath("supervisor", "/app/configuracion")).toBe(true);
+    expect(canAccessPath("admin", "/app/configuracion")).toBe(true);
+    expect(canAccessPath("secretaria", "/app/configuracion")).toBe(false);
   });
 
   it("auditoría y reportes para admin o supervisor", () => {
@@ -89,6 +99,7 @@ describe("canAccessPath · cuenta demo comercial", () => {
     // médicos y esas secciones son de un administrador de hospital.
     for (const path of [
       "/app/usuarios",
+      "/app/institucion",
       "/app/configuracion",
       "/app/auditoria",
       "/app/reportes",

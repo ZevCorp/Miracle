@@ -13,37 +13,14 @@ import {
   getTemplatePreferences,
   pickPreselectedTemplate,
   pinnedTemplateIds,
+  readLastTemplateId,
+  rememberTemplateId,
   type TemplatePreference,
 } from "@/lib/clinical/template-preferences";
+import { useUserPreferences } from "@/lib/preferences/client";
 import { createClient } from "@/lib/supabase/client";
 import { ClinicalTemplatePicker } from "./ClinicalTemplatePicker";
 import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
-
-// Recuerda, por médico, la última plantilla con la que de verdad inició una
-// grabación (no solo la que miró en el selector). Es la señal más honesta de
-// "la que más usa" — más confiable que asumir la de su especialidad, que no
-// siempre coincide con lo que realmente elige día a día.
-function lastTemplateKey(userId: string) {
-  return `miracle-last-template:${userId}`;
-}
-
-function readLastTemplateId(userId?: string | null): string | null {
-  if (!userId || typeof window === "undefined") return null;
-  try {
-    return window.localStorage.getItem(lastTemplateKey(userId));
-  } catch {
-    return null;
-  }
-}
-
-function rememberTemplateId(userId: string | null | undefined, templateId: string) {
-  if (!userId || typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(lastTemplateKey(userId), templateId);
-  } catch {
-    /* almacenamiento no disponible: sin memoria, no rompe el flujo */
-  }
-}
 
 /**
  * Entrada corta para una captura espontánea: crea el encounter real y abre el
@@ -59,6 +36,7 @@ export function QuickConsultationLauncher({
   const router = useRouter();
   const pathname = usePathname();
   const { guardedNavigate } = useNavigationGuard();
+  const { preferences: userPreferences } = useUserPreferences();
   const [open, setOpen] = useState(false);
   const [templates, setTemplates] = useState<ClinicalTemplate[]>([]);
   const [preferences, setPreferences] = useState<TemplatePreference[]>([]);
@@ -84,15 +62,17 @@ export function QuickConsultationLauncher({
         const activeAll = items.filter((template) => template.status !== "archived");
         setTemplates(activeAll);
         setPreferences(prefs);
-        // Prioridad del preseleccionado (lib/clinical/template-preferences):
-        // 1) el pin "mi sugerida" del médico; 2) la última que de verdad usó;
-        // 3) la sugerida institucional de su especialidad; 4) la primera.
+        // Qué queda preseleccionado lo decide el médico en Configuración
+        // (lib/clinical/template-preferences): su pin, la última que usó, o
+        // nada. El resto de la cadena —sugerida institucional, primera de la
+        // lista— sigue igual.
         setSelectedTemplateId(
           pickPreselectedTemplate({
             templates: activeAll,
             preferences: prefs,
             lastUsedId: readLastTemplateId(userId),
             specialtyCode,
+            mode: userPreferences.templateStartMode,
           }),
         );
       })

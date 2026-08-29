@@ -154,6 +154,68 @@ export async function assertMicrophoneDelivers(
 }
 
 /**
+ * Vúmetro en vivo: llama a `onLevel` con el pico (0..1) unas 20 veces por
+ * segundo hasta que se invoque el desuscriptor que devuelve.
+ *
+ * Comparte el mismo montaje que `probeMicrophoneSignal` —fuente → analizador,
+ * sin conectar a `ctx.destination` para no devolver el micrófono por los
+ * altavoces— pero en vez de emitir un veredicto al final va reportando, que es
+ * lo que necesita la pantalla de "Probar micrófono": el médico habla y ve la
+ * barra moverse. Un veredicto de texto no convence a nadie de que su micrófono
+ * está vivo; una barra que responde a su voz, sí.
+ *
+ * Nunca lanza: si WebAudio no está disponible simplemente no reporta nada.
+ */
+export function createMicLevelMeter(
+  stream: MediaStream,
+  onLevel: (peak: number) => void,
+  deps: MicProbeDeps = {},
+): () => void {
+  const createContext = deps.createAudioContext ?? resolveAudioContextCtor();
+  if (!createContext) return () => {};
+
+  let cerrado = false;
+  let ctx: AudioContext | null = null;
+  let timer: ReturnType<typeof setInterval> | null = null;
+
+  try {
+    ctx = createContext();
+    void ctx.resume().catch(() => {});
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+
+    const buffer = new Float32Array(analyser.fftSize);
+    timer = setInterval(() => {
+      analyser.getFloatTimeDomainData(buffer);
+      let peak = 0;
+      for (let i = 0; i < buffer.length; i += 1) {
+        const v = Math.abs(buffer[i]);
+        if (v > peak) peak = v;
+      }
+      onLevel(peak);
+    }, 50);
+
+    return function stop() {
+      if (cerrado) return;
+      cerrado = true;
+      if (timer) clearInterval(timer);
+      try {
+        source.disconnect();
+      } catch {
+        /* el contexto ya podía estar cerrándose */
+      }
+      void ctx?.close().catch(() => {});
+    };
+  } catch {
+    if (timer) clearInterval(timer);
+    void ctx?.close().catch(() => {});
+    return () => {};
+  }
+}
+
+/**
  * Avisa si la pista muere o enmudece EN MITAD de la grabación (típico de un USB
  * que se re-enumera). Devuelve el desuscriptor.
  */

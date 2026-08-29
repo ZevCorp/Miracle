@@ -7,11 +7,19 @@
 // mensaje, no alcanza con el `name`.
 
 import { isAndroid, isIOS } from "./platform";
+import { OmiWorkletLoadError } from "./syntheticMicStream";
 
 export const ANDROID_PERMISO =
-  "Chrome no tiene permiso para usar Bluetooth en este teléfono. Andá a Ajustes del sistema → Apps → Chrome → Permisos → Dispositivos cercanos, y activalo. También revisá que el Bluetooth esté encendido.";
+  "Chrome no tiene permiso para usar Bluetooth en este teléfono. Ve a Ajustes del sistema → Apps → Chrome → Permisos → Dispositivos cercanos, y actívalo. Revisa también que el Bluetooth esté encendido.";
 
 export function omiConnectErrorMessage(error: unknown): string | null {
+  // Va primero, antes de mirar nombres de DOMException: el fallo no es de
+  // Bluetooth y decirle al médico que revise el adaptador lo mandaría a buscar
+  // en el sitio equivocado. Es el único error de Omi que se arregla con la red.
+  if (error instanceof OmiWorkletLoadError) {
+    return "No hay conexión para cargar el módulo de audio del Omi. El emparejamiento es Bluetooth, pero esa pieza se descarga una vez: revisa tu conexión y vuelve a intentar.";
+  }
+
   const name =
     error && typeof error === "object" && "name" in error
       ? String((error as { name?: unknown }).name)
@@ -29,12 +37,12 @@ export function omiConnectErrorMessage(error: unknown): string | null {
 
   if (name === "NotFoundError" || /adapter not available/i.test(message)) {
     if (isAndroid()) return ANDROID_PERMISO;
-    return "No se encontró un adaptador Bluetooth activo. Revisá que el Bluetooth esté encendido en este equipo.";
+    return "No se encontró un adaptador Bluetooth activo. Revisa que el Bluetooth esté encendido en este equipo.";
   }
 
   if (name === "SecurityError" || name === "NotAllowedError") {
     if (isAndroid()) return ANDROID_PERMISO;
-    return "El navegador bloqueó el acceso a Bluetooth. Revisá los permisos del sitio (icono de candado en la barra de direcciones).";
+    return "El navegador bloqueó el acceso a Bluetooth. Revisa los permisos del sitio (el candado de la barra de direcciones).";
   }
 
   if (isIOS()) {

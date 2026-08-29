@@ -155,6 +155,76 @@ describe("isPinned / pinnedTemplateIds", () => {
   });
 });
 
+/* ------------------------------------------------------------------ */
+/* Modo elegido por el médico (Configuración > General)                */
+/* ------------------------------------------------------------------ */
+
+describe("pickPreselectedTemplate · modo de arranque", () => {
+  const base = [
+    template({ id: "default-general", is_default: true }),
+    template({ id: "otra-general" }),
+    template({ id: "personal-1", scope: "personal" }),
+  ];
+
+  it('sin `mode` se comporta como siempre: manda el pin', () => {
+    // Es lo que protege a quien ya tenía un pin antes de que existiera la
+    // pantalla de Configuración. Si el defecto fuera "last", a esa gente le
+    // cambiaríamos la plantilla de arranque por debajo y sin avisar.
+    expect(
+      pickPreselectedTemplate({
+        templates: base,
+        preferences: [pref("otra-general")],
+        lastUsedId: "personal-1",
+      }),
+    ).toBe("otra-general");
+  });
+
+  it('"manual" no preselecciona nada, ni siquiera habiendo pin y última usada', () => {
+    expect(
+      pickPreselectedTemplate({
+        templates: base,
+        preferences: [pref("otra-general")],
+        lastUsedId: "personal-1",
+        mode: "manual",
+      }),
+    ).toBe("");
+  });
+
+  it('"last" salta el pin y usa la última que de verdad se usó', () => {
+    // Respetar el pin aquí sería ignorar lo que el médico pidió expresamente.
+    expect(
+      pickPreselectedTemplate({
+        templates: base,
+        preferences: [pref("otra-general")],
+        lastUsedId: "personal-1",
+        mode: "last",
+      }),
+    ).toBe("personal-1");
+  });
+
+  it('"last" sin memoria todavía cae a la sugerida institucional', () => {
+    expect(
+      pickPreselectedTemplate({
+        templates: base,
+        preferences: [pref("otra-general")],
+        mode: "last",
+        specialtyCode: "medicina_general",
+      }),
+    ).toBe("default-general");
+  });
+
+  it('"fixed" usa el pin y, si su plantilla ya no existe, no deja al médico sin nada', () => {
+    expect(
+      pickPreselectedTemplate({
+        templates: base,
+        preferences: [pref("borrada-hace-meses")],
+        mode: "fixed",
+        specialtyCode: "medicina_general",
+      }),
+    ).toBe("default-general");
+  });
+});
+
 describe("rowToPreference", () => {
   it("mapea la fila snake_case de Supabase al modelo del frontend", () => {
     expect(
