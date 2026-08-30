@@ -40,6 +40,16 @@ import {
  *   (eso lo garantiza updateNoteSectionContent en lib/api/clinical).
  * - Nada de parsear markdown ni inventar/eliminar secciones.
  */
+/**
+ * A qué escribe el micrófono. Lleva `key` además del rótulo porque el dictado
+ * literal se escribe en la sección, y `onChangeSection` va por key. El resumen
+ * no es una sección de la plantilla: viaja con key vacía.
+ */
+export interface VoiceTarget {
+  key: string;
+  label: string;
+}
+
 export function EncounterNote({
   note,
   review,
@@ -61,7 +71,7 @@ export function EncounterNote({
   onChangeSection: (key: string, content: string) => void;
   onChangeSummary: (summary: string) => void;
   /** Instrucción hablada para modificar una sección con el asistente clínico. */
-  onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
+  onVoiceInstruction?: (section: VoiceTarget, dictado: string) => void;
   voiceProcessingSection?: string | null;
 }) {
   return (
@@ -198,11 +208,12 @@ function SummaryBlock({
   summary: string;
   editable: boolean;
   onChange: (summary: string) => void;
-  onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
+  onVoiceInstruction?: (section: VoiceTarget, dictado: string) => void;
   voiceProcessing: boolean;
 }) {
   return (
     <EditableBlock
+      target={{ key: "", label: "Resumen" }}
       title="Resumen"
       content={summary}
       editable={editable}
@@ -223,11 +234,12 @@ function SectionBlock({
   section: ClinicalNoteSection;
   editable: boolean;
   onChange: (content: string) => void;
-  onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
+  onVoiceInstruction?: (section: VoiceTarget, dictado: string) => void;
   voiceProcessing: boolean;
 }) {
   return (
     <EditableBlock
+      target={{ key: section.key, label: section.label }}
       title={section.label}
       content={section.content}
       editable={editable}
@@ -252,6 +264,7 @@ function rowsForText(text: string): number {
 }
 
 function EditableBlock({
+  target,
   title,
   content,
   editable,
@@ -259,11 +272,12 @@ function EditableBlock({
   onVoiceInstruction,
   voiceProcessing,
 }: {
+  target: VoiceTarget;
   title: string;
   content: string;
   editable: boolean;
   onChange: (content: string) => void;
-  onVoiceInstruction?: (sectionTitle: string, instruction: string) => void;
+  onVoiceInstruction?: (section: VoiceTarget, dictado: string) => void;
   voiceProcessing: boolean;
 }) {
   const [open, setOpen] = useState(true);
@@ -443,6 +457,25 @@ function EditableBlock({
   }, [editing, draft, content]);
 
   /**
+   * Reengancha el borrador cuando la seccion cambia DESDE FUERA.
+   *
+   * Pasa con el microfono: el dictado literal lo escribe el padre, y si el
+   * medico tenia la seccion abierta en edicion, este textarea seguia con el
+   * texto viejo. A los 1200 ms su autoguardado lo confirmaba y se llevaba por
+   * delante lo recien dictado, sin que nada lo avisara.
+   *
+   * Solo cuando el campo NO tiene el foco: si el medico esta tecleando ahi
+   * dentro, manda lo que escribe y no se le toca el cursor.
+   */
+  useEffect(() => {
+    if (!editing) return;
+    if (typeof document !== "undefined" && document.activeElement === textareaRef.current) {
+      return;
+    }
+    setDraft(content);
+  }, [content, editing]);
+
+  /**
    * Confirma YA lo que haya escrito, sin esperar la pausa de 1200 ms.
    *
    * Sin esto, escribir y pulsar "Guardar nota" enseguida dejaba el último
@@ -489,10 +522,10 @@ function EditableBlock({
         .map((result) => result[0]?.transcript ?? "")
         .join(" ")
         .trim();
-      if (instruction) onVoiceInstruction(title, instruction);
+      if (instruction) onVoiceInstruction(target, instruction);
     };
-    recognition.onerror = () => {
-      setVoiceError("No pudimos entender el cambio. Intenta dictarlo de nuevo.");
+    recognition.onerror = (event) => {
+      setVoiceError(mensajeDeErrorDeVoz(event?.error));
     };
     recognition.onend = () => {
       recognitionRef.current = null;
@@ -558,7 +591,7 @@ function EditableBlock({
               </button>
             </HoverHint>
           ) : null}
-          {editable && onVoiceInstruction ? (
+          {(editable || voiceProcessing) && onVoiceInstruction ? (
             <button
               type="button"
               onClick={dictateChange}
@@ -701,11 +734,39 @@ type SpeechRecognitionLike = {
   interimResults: boolean;
   continuous: boolean;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
   onend: (() => void) | null;
   start: () => void;
 };
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+/**
+ * Por qué falló el dictado, dicho de forma que el médico pueda actuar.
+ *
+ * Antes todo caía en "No pudimos entender el cambio": con el permiso del
+ * micrófono denegado, el médico reintentaba una y otra vez contra una pared,
+ * sin que nada le dijera que el problema era el permiso. Los códigos son los
+ * del evento de la Web Speech API.
+ */
+function mensajeDeErrorDeVoz(codigo?: string): string {
+  switch (codigo) {
+    case "not-allowed":
+    case "service-not-allowed":
+      return "El navegador bloqueó el micrófono. Permítelo en el candado de la barra de direcciones y vuelve a intentarlo.";
+    case "audio-capture":
+      return "No encontramos un micrófono en este dispositivo.";
+    case "network":
+      return "El dictado necesita conexión y no pudimos conectar. Revísala e inténtalo de nuevo.";
+    case "no-speech":
+      return "No se escuchó nada. Acerca el micrófono y dicta de nuevo.";
+    case "aborted":
+      // Lo cancela el propio médico (otra grabación, cambio de pestaña): no es
+      // un fallo y no merece una alerta roja.
+      return "";
+    default:
+      return "No pudimos entender el cambio. Intenta dictarlo de nuevo.";
+  }
+}
 
 function getSpeechRecognition(): SpeechRecognitionConstructor | null {
   if (typeof window === "undefined") return null;
