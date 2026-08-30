@@ -1778,7 +1778,9 @@
   if (!dlg || !caja) return;
 
   const CORREO   = 'dev@itsmiracleai.com';
-  const WHATSAPP = 'https://wa.me/573172550953?text=' + encodeURIComponent(
+  /* El número va escrito a mano y no importado de lib/site.ts porque esto es un
+     HTML estático, fuera del build. Si cambia allá, hay que cambiarlo aquí. */
+  const WHATSAPP = 'https://wa.me/573134582806?text=' + encodeURIComponent(
     'Hola, vengo del sitio de Ü y quiero agendar la llamada de 30 minutos.'
   );
 
