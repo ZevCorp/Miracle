@@ -103,7 +103,12 @@ export async function getSnippets(supabase: SupabaseClient): Promise<Snippet[]> 
   const { data, error } = await supabase
     .from(TABLE)
     .select(COLUMNS)
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    // Explícito y no por si acaso: `content` llega entero (la búsqueda puntúa
+    // por contenido), así que sin tope una cuenta en el máximo traería del
+    // orden de veinte megas en una sola consulta. El tope de la app y el de la
+    // consulta tienen que ser el mismo número.
+    .limit(SNIPPET_LIMITS.perUser);
   if (error) throw error;
   return (data ?? []).map(rowToSnippet);
 }
@@ -203,6 +208,45 @@ export function categoriesFrom(snippets: readonly Snippet[]): string[] {
     if (!seen.has(key)) seen.set(key, category);
   }
   return [...seen.values()].sort((a, b) => a.localeCompare(b, "es"));
+}
+
+export interface SnippetGroup {
+  category: string;
+  snippets: Snippet[];
+}
+
+/**
+ * Los atajos agrupados por sección, para la pantalla de administrar.
+ *
+ * El modelo mental del médico ya es por sección —la categoría ES el nombre de
+ * una sección de la nota— pero la lista era plana: con cien atajos, cien
+ * tarjetas seguidas no se pueden recorrer. Los que no tienen sección van al
+ * final, no mezclados.
+ */
+export function groupSnippetsByCategory(
+  snippets: readonly Snippet[],
+): SnippetGroup[] {
+  const grupos = new Map<string, SnippetGroup>();
+  const sinSeccion: Snippet[] = [];
+  for (const snippet of snippets) {
+    const category = snippet.category.trim();
+    if (!category) {
+      sinSeccion.push(snippet);
+      continue;
+    }
+    const key = normalizeForSearch(category);
+    const grupo = grupos.get(key);
+    if (grupo) grupo.snippets.push(snippet);
+    // La primera grafía vista es la que nombra el grupo, igual que categoriesFrom.
+    else grupos.set(key, { category, snippets: [snippet] });
+  }
+  const ordenados = [...grupos.values()].sort((a, b) =>
+    a.category.localeCompare(b.category, "es"),
+  );
+  if (sinSeccion.length) {
+    ordenados.push({ category: "", snippets: sinSeccion });
+  }
+  return ordenados;
 }
 
 /**

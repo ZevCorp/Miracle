@@ -23,15 +23,28 @@
  *
  *   NADA DE ATAJOS DE TECLADO PROPIOS. La pantalla ya usa "/" para los atajos
  *   de texto y Escape para varias cosas; añadir más sería pelear con el médico.
+ *
+ *   Y LOS ATAJOS DE TEXTO SÍ VIVEN AQUÍ. Este comentario decía desde el
+ *   principio que "la pantalla ya usa /", pero el panel no lo tenía cableado:
+ *   los atajos solo existían en el editor de la nota, o sea después de generar,
+ *   o sea cuando el paciente ya se fue. Es justo aquí donde más falta hacen.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Loader2, NotebookPen } from "lucide-react";
 import type { ClinicalTemplateSection } from "@/lib/api/clinical";
 import { sortedTemplateSections } from "@/lib/api/clinical";
 import type { SectionDrafts } from "@/lib/clinical/section-drafts";
 import { countSectionDrafts } from "@/lib/clinical/section-drafts";
 import type { SaveState } from "@/lib/clinical/use-section-drafts";
+import { SnippetPopup } from "@/components/app/SnippetPopup";
+import { slashQueryAt, type SlashToken } from "@/lib/clinical/slash-trigger";
+import { insertSnippetText } from "@/lib/clinical/insert-text";
+import {
+  firstPlaceholderIn,
+  nextPlaceholderAfter,
+} from "@/lib/clinical/placeholders";
+import type { Snippet } from "@/lib/clinical/snippets";
 
 /** Lo que se enseña de una sección cerrada: una línea, sin cortar palabras. */
 function resumen(texto: string): string {
@@ -147,13 +160,11 @@ export function SectionDraftsPanel({
               </button>
               {abierta ? (
                 <div id={idPanel} className="px-2.5 pb-3 pl-[30px]">
-                  <textarea
+                  <DraftField
+                    label={section.label}
                     value={valor}
-                    onChange={(event) => onChange(section.key, event.target.value)}
                     disabled={disabled}
-                    rows={3}
-                    placeholder={`Lo que quieras dejar en «${section.label}»…`}
-                    className="w-full resize-y rounded-lg border border-line bg-field px-3 py-2 text-sm leading-relaxed text-deep outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+                    onChange={(next) => onChange(section.key, next)}
                   />
                 </div>
               ) : null}
@@ -168,5 +179,115 @@ export function SectionDraftsPanel({
         </span>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Un campo de sección, con los atajos de texto cableados.
+ *
+ * Es DONDE MÁS FALTA HACEN y donde no estaban: aquí el médico escribe con el
+ * paciente delante, mientras la consulta corre. Los atajos solo existían después
+ * de generar la nota, o sea cuando el paciente ya se fue.
+ *
+ * Cada sección abierta lleva su propio estado: dos campos abiertos a la vez no
+ * pueden compartir ni el token de la "/" ni el cursor pendiente.
+ */
+function DraftField({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  disabled: boolean;
+  onChange: (next: string) => void;
+}) {
+  const [slash, setSlash] = useState<SlashToken | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const selectionRef = useRef<{ start: number; end: number } | null>(null);
+  const pendingSelectionRef = useRef<{ start: number; end: number } | null>(null);
+  // Token que el médico descartó con Escape, para no reabrirle la lista encima
+  // mientras sigue escribiendo esa misma palabra.
+  const dismissedSlashRef = useRef<number | null>(null);
+
+  // El valor lo controla el padre, así que el cursor se coloca después del
+  // commit: antes, el texto insertado todavía no está en el campo.
+  useEffect(() => {
+    const pending = pendingSelectionRef.current;
+    if (!pending) return;
+    const node = textareaRef.current;
+    if (!node) return;
+    pendingSelectionRef.current = null;
+    node.focus();
+    node.setSelectionRange(pending.start, pending.end);
+    selectionRef.current = { start: pending.start, end: pending.end };
+  }, [value]);
+
+  function refresh(node: HTMLTextAreaElement) {
+    selectionRef.current = { start: node.selectionStart, end: node.selectionEnd };
+    const token = slashQueryAt(node.value, node.selectionStart);
+    if (!token) {
+      dismissedSlashRef.current = null;
+      setSlash(null);
+      return;
+    }
+    setSlash(dismissedSlashRef.current === token.start ? null : token);
+  }
+
+  function pick(snippet: Snippet) {
+    const token = slash;
+    setSlash(null);
+    dismissedSlashRef.current = null;
+    if (!token) return;
+    const caret = textareaRef.current?.selectionStart ?? value.length;
+    const result = insertSnippetText(value, token.start, caret, snippet.content);
+    // Si el atajo trae huecos, el cursor cae en el primero.
+    const hueco = firstPlaceholderIn(result.next, result.selStart, result.selEnd);
+    pendingSelectionRef.current = hueco ?? { start: result.selEnd, end: result.selEnd };
+    onChange(result.next);
+  }
+
+  /** Tab salta al siguiente hueco; sin huecos, Tab hace lo de siempre. */
+  function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Tab" || event.shiftKey) return;
+    const node = event.currentTarget;
+    const hueco = nextPlaceholderAfter(node.value, node.selectionEnd);
+    if (!hueco) return;
+    event.preventDefault();
+    node.setSelectionRange(hueco.start, hueco.end);
+    selectionRef.current = { start: hueco.start, end: hueco.end };
+  }
+
+  return (
+    <div className="relative">
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+          refresh(event.target);
+        }}
+        onSelect={(event) => refresh(event.currentTarget)}
+        onKeyDown={onKeyDown}
+        disabled={disabled}
+        rows={3}
+        placeholder={`Lo que quieras dejar en «${label}»… o escribe / para un atajo`}
+        className="w-full resize-y rounded-lg border border-line bg-field px-3 py-2 text-sm leading-relaxed text-deep outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+      />
+      {slash ? (
+        <SnippetPopup
+          sectionTitle={label}
+          query={slash.query}
+          textareaRef={textareaRef}
+          caretIndex={slash.start}
+          onPick={pick}
+          onClose={() => {
+            dismissedSlashRef.current = slash.start;
+            setSlash(null);
+          }}
+        />
+      ) : null}
+    </div>
   );
 }

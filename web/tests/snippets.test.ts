@@ -8,6 +8,7 @@ import {
   createSnippets,
   deleteSnippet,
   filterSnippets,
+  groupSnippetsByCategory,
   getSnippets,
   normalizeForSearch,
   rowToSnippet,
@@ -37,7 +38,7 @@ function fakeSupabase(result: { data?: unknown; error?: unknown; count?: number 
     calls.push({ method, args });
   };
   const chain: Record<string, unknown> = {};
-  for (const method of ["select", "insert", "update", "delete", "eq", "order"]) {
+  for (const method of ["select", "insert", "update", "delete", "eq", "order", "limit"]) {
     chain[method] = (...args: unknown[]) => {
       record(method, ...args);
       return chain;
@@ -233,6 +234,12 @@ describe("acceso a datos", () => {
       "updated_at",
       { ascending: false },
     ]);
+    // `content` viene entero, así que sin tope una cuenta en el máximo traería
+    // del orden de veinte megas. El tope de la consulta y el de la app tienen
+    // que ser el mismo número.
+    expect(calls.find((c) => c.method === "limit")?.args).toEqual([
+      SNIPPET_LIMITS.perUser,
+    ]);
   });
 
   it("getSnippets propaga el error de Supabase", async () => {
@@ -307,5 +314,62 @@ describe("acceso a datos", () => {
       "id",
       { count: "exact", head: true },
     ]);
+  });
+});
+
+describe("groupSnippetsByCategory", () => {
+  const s = (id: string, category: string): Snippet => ({
+    id,
+    title: `Atajo ${id}`,
+    content: "texto",
+    category,
+    updatedAt: "2026-08-01T00:00:00Z",
+  });
+
+  it("agrupa y ordena las secciones alfabéticamente en español", () => {
+    const grupos = groupSnippetsByCategory([
+      s("a", "Plan"),
+      s("b", "Análisis"),
+      s("c", "Plan"),
+    ]);
+    expect(grupos.map((g) => g.category)).toEqual(["Análisis", "Plan"]);
+    expect(grupos[1].snippets.map((x) => x.id)).toEqual(["a", "c"]);
+  });
+
+  it("junta las grafías distintas de la misma sección", () => {
+    const grupos = groupSnippetsByCategory([s("a", "Plan"), s("b", "plan")]);
+    expect(grupos).toHaveLength(1);
+    // Se queda la primera grafía vista, igual que categoriesFrom.
+    expect(grupos[0].category).toBe("Plan");
+    expect(grupos[0].snippets).toHaveLength(2);
+  });
+
+  it("manda los que no tienen sección al final, no mezclados", () => {
+    const grupos = groupSnippetsByCategory([
+      s("a", ""),
+      s("b", "Zeta"),
+      s("c", "Análisis"),
+    ]);
+    expect(grupos.map((g) => g.category)).toEqual(["Análisis", "Zeta", ""]);
+    expect(grupos[2].snippets.map((x) => x.id)).toEqual(["a"]);
+  });
+
+  it("conserva el orden de entrada dentro de cada grupo", () => {
+    // filterSnippets ya viene ordenado por relevancia y recencia: agrupar no
+    // puede deshacer ese orden.
+    const grupos = groupSnippetsByCategory([
+      s("primero", "Plan"),
+      s("segundo", "Plan"),
+      s("tercero", "Plan"),
+    ]);
+    expect(grupos[0].snippets.map((x) => x.id)).toEqual([
+      "primero",
+      "segundo",
+      "tercero",
+    ]);
+  });
+
+  it("con una lista vacía no devuelve grupos", () => {
+    expect(groupSnippetsByCategory([])).toEqual([]);
   });
 });

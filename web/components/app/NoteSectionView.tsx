@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
+  BookmarkPlus,
   Check,
   ChevronDown,
   Copy,
@@ -23,7 +24,6 @@ import {
   snippetToListItems,
 } from "@/lib/clinical/insert-text";
 import { slashQueryAt, type SlashToken } from "@/lib/clinical/slash-trigger";
-import { filenameToTitle } from "@/lib/clinical/file-to-text";
 import {
   firstPlaceholderIn,
   nextPlaceholderAfter,
@@ -55,8 +55,9 @@ export function NoteSectionView({
   const onChangeRef = useRef(onChange);
 
   // --- Atajos ---
-  const [snippetPanel, setSnippetPanel] = useState(false);
   const [slash, setSlash] = useState<SlashToken | null>(null);
+  // Un ref no re-renderiza, y el icono del botón depende de si hay selección.
+  const [haySeleccion, setHaySeleccion] = useState(false);
   const [saveAsSnippet, setSaveAsSnippet] = useState<{
     title: string;
     content: string;
@@ -200,6 +201,7 @@ export function NoteSectionView({
 
   function rememberSelection(node: HTMLTextAreaElement) {
     selectionRef.current = { start: node.selectionStart, end: node.selectionEnd };
+    setHaySeleccion(node.selectionEnd > node.selectionStart);
   }
 
   function refreshSlash(node: HTMLTextAreaElement) {
@@ -273,11 +275,6 @@ export function NoteSectionView({
     selectionRef.current = { start: hueco.start, end: hueco.end };
   }
 
-  function pickFromPanel(snippet: Snippet) {
-    setSnippetPanel(false);
-    insertText(snippet.content);
-  }
-
   function pickFromSlash(snippet: Snippet) {
     const token = slash;
     setSlash(null);
@@ -287,39 +284,70 @@ export function NoteSectionView({
     insertText(snippet.content, { start: token.start, end: caret });
   }
 
-  function insertFileText(text: string, file: File) {
-    setSnippetPanel(false);
-    insertText(text);
-    setSaveAsSnippet({ title: filenameToTitle(file.name), content: text });
+  /**
+   * El botón de atajos ESCRIBE la "/" en vez de abrir un panel aparte: un solo
+   * mecanismo que aprender, y el botón es lo que lo enseña.
+   */
+  function abrirAtajos() {
+    const node = textareaRef.current;
+    if (editing && node && !esLista) {
+      const at = selectionRef.current?.start ?? node.value.length;
+      const next = `${node.value.slice(0, at)}/${node.value.slice(at)}`;
+      pendingSelectionRef.current = { start: at + 1, end: at + 1 };
+      dismissedSlashRef.current = null;
+      setSavedHint(false);
+      setTexto(next);
+      setSlash({ query: "", start: at });
+      node.focus();
+      return;
+    }
+    // En lectura (o en una sección de lista, que no tiene textarea): se abre el
+    // campo con la "/" al final y la lista sale sola.
+    const base = editing ? texto : section.texto ?? "";
+    const next = base ? `${base}\n/` : "/";
+    pendingSelectionRef.current = { start: next.length, end: next.length };
+    dismissedSlashRef.current = null;
+    setTexto(next);
+    setSlash({ query: "", start: next.length - 1 });
+    setEditing(true);
+    setOpen(true);
   }
 
+  /** Guardar como atajo lo que el médico acaba de escribir y seleccionar. */
+  function guardarSeleccion() {
+    const seleccion = selectionRef.current;
+    if (!seleccion) return;
+    const contenido = texto.slice(seleccion.start, seleccion.end).trim();
+    if (!contenido) return;
+    setSaveAsSnippet({ title: "", content: contenido });
+  }
+
+  // Un control, dos significados: con texto seleccionado guarda esa selección
+  // como atajo; sin selección, abre la lista.
   const snippetButton = (
-    <div className="relative">
-      <HoverHint label="Insertar un atajo — o escribe / en el texto">
-        <button
-          type="button"
-          onClick={() => setSnippetPanel((value) => !value)}
-          aria-label={`Insertar atajo en ${section.titulo}`}
-          aria-expanded={snippetPanel}
-          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-            snippetPanel
-              ? "bg-accent-soft text-accent"
-              : "text-muted hover:bg-ice-soft hover:text-accent"
-          }`}
-        >
-          <Zap size={14} /> <span className="hidden sm:inline">Atajo</span>
-        </button>
-      </HoverHint>
-      {snippetPanel ? (
-        <SnippetPopup
-          mode="panel"
-          sectionTitle={section.titulo}
-          onPick={pickFromPanel}
-          onPickFileText={insertFileText}
-          onClose={() => setSnippetPanel(false)}
-        />
-      ) : null}
-    </div>
+    <HoverHint
+      label={
+        haySeleccion
+          ? "Guardar lo seleccionado como atajo"
+          : "Insertar un atajo — o escribe / en el texto"
+      }
+    >
+      <button
+        type="button"
+        // Sin esto el textarea pierde el foco al pulsar y con él la selección.
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={haySeleccion ? guardarSeleccion : abrirAtajos}
+        aria-label={
+          haySeleccion
+            ? `Guardar la selección de ${section.titulo} como atajo`
+            : `Insertar atajo en ${section.titulo}`
+        }
+        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-ice-soft hover:text-accent"
+      >
+        {haySeleccion ? <BookmarkPlus size={14} /> : <Zap size={14} />}{" "}
+        <span className="hidden sm:inline">{haySeleccion ? "Guardar" : "Atajo"}</span>
+      </button>
+    </HoverHint>
   );
 
   function cancel() {
@@ -453,9 +481,10 @@ export function NoteSectionView({
                   />
                   {slash ? (
                     <SnippetPopup
-                      mode="inline"
                       sectionTitle={section.titulo}
                       query={slash.query}
+                      textareaRef={textareaRef}
+                      caretIndex={slash.start}
                       onPick={pickFromSlash}
                       onClose={() => {
                         dismissedSlashRef.current = slash.start;

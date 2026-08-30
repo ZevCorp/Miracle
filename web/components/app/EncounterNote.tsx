@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
+  BookmarkPlus,
   CheckCircle2,
   ChevronDown,
   ClipboardCopy,
@@ -24,7 +25,6 @@ import { SnippetEditorDialog } from "@/components/app/SnippetEditorDialog";
 import type { Snippet } from "@/lib/clinical/snippets";
 import { appendSnippetText, insertSnippetText } from "@/lib/clinical/insert-text";
 import { slashQueryAt, type SlashToken } from "@/lib/clinical/slash-trigger";
-import { filenameToTitle } from "@/lib/clinical/file-to-text";
 import {
   firstPlaceholderIn,
   nextPlaceholderAfter,
@@ -276,8 +276,9 @@ function EditableBlock({
   const onChangeRef = useRef(onChange);
 
   // --- Atajos -------------------------------------------------------------
-  const [snippetPanel, setSnippetPanel] = useState(false);
   const [slash, setSlash] = useState<SlashToken | null>(null);
+  // Un ref no re-renderiza, y el icono del botón depende de si hay selección.
+  const [haySeleccion, setHaySeleccion] = useState(false);
   const [saveAsSnippet, setSaveAsSnippet] = useState<{
     title: string;
     content: string;
@@ -314,6 +315,7 @@ function EditableBlock({
 
   function rememberSelection(node: HTMLTextAreaElement) {
     selectionRef.current = { start: node.selectionStart, end: node.selectionEnd };
+    setHaySeleccion(node.selectionEnd > node.selectionStart);
   }
 
   function refreshSlash(node: HTMLTextAreaElement) {
@@ -377,11 +379,6 @@ function EditableBlock({
     selectionRef.current = { start: hueco.start, end: hueco.end };
   }
 
-  function pickFromPanel(snippet: Snippet) {
-    setSnippetPanel(false);
-    insertText(snippet.content);
-  }
-
   function pickFromSlash(snippet: Snippet) {
     const token = slash;
     setSlash(null);
@@ -391,12 +388,44 @@ function EditableBlock({
     insertText(snippet.content, { start: token.start, end: caret });
   }
 
-  function insertFileText(text: string, file: File) {
-    setSnippetPanel(false);
-    insertText(text);
-    // Se ofrece guardarlo: si ese texto lo va a volver a usar, mejor que quede
-    // en la biblioteca que volver a buscar el archivo cada vez.
-    setSaveAsSnippet({ title: filenameToTitle(file.name), content: text });
+  /**
+   * El botón de atajos ESCRIBE la "/" en vez de abrir un panel aparte.
+   *
+   * Antes había dos formas de llegar a lo mismo, con anatomías distintas: un
+   * panel con su propio buscador, sus filtros y su lector de archivos, y la
+   * lista de la "/". Ahora hay un solo mecanismo, y el botón es lo que lo
+   * enseña a quien todavía no sabe que existe.
+   */
+  function abrirAtajos() {
+    const node = textareaRef.current;
+    if (editing && node) {
+      const at = selectionRef.current?.start ?? node.value.length;
+      const next = `${node.value.slice(0, at)}/${node.value.slice(at)}`;
+      pendingSelectionRef.current = { start: at + 1, end: at + 1 };
+      dismissedSlashRef.current = null;
+      setSavedHint(false);
+      setDraft(next);
+      setSlash({ query: "", start: at });
+      node.focus();
+      return;
+    }
+    // En lectura: se abre el campo con la "/" al final y la lista sale sola.
+    const next = content ? `${content}\n/` : "/";
+    pendingSelectionRef.current = { start: next.length, end: next.length };
+    dismissedSlashRef.current = null;
+    setDraft(next);
+    setSlash({ query: "", start: next.length - 1 });
+    setEditing(true);
+    setOpen(true);
+  }
+
+  /** Guardar como atajo lo que el médico acaba de escribir y seleccionar. */
+  function guardarSeleccion() {
+    const seleccion = selectionRef.current;
+    if (!seleccion) return;
+    const texto = draft.slice(seleccion.start, seleccion.end).trim();
+    if (!texto) return;
+    setSaveAsSnippet({ title: "", content: texto });
   }
 
   // Autoguardado: el cambio se persiste solo tras una breve pausa al
@@ -500,33 +529,34 @@ function EditableBlock({
           >
             <ClipboardCopy size={14} />
           </button>
+          {/* Un control, dos significados. Con texto seleccionado guarda esa
+              selección como atajo; sin selección, abre la lista de atajos.
+              Así "guardar lo que acabo de escribir" no añade ni un botón más a
+              la cabecera de la sección. */}
           {editable ? (
-            <div className="relative">
-              <HoverHint label="Insertar un atajo — o escribe / en el texto">
-                <button
-                  type="button"
-                  onClick={() => setSnippetPanel((value) => !value)}
-                  aria-label={`Insertar atajo en ${title}`}
-                  aria-expanded={snippetPanel}
-                  className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                    snippetPanel
-                      ? "bg-accent-soft text-accent"
-                      : "text-muted hover:bg-ice-soft hover:text-accent"
-                  }`}
-                >
-                  <Zap size={14} />
-                </button>
-              </HoverHint>
-              {snippetPanel ? (
-                <SnippetPopup
-                  mode="panel"
-                  sectionTitle={title}
-                  onPick={pickFromPanel}
-                  onPickFileText={insertFileText}
-                  onClose={() => setSnippetPanel(false)}
-                />
-              ) : null}
-            </div>
+            <HoverHint
+              label={
+                haySeleccion
+                  ? "Guardar lo seleccionado como atajo"
+                  : "Insertar un atajo — o escribe / en el texto"
+              }
+            >
+              <button
+                type="button"
+                // Sin esto el textarea pierde el foco al pulsar y con él la
+                // selección que justamente queremos guardar.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={haySeleccion ? guardarSeleccion : abrirAtajos}
+                aria-label={
+                  haySeleccion
+                    ? `Guardar la selección de ${title} como atajo`
+                    : `Insertar atajo en ${title}`
+                }
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-ice-soft hover:text-accent"
+              >
+                {haySeleccion ? <BookmarkPlus size={14} /> : <Zap size={14} />}
+              </button>
+            </HoverHint>
           ) : null}
           {editable && onVoiceInstruction ? (
             <button
@@ -576,9 +606,10 @@ function EditableBlock({
                 />
                 {slash ? (
                   <SnippetPopup
-                    mode="inline"
                     sectionTitle={title}
                     query={slash.query}
+                    textareaRef={textareaRef}
+                    caretIndex={slash.start}
                     onPick={pickFromSlash}
                     onClose={() => {
                       dismissedSlashRef.current = slash.start;
