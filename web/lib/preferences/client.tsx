@@ -75,17 +75,42 @@ export function PreferencesProvider({
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [preferences, setPreferences] = useState<UserPreferences>(initial);
-  const [saving, setSaving] = useState(false);
-  const previoRef = useRef<UserPreferences>(initial);
+  // Un contador y no un booleano: con dos escrituras en vuelo, la primera en
+  // terminar apagaba el indicador y la pantalla decía "guardado" mientras la
+  // otra seguía viajando.
+  const [escrituras, setEscrituras] = useState(0);
+  // Espejo sincrono del estado, para poder leer el valor previo sin depender
+  // del calendario de renders de React.
+  const vigenteRef = useRef<UserPreferences>(initial);
 
   const firstName = useMemo(() => nombreDePila(fullName), [fullName]);
 
   const update = useCallback(
     async (patch: Partial<UserPreferences>): Promise<boolean> => {
-      previoRef.current = preferences;
-      const siguiente = { ...preferences, ...patch };
-      setPreferences(siguiente);
-      setSaving(true);
+      // Forma funcional y NO una copia de `preferences` del closure. Dos
+      // escrituras seguidas —cambiar el trato y acto seguido el detalle— son
+      // normales en esta pantalla, y con el closure la segunda partía del
+      // estado viejo y borraba la primera.
+      //
+      // Del rollback se guardan SOLO las claves de este patch: revertir el
+      // objeto entero hacía que, si una escritura fallaba mientras otra había
+      // ido bien, la fallida deshiciera en pantalla un cambio que sí estaba
+      // guardado en la base. La pantalla acababa mintiendo sobre lo guardado.
+      //
+      // El valor previo se lee del espejo (`vigenteRef`) y no dentro del
+      // updater: ahí dependería de cuándo React decida ejecutarlo, y si aún no
+      // hubiera corrido al fallar la escritura, el rollback quedaría vacío y la
+      // pantalla se quedaría enseñando como guardado algo que la base rechazó.
+      const anterior: Partial<UserPreferences> = {};
+      for (const clave of Object.keys(patch) as (keyof UserPreferences)[]) {
+        Object.assign(anterior, { [clave]: vigenteRef.current[clave] });
+      }
+      setPreferences((actual) => {
+        const siguiente = { ...actual, ...patch };
+        vigenteRef.current = siguiente;
+        return siguiente;
+      });
+      setEscrituras((n) => n + 1);
       try {
         // upsert y no update: la fila no existe hasta que el médico toca su
         // primera preferencia. `user_id` lo pone el DEFAULT auth.uid() de la
@@ -104,18 +129,22 @@ export function PreferencesProvider({
         return true;
       } catch (e) {
         console.error("[preferences] no se pudo guardar", e);
-        setPreferences(previoRef.current);
+        setPreferences((actual) => {
+          const revertido = { ...actual, ...anterior };
+          vigenteRef.current = revertido;
+          return revertido;
+        });
         return false;
       } finally {
-        setSaving(false);
+        setEscrituras((n) => n - 1);
       }
     },
-    [preferences, supabase],
+    [supabase],
   );
 
   const value = useMemo<PreferencesValue>(
-    () => ({ preferences, firstName, specialtyCode, saving, update }),
-    [preferences, firstName, specialtyCode, saving, update],
+    () => ({ preferences, firstName, specialtyCode, saving: escrituras > 0, update }),
+    [preferences, firstName, specialtyCode, escrituras, update],
   );
 
   return (
