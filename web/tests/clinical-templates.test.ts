@@ -4,6 +4,7 @@ import {
   getAreaForSpecialty,
   medicalAreas,
   medicalAreasWithSpecialties,
+  resolveSpecialtyCode,
   specialtiesForArea,
   specialtyDisplayName,
 } from "@/lib/clinical/medical-areas";
@@ -379,6 +380,35 @@ describe("buildTemplatePayload", () => {
       for (const k of sectionKeys) {
         expect(["key", "label", "order", "required", "instruction"]).toContain(k);
       }
+    }
+  });
+});
+
+describe("resolveSpecialtyCode", () => {
+  it("pasa la forma del backend a la del selector", () => {
+    expect(resolveSpecialtyCode("medicina_general")).toBe("medicina-general");
+    expect(resolveSpecialtyCode("ginecologia_obstetricia")).toBe(
+      "ginecologia-obstetricia",
+    );
+  });
+
+  it("es idempotente sobre un code que ya es canónico", () => {
+    expect(resolveSpecialtyCode("medicina-general")).toBe("medicina-general");
+  });
+
+  it("cae a medicina-general con lo vacío o lo desconocido", () => {
+    expect(resolveSpecialtyCode("")).toBe("medicina-general");
+    expect(resolveSpecialtyCode(null)).toBe("medicina-general");
+    expect(resolveSpecialtyCode(undefined)).toBe("medicina-general");
+    expect(resolveSpecialtyCode("algo_que_no_existe")).toBe("medicina-general");
+  });
+
+  // Esto es lo que garantiza que ningún value del <select> se quede sin
+  // <option>: si una especialidad no fuera punto fijo, el selector mostraría
+  // una opción y el estado guardaría otra.
+  it("deja intacto TODO code de specialties.ts", () => {
+    for (const specialty of clinicalSpecialties) {
+      expect(resolveSpecialtyCode(specialty.code)).toBe(specialty.code);
     }
   });
 });

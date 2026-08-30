@@ -23,6 +23,11 @@ import { AppPageHeader } from "@/components/app/AppPage";
 import { createClient } from "@/lib/supabase/client";
 import { downloadLabReport } from "@/lib/pdf/lab-report";
 import { letterheadLines } from "@/lib/hospital/org";
+import {
+  fileToDataUrl,
+  IMAGE_MIME_OK,
+  MAX_SOURCE_IMAGE_BYTES,
+} from "@/lib/images/compress";
 import type { Consultation, NoteSection } from "@/lib/mock";
 
 interface TemplateSectionMeta {
@@ -48,14 +53,6 @@ interface ProfessionalInfo {
   city: string | null;
 }
 
-// Rechazo temprano del archivo fuente (antes de recomprimir). Una foto de más
-// de 15 MB casi nunca es legible y no vale la pena procesarla.
-const MAX_SOURCE_BYTES = 15 * 1024 * 1024;
-// Tope del data URL que se envía: ~4.2 MB de caracteres base64 ≈ 3.15 MB
-// binarios. El body JSON queda por debajo del límite de 4.5 MB de Vercel.
-const MAX_DATAURL_CHARS = 4_200_000;
-// OpenAI vía Graph no procesa GIF animado y toda la copy dice JPG/PNG/WebP.
-const MIME_OK = new Set(["image/jpeg", "image/png", "image/webp"]);
 /** Valor centinela: la IA diseña su propia plantilla a partir de la foto. */
 const DYNAMIC_ID = "__dynamic__";
 
@@ -77,70 +74,6 @@ function parseSections(value: unknown): TemplateSectionMeta[] {
   return out.sort((a, b) => a.order - b.order);
 }
 
-/**
- * Reduce la foto a un JPEG que quepa bajo MAX_DATAURL_CHARS (el límite real de
- * body de Vercel), recomprimiendo por PESO, no solo por dimensión: baja la
- * calidad y, si aún no alcanza, reescala hasta lograrlo. Lanza si no se puede.
- */
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
-    reader.onload = () => {
-      const original = String(reader.result ?? "");
-      const img = new Image();
-      img.onload = () => {
-        try {
-          // Si el original ya cabe y es un formato liviano, no lo re-procesa.
-          if (original.length <= MAX_DATAURL_CHARS && file.type === "image/jpeg") {
-            resolve(original);
-            return;
-          }
-          let width = img.width;
-          let height = img.height;
-          const firstScale = Math.min(1, 2200 / Math.max(width, height));
-          width = Math.round(width * firstScale);
-          height = Math.round(height * firstScale);
-
-          const encode = (w: number, h: number, quality: number): string | null => {
-            const canvas = document.createElement("canvas");
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) return null;
-            ctx.drawImage(img, 0, 0, w, h);
-            return canvas.toDataURL("image/jpeg", quality);
-          };
-
-          const qualities = [0.85, 0.7, 0.55];
-          for (let iteration = 0; iteration < 6; iteration += 1) {
-            for (const quality of qualities) {
-              const out = encode(width, height, quality);
-              if (out && out.length <= MAX_DATAURL_CHARS) {
-                resolve(out);
-                return;
-              }
-            }
-            // Ninguna calidad bastó a este tamaño: reduce dimensiones y repite.
-            width = Math.round(width * 0.8);
-            height = Math.round(height * 0.8);
-            if (width < 400 || height < 400) break;
-          }
-          reject(
-            new Error(
-              "La imagen no se pudo reducir lo suficiente. Toma la foto con menos resolución.",
-            ),
-          );
-        } catch {
-          reject(new Error("No se pudo procesar la imagen."));
-        }
-      };
-      img.onerror = () => reject(new Error("No se pudo abrir la imagen."));
-      img.src = original;
-    };
-    reader.readAsDataURL(file);
-  });
-}
 
 export function LaboratorioWorkspace({
   professional,
@@ -255,11 +188,11 @@ export function LaboratorioWorkspace({
   function pickFile(file: File | null) {
     setError(null);
     if (!file) return;
-    if (!MIME_OK.has(file.type)) {
+    if (!IMAGE_MIME_OK.has(file.type)) {
       setError("Formato no soportado. Usa JPG, PNG o WebP.");
       return;
     }
-    if (file.size > MAX_SOURCE_BYTES) {
+    if (file.size > MAX_SOURCE_IMAGE_BYTES) {
       setError("Selecciona una imagen de menos de 15 MB.");
       return;
     }

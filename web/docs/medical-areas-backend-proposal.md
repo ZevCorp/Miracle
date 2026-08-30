@@ -87,9 +87,12 @@ POST /api/clinical/templates/suggest
   `POST /templates` (label/order/required/instruction) — el médico lo revisa y
   guarda con el flujo normal. No crea nada por sí mismo.
 - Reusa el proveedor LLM ya configurado en el backend (`GRAPH_LLM_*`).
-- **Impacto frontend:** el `TemplateBuilderPanel` ya está preparado; solo habría
-  que añadir un modo "asistido" que llame este endpoint y precargue los bloques.
-  Hoy se muestra como "próximamente" (`AssistedHint`), sin botón falso.
+- **Impacto frontend:** ya está hecho. `TemplateImportDialog` ("Subir la mía")
+  llama a este endpoint cuando el médico trae texto o un `.docx`, y precarga los
+  bloques del `TemplateBuilderPanel` vía `initialDraft`. Cuando lo que trae son
+  fotos, la lectura la hace `app/api/clinical/template-from-image` (visión de
+  Anthropic, prompt en el portal) y ambos caminos convergen en el mismo
+  borrador.
 
 ## Nada de esto bloquea la fase actual
 

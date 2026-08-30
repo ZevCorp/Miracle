@@ -8,10 +8,9 @@ import {
   GripVertical,
   Info,
   Loader2,
+  Lock,
   Plus,
   Save,
-  ShieldCheck,
-  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -40,12 +39,14 @@ import {
   type SectionBlock,
 } from "@/lib/clinical/template-builder";
 import {
-  medicalAreas,
-  getAreaForSpecialty,
-  specialtiesForArea,
+  medicalAreasWithSpecialties,
+  resolveSpecialtyCode,
+  specialtyDisplayName,
 } from "@/lib/clinical/medical-areas";
 
 export type BuilderMode = "scratch" | "base" | "edit";
+/** De dónde salió el borrador, para explicar qué revisar. */
+export type DraftOrigin = "example" | "image";
 
 const fieldClass =
   "mt-1.5 w-full rounded-md border border-line bg-field px-3.5 py-2.5 text-sm text-deep outline-none transition-colors focus:border-accent";
@@ -54,12 +55,6 @@ const MODE_TITLE: Record<BuilderMode, string> = {
   scratch: "Nueva plantilla",
   base: "Personalizar plantilla",
   edit: "Editar plantilla",
-};
-
-const MODE_SUBTITLE: Record<BuilderMode, string> = {
-  scratch: "Arma la estructura de tu nota, sección por sección.",
-  base: "Copia una plantilla institucional y ajústala como tuya.",
-  edit: "Cambia las secciones de tu plantilla personal.",
 };
 
 const COMMON_SECTIONS = [
@@ -72,6 +67,7 @@ export function TemplateBuilderPanel({
   baseTemplate,
   initialSpecialtyCode,
   initialDraft,
+  draftOrigin,
   onClose,
   onSaved,
 }: {
@@ -80,29 +76,19 @@ export function TemplateBuilderPanel({
   baseTemplate?: ClinicalTemplate;
   initialSpecialtyCode: string;
   initialDraft?: CreateClinicalTemplatePayload;
+  draftOrigin?: DraftOrigin;
   onClose: () => void;
   onSaved: (template: ClinicalTemplate, action: "created" | "updated") => void;
 }) {
   const confirm = useConfirm();
-  const resolvedSpecialty = useMemo(() => {
-    // La especialidad inicial sale de la plantilla origen o del filtro actual;
-    // se resuelve a un code con guiones (el de specialties.ts) para los selects.
-    if (baseTemplate) {
-      const area = getAreaForSpecialty(baseTemplate.specialty);
-      const match = area
-        ? specialtiesForArea(area.code).find(
-            (specialty) =>
-              specialty.code.replace(/-/g, "_") ===
-              baseTemplate.specialty.replace(/-/g, "_"),
-          )
-        : undefined;
-      if (match) return match.code;
-    }
-    return initialSpecialtyCode;
-  }, [baseTemplate, initialSpecialtyCode]);
-
-  const initialArea =
-    getAreaForSpecialty(resolvedSpecialty)?.code ?? medicalAreas[0].code;
+  // La especialidad inicial sale de la plantilla origen o del perfil, y se
+  // resuelve al code canónico de specialties.ts. Sin esto, un `medicina_general`
+  // del backend no casaría con ninguna <option> y el selector mostraría una
+  // especialidad mientras el estado guarda otra.
+  const resolvedSpecialty = useMemo(
+    () => resolveSpecialtyCode(baseTemplate?.specialty ?? initialSpecialtyCode),
+    [baseTemplate, initialSpecialtyCode],
+  );
 
   const [name, setName] = useState(() => {
     if (initialDraft) return initialDraft.name;
@@ -110,12 +96,17 @@ export function TemplateBuilderPanel({
     if (mode === "edit" && baseTemplate) return baseTemplate.name;
     return "";
   });
-  const [areaCode, setAreaCode] = useState(initialArea);
   const [specialtyCode, setSpecialtyCode] = useState(resolvedSpecialty);
+  const [specialtyOpen, setSpecialtyOpen] = useState(false);
   const [description, setDescription] = useState(
     initialDraft?.description ?? baseTemplate?.description ?? "",
   );
-  const [blocks, setBlocks] = useState<SectionBlock[]>(() => {
+  // La descripción es opcional y casi nunca se llena: ocupa una fila entera por
+  // encima de las secciones, que es el trabajo real. Se despliega si ya trae algo.
+  const [showDescription, setShowDescription] = useState(
+    (initialDraft?.description ?? baseTemplate?.description ?? "").trim().length > 0,
+  );
+  const [initialBlocks] = useState<SectionBlock[]>(() => {
     if (initialDraft) return initialDraft.sections.map((section) => createBlock({
       label: typeof section === "string" ? section : section.label,
       required: typeof section === "string" ? false : section.required === true,
@@ -125,6 +116,15 @@ export function TemplateBuilderPanel({
     if (mode === "base" && baseTemplate) return templateToDraftBlocks(baseTemplate);
     return starterBlocksForSpecialty(resolvedSpecialty);
   });
+  const [blocks, setBlocks] = useState<SectionBlock[]>(initialBlocks);
+
+  // Qué secciones llegaron del archivo del médico. Vive FUERA de SectionBlock a
+  // propósito: es una marca de procedencia, solo de UI, y así no puede colarse
+  // en el payload ni quedarse pegada a lo que él añada después.
+  const draftUids = useMemo(
+    () => new Set(initialDraft ? initialBlocks.map((block) => block.uid) : []),
+    [initialDraft, initialBlocks],
+  );
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,10 +132,7 @@ export function TemplateBuilderPanel({
   const [dirty, setDirty] = useState(false);
   const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
 
-  const specialtiesInArea = useMemo(
-    () => specialtiesForArea(areaCode),
-    [areaCode],
-  );
+  const areasConEspecialidades = useMemo(() => medicalAreasWithSpecialties(), []);
 
   // Cerrar con Escape (respetando el aviso de cambios sin guardar).
   useEffect(() => {
@@ -162,13 +159,6 @@ export function TemplateBuilderPanel({
       if (!ok) return;
     }
     onClose();
-  }
-
-  function changeArea(nextArea: string) {
-    setAreaCode(nextArea);
-    const first = specialtiesForArea(nextArea)[0];
-    if (first) setSpecialtyCode(first.code);
-    markDirty();
   }
 
   function setBlocksDirty(next: SectionBlock[]) {
@@ -226,8 +216,6 @@ export function TemplateBuilderPanel({
     }
   }
 
-  const filledCount = blocks.filter((b) => b.label.trim().length > 0).length;
-
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6">
       {/* Backdrop */}
@@ -238,25 +226,22 @@ export function TemplateBuilderPanel({
         className="absolute inset-0 bg-overlay backdrop-blur-[1px]"
       />
 
-      {/* Panel */}
+      {/* Panel. Ancho de lectura: a 6xl los campos quedaban de más de 1500 px
+          para escribir un nombre de plantilla. */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label={MODE_TITLE[mode]}
-        className="relative flex h-dvh max-h-dvh w-full max-w-6xl flex-col overflow-hidden bg-surface shadow-[var(--shadow-xl)] sm:h-auto sm:max-h-[90dvh] sm:rounded-2xl sm:border sm:border-line"
+        className="relative flex h-dvh max-h-dvh w-full max-w-3xl flex-col overflow-hidden bg-surface shadow-[var(--shadow-xl)] sm:h-auto sm:max-h-[90dvh] sm:rounded-2xl sm:border sm:border-line"
       >
         {/* Header */}
-        <div className="app-mobile-header flex items-start justify-between gap-3 border-b border-line px-4 py-4 sm:h-auto sm:px-7">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">Constructor clínico</p>
-            <h2 className="mt-1 text-xl font-semibold text-deep">{MODE_TITLE[mode]}</h2>
-            <p className="mt-0.5 text-sm text-muted">{MODE_SUBTITLE[mode]}</p>
-          </div>
+        <div className="app-mobile-header flex items-center justify-between gap-3 border-b border-line px-4 py-4 sm:h-auto sm:px-7">
+          <h2 className="text-xl font-semibold text-deep">{MODE_TITLE[mode]}</h2>
           <button
             type="button"
             onClick={() => void attemptClose()}
             aria-label="Cerrar"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-ice-soft hover:text-deep"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted hover:bg-ice-soft hover:text-deep"
           >
             <X size={18} />
           </button>
@@ -273,7 +258,14 @@ export function TemplateBuilderPanel({
             </p>
           ) : null}
 
-          {initialDraft ? <p className="mb-4 flex items-center gap-2 rounded-lg border border-accent/25 bg-accent-soft/35 px-3 py-2.5 text-sm text-accent-ink"><CheckCircle2 size={16} /> Borrador creado desde tu ejemplo. Revísalo antes de guardarlo.</p> : null}
+          {initialDraft ? (
+            <p className="mb-4 flex items-start gap-2 rounded-lg border border-accent/25 bg-accent-soft/35 px-3 py-2.5 text-sm text-accent-ink">
+              <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+              {draftOrigin === "image"
+                ? "Leímos la estructura de tu archivo. Revisa cada sección antes de guardar."
+                : "Borrador creado desde tu ejemplo. Revísalo antes de guardarlo."}
+            </p>
+          ) : null}
 
           <label className="block text-sm font-medium text-deep">
             Nombre de la plantilla
@@ -289,80 +281,83 @@ export function TemplateBuilderPanel({
             />
           </label>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm font-medium text-deep">
-              Área médica
-              <select
-                value={areaCode}
-                onChange={(e) => changeArea(e.target.value)}
-                className={fieldClass}
-              >
-                {medicalAreas.map((area) => (
-                  <option key={area.code} value={area.code}>
-                    {area.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm font-medium text-deep">
-              Especialidad
+          {/* Especialidad: casi siempre es la del médico, así que se muestra
+              resuelta y solo se convierte en campo si la quiere cambiar. */}
+          <div className="mt-4">
+            <p className="text-sm font-medium text-deep">Especialidad</p>
+            {specialtyOpen ? (
               <select
                 value={specialtyCode}
                 onChange={(e) => {
                   setSpecialtyCode(e.target.value);
                   markDirty();
                 }}
+                autoFocus
+                aria-label="Especialidad"
                 className={fieldClass}
               >
-                {specialtiesInArea.map((specialty) => (
-                  <option key={specialty.code} value={specialty.code}>
-                    {specialty.name}
-                  </option>
+                {areasConEspecialidades.map(({ area, specialties }) => (
+                  <optgroup key={area.code} label={area.name}>
+                    {specialties.map((specialty) => (
+                      <option key={specialty.code} value={specialty.code}>
+                        {specialty.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
-            </label>
+            ) : (
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-medium text-deep">
+                  {specialtyDisplayName(specialtyCode)}
+                </span>
+                <span aria-hidden className="text-muted">
+                  ·
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSpecialtyOpen(true)}
+                  className="font-medium text-accent hover:underline"
+                >
+                  Cambiar
+                </button>
+              </p>
+            )}
           </div>
 
-          <label className="mt-4 block text-sm font-medium text-deep">
-            Descripción corta{" "}
-            <span className="font-normal text-muted">(opcional)</span>
-            <input
-              value={description}
-              onChange={(e) => {
-                setDescription(e.target.value);
-                markDirty();
-              }}
-              className={fieldClass}
-              placeholder="Para qué tipo de atención usarla"
-              maxLength={MAX_DESCRIPTION_LENGTH}
-            />
-          </label>
-
-          <section className="mt-6 overflow-hidden rounded-lg border border-accent/20 bg-accent-soft/30">
-            <div className="flex items-start gap-2.5 border-b border-accent/15 px-4 py-3">
-              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-accent"><ShieldCheck size={15} /></span>
-              <div><h3 className="text-sm font-semibold text-accent-ink">Cierre clínico universal</h3><p className="mt-0.5 text-xs leading-relaxed text-muted">Se añade a cada nota, sin importar la plantilla. No se puede eliminar ni reordenar.</p></div>
-            </div>
-            <div className="grid gap-px bg-accent/10 sm:grid-cols-3">
-              {[
-                ["Plan terapéutico", "Medicamentos, medidas y seguimiento"],
-                ["Recomendaciones", "Borrador personalizado para revisión"],
-                ["Signos de alarma", "Jerarquizados antes del egreso"],
-              ].map(([title, description]) => <div key={title} className="bg-surface px-3 py-3"><p className="text-xs font-semibold text-deep">{title}</p><p className="mt-1 text-xs leading-relaxed text-muted">{description}</p><span className="mt-2 inline-flex rounded-full bg-mint-soft px-2 py-0.5 text-xs font-semibold text-success">Obligatorio</span></div>)}
-            </div>
-          </section>
+          {showDescription ? (
+            <label className="mt-4 block text-sm font-medium text-deep">
+              Descripción corta{" "}
+              <span className="font-normal text-muted">(opcional)</span>
+              <input
+                value={description}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  markDirty();
+                }}
+                autoFocus
+                className={fieldClass}
+                placeholder="Para qué tipo de atención usarla"
+                maxLength={MAX_DESCRIPTION_LENGTH}
+              />
+            </label>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowDescription(true)}
+              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+            >
+              <Plus size={14} /> Añadir descripción
+            </button>
+          )}
 
           {/* Secciones */}
           <div className="mt-6">
-            <div className="flex items-center justify-between">
-              <h3 className="font-display text-sm font-semibold uppercase tracking-wide text-muted">
-                Secciones de la nota
-              </h3>
-              <span className="text-xs text-muted">{filledCount} con nombre</span>
-            </div>
+            <h3 className="font-display text-sm font-semibold uppercase tracking-wide text-muted">
+              Secciones de la nota
+            </h3>
             <p className="mt-1 text-xs text-muted">
-              Arrastra para reordenar. El sistema numera y estructura cada
-              sección por ti.
+              Arrastra para reordenar.
             </p>
 
             <div className="mt-3 space-y-2.5 border-l border-line pl-3 sm:pl-5">
@@ -373,6 +368,7 @@ export function TemplateBuilderPanel({
                   index={index}
                   total={blocks.length}
                   duplicate={duplicateUids.includes(block.uid)}
+                  fromFile={draftUids.has(block.uid)}
                   onChange={(patch) => setBlocksDirty(updateBlock(blocks, block.uid, patch))}
                   onRemove={() => setBlocksDirty(removeBlock(blocks, block.uid))}
                   onMove={(to) => setBlocksDirty(moveBlock(blocks, index, to))}
@@ -383,6 +379,21 @@ export function TemplateBuilderPanel({
             <div className="relative mt-3">
               <button type="button" onClick={() => setSectionMenuOpen((value) => !value)} className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-accent/50 bg-accent-soft/30 px-4 py-2.5 text-sm font-semibold text-accent-ink hover:bg-accent-soft"><Plus size={16} /> Añadir una sección</button>
               {sectionMenuOpen ? <div className="absolute z-10 mt-2 w-full rounded-xl border border-line bg-surface p-2 shadow-[var(--shadow-lg)]"><p className="px-2 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide text-muted">Secciones frecuentes</p><div className="grid gap-1 sm:grid-cols-2">{COMMON_SECTIONS.map((label) => <button key={label} type="button" onClick={() => addSection(label)} className="rounded-lg px-3 py-2 text-left text-sm text-deep hover:bg-ice-soft">{label}</button>)}<button type="button" onClick={() => addSection()} className="rounded-lg px-3 py-2 text-left text-sm font-semibold text-accent hover:bg-accent-soft">+ Sección personalizada</button></div></div> : null}
+            </div>
+
+            {/* El cierre clínico va aquí abajo porque es donde va en la nota: al
+                final. Arriba, como tarjeta de tres columnas, ocupaba media
+                pantalla para decir algo que el médico no puede cambiar. */}
+            <div
+              aria-disabled="true"
+              className="mt-2.5 flex items-start gap-2.5 rounded-lg border border-dashed border-line bg-pearl px-3.5 py-3"
+            >
+              <Lock size={14} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+              <p className="text-[13px] leading-relaxed text-muted">
+                <span className="font-semibold text-ink-soft">Cierre clínico</span>{" "}
+                · Toda nota termina con plan, recomendaciones y signos de alarma.
+                Se añade solo.
+              </p>
             </div>
           </div>
         </div>
@@ -423,6 +434,7 @@ function SectionCard({
   index,
   total,
   duplicate,
+  fromFile,
   onChange,
   onRemove,
   onMove,
@@ -431,6 +443,8 @@ function SectionCard({
   index: number;
   total: number;
   duplicate: boolean;
+  /** Vino del archivo que subió el médico: se marca para que sepa qué revisar. */
+  fromFile: boolean;
   onChange: (patch: Partial<Omit<SectionBlock, "uid">>) => void;
   onRemove: () => void;
   onMove: (to: number) => void;
@@ -521,6 +535,11 @@ function SectionCard({
               />
               ¿Qué debe incluir?
             </button>
+            {fromFile && !identidad ? (
+              <span className="rounded-full bg-ice px-2 py-0.5 text-[11px] font-medium text-muted">
+                De tu archivo
+              </span>
+            ) : null}
           </div>
 
           {showInstruction ? (
@@ -579,15 +598,5 @@ function SectionCard({
         </div>
       </div>
     </div>
-  );
-}
-
-/** Chip informativo para la opción de creación asistida (aún no disponible). */
-export function AssistedHint() {
-  return (
-    <p className="flex items-center gap-1.5 text-xs text-muted">
-      <Sparkles size={13} className="text-accent" />
-      Creación asistida por IA: próximamente.
-    </p>
   );
 }

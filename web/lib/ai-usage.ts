@@ -1,9 +1,11 @@
 // Reporte de consumo de IA hacia el ledger central (Graph).
 //
 // POR QUÉ EL PORTAL REPORTA. Casi todas las llamadas a modelos del producto
-// pasan por Graph, que las instrumenta en su capa de proveedor. La excepción es
-// esta app: `app/api/parse-schedule` llama directo a Anthropic. Si no se
-// reportara desde aquí, ese gasto no aparecería en ningún lado.
+// pasan por Graph, que las instrumenta en su capa de proveedor. Las excepciones
+// son las rutas de esta app que llaman DIRECTO a Anthropic:
+// `app/api/parse-schedule`, `app/api/clinical/template-from-image` y
+// `app/api/snippets/categorize`. Si no se reportaran desde aquí, ese gasto no
+// aparecería en ningún lado.
 //
 // ATRIBUCIÓN. El `userId` viene SIEMPRE de la sesión de Supabase ya verificada
 // en la ruta (requireApiUser / getCurrentProfile), nunca del cuerpo de la

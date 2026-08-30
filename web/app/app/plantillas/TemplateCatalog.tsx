@@ -4,19 +4,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   Copy,
-  FileText,
   Loader2,
   Pencil,
   Plus,
   Search,
-  Sparkles,
   Star,
   StarOff,
+  Upload,
   X,
 } from "lucide-react";
 import {
   archiveClinicalTemplate,
-  createClinicalTemplateDraftFromExample,
   friendlyClinicalMessage,
   getClinicalTemplates,
   sortedTemplateSections,
@@ -37,15 +35,18 @@ import { useConfirm } from "@/components/ui/ConfirmDialog";
 import {
   TemplateBuilderPanel,
   type BuilderMode,
+  type DraftOrigin,
 } from "@/components/app/TemplateBuilderPanel";
+import { TemplateImportDialog } from "./TemplateImportDialog";
 
 type ScopeFilter = "todas" | "mias" | "institucionales";
-type CreationMode = "choice" | "example" | null;
+type CreationMode = "import" | null;
 
 interface BuilderState {
   mode: BuilderMode;
   baseTemplate?: ClinicalTemplate;
   initialDraft?: CreateClinicalTemplatePayload;
+  draftOrigin?: DraftOrigin;
 }
 
 export function TemplateCatalog({
@@ -127,8 +128,10 @@ export function TemplateCatalog({
     visible.find((template) => template.id === selectedId) ??
     visible[0] ??
     null;
-  const specialty =
-    initialSpecialtyCode || selected?.specialty || "medicina-general";
+  // La especialidad de una plantilla NUEVA es la del médico, no la de aquella
+  // que estuviera mirando en el catálogo: heredar de `selected` le ponía
+  // dermatología a un cardiólogo por haber abierto una ficha.
+  const specialty = initialSpecialtyCode || "medicina-general";
   const personalTotal = templates.filter(
     (template) => template.scope === "personal",
   ).length;
@@ -203,13 +206,26 @@ export function TemplateCatalog({
               Elige una estructura para la consulta o crea una propia.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setCreation("choice")}
-            className="clinical-primary min-h-12 w-full px-5 sm:w-auto"
-          >
-            <Plus size={17} /> Crear plantilla
-          </button>
+          {/* Dos entradas, cada una nombrada por lo que da. Antes había un solo
+              botón que abría una pantalla intermedia a preguntar "¿cómo quieres
+              empezar?": dos clics para llegar a decidir, en vez de uno para
+              llegar a trabajar. */}
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <button
+              type="button"
+              onClick={() => setBuilder({ mode: "scratch" })}
+              className="clinical-primary min-h-12 w-full px-5 sm:w-auto"
+            >
+              <Plus size={17} /> Crear plantilla
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreation("import")}
+              className="clinical-secondary min-h-12 w-full px-5 sm:w-auto"
+            >
+              <Upload size={16} /> Subir la mía
+            </button>
+          </div>
         </div>
         <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2 text-sm text-muted">
@@ -297,7 +313,42 @@ export function TemplateCatalog({
               onSelect={() => setSelectedId(template.id)}
             />
           ))}
-          {visible.length === 0 ? (
+          {/* Sin plantillas propias y sin búsqueda es el único momento en que
+              hace falta explicar los dos caminos. Con el catálogo poblado, los
+              dos botones de la cabecera se explican solos. */}
+          {visible.length === 0 && !query.trim() && personalTotal === 0 ? (
+            <div className="rounded-xl border border-dashed border-line bg-surface p-8 sm:p-10">
+              <p className="text-center font-semibold text-deep">
+                Todavía no tienes plantillas propias
+              </p>
+              <div className="mx-auto mt-6 grid max-w-2xl gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setBuilder({ mode: "scratch" })}
+                  className="rounded-xl border border-line p-4 text-left hover:border-accent hover:bg-ice-soft"
+                >
+                  <Plus size={20} className="text-accent" />
+                  <p className="mt-3 font-semibold text-deep">Crear plantilla</p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
+                    Empiezas con las secciones de tu especialidad y cambias lo
+                    que quieras.
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreation("import")}
+                  className="rounded-xl border border-accent/25 bg-accent-soft/20 p-4 text-left hover:border-accent"
+                >
+                  <Upload size={20} className="text-accent" />
+                  <p className="mt-3 font-semibold text-deep">Subir la mía</p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
+                    Foto del formulario en papel, Word o texto pegado. Miracle
+                    arma la estructura.
+                  </p>
+                </button>
+              </div>
+            </div>
+          ) : visible.length === 0 ? (
             <div className="rounded-xl border border-dashed border-line bg-surface p-10 text-center">
               <p className="font-semibold text-deep">
                 No hay plantillas que coincidan
@@ -324,23 +375,17 @@ export function TemplateCatalog({
         />
       ) : null}
 
-      {creation === "choice" ? (
-        <CreationChoice
+      {creation === "import" ? (
+        <TemplateImportDialog
+          specialty={specialty}
           onClose={() => setCreation(null)}
+          onDraft={(draft, origin) => {
+            setCreation(null);
+            setBuilder({ mode: "scratch", initialDraft: draft, draftOrigin: origin });
+          }}
           onManual={() => {
             setCreation(null);
             setBuilder({ mode: "scratch" });
-          }}
-          onExample={() => setCreation("example")}
-        />
-      ) : null}
-      {creation === "example" ? (
-        <ExampleDialog
-          specialty={specialty}
-          onClose={() => setCreation(null)}
-          onDraft={(draft) => {
-            setCreation(null);
-            setBuilder({ mode: "scratch", initialDraft: draft });
           }}
         />
       ) : null}
@@ -349,6 +394,7 @@ export function TemplateCatalog({
           mode={builder.mode}
           baseTemplate={builder.baseTemplate}
           initialDraft={builder.initialDraft}
+          draftOrigin={builder.draftOrigin}
           initialSpecialtyCode={specialty}
           onClose={() => setBuilder(null)}
           onSaved={saved}
@@ -576,206 +622,6 @@ function TemplateDialog({
               </button>
             </>
           ) : null}
-        </footer>
-      </section>
-    </div>
-  );
-}
-
-function CreationChoice({
-  onClose,
-  onManual,
-  onExample,
-}: {
-  onClose: () => void;
-  onManual: () => void;
-  onExample: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-overlay p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
-      <button
-        type="button"
-        aria-label="Cerrar"
-        onClick={onClose}
-        className="absolute inset-0"
-      />
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label="Crear plantilla"
-        className="mobile-bottom-sheet relative w-full max-w-xl rounded-t-3xl border border-b-0 border-line bg-surface p-5 shadow-[var(--shadow-xl)] sm:rounded-2xl sm:border-b sm:p-6"
-      >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Cerrar"
-          title="Cerrar"
-          className="absolute right-4 top-4 rounded-lg p-2 text-muted hover:bg-ice-soft"
-        >
-          <X size={18} />
-        </button>
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-          Nueva plantilla
-        </p>
-        <h2 className="mt-1 font-display text-2xl font-semibold text-deep">
-          ¿Cómo quieres empezar?
-        </h2>
-        <p className="mt-2 text-sm text-muted">
-          Elige una base clara; siempre podrás revisar y cambiar cada sección.
-        </p>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={onManual}
-            className="rounded-xl border border-line p-4 text-left hover:border-accent hover:bg-ice-soft"
-          >
-            <FileText size={20} className="text-accent" />
-            <p className="mt-4 font-semibold text-deep">Estructura clínica</p>
-            <p className="mt-1 text-sm leading-relaxed text-muted">
-              Empieza con secciones recomendadas y personalízalas.
-            </p>
-          </button>
-          <button
-            type="button"
-            onClick={onExample}
-            className="rounded-xl border border-accent/25 bg-accent-soft/20 p-4 text-left hover:border-accent"
-          >
-            <Sparkles size={20} className="text-accent" />
-            <p className="mt-4 font-semibold text-deep">
-              Desde una nota ejemplo
-            </p>
-            <p className="mt-1 text-sm leading-relaxed text-muted">
-              Miracle propone un borrador que tú revisas antes de guardar.
-            </p>
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function ExampleDialog({
-  specialty,
-  onClose,
-  onDraft,
-}: {
-  specialty: string;
-  onClose: () => void;
-  onDraft: (draft: CreateClinicalTemplatePayload) => void;
-}) {
-  const [example, setExample] = useState("");
-  const [consent, setConsent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  async function createDraft() {
-    if (!example.trim() || !consent) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const proposal = await createClinicalTemplateDraftFromExample({
-        specialty,
-        example_text: example,
-      });
-      onDraft(proposal.template);
-    } catch (draftError) {
-      setError(friendlyClinicalMessage(draftError));
-    } finally {
-      setLoading(false);
-    }
-  }
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-overlay p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
-      <button
-        type="button"
-        aria-label="Cerrar"
-        onClick={onClose}
-        className="absolute inset-0"
-      />
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label="Crear borrador desde ejemplo"
-        className="relative flex h-dvh max-h-dvh w-full max-w-2xl flex-col overflow-hidden bg-surface shadow-[var(--shadow-xl)] sm:h-auto sm:max-h-[90dvh] sm:rounded-2xl sm:border sm:border-line"
-      >
-        <header className="app-mobile-header border-b border-line px-4 py-4 sm:h-auto sm:px-6">
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Cerrar"
-            title="Cerrar"
-            className="absolute right-4 top-4 rounded-lg p-2 text-muted hover:bg-ice-soft"
-          >
-            <X size={18} />
-          </button>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-            Borrador asistido
-          </p>
-          <h2 className="mt-1 text-xl font-semibold text-deep">
-            Convierte un ejemplo en estructura
-          </h2>
-          <p className="mt-1 pr-8 text-sm text-muted">
-            La nota se usa solo para proponer secciones y no se guarda.
-          </p>
-        </header>
-        <div className="overflow-y-auto p-5 sm:p-6">
-          <div className="rounded-xl border border-warning/30 bg-warning-soft px-3.5 py-3 text-sm text-warning-ink">
-            <strong>Antes de continuar:</strong> elimina nombres, documentos,
-            teléfonos, fechas de nacimiento y cualquier identificador del
-            paciente.
-          </div>
-          <label className="mt-4 block text-sm font-semibold text-deep">
-            Nota de referencia
-            <textarea
-              value={example}
-              onChange={(event) => setExample(event.target.value)}
-              rows={10}
-              maxLength={12000}
-              placeholder="Pega una nota anonimizada. Miracle propondrá una estructura, no una nota clínica."
-              className="mt-2 w-full resize-y rounded-xl border border-line bg-field px-3.5 py-3 text-sm leading-relaxed outline-none focus:border-accent"
-            />
-          </label>
-          <label className="mt-4 flex items-start gap-3 text-sm text-deep">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(event) => setConsent(event.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-accent"
-            />
-            <span>
-              Confirmo que retiré identificadores del paciente y entiendo que el
-              texto no se guardará.
-            </span>
-          </label>
-          {error ? (
-            <p
-              role="alert"
-              className="mt-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-            >
-              {error}
-            </p>
-          ) : null}
-        </div>
-        <footer className="flex justify-end gap-2 border-t border-line px-5 py-4 sm:px-6">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-deep"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={() => void createDraft()}
-            disabled={!example.trim() || !consent || loading}
-            className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {loading ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <Sparkles size={15} />
-            )}{" "}
-            Crear borrador
-          </button>
         </footer>
       </section>
     </div>

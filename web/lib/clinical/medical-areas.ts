@@ -189,6 +189,31 @@ export function specialtyDisplayName(specialtyCode: string): string {
   );
 }
 
+/** Especialidad de reserva cuando no se reconoce ninguna. */
+const FALLBACK_SPECIALTY_CODE = "medicina-general";
+
+// Índice specialty_key (normalizado) → code canónico de specialties.ts.
+const canonicalCodeByKey = new Map<string, string>();
+for (const specialty of clinicalSpecialties) {
+  canonicalCodeByKey.set(normalizeSpecialtyKey(specialty.code), specialty.code);
+}
+
+/**
+ * Lleva cualquier forma de specialty_code al code canónico de specialties.ts.
+ *
+ * Hace falta porque el backend devuelve `medicina_general` (guion bajo) y las
+ * `<option>` del selector salen de specialties.ts con guiones. Un `<select>`
+ * cuyo `value` no case con ninguna opción PINTA la primera pero conserva el
+ * valor viejo en el estado: el médico ve "Medicina general" y guarda otra cosa.
+ */
+export function resolveSpecialtyCode(value: string | null | undefined): string {
+  if (!value) return FALLBACK_SPECIALTY_CODE;
+  return (
+    canonicalCodeByKey.get(normalizeSpecialtyKey(value)) ??
+    FALLBACK_SPECIALTY_CODE
+  );
+}
+
 /** Especialidades de un área, en el orden declarado y con su metadata completa. */
 export function specialtiesForArea(areaCode: string): ClinicalSpecialty[] {
   const area = medicalAreas.find((item) => item.code === areaCode);
