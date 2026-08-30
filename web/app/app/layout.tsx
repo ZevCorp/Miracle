@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app/AppShell";
 import { MiracleProvider } from "./providers";
 import { UnsavedChangesProvider } from "@/components/app/UnsavedChangesProvider";
 import { OmiProvider } from "@/lib/omi/useOmiMicrophone";
+import { SnippetsProvider } from "@/components/app/SnippetsProvider";
 import { PreferencesProvider } from "@/lib/preferences/client";
 import { getUserPreferences } from "@/lib/preferences/server";
 import { getCurrentProfile } from "@/lib/auth/server";
@@ -59,7 +60,11 @@ export default async function AppLayout({
           specialtyCode={profile.specialtyCode}
         >
           <OmiProvider>
-            <AppShell profile={profile}>{children}</AppShell>
+            {/* Los atajos se cargan una vez por sesión, y solo cuando alguien
+                los pide: montar el provider no consulta nada. */}
+            <SnippetsProvider>
+              <AppShell profile={profile}>{children}</AppShell>
+            </SnippetsProvider>
           </OmiProvider>
         </PreferencesProvider>
       </UnsavedChangesProvider>

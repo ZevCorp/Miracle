@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Tabs } from "@/components/app/Tabs";
 import { TemplateCatalog } from "./TemplateCatalog";
 import { AtajosManager } from "./AtajosManager";
+import { useSnippets } from "@/components/app/SnippetsProvider";
 
 /**
  * Biblioteca clínica del médico, en dos pestañas.
@@ -21,6 +22,13 @@ export function PlantillasTabs({
   initialTab?: "plantillas" | "atajos";
 }) {
   const [tab, setTab] = useState<string>(initialTab);
+  // Estando en la biblioteca del médico, cargar sus atajos es lo esperable: es
+  // una consulta al entrar, no una por sección como antes.
+  const { snippets, ensureLoaded } = useSnippets();
+  useEffect(() => {
+    ensureLoaded();
+  }, [ensureLoaded]);
+  const total = snippets.length;
 
   function selectTab(id: string) {
     setTab(id);
@@ -41,14 +49,16 @@ export function PlantillasTabs({
       <Tabs
         tabs={[
           { id: "plantillas", label: "Plantillas" },
-          { id: "atajos", label: "Mis atajos" },
+          // El contador ya lo soportaba `Tabs` y nadie lo usaba: sin él, la
+          // pestaña no dice si hay algo detrás.
+          { id: "atajos", label: "Mis atajos", count: total || undefined },
         ]}
         active={tab}
         onChange={selectTab}
       />
       <div className="mt-6">
         {tab === "atajos" ? (
-          <AtajosManager />
+          <AtajosManager specialtyCode={initialSpecialtyCode} />
         ) : (
           <TemplateCatalog initialSpecialtyCode={initialSpecialtyCode} embedded />
         )}

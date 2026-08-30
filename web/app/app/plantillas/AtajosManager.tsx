@@ -1,76 +1,86 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { FileUp, Loader2, Pencil, Plus, Search, Trash2, X, Zap } from "lucide-react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
-  categoriesFrom,
+  ChevronDown,
+  Copy,
+  FileUp,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  createSnippet,
   deleteSnippet,
   filterSnippets,
-  getSnippets,
+  groupSnippetsByCategory,
   SNIPPET_LIMITS,
   type Snippet,
 } from "@/lib/clinical/snippets";
 import { createClient } from "@/lib/supabase/client";
 import { SnippetEditorDialog } from "@/components/app/SnippetEditorDialog";
 import { SnippetImportDialog } from "./SnippetImportDialog";
+import { useSnippets } from "@/components/app/SnippetsProvider";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { HoverHint } from "@/components/ui/HoverHint";
 
 type EditorState = { id?: string; initial?: Partial<Snippet> } | null;
+
+/**
+ * El catálogo son ~69 KB de texto clínico. Cargándolo de forma estática viajaba
+ * en el bundle de /app/plantillas para todo el que abriera la pantalla, aunque
+ * se quedara en la pestaña de Plantillas y no viera nunca la biblioteca. Mismo
+ * criterio que mammoth en file-to-text: lo que pesa se carga cuando se usa.
+ */
+const MiracleLibrary = lazy(() =>
+  import("./MiracleLibrary").then((m) => ({ default: m.MiracleLibrary })),
+);
 
 /**
  * Gestión de los atajos del médico. Vive como pestaña de /app/plantillas: son
  * dos cosas distintas (la plantilla es el esqueleto de la nota, el atajo es
  * texto que se inserta dentro) pero el médico las busca en el mismo sitio,
  * "mis textos guardados".
+ *
+ * Aquí se ADMINISTRA; en la nota se USA. Son dos trabajos distintos y por eso
+ * esta pantalla puede permitirse mostrar el contenido, agrupar y ofrecer
+ * acciones, mientras que la lista que sale al escribir "/" es una sola línea
+ * por atajo.
  */
-export function AtajosManager() {
+export function AtajosManager({
+  specialtyCode,
+}: {
+  specialtyCode?: string | null;
+}) {
   const confirm = useConfirm();
-  const [snippets, setSnippets] = useState<Snippet[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { snippets, loading, error, ensureLoaded, reload, add, replace, remove } =
+    useSnippets();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>(null);
   const [importing, setImporting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [abierto, setAbierto] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    void getSnippets(createClient())
-      .then((result) => {
-        if (cancelled) return;
-        setSnippets(result);
-        setError(null);
-      })
-      .catch(() => {
-        if (!cancelled) setError("No se pudieron cargar tus atajos.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    ensureLoaded();
+  }, [ensureLoaded]);
 
-  const categories = useMemo(() => categoriesFrom(snippets), [snippets]);
-  const visible = useMemo(
-    () => filterSnippets(snippets, { query, category }),
-    [snippets, query, category],
-  );
+  const visible = useMemo(() => filterSnippets(snippets, { query }), [snippets, query]);
+  const grupos = useMemo(() => groupSnippetsByCategory(visible), [visible]);
 
   function saved(snippet: Snippet, editing: boolean) {
-    setSnippets((list) =>
-      editing
-        ? list.map((item) => (item.id === snippet.id ? snippet : item))
-        : [snippet, ...list],
-    );
+    if (editing) replace(snippet);
+    else add(snippet);
     setEditor(null);
     setFeedback(editing ? "Atajo actualizado." : "Atajo guardado y listo para usar.");
   }
 
-  async function remove(snippet: Snippet) {
+  async function eliminar(snippet: Snippet) {
     const ok = await confirm({
       titulo: `¿Eliminar «${snippet.title}»?`,
       descripcion: "El atajo desaparece de tu biblioteca. No se puede deshacer.",
@@ -81,7 +91,7 @@ export function AtajosManager() {
     setDeletingId(snippet.id);
     try {
       await deleteSnippet(createClient(), snippet.id);
-      setSnippets((list) => list.filter((item) => item.id !== snippet.id));
+      remove(snippet.id);
       setFeedback("Atajo eliminado.");
     } catch {
       setFeedback("No se pudo eliminar el atajo. Intenta de nuevo.");
@@ -90,7 +100,30 @@ export function AtajosManager() {
     }
   }
 
-  const atTopeDeAtajos = snippets.length >= SNIPPET_LIMITS.perUser;
+  /**
+   * Duplicar es la forma natural de partir de un atajo de Miracle y hacerlo
+   * tuyo sin perder el original.
+   */
+  async function duplicar(snippet: Snippet) {
+    setDuplicatingId(snippet.id);
+    try {
+      const copia = await createSnippet(createClient(), {
+        title: `${snippet.title} (copia)`.slice(0, SNIPPET_LIMITS.title),
+        content: snippet.content,
+        category: snippet.category,
+      });
+      add(copia);
+      setEditor({ id: copia.id, initial: copia });
+      setFeedback("Copia creada. Ajústala como quieras.");
+    } catch {
+      setFeedback("No se pudo duplicar el atajo. Intenta de nuevo.");
+    } finally {
+      setDuplicatingId(null);
+    }
+  }
+
+  const atTope = snippets.length >= SNIPPET_LIMITS.perUser;
+  const filtrando = query.trim().length > 0;
 
   return (
     <div>
@@ -99,10 +132,11 @@ export function AtajosManager() {
           <div>
             <h1 className="app-page-title">Mis atajos</h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-              Los textos que repites en cada consulta. Se insertan en cualquier
-              sección de la nota con el botón{" "}
-              <Zap size={13} className="inline align-[-1px] text-accent" /> o
-              escribiendo <kbd className="rounded border border-line bg-field px-1 font-mono text-xs">/</kbd>{" "}
+              Los bloques de texto que repites en cada consulta. Se insertan en
+              cualquier sección de la nota escribiendo{" "}
+              <kbd className="rounded border border-line bg-field px-1 font-mono text-xs">
+                /
+              </kbd>{" "}
               seguido de lo que buscas.
             </p>
           </div>
@@ -110,7 +144,7 @@ export function AtajosManager() {
             <button
               type="button"
               onClick={() => setImporting(true)}
-              disabled={atTopeDeAtajos}
+              disabled={atTope}
               className="clinical-secondary min-h-12 w-full px-5 sm:w-auto"
             >
               <FileUp size={17} /> Importar desde archivos
@@ -118,11 +152,9 @@ export function AtajosManager() {
             <button
               type="button"
               onClick={() => setEditor({})}
-              disabled={atTopeDeAtajos}
+              disabled={atTope}
               title={
-                atTopeDeAtajos
-                  ? `Llegaste al máximo de ${SNIPPET_LIMITS.perUser} atajos.`
-                  : undefined
+                atTope ? `Llegaste al máximo de ${SNIPPET_LIMITS.perUser} atajos.` : undefined
               }
               className="clinical-primary min-h-12 w-full px-5 sm:w-auto"
             >
@@ -132,9 +164,24 @@ export function AtajosManager() {
         </div>
 
         <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          {/* El contador decía siempre el total, aunque hubiera un filtro puesto:
+              "12 atajos guardados" con dos en pantalla. Ahora dice la verdad. */}
           <div className="text-sm text-muted">
-            <span className="font-semibold text-deep">{snippets.length}</span>{" "}
-            {snippets.length === 1 ? "atajo guardado" : "atajos guardados"}
+            {filtrando ? (
+              <>
+                <span className="font-semibold text-deep tabular-nums">
+                  {visible.length}
+                </span>{" "}
+                de <span className="tabular-nums">{snippets.length}</span>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-deep tabular-nums">
+                  {snippets.length}
+                </span>{" "}
+                {snippets.length === 1 ? "atajo guardado" : "atajos guardados"}
+              </>
+            )}
           </div>
           <div className="clinical-control flex items-center gap-2 px-3">
             <Search size={16} className="text-muted" />
@@ -157,24 +204,6 @@ export function AtajosManager() {
             ) : null}
           </div>
         </div>
-
-        {categories.length ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <CategoryChip
-              label="Todas"
-              active={category === null}
-              onClick={() => setCategory(null)}
-            />
-            {categories.map((option) => (
-              <CategoryChip
-                key={option}
-                label={option}
-                active={category === option}
-                onClick={() => setCategory(category === option ? null : option)}
-              />
-            ))}
-          </div>
-        ) : null}
       </header>
 
       <p className="mt-4 text-xs leading-relaxed text-muted">
@@ -207,81 +236,89 @@ export function AtajosManager() {
       ) : null}
 
       {!loading && !error ? (
-        snippets.length === 0 ? (
-          <EmptyLibrary onCreate={() => setEditor({})} />
-        ) : visible.length === 0 ? (
-          <p className="mt-8 rounded-xl border border-line bg-surface p-10 text-center text-sm text-muted">
-            Ningún atajo coincide con esa búsqueda.
-          </p>
-        ) : (
-          <ul className="mt-6 space-y-3">
-            {visible.map((snippet) => (
-              <li
-                key={snippet.id}
-                className="rounded-xl border border-line bg-surface p-4 shadow-[var(--shadow-xs)]"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-deep">{snippet.title}</p>
-                    {snippet.category ? (
-                      <span className="mt-1 inline-block rounded-full bg-ice px-2 py-0.5 text-xs font-medium text-ink-soft">
-                        {snippet.category}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setEditor({ id: snippet.id, initial: snippet })}
-                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-ice-soft hover:text-accent"
-                    >
-                      <Pencil size={14} /> Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void remove(snippet)}
-                      disabled={deletingId === snippet.id}
-                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-danger/10 hover:text-danger disabled:opacity-40"
-                    >
-                      <Trash2 size={14} />{" "}
-                      {deletingId === snippet.id ? "Eliminando…" : "Eliminar"}
-                    </button>
-                  </div>
-                </div>
-                <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm leading-relaxed text-muted">
-                  {snippet.content}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )
+        <>
+          {/* Sin nada guardado, la biblioteca ES la pantalla. Con atajos, queda
+              como una sección más, siempre disponible. */}
+          <div className="mt-6">
+            <Suspense
+              fallback={
+                <div className="h-40 rounded-[14px] border border-line bg-surface" />
+              }
+            >
+              <MiracleLibrary
+                specialtyCode={specialtyCode}
+                snippets={snippets}
+                destacada={snippets.length === 0}
+                onInstalled={async (mensaje) => {
+                  // createSnippets no devuelve las filas y hacen falta los ids
+                  // para poder editarlas.
+                  await reload();
+                  setFeedback(mensaje);
+                }}
+              />
+            </Suspense>
+          </div>
+
+          {snippets.length === 0 ? null : visible.length === 0 ? (
+            <p className="mt-6 rounded-xl border border-dashed border-line bg-surface p-8 text-center text-sm text-muted">
+              Ningún atajo coincide con esa búsqueda.
+            </p>
+          ) : (
+            <div className="mt-6 space-y-6">
+              {grupos.map((grupo) => (
+                <section key={grupo.category || "sin-seccion"}>
+                  <h2 className="flex items-baseline gap-2 text-sm font-semibold text-deep">
+                    {grupo.category || "Sin sección"}
+                    <span className="text-xs font-normal text-muted tabular-nums">
+                      {grupo.snippets.length}
+                    </span>
+                  </h2>
+                  <ul className="mt-2 space-y-2">
+                    {grupo.snippets.map((snippet) => (
+                      <SnippetRow
+                        key={snippet.id}
+                        snippet={snippet}
+                        expandido={abierto === snippet.id}
+                        eliminando={deletingId === snippet.id}
+                        duplicando={duplicatingId === snippet.id}
+                        onToggle={() =>
+                          setAbierto((id) => (id === snippet.id ? null : snippet.id))
+                        }
+                        onEdit={() => setEditor({ id: snippet.id, initial: snippet })}
+                        onDuplicate={() => void duplicar(snippet)}
+                        onDelete={() => void eliminar(snippet)}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          )}
+        </>
       ) : null}
 
       {editor ? (
         <SnippetEditorDialog
           id={editor.id}
           initial={editor.initial}
-          categories={categories}
+          categories={grupos.map((g) => g.category).filter(Boolean)}
           onClose={() => setEditor(null)}
           onSaved={(snippet) => saved(snippet, Boolean(editor.id))}
         />
       ) : null}
-
       {importing ? (
         <SnippetImportDialog
-          existingCategories={categories}
+          existingCategories={grupos.map((g) => g.category).filter(Boolean)}
           existingCount={snippets.length}
           onClose={() => setImporting(false)}
-          onSaved={(count) => {
+          onSaved={async (count) => {
             setImporting(false);
-            setFeedback(
-              `${count} ${count === 1 ? "atajo importado" : "atajos importados"}.`,
-            );
-            // Se recargan del servidor: la importación no devuelve las filas
-            // creadas y hacen falta sus ids para editar o eliminar.
-            void getSnippets(createClient())
-              .then(setSnippets)
-              .catch(() => setError("Se guardaron, pero no se pudo refrescar la lista."));
+            try {
+              await reload();
+              setFeedback(`Se guardaron ${count} atajos.`);
+            } catch {
+              setFeedback("Se guardaron, pero no se pudo refrescar la lista.");
+            }
           }}
         />
       ) : null}
@@ -289,45 +326,104 @@ export function AtajosManager() {
   );
 }
 
-function CategoryChip({
-  label,
-  active,
-  onClick,
+/**
+ * Una fila. El contenido completo se despliega aquí mismo: antes solo había dos
+ * líneas recortadas y la única forma de leer un atajo entero era abrir el
+ * editor, o sea entrar en modo edición para algo que era solo mirar.
+ */
+function SnippetRow({
+  snippet,
+  expandido,
+  eliminando,
+  duplicando,
+  onToggle,
+  onEdit,
+  onDuplicate,
+  onDelete,
 }: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
+  snippet: Snippet;
+  expandido: boolean;
+  eliminando: boolean;
+  duplicando: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-        active
-          ? "border-accent bg-accent-soft text-accent-ink"
-          : "border-line bg-surface text-ink-soft hover:border-mist hover:text-deep"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
-function EmptyLibrary({ onCreate }: { onCreate: () => void }) {
-  return (
-    <div className="mt-8 rounded-xl border border-line bg-surface p-10 text-center">
-      <Zap size={26} className="mx-auto text-accent" />
-      <p className="mt-4 font-display text-lg font-semibold text-deep">
-        Aún no tienes atajos
-      </p>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted">
-        Guarda una vez el texto de un diagnóstico o un plan que escribes siempre,
-        y a partir de ahí lo insertas en la nota en dos teclas.
-      </p>
-      <button type="button" onClick={onCreate} className="clinical-primary mt-5 px-5">
-        <Plus size={17} /> Crear mi primer atajo
-      </button>
-    </div>
+    <li className="rounded-xl border border-line bg-surface shadow-[var(--shadow-xs)]">
+      <div className="flex items-start gap-2 p-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expandido}
+          className="flex min-w-0 flex-1 items-start gap-2 text-left"
+        >
+          <ChevronDown
+            size={15}
+            className={`mt-0.5 shrink-0 text-muted transition-transform ${
+              expandido ? "" : "-rotate-90"
+            }`}
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium text-deep">{snippet.title}</span>
+            {expandido ? null : (
+              <span className="mt-0.5 block truncate text-[13px] text-muted">
+                {snippet.content.replace(/\s+/g, " ")}
+              </span>
+            )}
+          </span>
+        </button>
+        {/* Iconos y no botones con texto: son tres acciones por fila y con
+            cincuenta filas el texto repetido es todo lo que se ve. */}
+        <div className="flex shrink-0 items-center gap-0.5">
+          <HoverHint label="Editar">
+            <button
+              type="button"
+              onClick={onEdit}
+              aria-label={`Editar ${snippet.title}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-ice-soft hover:text-accent"
+            >
+              <Pencil size={14} />
+            </button>
+          </HoverHint>
+          <HoverHint label="Duplicar">
+            <button
+              type="button"
+              onClick={onDuplicate}
+              disabled={duplicando}
+              aria-label={`Duplicar ${snippet.title}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-ice-soft hover:text-accent disabled:opacity-40"
+            >
+              {duplicando ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Copy size={14} />
+              )}
+            </button>
+          </HoverHint>
+          <HoverHint label="Eliminar">
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={eliminando}
+              aria-label={`Eliminar ${snippet.title}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:bg-danger/10 hover:text-danger disabled:opacity-40"
+            >
+              {eliminando ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Trash2 size={14} />
+              )}
+            </button>
+          </HoverHint>
+        </div>
+      </div>
+      {expandido ? (
+        <p className="whitespace-pre-wrap border-t border-line px-3 py-3 pl-[34px] text-[13px] leading-relaxed text-ink">
+          {snippet.content}
+        </p>
+      ) : null}
+    </li>
   );
 }
