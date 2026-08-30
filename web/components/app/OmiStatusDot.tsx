@@ -99,7 +99,14 @@ export function OmiStatusDot() {
         // Pulsar y enfocar con teclado también abren: un menú que solo responde
         // al cursor no existe ni en un teléfono ni para quien navega con TAB.
         onClick={() => setAbierto((v) => !v)}
-        onFocus={() => setAbierto(true)}
+        // `:focus-visible` y no `onFocus` a secas. Al hacer clic el navegador
+        // ENFOCA el botón antes de disparar el clic, así que un onFocus abierto
+        // a todo abría el menú y el onClick siguiente lo cerraba en el mismo
+        // gesto: pulsar no abría nunca, y en un teléfono —donde no hay cursor
+        // que posar— el menú quedaba sencillamente inalcanzable.
+        onFocus={(e) => {
+          if (e.target.matches(":focus-visible")) setAbierto(true);
+        }}
         className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-ice-soft hover:text-deep focus:outline-none focus:ring-2 focus:ring-accent/30"
       >
         <span className="relative inline-flex">
