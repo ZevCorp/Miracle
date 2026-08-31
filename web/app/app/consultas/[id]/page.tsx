@@ -370,7 +370,7 @@ export default function ConsultaDetallePage() {
             <button
               type="button"
               onClick={() => void copyResumen()}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:text-deep"
+              className="icon-btn"
               aria-label="Copiar resumen"
             >
               <Copy size={16} />
@@ -380,7 +380,7 @@ export default function ConsultaDetallePage() {
             <button
               type="button"
               onClick={() => void copiarNota()}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium text-deep hover:border-mist"
+              className="clinical-secondary px-3.5"
             >
               <ClipboardCopy size={16} /> Copiar nota
             </button>
@@ -388,7 +388,7 @@ export default function ConsultaDetallePage() {
           <button
             type="button"
             onClick={descargarPDF}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium text-deep hover:border-mist"
+            className="clinical-secondary px-3.5"
           >
             <Printer size={16} /> PDF
           </button>
@@ -407,7 +407,7 @@ export default function ConsultaDetallePage() {
                 const qs = sp.toString();
                 router.push(`/app/consultas/nueva${qs ? `?${qs}` : ""}`);
               }}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:text-deep"
+              className="icon-btn"
               aria-label="Regrabar"
               title="Iniciar una nueva grabación para este paciente"
             >
@@ -456,7 +456,7 @@ export default function ConsultaDetallePage() {
       {demo ? (
         <div
           role="alert"
-          className="mt-5 flex items-start gap-3 rounded-lg border-2 border-warning/50 bg-warning-soft px-4 py-3.5"
+          className="mt-5 flex items-start gap-3 rounded-[16px] border border-warning/50 bg-warning-soft px-4 py-3.5"
         >
           <AlertTriangle size={20} className="mt-0.5 shrink-0 text-warning" />
           <div>
@@ -551,7 +551,7 @@ export default function ConsultaDetallePage() {
       ) : null}
 
       {(canEdit || canExport) && c.estado !== "exportada" ? (
-        <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-30 grid gap-2 rounded-[14px] border border-line bg-surface p-2.5 shadow-[var(--shadow-lg)] sm:hidden">
+        <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-30 grid gap-2 rounded-[16px] border border-line bg-surface p-2.5 shadow-[var(--elev-3)] sm:hidden">
           {canEdit && c.estado === "borrador" ? (
             <button type="button" onClick={() => markReviewed(c.id)} className="clinical-secondary">Marcar revisada</button>
           ) : null}
@@ -611,11 +611,11 @@ function AddendaSection({
   return (
     <section
       ref={sectionRef}
-      className="mt-8 scroll-mt-24 rounded-lg border border-line bg-surface p-5"
+      className="clinical-panel mt-8 scroll-mt-24 p-5"
     >
       <div className="flex items-center gap-2">
         <FilePlus2 size={17} className="text-accent" />
-        <h2 className="font-display text-base font-semibold text-deep">
+        <h2 className="clinical-section-title">
           Adendas
         </h2>
       </div>
@@ -627,7 +627,7 @@ function AddendaSection({
       {addenda.length ? (
         <ol className="mt-4 space-y-3">
           {addenda.map((a) => (
-            <li key={a.id} className="rounded-md border border-line bg-field p-3.5">
+            <li key={a.id} className="clinical-panel-muted p-3.5">
               <p className="text-xs font-semibold text-muted">
                 {a.autor} · {new Date(a.fecha).toLocaleString("es-CO")}
               </p>
@@ -640,7 +640,7 @@ function AddendaSection({
       ) : addendaError ? (
         /* Afirmar "no tiene adendas" sobre una nota firmada cuando la consulta
            falló sería un error de contenido en un documento clínico-legal. */
-        <p className="mt-4 rounded-md border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
+        <p className="mt-4 rounded-[12px] border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
           No se pudieron cargar las adendas de esta nota.{" "}
           <button
             type="button"
@@ -651,7 +651,7 @@ function AddendaSection({
           </button>
         </p>
       ) : (
-        <p className="mt-4 rounded-md border border-dashed border-line px-4 py-3 text-sm text-muted">
+        <p className="mt-4 rounded-[12px] border border-dashed border-line px-4 py-3 text-sm text-muted">
           Esta nota aún no tiene adendas.
         </p>
       )}
@@ -669,7 +669,7 @@ function AddendaSection({
             rows={3}
             maxLength={4000}
             placeholder="Describe la corrección o ampliación de la nota firmada…"
-            className="mt-1.5 w-full resize-y rounded-md border border-line bg-field px-3.5 py-2.5 text-sm leading-relaxed outline-none transition-colors focus:border-accent"
+            className="clinical-control mt-1.5 w-full resize-y px-3.5 py-2.5 text-sm leading-relaxed outline-none"
           />
           <div className="mt-2 flex justify-end">
             <Button onClick={() => void submit()} disabled={!texto.trim() || saving}>
@@ -687,7 +687,7 @@ function AddendaSection({
 
 function AiDisclaimer() {
   return (
-    <div className="mb-4 flex items-start gap-2 rounded-md border border-accent/20 bg-accent-soft/50 px-3.5 py-2.5 text-sm text-accent-ink">
+    <div className="mb-4 flex items-start gap-2 rounded-[12px] border border-accent/20 bg-accent-soft/50 px-3.5 py-2.5 text-sm text-accent-ink">
       <Info size={16} className="mt-0.5 shrink-0" />
       <span>
         Contenido generado con IA. Verifique la información; la nota requiere
@@ -735,7 +735,7 @@ function HistoriaTab({
             onAiEdit(value);
             input.value = "";
           }}
-          className="mt-3 flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 shadow-[var(--shadow-sm)] sm:rounded-full sm:px-4"
+          className="mt-3 flex items-center gap-2 rounded-[16px] border border-line bg-surface px-3 py-2 shadow-[var(--elev-1)] sm:rounded-full sm:px-4"
         >
           <Sparkles size={16} className="text-accent" />
           <input
@@ -799,7 +799,7 @@ function CodificacionTab({
       <div className="space-y-5">
         <section>
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="font-display text-base font-semibold text-deep">
+            <h2 className="clinical-section-title">
               Códigos sugeridos
             </h2>
             {canEdit ? (
@@ -814,7 +814,7 @@ function CodificacionTab({
           </div>
 
           {canEdit && showForm ? (
-            <div className="mb-3 rounded-md border border-line bg-surface p-3">
+            <div className="clinical-panel-muted mb-3 p-3">
               <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
                 <select
                   value={sistema}
@@ -822,7 +822,7 @@ function CodificacionTab({
                     setSistema(e.target.value as ClinicalCode["sistema"])
                   }
                   aria-label="Sistema de codificación"
-                  className="rounded-md border border-line bg-field px-2.5 py-2 text-sm outline-none focus:border-accent"
+                  className="clinical-control px-3 text-sm outline-none"
                 >
                   <option value="CIE-10">CIE-10</option>
                   <option value="CUPS">CUPS</option>
@@ -831,19 +831,19 @@ function CodificacionTab({
                   value={codigo}
                   onChange={(e) => setCodigo(e.target.value)}
                   placeholder="Código (ej. I10)"
-                  className="w-full rounded-md border border-line bg-field px-3 py-2 text-sm uppercase outline-none focus:border-accent sm:w-32"
+                  className="clinical-control w-full px-3 text-sm uppercase outline-none sm:w-32"
                 />
                 <input
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                   placeholder="Descripción del diagnóstico o procedimiento"
-                  className="min-w-0 flex-1 rounded-md border border-line bg-field px-3 py-2 text-sm outline-none focus:border-accent"
+                  className="clinical-control min-w-0 flex-1 px-3 text-sm outline-none"
                 />
               </div>
 
               {(codigo.trim() || descripcion.trim()) &&
               searchCodes(sistema, codigo || descripcion).length ? (
-                <div className="mt-2 max-h-44 overflow-auto rounded-md border border-line">
+                <div className="clinical-panel-muted mt-2 max-h-44 overflow-auto">
                   {searchCodes(sistema, codigo || descripcion).map((s) => (
                     <button
                       key={s.codigo}
@@ -875,7 +875,7 @@ function CodificacionTab({
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-deep hover:border-mist"
+                  className="clinical-secondary px-4"
                 >
                   Cancelar
                 </button>
@@ -895,7 +895,7 @@ function CodificacionTab({
               ))}
             </div>
           ) : (
-            <p className="rounded-md border border-line bg-surface px-4 py-3 text-sm text-muted">
+            <p className="clinical-panel-muted px-4 py-3 text-sm text-muted">
               No hay códigos sugeridos pendientes. Revise los aceptados.
             </p>
           )}
@@ -903,7 +903,7 @@ function CodificacionTab({
 
         {aceptados.length ? (
           <section>
-            <h2 className="mb-2 font-display text-base font-semibold text-deep">
+            <h2 className="clinical-section-title mb-2">
               Aceptados
             </h2>
             <div className="space-y-2.5">
@@ -933,9 +933,9 @@ function CodificacionTab({
       </div>
 
       {/* RIPS */}
-      <aside className="h-fit rounded-lg border border-line bg-surface p-5">
+      <aside className="clinical-panel h-fit p-5">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-base font-semibold text-deep">
+          <h2 className="clinical-section-title">
             Preparación para RIPS
           </h2>
           <span
@@ -975,18 +975,18 @@ function ResumenTab({ texto, onCopy }: { texto: string; onCopy: () => void }) {
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-display text-base font-semibold text-deep">
+        <h2 className="clinical-section-title">
           Resumen clínico
         </h2>
         <button
           type="button"
           onClick={onCopy}
-          className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium text-deep hover:border-mist"
+          className="clinical-secondary px-4"
         >
           <Copy size={14} /> Copiar
         </button>
       </div>
-      <div className="rounded-lg border border-line bg-surface p-6 text-[0.97rem] leading-relaxed text-ink">
+      <div className="clinical-panel p-6 text-[0.97rem] leading-relaxed text-ink">
         {texto}
       </div>
     </div>
@@ -1019,7 +1019,7 @@ function TranscripcionTab({
 
   if (fetching && consultation.transcript.length === 0) {
     return (
-      <div className="flex justify-center rounded-lg border border-line bg-surface p-10">
+      <div className="clinical-panel flex justify-center p-10">
         <Loader2 size={22} className="animate-spin text-accent" />
       </div>
     );
@@ -1030,7 +1030,7 @@ function TranscripcionTab({
     // transcripción es la evidencia de la que se derivó la nota.
     if (fallo) {
       return (
-        <p className="rounded-lg border border-warning/40 bg-warning-soft p-6 text-sm text-warning">
+        <p className="rounded-[16px] border border-warning/40 bg-warning-soft p-6 text-sm text-warning">
           No se pudo cargar la transcripción de esta consulta.{" "}
           <button
             type="button"
@@ -1046,14 +1046,14 @@ function TranscripcionTab({
       );
     }
     return (
-      <p className="rounded-lg border border-line bg-surface p-6 text-sm text-muted">
+      <p className="clinical-panel p-6 text-sm text-muted">
         Esta consulta no tiene transcripción registrada.
       </p>
     );
   }
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-6">
+    <div className="clinical-panel p-6">
       <div className="space-y-4">
         {consultation.transcript.map((turn, i) =>
           turn.hablante ? (
@@ -1112,7 +1112,7 @@ function AuditoriaTab({ consultation }: { consultation: Consultation }) {
     <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
       <div className="space-y-5">
         {/* Calidad documental + completitud RIPS */}
-        <div className="rounded-lg border border-line bg-surface p-5">
+        <div className="clinical-panel p-5">
           <div className="flex items-end justify-between gap-4">
             <div>
               <div className="text-sm text-muted">Calidad documental</div>
@@ -1134,7 +1134,7 @@ function AuditoriaTab({ consultation }: { consultation: Consultation }) {
         </div>
 
         {/* Qué se puede mejorar */}
-        <div className="rounded-lg border border-line bg-surface p-5">
+        <div className="clinical-panel p-5">
           <h2 className="mb-4 font-display text-base font-semibold text-deep">
             Qué se puede mejorar
           </h2>
@@ -1145,7 +1145,7 @@ function AuditoriaTab({ consultation }: { consultation: Consultation }) {
         </div>
       </div>
 
-      <div className="h-fit rounded-lg border border-line bg-surface p-5">
+      <div className="clinical-panel h-fit p-5">
         <h2 className="mb-4 font-display text-base font-semibold text-deep">
           Trazabilidad
         </h2>

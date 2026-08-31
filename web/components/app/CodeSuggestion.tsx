@@ -16,7 +16,7 @@ export function CodeSuggestion({
 
   return (
     <div
-      className={`rounded-md border p-3 ${
+      className={`rounded-[12px] border p-3 ${
         accepted
           ? "border-success/30 bg-success-soft/40"
           : discarded
@@ -59,7 +59,7 @@ export function CodeSuggestion({
                   type="button"
                   onClick={onAccept}
                   aria-label="Aceptar código"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent text-white hover:bg-accent-hover"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-accent text-white hover:bg-accent-hover"
                 >
                   <Check size={16} />
                 </button>
@@ -69,7 +69,7 @@ export function CodeSuggestion({
                   type="button"
                   onClick={onDiscard}
                   aria-label="Descartar código"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-line text-muted hover:text-danger"
+                  className="icon-btn h-9 w-9 hover:text-danger"
                 >
                   <X size={16} />
                 </button>

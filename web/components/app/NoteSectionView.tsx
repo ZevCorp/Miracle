@@ -7,7 +7,6 @@ import {
   ChevronDown,
   Copy,
   Mic,
-  Pencil,
   Plus,
   Trash2,
   X,
@@ -342,7 +341,7 @@ export function NoteSectionView({
             ? `Guardar la selección de ${section.titulo} como atajo`
             : `Insertar atajo en ${section.titulo}`
         }
-        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-ice-soft hover:text-accent"
+        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-ice-soft hover:text-accent"
       >
         {haySeleccion ? <BookmarkPlus size={14} /> : <Zap size={14} />}{" "}
         <span className="hidden sm:inline">{haySeleccion ? "Guardar" : "Atajo"}</span>
@@ -393,7 +392,7 @@ export function NoteSectionView({
               onClick={copyContent}
               disabled={!contenido}
               aria-label={`Copiar ${section.titulo}`}
-              className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
                 copied ? "text-success" : "text-muted hover:bg-ice-soft hover:text-accent"
               }`}
             >
@@ -401,15 +400,6 @@ export function NoteSectionView({
               <span className="hidden sm:inline">{copied ? "Copiado" : "Copiar"}</span>
             </button>
             {editable ? snippetButton : null}
-            {editable ? (
-              <button
-                type="button"
-                onClick={startEdit}
-                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-ice-soft hover:text-accent"
-              >
-                <Pencil size={14} /> <span className="hidden sm:inline">Editar</span>
-              </button>
-            ) : null}
           </div>
         ) : null}
       </div>
@@ -432,7 +422,7 @@ export function NoteSectionView({
                             list.map((v, j) => (j === i ? e.target.value : v)),
                           );
                         }}
-                        className="min-w-0 flex-1 rounded-md border border-line bg-field px-3 py-1.5 text-sm outline-none focus:border-accent"
+                        className="clinical-control min-w-0 flex-1 px-3 text-sm outline-none"
                       />
                       <button
                         type="button"
@@ -476,7 +466,7 @@ export function NoteSectionView({
                     onKeyDown={onTextareaKeyDown}
                     onBlur={(e) => rememberSelection(e.currentTarget)}
                     rows={Math.max(3, Math.ceil(texto.length / 70))}
-                    className="w-full resize-y rounded-md border border-line bg-field px-3 py-2 text-sm leading-relaxed outline-none focus:border-accent"
+                    className="clinical-control w-full resize-y px-3 py-2 text-sm leading-relaxed outline-none"
                     autoFocus
                   />
                   {slash ? (
@@ -506,7 +496,7 @@ export function NoteSectionView({
                 <button
                   type="button"
                   onClick={cancel}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-1.5 text-sm font-medium text-deep hover:border-mist"
+                  className="clinical-secondary px-4"
                 >
                   <X size={15} /> Cancelar
                 </button>
@@ -533,10 +523,9 @@ export function NoteSectionView({
             </div>
           ) : (
             /* ----- Modo lectura ----- */
-            /* Click directo sobre el texto entra a edición, sin pasar por el
-               botón "Editar" (el médico toca lo que quiere corregir). El
-               botón sigue ahí para quien prefiera usarlo o navegue con
-               teclado/lector de pantalla. */
+            /* Click directo sobre el texto entra a edición: el médico toca lo
+               que quiere corregir. No hay botón "Editar"; el propio bloque es
+               el control, alcanzable con teclado y lector de pantalla. */
             <div
               role={editable ? "button" : undefined}
               tabIndex={editable ? 0 : undefined}
@@ -553,7 +542,7 @@ export function NoteSectionView({
               }
               className={
                 editable
-                  ? "-mx-2 rounded-md px-2 py-1 transition-colors hover:bg-ice-soft"
+                  ? "-mx-2 rounded-[10px] px-2 py-1 transition-colors hover:bg-ice-soft"
                   : undefined
               }
               title={editable ? "Toca para editar esta sección" : undefined}
