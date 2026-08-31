@@ -231,8 +231,21 @@ function ConsultaActivaInner() {
     },
     [],
   );
-  // El descarte se limpia al ARRANCAR una captura (en el handler, no en un
-  // efecto): cada grabación nueva vuelve a abrir la capa.
+  // El descarte se limpia al ARRANCAR una captura: cada grabación nueva vuelve
+  // a abrir la capa.
+  //
+  // Tiene que mirar la TRANSICIÓN, no el aviso. DictationPanel notifica desde
+  // un efecto que depende de esta función, así que con un callback inline —que
+  // cambia de identidad en cada render— el aviso se repetía sin parar: salir
+  // ponía captureDismissed en true, el padre re-renderizaba, llegaba otro
+  // "estoy grabando" y lo devolvía a false. La capa se reabría en el acto y
+  // "Ver la pantalla completa" no servía para nada.
+  const capturandoPrevio = useRef(false);
+  const onCapturingChange = useCallback((abierta: boolean) => {
+    setCapturando(abierta);
+    if (abierta && !capturandoPrevio.current) setCaptureDismissed(false);
+    capturandoPrevio.current = abierta;
+  }, []);
   // Con qué se grabó. El panel lo reporta al elegirlo; hasta entonces es null
   // (que la telemetría distingue de "micrófono", porque no es lo mismo no
   // haber grabado todavía que haber grabado con el micrófono).
@@ -1278,10 +1291,7 @@ function ConsultaActivaInner() {
                     disabled={busy || signedMirror}
                     onAppendFinal={appendFinal}
                     onActiveChange={setDictando}
-                    onCapturingChange={(abierta) => {
-                      setCapturando(abierta);
-                      if (abierta) setCaptureDismissed(false);
-                    }}
+                    onCapturingChange={onCapturingChange}
                     onUsageSnapshotReady={onUsageSnapshotReady}
                     onAudioSourceChange={setFuenteAudio}
                     autoStart={autoStartOnArrival && !completed && !signedMirror}
@@ -1686,11 +1696,18 @@ function ConsultaActivaInner() {
         </aside>
       </div>
 
+      {/* La captura recibe los MISMOS borradores por sección que el panel de
+          abajo: escribir aquí y escribir en la pantalla completa son el mismo
+          texto, con el mismo autoguardado. Nada que reconciliar después. */}
       {capturando && !captureDismissed && !completed ? (
         <CaptureMode
           elapsedSec={liveCapture.elapsedSec}
           partialText={liveCapture.partialText}
           sections={captureSpine}
+          drafts={sectionDrafts.drafts}
+          onDraftChange={sectionDrafts.setDraft}
+          draftsSaveState={sectionDrafts.saveState}
+          draftsDisabled={busy || signedMirror}
           onPause={() => captureControlsRef.current?.pause()}
           onFinish={() => captureControlsRef.current?.finish()}
           onExit={() => setCaptureDismissed(true)}
