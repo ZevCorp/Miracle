@@ -1167,6 +1167,45 @@
    corre antes del primer pintado ya deja el menú del ancho correcto: si
    dependiera de estado de React, el menú abriría siempre expandido y se
    encogería un instante después, a la vista del usuario. */
+/* El ancho del menú, expuesto como variable. El cromo flotante es `fixed`, así
+   que no lo empuja nadie: sin este dato no puede alinearse con el principio del
+   contenido y solo le queda pegarse a una esquina. Debajo de md no hay menú. */
+:root {
+  --aside-w: 0px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --aside-w: 260px;
+  }
+  html[data-sidebar="collapsed"] {
+    --aside-w: 84px;
+  }
+}
+
+/* EL BUSCADOR, ABIERTO Y CON SITIO.
+   Metido en la cápsula de estado era una lupa apretujada entre el tema y la
+   cuenta: no se leía como un buscador, y con el ⌘K al lado quedaba todo
+   amontonado en la esquina. Aquí empieza donde empieza el contenido (la misma
+   sangría que .app-main en md) y acompaña al menú cuando se contrae, con su
+   mismo tiempo, para que no dé un salto.
+
+   `fixed`, `top` y `z-index` los pone el elemento con utilidades, NO esta
+   clase: si esta hoja no llegara a cargar, un elemento `flex` sin posicionar se
+   metería en el flujo y le robaría el ancho al contenido —ya pasó—. Aquí solo
+   va lo que necesita el calc. */
+.chrome-search {
+  left: calc(var(--aside-w) + 2rem);
+  width: min(24rem, 34vw);
+  transition: left 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chrome-search {
+    transition: none;
+  }
+}
+
 .app-aside {
   /* 248 de menú + 12 de canal a la izquierda (el panel flota despegado). */
   width: 260px;

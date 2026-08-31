@@ -63,88 +63,113 @@ export function StatusDock({
   }, [cuenta]);
 
   return (
-    <div
-      ref={cajaRef}
-      className="fixed right-3 top-[calc(0.75rem+env(safe-area-inset-top,0px))] z-40 sm:right-4 sm:top-4"
-    >
-      <div className="glass-panel flex items-center gap-0.5 rounded-full p-1.5">
-        {syncing ? (
-          <span
-            role="status"
-            className="mr-0.5 inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1.5 text-xs font-semibold text-warning"
-          >
-            <CloudUpload size={13} className="animate-pulse" />
-            <span className="hidden sm:inline">Guardando cambios…</span>
-          </span>
-        ) : null}
+    <>
+      {/* De md en adelante el buscador tiene su propia isla, con forma de campo
+          abierto. No es un input de verdad y no finge serlo por capricho: la
+          búsqueda vive en la paleta ⌘K, que trae su propio buscador y se lleva
+          el foco al abrirse. Duplicar aquí el estado del texto solo daría dos
+          sitios donde escribir lo mismo. */}
+      <button
+        type="button"
+        onClick={onOpenSearch}
+        aria-keyshortcuts="Meta+K Control+K"
+        className="chrome-search clinical-control fixed top-4 z-40 hidden items-center gap-2.5 px-3.5 text-left md:flex"
+      >
+        <Search size={16} className="shrink-0 text-muted" aria-hidden />
+        <span className="min-w-0 flex-1 truncate text-sm text-muted">
+          Buscar paciente o consulta
+        </span>
+        {/* El ⌘K solo desde lg. Entre md y lg el campo es estrecho y el chip le
+            comía el sitio justo al texto, que acababa cortado: leer para qué
+            sirve el campo importa más que anunciar su atajo. */}
+        <kbd className="hidden shrink-0 rounded border border-line bg-surface/70 px-1.5 py-0.5 text-[11px] font-medium text-muted lg:block">
+          ⌘K
+        </kbd>
+      </button>
 
-        {/* Buscar. El ⌘K se enseña en la propia pastilla: es el camino real y
-            si no se ve, no se aprende. */}
-        <HoverHint label="Buscar paciente o consulta">
-          <button
-            type="button"
-            onClick={onOpenSearch}
-            aria-label="Buscar paciente o consulta"
-            className="icon-btn w-auto gap-2 px-2.5 text-deep sm:px-3"
-          >
-            <Search size={17} />
-            <kbd className="hidden rounded border border-line bg-surface/70 px-1.5 py-0.5 text-[11px] font-medium text-muted sm:inline">
-              ⌘K
-            </kbd>
-          </button>
-        </HoverHint>
-
-        <HoverHint label="Cambiar entre modo claro y oscuro">
-          <button
-            type="button"
-            onClick={onToggleTheme}
-            aria-label="Cambiar entre modo claro y oscuro"
-            className="icon-btn hidden sm:inline-flex"
-          >
-            <Moon size={18} className="theme-icon-light" />
-            <Sun size={18} className="theme-icon-dark" />
-          </button>
-        </HoverHint>
-
-        <PulseOrb />
-
-        {/* La cuenta: de `md` hacia arriba. Por debajo, la hoja «Más» de la
-            barra inferior tiene el mismo "Cerrar sesión". */}
-        <span aria-hidden className="mx-0.5 hidden h-6 w-px bg-line/70 md:block" />
-        <button
-          type="button"
-          onClick={() => setCuenta((v) => !v)}
-          aria-expanded={cuenta}
-          aria-label={`Cuenta de ${nombre}`}
-          title={nombre}
-          className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full bg-night text-[13px] font-semibold text-white ring-1 ring-white/15 transition-transform hover:scale-105 motion-reduce:hover:scale-100 md:inline-flex"
-        >
-          {iniciales}
-        </button>
-      </div>
-
-      {cuenta ? (
-        <div
-          role="dialog"
-          aria-label="Cuenta"
-          className="glass-panel absolute right-0 top-[calc(100%+0.5rem)] hidden w-64 overflow-hidden rounded-[18px] md:block"
-        >
-          <div className="border-b border-line/60 px-4 py-3">
-            <p className="truncate text-sm font-semibold text-deep">{nombre}</p>
-            {profile.email && profile.email !== nombre ? (
-              <p className="data truncate text-[12px] text-muted">{profile.email}</p>
-            ) : null}
-          </div>
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="w-full px-4 py-3 text-left text-sm font-semibold text-deep transition-colors hover:bg-ice-soft"
+      <div
+        ref={cajaRef}
+        className="fixed right-3 top-[calc(0.75rem+env(safe-area-inset-top,0px))] z-40 sm:right-4 sm:top-4"
+      >
+        <div className="glass-panel flex items-center gap-0.5 rounded-full p-1.5">
+          {syncing ? (
+            <span
+              role="status"
+              className="mr-0.5 inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1.5 text-xs font-semibold text-warning"
             >
-              Salir
+              <CloudUpload size={13} className="animate-pulse" />
+              <span className="hidden sm:inline">Guardando cambios…</span>
+            </span>
+          ) : null}
+
+          {/* Por debajo de md no hay sitio para el campo abierto: ahí la lupa
+              sigue viviendo en la cápsula. Sin el ⌘K al lado, que en un
+              teléfono no significa nada y era la mitad del amontonamiento. */}
+          <HoverHint label="Buscar paciente o consulta">
+            <button
+              type="button"
+              onClick={onOpenSearch}
+              aria-label="Buscar paciente o consulta"
+              className="icon-btn text-deep md:hidden"
+            >
+              <Search size={18} />
             </button>
-          </form>
+          </HoverHint>
+
+          <HoverHint label="Cambiar entre modo claro y oscuro">
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              aria-label="Cambiar entre modo claro y oscuro"
+              className="icon-btn hidden sm:inline-flex"
+            >
+              <Moon size={18} className="theme-icon-light" />
+              <Sun size={18} className="theme-icon-dark" />
+            </button>
+          </HoverHint>
+
+          <PulseOrb />
+
+          {/* La cuenta: de `md` hacia arriba. Por debajo, la hoja «Más» de la
+              barra inferior tiene el mismo "Cerrar sesión". */}
+          <span aria-hidden className="mx-0.5 hidden h-6 w-px bg-line/70 md:block" />
+          <button
+            type="button"
+            onClick={() => setCuenta((v) => !v)}
+            aria-expanded={cuenta}
+            aria-label={`Cuenta de ${nombre}`}
+            title={nombre}
+            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full bg-night text-[13px] font-semibold text-white ring-1 ring-white/15 transition-transform hover:scale-105 motion-reduce:hover:scale-100 md:inline-flex"
+          >
+            {iniciales}
+          </button>
         </div>
-      ) : null}
-    </div>
+
+        {cuenta ? (
+          <div
+            role="dialog"
+            aria-label="Cuenta"
+            className="glass-panel absolute right-0 top-[calc(100%+0.5rem)] hidden w-64 overflow-hidden rounded-[18px] md:block"
+          >
+            <div className="border-b border-line/60 px-4 py-3">
+              <p className="truncate text-sm font-semibold text-deep">{nombre}</p>
+              {profile.email && profile.email !== nombre ? (
+                <p className="data truncate text-[12px] text-muted">
+                  {profile.email}
+                </p>
+              ) : null}
+            </div>
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="w-full px-4 py-3 text-left text-sm font-semibold text-deep transition-colors hover:bg-ice-soft"
+              >
+                Salir
+              </button>
+            </form>
+          </div>
+        ) : null}
+      </div>
+    </>
   );
 }
