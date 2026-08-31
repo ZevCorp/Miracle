@@ -123,7 +123,7 @@ export function AppSidebar({
           return bloques.map((bloque, i) => (
             <div key={bloque.group} className={i ? "mt-6" : ""}>
               {conTitulo ? (
-                <h2 className="sidebar-expanded-only mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted/70">
+                <h2 className="sidebar-expanded-only mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted">
                   {APP_NAV_GROUP_LABEL[bloque.group]}
                 </h2>
               ) : null}

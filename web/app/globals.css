@@ -40,10 +40,15 @@
   /* Superficies deliberadamente oscuras, independientes del tema. */
   --color-statement: #0c1424;
   --color-sidebar: #1d3358;
-  --color-sidebar-hover: #29466f;
+  /* Blanco translúcido, no un navy fijo: el menú del médico es un panel de
+     vidrio cuyo tono depende de lo que tiene detrás, y un color sólido se
+     volvía MÁS oscuro que el panel — el hover se leía como un hundimiento. */
+  --color-sidebar-hover: rgb(255 255 255 / 0.12);
   --color-sidebar-active: #3a5681;
   --color-sidebar-text: #f8fafc;
-  --color-sidebar-muted: #c5d0df;
+  /* Sube con el panel: sobre el navy claro del modo claro, el #c5d0df de antes
+     caía a 3,4:1 con los rótulos del menú (AA pide 4,5:1). */
+  --color-sidebar-muted: #dbe3ee;
   --color-overlay: rgb(6 14 27 / 0.58);
 
   /* Acento (azul confianza). 4.7:1 con blanco en ambas direcciones:
@@ -1469,9 +1474,9 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
 :root {
   --grad-sidebar-glass: linear-gradient(
     188deg,
-    rgb(58 90 138 / 0.82),
-    rgb(44 72 114 / 0.86) 45%,
-    rgb(33 57 94 / 0.9)
+    rgb(44 72 115 / 0.84),
+    rgb(39 63 104 / 0.87) 50%,
+    rgb(33 54 92 / 0.9)
   );
 }
 
