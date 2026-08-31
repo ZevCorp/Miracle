@@ -1,19 +1,25 @@
 /**
- * El lienzo ambiental: dos o tres luces difusas con los colores del orbe de
- * marca, derivando muy lento detrás de todo el contenido.
+ * El lienzo ambiental: la ILUMINACIÓN de la escena, no un dibujo detrás.
  *
- * Existe para que el fondo deje de ser un color plano sin volverse ruido: la
- * marca (el orbe luminoso) se convierte en atmósfera. Es puro CSS —divs con
- * blur y una animación de transform de ~50 segundos—, así que no cuesta nada
- * por frame y con prefers-reduced-motion las luces simplemente se quedan
- * quietas. Decorativo de principio a fin: aria-hidden y sin eventos.
+ * Antes eran tres luces de colores —cian, azul y una verde menta— derivando
+ * desde tres esquinas distintas. El problema no era el gusto: el sistema de
+ * materiales afirma que la luz entra por arriba a la izquierda (de ahí el filo
+ * claro en la cara superior de cada panel), y un fondo con tres focos de tres
+ * colores contradice esa afirmación. Dos versiones opuestas de la misma escena
+ * es exactamente lo que hace que un fondo se note y termine cansando.
+ *
+ * Ahora hay UNA luz, en el sitio que el material ya prometía, y sin color
+ * propio más allá del frío del acento. El color de la app lo pone el contenido.
+ *
+ * Sigue siendo puro CSS: un gradiente radial en su capa, una deriva de 90 s
+ * imperceptible y un grano finísimo para que una superficie tan grande y tan
+ * lisa no se bandee en escalones. Nada se recalcula por frame; con
+ * prefers-reduced-motion la luz se queda quieta.
  */
 export function AmbientCanvas() {
   return (
     <div aria-hidden className="ambient-canvas">
-      <span className="orb-light orb-a" />
-      <span className="orb-light orb-b" />
-      <span className="orb-light orb-c" />
+      <span className="ambient-key" />
     </div>
   );
 }

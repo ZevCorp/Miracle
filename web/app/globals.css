@@ -1514,87 +1514,76 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
   border-radius: inherit;
 }
 
-/* ---------- Fondo ambiental vivo ---------- */
-/* Dos o tres luces difusas con los colores del orbe de marca, derivando muy
-   lento detrás de todo. El lienzo deja de ser un color plano sin volverse
-   ruido: blur de 100px y transform GPU-only, nada se recalcula por frame. */
+/* ---------- Fondo ambiental: UNA luz ---------- */
+/* El material del sistema afirma que la luz entra por arriba a la izquierda:
+   por eso cada panel lleva su filo claro en la cara superior. El fondo anterior
+   contradecia esa afirmacion con tres focos de tres colores -cian, azul y verde
+   menta- derivando desde tres esquinas. Dos versiones opuestas de la misma
+   escena: eso es lo que hacia que el fondo se notara y terminara cansando.
+
+   Aqui hay una sola luz, en el sitio que el material ya prometia, sin color
+   propio mas alla del frio del acento. El color de la app lo pone el contenido,
+   que es de quien tiene que ser. */
+:root {
+  --ambient-key: rgb(126 178 255 / 0.2);
+  /* El suelo: un poco de peso abajo para que la pantalla no flote. Sin tinte
+     propio, solo la sombra del propio lienzo. */
+  --ambient-floor: rgb(16 34 66 / 0.05);
+  --ambient-grain: 0.026;
+}
+
+:root.dark {
+  --ambient-key: rgb(96 156 255 / 0.16);
+  --ambient-floor: rgb(0 0 0 / 0.32);
+  /* En oscuro el bandeado se ve mucho mas, asi que el grano sube. */
+  --ambient-grain: 0.04;
+}
+
 .ambient-canvas {
   position: fixed;
   inset: 0;
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
+  background: linear-gradient(180deg, transparent 42%, var(--ambient-floor));
 }
 
-.orb-light {
+/* La luz vive en su propia capa para poder derivar con transform sin obligar a
+   repintar el gradiente en cada frame. */
+.ambient-key {
   position: absolute;
-  border-radius: 50%;
-  filter: blur(100px);
+  inset: -25% -25% auto -25%;
+  height: 135%;
+  background: radial-gradient(
+    58% 55% at 20% 0%,
+    var(--ambient-key),
+    transparent 70%
+  );
   will-change: transform;
+  /* 90 s y 2,5 vw: imperceptible mirandolo, pero la pantalla no esta muerta. */
+  animation: ambient-respira 90s ease-in-out infinite alternate;
 }
 
-.orb-a {
-  top: -12vmax;
-  left: -8vmax;
-  height: 42vmax;
-  width: 42vmax;
-  background: rgb(90 211 253 / 0.32);
-  animation: deriva-a 46s ease-in-out infinite alternate;
+/* Grano. Invisible de cerca y decisivo de lejos: sin el, una superficie tan
+   grande y tan lisa se parte en escalones de banda, sobre todo en oscuro. Es
+   la diferencia entre "un degradado de CSS" y papel. */
+.ambient-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: var(--ambient-grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
 }
 
-.orb-b {
-  right: -10vmax;
-  top: 4vmax;
-  height: 36vmax;
-  width: 36vmax;
-  background: rgb(2 152 233 / 0.18);
-  animation: deriva-b 58s ease-in-out infinite alternate;
-}
-
-.orb-c {
-  bottom: -14vmax;
-  left: 28vw;
-  height: 38vmax;
-  width: 38vmax;
-  background: rgb(94 224 176 / 0.2);
-  animation: deriva-c 52s ease-in-out infinite alternate;
-}
-
-/* En oscuro las luces son las que hacen el ambiente: suben de presencia. */
-:root.dark .orb-a {
-  background: rgb(90 211 253 / 0.16);
-}
-
-:root.dark .orb-b {
-  background: rgb(50 114 217 / 0.2);
-}
-
-:root.dark .orb-c {
-  background: rgb(94 224 176 / 0.1);
-}
-
-@keyframes deriva-a {
+@keyframes ambient-respira {
   to {
-    transform: translate3d(7vw, 5vh, 0);
-  }
-}
-
-@keyframes deriva-b {
-  to {
-    transform: translate3d(-6vw, 7vh, 0);
-  }
-}
-
-@keyframes deriva-c {
-  to {
-    transform: translate3d(8vw, -5vh, 0);
+    transform: translate3d(2.5vw, 1.5vh, 0);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .orb-a,
-  .orb-b,
-  .orb-c {
+  .ambient-key {
     animation: none;
   }
 }
