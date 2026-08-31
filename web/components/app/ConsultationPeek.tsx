@@ -215,7 +215,7 @@ export function ConsultationPeek() {
         type="button"
         tabIndex={-1}
         aria-label="Cerrar panel"
-        onClick={closePeek}
+        onClick={() => closePeek()}
         className="absolute inset-0 cursor-default bg-overlay/70 backdrop-blur-[2px]"
       />
 
@@ -276,7 +276,7 @@ export function ConsultationPeek() {
             ) : null}
             <button
               type="button"
-              onClick={closePeek}
+              onClick={() => closePeek()}
               aria-label="Cerrar panel"
               className="icon-btn h-9 w-9"
             >
@@ -342,7 +342,7 @@ export function ConsultationPeek() {
           </HoverHint>
           <Link
             href={`/app/consultas/${abierto}`}
-            onClick={() => closePeek()}
+            onClick={() => closePeek({ rewind: false })}
             className="clinical-tertiary min-h-11 px-3.5"
           >
             Abrir completo <ArrowUpRight size={15} />

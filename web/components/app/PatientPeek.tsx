@@ -60,7 +60,7 @@ export function PatientPeek() {
         type="button"
         tabIndex={-1}
         aria-label="Cerrar panel"
-        onClick={closePeek}
+        onClick={() => closePeek()}
         className="absolute inset-0 cursor-default bg-overlay/70 backdrop-blur-[2px]"
       />
 
@@ -75,7 +75,7 @@ export function PatientPeek() {
         <div className="flex items-center justify-end px-3 pt-3">
           <button
             type="button"
-            onClick={closePeek}
+            onClick={() => closePeek()}
             aria-label="Cerrar panel"
             className="icon-btn h-9 w-9"
           >
@@ -83,7 +83,13 @@ export function PatientPeek() {
           </button>
         </div>
         <div className="min-h-0 flex-1">
-          <PatientDossier patient={patient} onBeforeNavigate={closePeek} />
+          {/* Sus acciones NAVEGAN, así que el cierre no puede retroceder: el
+              back() se comería el push del enlace y dejaría al médico aquí
+              mismo, que es lo que le pasaba a "Abrir completo". */}
+          <PatientDossier
+            patient={patient}
+            onBeforeNavigate={() => closePeek({ rewind: false })}
+          />
         </div>
       </div>
     </div>

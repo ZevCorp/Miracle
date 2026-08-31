@@ -32,7 +32,16 @@ interface PeekValue {
   /** Ids de la lista visible al abrir; J/K se mueve dentro de ella. */
   listIds: readonly string[];
   openPeek: (target: PeekTarget, listIds?: readonly string[]) => void;
-  closePeek: () => void;
+  /**
+   * Cierra el panel. Por defecto deshace la entrada centinela con un
+   * `history.back()`, que es lo correcto para la X y para Escape.
+   *
+   * `{ rewind: false }` es OBLIGATORIO cuando se cierra PARA NAVEGAR a otra
+   * pantalla: ese back() es asíncrono y se ejecuta DESPUÉS del push del
+   * enlace, así que deshace la navegación y devuelve al médico a la lista.
+   * Era exactamente el fallo de "Abrir completo": el botón parecía muerto.
+   */
+  closePeek: (opts?: { rewind?: boolean }) => void;
   /** J/K: se mueve delta posiciones dentro de listIds (con tope). */
   movePeek: (delta: number) => void;
 }
@@ -67,16 +76,33 @@ export function PeekProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const closePeek = useCallback(() => {
+  const closePeek = useCallback((opts?: { rewind?: boolean }) => {
     setTarget(null);
     setListIds([]);
     // Deshacer la entrada centinela SOLO si sigue siendo la actual: si el
     // navegador ya se movió (popstate nos cerró), retroceder otra vez se
     // comería una entrada que no es nuestra.
-    if (!cerrandoPorPop.current && window.history.state?.[CENTINELA]) {
-      window.history.back();
+    if (cerrandoPorPop.current || !window.history.state?.[CENTINELA]) {
+      cerrandoPorPop.current = false;
+      return;
     }
-    cerrandoPorPop.current = false;
+    if (opts?.rewind === false) {
+      // Se cierra para IRSE a otra pantalla. Aquí un back() cancelaría el push
+      // del enlace, así que solo se apaga la marca en su sitio: el "atrás" de
+      // la pantalla de destino vuelve a la lista sin intentar cerrar un panel
+      // que ya no existe. Se conserva el resto del estado porque ahí vive el
+      // árbol interno del router de Next.
+      try {
+        window.history.replaceState(
+          { ...window.history.state, [CENTINELA]: false },
+          "",
+        );
+      } catch {
+        /* Si no se puede, la marca sobrante solo provoca un popstate inocuo. */
+      }
+      return;
+    }
+    window.history.back();
   }, []);
 
   const movePeek = useCallback(

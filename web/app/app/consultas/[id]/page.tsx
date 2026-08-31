@@ -316,8 +316,11 @@ export default function ConsultaDetallePage() {
         <ArrowLeft size={15} /> Consultas
       </Link>
 
-      {/* Header */}
-      <div className="mt-3 flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-start sm:justify-between">
+      {/* Header. Identidad y acciones se ponen lado a lado desde `lg`, no desde
+          `sm`: con el menú lateral ocupando 260 px, en un portátil de 800 el
+          contenido real son ~510 px, y ahí las dos columnas estrujaban el
+          nombre del paciente hasta partirlo en dos líneas. */}
+      <div className="mt-3 flex flex-col gap-4 border-b border-line pb-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-3">
           <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-night text-sm font-semibold text-white">
             {identidad.nombre
