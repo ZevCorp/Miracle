@@ -70,6 +70,29 @@ export function AppSidebar({
   const { hasGuard, guardedNavigate } = useNavigationGuard();
   const router = useRouter();
 
+  const items = visibleAppNav(role, professionalType, isDemo, orgKind);
+
+  // El logo lleva al inicio DE LA APP, no a la portada comercial: quien ya
+  // entro no quiere volver a la pagina de ventas. Se toma la primera entrada
+  // visible en vez de fijar /app/dashboard porque una secretaria no tiene
+  // acceso a esa ruta (su unica seccion es Consultas) y caeria en un rebote.
+  const homeItem = items[0];
+
+  /** Misma cortesia que el menu: con cambios sin guardar se confirma antes de salir. */
+  function navegar(href: string) {
+    return (e: React.MouseEvent<HTMLAnchorElement>) => {
+      if (!hasGuard()) {
+        onNavigate?.();
+        return;
+      }
+      e.preventDefault();
+      guardedNavigate(() => {
+        onNavigate?.();
+        router.push(href);
+      });
+    };
+  }
+
   return (
     // EXPERIMENTO: el fondo ya no vive aquí sino en .aside-float::before (vidrio
     // navy translúcido). Este div solo aporta la columna y el color de texto.
@@ -77,13 +100,16 @@ export function AppSidebar({
       <div className="sidebar-header flex h-16 items-center gap-2 border-b border-white/10 px-5">
         {/* Contraído desaparece el logotipo y el botón queda solo, centrado. */}
         <span className="sidebar-expanded-only min-w-0 flex-1">
-          <Logo onDark size={34} />
+          {homeItem ? (
+            <Logo onDark size={34} href={homeItem.href} onClick={navegar(homeItem.href)} />
+          ) : (
+            <Logo onDark size={34} />
+          )}
         </span>
         <SidebarToggle />
       </div>
       <nav aria-label="Navegación de la app" className="flex-1 px-3 py-5">
         {(() => {
-          const items = visibleAppNav(role, professionalType, isDemo, orgKind);
           const bloques = APP_NAV_GROUPS.map((group) => ({
             group,
             items: items.filter((item) => item.group === group),
@@ -109,20 +135,10 @@ export function AppSidebar({
                       active={
                         pathname === item.href || pathname.startsWith(item.href + "/")
                       }
-                      onClick={(e) => {
-                        // Con cambios sin guardar se frena el enlace y se
-                        // navega a mano tras confirmar: el diálogo es
-                        // asíncrono y el <Link> no sabe esperarlo.
-                        if (!hasGuard()) {
-                          onNavigate?.();
-                          return;
-                        }
-                        e.preventDefault();
-                        guardedNavigate(() => {
-                          onNavigate?.();
-                          router.push(item.href);
-                        });
-                      }}
+                      // Con cambios sin guardar se frena el enlace y se
+                      // navega a mano tras confirmar: el diálogo es asíncrono
+                      // y el <Link> no sabe esperarlo.
+                      onClick={navegar(item.href)}
                     />
                   </li>
                 ))}

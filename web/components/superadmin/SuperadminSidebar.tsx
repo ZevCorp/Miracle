@@ -86,7 +86,8 @@ export function SuperadminSidebar({
     <div className="flex h-full flex-col bg-sidebar text-sidebar-text">
       <div className="sidebar-header flex h-16 items-center gap-2 border-b border-white/10 px-5">
         <span className="sidebar-expanded-only min-w-0 flex-1">
-          <Logo onDark size={32} />
+          {/* Dentro de la consola el logo vuelve al resumen, no a la portada comercial. */}
+          <Logo onDark size={32} href="/superadmin" />
           <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-wide text-sidebar-muted">
             Consola de plataforma
           </span>

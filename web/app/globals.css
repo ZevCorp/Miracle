@@ -671,6 +671,30 @@
   box-shadow: none;
 }
 
+/* Herramienta del documento (copiar, PDF, regrabar). Peso deliberadamente
+   bajo: son cosas que se le hacen a la nota, no decisiones sobre ella. Puestas
+   con el mismo peso que "Aprobar" —que era el caso— la fila entera se leía
+   como seis acciones iguales y la importante se perdía entre ellas. Viven
+   agrupadas dentro de un clinical-panel-muted, que es lo que las une. */
+.doc-tool {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0 0.75rem;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.doc-tool:hover {
+  background: var(--color-surface);
+  color: var(--color-deep);
+}
+
 .clinical-section-heading {
   display: flex;
   align-items: center;
@@ -1445,9 +1469,9 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
 :root {
   --grad-sidebar-glass: linear-gradient(
     188deg,
-    rgb(24 45 78 / 0.86),
-    rgb(13 27 48 / 0.9) 40%,
-    rgb(7 16 31 / 0.92)
+    rgb(58 90 138 / 0.82),
+    rgb(44 72 114 / 0.86) 45%,
+    rgb(33 57 94 / 0.9)
   );
 }
 

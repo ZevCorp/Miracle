@@ -362,72 +362,86 @@ export default function ConsultaDetallePage() {
                 {new Date(c.firma.fecha).toLocaleDateString("es-CO")}
               </p>
             ) : null}
+
+            {/* LA CAJA DE HERRAMIENTAS DEL DOCUMENTO.
+                Copiar, imprimir y regrabar son cosas que se le hacen a la nota;
+                aprobarla es una decisión sobre ella. Antes iban en la misma
+                fila y con el mismo peso, así que el ojo veía seis botones
+                iguales. Ahora bajan aquí, agrupadas y en voz baja, y arriba a
+                la derecha queda solo lo que hace avanzar la consulta.
+                De paso, las dos que eran solo un icono ganan su rótulo: nadie
+                tenía que adivinar qué hacía el micrófono. */}
+            <div className="clinical-panel-muted mt-3.5 inline-flex flex-wrap items-center gap-0.5 p-1">
+              <HoverHint label="Copiar el resumen clínico">
+                <button
+                  type="button"
+                  onClick={() => void copyResumen()}
+                  className="doc-tool"
+                >
+                  <Copy size={15} /> Copiar resumen
+                </button>
+              </HoverHint>
+              <HoverHint label="Copiar la nota completa, igual que el PDF">
+                <button
+                  type="button"
+                  onClick={() => void copiarNota()}
+                  className="doc-tool"
+                >
+                  <ClipboardCopy size={15} /> Copiar nota
+                </button>
+              </HoverHint>
+              <button type="button" onClick={descargarPDF} className="doc-tool">
+                <Printer size={15} /> PDF
+              </button>
+              {/* Regrabar arranca una nueva captura: es una acción exclusiva del
+                  médico (la secretaría no tiene acceso a /app/consultas/nueva). */}
+              {role === "medico" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // La consulta activa exige un encounter del backend, así que
+                    // una nueva captura siempre arranca desde "Nueva consulta".
+                    // Se pasa el id del paciente (UUID opaco), nunca su nombre:
+                    // la URL queda en el historial del navegador y en logs.
+                    const sp = new URLSearchParams();
+                    if (patient?.id) sp.set("paciente", patient.id);
+                    const qs = sp.toString();
+                    router.push(`/app/consultas/nueva${qs ? `?${qs}` : ""}`);
+                  }}
+                  className="doc-tool"
+                  title="Iniciar una nueva grabación para este paciente"
+                >
+                  <Mic size={15} /> Regrabar
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <HoverHint label="Copiar el resumen clínico">
-            <button
-              type="button"
-              onClick={() => void copyResumen()}
-              className="icon-btn"
-              aria-label="Copiar resumen"
-            >
-              <Copy size={16} />
-            </button>
-          </HoverHint>
-          <HoverHint label="Copiar la nota completa, igual que el PDF">
-            <button
-              type="button"
-              onClick={() => void copiarNota()}
-              className="clinical-secondary px-3.5"
-            >
-              <ClipboardCopy size={16} /> Copiar nota
-            </button>
-          </HoverHint>
-          <button
-            type="button"
-            onClick={descargarPDF}
-            className="clinical-secondary px-3.5"
-          >
-            <Printer size={16} /> PDF
-          </button>
-          {/* Regrabar arranca una nueva captura: es una acción exclusiva del
-              médico (la secretaría no tiene acceso a /app/consultas/nueva). */}
-          {role === "medico" ? (
-            <button
-              type="button"
-              onClick={() => {
-                // La consulta activa exige un encounter del backend, así que una
-                // nueva captura siempre arranca desde "Nueva consulta".
-                // Se pasa el id del paciente (UUID opaco), nunca su nombre:
-                // la URL queda en el historial del navegador y en logs.
-                const sp = new URLSearchParams();
-                if (patient?.id) sp.set("paciente", patient.id);
-                const qs = sp.toString();
-                router.push(`/app/consultas/nueva${qs ? `?${qs}` : ""}`);
-              }}
-              className="icon-btn"
-              aria-label="Regrabar"
-              title="Iniciar una nueva grabación para este paciente"
-            >
-              <Mic size={16} />
-            </button>
-          ) : null}
-
+        {/* LAS DECISIONES: lo que mueve la consulta de estado. Es lo único que
+            queda con peso de botón, y una sola es primaria. */}
+        <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
           {/* Las consultas de demostración no se firman ni se exportan.
               Marcar revisada/aprobar siguen siendo del médico (canEdit);
               exportar es justamente la tarea de la secretaria, así que se
               abre a cualquier rol una vez la nota ya está aprobada. */}
           {canEdit && c.estado === "borrador" ? (
-            <Button variant="secondary" onClick={() => markReviewed(c.id)} className="hidden sm:inline-flex">
-              Marcar revisada
-            </Button>
+            <button
+              type="button"
+              onClick={() => markReviewed(c.id)}
+              className="clinical-secondary hidden px-4 sm:inline-flex"
+            >
+              <FileCheck2 size={16} /> Marcar revisada
+            </button>
           ) : null}
           {canEdit && (c.estado === "borrador" || c.estado === "revisada") ? (
-            <Button onClick={() => approveNote(c.id)} className="hidden sm:inline-flex">
-              <CheckCircle2 size={16} /> Aprobar
-            </Button>
+            <button
+              type="button"
+              onClick={() => approveNote(c.id)}
+              className="clinical-primary hidden px-5 sm:inline-flex"
+            >
+              <CheckCircle2 size={16} /> Aprobar y firmar
+            </button>
           ) : null}
           {/* Exportación AUTOMÁTICA: pide el trabajo a Graph. El botón se
               deshabilita solo mientras hay uno en vuelo o en curso. */}
@@ -441,9 +455,13 @@ export default function ConsultaDetallePage() {
           {/* Registro MANUAL de la secretaria: ella ya copió la nota al sistema
               del hospital y aquí deja constancia. No envía nada al HIS. */}
           {canExport && !canUseAutomaticExport ? (
-            <Button onClick={() => markExportedManually(c.id)} className="hidden sm:inline-flex">
+            <button
+              type="button"
+              onClick={() => markExportedManually(c.id)}
+              className="clinical-primary hidden px-5 sm:inline-flex"
+            >
               <FileCheck2 size={16} /> Marcar como exportada
-            </Button>
+            </button>
           ) : null}
           {!demo && c.estado === "exportada" ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-2 text-sm font-semibold text-success">

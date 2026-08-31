@@ -6,6 +6,8 @@ type LogoProps = {
   href?: string;
   size?: number;
   className?: string;
+  /** Para frenar el enlace cuando quien lo usa navega a mano (guard de cambios sin guardar). */
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 };
 
 /**
@@ -23,10 +25,12 @@ export function Logo({
   href = "/",
   size = 34,
   className = "",
+  onClick,
 }: LogoProps) {
   return (
     <Link
       href={href}
+      onClick={onClick}
       className={`inline-flex items-center gap-2 ${className}`}
       aria-label="Miracle — inicio"
     >
