@@ -154,15 +154,27 @@ export function CaptureMode({
 
           {editando && onDraftChange ? (
             <div className="text-left">
-              {/* El reloj se encoge, pero no se va: es la respuesta a la única
-                  pregunta que esta pantalla no puede dejar en el aire. */}
-              <p className="mb-2.5 flex items-center gap-2 text-[13px] font-semibold text-deep">
-                <span className="live-dot" aria-hidden />
-                Grabando
-                <span className="data font-medium text-muted">
-                  {mmss(elapsedSec)}
-                </span>
-              </p>
+              {/* El reloj se encoge, pero ni él ni la transcripción se van:
+                  son las dos respuestas que esta pantalla no puede dejar en el
+                  aire —¿sigue grabando? ¿me está oyendo?— y taparlas justo
+                  mientras el médico teclea sería quitarlas cuando más dudas
+                  dan. */}
+              <div className="mb-2.5">
+                <p className="flex items-center gap-2 text-[13px] font-semibold text-deep">
+                  <span className="live-dot" aria-hidden />
+                  Grabando
+                  <span className="data font-medium text-muted">
+                    {mmss(elapsedSec)}
+                  </span>
+                </p>
+                {/* Altura fija a dos líneas: sin ella el campo de abajo daría
+                    un salto con cada palabra nueva, y se escribe encima. Se
+                    enseña la COLA de la frase, no la cabeza: lo último dicho
+                    es lo que prueba que el micrófono sigue vivo. */}
+                <p className="mt-1.5 h-[2.7rem] overflow-hidden text-[13px] italic leading-relaxed text-muted">
+                  {partialText ? `“${cola(partialText)}”` : "Escuchando…"}
+                </p>
+              </div>
 
               <div className="clinical-panel p-4" data-light>
                 <div className="flex items-start justify-between gap-3 border-b border-line pb-2.5">
@@ -292,6 +304,17 @@ export function CaptureMode({
       </div>
     </div>
   );
+}
+
+/**
+ * Los últimos ~150 caracteres de la frase en vivo.
+ *
+ * En el hueco de dos líneas que hay junto al campo, cortar por el final
+ * dejaría fija la cabeza de la frase mientras lo nuevo —lo que prueba que el
+ * micrófono sigue oyendo— se pierde por abajo. Se corta por delante.
+ */
+function cola(texto: string): string {
+  return texto.length > 150 ? `…${texto.slice(-150)}` : texto;
 }
 
 function mmss(totalSec: number): string {
