@@ -1,18 +1,28 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { CloudUpload, Moon, Search, Sun } from "lucide-react";
 import { useStore } from "@/app/app/providers";
+import { ActionDock } from "./ActionDock";
+import { AmbientCanvas } from "./AmbientCanvas";
+import { CursorLight } from "./CursorLight";
 import { AppSidebar } from "./AppSidebar";
+import { ConsultationPeek } from "./ConsultationPeek";
+import { PatientPeek } from "./PatientPeek";
+import { PeekProvider } from "./PeekProvider";
+import { RunwayProvider } from "./SignRunway";
+import { StartProvider } from "./StartContext";
 import { BillingBanner } from "./BillingBanner";
 import { MobileBottomNavigation } from "./MobileBottomNavigation";
 import { MedicalChat } from "./MedicalChat";
 import { QuickConsultationLauncher } from "./QuickConsultationLauncher";
 import { CommandPalette } from "./CommandPalette";
-import { NotificationsBell } from "./NotificationsBell";
+import { PulseOrb } from "./PulseOrb";
 import { HoverHint } from "@/components/ui/HoverHint";
 import type { AuthenticatedProfile } from "@/lib/auth/server";
 import { canAccessPath } from "@/lib/auth/roles";
+import { visibleAppNav } from "@/lib/site";
 import { applyTheme, watchSystemTheme } from "@/lib/theme";
 import { restorePreferredMic } from "@/lib/stt/microphone-source";
 import { signOut } from "@/app/login/actions";
@@ -34,7 +44,22 @@ export function AppShell({
   profile: AuthenticatedProfile;
 }) {
   const [cmdk, setCmdk] = useState(false);
+  const pathname = usePathname();
+  // El dock del escritorio abre la hoja del lanzador y el panel del asistente;
+  // el estado vive aqui para que dock, FABs de movil y paneles compartan uno.
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const { syncing } = useStore();
+
+  const puedeGrabar = canAccessPath(profile.role, RUTA_GRABACION, profile.isDemo);
+  // Misma fuente de verdad que el menu: si Configuracion no esta en su nav
+  // (p. ej. la demo), la tarjeta del pie no debe enlazarla.
+  const puedeAbrirConfiguracion = visibleAppNav(
+    profile.uiRole,
+    profile.professionalType,
+    profile.isDemo,
+    profile.orgKind,
+  ).some((item) => item.href === "/app/configuracion");
 
   // Si aún no hay una elección explícita, el tema sigue los cambios del SO.
   useEffect(() => watchSystemTheme(), []);
@@ -53,19 +78,36 @@ export function AppShell({
   }
 
   return (
-    <div className="app-shell flex min-h-screen bg-pearl">
+    <PeekProvider>
+    <RunwayProvider>
+    <StartProvider
+      value={{
+        canStart: puedeGrabar,
+        userId: profile.id,
+        specialtyCode: profile.specialtyCode,
+        openSheet: () => setQuickOpen(true),
+      }}
+    >
+    <div className="app-shell flex min-h-screen">
+      <AmbientCanvas />
+      <CursorLight />
       <aside className="app-aside sticky top-0 hidden h-screen shrink-0 md:block">
+        <div className="aside-float">
         <AppSidebar
           role={profile.uiRole}
           professionalType={profile.professionalType}
           isDemo={profile.isDemo}
           orgKind={profile.orgKind}
+          profileName={profile.fullName ?? profile.email}
+          specialtyName={profile.specialtyName}
+          canOpenSettings={puedeAbrirConfiguracion}
         />
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="app-mobile-header sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-line bg-surface px-3 md:h-16 md:gap-3 md:px-6">
-          <Logo href="/app/dashboard" size={25} className="md:hidden [&>span]:hidden" />
+        <header className="glass-bar app-mobile-header sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-[var(--glass-edge)] px-3 md:h-16 md:gap-3 md:px-6">
+          <Logo href="/app/dashboard" size={31} className="md:hidden [&>span]:hidden" />
 
           <button
             type="button"
@@ -85,7 +127,7 @@ export function AppShell({
               type="button"
               aria-label="Buscar paciente o consulta"
               onClick={() => setCmdk(true)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-[10px] text-deep hover:bg-ice-soft sm:hidden"
+              className="icon-btn h-11 w-11 text-deep sm:hidden"
             >
               <Search size={19} />
             </button>
@@ -106,13 +148,13 @@ export function AppShell({
                 type="button"
                 onClick={toggleTheme}
                 aria-label="Cambiar entre modo claro y oscuro"
-                className="hidden h-10 w-10 items-center justify-center rounded-[10px] text-muted hover:bg-ice-soft hover:text-deep sm:inline-flex"
+                className="icon-btn hidden sm:inline-flex"
               >
                 <Moon size={18} className="theme-icon-light" />
                 <Sun size={18} className="theme-icon-dark" />
               </button>
             </HoverHint>
-            <NotificationsBell />
+            <PulseOrb />
             <form action={signOut} className="flex items-center gap-2">
               <span
                 title={profile.fullName ?? profile.email}
@@ -137,7 +179,13 @@ export function AppShell({
           <BillingBanner billing={profile.billing} />
         ) : null}
 
-        <main className="app-main min-w-0 flex-1 px-3 py-5 sm:px-5 sm:py-6 md:px-8 md:py-9">{children}</main>
+        <main className="app-main min-w-0 flex-1 px-3 py-5 sm:px-5 sm:py-6 md:px-8 md:py-9">
+          {/* La key remonta el contenido por SECCION (pathname), no por query:
+              paginar o filtrar no parpadea; cambiar de seccion respira. */}
+          <div key={pathname} className="page-enter">
+            {children}
+          </div>
+        </main>
       </div>
 
       <MobileBottomNavigation profile={profile} onToggleTheme={toggleTheme} />
@@ -157,14 +205,38 @@ export function AppShell({
           administrador —que no puede grabar—. El botón sí creaba el encounter
           en la API y el proxy rebotaba después: quedaba un encounter huérfano y
           la pantalla se movía sin explicación. */}
-      {canAccessPath(profile.role, RUTA_GRABACION, profile.isDemo) ? (
-        <QuickConsultationLauncher userId={profile.id} specialtyCode={profile.specialtyCode} />
+      {puedeGrabar ? (
+        <QuickConsultationLauncher
+          userId={profile.id}
+          specialtyCode={profile.specialtyCode}
+          open={quickOpen}
+          onOpenChange={setQuickOpen}
+        />
       ) : null}
 
       {/* El asistente clínico sí lo usan administrador y supervisor (consultar
           sobre notas del equipo); solo la secretaría, de solo lectura, no. */}
-      {profile.role !== "secretaria" ? <MedicalChat /> : null}
+      {profile.role !== "secretaria" ? (
+        <MedicalChat open={chatOpen} onOpenChange={setChatOpen} />
+      ) : null}
+
+      {/* El dock no decide permisos: solo refleja los mismos gates de arriba. */}
+      <ActionDock
+        canStart={puedeGrabar}
+        canAssist={profile.role !== "secretaria"}
+        userId={profile.id}
+        specialtyCode={profile.specialtyCode}
+        onStartConsultation={() => setQuickOpen(true)}
+        onOpenAssistant={() => setChatOpen(true)}
+      />
       <CommandPalette open={cmdk} onOpenChange={setCmdk} />
+      {/* El panel rápido vive al final del shell: por encima del contenido,
+          por debajo del asistente (z 60 < 80). */}
+      <ConsultationPeek />
+      <PatientPeek />
     </div>
+    </StartProvider>
+    </RunwayProvider>
+    </PeekProvider>
   );
 }

@@ -367,7 +367,7 @@ export function NoteSectionView({
   }
 
   return (
-    <div className="border-b border-line py-4 last:border-0">
+    <div id={`nota-${section.id}`} className="scroll-mt-24 border-b border-doc-line-soft py-4 last:border-0">
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
@@ -381,7 +381,7 @@ export function NoteSectionView({
               open ? "" : "-rotate-90"
             }`}
           />
-          <h3 className="font-display text-base font-semibold text-deep">
+          <h3 className="doc-label">
             {section.titulo}
           </h3>
         </button>
@@ -415,7 +415,7 @@ export function NoteSectionView({
       </div>
 
       {open ? (
-        <div className="mt-2 pl-0 text-[0.95rem] leading-relaxed text-ink sm:pl-6">
+        <div className="mt-2 pl-0 sm:pl-6">
           {/* ----- Modo edición ----- */}
           {editing ? (
             <div>
@@ -560,23 +560,23 @@ export function NoteSectionView({
             >
               {esLista && section.items ? (
                 section.items.length ? (
-                  <ul className="space-y-1.5">
+                  <ul className="doc-body space-y-1.5">
                     {section.items.map((item, i) => (
-                      <li key={i} className="flex gap-2">
-                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+                      <li key={i} className="flex gap-2.5">
+                        <span className="mt-[0.72em] h-1.5 w-1.5 shrink-0 rounded-full bg-accent/70" />
                         <span>{item}</span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-muted">Sin elementos.</p>
+                  <p className="text-sm text-doc-muted">Sin elementos.</p>
                 )
               ) : (
-                <p className="whitespace-pre-wrap">
+                <p className="doc-body whitespace-pre-wrap">
                   {section.texto?.trim() ? (
                     section.texto
                   ) : (
-                    <span className="text-muted">Sin contenido.</span>
+                    <span className="font-sans text-sm text-doc-muted">Sin contenido.</span>
                   )}
                 </p>
               )}

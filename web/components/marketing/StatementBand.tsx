@@ -19,7 +19,7 @@ export function StatementBand({
   /** Visual a la derecha en lugar de la esfera (p. ej. una foto). */
   media?: ReactNode;
 }) {
-  const visual = media ?? (sphere ? <BrandSphere size={320} className="float drop-shadow-2xl" /> : null);
+  const visual = media ?? (sphere ? <BrandSphere size={470} className="float drop-shadow-2xl" /> : null);
   return (
     <section className="relative overflow-hidden bg-statement py-24 text-white md:py-32">
       <div aria-hidden className="pointer-events-none absolute inset-0">

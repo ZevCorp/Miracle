@@ -42,10 +42,22 @@ const SUGERENCIAS = [
   "¿Qué CIE-10 uso para cefalea tensional?",
 ];
 
-export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
+export function MedicalChat({
+  embedded = false,
+  open: openProp,
+  onOpenChange,
+}: {
+  embedded?: boolean;
+  /** Modo controlado (lo usa el dock del shell); sin estas props el estado
+   *  sigue siendo interno, como siempre lo fue en el modo embebido. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const pathname = usePathname();
   const { preferences, firstName, specialtyCode } = useUserPreferences();
-  const [open, setOpen] = useState(false);
+  const [openInterno, setOpenInterno] = useState(false);
+  const open = openProp ?? openInterno;
+  const setOpen = onOpenChange ?? setOpenInterno;
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -147,8 +159,8 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
     ? "xl:h-[min(460px,calc(100vh-13rem))] xl:min-h-[320px]"
     : "xl:h-auto";
   const panelClass = embedded
-    ? `${open ? "fixed inset-0 z-[80] flex h-dvh w-full" : "hidden"} flex-col overflow-hidden bg-surface xl:static xl:flex xl:w-auto xl:rounded-[14px] xl:border xl:border-line xl:shadow-[var(--shadow-xs)] ${embeddedHeight}`
-    : "fixed inset-0 z-[80] flex h-dvh w-full flex-col overflow-hidden bg-surface sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[min(560px,calc(100vh-2.5rem))] sm:w-[min(380px,calc(100vw-2.5rem))] sm:rounded-[16px] sm:border sm:border-line sm:shadow-[var(--shadow-lg)]";
+    ? `${open ? "fixed inset-0 z-[80] flex h-dvh w-full" : "hidden"} flex-col overflow-hidden bg-surface xl:static xl:flex xl:w-auto xl:rounded-[16px] xl:border xl:border-line xl:shadow-[var(--elev-1)] ${embeddedHeight}`
+    : "fixed inset-0 z-[80] flex h-dvh w-full flex-col overflow-hidden bg-surface sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[min(560px,calc(100vh-2.5rem))] sm:w-[min(380px,calc(100vw-2.5rem))] sm:rounded-[24px] sm:border sm:border-line sm:shadow-[var(--elev-3)]";
 
   return (
     <>
@@ -157,7 +169,7 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Abrir asistente clínico"
-          className={`fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] left-3 z-50 inline-flex min-h-12 items-center gap-2 rounded-[12px] border border-line bg-surface px-4 py-3 text-sm font-semibold text-deep shadow-[var(--shadow-md)] active:scale-[0.98] md:bottom-5 md:left-auto md:right-5 md:hover:border-mist md:hover:bg-ice-soft ${embedded ? "xl:hidden" : ""}`}
+          className={`glass-panel fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] left-3 z-50 inline-flex min-h-12 items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold text-deep active:scale-[0.98] ${embedded ? "md:hover:bg-ice-soft xl:hidden" : "md:hidden"}`}
         >
           <Sparkles size={18} className="text-accent" /> <span className="hidden min-[360px]:inline">Asistente</span>
         </button>
@@ -183,7 +195,7 @@ export function MedicalChat({ embedded = false }: { embedded?: boolean }) {
                 onClick={() => setOpen(false)}
                 aria-label="Cerrar asistente"
                 title="Cerrar asistente"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] text-muted hover:bg-ice-soft hover:text-deep"
+                className="icon-btn"
               >
                 <X size={18} />
               </button>

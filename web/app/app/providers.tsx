@@ -116,6 +116,13 @@ interface StoreValue {
   /** Consultas cuya transcripción falló al leerse (≠ "no tiene transcripción"). */
   transcriptFailed: Record<string, true>;
   getConsultation: (id: string) => Consultation | undefined;
+  /**
+   * Trae UNA consulta que no está en el store (el cap de la carga inicial es
+   * de 300, y las páginas profundas de /app/notas viven fuera de él). No la
+   * mete al estado global —el cap existe por memoria—: el que la pida se
+   * encarga de recordarla. Sin auditoría: el panel rápido no la muestra.
+   */
+  fetchConsultation: (id: string) => Promise<Consultation | undefined>;
   getPatient: (id: string | null | undefined) => Patient | undefined;
   getMedicoName: (id: string) => string | undefined;
   /** Cédula y registro médico del profesional — para el PDF y "Copiar nota"
@@ -138,6 +145,8 @@ interface StoreValue {
     patient: NewPatientInput,
   ) => Promise<{ ok: boolean; patient: Patient }>;
   approveNote: (id: string) => void;
+  /** Como approveNote pero devuelve el desenlace y sin toasts (firma en serie). */
+  approveNoteAsync: (id: string) => Promise<{ ok: boolean; error?: string }>;
   /**
    * Registro MANUAL de la secretaria: marca la consulta como exportada sin
    * enviar nada al HIS. La exportación automática vive en `useNoteExport`.
@@ -688,6 +697,21 @@ export function MiracleProvider({
   );
 
   // ---- Consultas ------------------------------------------------------------
+  const fetchConsultation = useCallback(
+    async (id: string): Promise<Consultation | undefined> => {
+      const { data, error } = await supabase
+        .from("consultations")
+        .select(
+          "id, patient_id, medico_id, servicio, especialidad, tipo, estado, fecha, duracion_min, plantilla, motivo, note, resumen, codigos, firma, paciente_nombre, paciente_documento",
+        )
+        .eq("id", id)
+        .maybeSingle();
+      if (error || !data) return undefined;
+      return rowToConsultation(data, []);
+    },
+    [supabase],
+  );
+
   const getConsultation = useCallback(
     (id: string) => consultations.find((c) => c.id === id),
     [consultations],
@@ -958,40 +982,54 @@ export function MiracleProvider({
 
   // La firma se hace en el servidor (valida sesión, estado y deja hash del
   // contenido en auditoría); aquí solo se refleja el resultado en el estado.
+  //
+  // La variante async devuelve el resultado y NO muestra toasts: la sesión de
+  // firma en serie necesita saber nota a nota qué pasó y contar el desenlace
+  // ella misma (un toast por nota en una tanda de diez sería una lluvia).
+  const approveNoteAsync = useCallback(
+    async (id: string): Promise<{ ok: boolean; error?: string }> => {
+      const result = await signConsultationNote(id);
+      if (!result.ok || !result.firma) {
+        return { ok: false, error: result.error ?? "No se pudo firmar la nota." };
+      }
+      const { firma } = result;
+      setConsultations((list) =>
+        list.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                estado: "aprobada" as const,
+                firma,
+                auditoria: [
+                  ...c.auditoria,
+                  {
+                    id: `a-${Date.now()}`,
+                    fecha: firma.fecha,
+                    actor: firma.por,
+                    accion: "Nota aprobada y firmada",
+                    detalle: `Firmada por ${firma.por}`,
+                  },
+                ],
+              }
+            : c,
+        ),
+      );
+      return { ok: true };
+    },
+    [],
+  );
+
   const approveNote = useCallback(
     (id: string) => {
-      void (async () => {
-        const result = await signConsultationNote(id);
-        if (!result.ok || !result.firma) {
+      void approveNoteAsync(id).then((result) => {
+        if (!result.ok) {
           showToast(result.error ?? "No se pudo firmar la nota.", "warning");
           return;
         }
-        const { firma } = result;
-        setConsultations((list) =>
-          list.map((c) =>
-            c.id === id
-              ? {
-                  ...c,
-                  estado: "aprobada" as const,
-                  firma,
-                  auditoria: [
-                    ...c.auditoria,
-                    {
-                      id: `a-${Date.now()}`,
-                      fecha: firma.fecha,
-                      actor: firma.por,
-                      accion: "Nota aprobada y firmada",
-                      detalle: `Firmada por ${firma.por}`,
-                    },
-                  ],
-                }
-              : c,
-          ),
-        );
         showToast("Nota aprobada y firmada.", "success");
-      })();
+      });
     },
-    [showToast],
+    [approveNoteAsync, showToast],
   );
 
   /**
@@ -1145,12 +1183,14 @@ export function MiracleProvider({
       ensureTranscript,
       transcriptFailed,
       getConsultation,
+      fetchConsultation,
       getPatient,
       getMedicoName,
       getMedicoIdentity,
       addPatient,
       addPatientAsync,
       approveNote,
+      approveNoteAsync,
       markExportedManually,
       applyServerConsultationEstado,
       markReviewed,
@@ -1181,12 +1221,14 @@ export function MiracleProvider({
       ensureTranscript,
       transcriptFailed,
       getConsultation,
+      fetchConsultation,
       getPatient,
       getMedicoName,
       getMedicoIdentity,
       addPatient,
       addPatientAsync,
       approveNote,
+      approveNoteAsync,
       markExportedManually,
       applyServerConsultationEstado,
       markReviewed,

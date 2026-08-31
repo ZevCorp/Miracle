@@ -36,7 +36,7 @@ export default async function RegistroPage({
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
           <Link href="/" aria-label="Miracle — inicio">
-            <BrandSphere size={64} />
+            <BrandSphere size={110} />
           </Link>
           <h1 className="mt-4 text-2xl font-semibold text-deep">Crea tu cuenta</h1>
           <p className="mt-2 text-sm text-ink-soft">

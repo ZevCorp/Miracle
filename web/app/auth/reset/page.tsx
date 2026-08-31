@@ -51,7 +51,7 @@ export default function ResetPasswordPage() {
     <main className="flex min-h-screen items-center justify-center px-5 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
-          <BrandSphere size={64} />
+          <BrandSphere size={110} />
           <h1 className="mt-4 text-2xl font-semibold text-deep">
             Crea tu nueva contraseña
           </h1>

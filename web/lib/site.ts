@@ -9,7 +9,7 @@ export const SITE = {
   name: "Miracle",
   tagline: "Para que el médico mire al paciente, no la pantalla",
   // Número usado en el sitio previo para conversión (WhatsApp).
-  whatsappNumber: "573172550953",
+  whatsappNumber: "573134582806",
   // Buzón real que recibe los correos del sitio.
   email: "dev@itsmiracleai.com",
   // Dominio de producción (para canonical/OG/metadataBase). En Vercel se

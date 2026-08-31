@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
+  PenLine,
   ArrowRight,
   BarChart3,
   CheckCircle2,
@@ -12,7 +13,6 @@ import {
   ClipboardList,
   FileSignature,
   FileText,
-  Mic,
   Stethoscope,
   Users,
 } from "lucide-react";
@@ -20,9 +20,19 @@ import { useStore } from "@/app/app/providers";
 import {
   completitud,
   type Consultation,
+  type NoteSection,
   type Patient,
 } from "@/lib/mock";
-import { esDeHoy } from "@/lib/dates";
+import { diasDeEspera, esDeHoy } from "@/lib/dates";
+import { resolveConsultationIdentity } from "@/lib/clinical/patient-identity";
+import { usePeekClick } from "@/components/app/PeekProvider";
+import { useRunway } from "@/components/app/SignRunway";
+import { useAgendaHoy } from "@/components/app/AgendaHoy";
+import { TurnoHUD } from "./TurnoHUD";
+import { StartSurface } from "./StartSurface";
+import { DayFlow } from "./DayFlow";
+import { Avatar } from "@/components/ui/Avatar";
+import { StatusBadge } from "@/components/app/StatusBadge";
 import { isDemoConsultation } from "@/lib/demo";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -36,7 +46,6 @@ import {
 import { etiquetaPeriodoAnterior, resolverRango } from "@/lib/superadmin/rango";
 import { Card } from "@/components/ui/Card";
 import { MetricCard } from "@/components/marketing/MetricCard";
-import { AgendaHoy } from "@/components/app/AgendaHoy";
 import { ConsultationCard } from "@/components/app/ConsultationCard";
 import { BarList } from "@/components/app/Charts";
 import { DailyTrend } from "@/components/app/DailyTrend";
@@ -47,11 +56,12 @@ import {
   AppPage,
   AppPageHeader,
   ClinicalSectionHeader,
+  SectionRule,
 } from "@/components/app/AppPage";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { consultations, role, isDemo, loading } = useStore();
+  const { consultations, role, loading } = useStore();
   const searchParams = useSearchParams();
 
   // La cuenta demo siempre abre en el panel del médico, que es lo que se
@@ -93,7 +103,7 @@ export default function DashboardPage() {
       ) : viewRole === "supervisor" ? (
         <SupervisorView consultations={reales} pendientes={pendientes} />
       ) : (
-        <MedicoView hoy={hoy} pendientes={pendientes} consultations={reales} />
+        <MedicoView hoy={hoy} pendientes={pendientes} />
       )}
     </>
   );
@@ -132,152 +142,208 @@ function DashboardSkeleton() {
   );
 }
 
-/* ============================ MÉDICO (limpio) ============================ */
+/* ============================ MEDICO: LA JORNADA ============================ */
 
+/**
+ * El Inicio ya no es un panel de administracion: es LA JORNADA del medico.
+ * Una sola columna que se lee como el dia mismo: el HUD (fecha, hora viva y
+ * los numeros del turno), el orbe que se mantiene pulsado para empezar, el
+ * riel del dia con la marca AHORA, y la deuda de firma antes de cerrar.
+ *
+ * Se fueron: las tarjetas de metricas (el HUD las dice en una linea), los
+ * "ultimos pacientes" (Pacientes ahora es un expediente con panel propio) y
+ * la caja de agenda separada (el riel la fusiona con las consultas).
+ */
 function MedicoView({
   hoy,
   pendientes,
-  consultations,
 }: {
   hoy: Consultation[];
   pendientes: Consultation[];
-  consultations: Consultation[];
 }) {
   const { getPatient, orgKind, loadError, retryLoad } = useStore();
-  // El rótulo es propio de una institución; ante orgKind desconocido se asume
-  // institución, igual que en visibleAppNav (lib/site.ts).
+  const { openRunway } = useRunway();
+  const agenda = useAgendaHoy();
   const muestraRotulo = (orgKind ?? "institution") === "institution";
-  const recientes = useMemo(
-    () => recentPatients(consultations, 4, getPatient),
-    [consultations, getPatient],
+
+  // El reloj del turno: UN tick de 30 s para el HUD y la marca AHORA del riel.
+  // Nace null porque el reloj no puede pintarse en el servidor sin
+  // desincronizar la hidratacion; el primer tick llega en el montaje.
+  const [ahora, setAhora] = useState<Date | null>(null);
+  useEffect(() => {
+    setAhora(new Date());
+    const id = setInterval(() => setAhora(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const cola = useMemo(
+    () => [...pendientes].sort((a, b) => (a.fecha < b.fecha ? -1 : 1)),
+    [pendientes],
   );
-  const [citasHoy, setCitasHoy] = useState(0);
+  const colaVisibleIds = useMemo(() => cola.slice(0, 4).map((c) => c.id), [cola]);
+
+  // Cuentas del HUD. Atendidas = consultas de hoy + citas atendidas que no
+  // tienen su consulta en el store (sin doble conteo del mismo encuentro).
+  const idsConsultasHoy = useMemo(() => new Set(hoy.map((c) => c.id)), [hoy]);
+  const atendidasHoy =
+    hoy.length +
+    agenda.citas.filter(
+      (c) =>
+        c.estado === "atendida" &&
+        !(c.clinicalEncounterId && idsConsultasHoy.has(c.clinicalEncounterId)),
+    ).length;
+  const enAgenda = agenda.citas.filter(
+    (c) => c.estado === "programada" || c.estado === "en_curso",
+  ).length;
 
   return (
-    <AppPage>
-      {/* Acción principal */}
-      <section className="clinical-panel border-l-[3px] border-l-accent p-5 sm:p-6 md:p-7">
-        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="app-page-title">
-              Tu día en Miracle
-            </h1>
-            <p className="mt-2 text-[0.95rem] text-muted">
-              {citasHoy > 0
-                ? `Tienes ${citasHoy} ${citasHoy === 1 ? "cita agendada" : "citas agendadas"} hoy`
-                : hoy.length > 0
-                  ? `Tienes ${hoy.length} ${hoy.length === 1 ? "consulta" : "consultas"} hoy`
-                  : "Aún no tienes consultas hoy"}
-              {pendientes.length > 0
-                ? ` · ${pendientes.length} por revisar`
-                : ""}
-              .
-            </p>
-          </div>
-          <Link
-            href="/app/consultas/nueva"
-            className="clinical-primary min-h-12 px-5"
-          >
-            <Mic size={18} /> Iniciar consulta
-          </Link>
-        </div>
-      </section>
+    <AppPage className="max-w-3xl">
+      <TurnoHUD
+        ahora={ahora}
+        atendidasHoy={atendidasHoy}
+        enAgenda={enAgenda}
+        porFirmar={cola.length}
+        esperaMaxIso={cola[0]?.fecha ?? null}
+      />
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
-        {/* Por revisar y firmar */}
-        <Card className="shadow-none">
-          <ClinicalSectionHeader
-            title="Por revisar y firmar"
-            action={<FileText size={18} className="text-muted" />}
-          />
-          {pendientes.length ? (
-            <div className="mt-1 divide-y divide-line">
-              {/* Las más antiguas primero: lo que lleva más tiempo esperando firma. */}
-              {[...pendientes]
-                .sort((a, b) => (a.fecha < b.fecha ? -1 : 1))
-                .slice(0, 5)
-                .map((c) => (
-                  <ConsultationCard
-                    key={c.id}
-                    consultation={c}
-                    presentation="row"
-                    showRotulo={muestraRotulo}
-                  />
-                ))}
-              {pendientes.length > 5 ? (
-                <Link
-                  href="/app/consultas?estado=borrador"
-                  className="mt-3 block rounded-[10px] border border-dashed border-line px-4 py-2.5 text-center text-sm font-semibold text-accent hover:border-mist hover:bg-ice-soft"
-                >
-                  Ver las {pendientes.length - 5} restantes
-                </Link>
-              ) : null}
-            </div>
-          ) : loadError ? (
-            /* Sin esto, un fallo de lectura se celebraba como "Estás al día" —
-               justo la respuesta contraria a la verdad. */
-            <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-warning-soft text-warning">
-                <AlertTriangle size={24} />
-              </span>
-              <p className="font-medium text-deep">No se pudieron cargar tus notas</p>
-              <p className="text-sm text-muted">
-                No sabemos si tienes pendientes: no fue posible leerlas.
-              </p>
-              <button type="button" onClick={retryLoad} className="clinical-secondary mt-1">
-                Reintentar
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2 py-8 text-center">
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-success-soft text-success">
-                <CheckCircle2 size={24} />
-              </span>
-              <p className="font-medium text-deep">Estás al día</p>
-              <p className="text-sm text-muted">No tienes notas pendientes por firmar.</p>
-            </div>
-          )}
-        </Card>
-
-        {/* Lateral: agenda de hoy + pacientes */}
-        <div className="space-y-5">
-          <AgendaHoy onCountChange={setCitasHoy} />
-
-          <Card className="shadow-none">
-            <ClinicalSectionHeader
-              title="Pacientes recientes"
-              action={
-                <Link
-                  href="/app/pacientes"
-                  className="text-sm font-semibold text-accent hover:underline"
-                >
-                  Ver todos
-                </Link>
-              }
-            />
-            <ul className="space-y-1">
-              {recientes.map((p) => (
-                <li key={p.id}>
-                  <Link
-                    href={`/app/pacientes/${p.id}`}
-                    className="flex min-h-12 items-center gap-3 rounded-[10px] px-1 py-2 hover:bg-ice-soft"
-                  >
-                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-night text-xs font-semibold text-white">
-                      {p.nombre.split(" ").map((n) => n[0]).slice(0, 2).join("")}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-sm text-deep">
-                      {p.nombre}
-                    </span>
-                    <ChevronRight size={16} className="text-muted" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </div>
+      <div className="mt-6">
+        <StartSurface />
       </div>
+
+      <div className="mt-8">
+        <DayFlow ahora={ahora} agenda={agenda} />
+      </div>
+
+      <section className="mt-8">
+        <SectionRule
+          title="Antes de cerrar el dia"
+          count={cola.length || undefined}
+          action={
+            cola.length ? (
+              <button
+                type="button"
+                onClick={() => openRunway(cola.map((c) => c.id))}
+                className="clinical-tertiary min-h-9 px-2.5 text-[13px]"
+              >
+                <PenLine size={14} /> Firmar en serie
+              </button>
+            ) : null
+          }
+        />
+
+        {cola.length ? (
+          <div className="clinical-list stagger-in">
+            {cola.slice(0, 4).map((c) => (
+              <SignQueueRow
+                key={c.id}
+                consultation={c}
+                showRotulo={muestraRotulo}
+                getPatient={getPatient}
+                peekIds={colaVisibleIds}
+              />
+            ))}
+          </div>
+        ) : loadError ? (
+          /* Sin esto, un fallo de lectura se celebraba como "Estas al dia" -
+             justo la respuesta contraria a la verdad. */
+          <div className="clinical-panel flex flex-wrap items-center gap-3 px-5 py-4">
+            <AlertTriangle size={18} className="shrink-0 text-warning" />
+            <p className="min-w-0 flex-1 text-sm text-ink-soft">
+              No se pudieron cargar tus notas. No sabemos si tienes pendientes.
+            </p>
+            <button type="button" onClick={retryLoad} className="clinical-secondary">
+              Reintentar
+            </button>
+          </div>
+        ) : (
+          <div className="clinical-panel flex items-center gap-3 px-5 py-4">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success-soft text-success">
+              <CheckCircle2 size={17} />
+            </span>
+            <p className="text-sm text-ink-soft">Ninguna nota espera tu firma.</p>
+          </div>
+        )}
+      </section>
     </AppPage>
   );
+}
+
+/**
+ * Una nota de la cola de firma.
+ *
+ * La columna que faltaba y era la que importaba: cuánto lleva esperando. En
+ * Colombia una historia clínica sin firmar no está cerrada, así que la espera
+ * no es un detalle de orden — es el riesgo. Va en monoespaciada para que las
+ * filas se comparen en columna, y sube de tono con los días.
+ */
+function SignQueueRow({
+  consultation,
+  showRotulo,
+  getPatient,
+  peekIds,
+}: {
+  consultation: Consultation;
+  showRotulo: boolean;
+  getPatient: (id: string | null | undefined) => Patient | undefined;
+  /** Ids visibles de la cola: J/K del panel rápido recorre exactamente esto. */
+  peekIds: readonly string[];
+}) {
+  const abrirPeek = usePeekClick(
+    { kind: "consultation", id: consultation.id },
+    peekIds,
+  );
+  const identidad = resolveConsultationIdentity(
+    getPatient(consultation.pacienteId),
+    consultation,
+  );
+  const rotulo = showRotulo ? rotuloDeNota(consultation.note) : undefined;
+  const dias = diasDeEspera(consultation.fecha);
+  const tono =
+    dias >= 8 ? "text-danger" : dias >= 3 ? "text-warning" : "text-muted";
+
+  return (
+    <Link
+      href={`/app/consultas/${consultation.id}`}
+      onClick={abrirPeek}
+      data-light
+      className="clinical-list-row flex items-center gap-3 px-4 py-3"
+    >
+      <Avatar name={identidad.nombre} size="sm" />
+
+      <span className="min-w-0 flex-1">
+        <span className="truncate text-sm font-semibold text-deep">
+          {identidad.nombre ?? rotulo ?? "Paciente sin identificar"}
+        </span>
+        <span className="block truncate text-[12px] text-muted">
+          {identidad.documento ? (
+            <span className="data">{identidad.documento} · </span>
+          ) : null}
+          {consultation.especialidad}
+        </span>
+      </span>
+
+      <span className="hidden min-w-0 flex-1 truncate text-[13px] text-ink-soft lg:block">
+        {consultation.motivo}
+      </span>
+
+      <span className="hidden shrink-0 sm:block">
+        <StatusBadge estado={consultation.estado} />
+      </span>
+
+      <span className={`data shrink-0 text-right text-[12px] font-semibold ${tono}`}>
+        {dias === 0 ? "hoy" : `${dias} d`}
+        <span className="sr-only"> esperando firma</span>
+      </span>
+
+      <ChevronRight size={16} className="shrink-0 text-muted" />
+    </Link>
+  );
+}
+
+/** Rótulo (número de caso de patología) de una nota, si lo tiene. */
+function rotuloDeNota(note: readonly NoteSection[] | undefined) {
+  const seccion = note?.find((s) => s.id === "rotulo" || s.titulo === "Rótulo");
+  return seccion?.texto?.trim() || undefined;
 }
 
 /* ============================ SUPERVISOR ============================ */
@@ -570,21 +636,3 @@ function AdminSkeleton() {
 }
 
 /* ---------- helpers ---------- */
-
-function recentPatients(
-  consultations: Consultation[],
-  n: number,
-  getPatient: (id: string | null | undefined) => Patient | undefined,
-) {
-  const sorted = [...consultations].sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
-  const seen = new Set<string>();
-  const out: Patient[] = [];
-  for (const c of sorted) {
-    if (seen.has(c.pacienteId)) continue;
-    seen.add(c.pacienteId);
-    const p = getPatient(c.pacienteId);
-    if (p) out.push(p);
-    if (out.length >= n) break;
-  }
-  return out;
-}

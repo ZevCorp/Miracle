@@ -232,7 +232,7 @@ export function TemplateBuilderPanel({
         role="dialog"
         aria-modal="true"
         aria-label={MODE_TITLE[mode]}
-        className="relative flex h-dvh max-h-dvh w-full max-w-3xl flex-col overflow-hidden bg-surface shadow-[var(--shadow-xl)] sm:h-auto sm:max-h-[90dvh] sm:rounded-2xl sm:border sm:border-line"
+        className="relative flex h-dvh max-h-dvh w-full max-w-3xl flex-col overflow-hidden bg-surface shadow-[var(--shadow-xl)] sm:h-auto sm:max-h-[90dvh] sm:rounded-[24px] sm:border sm:border-line"
       >
         {/* Header */}
         <div className="app-mobile-header flex items-center justify-between gap-3 border-b border-line px-4 py-4 sm:h-auto sm:px-7">
@@ -403,7 +403,7 @@ export function TemplateBuilderPanel({
           <button
             type="button"
             onClick={() => void attemptClose()}
-            className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-deep hover:border-mist"
+            className="clinical-secondary px-5"
           >
             Cancelar
           </button>
@@ -411,7 +411,7 @@ export function TemplateBuilderPanel({
             type="button"
             onClick={() => void handleSubmit()}
             disabled={saving}
-            className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+            className="clinical-primary px-5"
           >
             {saving ? (
               <>

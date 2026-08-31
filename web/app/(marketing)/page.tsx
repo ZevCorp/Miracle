@@ -32,7 +32,7 @@ export default function HomePage() {
         <Container>
           <RevealGroup className="mx-auto flex max-w-3xl flex-col items-center">
             <RevealItem>
-              <BrandSphere size={116} className="float mb-8" />
+              <BrandSphere size={200} className="float mb-8" />
             </RevealItem>
             <RevealItem>
               <span className="eyebrow">Menos pantalla, más medicina</span>

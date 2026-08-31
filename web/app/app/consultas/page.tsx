@@ -198,7 +198,7 @@ export default async function ConsultasPage({
         action={
           uiRole === "medico" ? (
             <Link href="/app/consultas/nueva" className="clinical-primary w-full sm:w-auto">
-              <Plus size={16} /> Nueva consulta
+              <Plus size={16} /> Iniciar consulta
             </Link>
           ) : undefined
         }
@@ -219,7 +219,7 @@ export default async function ConsultasPage({
           <Link
             key={e}
             href={chipHref(e)}
-            className={`rounded-[9px] border px-3.5 py-2 text-sm font-semibold transition-colors ${
+            className={`inline-flex min-h-10 items-center rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
               estadoFilter === e
                 ? STATUS_CHIP_ACTIVE[e]
                 : "border-line bg-surface text-ink-soft hover:border-mist"
@@ -250,6 +250,7 @@ export default async function ConsultasPage({
               patientName={patientName(r.patients)}
               rotulo={r.rotulo}
               showRotulo={muestraRotulo}
+              peekIds={rows.map((x) => x.id)}
               consultation={{
                 id: r.id,
                 pacienteId: r.patient_id ?? "",

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CornerDownLeft, FileText, Plus, Search, User, type LucideIcon } from "lucide-react";
+import { CornerDownLeft, FileText, PenLine, Plus, Search, User, type LucideIcon } from "lucide-react";
 import { useStore } from "@/app/app/providers";
+import { useRunway } from "@/components/app/SignRunway";
 import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
 import { NAV_ICONS, NAV_ICON_FALLBACK } from "@/components/app/nav-icons";
 import { STATUS_BAR } from "@/components/app/StatusBadge";
@@ -22,6 +23,8 @@ type Item = {
   estado?: ConsultationStatus;
   href: string;
   icon: LucideIcon;
+  /** Acción ejecutable: manda sobre href (la paleta como línea de comandos). */
+  run?: () => void;
 };
 
 type Grupo = { titulo: string; items: Item[] };
@@ -40,6 +43,7 @@ export function CommandPalette({
   const { patients, consultations, getPatient, role, isDemo, orgKind, professionalType } =
     useStore();
   const { guardedNavigate } = useNavigationGuard();
+  const { openRunway } = useRunway();
   const [query, setQuery] = useState("");
   const [activoPedido, setActivo] = useState(0);
   const listaRef = useRef<HTMLDivElement>(null);
@@ -106,20 +110,37 @@ export function CommandPalette({
           }))
       : [];
 
-    // "Nueva consulta" es exclusiva del médico: la secretaría (y cualquier rol
-    // de solo lectura) no debe verla ni activarla desde acá.
-    const acciones: Item[] =
-      role === "medico" && (!q || matchesQuery("Nueva consulta", q))
-        ? [
-            {
-              id: "nueva",
-              label: "Nueva consulta",
-              hint: "Iniciar captura",
-              href: "/app/consultas/nueva",
-              icon: Plus,
-            },
-          ]
-        : [];
+    // "Iniciar consulta" es exclusiva del médico: la secretaría (y cualquier
+    // rol de solo lectura) no debe verla ni activarla desde acá.
+    const acciones: Item[] = [];
+    if (role === "medico" && (!q || matchesQuery("Iniciar consulta", q))) {
+      acciones.push({
+        id: "nueva",
+        label: "Iniciar consulta",
+        hint: "Iniciar captura",
+        href: "/app/consultas/nueva",
+        icon: Plus,
+      });
+    }
+    // La paleta como línea de comandos: la sesión de firma, a un Enter. Las
+    // más antiguas primero — el mismo orden de la cola del panel.
+    const pendientes = consultations
+      .filter((c) => c.estado === "borrador" || c.estado === "revisada")
+      .sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+    if (
+      role === "medico" &&
+      pendientes.length > 0 &&
+      (!q || matchesQuery("Firmar en serie pendientes", q))
+    ) {
+      acciones.push({
+        id: "runway",
+        label: `Firmar en serie (${pendientes.length})`,
+        hint: "Recorrer la cola con el teclado: F firma, S salta",
+        href: "#",
+        icon: PenLine,
+        run: () => openRunway(pendientes.map((c) => c.id)),
+      });
+    }
 
     const pac: Item[] = patients
       .filter((p) => !q || matchesQuery(`${p.nombre} ${p.documento}`, q))
@@ -155,10 +176,10 @@ export function CommandPalette({
     return [
       { titulo: "Acciones", items: acciones },
       { titulo: "Ir a", items: navegacion },
-      { titulo: "Pacientes", items: pac },
-      { titulo: "Consultas", items: cons },
+      { titulo: q ? "Pacientes" : "Pacientes recientes", items: pac },
+      { titulo: q ? "Consultas" : "Consultas recientes", items: cons },
     ].filter((g) => g.items.length > 0);
-  }, [query, patients, indiceConsultas, role, isDemo, orgKind, professionalType]);
+  }, [query, patients, consultations, indiceConsultas, role, isDemo, orgKind, professionalType, openRunway]);
 
   // Lista plana: es sobre la que se mueven las flechas, atravesando los grupos.
   const planos = useMemo(() => grupos.flatMap((g) => g.items), [grupos]);
@@ -176,10 +197,15 @@ export function CommandPalette({
   }, [activo, open]);
 
   const go = useCallback(
-    (href: string) => {
+    (item: Item) => {
+      if (item.run) {
+        closePalette();
+        item.run();
+        return;
+      }
       guardedNavigate(() => {
         closePalette();
-        router.push(href);
+        router.push(item.href);
       });
     },
     [closePalette, guardedNavigate, router],
@@ -205,7 +231,7 @@ export function CommandPalette({
       setActivo(Math.max(0, planos.length - 1));
     } else if (e.key === "Enter") {
       const destino = planos[activo];
-      if (destino) go(destino.href);
+      if (destino) go(destino);
     }
   }
 
@@ -217,7 +243,7 @@ export function CommandPalette({
         className="absolute inset-0 bg-overlay backdrop-blur-sm"
         onClick={closePalette}
       />
-      <div className="relative flex h-dvh w-full max-w-xl flex-col overflow-hidden bg-surface shadow-[var(--shadow-xl)] sm:h-auto sm:rounded-2xl sm:border sm:border-line">
+      <div className="glass-panel relative flex h-dvh w-full max-w-xl flex-col overflow-hidden sm:h-auto sm:rounded-[24px]">
         <div className="app-mobile-header flex items-center gap-2 border-b border-line px-4 sm:h-auto">
           <Search size={18} className="text-muted" />
           <input
@@ -268,7 +294,7 @@ export function CommandPalette({
                       aria-selected={esActivo}
                       data-activo={esActivo}
                       onMouseMove={() => setActivo(posicion)}
-                      onClick={() => go(it.href)}
+                      onClick={() => go(it)}
                       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
                         esActivo ? "bg-ice-soft" : ""
                       }`}

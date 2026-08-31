@@ -8,26 +8,37 @@ type LogoProps = {
   className?: string;
 };
 
-/** Logo completo: esfera + wordmark "MIRACLE". */
+/**
+ * Logo completo: orbe + palabra "Miracle".
+ *
+ * La palabra sigue la tipografía del logo de marca —caja mixta, peso ligero y
+ * tracking ancho— y ya no las versales apretadas de antes. En el logo original
+ * va DENTRO del orbe; aquí sale al lado porque a los tamaños de interfaz
+ * (25-34px) meterla dentro la dejaría en menos de 3px de alto. Cuando hay
+ * espacio de verdad —login, portada, banda oscura— se usa BrandSphere, que sí
+ * la lleva adentro.
+ */
 export function Logo({
   onDark = false,
   href = "/",
-  size = 30,
+  size = 34,
   className = "",
 }: LogoProps) {
   return (
     <Link
       href={href}
-      className={`inline-flex items-center gap-2.5 ${className}`}
+      className={`inline-flex items-center gap-2 ${className}`}
       aria-label="Miracle — inicio"
     >
       <BrandMark size={size} />
       <span
-        className={`font-display text-[1.15rem] font-semibold tracking-[0.18em] ${
+        /* Inter extralight, no la display: Schibsted Grotesk no tiene pesos
+           por debajo de 400 y el wordmark de marca es fino. */
+        className={`text-[1.05rem] font-extralight tracking-[0.22em] ${
           onDark ? "text-white" : "text-deep"
         }`}
       >
-        MIRACLE
+        Miracle
       </span>
     </Link>
   );

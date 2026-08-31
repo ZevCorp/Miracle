@@ -1,6 +1,9 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { PatientsWorkspace, type PatientRow } from "./PatientsWorkspace";
+import { ChevronRight, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { Avatar } from "@/components/ui/Avatar";
+import { EmptyState } from "@/components/app/EmptyState";
 import { Pager } from "@/components/app/Pager";
 import { QueryErrorBanner } from "@/components/app/QueryErrorBanner";
 import { PacientesSearch } from "./PacientesSearch";
@@ -8,14 +11,7 @@ import { AppPage, AppPageHeader } from "@/components/app/AppPage";
 
 const PAGE_SIZE = 20;
 
-type PatientRow = {
-  id: string;
-  nombre: string;
-  edad: number | null;
-  sexo: string | null;
-  documento: string | null;
-  eps: string | null;
-};
+
 
 export default async function PacientesPage({
   searchParams,
@@ -48,9 +44,11 @@ export default async function PacientesPage({
 
   // Conteo de consultas por paciente (agregado en la base, no N+1 en cliente).
   const { data: countsData } = await supabase.rpc("patient_consultation_counts");
-  const counts = new Map<string, number>();
+  // Objeto y no Map: los props de un componente de cliente tienen que ser
+  // serializables, y un Map no lo es.
+  const counts: Record<string, number> = {};
   for (const row of (countsData ?? []) as { patient_id: string; n: number }[]) {
-    counts.set(row.patient_id, Number(row.n));
+    counts[row.patient_id] = Number(row.n);
   }
 
   return (
@@ -77,37 +75,23 @@ export default async function PacientesPage({
         </div>
       ) : null}
 
-      <div className="clinical-list mt-5">
-        {patients.map((p) => (
-          <Link
-            key={p.id}
-            href={`/app/pacientes/${p.id}`}
-            className="clinical-list-row flex items-center gap-3 px-4 py-4 sm:gap-4 sm:px-5"
-          >
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-night text-sm font-semibold text-white">
-              {p.nombre.split(" ").map((n) => n[0]).slice(0, 2).join("")}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-semibold text-deep">{p.nombre}</div>
-              <div className="mt-0.5 truncate text-[13px] text-muted">
-                {p.documento || "Documento pendiente"} · {p.eps || "EPS pendiente"}
-              </div>
-            </div>
-            <span className="hidden text-right text-[13px] text-muted sm:block">
-              <span className="block font-medium text-ink-soft">
-                {p.edad ?? "—"} años{p.sexo ? ` · ${p.sexo}` : ""}
-              </span>
-              <span>{counts.get(p.id) ?? 0} consultas</span>
-            </span>
-            <ChevronRight size={18} className="text-muted" />
-          </Link>
-        ))}
-        {patients.length === 0 && !queryError ? (
-          <div className="px-5 py-6 text-sm text-muted">
-            {term ? "Sin coincidencias." : "Aún no hay pacientes."}
-          </div>
-        ) : null}
-      </div>
+      <PatientsWorkspace rows={patients} counts={counts} />
+
+      {/* El vacío va FUERA de la lista: un EmptyState dentro del marco dejaba
+          un borde vacío alrededor de otro borde. */}
+      {patients.length === 0 && !queryError ? (
+        <div className="mt-5">
+          <EmptyState
+            icon={<Users size={22} />}
+            title={term ? "Sin coincidencias" : "Aún no hay pacientes"}
+            description={
+              term
+                ? "Prueba con otro nombre u otro número de documento."
+                : "Cuando asocies pacientes a tus consultas, aparecerán aquí."
+            }
+          />
+        </div>
+      ) : null}
 
       <Pager
         basePath="/app/pacientes"

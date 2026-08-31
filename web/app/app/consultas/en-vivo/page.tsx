@@ -11,7 +11,6 @@ import {
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   ClipboardCopy,
@@ -49,6 +48,14 @@ import {
   parseVoiceInstruction,
 } from "@/lib/clinical/voice-instruction";
 import { SectionDraftsPanel } from "@/components/app/SectionDraftsPanel";
+import { AlertBanner } from "@/components/ui/AlertBanner";
+import { CaptureMode } from "@/components/app/CaptureMode";
+import {
+  ConsultationSpine,
+  spineStateOf,
+  useSpineKeyboard,
+  type SpineSection,
+} from "@/components/app/ConsultationSpine";
 import {
   buildTranscriptWithSectionDrafts,
   stripSectionDraftsBlock,
@@ -204,6 +211,28 @@ function ConsultaActivaInner() {
   // Captura ABIERTA (no incluye "pausada"): alimenta el reloj de uso, que
   // cuenta la grabación aunque la pestaña esté oculta.
   const [capturando, setCapturando] = useState(false);
+
+  // --- Modo captura ---------------------------------------------------------
+  // Mientras el micrófono está abierto, la pantalla entera se reduce a lo que
+  // se mira de reojo: tiempo, última frase, secciones llenándose. Es una capa
+  // sobre esta misma página (nada se desmonta: autosave, borradores y
+  // telemetría siguen corriendo). "Ver la pantalla completa" la aparta hasta
+  // la próxima grabación.
+  const [captureDismissed, setCaptureDismissed] = useState(false);
+  const [liveCapture, setLiveCapture] = useState({ elapsedSec: 0, partialText: "" });
+  const captureControlsRef = useRef<{ pause: () => void; finish: () => void } | null>(null);
+  const onLiveState = useCallback(
+    (state: { elapsedSec: number; partialText: string }) => setLiveCapture(state),
+    [],
+  );
+  const onCaptureControls = useCallback(
+    (controls: { pause: () => void; finish: () => void }) => {
+      captureControlsRef.current = controls;
+    },
+    [],
+  );
+  // El descarte se limpia al ARRANCAR una captura (en el handler, no en un
+  // efecto): cada grabación nueva vuelve a abrir la capa.
   // Con qué se grabó. El panel lo reporta al elegirlo; hasta entonces es null
   // (que la telemetría distingue de "micrófono", porque no es lo mismo no
   // haber grabado todavía que haber grabado con el micrófono).
@@ -286,6 +315,67 @@ function ConsultaActivaInner() {
     () => (note ? redactor.rehydrateNote(note) : note),
     [note, redactor],
   );
+
+  // Derivaciones puras adelantadas: los hooks de la espina viven ANTES de los
+  // retornos tempranos de carga/error (las reglas de hooks exigen el mismo
+  // orden en todos los renders).
+  const snapshot = encounter?.template_snapshot;
+  const currentReviewView: ReviewView = note ? reviewView : "transcript";
+
+  // --- La espina: índice y medidor de llenado de la nota -------------------
+  // Refleja las secciones del documento (más el resumen) con su estado de
+  // contenido. Pulsar una estación —o J/K con la nota a la vista— desplaza el
+  // documento hasta esa sección.
+  const spineSections = useMemo<SpineSection[]>(() => {
+    if (!displayNote) return [];
+    return [
+      {
+        id: "resumen",
+        titulo: "Resumen",
+        state: displayNote.summary?.trim() ? "filled" : "empty",
+      },
+      ...displayNote.sections.map((section) => ({
+        id: section.key,
+        titulo: section.label,
+        state: spineStateOf({ texto: section.content }),
+      })),
+    ];
+  }, [displayNote]);
+  const [spineActiveId, setSpineActiveId] = useState<string | null>(null);
+  // Antes de que exista nota, el mapa es la PLANTILLA: cada sección se marca
+  // llena cuando su borrador en vivo tiene texto.
+  const captureSpine = useMemo<SpineSection[]>(
+    () =>
+      (snapshot?.sections ?? []).map((section) => ({
+        id: section.key,
+        titulo: section.label,
+        state: (sectionDrafts.drafts[section.key] ?? "").trim()
+          ? ("filled" as const)
+          : ("empty" as const),
+      })),
+    [snapshot, sectionDrafts.drafts],
+  );
+  const irASeccion = useCallback(
+    (id: string) => {
+      setSpineActiveId(id);
+      if (currentReviewView !== "note") setReviewView("note");
+      // El anclaje existe cuando la vista de nota está montada; tras cambiar
+      // de vista se espera al siguiente frame.
+      requestAnimationFrame(() => {
+        document
+          .getElementById(`nota-${id}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    },
+    [currentReviewView, setReviewView],
+  );
+  useSpineKeyboard({
+    sections: spineSections,
+    activeId: spineActiveId,
+    onSelect: irASeccion,
+    enabled: Boolean(displayNote) && currentReviewView === "note",
+  });
+
 
   // Identificación que la nota trae de la propia consulta. Misma función que
   // reproduce el trigger de la base, así que lo que se ve aquí es exactamente
@@ -1029,11 +1119,10 @@ function ConsultaActivaInner() {
     );
   }
 
-  const snapshot = encounter?.template_snapshot;
   const tipoLabel =
     TYPE_LABEL[encounter?.consultation_type ?? ""] ?? encounter?.consultation_type;
   const generateLabel = note ? "Regenerar nota" : "Generar nota clínica";
-  const currentReviewView: ReviewView = note ? reviewView : "transcript";
+
 
   return (
     <div className="app-page max-w-5xl pb-6">
@@ -1055,8 +1144,8 @@ function ConsultaActivaInner() {
             {STATUS_LABEL[status] ?? status}
           </span>
           {note ? <div className="relative">
-            <button type="button" onClick={() => setActionsOpen((open) => !open)} aria-expanded={actionsOpen} aria-label="Abrir acciones de la nota" title="Abrir descargas y opciones de regeneración" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-muted hover:border-mist hover:text-deep"><Ellipsis size={18} /></button>
-            {actionsOpen ? <div role="menu" className="absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-xl border border-line bg-surface p-1.5 shadow-[var(--shadow-lg)]">
+            <button type="button" onClick={() => setActionsOpen((open) => !open)} aria-expanded={actionsOpen} aria-label="Abrir acciones de la nota" title="Abrir descargas y opciones de regeneración" className="icon-btn"><Ellipsis size={18} /></button>
+            {actionsOpen ? <div role="menu" className="glass-panel absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-[16px] p-1.5">
               <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); descargarPdf(); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-deep hover:bg-ice-soft"><FileText size={16} className="text-accent" /> Descargar PDF clínico</button>
               <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); descargarTextoPlano(); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-deep hover:bg-ice-soft"><Download size={16} className="text-accent" /> Descargar texto plano</button>
               <div className="my-1 border-t border-line" />
@@ -1080,17 +1169,13 @@ function ConsultaActivaInner() {
       </button>
 
       {flowError ? (
-        <div
-          role="alert"
-          className="mt-4 flex items-start gap-3 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
-        >
-          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-          <span>{flowError}</span>
-        </div>
+        <AlertBanner tone="danger" className="mt-4">
+          {flowError}
+        </AlertBanner>
       ) : null}
 
       {phase !== "idle" && phase !== "saving_private" ? (
-        <div role="status" aria-live="polite" className="mt-3 flex items-center gap-3 rounded-xl border border-accent/25 bg-accent-soft/45 px-4 py-3 text-sm font-semibold text-accent-ink">
+        <div role="status" aria-live="polite" className="mt-3 flex items-center gap-3 rounded-[12px] border border-accent/25 bg-accent-soft/45 px-4 py-3 text-sm font-semibold text-accent-ink">
           <Loader2 size={17} className="shrink-0 animate-spin" />
           <span>{PHASE_LABEL[phase]}… Mantén esta pantalla abierta.</span>
         </div>
@@ -1115,14 +1200,14 @@ function ConsultaActivaInner() {
             <button
               type="button"
               onClick={() => router.push(`/app/consultas/${encounterId}`)}
-              className="rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-deep hover:border-mist"
+              className="clinical-secondary px-4"
             >
               Ver detalle
             </button>
             <button
               type="button"
               onClick={() => router.push(`/app/consultas/${encounterId}?adenda=1`)}
-              className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+              className="clinical-primary px-4"
             >
               Crear adenda
             </button>
@@ -1145,7 +1230,7 @@ function ConsultaActivaInner() {
           {/* Captura de la consulta: grabación con transcripción en vivo,
               con edición/pegado manual como alternativa siempre disponible. */}
           {currentReviewView === "transcript" && showTranscriptPanel ? (
-            <div className="rounded-lg border border-line bg-surface p-4 shadow-[var(--shadow-xs)] sm:p-5">
+            <div className="rounded-[16px] border border-line bg-surface p-4 shadow-[var(--elev-1)] sm:p-5">
               <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="font-display text-base font-semibold text-deep sm:text-lg">
@@ -1193,12 +1278,17 @@ function ConsultaActivaInner() {
                     disabled={busy || signedMirror}
                     onAppendFinal={appendFinal}
                     onActiveChange={setDictando}
-                    onCapturingChange={setCapturando}
+                    onCapturingChange={(abierta) => {
+                      setCapturando(abierta);
+                      if (abierta) setCaptureDismissed(false);
+                    }}
                     onUsageSnapshotReady={onUsageSnapshotReady}
                     onAudioSourceChange={setFuenteAudio}
                     autoStart={autoStartOnArrival && !completed && !signedMirror}
                     onRecordingStopped={() => setFinishAfterRecording(true)}
                     finishLabel="Finalizar y generar nota"
+                    onLiveState={onLiveState}
+                    onCaptureControls={onCaptureControls}
                   />
                   <p className="mt-2 text-xs text-muted">
                     También puedes escribir o pegar la transcripción manualmente.
@@ -1302,7 +1392,7 @@ function ConsultaActivaInner() {
                         setShowTranscriptPanel(false);
                         setReviewView("note");
                       }}
-                      className="min-h-12 w-full rounded-xl border border-line px-5 py-2.5 text-sm font-semibold text-deep hover:border-mist sm:w-auto sm:rounded-full"
+                      className="clinical-secondary min-h-12 w-full px-5 sm:w-auto"
                     >
                       Volver a la nota
                     </button>
@@ -1364,7 +1454,7 @@ function ConsultaActivaInner() {
                         setReviewView("transcript");
                       }}
                       disabled={busy}
-                      className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-deep hover:border-mist disabled:opacity-60"
+                      className="clinical-secondary px-4 disabled:opacity-60"
                     >
                       Editar transcripción
                     </button>
@@ -1372,14 +1462,14 @@ function ConsultaActivaInner() {
                     <button
                       type="button"
                       onClick={() => copyToClipboard(displayNote.summary, "Resumen")}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-line px-3.5 py-2 text-sm font-semibold text-deep hover:border-mist"
+                      className="clinical-secondary px-3.5"
                     >
                       <ClipboardCopy size={14} /> Copiar resumen
                     </button>
                     <button
                       type="button"
                       onClick={() => copyToClipboard(noteAsPlainText(displayNote), "Nota clínica")}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-line px-3.5 py-2 text-sm font-semibold text-deep hover:border-mist"
+                      className="clinical-secondary px-3.5"
                     >
                       <ClipboardCopy size={14} /> Copiar nota
                     </button>
@@ -1388,7 +1478,7 @@ function ConsultaActivaInner() {
                     onClick={() => void guardarNota()}
                     disabled={busy || signedMirror}
                     title={signedMirror ? "La nota firmada es inmutable; usa una adenda" : undefined}
-                    className="hidden items-center gap-2 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60 sm:inline-flex"
+                    className="clinical-primary hidden px-5 sm:inline-flex"
                   >
                     {phase === "saving_note" ? (
                       <>
@@ -1507,6 +1597,21 @@ function ConsultaActivaInner() {
 
         {/* El asistente permanece disponible durante toda la consulta. */}
         <aside className="h-fit space-y-4 xl:sticky xl:top-20 xl:self-start">
+          {spineSections.length ? (
+            <div className="clinical-panel hidden p-4 xl:block">
+              <p className="doc-label mb-1.5">Secciones de la nota</p>
+              <ConsultationSpine
+                sections={spineSections}
+                activeId={spineActiveId}
+                onSelect={irASeccion}
+              />
+              <p className="mt-2 text-[11px] leading-relaxed text-muted">
+                Llena = escrita · hueca = vacía. Recorre con{" "}
+                <kbd className="rounded border border-line bg-field px-1 font-mono text-[10px]">J</kbd>{" "}
+                <kbd className="rounded border border-line bg-field px-1 font-mono text-[10px]">K</kbd>.
+              </p>
+            </div>
+          ) : null}
           <MedicalChat embedded />
           <div className="rounded-lg border border-line bg-surface p-5">
             {patient ? (
@@ -1581,6 +1686,17 @@ function ConsultaActivaInner() {
         </aside>
       </div>
 
+      {capturando && !captureDismissed && !completed ? (
+        <CaptureMode
+          elapsedSec={liveCapture.elapsedSec}
+          partialText={liveCapture.partialText}
+          sections={captureSpine}
+          onPause={() => captureControlsRef.current?.pause()}
+          onFinish={() => captureControlsRef.current?.finish()}
+          onExit={() => setCaptureDismissed(true)}
+        />
+      ) : null}
+
       {patientAssociationOpen ? (
         <PatientAssociationDialog
           patients={patients}
@@ -1592,8 +1708,8 @@ function ConsultaActivaInner() {
       ) : null}
 
       {regenerateOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-overlay p-0 backdrop-blur-[1px] sm:items-center sm:p-4">
-          <div role="dialog" aria-modal="true" aria-labelledby="regenerate-title" className="mobile-bottom-sheet w-full max-w-lg rounded-t-3xl border border-b-0 border-line bg-surface p-4 shadow-[var(--shadow-lg)] sm:rounded-2xl sm:border-b sm:p-6">
+        <div className="fixed inset-0 z-60 flex items-end justify-center bg-overlay p-0 backdrop-blur-[1px] sm:items-center sm:p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="regenerate-title" className="mobile-bottom-sheet w-full max-w-lg rounded-t-3xl border border-b-0 border-line bg-surface p-4 shadow-[var(--shadow-lg)] sm:rounded-[24px] sm:border-b sm:p-6">
             <div className="flex items-start gap-3">
               <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><LayoutTemplate size={19} /></span>
               <div><h2 id="regenerate-title" className="font-display text-lg font-semibold text-deep">Cambiar plantilla y regenerar</h2><p className="mt-1 text-sm leading-relaxed text-muted">Se reutilizará la transcripción. Miracle creará una nueva revisión enlazada y conservará esta nota en auditoría.</p></div>
@@ -1659,9 +1775,9 @@ function PatientAssociationDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-overlay p-0 backdrop-blur-[1px] sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-60 flex items-end justify-center bg-overlay p-0 backdrop-blur-[1px] sm:items-center sm:p-4">
       <button type="button" tabIndex={-1} aria-label="Cerrar asociación de paciente" onClick={onClose} className="absolute inset-0 cursor-default" />
-      <section role="dialog" aria-modal="true" aria-labelledby="patient-association-title" className="mobile-bottom-sheet relative flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-3xl border border-b-0 border-line bg-surface shadow-[var(--shadow-lg)] sm:rounded-2xl sm:border-b">
+      <section role="dialog" aria-modal="true" aria-labelledby="patient-association-title" className="mobile-bottom-sheet relative flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-3xl border border-b-0 border-line bg-surface shadow-[var(--shadow-lg)] sm:rounded-[24px] sm:border-b">
         <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
           <div className="flex items-center gap-3"><span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent"><UserRound size={18} /></span><div><h2 id="patient-association-title" className="text-lg font-semibold text-deep">Asociar paciente</h2><p className="mt-0.5 text-sm text-muted">Puedes continuar sin identificarlo.</p></div></div>
           <button type="button" onClick={onClose} aria-label="Cerrar" className="rounded-md p-1 text-muted hover:bg-ice-soft hover:text-deep"><X size={18} /></button>
@@ -1697,30 +1813,22 @@ function ReviewNavigation({
   ];
 
   return (
-    <nav aria-label="Vistas de la consulta" className="mt-4 rounded-lg border border-line bg-surface p-1.5 shadow-[var(--shadow-xs)] sm:mt-5">
-      <div className="grid grid-cols-2 gap-1 sm:flex">
-        {items.map((item) => {
-          const selected = active === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onChange(item.id)}
-              aria-current={selected ? "page" : undefined}
-              className={`min-w-0 rounded-md px-3 py-2 text-left transition-colors sm:px-4 ${
-                selected
-                  ? "bg-night text-white shadow-sm"
-                  : "text-ink-soft hover:bg-ice-soft hover:text-deep"
-              }`}
-            >
-              <span className="block text-sm font-semibold">{item.label}</span>
-              <span className={`hidden text-[12px] sm:block ${selected ? "text-sidebar-muted" : "text-muted"}`}>
-                {item.helper}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+    <nav aria-label="Vistas de la consulta" className="seg mt-4 grid w-full grid-cols-2 sm:mt-5 sm:flex">
+      {items.map((item) => {
+        const selected = active === item.id;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onChange(item.id)}
+            aria-pressed={selected}
+            title={item.helper}
+            className="seg-item min-w-0 sm:flex-1"
+          >
+            <span className="truncate">{item.label}</span>
+          </button>
+        );
+      })}
     </nav>
   );
 }

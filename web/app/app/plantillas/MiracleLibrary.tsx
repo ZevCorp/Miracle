@@ -211,7 +211,7 @@ function PackPreview({ pack, onClose }: { pack: SnippetPack; onClose: () => void
         role="dialog"
         aria-modal="true"
         aria-label={`Atajos de ${pack.name}`}
-        className="mobile-bottom-sheet relative flex max-h-[92dvh] w-full max-w-2xl flex-col rounded-t-3xl border border-b-0 border-line bg-surface shadow-[var(--shadow-xl)] sm:max-h-[85vh] sm:rounded-2xl sm:border-b"
+        className="mobile-bottom-sheet relative flex max-h-[92dvh] w-full max-w-2xl flex-col rounded-t-3xl border border-b-0 border-line bg-surface shadow-[var(--shadow-xl)] sm:max-h-[85vh] sm:rounded-[24px] sm:border-b"
       >
         <header className="border-b border-line p-5 pr-14">
           <h2 className="font-display text-xl font-semibold text-deep">{pack.name}</h2>

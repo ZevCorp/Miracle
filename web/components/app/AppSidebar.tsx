@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Logo } from "@/components/brand/Logo";
 import { SidebarToggle } from "@/components/app/SidebarToggle";
+import { SidebarOmiChip } from "@/components/app/SidebarOmiChip";
+import { SidebarProfileCard } from "@/components/app/SidebarProfileCard";
 import { NAV_ICONS, NAV_ICON_FALLBACK } from "@/components/app/nav-icons";
 import {
   APP_NAV_GROUPS,
@@ -32,7 +34,7 @@ function NavLink({
       aria-current={active ? "page" : undefined}
       className={`sidebar-item relative flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-semibold transition-colors ${
         active
-          ? "bg-sidebar-active text-sidebar-text before:absolute before:-left-3 before:h-6 before:w-[3px] before:rounded-r-full before:bg-white"
+          ? "sidebar-item-active text-sidebar-text before:absolute before:-left-3 before:h-6 before:w-[3px] before:rounded-r-full before:bg-white"
           : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-text"
       }`}
     >
@@ -50,23 +52,32 @@ export function AppSidebar({
   isDemo,
   orgKind,
   onNavigate,
+  profileName,
+  specialtyName,
+  canOpenSettings = false,
 }: {
   role: AppRole;
   professionalType?: string | null;
   isDemo?: boolean;
   orgKind?: "personal" | "institution" | null;
   onNavigate?: () => void;
+  /** Pie del sidebar: quien esta adentro. Sin nombre no se pinta el pie. */
+  profileName?: string | null;
+  specialtyName?: string | null;
+  canOpenSettings?: boolean;
 }) {
   const pathname = usePathname();
   const { hasGuard, guardedNavigate } = useNavigationGuard();
   const router = useRouter();
 
   return (
-    <div className="flex h-full flex-col bg-sidebar text-sidebar-text">
+    // EXPERIMENTO: el fondo ya no vive aquí sino en .aside-float::before (vidrio
+    // navy translúcido). Este div solo aporta la columna y el color de texto.
+    <div className="flex h-full flex-col text-sidebar-text">
       <div className="sidebar-header flex h-16 items-center gap-2 border-b border-white/10 px-5">
         {/* Contraído desaparece el logotipo y el botón queda solo, centrado. */}
         <span className="sidebar-expanded-only min-w-0 flex-1">
-          <Logo onDark size={28} />
+          <Logo onDark size={34} />
         </span>
         <SidebarToggle />
       </div>
@@ -120,9 +131,37 @@ export function AppSidebar({
           ));
         })()}
       </nav>
-      {/* El pie del sidebar (instalar app + cerrar sesión) se retiró: salir vive
-          en la cabecera y, en móvil, en la hoja «Más». El sidebar es solo
-          navegación. */}
+      {/* Pie: estado del Omi + quien esta adentro. Cerrar sesion NO vive aqui
+          (cabecera y hoja «Mas» del movil, desde el arreglo del hueco
+          768-1024px); este pie es informacion, no acciones de cuenta. */}
+      <div className="relative border-t border-white/10 px-3 pb-3 pt-2">
+        {/* Ondas de fondo: profundidad ambiental, nunca compiten con el texto. */}
+        <svg
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-24 w-full text-white opacity-[0.035]"
+          viewBox="0 0 240 96"
+          preserveAspectRatio="none"
+        >
+          <path
+            d="M0 64 C 40 44, 80 84, 120 64 S 200 44, 240 64 L 240 96 L 0 96 Z"
+            fill="currentColor"
+          />
+          <path
+            d="M0 80 C 48 62, 96 96, 144 80 S 216 62, 240 78 L 240 96 L 0 96 Z"
+            fill="currentColor"
+          />
+        </svg>
+        <div className="relative space-y-1">
+          <SidebarOmiChip />
+          {profileName ? (
+            <SidebarProfileCard
+              name={profileName}
+              specialtyName={specialtyName}
+              canOpenSettings={canOpenSettings}
+            />
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

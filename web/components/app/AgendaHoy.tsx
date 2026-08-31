@@ -7,19 +7,12 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "next/link";
 import {
-  CalendarDays,
   Camera,
   Check,
   Loader2,
-  Play,
-  Plus,
-  Trash2,
   X,
 } from "lucide-react";
-import { Card } from "@/components/ui/Card";
-import { ClinicalSectionHeader } from "@/components/app/AppPage";
 import { useStore } from "@/app/app/providers";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -38,21 +31,36 @@ function sortCitas(list: Appointment[]): Appointment[] {
 }
 
 /**
- * Agenda del día del médico: citas creadas a mano o importadas desde una foto
- * del horario del sistema que use (extracción con IA + revisión manual).
+ * La agenda del dia como HOOK: citas de hoy + mutaciones, sin markup.
+ *
+ * Antes esto era un componente monolitico de 400 lineas; ahora la Jornada del
+ * dashboard (DayFlow) compone su propio riel con estos datos. Ninguna query
+ * cambio: solo se mudaron.
  */
-export function AgendaHoy({
-  onCountChange,
-}: {
-  onCountChange?: (n: number) => void;
-}) {
+export interface UseAgendaHoy {
+  hoy: string;
+  citas: Appointment[];
+  cargando: boolean;
+  /** false si la tabla appointments aun no existe (migracion sin aplicar). */
+  dbLista: boolean;
+  agregar: (datos: {
+    hora: string;
+    nombre: string;
+    motivo: string;
+    linkedPatientId: string;
+  }) => Promise<boolean>;
+  marcarAtendida: (id: string) => Promise<void>;
+  eliminar: (id: string) => Promise<void>;
+  onImported: (nuevas: Appointment[]) => void;
+}
+
+export function useAgendaHoy(): UseAgendaHoy {
   const supabase = useMemo(() => createClient(), []);
-  const { showToast, patients } = useStore();
+  const { showToast } = useStore();
   const hoy = useMemo(() => todayLocalISO(), []);
 
   const [citas, setCitas] = useState<Appointment[]>([]);
   const [cargando, setCargando] = useState(true);
-  // false si la tabla appointments aún no existe (migración sin aplicar).
   const [dbLista, setDbLista] = useState(true);
 
   useEffect(() => {
@@ -77,53 +85,41 @@ export function AgendaHoy({
     };
   }, [supabase, hoy]);
 
-  useEffect(() => {
-    onCountChange?.(citas.filter((c) => c.estado !== "cancelada").length);
-  }, [citas, onCountChange]);
-
-  // ---- Alta manual -----------------------------------------------------------
-  const [showAdd, setShowAdd] = useState(false);
-  const [hora, setHora] = useState("");
-  const [nombre, setNombre] = useState("");
-  const [motivo, setMotivo] = useState("");
-  // Vínculo opcional a un paciente ya registrado: al elegirlo se guarda el
-  // patient_id verificado (evita luego la confirmación por nombre al atender).
-  const [linkedPatientId, setLinkedPatientId] = useState("");
-  const [guardando, setGuardando] = useState(false);
-
-  const agregar = useCallback(async () => {
-    const h = normalizeHora(hora);
-    const n = nombre.trim();
-    if (!h || !n) {
-      showToast("Indica hora y nombre del paciente.", "warning");
-      return;
-    }
-    setGuardando(true);
-    const { data, error } = await supabase
-      .from("appointments")
-      .insert({
-        fecha: hoy,
-        hora: h,
-        paciente_nombre: n,
-        motivo: motivo.trim() || null,
-        patient_id: linkedPatientId || null,
-      })
-      .select()
-      .single();
-    setGuardando(false);
-    if (error || !data) {
-      console.error("[agenda] insert", error?.message);
-      showToast("No se pudo guardar la cita.", "warning");
-      return;
-    }
-    setCitas((list) => sortCitas([...list, rowToAppointment(data)]));
-    setHora("");
-    setNombre("");
-    setMotivo("");
-    setLinkedPatientId("");
-    setShowAdd(false);
-    showToast("Cita agendada.", "success");
-  }, [supabase, hoy, hora, nombre, motivo, linkedPatientId, showToast]);
+  const agregar = useCallback(
+    async (datos: {
+      hora: string;
+      nombre: string;
+      motivo: string;
+      linkedPatientId: string;
+    }): Promise<boolean> => {
+      const h = normalizeHora(datos.hora);
+      const n = datos.nombre.trim();
+      if (!h || !n) {
+        showToast("Indica hora y nombre del paciente.", "warning");
+        return false;
+      }
+      const { data, error } = await supabase
+        .from("appointments")
+        .insert({
+          fecha: hoy,
+          hora: h,
+          paciente_nombre: n,
+          motivo: datos.motivo.trim() || null,
+          patient_id: datos.linkedPatientId || null,
+        })
+        .select()
+        .single();
+      if (error || !data) {
+        console.error("[agenda] insert", error?.message);
+        showToast("No se pudo guardar la cita.", "warning");
+        return false;
+      }
+      setCitas((list) => sortCitas([...list, rowToAppointment(data)]));
+      showToast("Cita agendada.", "success");
+      return true;
+    },
+    [supabase, hoy, showToast],
+  );
 
   const marcarAtendida = useCallback(
     async (id: string) => {
@@ -164,256 +160,106 @@ export function AgendaHoy({
     [citas, supabase, showToast],
   );
 
-  // ---- Confirmación de borrado ----------------------------------------------
-  // Primer toque: pide confirmar; se auto-cancela a los 4 s. Evita borrados
-  // accidentales en móvil (los botones de acción están contiguos).
-  const [confirmId, setConfirmId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!confirmId) return;
-    const t = setTimeout(() => setConfirmId(null), 4000);
-    return () => clearTimeout(t);
-  }, [confirmId]);
-
-  // ---- Importación por foto ----------------------------------------------------
-  const [importOpen, setImportOpen] = useState(false);
-
   const onImported = useCallback((nuevas: Appointment[]) => {
     setCitas((list) => sortCitas([...list, ...nuevas]));
   }, []);
 
+  return { hoy, citas, cargando, dbLista, agregar, marcarAtendida, eliminar, onImported };
+}
+
+/**
+ * El formulario de alta manual de una cita, tal cual era, ahora componible:
+ * la Jornada lo abre bajo el encabezado del riel.
+ */
+export function AgendaQuickAdd({
+  onAgregar,
+  onClose,
+}: {
+  onAgregar: UseAgendaHoy["agregar"];
+  onClose: () => void;
+}) {
+  const { patients } = useStore();
+  const [hora, setHora] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [motivo, setMotivo] = useState("");
+  // Vinculo opcional a un paciente ya registrado: al elegirlo se guarda el
+  // patient_id verificado (evita luego la confirmacion por nombre al atender).
+  const [linkedPatientId, setLinkedPatientId] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  async function agregar() {
+    setGuardando(true);
+    const ok = await onAgregar({ hora, nombre, motivo, linkedPatientId });
+    setGuardando(false);
+    if (ok) onClose();
+  }
+
   return (
-    <Card className="shadow-none">
-      <ClinicalSectionHeader
-        title="Consultas de hoy"
-        action={<CalendarDays size={18} className="text-muted" />}
-      />
-
-      {dbLista ? (
-        <div className="mb-3 mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setShowAdd((s) => !s)}
-            className="clinical-secondary min-h-10 px-3 py-2 text-[13px]"
-          >
-            <Plus size={14} /> Agregar cita
-          </button>
-          <button
-            type="button"
-            onClick={() => setImportOpen(true)}
-            className="clinical-secondary min-h-10 px-3 py-2 text-[13px]"
-          >
-            <Camera size={14} /> Importar agenda
-          </button>
-        </div>
-      ) : null}
-
-      {showAdd ? (
-        <div className="clinical-panel-muted mb-3 p-3.5">
-          <div className="flex flex-wrap gap-2">
-            <input
-              type="time"
-              value={hora}
-              onChange={(e) => setHora(e.target.value)}
-              aria-label="Hora de la cita"
-              className={`${inputClass} w-[110px]`}
-            />
-            <input
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              placeholder="Nombre del paciente"
-              aria-label="Nombre del paciente"
-              className={`${inputClass} min-w-[150px] flex-1`}
-            />
-          </div>
-          <input
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-            placeholder="Motivo (opcional)"
-            aria-label="Motivo de la cita"
-            className={`${inputClass} mt-2 w-full`}
-          />
-          {patients.length ? (
-            <select
-              value={linkedPatientId}
-              onChange={(e) => {
-                setLinkedPatientId(e.target.value);
-                const p = patients.find((x) => x.id === e.target.value);
-                if (p) setNombre(p.nombre);
-              }}
-              aria-label="Vincular paciente registrado (opcional)"
-              className={`${inputClass} mt-2 w-full`}
-            >
-              <option value="">Vincular paciente registrado (opcional)</option>
-              {patients.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre}
-                  {p.documento && p.documento !== "Por registrar"
-                    ? ` — ${p.documento}`
-                    : ""}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          <div className="mt-2.5 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setShowAdd(false)}
-              className="clinical-secondary min-h-10 px-3.5 py-2 text-[13px]"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={agregar}
-              disabled={guardando}
-              className="clinical-primary min-h-10 px-4 py-2 text-[13px]"
-            >
-              {guardando ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-              Agendar
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {cargando ? (
-        <div className="flex justify-center py-4">
-          <Loader2 size={18} className="animate-spin text-muted" />
-        </div>
-      ) : !dbLista ? (
-        <p className="py-3 text-sm text-muted">
-          La agenda no está disponible en este momento.
-        </p>
-      ) : citas.length ? (
-        <ul className="divide-y divide-line">
-          {citas.map((c) => {
-            const cancelada = c.estado === "cancelada";
-            return (
-              <li key={c.id} className="flex items-center gap-3 py-2.5">
-                <span className="rounded-md bg-ice-soft px-2 py-1 text-xs font-semibold tabular-nums text-deep">
-                  {c.hora}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span
-                    className={`block truncate text-sm font-medium ${
-                      cancelada ? "text-muted line-through" : "text-deep"
-                    }`}
-                  >
-                    {c.pacienteNombre}
-                  </span>
-                  {c.motivo ? (
-                    <span className="block truncate text-xs text-muted">{c.motivo}</span>
-                  ) : null}
-                </span>
-                {c.estado === "atendida" ? (
-                  <span className="rounded-full bg-mint-soft px-2 py-0.5 text-xs font-semibold text-success">
-                    Atendida
-                  </span>
-                ) : c.estado === "en_curso" ? (
-                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-ink">
-                    En curso
-                  </span>
-                ) : null}
-                {confirmId === c.id ? (
-                  <span className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setConfirmId(null);
-                        eliminar(c.id);
-                      }}
-                      className="rounded-full bg-danger px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90"
-                    >
-                      Eliminar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmId(null)}
-                      aria-label="Cancelar eliminación"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-ice-soft"
-                    >
-                      <X size={16} />
-                    </button>
-                  </span>
-                ) : c.estado === "programada" ? (
-                  <span className="flex shrink-0 items-center gap-0.5">
-                    <Link
-                      href={`/app/consultas/nueva?appointment=${encodeURIComponent(c.id)}`}
-                      title="Iniciar consulta"
-                      aria-label={`Iniciar consulta con ${c.pacienteNombre}`}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-accent hover:bg-accent-soft"
-                    >
-                      <Play size={16} />
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => marcarAtendida(c.id)}
-                      title="Marcar atendida"
-                      aria-label={`Marcar atendida la cita de ${c.pacienteNombre}`}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-mint-soft hover:text-success"
-                    >
-                      <Check size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmId(c.id)}
-                      title="Eliminar cita"
-                      aria-label={`Eliminar la cita de ${c.pacienteNombre}`}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-danger-soft hover:text-danger"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </span>
-                ) : c.estado === "en_curso" && c.clinicalEncounterId ? (
-                  <span className="flex shrink-0 items-center gap-0.5">
-                    <Link
-                      href={`/app/consultas/en-vivo?encounter=${encodeURIComponent(c.clinicalEncounterId)}&appointment=${encodeURIComponent(c.id)}`}
-                      title="Reanudar consulta"
-                      aria-label={`Reanudar consulta con ${c.pacienteNombre}`}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-accent hover:bg-accent-soft"
-                    >
-                      <Play size={16} />
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmId(c.id)}
-                      title="Eliminar cita"
-                      aria-label={`Eliminar la cita de ${c.pacienteNombre}`}
-                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted hover:bg-danger-soft hover:text-danger"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmId(c.id)}
-                    title="Eliminar cita"
-                    aria-label={`Eliminar la cita de ${c.pacienteNombre}`}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted hover:bg-danger-soft hover:text-danger"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="py-2 text-sm text-muted">
-          Sin citas agendadas para hoy. Agrégalas a mano o importa una foto de tu
-          horario.
-        </p>
-      )}
-
-      {importOpen ? (
-        <ImportarFotoModal
-          fecha={hoy}
-          onClose={() => setImportOpen(false)}
-          onImported={onImported}
+    <div className="clinical-panel-muted mb-3 p-3.5">
+      <div className="flex flex-wrap gap-2">
+        <input
+          type="time"
+          value={hora}
+          onChange={(e) => setHora(e.target.value)}
+          aria-label="Hora de la cita"
+          className={`${inputClass} w-[110px]`}
         />
+        <input
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Nombre del paciente"
+          aria-label="Nombre del paciente"
+          className={`${inputClass} min-w-[150px] flex-1`}
+        />
+      </div>
+      <input
+        value={motivo}
+        onChange={(e) => setMotivo(e.target.value)}
+        placeholder="Motivo (opcional)"
+        aria-label="Motivo de la cita"
+        className={`${inputClass} mt-2 w-full`}
+      />
+      {patients.length ? (
+        <select
+          value={linkedPatientId}
+          onChange={(e) => {
+            setLinkedPatientId(e.target.value);
+            const p = patients.find((x) => x.id === e.target.value);
+            if (p) setNombre(p.nombre);
+          }}
+          aria-label="Vincular paciente registrado (opcional)"
+          className={`${inputClass} mt-2 w-full`}
+        >
+          <option value="">Vincular paciente registrado (opcional)</option>
+          {patients.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.nombre}
+              {p.documento && p.documento !== "Por registrar"
+                ? ` — ${p.documento}`
+                : ""}
+            </option>
+          ))}
+        </select>
       ) : null}
-    </Card>
+      <div className="mt-2.5 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="clinical-secondary min-h-10 px-3.5 py-2 text-[13px]"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={() => void agregar()}
+          disabled={guardando}
+          className="clinical-primary min-h-10 px-4 py-2 text-[13px]"
+        >
+          {guardando ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+          Agendar
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -421,7 +267,7 @@ export function AgendaHoy({
 
 type FilaRevision = ParsedCita & { incluir: boolean };
 
-function ImportarFotoModal({
+export function ImportarFotoModal({
   fecha,
   onClose,
   onImported,

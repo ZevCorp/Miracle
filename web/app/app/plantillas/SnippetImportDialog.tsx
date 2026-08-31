@@ -212,7 +212,7 @@ export function SnippetImportDialog({
         role="dialog"
         aria-modal="true"
         aria-label="Importar atajos desde archivos"
-        className="mobile-bottom-sheet relative flex max-h-[92vh] w-full max-w-3xl flex-col rounded-t-3xl border border-b-0 border-line bg-surface p-5 shadow-[var(--shadow-xl)] sm:max-h-[85vh] sm:rounded-2xl sm:border-b sm:p-6"
+        className="mobile-bottom-sheet relative flex max-h-[92vh] w-full max-w-3xl flex-col rounded-t-3xl border border-b-0 border-line bg-surface p-5 shadow-[var(--shadow-xl)] sm:max-h-[85vh] sm:rounded-[24px] sm:border-b sm:p-6"
       >
         <button
           type="button"

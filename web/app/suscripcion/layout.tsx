@@ -17,7 +17,7 @@ export default function SuscripcionLayout({ children }: { children: React.ReactN
   return (
     <div className="flex min-h-screen flex-col bg-pearl">
       <header className="flex h-16 items-center justify-between border-b border-line bg-surface px-4 md:px-8">
-        <Logo href="/" size={26} />
+        <Logo href="/" size={32} />
         <form action={signOut}>
           <button
             type="submit"
