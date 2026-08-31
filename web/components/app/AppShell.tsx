@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { CloudUpload, Moon, Search, Sun } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import { ActionDock } from "./ActionDock";
 import { AmbientCanvas } from "./AmbientCanvas";
@@ -18,23 +17,16 @@ import { MobileBottomNavigation } from "./MobileBottomNavigation";
 import { MedicalChat } from "./MedicalChat";
 import { QuickConsultationLauncher } from "./QuickConsultationLauncher";
 import { CommandPalette } from "./CommandPalette";
-import { PulseOrb } from "./PulseOrb";
-import { HoverHint } from "@/components/ui/HoverHint";
+import { StatusDock } from "./StatusDock";
 import type { AuthenticatedProfile } from "@/lib/auth/server";
 import { canAccessPath } from "@/lib/auth/roles";
 import { visibleAppNav } from "@/lib/site";
 import { applyTheme, watchSystemTheme } from "@/lib/theme";
 import { restorePreferredMic } from "@/lib/stt/microphone-source";
-import { signOut } from "@/app/login/actions";
-import { Logo } from "@/components/brand/Logo";
 
 /** Ruta que abre el lanzador rápido; decide si el botón debe existir. */
 const RUTA_GRABACION = "/app/consultas/en-vivo";
 
-function initials(profile: AuthenticatedProfile) {
-  const words = (profile.fullName ?? profile.email).trim().split(/\s+/);
-  return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase();
-}
 
 export function AppShell({
   children,
@@ -106,80 +98,24 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="glass-bar app-mobile-header sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-[var(--glass-edge)] px-3 md:h-16 md:gap-3 md:px-6">
-          <Logo href="/app/dashboard" size={31} className="md:hidden [&>span]:hidden" />
-
-          <button
-            type="button"
-            onClick={() => setCmdk(true)}
-            className="clinical-control hidden w-[min(24rem,38vw)] items-center gap-2 px-3 text-sm text-muted sm:flex"
-          >
-            <Search size={15} />
-            <span>Buscar paciente o consulta</span>
-            <kbd className="ml-auto rounded border border-line bg-surface px-1.5 py-0.5 text-[11px] font-medium">
-              ⌘K
-            </kbd>
-          </button>
-
-          {/* En móvil no hay ⌘K: la lupa abre el mismo buscador. */}
-          <HoverHint label="Buscar paciente o consulta">
-            <button
-              type="button"
-              aria-label="Buscar paciente o consulta"
-              onClick={() => setCmdk(true)}
-              className="icon-btn h-11 w-11 text-deep sm:hidden"
-            >
-              <Search size={19} />
-            </button>
-          </HoverHint>
-
-          <div className="ml-auto flex items-center gap-1 sm:gap-3">
-            {syncing ? (
-              <span
-                role="status"
-                className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1.5 text-xs font-semibold text-warning"
-              >
-                <CloudUpload size={13} className="animate-pulse" />
-                <span className="hidden sm:inline">Guardando cambios…</span>
-              </span>
-            ) : null}
-            <HoverHint label="Cambiar entre modo claro y oscuro">
-              <button
-                type="button"
-                onClick={toggleTheme}
-                aria-label="Cambiar entre modo claro y oscuro"
-                className="icon-btn hidden sm:inline-flex"
-              >
-                <Moon size={18} className="theme-icon-light" />
-                <Sun size={18} className="theme-icon-dark" />
-              </button>
-            </HoverHint>
-            <PulseOrb />
-            <form action={signOut} className="flex items-center gap-2">
-              <span
-                title={profile.fullName ?? profile.email}
-                className="hidden h-9 w-9 items-center justify-center rounded-full bg-night text-sm font-semibold text-white sm:inline-flex"
-              >
-                {initials(profile)}
-              </span>
-              {/* Desde `md`, no desde `lg`: `md` es justo donde aparece el
-                  sidebar y desaparece la barra inferior. Con el pie del sidebar
-                  retirado, entre 768 y 1024 px no quedaba NINGUNA forma de
-                  cerrar sesión — ni este botón, ni la hoja «Más». */}
-              <button type="submit" className="hidden text-sm font-semibold text-muted hover:text-deep md:inline">
-                Salir
-              </button>
-            </form>
-          </div>
-        </header>
-
         {/* Solo orgs personales: en un hospital paga la institución y el
-            estado comercial no es asunto del médico. */}
+            estado comercial no es asunto del médico. Va por ENCIMA del
+            contenido, donde estaba bajo la cabecera: es un aviso de cuenta,
+            no un elemento más de la pantalla. */}
         {profile.orgKind === "personal" && !profile.isDemo ? (
-          <BillingBanner billing={profile.billing} />
+          <div className="px-3 pt-[calc(4.5rem+env(safe-area-inset-top,0px))] sm:px-5 md:px-8 md:pt-20">
+            <BillingBanner billing={profile.billing} />
+          </div>
         ) : null}
 
-        <main className="app-main min-w-0 flex-1 px-3 py-5 sm:px-5 sm:py-6 md:px-8 md:py-9">
+        <main
+          className={`app-main min-w-0 flex-1 px-3 sm:px-5 md:px-8 ${
+            // Con el aviso arriba, el aire superior ya lo puso su contenedor.
+            profile.orgKind === "personal" && !profile.isDemo
+              ? "!pt-4"
+              : ""
+          }`}
+        >
           {/* La key remonta el contenido por SECCION (pathname), no por query:
               paginar o filtrar no parpadea; cambiar de seccion respira. */}
           <div key={pathname} className="page-enter">
@@ -187,6 +123,15 @@ export function AppShell({
           </div>
         </main>
       </div>
+
+      {/* Lo que era la barra superior, ahora flotando: buscar, tema, el
+          pulso y la cuenta. Mismo material que el dock de acciones. */}
+      <StatusDock
+        profile={profile}
+        syncing={syncing}
+        onOpenSearch={() => setCmdk(true)}
+        onToggleTheme={toggleTheme}
+      />
 
       <MobileBottomNavigation profile={profile} onToggleTheme={toggleTheme} />
 

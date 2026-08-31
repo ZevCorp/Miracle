@@ -1263,7 +1263,17 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
    siempre -no solo en móvil-, porque los botones están fijos en todos los
    anchos, solo cambian de posición. */
 .app-main {
+  /* Arriba: el sitio que ocupaba la cabecera, ahora reservado para que la
+     cápsula flotante no se pose encima del contenido (y respetando la muesca
+     del teléfono). Abajo: los botones flotantes. */
+  padding-top: calc(4.5rem + env(safe-area-inset-top, 0px));
   padding-bottom: 6rem;
+}
+
+@media (min-width: 768px) {
+  .app-main {
+    padding-top: 5rem;
+  }
 }
 
 @media (max-width: 767px) {
