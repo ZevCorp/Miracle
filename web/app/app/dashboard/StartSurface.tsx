@@ -160,15 +160,17 @@ export function StartSurface() {
         <p className="font-display text-[1.05rem] font-[650] tracking-[-0.02em] text-deep">
           {starting ? "Preparando la consulta…" : "Mantén para comenzar"}
         </p>
-        <p className="mt-1 text-[13px] text-muted">
+        {/* Los DOS gestos del orbe, siempre a la vista. Sacar la plantilla a su
+            propia pieza no debe costar la pista del clic corto: sin ella el
+            único sitio donde se anuncia es el aria-label, que no se ve. */}
+        <p className="mt-1 text-[13px] leading-relaxed text-muted">
           {starting ? (
             " "
-          ) : nombrePlantilla ? (
-            <>
-              o mantén <Tecla>espacio</Tecla>
-            </>
           ) : (
-            "el clic abre la elección de plantilla"
+            <>
+              o mantén <Tecla>espacio</Tecla> · clic corto para elegir{" "}
+              {nombrePlantilla ? "otra plantilla" : "la plantilla"}
+            </>
           )}
         </p>
       </div>
