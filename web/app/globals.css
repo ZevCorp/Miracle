@@ -1530,6 +1530,9 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
      propio, solo la sombra del propio lienzo. */
   --ambient-floor: rgb(16 34 66 / 0.05);
   --ambient-grain: 0.026;
+  /* La trama: rejilla de instrumento y el eco del orbe. Sin color propio. */
+  --ambient-grid: rgb(16 34 66 / 0.038);
+  --ambient-ring: rgb(47 111 224 / 0.06);
 }
 
 :root.dark {
@@ -1537,6 +1540,8 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
   --ambient-floor: rgb(0 0 0 / 0.32);
   /* En oscuro el bandeado se ve mucho mas, asi que el grano sube. */
   --ambient-grain: 0.04;
+  --ambient-grid: rgb(150 195 255 / 0.05);
+  --ambient-ring: rgb(120 175 255 / 0.075);
 }
 
 .ambient-canvas {
@@ -1562,6 +1567,39 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
   will-change: transform;
   /* 90 s y 2,5 vw: imperceptible mirandolo, pero la pantalla no esta muerta. */
   animation: ambient-respira 90s ease-in-out infinite alternate;
+}
+
+/* LA TRAMA: rejilla de instrumento + el eco del orbe en anillos concentricos,
+   los dos naciendo del mismo punto por el que entra la luz.
+
+   Va enmascarada con un degradado que la apaga al alejarse de ese punto, y esa
+   mascara es la idea entera: la textura no esta pegada encima del fondo, la
+   REVELA la luz. Donde la luz llega se intuye el material; donde no, no hay
+   nada que mirar. Un fondo liso se veia aburrido y una trama uniforme cansaria
+   a los diez minutos; esto tiene algo que mirar sin pedir que lo mires.
+
+   Todo monocromo a proposito: el color de la app lo pone el contenido. */
+.ambient-weave {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-radial-gradient(
+      circle at 16% -8%,
+      transparent 0 124px,
+      var(--ambient-ring) 124px 125px
+    ),
+    repeating-linear-gradient(
+      to right,
+      var(--ambient-grid) 0 1px,
+      transparent 1px 36px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--ambient-grid) 0 1px,
+      transparent 1px 36px
+    );
+  -webkit-mask-image: radial-gradient(115% 95% at 15% 0%, #000, transparent 70%);
+  mask-image: radial-gradient(115% 95% at 15% 0%, #000, transparent 70%);
 }
 
 /* Grano. Invisible de cerca y decisivo de lejos: sin el, una superficie tan

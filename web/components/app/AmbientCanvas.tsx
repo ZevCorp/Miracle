@@ -20,6 +20,7 @@ export function AmbientCanvas() {
   return (
     <div aria-hidden className="ambient-canvas">
       <span className="ambient-key" />
+      <span className="ambient-weave" />
     </div>
   );
 }
