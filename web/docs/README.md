@@ -18,6 +18,7 @@ es **[`../CONTEXTO.md`](../CONTEXTO.md)** (visión + estado + diagrama).
 | [`diagnostico.md`](./diagnostico.md) | **Auditoría verificada** del codebase: problemas y mejoras por categoría (A–H) y severidad. |
 | [`cuentas.md`](./cuentas.md) | **Cuentas, roles y accesos**: cómo se crean las cuentas y qué puede hacer cada rol. |
 | [`legal-colombia.md`](./legal-colombia.md) | Cumplimiento legal en Colombia (Habeas Data, historia clínica). |
+| [`video-de-u.md`](./video-de-u.md) | La landing de Ü (`/u`): cómo se produce el video de la película, cómo rerenderizarlo y cómo funciona el encaje del scroll. |
 
 ## Documentos previos (estrategia / producto)
 
