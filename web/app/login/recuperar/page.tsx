@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BrandSphere } from "@/components/brand/BrandSphere";
+import { AuthShell, AuthField } from "@/components/brand/AuthShell";
+import { AlertBanner } from "@/components/ui/AlertBanner";
 import { requestPasswordReset } from "../actions";
 import { SubmitButton } from "../SubmitButton";
 
@@ -24,80 +25,52 @@ export default async function RecuperarPage({
   const message = error ? messages[error] : undefined;
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-5 py-12">
-      <div className="w-full max-w-md">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <Link href="/" aria-label="Miracle — inicio">
-            <BrandSphere size={110} />
+    <AuthShell
+      title="Recuperar contraseña"
+      description="Te enviamos un enlace para crear una contraseña nueva."
+      back={{ href: "/login", label: "← Volver al ingreso" }}
+    >
+      {sent ? (
+        <div role="status" className="space-y-4 text-center">
+          <AlertBanner tone="success">
+            Si el correo está registrado, recibirás un enlace en los próximos
+            minutos. Revisa también la carpeta de spam.
+          </AlertBanner>
+          <Link
+            href="/login"
+            className="inline-block text-sm font-semibold text-accent hover:underline"
+          >
+            Volver a ingresar
           </Link>
-          <h1 className="mt-4 text-2xl font-semibold text-deep">
-            Recuperar contraseña
-          </h1>
-          <p className="mt-2 text-sm text-ink-soft">
-            Te enviaremos un enlace para crear una contraseña nueva.
-          </p>
         </div>
+      ) : (
+        <>
+          {message ? (
+            <AlertBanner tone="warning" className="mb-4">
+              {message}
+            </AlertBanner>
+          ) : null}
 
-        <div className="rounded-lg border border-line bg-surface/90 p-6 shadow-[var(--shadow-lg)] backdrop-blur-sm">
-          {sent ? (
-            <div role="status" className="space-y-4 text-center">
-              <p className="rounded-md border border-success/30 bg-success-soft px-3.5 py-3 text-sm text-success">
-                Si el correo está registrado, recibirás un enlace en los
-                próximos minutos. Revisa también la carpeta de spam.
-              </p>
-              <Link
-                href="/login"
-                className="inline-block text-sm font-semibold text-accent hover:underline"
-              >
-                Volver a ingresar
-              </Link>
-            </div>
-          ) : (
-            <>
-              {message ? (
-                <p
-                  role="alert"
-                  className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-3 text-sm text-warning"
-                >
-                  {message}
-                </p>
-              ) : null}
-
-              <form action={requestPasswordReset} className="space-y-3">
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="mb-1.5 block text-sm font-medium text-deep"
-                  >
-                    Correo
-                  </label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    placeholder="nombre@institucion.com"
-                    className="w-full rounded-md border border-line bg-field px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent"
-                  />
-                </div>
-                <SubmitButton
-                  pendingLabel="Enviando enlace…"
-                  className="inline-flex w-full items-center justify-center rounded-full bg-accent px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Enviar enlace de recuperación
-                </SubmitButton>
-              </form>
-            </>
-          )}
-        </div>
-
-        <p className="mt-6 text-center text-sm text-muted">
-          <Link href="/login" className="hover:text-deep">
-            ← Volver al ingreso
-          </Link>
-        </p>
-      </div>
-    </main>
+          <form action={requestPasswordReset} className="space-y-3.5">
+            <AuthField
+              id="email"
+              label="Correo"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              autoFocus
+              placeholder="nombre@institucion.com"
+            />
+            <SubmitButton
+              pendingLabel="Enviando enlace…"
+              className="clinical-primary mt-1 w-full px-5 py-3"
+            >
+              Enviar enlace de recuperación
+            </SubmitButton>
+          </form>
+        </>
+      )}
+    </AuthShell>
   );
 }

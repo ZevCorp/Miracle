@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BrandSphere } from "@/components/brand/BrandSphere";
+import { AuthShell, AuthSeparator, AuthField } from "@/components/brand/AuthShell";
+import { AlertBanner } from "@/components/ui/AlertBanner";
 import { signInWithGoogle, signInWithPassword } from "./actions";
 import { SubmitButton } from "./SubmitButton";
 
@@ -30,109 +31,86 @@ export default async function LoginPage({
   const nextPath = next?.startsWith("/") && !next.startsWith("//") ? next : "";
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-5 py-12">
-      <div className="w-full max-w-md">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <Link href="/" aria-label="Miracle — inicio">
-            <BrandSphere size={110} />
-          </Link>
-          <h1 className="mt-4 text-2xl font-semibold text-deep">
-            Acceso a la plataforma
-          </h1>
-          <p className="mt-2 text-sm text-ink-soft">
-            Ingresa con tu cuenta personal o con la cuenta que te asignó tu institución.
-          </p>
-        </div>
-
-        <div className="rounded-lg border border-line bg-surface/90 p-6 shadow-[var(--shadow-lg)] backdrop-blur-sm">
-          {message ? (
-            <p role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning-soft px-3.5 py-3 text-sm text-warning">
-              {message}
-            </p>
-          ) : null}
-
-          <form action={signInWithGoogle}>
-            {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
-            <SubmitButton
-              pendingLabel="Conectando con Google…"
-              className="inline-flex w-full items-center justify-center gap-3 rounded-full border border-line bg-surface px-5 py-3 text-sm font-semibold text-deep shadow-[var(--shadow-sm)] transition-colors hover:bg-ice-soft disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <GoogleIcon />
-              Continuar con Google
-            </SubmitButton>
-          </form>
-
-          <div className="my-5 flex items-center gap-3 text-xs text-muted">
-            <span className="h-px flex-1 bg-line" />
-            o con tu correo
-            <span className="h-px flex-1 bg-line" />
-          </div>
-
-          <form action={signInWithPassword} className="space-y-3">
-            {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
-            <div>
-              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-deep">
-                Correo
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                placeholder="nombre@institucion.com"
-                className="w-full rounded-md border border-line bg-field px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-deep">
-                Contraseña
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                placeholder="••••••••"
-                className="w-full rounded-md border border-line bg-field px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-accent"
-              />
-            </div>
-            <SubmitButton
-              pendingLabel="Ingresando…"
-              className="inline-flex w-full items-center justify-center rounded-full bg-accent px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Ingresar
-            </SubmitButton>
-            <div className="text-right">
-              <Link
-                href="/login/recuperar"
-                className="text-sm font-medium text-accent hover:underline"
-              >
-                ¿Olvidaste tu contraseña?
-              </Link>
-            </div>
-          </form>
-
-          <p className="mt-5 border-t border-line pt-5 text-center text-sm text-ink-soft">
+    <AuthShell
+      title="Ingresa a tu cuenta"
+      description="Con tu cuenta personal o con la que te asignó tu institución."
+      footer={
+        <>
+          <p>
             ¿Primera vez en Miracle?{" "}
             <Link href="/registro" className="font-semibold text-accent hover:underline">
               Crea tu cuenta gratis
             </Link>
           </p>
-
-          <div className="mt-4 text-center">
-            <Link href="/piloto" className="text-sm font-semibold text-accent hover:underline">
+          <p className="mt-1.5">
+            <Link href="/piloto" className="font-medium text-muted hover:text-deep">
               Solicitar acceso institucional
             </Link>
-          </div>
-        </div>
+          </p>
+        </>
+      }
+    >
+      {/* Credenciales incorrectas es un fallo de ACCIÓN, no de lectura: rojo,
+          según la regla de AlertBanner. El resto son avisos de estado. */}
+      {message ? (
+        <AlertBanner
+          tone={error === "invalid-credentials" ? "danger" : "warning"}
+          className="mb-4"
+        >
+          {message}
+        </AlertBanner>
+      ) : null}
 
-        <p className="mt-6 text-center text-sm text-muted">
-          <Link href="/" className="hover:text-deep">← Volver al inicio</Link>
-        </p>
-      </div>
-    </main>
+      <form action={signInWithGoogle}>
+        {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
+        <SubmitButton
+          pendingLabel="Conectando con Google…"
+          className="clinical-secondary w-full gap-3 px-5 py-3"
+        >
+          <GoogleIcon />
+          Continuar con Google
+        </SubmitButton>
+      </form>
+
+      <AuthSeparator>o con tu correo</AuthSeparator>
+
+      <form action={signInWithPassword} className="space-y-3.5">
+        {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
+        <AuthField
+          id="email"
+          label="Correo"
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+          autoFocus
+          placeholder="nombre@institucion.com"
+        />
+        <AuthField
+          id="password"
+          label="Contraseña"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          required
+          placeholder="••••••••"
+          hint={
+            <Link
+              href="/login/recuperar"
+              className="text-[12px] font-medium text-accent hover:underline"
+            >
+              ¿La olvidaste?
+            </Link>
+          }
+        />
+        <SubmitButton
+          pendingLabel="Ingresando…"
+          className="clinical-primary mt-1 w-full px-5 py-3"
+        >
+          Ingresar
+        </SubmitButton>
+      </form>
+    </AuthShell>
   );
 }
 
