@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Mic, Pause, Square } from "lucide-react";
 import {
   ConsultationSpine,
@@ -65,6 +66,10 @@ export function CaptureMode({
   finishLabel?: string;
 }) {
   const [confirmFinish, setConfirmFinish] = useState(false);
+  // Solo tras montar: createPortal necesita document, que en el render del
+  // servidor no existe.
+  const [montado, setMontado] = useState(false);
+  useEffect(() => setMontado(true), []);
   // Sección abierta para escribir. null = la vista de vistazo de siempre.
   const [editandoId, setEditandoId] = useState<string | null>(null);
 
@@ -103,7 +108,19 @@ export function CaptureMode({
     return () => document.removeEventListener("keydown", onKey);
   }, [onExit, editandoId]);
 
-  return (
+  if (!montado) return null;
+
+  /* SE PINTA EN UN PORTAL SOBRE <body>, Y NO DONDE LA MONTA LA PAGINA.
+     `position: fixed` se resuelve contra el viewport SALVO que algun ancestro
+     tenga transform, filter, backdrop-filter, contain o will-change: entonces
+     se resuelve contra ESE ancestro. Cuando eso pasaba aqui, la capa se
+     encogia al area de contenido —sin tapar el menu— y como esa caja es tan
+     alta como la pagina entera, su cuerpo centrado quedaba cientos de pixeles
+     por debajo del pliegue: se veia la barra de "Grabando" y debajo el vacio.
+     Un medico grabando y con la pantalla en blanco.
+     Colgando de <body> no hay ancestro que pueda atraparla, ni hoy ni cuando
+     alguien anada un blur a un contenedor dentro de un ano. */
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -302,7 +319,8 @@ export function CaptureMode({
           )}
         </p>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
