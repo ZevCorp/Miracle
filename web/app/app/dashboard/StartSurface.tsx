@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { FileText } from "lucide-react";
 import { BrandSphere } from "@/components/brand/BrandSphere";
 import { HoldToStart, type HoldToStartHandle } from "@/components/app/HoldToStart";
 import { useStart } from "@/components/app/StartContext";
@@ -164,15 +165,36 @@ export function StartSurface() {
             " "
           ) : nombrePlantilla ? (
             <>
-              o mantén <Tecla>espacio</Tecla> · arrancará con{" "}
-              <strong className="font-semibold text-ink-soft">{nombrePlantilla}</strong>{" "}
-              · clic corto para elegir otra
+              o mantén <Tecla>espacio</Tecla>
             </>
           ) : (
             "el clic abre la elección de plantilla"
           )}
         </p>
       </div>
+
+      {/* CON QUÉ va a arrancar. Va en su propia pieza y no dentro de la frase:
+          es el único dato que el médico necesita comprobar ANTES de mantener
+          el orbe, y perdido en una línea de texto corrido no se comprobaba.
+          Se pulsa para cambiarla. */}
+      {!starting && nombrePlantilla ? (
+        <button
+          type="button"
+          onClick={abrirHoja}
+          className="clinical-panel-muted group mt-1 flex w-full max-w-sm items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:border-accent/40"
+        >
+          <FileText size={17} className="shrink-0 text-accent" />
+          <span className="min-w-0 flex-1">
+            <span className="doc-label block">Plantilla</span>
+            <span className="mt-0.5 line-clamp-2 block text-[13px] font-semibold leading-snug text-deep">
+              {nombrePlantilla}
+            </span>
+          </span>
+          <span className="shrink-0 text-[12px] font-semibold text-accent group-hover:underline">
+            Cambiar
+          </span>
+        </button>
+      ) : null}
     </section>
   );
 }

@@ -24,13 +24,14 @@ import {
  * únicas acciones que merecen estar siempre a mano — iniciar una consulta y
  * abrir el asistente.
  *
- * EXPERIMENTO "un clic": cuando el sistema ya sabe con qué plantilla arranca
- * este médico (su fijada, o la última que usó), el botón lo dice — «Iniciar ·
- * Cita de rutina» — y el clic crea el encounter y abre el micrófono SIN pasar
- * por la hoja de confirmación. El caret de al lado conserva el camino largo
- * para cambiar de plantilla. Si no hay preselección (modo manual, catálogo
- * vacío, backend caído), el botón degrada al comportamiento clásico: abrir la
- * hoja. Nunca un error visible por culpa del atajo.
+ * UN CLIC: cuando el sistema ya sabe con qué plantilla arranca este médico
+ * (su fijada o la última que usó, según Configuración), el clic crea el
+ * encounter y abre el micrófono SIN pasar por la hoja de confirmación. El
+ * botón dice solo "Iniciar consulta": QUÉ plantilla se va a usar se lee en el
+ * panel de inicio, que es donde el médico la mira antes de arrancar; meterla
+ * en el botón lo volvía un párrafo. El caret de al lado conserva el camino
+ * largo para cambiarla. Si no hay preselección (modo manual, catálogo vacío,
+ * backend caído), degrada a abrir la hoja, nunca a un error.
  *
  * Los permisos no viven aquí: llegan resueltos del AppShell (canStart espeja
  * canAccessPath; canAssist el gating de la secretaría).
@@ -137,8 +138,8 @@ export function ActionDock({
               type="button"
               onClick={() => void iniciarDirecto()}
               disabled={starting}
-              title={`Grabar ya con la plantilla ${preseleccion.nombre}`}
-              className="clinical-primary min-h-11 max-w-[21rem] rounded-r-md px-5"
+              title={`Grabar ya · plantilla: ${preseleccion.nombre}`}
+              className="clinical-primary min-h-11 rounded-r-md px-5"
               data-light
             >
               {starting ? (
@@ -147,10 +148,7 @@ export function ActionDock({
                 </>
               ) : (
                 <>
-                  <Mic size={16} />
-                  <span className="truncate">
-                    Iniciar · {preseleccion.nombre}
-                  </span>
+                  <Mic size={16} /> Iniciar consulta
                 </>
               )}
             </button>
