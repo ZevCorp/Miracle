@@ -13,6 +13,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   CheckCircle2,
+  ChevronUp,
   ClipboardCopy,
   Download,
   Ellipsis,
@@ -1714,6 +1715,34 @@ function ConsultaActivaInner() {
         />
       ) : null}
 
+      {/* EL CAMINO DE VUELTA.
+          Cerrar la capa de grabacion era un viaje de ida: hasta que no se
+          pausaba, nada la traia de vuelta, asi que el medico que la cerraba
+          por error se quedaba sin ella el resto de la consulta.
+
+          Solo existe mientras se graba Y la capa esta apartada, de modo que
+          tambien es lo unico que queda en pantalla diciendo que el microfono
+          sigue abierto: sin ella, cerrar la capa dejaba la grabacion sin
+          ningun rastro visible arriba del pliegue. Por eso lleva el tiempo.
+
+          Abajo a la IZQUIERDA a proposito: la derecha es del dock de acciones.
+          En movil sube para no taparse con la barra fija de la consulta. */}
+      {capturando && captureDismissed && !completed ? (
+        <button
+          type="button"
+          onClick={() => setCaptureDismissed(false)}
+          title="Volver a la pantalla de grabacion"
+          className="glass-panel fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] left-3 z-40 inline-flex items-center gap-2.5 rounded-full py-2 pl-3.5 pr-4 text-[13px] font-semibold text-deep sm:bottom-4 sm:left-4"
+        >
+          <span className="live-dot" aria-hidden />
+          <span className="data font-medium text-muted">
+            {mmssCaptura(liveCapture.elapsedSec)}
+          </span>
+          <ChevronUp size={15} />
+          Volver a la grabacion
+        </button>
+      ) : null}
+
       {patientAssociationOpen ? (
         <PatientAssociationDialog
           patients={patients}
@@ -2057,4 +2086,11 @@ export default function EnVivoPage() {
       <EnVivoRouter />
     </Suspense>
   );
+}
+
+/** mm:ss del reloj de la captura, para la pastilla de vuelta. */
+function mmssCaptura(totalSec: number): string {
+  const m = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
