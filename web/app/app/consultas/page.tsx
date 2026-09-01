@@ -242,8 +242,11 @@ export default async function ConsultasPage({
         </div>
       ) : null}
 
+      {/* Dos tarjetas por renglón, no tres: a tres columnas la tarjeta se queda
+          sin ancho y el nombre del paciente sale truncado ("Paciente sin
+          identifi…"), que es justo el dato por el que se busca la consulta. */}
       {rows.length ? (
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
           {rows.map((r) => (
             <ConsultationCard
               key={r.id}
