@@ -1472,20 +1472,26 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
    (.sidebar-label, que salen en left: calc(100% + 14px)) tienen que poder
    asomarse fuera del panel. */
 :root {
+  /* SÓLIDO, no vidrio. A 0.84-0.90 de alfa sobre un lienzo casi blanco se
+     colaba un 10-16% de blanco que no solo aclaraba el navy: le destruía el
+     croma, y el menú se leía gris polvoriento —"un color mal puesto"—. El
+     vidrio es para el cromo que flota SOBRE CONTENIDO (la cápsula, el peek);
+     el menú flota sobre el fondo, donde la transparencia no enseña nada y
+     solo cuesta saturación. Opaco recupera el azul entero. */
   --grad-sidebar-glass: linear-gradient(
     188deg,
-    rgb(44 72 115 / 0.84),
-    rgb(39 63 104 / 0.87) 50%,
-    rgb(33 54 92 / 0.9)
+    #24406e,
+    #1c3157 52%,
+    #16274a
   );
 }
 
 :root.dark {
   --grad-sidebar-glass: linear-gradient(
     188deg,
-    rgb(13 30 53 / 0.88),
-    rgb(7 17 33 / 0.92) 45%,
-    rgb(2 7 14 / 0.94)
+    #0e2039,
+    #08172b 45%,
+    #04101f
   );
 }
 
@@ -1493,8 +1499,10 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
   position: relative;
   height: 100%;
   border-radius: 24px;
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  /* Sin backdrop-filter: debajo de una capa opaca no difumina nada, cuesta GPU
+     en cada scroll y —lo importante— crea bloque contenedor para cualquier
+     descendiente `fixed`, que es la trampa que dejo la pantalla de grabacion
+     en blanco. Se retira con el vidrio. */
 }
 
 .aside-float::before {
