@@ -9,6 +9,7 @@ vi.mock("@/lib/supabase/client", () => ({
 
 import {
   buildClinicalRequest,
+  buildGenerateNoteBody,
   CLINICAL_ERROR_MESSAGES,
   ClinicalApiError,
   createClinicalEncounter,
@@ -144,6 +145,19 @@ describe("splitTemplatesBySpecialty", () => {
     const { primary, others } = splitTemplatesBySpecialty(catalogo, "cardiologia");
     expect(primary).toHaveLength(catalogo.length);
     expect(others).toEqual([]);
+  });
+});
+
+describe("buildGenerateNoteBody", () => {
+  it("equilibrado es el comportamiento por defecto: no viaja", () => {
+    expect(buildGenerateNoteBody("equilibrado")).toEqual({});
+    expect(buildGenerateNoteBody(undefined)).toEqual({});
+    expect(buildGenerateNoteBody(null)).toEqual({});
+  });
+
+  it("conciso y detallado viajan como note_detail", () => {
+    expect(buildGenerateNoteBody("conciso")).toEqual({ note_detail: "conciso" });
+    expect(buildGenerateNoteBody("detallado")).toEqual({ note_detail: "detallado" });
   });
 });
 

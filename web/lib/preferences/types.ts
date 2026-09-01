@@ -15,6 +15,13 @@ export type AssistantAddress = "tu" | "usted";
 /** Cuánto se extiende el asistente al responder. */
 export type AssistantDetail = "breve" | "equilibrado" | "detallado";
 
+/**
+ * Cuánto se extiende la NOTA generada en sus secciones interpretativas. Es una
+ * preferencia distinta a la del asistente: una cosa es cómo te responde y otra
+ * cómo redacta la historia clínica. No toca las secciones literales.
+ */
+export type NoteDetail = "conciso" | "equilibrado" | "detallado";
+
 export interface UserPreferences {
   templateStartMode: TemplateStartMode;
   /** Servicio con el que nacen sus consultas. null = usar el de la institución. */
@@ -22,6 +29,7 @@ export interface UserPreferences {
   assistantAddress: AssistantAddress;
   assistantDetail: AssistantDetail;
   assistantUseName: boolean;
+  noteDetail: NoteDetail;
 }
 
 /**
@@ -38,6 +46,7 @@ export const PREFERENCIAS_POR_DEFECTO: UserPreferences = {
   assistantAddress: "usted",
   assistantDetail: "equilibrado",
   assistantUseName: true,
+  noteDetail: "equilibrado",
 };
 
 export interface UserPreferencesRow {
@@ -46,10 +55,11 @@ export interface UserPreferencesRow {
   assistant_address: string | null;
   assistant_detail: string | null;
   assistant_use_name: boolean | null;
+  note_detail?: string | null;
 }
 
 export const USER_PREFERENCES_COLUMNS =
-  "template_start_mode, default_servicio, assistant_address, assistant_detail, assistant_use_name";
+  "template_start_mode, default_servicio, assistant_address, assistant_detail, assistant_use_name, note_detail";
 
 function unaDe<T extends string>(valor: unknown, opciones: readonly T[], porDefecto: T): T {
   return opciones.includes(valor as T) ? (valor as T) : porDefecto;
@@ -83,6 +93,11 @@ export function rowToPreferences(row: UserPreferencesRow | null): UserPreference
       PREFERENCIAS_POR_DEFECTO.assistantDetail,
     ),
     assistantUseName: row.assistant_use_name ?? PREFERENCIAS_POR_DEFECTO.assistantUseName,
+    noteDetail: unaDe(
+      row.note_detail,
+      ["conciso", "equilibrado", "detallado"] as const,
+      PREFERENCIAS_POR_DEFECTO.noteDetail,
+    ),
   };
 }
 

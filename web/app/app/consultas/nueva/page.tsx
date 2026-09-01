@@ -378,7 +378,7 @@ function NuevaConsultaForm() {
       }
 
       setUploadStatus("generating");
-      await generateClinicalNote(encounterId);
+      await generateClinicalNote(encounterId, { noteDetail: userPreferences.noteDetail });
       router.push(`/app/consultas/en-vivo?encounter=${encodeURIComponent(encounterId)}`);
     } catch (error) {
       if (controller.signal.aborted) return;

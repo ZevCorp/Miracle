@@ -20,6 +20,8 @@ import {
   updateClinicalTemplate,
   type ClinicalTemplate,
   type CreateClinicalTemplatePayload,
+  type TemplateNoteMode,
+  type TemplateSectionMode,
 } from "@/lib/api/clinical";
 import {
   buildTemplatePayload,
@@ -56,6 +58,23 @@ const MODE_TITLE: Record<BuilderMode, string> = {
   base: "Personalizar plantilla",
   edit: "Editar plantilla",
 };
+
+/**
+ * Modo de generación de la plantilla. "auto" reproduce lo de siempre: las
+ * especialidades de informe (patología, radiología, laboratorio…) salen
+ * literales y el resto interpretativo. Los otros dos lo fijan a mano.
+ */
+const NOTE_MODES: readonly { value: TemplateNoteMode; label: string; desc: string }[] = [
+  { value: "auto", label: "Según la especialidad", desc: "Literal en patología, radiología y laboratorio; redactada en el resto." },
+  { value: "interpretive", label: "Redactada", desc: "La IA entiende la conversación y la escribe en lenguaje clínico." },
+  { value: "verbatim", label: "Literal", desc: "Se copia el dictado palabra por palabra en cada casilla." },
+];
+
+const SECTION_MODES: readonly { value: TemplateSectionMode; label: string }[] = [
+  { value: "inherit", label: "Como la plantilla" },
+  { value: "interpretive", label: "Redactada" },
+  { value: "verbatim", label: "Literal" },
+];
 
 const COMMON_SECTIONS = [
   "Motivo de consulta", "Enfermedad actual", "Antecedentes relevantes",
@@ -106,11 +125,15 @@ export function TemplateBuilderPanel({
   const [showDescription, setShowDescription] = useState(
     (initialDraft?.description ?? baseTemplate?.description ?? "").trim().length > 0,
   );
+  const [noteMode, setNoteMode] = useState<TemplateNoteMode>(
+    initialDraft?.note_mode ?? baseTemplate?.note_mode ?? "auto",
+  );
   const [initialBlocks] = useState<SectionBlock[]>(() => {
     if (initialDraft) return initialDraft.sections.map((section) => createBlock({
       label: typeof section === "string" ? section : section.label,
       required: typeof section === "string" ? false : section.required === true,
       instruction: typeof section === "string" ? "" : section.instruction ?? "",
+      mode: typeof section === "string" ? "inherit" : section.mode ?? "inherit",
     }));
     if (mode === "edit" && baseTemplate) return templateToBlocks(baseTemplate);
     if (mode === "base" && baseTemplate) return templateToDraftBlocks(baseTemplate);
@@ -194,6 +217,7 @@ export function TemplateBuilderPanel({
       name: trimmedName,
       specialtyCode,
       description,
+      noteMode,
       blocks,
     });
 
@@ -324,6 +348,29 @@ export function TemplateBuilderPanel({
               </p>
             )}
           </div>
+
+          <label className="mt-4 block text-sm font-medium text-deep">
+            Cómo se genera la nota
+            <select
+              value={noteMode}
+              onChange={(e) => {
+                setNoteMode(e.target.value as TemplateNoteMode);
+                markDirty();
+              }}
+              aria-label="Modo de generación de la nota"
+              className={fieldClass}
+            >
+              {NOTE_MODES.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-[12px] font-normal text-muted">
+              {NOTE_MODES.find((option) => option.value === noteMode)?.desc}
+              {" "}Cada sección puede fijar el suyo.
+            </span>
+          </label>
 
           {showDescription ? (
             <label className="mt-4 block text-sm font-medium text-deep">
@@ -523,6 +570,21 @@ function SectionCard({
                 className="h-3.5 w-3.5 accent-accent"
               />
               Obligatoria
+            </label>
+            <label className="inline-flex items-center gap-1.5 text-xs font-medium text-deep">
+              <span className="text-muted">Modo</span>
+              <select
+                value={block.mode ?? "inherit"}
+                onChange={(e) => onChange({ mode: e.target.value as TemplateSectionMode })}
+                aria-label={`Modo de generación de la sección ${index + 1}`}
+                className="rounded-md border border-line bg-field px-2 py-1 text-xs text-deep outline-none focus:border-accent"
+              >
+                {SECTION_MODES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
             <button
               type="button"

@@ -14,6 +14,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { canonicalizeNoteIdentity } from "@/lib/clinical/patient-identity";
+import type { NoteDetail } from "@/lib/preferences/types";
 
 /**
  * Deja el documento del paciente en su forma canónica al cruzar esta frontera.
@@ -34,12 +35,18 @@ function conDocumentoCanonico<T extends ClinicalNoteJson | null | undefined>(not
 /* Modelos del contrato                                                */
 /* ------------------------------------------------------------------ */
 
+/** Cómo se genera una sección: sigue a la plantilla, se interpreta o se copia literal. */
+export type TemplateSectionMode = "inherit" | "interpretive" | "verbatim";
+/** Modo de la plantilla: auto = decidir por especialidad. */
+export type TemplateNoteMode = "auto" | "interpretive" | "verbatim";
+
 export interface ClinicalTemplateSection {
   key: string;
   label: string;
   order: number;
   required?: boolean;
   instruction?: string;
+  mode?: TemplateSectionMode;
 }
 
 export interface ClinicalTemplate {
@@ -54,6 +61,8 @@ export interface ClinicalTemplate {
   status?: "active" | "archived";
   sections_count?: number;
   sections: ClinicalTemplateSection[];
+  /** auto = decidir por especialidad; ausente en respuestas anteriores a 2026-09. */
+  note_mode?: TemplateNoteMode;
   created_at?: string;
   updated_at?: string;
 }
@@ -65,6 +74,13 @@ export interface ClinicalNoteSection {
   content: string;
   confidence?: number;
   evidence?: string;
+  /**
+   * Nivel de soporte del contenido en la transcripción. `confidence` se calcula
+   * de aquí (explicit 1, entailed 0.8, inferred 0.4, absent 0, edited 1).
+   */
+  grounding?: "explicit" | "entailed" | "inferred" | "absent" | "edited";
+  /** Offsets de cada cita dentro de la transcripción persistida. */
+  evidence_spans?: { quote: string; char_start: number; char_end: number }[];
 }
 
 export interface ClinicalDischargeItem {
@@ -118,6 +134,7 @@ export interface EncounterTemplateSnapshot {
   description?: string | null;
   scope?: string;
   is_default?: boolean;
+  note_mode?: TemplateNoteMode;
   sections: ClinicalTemplateSection[];
   snapshot_at?: string;
 }
@@ -164,6 +181,7 @@ export interface ClinicalTemplateSectionInput {
   order?: number;
   required?: boolean;
   instruction?: string;
+  mode?: TemplateSectionMode;
 }
 
 export type CreateTemplateSectionInput = string | ClinicalTemplateSectionInput;
@@ -172,6 +190,7 @@ export interface CreateClinicalTemplatePayload {
   name: string;
   specialty: string;
   description?: string;
+  note_mode?: TemplateNoteMode;
   sections: CreateTemplateSectionInput[];
 }
 
@@ -703,12 +722,33 @@ export async function saveClinicalTranscript(
   );
 }
 
+export interface GenerateNoteOptions {
+  /**
+   * Preferencia de redacción del médico. Solo afecta a las secciones
+   * interpretativas; "equilibrado" es el comportamiento por defecto y no viaja.
+   */
+  noteDetail?: NoteDetail | null;
+}
+
+/** Cuerpo de generate-note. Exportado para poder probarlo sin red. */
+export function buildGenerateNoteBody(
+  noteDetail?: NoteDetail | null,
+): { note_detail?: NoteDetail } {
+  return noteDetail && noteDetail !== "equilibrado" ? { note_detail: noteDetail } : {};
+}
+
 export async function generateClinicalNote(
   encounterId: string,
+  options: GenerateNoteOptions = {},
 ): Promise<GenerateNoteResult> {
+  const body = buildGenerateNoteBody(options.noteDetail);
   const result = await clinicalRequest<GenerateNoteResult>(
     `/api/clinical/encounters/${encodeURIComponent(encounterId)}/generate-note`,
-    { method: "POST", timeoutMs: GENERATE_NOTE_TIMEOUT_MS },
+    {
+      method: "POST",
+      ...(Object.keys(body).length ? { body } : {}),
+      timeoutMs: GENERATE_NOTE_TIMEOUT_MS,
+    },
   );
   return { ...result, note_json: conDocumentoCanonico(result.note_json) };
 }

@@ -339,11 +339,14 @@ describe("buildTemplatePayload", () => {
         label: PATIENT_IDENTITY_SECTION_LABEL,
         order: 1,
         required: false,
+        mode: "inherit",
         instruction: PATIENT_IDENTITY_SECTION_INSTRUCTION,
       },
-      { label: "Motivo del control", order: 2, required: true, instruction: "Resume el motivo." },
-      { label: "Adherencia", order: 3, required: true },
+      { label: "Motivo del control", order: 2, required: true, mode: "inherit", instruction: "Resume el motivo." },
+      { label: "Adherencia", order: 3, required: true, mode: "inherit" },
     ]);
+    // Sin modo explícito, la plantilla decide por especialidad.
+    expect(payload.note_mode).toBe("auto");
   });
 
   it("preserva key al editar y omite instrucción vacía", () => {
@@ -362,6 +365,7 @@ describe("buildTemplatePayload", () => {
       label: "Motivo del control",
       order: 2,
       required: true,
+      mode: "inherit",
     });
     // description undefined cuando no se pasa.
     expect(payload.description).toBeUndefined();
@@ -374,11 +378,11 @@ describe("buildTemplatePayload", () => {
       blocks: blocks(["A", "B"]),
     });
     const keys = Object.keys(payload);
-    expect(keys.sort()).toEqual(["description", "name", "sections", "specialty"].sort());
+    expect(keys.sort()).toEqual(["description", "name", "note_mode", "sections", "specialty"].sort());
     for (const section of payload.sections) {
       const sectionKeys = Object.keys(section as object);
       for (const k of sectionKeys) {
-        expect(["key", "label", "order", "required", "instruction"]).toContain(k);
+        expect(["key", "label", "order", "required", "instruction", "mode"]).toContain(k);
       }
     }
   });
@@ -410,5 +414,63 @@ describe("resolveSpecialtyCode", () => {
     for (const specialty of clinicalSpecialties) {
       expect(resolveSpecialtyCode(specialty.code)).toBe(specialty.code);
     }
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Modo de generación (plantilla y sección)                            */
+/* ------------------------------------------------------------------ */
+
+describe("modo de generación de la nota", () => {
+  it("los bloques nuevos heredan el modo de la plantilla", () => {
+    expect(createBlock({ label: "Plan" }).mode).toBe("inherit");
+  });
+
+  it("templateToBlocks conserva el modo de cada sección y asume inherit si falta", () => {
+    const template = {
+      id: "t1",
+      name: "Biopsia",
+      specialty: "patologia",
+      note_mode: "verbatim",
+      sections: [
+        { key: "macro", label: "Descripción macroscópica", order: 1, mode: "verbatim" },
+        { key: "comentario", label: "Comentario", order: 2, mode: "interpretive" },
+        { key: "dx", label: "Diagnóstico", order: 3 },
+      ],
+    } as ClinicalTemplate;
+    const modos = templateToBlocks(template)
+      .filter((block) => !isPatientIdentityBlock(block))
+      .map((block) => block.mode);
+    expect(modos).toEqual(["verbatim", "interpretive", "inherit"]);
+    // Duplicar una plantilla copia el modo aunque no copie las keys.
+    const copia = templateToDraftBlocks(template).filter((block) => !isPatientIdentityBlock(block));
+    expect(copia.map((block) => block.mode)).toEqual(["verbatim", "interpretive", "inherit"]);
+    expect(copia.every((block) => !block.key)).toBe(true);
+  });
+
+  it("buildTemplatePayload envía siempre note_mode y el mode de cada sección", () => {
+    const payload = buildTemplatePayload({
+      name: "Informe",
+      specialtyCode: "patologia",
+      noteMode: "verbatim",
+      blocks: [
+        createBlock({ label: "Descripción macroscópica", mode: "inherit" }),
+        createBlock({ label: "Comentario", mode: "interpretive" }),
+      ],
+    });
+    expect(payload.note_mode).toBe("verbatim");
+    const secciones = payload.sections.filter(
+      (section): section is Exclude<typeof section, string> => typeof section !== "string",
+    );
+    expect(secciones.map((section) => section.mode)).toEqual(["inherit", "inherit", "interpretive"]);
+  });
+
+  it("sin noteMode explícito el payload manda auto (decidir por especialidad)", () => {
+    const payload = buildTemplatePayload({
+      name: "Consulta",
+      specialtyCode: "medicina_general",
+      blocks: [createBlock({ label: "Motivo" }), createBlock({ label: "Plan" })],
+    });
+    expect(payload.note_mode).toBe("auto");
   });
 });

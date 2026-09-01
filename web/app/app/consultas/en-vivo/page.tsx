@@ -481,7 +481,9 @@ function ConsultaActivaInner() {
         applyStatus(saved.status);
       }
       setPhase("generating");
-      const generated = await generateClinicalNote(encounterId);
+      const generated = await generateClinicalNote(encounterId, {
+        noteDetail: userPreferences.noteDetail,
+      });
       // La IA solo vio [PACIENTE]/[DOCUMENTO]; la vista (displayNote) muestra
       // la nota rehidratada con los datos reales.
       setNote(generated.note_json);

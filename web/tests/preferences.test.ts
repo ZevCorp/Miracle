@@ -31,7 +31,23 @@ describe("rowToPreferences", () => {
       assistantAddress: "tu",
       assistantDetail: "breve",
       assistantUseName: false,
+      noteDetail: "equilibrado",
     });
+  });
+
+  it("note_detail se mapea y cae a equilibrado ante un valor raro o una fila vieja", () => {
+    const base = {
+      template_start_mode: "last",
+      default_servicio: null,
+      assistant_address: "usted",
+      assistant_detail: "equilibrado",
+      assistant_use_name: true,
+    };
+    expect(rowToPreferences({ ...base, note_detail: "conciso" }).noteDetail).toBe("conciso");
+    expect(rowToPreferences({ ...base, note_detail: "detallado" }).noteDetail).toBe("detallado");
+    expect(rowToPreferences({ ...base, note_detail: "larguísimo" }).noteDetail).toBe("equilibrado");
+    // Fila anterior a la columna: el campo no viene.
+    expect(rowToPreferences(base).noteDetail).toBe("equilibrado");
   });
 
   it("un valor que no reconoce cae al por defecto en vez de propagarse", () => {

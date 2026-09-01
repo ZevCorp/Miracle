@@ -21,6 +21,7 @@ import type {
   CreateClinicalTemplatePayload,
 } from "@/lib/api/clinical";
 import { clinicalSpecialties } from "./specialties";
+import type { TemplateNoteMode, TemplateSectionMode } from "@/lib/api/clinical";
 import {
   PATIENT_IDENTITY_SECTION_INSTRUCTION,
   PATIENT_IDENTITY_SECTION_KEY,
@@ -45,6 +46,12 @@ export interface SectionBlock {
   label: string;
   required: boolean;
   instruction: string;
+  /**
+   * Cómo se genera la sección: sigue a la plantilla ("inherit"), se redacta a
+   * partir de la conversación ("interpretive") o se copia literal del dictado
+   * ("verbatim"). El backend resuelve "inherit" por plantilla y especialidad.
+   */
+  mode: TemplateSectionMode;
 }
 
 let uidCounter = 0;
@@ -60,6 +67,7 @@ export function createBlock(partial?: Partial<SectionBlock>): SectionBlock {
     label: "",
     required: false,
     instruction: "",
+    mode: "inherit",
     ...partial,
   };
 }
@@ -125,6 +133,7 @@ export function templateToBlocks(template: ClinicalTemplate): SectionBlock[] {
           label: section.label,
           required: section.required === true,
           instruction: section.instruction ?? "",
+          mode: section.mode ?? "inherit",
         }),
       ),
   );
@@ -141,6 +150,7 @@ export function templateToDraftBlocks(template: ClinicalTemplate): SectionBlock[
       label: block.label,
       required: block.required,
       instruction: block.instruction,
+      mode: block.mode,
     }),
   );
 }
@@ -254,6 +264,8 @@ export interface BuildPayloadInput {
   name: string;
   specialtyCode: string;
   description?: string;
+  /** Modo de la plantilla. Se envía siempre: al editar, omitirlo dejaría el anterior. */
+  noteMode?: TemplateNoteMode;
   blocks: SectionBlock[];
 }
 
@@ -274,13 +286,18 @@ export function buildTemplatePayload(
       label: block.label.trim(),
       required: block.required,
       instruction: block.instruction.trim(),
+      mode: block.mode ?? "inherit",
     }))
     .filter((section) => section.label.length > 0)
     .map((section, index) => {
+      // `mode` se envía SIEMPRE (también "inherit"): el backend conserva el valor
+      // anterior cuando el campo falta, así que volver a "inherit" tiene que
+      // ser explícito.
       const payloadSection: ClinicalTemplateSectionInput = {
         label: section.label,
         order: index + 1,
         required: section.required,
+        mode: section.mode,
       };
       if (section.key) payloadSection.key = section.key;
       if (section.instruction) payloadSection.instruction = section.instruction;
@@ -291,6 +308,7 @@ export function buildTemplatePayload(
     name: input.name.trim(),
     specialty: input.specialtyCode,
     description: input.description?.trim() || undefined,
+    note_mode: input.noteMode ?? "auto",
     sections,
   };
 }

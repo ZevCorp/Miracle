@@ -59,6 +59,7 @@ function patchToRow(patch: Partial<UserPreferences>): Record<string, unknown> {
   if (patch.assistantAddress !== undefined) row.assistant_address = patch.assistantAddress;
   if (patch.assistantDetail !== undefined) row.assistant_detail = patch.assistantDetail;
   if (patch.assistantUseName !== undefined) row.assistant_use_name = patch.assistantUseName;
+  if (patch.noteDetail !== undefined) row.note_detail = patch.noteDetail;
   return row;
 }
 

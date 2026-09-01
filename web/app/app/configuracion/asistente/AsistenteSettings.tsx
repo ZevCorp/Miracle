@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useStore } from "@/app/app/providers";
 import { useUserPreferences } from "@/lib/preferences/client";
-import type { AssistantAddress, AssistantDetail } from "@/lib/preferences/types";
+import type { AssistantAddress, AssistantDetail, NoteDetail } from "@/lib/preferences/types";
 import { ChoiceGroup, SettingCard, SettingRow, Toggle, type Opcion } from "../ui";
 
 const TRATOS: readonly Opcion<AssistantAddress>[] = [
@@ -26,6 +26,24 @@ const DETALLES: readonly Opcion<AssistantDetail>[] = [
     value: "detallado",
     label: "Detallado",
     desc: "Siempre desglosa qué se sabe, qué falta confirmar y el siguiente paso.",
+  },
+];
+
+const REDACCION: readonly Opcion<NoteDetail>[] = [
+  {
+    value: "conciso",
+    label: "Conciso",
+    desc: "Lo esencial en frases cortas. Nunca omite un dato clínico.",
+  },
+  {
+    value: "equilibrado",
+    label: "Equilibrado",
+    desc: "Redacción clínica estándar: completa sin extenderse.",
+  },
+  {
+    value: "detallado",
+    label: "Detallado",
+    desc: "Incluye cronología, matices y negativos pertinentes de la conversación.",
   },
 ];
 
@@ -61,6 +79,21 @@ export function AsistenteSettings() {
             onChange={(v) => void guardar({ assistantDetail: v })}
           />
         </div>
+      </SettingCard>
+
+      {/* Preferencia distinta a la del asistente: una cosa es cómo te responde
+          y otra cómo redacta la historia clínica. Solo afecta a las secciones
+          interpretativas; las literales (patología, radiología…) no cambian. */}
+      <SettingCard
+        title="Cómo redacta la nota"
+        description="Se aplica a las secciones interpretativas de la nota generada. Las secciones literales se copian tal cual se dictaron."
+      >
+        <ChoiceGroup
+          label="Extensión de la nota"
+          value={preferences.noteDetail}
+          options={REDACCION}
+          onChange={(v) => void guardar({ noteDetail: v })}
+        />
       </SettingCard>
 
       <SettingCard title="Tu nombre">

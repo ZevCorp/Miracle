@@ -636,6 +636,18 @@ describe("sectionCoverage", () => {
     const cobertura = sectionCoverage(note, null);
     expect(cobertura[0].confianzaBaja).toBe(true);
 
+    // Una sección INTERPRETADA por la IA llega con grounding "inferred" y
+    // confidence 0.4 (mapeo del backend): tiene que disparar el badge. Una
+    // deducida (0.8) no.
+    const interpretada = notaCompleta();
+    interpretada.sections[0].grounding = "inferred";
+    interpretada.sections[0].confidence = 0.4;
+    interpretada.sections[1].grounding = "entailed";
+    interpretada.sections[1].confidence = 0.8;
+    const revisada = sectionCoverage(interpretada, null);
+    expect(revisada[0].confianzaBaja).toBe(true);
+    expect(revisada[1].confianzaBaja).toBe(false);
+
     expect(sectionCoverage(null)).toEqual([]);
     expect(sectionCoverage(undefined, plantilla())).toEqual([]);
   });
