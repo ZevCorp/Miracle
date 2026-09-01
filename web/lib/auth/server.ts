@@ -52,6 +52,15 @@ export interface AuthenticatedProfile {
   practiceCountry: string | null;
   practiceCity: string | null;
   onboardingCompletedAt: string | null;
+  /**
+   * Servicio del hospital al que pertenece (public.org_areas). Es lo que acota
+   * a un `admin_area`: sin área, un jefe de servicio no alcanza a nadie.
+   *
+   * null tiene dos lecturas que aquí no se distinguen: "no tiene área" y "la
+   * columna todavía no existe en la base". Ambas se comportan igual —como si
+   * no hubiera áreas—, que es la degradación correcta.
+   */
+  areaId: string | null;
 }
 
 export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> {
@@ -69,8 +78,11 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
   // pedirla dentro del select principal haría fallar la consulta y sacaría a
   // TODOS los usuarios al login. Sin la columna, simplemente no hay cuentas
   // demo ni bajas.
-  const [{ data: profile, error: profileError }, { data: extraRow, error: extraError }] =
-    await Promise.all([
+  const [
+    { data: profile, error: profileError },
+    { data: extraRow, error: extraError },
+    { data: areaRow },
+  ] = await Promise.all([
       supabase.from("profiles").select(columns).eq("id", userId).maybeSingle(),
       supabase
         .from("profiles")
@@ -92,6 +104,13 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
         )
         .eq("id", userId)
         .maybeSingle(),
+      // El área va en SU PROPIA consulta, no dentro de la de arriba, y el
+      // motivo es una avería que ya ocurrió: cuando el embed de organizations
+      // se volvió ambiguo, esta consulta empezó a fallar ENTERA y con ella se
+      // cayeron de golpe la cuenta demo, el tipo de organización y la
+      // facturación. Meter aquí una columna que quizá todavía no exista
+      // repetiría exactamente eso. Aislada, si falla solo se pierde el área.
+      supabase.from("profiles").select("area_id").eq("id", userId).maybeSingle(),
     ]);
 
   // Se sigue tolerando el fallo —si el código se despliega antes que una
@@ -152,6 +171,7 @@ export async function getCurrentProfile(): Promise<AuthenticatedProfile | null> 
     practiceCountry: profile.practice_country,
     practiceCity: profile.practice_city,
     onboardingCompletedAt: profile.onboarding_completed_at,
+    areaId: (areaRow as { area_id?: string | null } | null)?.area_id ?? null,
   };
 }
 
