@@ -10,6 +10,7 @@ import {
   Cpu,
   Gauge,
   HeartPulse,
+  Stethoscope,
   LayoutDashboard,
   MonitorSmartphone,
   ScrollText,
@@ -49,6 +50,7 @@ const nav: NavGroup[] = [
     items: [
       { label: "Resumen", href: "/superadmin", icon: LayoutDashboard },
       { label: "Métricas de consultas", href: "/superadmin/metricas", icon: Gauge },
+      { label: "Medición de impacto", href: "/superadmin/medicion", icon: Stethoscope },
       { label: "Consumo IA", href: "/superadmin/consumo", icon: Cpu },
       { label: "Adopción", href: "/superadmin/analitica", icon: BarChart3 },
     ],
