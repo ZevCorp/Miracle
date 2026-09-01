@@ -1529,14 +1529,14 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
   /* LA SOMBRA, que en claro hace el trabajo que la luz no puede hacer: sobre un
      lienzo casi blanco no hay margen hacia arriba, asi que el modelado se
      consigue OSCURECIENDO todo menos el punto por donde entra la luz. */
-  --ambient-shade: rgb(24 46 88 / 0.08);
+  --ambient-shade: rgb(24 46 88 / 0.1);
   /* El suelo: un poco de peso abajo para que la pantalla no flote. Sin tinte
      propio, solo la sombra del propio lienzo. */
   --ambient-floor: rgb(16 34 66 / 0.05);
   --ambient-grain: 0.026;
   /* La trama: rejilla de instrumento y el eco del orbe. Sin color propio. */
-  --ambient-grid: rgb(20 40 78 / 0.055);
-  --ambient-ring: rgb(47 111 224 / 0.1);
+  --ambient-grid: rgb(20 40 78 / 0.072);
+  --ambient-ring: rgb(47 111 224 / 0.13);
 }
 
 :root.dark {
@@ -1545,8 +1545,8 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
   --ambient-floor: rgb(0 0 0 / 0.32);
   /* En oscuro el bandeado se ve mucho mas, asi que el grano sube. */
   --ambient-grain: 0.04;
-  --ambient-grid: rgb(150 195 255 / 0.05);
-  --ambient-ring: rgb(120 175 255 / 0.075);
+  --ambient-grid: rgb(150 195 255 / 0.065);
+  --ambient-ring: rgb(120 175 255 / 0.098);
 }
 
 .ambient-canvas {
@@ -1608,8 +1608,8 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
       var(--ambient-grid) 0 1px,
       transparent 1px 36px
     );
-  -webkit-mask-image: radial-gradient(115% 95% at 15% 0%, #000, transparent 70%);
-  mask-image: radial-gradient(115% 95% at 15% 0%, #000, transparent 70%);
+  -webkit-mask-image: radial-gradient(125% 135% at 15% 0%, #000, transparent 80%);
+  mask-image: radial-gradient(125% 135% at 15% 0%, #000, transparent 80%);
 }
 
 /* Grano. Invisible de cerca y decisivo de lejos: sin el, una superficie tan
