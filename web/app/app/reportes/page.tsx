@@ -20,7 +20,7 @@ export default async function ReportesPage({
 }: {
   searchParams: Promise<{ rango?: string; desde?: string; hasta?: string }>;
 }) {
-  await requireRole("admin", "supervisor");
+  await requireRole("admin", "supervisor", "admin_area");
 
   const sp = await searchParams;
   const rango = resolverRango(sp);
