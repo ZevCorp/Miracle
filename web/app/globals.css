@@ -1525,18 +1525,23 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
    propio mas alla del frio del acento. El color de la app lo pone el contenido,
    que es de quien tiene que ser. */
 :root {
-  --ambient-key: rgb(126 178 255 / 0.2);
+  --ambient-key: rgb(138 185 255 / 0.28);
+  /* LA SOMBRA, que en claro hace el trabajo que la luz no puede hacer: sobre un
+     lienzo casi blanco no hay margen hacia arriba, asi que el modelado se
+     consigue OSCURECIENDO todo menos el punto por donde entra la luz. */
+  --ambient-shade: rgb(24 46 88 / 0.08);
   /* El suelo: un poco de peso abajo para que la pantalla no flote. Sin tinte
      propio, solo la sombra del propio lienzo. */
   --ambient-floor: rgb(16 34 66 / 0.05);
   --ambient-grain: 0.026;
   /* La trama: rejilla de instrumento y el eco del orbe. Sin color propio. */
-  --ambient-grid: rgb(16 34 66 / 0.038);
-  --ambient-ring: rgb(47 111 224 / 0.06);
+  --ambient-grid: rgb(20 40 78 / 0.055);
+  --ambient-ring: rgb(47 111 224 / 0.1);
 }
 
 :root.dark {
   --ambient-key: rgb(96 156 255 / 0.16);
+  --ambient-shade: rgb(0 0 0 / 0.22);
   --ambient-floor: rgb(0 0 0 / 0.32);
   /* En oscuro el bandeado se ve mucho mas, asi que el grano sube. */
   --ambient-grain: 0.04;
@@ -1550,7 +1555,12 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
-  background: linear-gradient(180deg, transparent 42%, var(--ambient-floor));
+  background:
+    /* Transparente donde entra la luz, y va cerrandose hacia la esquina
+       opuesta: eso es lo que convierte un blanco plano en una superficie
+       modelada, sin recurrir al color. */
+    radial-gradient(125% 108% at 12% -6%, transparent 28%, var(--ambient-shade)),
+    linear-gradient(180deg, transparent 42%, var(--ambient-floor));
 }
 
 /* La luz vive en su propia capa para poder derivar con transform sin obligar a
