@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CornerDownLeft, FileText, PenLine, Plus, Search, User, type LucideIcon } from "lucide-react";
+import { CornerDownLeft, FileText, PenLine, Plus, Search, User, UserPlus, type LucideIcon } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import { useRunway } from "@/components/app/SignRunway";
 import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
@@ -97,8 +97,9 @@ export function CommandPalette({
     // Ir a: las mismas secciones del menú lateral, filtradas por rol con la
     // función que ya aplica el proxy. Sin escribir nada no se muestran: quien
     // abre el buscador casi siempre viene a buscar un paciente, no a navegar.
+    const nav = visibleAppNav(role, professionalType, isDemo, orgKind);
     const navegacion: Item[] = q
-      ? visibleAppNav(role, professionalType, isDemo, orgKind)
+      ? nav
           .filter((item) => matchesQuery(item.label, q))
           .slice(0, TOPE_POR_GRUPO)
           .map((item) => ({
@@ -120,6 +121,22 @@ export function CommandPalette({
         hint: "Iniciar captura",
         href: "/app/consultas/nueva",
         icon: Plus,
+      });
+    }
+    // Registrar a alguien, desde cualquier pantalla y sin buscar el botón. La
+    // paleta abre el directorio con `?nuevo=1`, que es lo que dispara el
+    // formulario: así el alta tiene además una URL propia. Solo para quien
+    // puede ver pacientes — la secretaría no.
+    if (
+      nav.some((item) => item.href === "/app/pacientes") &&
+      (!q || matchesQuery("Nuevo paciente registrar", q))
+    ) {
+      acciones.push({
+        id: "nuevo-paciente",
+        label: "Nuevo paciente",
+        hint: "Registrar a quien vas a atender",
+        href: "/app/pacientes?nuevo=1",
+        icon: UserPlus,
       });
     }
     // La paleta como línea de comandos: la sesión de firma, a un Enter. Las

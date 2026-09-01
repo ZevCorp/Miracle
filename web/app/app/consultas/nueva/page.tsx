@@ -11,11 +11,13 @@ import {
   Mic,
   Monitor,
   Upload,
+  UserPlus,
   UserRound,
   Video,
 } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker";
+import { PatientFormDialog } from "@/components/app/PatientFormDialog";
 import { AppPageHeader } from "@/components/app/AppPage";
 import { AlertBanner } from "@/components/ui/AlertBanner";
 import { SearchField } from "@/components/ui/SearchField";
@@ -64,6 +66,7 @@ function NuevaConsultaForm() {
   const [patientQuery, setPatientQuery] = useState("");
   const [patientId, setPatientId] = useState<string | null | undefined>(undefined);
   const [patientPickerOpen, setPatientPickerOpen] = useState(false);
+  const [newPatientOpen, setNewPatientOpen] = useState(false);
   const [tipo, setTipo] = useState<Exclude<ConsultationType, "audio">>("presencial");
   const [templates, setTemplates] = useState<ClinicalTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
@@ -515,10 +518,46 @@ function NuevaConsultaForm() {
                 <ul className="mt-2 max-h-44 overflow-y-auto rounded-lg border border-line bg-surface p-1">
                   {matchingPatients.length ? matchingPatients.map((patient) => (
                     <li key={patient.id}><button type="button" onClick={() => { setPatientId(patient.id); setPatientQuery(patient.nombre); setPatientPickerOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left hover:bg-ice-soft"><span><span className="block text-sm font-medium text-deep">{patient.nombre}</span><span className="block text-xs text-muted">{patient.documento || "Datos por completar"}</span></span>{patient.id === effectivePatientId ? <Check size={15} className="text-accent" /> : null}</button></li>
-                  )) : <li className="px-3 py-2.5 text-sm text-muted">No hay coincidencias. Podrás crear el paciente dentro de la consulta.</li>}
+                  )) : <li className="px-3 py-2.5 text-sm text-muted">No hay coincidencias.</li>}
                 </ul>
-                {selectedPatient ? <button type="button" onClick={() => { setPatientId(null); setPatientPickerOpen(false); }} className="mt-2 text-sm font-semibold text-muted hover:text-deep">Continuar sin paciente asociado</button> : null}
+                {/* Antes aquí decía «Podrás crear el paciente dentro de la
+                    consulta»: un callejón sin salida justo en el momento en que
+                    el paciente está sentado enfrente. Ahora se crea aquí, con
+                    lo tecleado en el buscador ya puesto en el formulario, y
+                    queda asociado sin volver a buscarlo. */}
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNewPatientOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline"
+                  >
+                    <UserPlus size={15} /> Crear paciente nuevo
+                  </button>
+                  {selectedPatient ? <button type="button" onClick={() => { setPatientId(null); setPatientPickerOpen(false); }} className="text-sm font-semibold text-muted hover:text-deep">Continuar sin paciente asociado</button> : null}
+                </div>
               </div>
+            ) : null}
+            {newPatientOpen ? (
+              <PatientFormDialog
+                initialNombre={patientQuery.trim()}
+                onClose={() => setNewPatientOpen(false)}
+                onSaved={(creado) => {
+                  setNewPatientOpen(false);
+                  setPatientId(creado.id);
+                  setPatientQuery(creado.nombre);
+                  setPatientPickerOpen(false);
+                  // La cita ya no tiene por qué seguir preguntando por nombre:
+                  // el médico acaba de decir quién es.
+                  setNameMatchResolved(true);
+                }}
+                onUseExisting={(existente) => {
+                  setNewPatientOpen(false);
+                  setPatientId(existente.id);
+                  setPatientQuery(existente.nombre);
+                  setPatientPickerOpen(false);
+                  setNameMatchResolved(true);
+                }}
+              />
             ) : null}
           </div>
         </section>

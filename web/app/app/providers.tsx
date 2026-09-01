@@ -60,13 +60,22 @@ const DURACION_MS: Record<ToastTone, number> = {
   warning: 6500,
 };
 
-interface NewPatientInput {
+/**
+ * Los datos con los que nace —o se corrige— una ficha de paciente. Se exporta
+ * porque el formulario único (PatientFormDialog) construye este objeto y el
+ * store solo lo escribe: si divergieran, la mitad de los campos se perdería en
+ * el camino, que es exactamente lo que pasaba con antecedentes y alergias.
+ */
+export interface NewPatientInput {
   nombre: string;
-  documento?: string;
-  edad?: number;
+  documento?: string | null;
+  edad?: number | null;
   sexo?: Patient["sexo"];
-  eps?: string;
-  telefono?: string;
+  eps?: string | null;
+  telefono?: string | null;
+  antecedentes?: string[];
+  alergias?: string[];
+  medicamentos?: string[];
 }
 
 /**
@@ -140,10 +149,17 @@ interface StoreValue {
       }
     | undefined;
   addPatient: (patient: string | NewPatientInput) => Patient;
-  /** Como addPatient, pero espera la confirmación de Supabase antes de resolver. */
+  /** Como addPatient, pero espera la confirmación de Supabase antes de resolver.
+   *  Si falla, la fila optimista se retira del store. */
   addPatientAsync: (
     patient: NewPatientInput,
-  ) => Promise<{ ok: boolean; patient: Patient }>;
+  ) => Promise<{ ok: boolean; patient: Patient; error?: string }>;
+  /** Corrige una ficha existente (incluidas antecedentes, alergias y
+   *  medicamentos). Revierte en memoria si la base rechaza el cambio. */
+  updatePatient: (
+    id: string,
+    patient: NewPatientInput,
+  ) => Promise<{ ok: boolean; patient?: Patient; error?: string }>;
   approveNote: (id: string) => void;
   /** Como approveNote pero devuelve el desenlace y sin toasts (firma en serie). */
   approveNoteAsync: (id: string) => Promise<{ ok: boolean; error?: string }>;
@@ -210,6 +226,51 @@ function rowToPatient(r: any): Patient {
     antecedentes: r.antecedentes ?? [],
     alergias: r.alergias ?? [],
     medicamentos: r.medicamentos ?? [],
+  };
+}
+
+/** Texto de formulario → columna: vacío es ausencia de dato, no cadena vacía. */
+function textoONulo(valor: string | null | undefined): string | null {
+  const limpio = (valor ?? "").trim();
+  return limpio || null;
+}
+
+/**
+ * Un paciente en memoria, a partir de lo que se escribió en el formulario.
+ *
+ * Los "Por registrar" y el "—" viven SOLO aquí, en la copia que se pinta: la
+ * base recibe null (ver patientRow). La distinción importa porque un día se
+ * buscó "por registrar" y salieron treinta pacientes.
+ */
+function patientFromInput(id: string, input: NewPatientInput): Patient {
+  return {
+    id,
+    nombre: input.nombre.trim(),
+    documento: textoONulo(input.documento) ?? "Por registrar",
+    edad: input.edad && input.edad > 0 ? input.edad : 0,
+    // Sin valor por defecto: un dato clínico no registrado queda como null.
+    sexo: input.sexo ?? null,
+    eps: textoONulo(input.eps) ?? "Por registrar",
+    telefono: textoONulo(input.telefono) ?? "—",
+    antecedentes: input.antecedentes ?? [],
+    alergias: input.alergias ?? [],
+    medicamentos: input.medicamentos ?? [],
+  };
+}
+
+/** Las columnas de `patients` tal como se escriben. Las tres listas solo viajan
+ *  si vienen definidas: un alta rápida no debe borrar antecedentes existentes. */
+function patientRow(input: NewPatientInput) {
+  return {
+    nombre: input.nombre.trim(),
+    documento: textoONulo(input.documento),
+    edad: input.edad && input.edad > 0 ? input.edad : null,
+    sexo: input.sexo ?? null,
+    eps: textoONulo(input.eps),
+    telefono: textoONulo(input.telefono),
+    ...(input.antecedentes ? { antecedentes: input.antecedentes } : {}),
+    ...(input.alergias ? { alergias: input.alergias } : {}),
+    ...(input.medicamentos ? { medicamentos: input.medicamentos } : {}),
   };
 }
 
@@ -621,31 +682,11 @@ export function MiracleProvider({
   const addPatient = useCallback(
     (patient: string | NewPatientInput): Patient => {
       const input = typeof patient === "string" ? { nombre: patient } : patient;
-      const nuevo: Patient = {
-        id: uuid(),
-        nombre: input.nombre.trim(),
-        documento: input.documento?.trim() || "Por registrar",
-        edad: input.edad && input.edad > 0 ? input.edad : 0,
-        // Sin valor por defecto: un dato clínico no registrado queda como null.
-        sexo: input.sexo ?? null,
-        eps: input.eps?.trim() || "Por registrar",
-        telefono: input.telefono?.trim() || "—",
-        antecedentes: [],
-        alergias: [],
-        medicamentos: [],
-      };
+      const nuevo = patientFromInput(uuid(), input);
       setPatients((list) => [nuevo, ...list]);
       supabase
         .from("patients")
-        .insert({
-          id: nuevo.id,
-          nombre: nuevo.nombre,
-          documento: input.documento?.trim() || null,
-          edad: nuevo.edad > 0 ? nuevo.edad : null,
-          sexo: nuevo.sexo ?? null,
-          eps: input.eps?.trim() || null,
-          telefono: input.telefono?.trim() || null,
-        })
+        .insert({ id: nuevo.id, ...patientRow(input) })
         .then(({ error }) => {
           if (error) {
             console.error("[store] insert paciente", error.message);
@@ -663,35 +704,69 @@ export function MiracleProvider({
   const addPatientAsync = useCallback(
     async (
       input: NewPatientInput,
-    ): Promise<{ ok: boolean; patient: Patient }> => {
-      const nuevo: Patient = {
-        id: uuid(),
-        nombre: input.nombre.trim(),
-        documento: input.documento?.trim() || "Por registrar",
-        edad: input.edad && input.edad > 0 ? input.edad : 0,
-        sexo: input.sexo ?? null,
-        eps: input.eps?.trim() || "Por registrar",
-        telefono: input.telefono?.trim() || "—",
-        antecedentes: [],
-        alergias: [],
-        medicamentos: [],
-      };
+    ): Promise<{ ok: boolean; patient: Patient; error?: string }> => {
+      const nuevo = patientFromInput(uuid(), input);
       setPatients((list) => [nuevo, ...list]);
-      const { error } = await supabase.from("patients").insert({
-        id: nuevo.id,
-        nombre: nuevo.nombre,
-        documento: input.documento?.trim() || null,
-        edad: nuevo.edad > 0 ? nuevo.edad : null,
-        sexo: nuevo.sexo ?? null,
-        eps: input.eps?.trim() || null,
-        telefono: input.telefono?.trim() || null,
-      });
+      const { error } = await supabase
+        .from("patients")
+        .insert({ id: nuevo.id, ...patientRow(input) });
       if (error) {
         console.error("[store] insert paciente", error.message);
+        // La fila optimista se retira: dejarla haría creer al médico que el
+        // paciente existe, y la próxima recarga lo borraría sin explicación.
+        setPatients((list) => list.filter((p) => p.id !== nuevo.id));
         showToast("No se pudo guardar el paciente. Intenta de nuevo.", "warning");
-        return { ok: false, patient: nuevo };
+        return { ok: false, patient: nuevo, error: error.message };
       }
       return { ok: true, patient: nuevo };
+    },
+    [supabase, showToast],
+  );
+
+  /**
+   * Corregir una ficha ya guardada. No existía: un paciente creado con el
+   * documento mal escrito se quedaba así para siempre, y las alergias —el dato
+   * que más importa antes de formular— no había forma de registrarlas.
+   *
+   * Optimista con reversa: se pinta el cambio, y si la base lo rechaza (RLS de
+   * `update patients`: solo el creador, o admin/supervisor de la organización)
+   * se devuelve la ficha anterior en vez de dejar en pantalla algo que no se
+   * guardó.
+   */
+  const updatePatient = useCallback(
+    async (
+      id: string,
+      input: NewPatientInput,
+    ): Promise<{ ok: boolean; patient?: Patient; error?: string }> => {
+      let anterior: Patient | undefined;
+      const siguiente = patientFromInput(id, input);
+      setPatients((list) => {
+        anterior = list.find((p) => p.id === id);
+        return list.map((p) => (p.id === id ? siguiente : p));
+      });
+
+      const { data, error } = await supabase
+        .from("patients")
+        .update(patientRow(input))
+        .eq("id", id)
+        .select("id")
+        .maybeSingle();
+
+      if (error || !data) {
+        console.error("[store] update paciente", error?.message ?? "sin filas");
+        if (anterior) {
+          const previo = anterior;
+          setPatients((list) => list.map((p) => (p.id === id ? previo : p)));
+        }
+        showToast("No se pudieron guardar los cambios del paciente.", "warning");
+        return {
+          ok: false,
+          // Sin fila devuelta el update no alcanzó nada: o la RLS lo bloqueó, o
+          // la ficha ya no existe. Las dos se le dicen igual al médico.
+          error: error?.message ?? "No tienes permiso para editar esta ficha.",
+        };
+      }
+      return { ok: true, patient: siguiente };
     },
     [supabase, showToast],
   );
@@ -1189,6 +1264,7 @@ export function MiracleProvider({
       getMedicoIdentity,
       addPatient,
       addPatientAsync,
+      updatePatient,
       approveNote,
       approveNoteAsync,
       markExportedManually,
@@ -1227,6 +1303,7 @@ export function MiracleProvider({
       getMedicoIdentity,
       addPatient,
       addPatientAsync,
+      updatePatient,
       approveNote,
       approveNoteAsync,
       markExportedManually,

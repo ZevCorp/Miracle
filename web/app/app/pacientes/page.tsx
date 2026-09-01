@@ -1,9 +1,8 @@
-import Link from "next/link";
 import { PatientsWorkspace, type PatientRow } from "./PatientsWorkspace";
-import { ChevronRight, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { Avatar } from "@/components/ui/Avatar";
 import { EmptyState } from "@/components/app/EmptyState";
+import { NewPatientButton } from "@/components/app/NewPatientButton";
 import { Pager } from "@/components/app/Pager";
 import { QueryErrorBanner } from "@/components/app/QueryErrorBanner";
 import { PacientesSearch } from "./PacientesSearch";
@@ -16,9 +15,9 @@ const PAGE_SIZE = 20;
 export default async function PacientesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; nuevo?: string }>;
 }) {
-  const { q, page } = await searchParams;
+  const { q, page, nuevo } = await searchParams;
   const term = (q ?? "").trim();
   const pageNum = Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
   const from = (pageNum - 1) * PAGE_SIZE;
@@ -60,6 +59,9 @@ export default async function PacientesPage({
             ? "No se pudieron cargar los pacientes"
             : `${total} ${total === 1 ? "paciente registrado" : "pacientes registrados"}`
         }
+        action={
+          <NewPatientButton className="w-full sm:w-auto" autoOpen={nuevo === "1"} />
+        }
       />
 
       <PacientesSearch initialQuery={term} />
@@ -81,13 +83,26 @@ export default async function PacientesPage({
           un borde vacío alrededor de otro borde. */}
       {patients.length === 0 && !queryError ? (
         <div className="mt-5">
+          {/* El vacío no es un cartel: es el sitio donde se registra al primer
+              paciente. Si se venía buscando, el nombre buscado entra ya escrito
+              en el formulario. */}
           <EmptyState
             icon={<Users size={22} />}
             title={term ? "Sin coincidencias" : "Aún no hay pacientes"}
             description={
               term
-                ? "Prueba con otro nombre u otro número de documento."
-                : "Cuando asocies pacientes a tus consultas, aparecerán aquí."
+                ? "Prueba con otro nombre u otro número de documento, o regístralo ahora."
+                : "Registra a quien atiendes y su historia quedará junta: consultas, notas y antecedentes."
+            }
+            action={
+              <NewPatientButton
+                label={
+                  term
+                    ? `Crear «${term.length > 28 ? `${term.slice(0, 28)}…` : term}»`
+                    : "Registrar el primer paciente"
+                }
+                initialNombre={term || undefined}
+              />
             }
           />
         </div>

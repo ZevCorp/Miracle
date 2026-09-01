@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, ChevronRight, Mic } from "lucide-react";
+import { ArrowUpRight, ChevronRight, Mic, Pencil } from "lucide-react";
 import { useStore } from "@/app/app/providers";
+import { PatientFormDialog } from "@/components/app/PatientFormDialog";
 import { usePeek } from "@/components/app/PeekProvider";
 import { StatusBadge, STATUS_BAR } from "@/components/app/StatusBadge";
 import { Avatar } from "@/components/ui/Avatar";
@@ -30,6 +31,7 @@ export function PatientDossier({
 }) {
   const { consultations } = useStore();
   const { openPeek } = usePeek();
+  const [editando, setEditando] = useState(false);
 
   const historia = useMemo(
     () =>
@@ -141,6 +143,18 @@ export function PatientDossier({
           <Mic size={16} /> Iniciar consulta
         </Link>
         <span className="min-w-2 flex-1" />
+        {/* Solo icono: la fila vive también dentro del panel lateral, donde tres
+            botones con texto no caben. */}
+        <HoverHint label="Editar ficha">
+          <button
+            type="button"
+            onClick={() => setEditando(true)}
+            aria-label="Editar ficha del paciente"
+            className="clinical-tertiary min-h-11 px-3"
+          >
+            <Pencil size={15} />
+          </button>
+        </HoverHint>
         <Link
           href={`/app/pacientes/${patient.id}`}
           onClick={onBeforeNavigate}
@@ -149,6 +163,14 @@ export function PatientDossier({
           Abrir ficha <ArrowUpRight size={15} />
         </Link>
       </div>
+
+      {editando ? (
+        <PatientFormDialog
+          patient={patient}
+          onClose={() => setEditando(false)}
+          onSaved={() => setEditando(false)}
+        />
+      ) : null}
     </div>
   );
 }

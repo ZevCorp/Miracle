@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Loader2, Mic, Phone } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Loader2, Mic, Pencil, Phone } from "lucide-react";
 import { useStore } from "@/app/app/providers";
+import { PatientFormDialog } from "@/components/app/PatientFormDialog";
 import { formatFechaRelativa } from "@/lib/dates";
 import { Avatar } from "@/components/ui/Avatar";
 import { StatusBadge } from "@/components/app/StatusBadge";
@@ -15,6 +17,7 @@ export default function PacienteDetallePage() {
   const id = String(params.id);
   const { consultations, getPatient, loading, role } = useStore();
   const patient = getPatient(id);
+  const [editando, setEditando] = useState(false);
 
   if (!patient) {
     // Mientras el store carga, aún no se sabe si el paciente existe.
@@ -65,11 +68,12 @@ export default function PacienteDetallePage() {
               <h1 className="truncate font-display text-2xl font-[650] tracking-[-0.03em] text-deep">
                 {patient.nombre}
               </h1>
+              {/* Sin edad registrada NO se escribe "0 años": un dato que no se
+                  tomó no es un dato con valor cero. */}
               <p className="data mt-1 text-[13px] text-muted">
                 {patient.documento}
                 <span className="font-sans">
-                  {" "}
-                  · {patient.edad} años
+                  {patient.edad > 0 ? ` · ${patient.edad} años` : ""}
                   {patient.sexo
                     ? ` · ${patient.sexo === "F" ? "Femenino" : "Masculino"}`
                     : ""}
@@ -88,14 +92,23 @@ export default function PacienteDetallePage() {
             </div>
           </div>
 
-          {role === "medico" ? (
-            <Link
-              href={`/app/consultas/nueva?paciente=${encodeURIComponent(patient.id)}`}
-              className="clinical-primary min-h-11 shrink-0 px-5"
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEditando(true)}
+              className="clinical-secondary min-h-11 px-4"
             >
-              <Mic size={16} /> Iniciar consulta
-            </Link>
-          ) : null}
+              <Pencil size={15} /> Editar
+            </button>
+            {role === "medico" ? (
+              <Link
+                href={`/app/consultas/nueva?paciente=${encodeURIComponent(patient.id)}`}
+                className="clinical-primary min-h-11 px-5"
+              >
+                <Mic size={16} /> Iniciar consulta
+              </Link>
+            ) : null}
+          </div>
         </div>
 
         {/* Las alergias no son un campo más: son lo primero que un médico
@@ -120,7 +133,20 @@ export default function PacienteDetallePage() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.4fr]">
         <div>
-          <SectionRule title="Historia clínica" />
+          {/* La acción va en el encabezado del bloque: es donde se mira cuando
+              se descubre que las alergias están vacías. */}
+          <SectionRule
+            title="Historia clínica"
+            action={
+              <button
+                type="button"
+                onClick={() => setEditando(true)}
+                className="shrink-0 text-[12px] font-semibold text-accent hover:underline"
+              >
+                Editar
+              </button>
+            }
+          />
           <dl className="clinical-panel space-y-4 p-5 text-sm">
             <Field label="Antecedentes" values={patient.antecedentes} />
             <Field
@@ -166,6 +192,14 @@ export default function PacienteDetallePage() {
           )}
         </div>
       </div>
+
+      {editando ? (
+        <PatientFormDialog
+          patient={patient}
+          onClose={() => setEditando(false)}
+          onSaved={() => setEditando(false)}
+        />
+      ) : null}
     </AppPage>
   );
 }

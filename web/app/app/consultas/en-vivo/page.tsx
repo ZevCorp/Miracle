@@ -23,7 +23,6 @@ import {
   Loader2,
   RefreshCw,
   Save,
-  Search,
   Send,
   ShieldCheck,
   Sparkles,
@@ -41,6 +40,7 @@ import { AgentPairPanel } from "@/components/app/AgentPairPanel";
 import { EncounterAuditPanel } from "@/components/app/EncounterAuditPanel";
 import { PlanDischargePanel } from "@/components/app/PlanDischargePanel";
 import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker";
+import { PatientFormDialog } from "@/components/app/PatientFormDialog";
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
 import { useEncounterUsage } from "@/lib/clinical/encounter-usage";
 import type { DictationUsageSnapshot } from "@/lib/stt/useDictation";
@@ -50,6 +50,7 @@ import {
 } from "@/lib/clinical/voice-instruction";
 import { SectionDraftsPanel } from "@/components/app/SectionDraftsPanel";
 import { AlertBanner } from "@/components/ui/AlertBanner";
+import { SearchField } from "@/components/ui/SearchField";
 import { CaptureMode } from "@/components/app/CaptureMode";
 import {
   ConsultationSpine,
@@ -140,7 +141,6 @@ function ConsultaActivaInner() {
   const [autoStartOnArrival] = useState(() => sp.get("record") === "1");
   const {
     patients,
-    addPatientAsync,
     getPatient,
     getConsultation,
     upsertConsultation,
@@ -511,14 +511,6 @@ function ConsultaActivaInner() {
     } catch (error) {
       setFlowError(friendlyClinicalMessage(error));
     }
-  }
-
-  async function createAndAssociatePatient(input: { nombre: string; documento?: string; edad?: number; sexo?: "F" | "M" }) {
-    // Se espera la confirmación del insert: asociar un paciente cuyo registro
-    // falló dejaría el encounter apuntando a un id inexistente.
-    const { ok, patient: created } = await addPatientAsync(input);
-    if (!ok) return;
-    await associatePatient(created.id);
   }
 
   async function completeLinkedAppointment() {
@@ -1749,7 +1741,6 @@ function ConsultaActivaInner() {
           selectedPatientId={associatedPatientId}
           onClose={() => setPatientAssociationOpen(false)}
           onSelect={associatePatient}
-          onCreate={createAndAssociatePatient}
         />
       ) : null}
 
@@ -1772,25 +1763,29 @@ function ConsultaActivaInner() {
   );
 }
 
+/**
+ * Asociar un paciente a la consulta en curso.
+ *
+ * Buscar y elegir vive aquí; CREAR ya no. El formulario de alta que llevaba
+ * dentro —cuatro campos, sin validación ni aviso de duplicados— era además el
+ * único sitio de toda la app donde se podía registrar a alguien. Ahora abre el
+ * formulario compartido (PatientFormDialog), el mismo del directorio: un solo
+ * juego de campos, una sola forma del documento y un solo aviso cuando esa
+ * persona ya estaba registrada.
+ */
 function PatientAssociationDialog({
   patients,
   selectedPatientId,
   onClose,
   onSelect,
-  onCreate,
 }: {
   patients: Patient[];
   selectedPatientId: string | null;
   onClose: () => void;
   onSelect: (patientId: string | null) => Promise<void>;
-  onCreate: (input: { nombre: string; documento?: string; edad?: number; sexo?: "F" | "M" }) => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [document, setDocument] = useState("");
-  const [age, setAge] = useState("");
-  const [sex, setSex] = useState<"F" | "M" | "">("");
   const [saving, setSaving] = useState(false);
 
   const matches = useMemo(() => {
@@ -1807,19 +1802,6 @@ function PatientAssociationDialog({
     setSaving(false);
   }
 
-  async function createPatient() {
-    const parsedAge = Number.parseInt(age, 10);
-    if (!name.trim()) return;
-    setSaving(true);
-    await onCreate({
-      nombre: name.trim(),
-      documento: document.trim() || undefined,
-      edad: Number.isFinite(parsedAge) ? parsedAge : undefined,
-      sexo: sex || undefined,
-    });
-    setSaving(false);
-  }
-
   return (
     <div className="fixed inset-0 z-60 flex items-end justify-center bg-overlay p-0 backdrop-blur-[1px] sm:items-center sm:p-4">
       <button type="button" tabIndex={-1} aria-label="Cerrar asociación de paciente" onClick={onClose} className="absolute inset-0 cursor-default" />
@@ -1829,15 +1811,31 @@ function PatientAssociationDialog({
           <button type="button" onClick={onClose} aria-label="Cerrar" className="rounded-md p-1 text-muted hover:bg-ice-soft hover:text-deep"><X size={18} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-          <div className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 focus-within:border-accent"><Search size={16} className="text-muted" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre o documento" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted" /></div>
+          <SearchField value={query} onChange={setQuery} placeholder="Buscar por nombre o documento" ariaLabel="Buscar paciente" />
           <ul className="mt-3 overflow-hidden rounded-xl border border-line">
             {matches.length ? matches.map((patient) => <li key={patient.id} className="border-b border-line last:border-b-0"><button type="button" disabled={saving} onClick={() => void selectPatient(patient.id)} className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left hover:bg-ice-soft disabled:opacity-60"><span><span className="block text-sm font-semibold text-deep">{patient.nombre}</span><span className="block text-xs text-muted">{patient.documento || "Datos por completar"}</span></span>{patient.id === selectedPatientId ? <CheckCircle2 size={17} className="text-success" /> : null}</button></li>) : <li className="px-3.5 py-3 text-sm text-muted">No hay pacientes coincidentes.</li>}
           </ul>
-          <button type="button" onClick={() => setCreating((value) => !value)} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline"><UserPlus size={16} /> {creating ? "Ocultar creación" : "Crear paciente ahora"}</button>
-          {creating ? <div className="mt-3 grid gap-3 rounded-xl border border-dashed border-accent/35 bg-ice-soft p-4 sm:grid-cols-2"><label className="text-sm font-medium text-deep sm:col-span-2">Nombre completo<input value={name} onChange={(event) => setName(event.target.value)} className="mt-1.5 w-full rounded-lg border border-line bg-field px-3 py-2 text-sm outline-none focus:border-accent" /></label><label className="text-sm font-medium text-deep">Documento<input value={document} onChange={(event) => setDocument(event.target.value)} className="mt-1.5 w-full rounded-lg border border-line bg-field px-3 py-2 text-sm outline-none focus:border-accent" /></label><label className="text-sm font-medium text-deep">Edad<input value={age} onChange={(event) => setAge(event.target.value)} inputMode="numeric" className="mt-1.5 w-full rounded-lg border border-line bg-field px-3 py-2 text-sm outline-none focus:border-accent" /></label><label className="text-sm font-medium text-deep">Sexo<select value={sex} onChange={(event) => setSex(event.target.value as "F" | "M" | "")} className="mt-1.5 w-full rounded-lg border border-line bg-field px-3 py-2 text-sm outline-none focus:border-accent"><option value="">Sin registrar</option><option value="F">Femenino</option><option value="M">Masculino</option></select></label><div className="flex items-end justify-end"><button type="button" disabled={!name.trim() || saving} onClick={() => void createPatient()} className="inline-flex items-center gap-2 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60">{saving ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />} Crear y asociar</button></div></div> : null}
+          <button type="button" onClick={() => setCreating(true)} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline"><UserPlus size={16} /> Crear paciente nuevo</button>
         </div>
         <div className="flex justify-between gap-3 border-t border-line px-5 py-3"><button type="button" disabled={saving} onClick={() => void selectPatient(null)} className="text-sm font-semibold text-muted hover:text-deep">Continuar sin paciente</button><button type="button" onClick={onClose} className="rounded-lg border border-line px-3.5 py-2 text-sm font-semibold text-deep hover:border-mist">Cancelar</button></div>
       </section>
+
+      {/* El alta va por encima de la asociación: al guardar, el paciente queda
+          colgado del encounter sin volver a buscarlo. */}
+      {creating ? (
+        <PatientFormDialog
+          initialNombre={query.trim()}
+          onClose={() => setCreating(false)}
+          onSaved={(creado) => {
+            setCreating(false);
+            void selectPatient(creado.id);
+          }}
+          onUseExisting={(existente) => {
+            setCreating(false);
+            void selectPatient(existente.id);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
