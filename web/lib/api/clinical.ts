@@ -892,12 +892,20 @@ export async function sendAssistantChat(
   });
 }
 
+export type NoteAdjustmentKind = "rewrite" | "dictation";
+
 export interface NoteAdjustmentPayload {
   encounter_id: string;
   /** Instrucción libre del médico (máx. 2000). Requiere nota ya generada. */
   instruction: string;
-  /** Limita el ajuste a una sección concreta. */
+  /** Limita el ajuste a una sección concreta. Obligatorio en `dictation`. */
   section_key?: string;
+  /**
+   * `rewrite` (default): reorganiza la sección sin datos clínicos nuevos.
+   * `dictation`: el médico es la fuente; lo que va en `instruction` se integra
+   * tal cual en `section_key`, con evidencia `[dictado del médico]`.
+   */
+  instruction_kind?: NoteAdjustmentKind;
   /**
    * Mismas preferencias que el chat. Aquí importan por el campo `explanation`
    * de la respuesta, que es el texto que el médico lee al ajustar una sección
@@ -910,6 +918,8 @@ export interface NoteAdjustmentResult {
   /** Nota propuesta. NO se persiste sola: guardar con saveEditedClinicalNote. */
   proposed_note_json: ClinicalNoteJson;
   changed_sections: string[];
+  /** Modo con el que el backend aplicó la instrucción. */
+  instruction_kind?: NoteAdjustmentKind;
   explanation: string;
   requires_physician_review: boolean;
 }

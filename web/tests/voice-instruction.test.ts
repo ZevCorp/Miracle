@@ -41,17 +41,49 @@ describe("instrucción · el médico pide un cambio", () => {
     expect(parseVoiceInstruction(dictado)).toEqual({ modo: "ajuste", instruccion: dictado });
   });
 
-  it("«agrega que el paciente niega fiebre» sigue siendo instrucción", () => {
+  it("«agrega que el paciente niega fiebre» no es literal", () => {
     /* Después de "que" viene "el", no un verbo de decir. Si esto cayera en
        literal, la sección terminaría diciendo "el paciente niega fiebre"
        colgando de la nada en vez de redactado. */
     const r = parseVoiceInstruction("agrega que el paciente niega fiebre");
-    expect(r?.modo).toBe("ajuste");
+    expect(r?.modo).not.toBe("literal");
   });
 
   it("un anuncio sin texto detrás no borra la sección", () => {
     // "quiero que diga" y nada más: frase a medias, no dictado vacío.
     expect(parseVoiceInstruction("quiero que diga")?.modo).toBe("ajuste");
+  });
+});
+
+describe("dictado de un dato · el médico aporta información", () => {
+  it.each([
+    ["agrega que el paciente niega fiebre", "el paciente niega fiebre"],
+    ["anota que trae exámenes de laboratorio", "trae exámenes de laboratorio"],
+    ["añade que vuelve a control en ocho días", "vuelve a control en ocho días"],
+    ["incluye que no tiene alergias conocidas", "no tiene alergias conocidas"],
+    ["registra que la presión fue 120/80", "la presión fue 120/80"],
+  ])("%j → dictado", (dictado, esperado) => {
+    expect(parseVoiceInstruction(dictado)).toEqual({ modo: "dictado", texto: esperado });
+  });
+
+  it("los anuncios de texto ganan al dictado", () => {
+    // "agrega que diga" es literal, no dictado: el médico está dictando el texto.
+    expect(parseVoiceInstruction("agrega que diga: control en un mes")).toEqual({
+      modo: "literal",
+      texto: "control en un mes",
+    });
+    expect(parseVoiceInstruction("anota que quede así: sin cambios")).toEqual({
+      modo: "literal",
+      texto: "sin cambios",
+    });
+  });
+
+  it("«agrega que» sin dato detrás es una instrucción a medias", () => {
+    expect(parseVoiceInstruction("agrega que")?.modo).toBe("ajuste");
+  });
+
+  it("un verbo de cambio con «que» no es dictado", () => {
+    expect(parseVoiceInstruction("resume que el plan quede corto")?.modo).toBe("ajuste");
   });
 });
 

@@ -914,16 +914,19 @@ function ConsultaActivaInner() {
   }
 
   /**
-   * El micrófono de una sección. Dos caminos, y los elige el médico al hablar.
+   * El micrófono de una sección. Tres caminos, y los elige el médico al hablar.
    *
    * LITERAL ("quiero que diga esto: …"): lo escribe él, no el modelo. Se aplica
-   * aquí mismo, sin llamada ni espera. Es lo que hace posible AGREGAR un dato
-   * que no se dijo en voz alta: el prompt de ajuste tiene prohibido inventar
-   * datos clínicos nuevos, y ante "agrega que el paciente niega fiebre"
-   * devolvía la sección intacta. Por esta vía no hay nada que inventar.
+   * aquí mismo, sin llamada ni espera, tal cual.
    *
-   * AJUSTE ("hazla más corta"): eso sí es trabajo del modelo, que reescribe la
-   * sección respetando lo que ya había.
+   * DICTADO ("agrega que el paciente niega fiebre"): el médico aporta un dato
+   * y quiere que quede redactado. Va al backend en modo `dictation`: el prompt
+   * de ajuste normal tiene prohibido añadir datos clínicos (y ante esta frase
+   * devolvía la sección intacta), pero en dictado el médico es la fuente, así
+   * que el modelo lo integra exactamente y lo marca «[dictado del médico]».
+   *
+   * AJUSTE ("hazla más corta"): trabajo del modelo, que reescribe la sección
+   * respetando lo que ya había, sin datos nuevos.
    */
   async function applyVoiceInstruction(section: VoiceTarget, dictado: string) {
     if (!encounterId || !note || busy) return;
@@ -958,12 +961,20 @@ function ConsultaActivaInner() {
     setAiExplanation(null);
     setVoiceEditingSection(section.label);
     try {
+      // DICTADO ("agrega que el paciente niega fiebre"): el médico aporta el
+      // dato; el backend lo integra exactamente y lo marca con evidencia
+      // «[dictado del médico]». Exige una sección concreta: sin ella (resumen)
+      // se manda como instrucción normal y el modelo decide.
+      const esDictado = intencion.modo === "dictado" && Boolean(section.key);
       const result = await adjustNoteWithAssistant({
         encounter_id: encounterId,
-        instruction: `En la sección "${section.label}", aplica esta instrucción dictada por el médico: "${redactor.redact(intencion.instruccion)}". Modifica únicamente lo necesario para cumplirla y conserva el resto de la nota.`,
+        instruction: esDictado
+          ? redactor.redact(intencion.texto)
+          : `En la sección "${section.label}", aplica esta instrucción dictada por el médico: "${redactor.redact(intencion.modo === "dictado" ? `agrega que ${intencion.texto}` : intencion.instruccion)}". Modifica únicamente lo necesario para cumplirla y conserva el resto de la nota.`,
         // El contrato acepta la sección como campo propio y el prompt la usa
         // para acotar el ajuste. Antes solo viajaba dentro del texto libre.
         section_key: section.key || undefined,
+        instruction_kind: esDictado ? "dictation" : "rewrite",
         doctor: doctorContext,
       });
 
@@ -981,7 +992,10 @@ function ConsultaActivaInner() {
       setNote(result.proposed_note_json);
       setNoteDirty(true);
       setNoteSaved(false);
-      setAiExplanation(result.explanation?.trim() || "Cambio dictado aplicado.");
+      setAiExplanation(
+        result.explanation?.trim() ||
+          (esDictado ? `Se anotó lo dictado en «${section.label}».` : "Cambio dictado aplicado."),
+      );
     } catch (error) {
       setFlowError(friendlyClinicalMessage(error));
     } finally {

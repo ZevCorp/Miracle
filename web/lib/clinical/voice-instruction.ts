@@ -24,13 +24,23 @@
  * el dato, es el médico quien lo escribe. No hay nada que inventar, así que no
  * hay nada que prohibir. Y de paso es instantáneo y no cuesta una llamada.
  *
+ * Y HAY UNA TERCERA COSA, a medio camino: "agrega que el paciente niega
+ * fiebre". No es una instrucción sobre lo que ya había (no hay nada que
+ * reescribir) ni un texto para copiar tal cual ("el paciente niega fiebre"
+ * colgando de la nada queda mal). Es un DICTADO: el médico aporta un dato y
+ * quiere que quede redactado dentro de la sección. Va al modelo en modo
+ * `dictation`, donde el backend lo integra exactamente y lo marca con
+ * evidencia «[dictado del médico]»: el modelo redacta, no inventa.
+ *
  * CÓMO SE ELIGE EL MODO: lo elige el médico al hablar. Si anuncia el texto
- * ("quiero que diga…", "textualmente…", "anota esto…"), es literal. Cualquier
- * otra cosa es una instrucción. La regla es de una frase y se aprende sola.
+ * ("quiero que diga…", "textualmente…", "anota esto…"), es literal. Si aporta
+ * un dato ("agrega que…", "anota que…"), es dictado. Cualquier otra cosa es
+ * una instrucción. La regla se aprende sola.
  */
 
 export type VoiceInstruction =
   | { modo: "literal"; texto: string }
+  | { modo: "dictado"; texto: string }
   | { modo: "ajuste"; instruccion: string };
 
 /**
@@ -54,6 +64,16 @@ const ANUNCIA_ESTO =
 const PATRONES_LITERALES = [ANUNCIA_TEXTO, MARCA_LITERAL, ANUNCIA_ESTO];
 
 /**
+ * "Agrega que el paciente niega fiebre", "anota que trae exámenes".
+ *
+ * Verbo de añadir + "que" + un dato (no un verbo de decir: eso ya lo atrapó
+ * ANUNCIA_TEXTO antes). Se evalúa DESPUÉS de los patrones literales para que
+ * "agrega que diga: X" siga siendo literal.
+ */
+const DICTA_DATO =
+  /^\s*(?:agrega|agregue|a[ñn]ade|a[ñn]ada|anota|anote|pon|ponga|escribe|escriba|incluye|incluya|registra|registre|consigna|consigne)\s+que\s+(?!diga|digas|quede|se\s+lea)(.+)$/i;
+
+/**
  * Lee el dictado y decide qué hacer con él.
  *
  * Devuelve `null` cuando no hay nada utilizable: el micrófono a veces entrega
@@ -71,6 +91,9 @@ export function parseVoiceInstruction(dictado: string | null | undefined): Voice
     // y que el modelo diga que no entendió, en vez de borrar la sección.
     if (texto) return { modo: "literal", texto };
   }
+
+  const dato = DICTA_DATO.exec(limpio)?.[1]?.trim();
+  if (dato) return { modo: "dictado", texto: dato };
 
   return { modo: "ajuste", instruccion: limpio };
 }
