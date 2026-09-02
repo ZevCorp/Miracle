@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyImportFile,
+  dropPhiLikeLabels,
+  looksLikePhiLabel,
   mergeTextSources,
   proposalToDraft,
   sanitizeTemplateProposal,
@@ -307,6 +309,66 @@ describe("sanitizeTemplateProposal", () => {
       sections: ok.sections,
     });
     expect(salida).not.toHaveProperty("description");
+  });
+});
+
+describe("rótulos con datos de paciente", () => {
+  it.each([
+    "Paciente: Juan Pérez",
+    "Nombre del paciente Ana Gómez",
+    "CC 1023456789",
+    "C.C.: 1023456789",
+    "Documento - 79.456.123",
+    "Historia clínica 00045612",
+    "Fecha de nacimiento 12/03/1987",
+    "Ingreso 2024-05-01",
+    "Teléfono: 3001234567",
+  ])("%j parece un dato, no un rótulo", (label) => {
+    expect(looksLikePhiLabel(label)).toBe(true);
+  });
+
+  it.each([
+    "Nombre del paciente",
+    "Documento de identidad",
+    "Fecha de nacimiento",
+    "Motivo de consulta",
+    "Cifras tensionales (últimas 3)",
+    "Plan de manejo",
+    "Escala de dolor 0-10",
+    "Historia clínica",
+    "Cédula de ciudadanía",
+    "Nombre completo",
+    "",
+  ])("%j es un rótulo legítimo", (label) => {
+    expect(looksLikePhiLabel(label)).toBe(false);
+  });
+
+  it("dropPhiLikeLabels quita esas secciones y avisa sin repetir el contenido", () => {
+    const { proposal, warnings } = dropPhiLikeLabels({
+      name: "Control",
+      sections: [
+        { label: "Paciente: Juan Pérez" },
+        { label: "Motivo de consulta" },
+        { label: "CC 1023456789" },
+        { label: "Plan" },
+      ],
+    });
+    expect((proposal as { sections: { label: string }[] }).sections.map((s) => s.label)).toEqual([
+      "Motivo de consulta",
+      "Plan",
+    ]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/2 rótulos/);
+    expect(warnings[0]).not.toMatch(/Juan|1023456789/);
+    // Lo filtrado sigue pasando por el saneador normal.
+    expect(sanitizeTemplateProposal(proposal)?.sections).toHaveLength(2);
+  });
+
+  it("dropPhiLikeLabels deja pasar lo que no es una propuesta y no avisa sin motivo", () => {
+    expect(dropPhiLikeLabels(null)).toEqual({ proposal: null, warnings: [] });
+    expect(dropPhiLikeLabels({ sections: "x" })).toEqual({ proposal: { sections: "x" }, warnings: [] });
+    const limpio = dropPhiLikeLabels({ sections: [{ label: "Motivo" }, { label: "Plan" }] });
+    expect(limpio.warnings).toEqual([]);
   });
 });
 

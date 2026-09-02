@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { reportError } from "@/lib/observability";
 import { normalizeHora, type ParsedCita } from "@/lib/agenda";
 import { rateLimit, requireEntitledApiUser } from "@/lib/api/guard";
-import { anthropicUsage, reportAiUsage } from "@/lib/ai-usage";
+import {
+  anthropicApiKey,
+  callAnthropicJson,
+  DATA_NOT_INSTRUCTIONS,
+  failureStatus,
+} from "@/lib/ai/anthropic";
 
 export const runtime = "nodejs";
 // La visión sobre una agenda densa puede tardar: sin esto la función se corta
@@ -24,7 +28,9 @@ Reglas:
 - "paciente": el nombre tal como aparece. Omite filas sin paciente (descansos, bloqueos, "DISPONIBLE", totales).
 - "motivo": motivo, servicio o procedimiento si aparece; si no, null. No lo inventes.
 - "documento": número de documento o identificación si aparece; si no, null.
-- Ordena por hora ascendente. Si la imagen no contiene un horario de citas, devuelve {"citas": []}.`;
+- Ordena por hora ascendente. Si la imagen no contiene un horario de citas, devuelve {"citas": []}.
+
+${DATA_NOT_INSTRUCTIONS}`;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function sanitizeCitas(value: unknown): ParsedCita[] {
@@ -53,13 +59,6 @@ function sanitizeCitas(value: unknown): ParsedCita[] {
   return out.sort((a, b) => a.hora.localeCompare(b.hora));
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
-
-function extractJsonObject(raw: string): string | null {
-  const clean = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  const start = clean.indexOf("{");
-  const end = clean.lastIndexOf("}");
-  return start >= 0 && end > start ? clean.slice(start, end + 1) : null;
-}
 
 export async function POST(req: Request) {
   // Sesión + derecho comercial: cada llamada a visión cuesta dinero.
@@ -98,114 +97,31 @@ export async function POST(req: Request) {
     );
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
   // Sin clave: el cliente ofrece el alta manual como alternativa.
-  if (!apiKey) return NextResponse.json({ connected: false });
+  if (!anthropicApiKey()) return NextResponse.json({ connected: false });
 
-  // Única llamada del portal a un modelo que NO pasa por Graph: se mide aquí
-  // o no se mide en ningún lado.
-  const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
-  const startedAt = Date.now();
-
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
+  // Llamada del portal a un modelo que NO pasa por Graph: el helper la mide.
+  const result = await callAnthropicJson({
+    system: SYSTEM,
+    content: [
+      {
+        type: "image",
+        source: { type: "base64", media_type: mediaType, data: b64 },
       },
-      body: JSON.stringify({
-        model,
-        max_tokens: 3000,
-        system: SYSTEM,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: { type: "base64", media_type: mediaType, data: b64 },
-              },
-              { type: "text", text: "Extrae las citas de este horario." },
-            ],
-          },
-        ],
-      }),
-      // Corta la llamada dentro del presupuesto de maxDuration en vez de dejar
-      // que la mate la plataforma con un 504 en HTML.
-      signal: AbortSignal.timeout(60_000),
-    });
-
-    if (!res.ok) {
-      // Un error del proveedor puede haber consumido tokens igual (p. ej. si
-      // falló después de procesar la imagen). Se registra sin cifras, que es
-      // exactamente lo que sabemos, en vez de omitirlo.
-      void reportAiUsage({
-        userId,
-        feature: "schedule_parsing",
-        provider: "anthropic",
-        requestedModel: model,
-        inputTokens: 0,
-        outputTokens: 0,
-        status: "error",
-        errorCode: `http_${res.status}`,
-        latencyMs: Date.now() - startedAt,
-      });
-      reportError(new Error("anthropic parse-schedule error"), {
-        route: "parse-schedule",
-        status: res.status,
-      });
-      return NextResponse.json({ connected: true, error: "anthropic" }, { status: 502 });
-    }
-
-    const data = (await res.json()) as {
-      id?: string;
-      model?: string;
-      content?: { type: string; text?: string }[];
-      usage?: {
-        input_tokens?: number;
-        output_tokens?: number;
-        cache_read_input_tokens?: number;
-        cache_creation_input_tokens?: number;
-      };
-    };
-
-    // Se reporta el consumo aunque el parseo de abajo falle: los tokens ya se
-    // gastaron. Nunca se envía el texto extraído (lleva nombres de pacientes).
-    void reportAiUsage({
-      userId,
-      feature: "schedule_parsing",
-      provider: "anthropic",
-      requestedModel: model,
-      servedModel: data.model ?? model,
-      status: "ok",
-      latencyMs: Date.now() - startedAt,
-      providerRequestId: data.id ?? "",
-      ...anthropicUsage(data.usage),
-    });
-    const raw = data.content
-      ?.filter((b) => b.type === "text")
-      .map((b) => b.text ?? "")
-      .join("") ?? "";
-    const json = extractJsonObject(raw);
-
-    let parsed: unknown;
-    try {
-      if (!json) throw new Error("JSON object missing");
-      parsed = JSON.parse(json);
-    } catch {
-      // No se registra `raw` (puede contener nombres de pacientes).
-      reportError(new Error("parse-schedule JSON parse failed"), {
-        route: "parse-schedule",
-        stage: "parse",
-      });
-      return NextResponse.json({ connected: true, error: "parse" }, { status: 502 });
-    }
-
-    return NextResponse.json({ connected: true, citas: sanitizeCitas(parsed) });
-  } catch (e) {
-    reportError(e, { route: "parse-schedule" });
-    return NextResponse.json({ connected: true, error: "network" }, { status: 500 });
+      { type: "text", text: "Extrae las citas de este horario." },
+    ],
+    maxTokens: 3000,
+    timeoutMs: 60_000,
+    feature: "schedule_parsing",
+    userId,
+    route: "parse-schedule",
+  });
+  if (!result.ok) {
+    return NextResponse.json(
+      { connected: true, error: result.reason },
+      { status: failureStatus(result) },
+    );
   }
+
+  return NextResponse.json({ connected: true, citas: sanitizeCitas(result.parsed) });
 }

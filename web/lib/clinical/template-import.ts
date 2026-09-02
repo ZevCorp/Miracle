@@ -157,6 +157,81 @@ export function mergeTextSources(
   return partes.join("\n\n");
 }
 
+/**
+ * Rótulos que en realidad traen escrito el dato del paciente.
+ *
+ * El prompt ya pide ignorar lo diligenciado, pero un prompt es una petición y
+ * esto es una plantilla que se guarda y se reutiliza: si "Paciente: Juan
+ * Pérez" entra como rótulo, el nombre queda en cada nota futura. Se detecta lo
+ * detectable sin modelo —números largos, fechas y «etiqueta de identidad +
+ * valor»— y se omite entero; el resto lo revisa el médico en el constructor.
+ */
+const PHI_LIKE_VALUE_PATTERNS: readonly RegExp[] = [
+  // Seis o más dígitos seguidos: documentos, historias clínicas, teléfonos.
+  /\d{6,}/,
+  // Fechas completas: 12/03/1987, 1987-03-12, 12.03.87.
+  /\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b/,
+  /\b\d{4}-\d{2}-\d{2}\b/,
+];
+
+/**
+ * Etiqueta de identidad al inicio del rótulo. Lo que venga detrás decide: un
+ * separador explícito, un dígito o un «Nombre Apellido» delatan un valor;
+ * «Documento de identidad» o «Nombre del paciente» a secas son rótulos.
+ */
+const IDENTITY_LABEL =
+  /^(?:paciente|nombre(?:\s+(?:del|de\s+la|de)\s+paciente)?|nombre\s+completo|documento(?:\s+de\s+identidad)?|c\.?c\.?|c[eé]dula(?:\s+de\s+ciudadan[ií]a)?|identificaci[oó]n|historia\s+cl[ií]nica|hc|tel[eé]fono|celular)\b(.*)$/i;
+
+const NAME_LIKE = /^(?:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)+$/;
+
+function identityLabelWithValue(clean: string): boolean {
+  const match = IDENTITY_LABEL.exec(clean);
+  const rest = match?.[1]?.trim() ?? "";
+  if (!match || !rest) return false;
+  if (/^[:\-–—]\s*\S/.test(rest)) return true;
+  if (/\d/.test(rest)) return true;
+  return NAME_LIKE.test(rest);
+}
+
+export function looksLikePhiLabel(label: string): boolean {
+  const clean = label.replace(/\s+/g, " ").trim();
+  if (!clean) return false;
+  if (PHI_LIKE_VALUE_PATTERNS.some((pattern) => pattern.test(clean))) return true;
+  return identityLabelWithValue(clean);
+}
+
+/**
+ * Quita de una propuesta cruda del modelo las secciones cuyo rótulo parece
+ * traer datos de un paciente. Devuelve la propuesta filtrada y un aviso
+ * agregado (nunca el contenido omitido) para mostrárselo al médico.
+ */
+export function dropPhiLikeLabels(value: unknown): {
+  proposal: unknown;
+  warnings: string[];
+} {
+  if (!value || typeof value !== "object") return { proposal: value, warnings: [] };
+  const raw = value as Record<string, unknown>;
+  if (!Array.isArray(raw.sections)) return { proposal: value, warnings: [] };
+  let dropped = 0;
+  const sections = raw.sections.filter((entry) => {
+    const label = (entry as { label?: unknown } | null)?.label;
+    if (typeof label === "string" && looksLikePhiLabel(label)) {
+      dropped += 1;
+      return false;
+    }
+    return true;
+  });
+  const warnings =
+    dropped > 0
+      ? [
+          dropped === 1
+            ? "Se omitió 1 rótulo que parecía contener datos de un paciente (nombre, documento o fecha). Revisa la plantilla antes de guardarla."
+            : `Se omitieron ${dropped} rótulos que parecían contener datos de un paciente (nombres, documentos o fechas). Revisa la plantilla antes de guardarla.`,
+        ]
+      : [];
+  return { proposal: { ...raw, sections }, warnings };
+}
+
 function cleanLine(value: unknown, max: number): string {
   if (typeof value !== "string") return "";
   return value.replace(/\s+/g, " ").trim().slice(0, max);
