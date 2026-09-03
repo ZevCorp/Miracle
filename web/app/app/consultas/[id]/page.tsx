@@ -85,6 +85,7 @@ export default function ConsultaDetallePage() {
     addAddendum,
     showToast,
     loading,
+    ensureConsultation,
     ensureTranscript,
     transcriptFailed,
     role,
@@ -100,6 +101,32 @@ export default function ConsultaDetallePage() {
 
   const c = getConsultation(id);
   const signed = !!c && (c.estado === "aprobada" || c.estado === "exportada");
+
+  // Rescate: el store es una foto tomada al abrir la app y con tope de 300
+  // consultas. La que el médico acaba de terminar nace DESPUÉS de esa foto —y
+  // la escribe el backend, no el navegador—, así que abrir su detalle sin
+  // recargar la página entera mostraba "Consulta no encontrada" sobre una nota
+  // que sí existe. Aquí se pide por id antes de afirmar nada.
+  // Se guarda junto al id que lo produjo: al pasar de una consulta a otra el
+  // desenlace anterior no puede darse por bueno para la nueva.
+  const [rescate, setRescate] = useState<{
+    id: string;
+    estado: "missing" | "error";
+  } | null>(null);
+  const [reintento, setReintento] = useState(0);
+  const rescateFallido = rescate?.id === id ? rescate.estado : null;
+  useEffect(() => {
+    if (c || loading) return;
+    let vigente = true;
+    void ensureConsultation(id).then((estado) => {
+      // "ok" no se guarda: la consulta ya entró al store y `c` deja de ser
+      // undefined en el siguiente render.
+      if (vigente && estado !== "ok") setRescate({ id, estado });
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [c, loading, id, reintento, ensureConsultation]);
 
   // Las adendas viven en su propia tabla y se cargan solo cuando la nota está
   // firmada (antes de la firma no existen por diseño).
@@ -139,12 +166,33 @@ export default function ConsultaDetallePage() {
   }, [serverEstado, id, applyServerConsultationEstado]);
 
   if (!c) {
-    // Mientras el store carga, aún no se sabe si la consulta existe.
-    if (loading) {
+    // Mientras el store carga —o mientras se pide la consulta suelta— aún no
+    // se sabe si existe.
+    if (loading || !rescateFallido) {
       return (
         <div className="flex min-h-[50vh] items-center justify-center">
           <Loader2 size={28} className="animate-spin text-accent" />
         </div>
+      );
+    }
+    // No se pudo preguntar ≠ no existe. Decirle "eliminada" a un médico por un
+    // fallo de red es afirmar algo falso sobre una historia clínica.
+    if (rescateFallido === "error") {
+      return (
+        <EmptyState
+          title="No se pudo abrir la consulta"
+          description="No hubo respuesta del servidor. La nota sigue guardada; revisa tu conexión y vuelve a intentarlo."
+          action={
+            <Button
+              onClick={() => {
+                setRescate(null);
+                setReintento((n) => n + 1);
+              }}
+            >
+              Reintentar
+            </Button>
+          }
+        />
       );
     }
     return (

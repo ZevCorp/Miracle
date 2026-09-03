@@ -132,6 +132,12 @@ interface StoreValue {
    * encarga de recordarla. Sin auditoría: el panel rápido no la muestra.
    */
   fetchConsultation: (id: string) => Promise<Consultation | undefined>;
+  /**
+   * Como fetchConsultation, pero SÍ la mete al store: la usa el detalle, que
+   * además de leerla la firma y la edita. "missing" (no existe o la RLS no la
+   * deja ver) y "error" (no se pudo preguntar) se distinguen a propósito.
+   */
+  ensureConsultation: (id: string) => Promise<"ok" | "missing" | "error">;
   getPatient: (id: string | null | undefined) => Patient | undefined;
   getMedicoName: (id: string) => string | undefined;
   /** Cédula y registro médico del profesional — para el PDF y "Copiar nota"
@@ -212,6 +218,14 @@ function uuid(): string {
 // Las páginas de lista pesadas migran a paginación en servidor (RSC) aparte.
 const CONSULTATIONS_CAP = 300;
 const PATIENTS_CAP = 500;
+
+// Columnas de una consulta tal como las necesita el store. `transcript` (el
+// campo más pesado) queda fuera a propósito: se trae bajo demanda con
+// ensureTranscript. Una sola lista para los tres caminos que leen consultas
+// —carga inicial, traer una suelta, rescatar una que falta— para que no se
+// desincronicen.
+const CONSULTATION_COLUMNS =
+  "id, patient_id, medico_id, servicio, especialidad, tipo, estado, fecha, duracion_min, plantilla, motivo, note, resumen, codigos, firma, paciente_nombre, paciente_documento";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function rowToPatient(r: any): Patient {
@@ -418,9 +432,7 @@ export function MiracleProvider({
         .limit(PATIENTS_CAP),
       supabase
         .from("consultations")
-        .select(
-          "id, patient_id, medico_id, servicio, especialidad, tipo, estado, fecha, duracion_min, plantilla, motivo, note, resumen, codigos, firma, paciente_nombre, paciente_documento",
-        )
+        .select(CONSULTATION_COLUMNS)
         .order("fecha", { ascending: false })
         .limit(CONSULTATIONS_CAP),
       supabase
@@ -432,6 +444,16 @@ export function MiracleProvider({
       // devuelve una sola fila: la organización del usuario.
       supabase.from("organizations").select(ORG_SETTINGS_COLUMNS).maybeSingle(),
     ]);
+
+    // supabase-js NO lanza: un fallo llega como `error` con `data` en null. Sin
+    // este corte, una consulta que reventó (timeout, RLS, red) se leía como
+    // "no hay nada" y el store se quedaba vacío en silencio — el panel decía
+    // "Estás al día" y el detalle "Consulta no encontrada" sobre notas que
+    // existen. Se lanza para caer en el camino de `loadError`, que sí avisa y
+    // ofrece reintentar. La organización no entra: sus ajustes son cosméticos
+    // y su ausencia no borra historia clínica.
+    const fallo = conRes.error ?? patRes.error ?? profRes.error;
+    if (fallo) throw new Error(fallo.message);
 
     setOrg(rowToOrgSettings((orgRes.data ?? null) as OrgSettingsRow | null));
 
@@ -776,13 +798,69 @@ export function MiracleProvider({
     async (id: string): Promise<Consultation | undefined> => {
       const { data, error } = await supabase
         .from("consultations")
-        .select(
-          "id, patient_id, medico_id, servicio, especialidad, tipo, estado, fecha, duracion_min, plantilla, motivo, note, resumen, codigos, firma, paciente_nombre, paciente_documento",
-        )
+        .select(CONSULTATION_COLUMNS)
         .eq("id", id)
         .maybeSingle();
       if (error || !data) return undefined;
       return rowToConsultation(data, []);
+    },
+    [supabase],
+  );
+
+  /**
+   * Garantiza que UNA consulta esté EN EL STORE, venga o no en la carga
+   * inicial.
+   *
+   * El store es una foto: se toma al montar el armazón y llega hasta
+   * CONSULTATIONS_CAP. La consulta que el médico acaba de terminar nace
+   * después de esa foto —y la mira el backend, no el navegador— así que el
+   * detalle no la encontraba y decía "Consulta no encontrada" sobre una nota
+   * que existe. Lo mismo le pasa a cualquier consulta más vieja que el corte.
+   *
+   * Va al estado global y no a una caché local del que la pida porque el
+   * detalle no solo lee la consulta: la firma, la edita, le agrega códigos y
+   * la exporta, y todas esas operaciones la buscan en `consultationsRef`.
+   *
+   * Devuelve POR QUÉ no está cuando no está: "missing" (la base no la tiene, o
+   * la RLS no deja verla) es distinto de "error" (no se pudo preguntar). Al
+   * médico nunca se le dice "no existe" cuando lo que falló fue la red.
+   */
+  const ensureConsultation = useCallback(
+    async (id: string): Promise<"ok" | "missing" | "error"> => {
+      if (consultationsRef.current.some((c) => c.id === id)) return "ok";
+      const { data, error } = await supabase
+        .from("consultations")
+        .select(CONSULTATION_COLUMNS)
+        .eq("id", id)
+        .maybeSingle();
+      if (error) {
+        console.error("[store] rescate de consulta", error.message);
+        return "error";
+      }
+      if (!data) return "missing";
+      // La auditoría es el timeline del detalle; sin ella la consulta se abre
+      // pero su historia sale vacía. Que falle no invalida el rescate.
+      const { data: audData } = await supabase
+        .from("audit_events")
+        .select("*")
+        .eq("consultation_id", id)
+        .order("fecha", { ascending: true });
+      const auditoria: AuditEvent[] = (audData ?? []).map((a) => ({
+        id: a.id,
+        fecha: a.fecha,
+        actor: a.actor_name ?? "Sistema",
+        accion: a.accion,
+        detalle: a.detalle ?? undefined,
+      }));
+      const rescatada = rowToConsultation(data, auditoria);
+      setConsultations((list) =>
+        list.some((c) => c.id === id)
+          ? list
+          : // Ordenada por fecha, como la deja la carga inicial: una consulta
+            // vieja rescatada no puede colarse al tope de las listas.
+            [...list, rescatada].sort((a, b) => b.fecha.localeCompare(a.fecha)),
+      );
+      return "ok";
     },
     [supabase],
   );
@@ -1259,6 +1337,7 @@ export function MiracleProvider({
       transcriptFailed,
       getConsultation,
       fetchConsultation,
+      ensureConsultation,
       getPatient,
       getMedicoName,
       getMedicoIdentity,
@@ -1298,6 +1377,7 @@ export function MiracleProvider({
       transcriptFailed,
       getConsultation,
       fetchConsultation,
+      ensureConsultation,
       getPatient,
       getMedicoName,
       getMedicoIdentity,

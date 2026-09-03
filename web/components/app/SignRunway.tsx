@@ -92,8 +92,14 @@ function SignRunway({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const { getConsultation, getPatient, role, approveNoteAsync, markReviewed } =
-    useStore();
+  const {
+    getConsultation,
+    ensureConsultation,
+    getPatient,
+    role,
+    approveNoteAsync,
+    markReviewed,
+  } = useStore();
 
   const [indice, setIndice] = useState(0);
   const [desenlaces, setDesenlaces] = useState<Record<string, Desenlace>>({});
@@ -112,6 +118,15 @@ function SignRunway({
 
   const id = ids[indice];
   const c: Consultation | undefined = id ? getConsultation(id) : undefined;
+
+  // Los ids llegan de la lista, que pagina en servidor: los de páginas
+  // profundas (o los de consultas nacidas después de abrir la app) no están en
+  // la foto del store y la pista se quedaba en blanco sobre ellos. Se piden al
+  // entrar a cada nota; si ya está, no cuesta nada.
+  useEffect(() => {
+    if (!id || c) return;
+    void ensureConsultation(id);
+  }, [id, c, ensureConsultation]);
   const identidad = c
     ? resolveConsultationIdentity(getPatient(c.pacienteId), c)
     : { nombre: null, documento: null };

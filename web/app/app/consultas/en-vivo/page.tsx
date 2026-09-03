@@ -143,6 +143,7 @@ function ConsultaActivaInner() {
     patients,
     getPatient,
     getConsultation,
+    ensureConsultation,
     upsertConsultation,
     showToast,
     org,
@@ -317,6 +318,15 @@ function ConsultaActivaInner() {
   // Espejo local ya firmado → la nota es inmutable (el trigger de la BD lo
   // refuerza). La captura no puede pisarla: las correcciones van como adenda.
   const mirrorConsultation = encounterId ? getConsultation(encounterId) : undefined;
+  // El espejo puede existir sin estar en la foto del store: al recargar esta
+  // pantalla con ?encounter=... (o al volver a ella otro día) el store no lo
+  // tiene, y sin `signedMirror` la pantalla ofrecía volver a guardar una nota
+  // ya firmada. Se pide una vez por encounter; los que aún no tienen espejo
+  // devuelven "missing" y no se insiste.
+  useEffect(() => {
+    if (!encounterId || mirrorConsultation) return;
+    void ensureConsultation(encounterId);
+  }, [encounterId, mirrorConsultation, ensureConsultation]);
   const signedMirror =
     !!mirrorConsultation &&
     (mirrorConsultation.estado === "aprobada" ||
