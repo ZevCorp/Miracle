@@ -169,7 +169,16 @@ export function MedicalChat({
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Abrir asistente clínico"
-          className={`glass-panel fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] left-3 z-50 inline-flex min-h-12 items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold text-deep active:scale-[0.98] ${embedded ? "md:hover:bg-ice-soft xl:hidden" : "md:hidden"}`}
+          /* DE QUE LADO CUELGA.
+             El embebido (consulta en vivo) se ve hasta `xl`, y de `md` en
+             adelante el menu lateral ocupa la esquina de abajo a la izquierda:
+             ahi el boton caia ENCIMA del menu, justo mientras se genera la
+             nota. Se va a la derecha, que en esa pantalla esta libre porque el
+             dock de acciones no se pinta alli. De paso deja libre la izquierda
+             para la pastilla de "Volver a la grabacion".
+             El global solo aparece por debajo de `md`, donde no hay menu que
+             estorbar, asi que se queda donde estaba. */
+          className={`glass-panel fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] z-50 inline-flex min-h-12 items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold text-deep active:scale-[0.98] ${embedded ? "right-3 sm:bottom-5 sm:right-5 md:hover:bg-ice-soft xl:hidden" : "left-3 md:hidden"}`}
         >
           <Sparkles size={18} className="text-accent" /> <span className="hidden min-[360px]:inline">Asistente</span>
         </button>
