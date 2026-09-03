@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AlertTriangle, ArrowLeft, Loader2, Mic, Pencil, Phone } from "lucide-react";
@@ -15,17 +15,61 @@ import { AppPage, SectionRule } from "@/components/app/AppPage";
 export default function PacienteDetallePage() {
   const params = useParams();
   const id = String(params.id);
-  const { consultations, getPatient, loading, role } = useStore();
+  const { consultations, getPatient, ensurePatient, loading, role } = useStore();
   const patient = getPatient(id);
   const [editando, setEditando] = useState(false);
 
+  // Mismo rescate que el detalle de consulta, por la misma razón: `patients` es
+  // una foto con tope PATIENTS_CAP, así que un paciente recién registrado —o el
+  // 501 de la lista— daba "Paciente no encontrado" sobre una ficha que existe.
+  // ensurePatient trae además SUS consultas: sin eso la historia de un paciente
+  // atendido hace meses salía vacía, que es una mentira peor que la ficha.
+  const [rescate, setRescate] = useState<{
+    id: string;
+    estado: "missing" | "error";
+  } | null>(null);
+  const [reintento, setReintento] = useState(0);
+  const rescateFallido = rescate?.id === id ? rescate.estado : null;
+  useEffect(() => {
+    if (loading) return;
+    let vigente = true;
+    void ensurePatient(id).then((estado) => {
+      if (vigente && estado !== "ok") setRescate({ id, estado });
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [id, loading, reintento, ensurePatient]);
+
   if (!patient) {
-    // Mientras el store carga, aún no se sabe si el paciente existe.
-    if (loading) {
+    // Mientras el store carga —o mientras se pide la ficha suelta— aún no se
+    // sabe si el paciente existe.
+    if (loading || !rescateFallido) {
       return (
         <div className="flex min-h-[50vh] items-center justify-center">
           <Loader2 size={28} className="animate-spin text-accent" />
         </div>
+      );
+    }
+    // No se pudo preguntar ≠ no existe.
+    if (rescateFallido === "error") {
+      return (
+        <EmptyState
+          title="No se pudo abrir la ficha"
+          description="No hubo respuesta del servidor. Revisa tu conexión y vuelve a intentarlo."
+          action={
+            <button
+              type="button"
+              className="clinical-secondary"
+              onClick={() => {
+                setRescate(null);
+                setReintento((n) => n + 1);
+              }}
+            >
+              Reintentar
+            </button>
+          }
+        />
       );
     }
     return (

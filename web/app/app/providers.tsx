@@ -124,6 +124,12 @@ interface StoreValue {
   ensureTranscript: (id: string) => Promise<void>;
   /** Consultas cuya transcripción falló al leerse (≠ "no tiene transcripción"). */
   transcriptFailed: Record<string, true>;
+  /**
+   * Busca la consulta EN LA FOTO del store. Devolver undefined NO significa
+   * que no exista: la foto se toma al montar el armazón y tiene tope
+   * CONSULTATIONS_CAP. Ninguna pantalla puede concluir "no existe" con esto;
+   * para eso está ensureConsultation.
+   */
   getConsultation: (id: string) => Consultation | undefined;
   /**
    * Trae UNA consulta que no está en el store (el cap de la carga inicial es
@@ -138,7 +144,13 @@ interface StoreValue {
    * deja ver) y "error" (no se pudo preguntar) se distinguen a propósito.
    */
   ensureConsultation: (id: string) => Promise<"ok" | "missing" | "error">;
+  /** Misma advertencia que getConsultation: la foto no es la base. */
   getPatient: (id: string | null | undefined) => Patient | undefined;
+  /**
+   * Mete al store el paciente y SUS consultas. "missing" (no existe o la RLS
+   * no lo deja ver) y "error" (no se pudo preguntar) se distinguen aposta.
+   */
+  ensurePatient: (id: string) => Promise<"ok" | "missing" | "error">;
   getMedicoName: (id: string) => string | undefined;
   /** Cédula y registro médico del profesional — para el PDF y "Copiar nota"
    *  (la secretaria los necesita al llenar el sistema del hospital).
@@ -226,6 +238,10 @@ const PATIENTS_CAP = 500;
 // desincronicen.
 const CONSULTATION_COLUMNS =
   "id, patient_id, medico_id, servicio, especialidad, tipo, estado, fecha, duracion_min, plantilla, motivo, note, resumen, codigos, firma, paciente_nombre, paciente_documento";
+
+/** Igual que arriba, para pacientes: una sola lista para todos los caminos. */
+const PATIENT_COLUMNS =
+  "id, nombre, documento, edad, sexo, eps, telefono, antecedentes, alergias, medicamentos";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function rowToPatient(r: any): Patient {
@@ -368,6 +384,13 @@ export function MiracleProvider({
     consultationsRef.current = consultations;
   }, [consultations]);
 
+  // Mismo motivo que el de consultas: los callbacks estables necesitan leer la
+  // lista vigente sin recrearse en cada cambio.
+  const patientsRef = useRef<Patient[]>([]);
+  useEffect(() => {
+    patientsRef.current = patients;
+  }, [patients]);
+
   const dismissToast = useCallback((id: number) => {
     const pendiente = temporizadoresRef.current.get(id);
     if (pendiente) {
@@ -425,9 +448,7 @@ export function MiracleProvider({
     const [patRes, conRes, profRes, orgRes] = await Promise.all([
       supabase
         .from("patients")
-        .select(
-          "id, nombre, documento, edad, sexo, eps, telefono, antecedentes, alergias, medicamentos",
-        )
+        .select(PATIENT_COLUMNS)
         .order("created_at", { ascending: false })
         .limit(PATIENTS_CAP),
       supabase
@@ -699,6 +720,63 @@ export function MiracleProvider({
     (id: string | null | undefined) =>
       id ? patients.find((p) => p.id === id) : undefined,
     [patients],
+  );
+
+  /**
+   * El gemelo de ensureConsultation para la ficha del paciente, y por la misma
+   * razón: `patients` es una foto con tope PATIENTS_CAP. Un paciente recién
+   * registrado —o el 501 de la lista— daba "Paciente no encontrado" sobre una
+   * ficha que existe.
+   *
+   * Trae también SUS consultas: la ficha las saca del store, y con la foto
+   * capada la historia de un paciente atendido hace meses salía vacía. Decirle
+   * a un médico que un paciente no tiene consultas cuando sí las tiene es
+   * peor que no mostrarle la ficha.
+   */
+  const ensurePatient = useCallback(
+    async (id: string): Promise<"ok" | "missing" | "error"> => {
+      const yaEsta = patientsRef.current.some((p) => p.id === id);
+      const [patRes, conRes] = await Promise.all([
+        yaEsta
+          ? Promise.resolve({ data: null, error: null })
+          : supabase.from("patients").select(PATIENT_COLUMNS).eq("id", id).maybeSingle(),
+        supabase
+          .from("consultations")
+          .select(CONSULTATION_COLUMNS)
+          .eq("patient_id", id)
+          .order("fecha", { ascending: false })
+          .limit(CONSULTATIONS_CAP),
+      ]);
+
+      if (!yaEsta) {
+        if (patRes.error) {
+          console.error("[store] rescate de paciente", patRes.error.message);
+          return "error";
+        }
+        if (!patRes.data) return "missing";
+        const rescatado = rowToPatient(patRes.data);
+        setPatients((list) =>
+          list.some((p) => p.id === id) ? list : [rescatado, ...list],
+        );
+      }
+
+      // Las consultas que falten se suman sin pisar las que ya están: las del
+      // store pueden traer ediciones locales todavía sin confirmar.
+      if (!conRes.error && conRes.data?.length) {
+        setConsultations((list) => {
+          const conocidas = new Set(list.map((c) => c.id));
+          const nuevas = conRes.data
+            .filter((r) => !conocidas.has(r.id))
+            .map((r) => rowToConsultation(r, []));
+          if (!nuevas.length) return list;
+          return [...list, ...nuevas].sort((a, b) =>
+            b.fecha.localeCompare(a.fecha),
+          );
+        });
+      }
+      return "ok";
+    },
+    [supabase],
   );
 
   const addPatient = useCallback(
@@ -1339,6 +1417,7 @@ export function MiracleProvider({
       fetchConsultation,
       ensureConsultation,
       getPatient,
+      ensurePatient,
       getMedicoName,
       getMedicoIdentity,
       addPatient,
@@ -1379,6 +1458,7 @@ export function MiracleProvider({
       fetchConsultation,
       ensureConsultation,
       getPatient,
+      ensurePatient,
       getMedicoName,
       getMedicoIdentity,
       addPatient,
