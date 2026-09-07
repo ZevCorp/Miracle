@@ -224,15 +224,36 @@ ambigüedad sobre dónde debe aterrizar y funciona con cualquier plantilla, porq
 se apoya en las `key` del snapshot congelado del encounter.
 **Por qué por la transcripción y no por un campo propio:** el prompt de
 generación vive en el backend clínico y solo recibe transcripción + plantilla; no
-hay tercer canal. El endpoint de AJUSTE de nota sí acepta instrucción por
-sección, pero NO sirve: su prompt lleva "PROHIBIDO agregar datos clínicos nuevos
-(síntomas, hallazgos, medicamentos, diagnósticos, valores)", así que ante
-"Sospecha de cáncer" devolvería la sección intacta. Está construido para impedir
-exactamente el caso que hay que soportar.
+hay tercer canal. El endpoint de AJUSTE de nota acepta instrucción por sección
+y, desde el ajuste contextual (D21), admite datos afirmados por el médico; pero
+es edición de una nota ya generada, una llamada por instrucción. Esto es materia
+prima de la generación.
 **Consecuencia:** el bloque queda dentro de `encounter.transcript`, rotulado para
 no falsear el origen. El cuadro de transcripción de la pantalla lo esconde
 (`stripSectionDraftsBlock`), porque ahí va lo que se habló; y al regenerar se
-quita antes de volver a añadirlo, o las anotaciones se duplicarían.
+quita antes de volver a añadirlo, o las anotaciones se duplicarían. El backend
+conoce el rótulo: al ajustar la nota separa el bloque y se lo pasa al modelo
+como "anotaciones del médico".
 **Pendiente (mejor camino, otro repo):** que el backend acepte `section_inputs`
 como campo propio y el prompt las trate sección por sección. Cuando exista, aquí
 solo cambia `buildTranscriptWithSectionDrafts`.
+
+## D21 · El ajuste de la nota parte de lo que el médico ve y usa la consulta entera
+**Decisión (2026-09-07):** las dos pantallas mandan `note_json` al pedir un
+ajuste (`adjustNoteWithAssistant`): la nota tal como está en pantalla, con las
+ediciones sin guardar. El backend ajusta esa, no la última persistida.
+**Por qué:** en el detalle, las ediciones a mano solo viven en el espejo local
+(`updateNote`) y el backend conservaba el `note_json` viejo; la propuesta se
+calculaba sobre ese y el `PUT /note` posterior pisaba lo editado. En vivo se
+"resolvía" con un diálogo de "reemplazará esos cambios". Mandar la nota quita
+el problema de raíz y el diálogo sobra.
+**Qué hace el backend con la consulta (Graph, `docs/clinical-assistant.md`):**
+prompt propio de ajuste con cuatro fuentes jerarquizadas (instrucción del
+médico, transcripción, anotaciones escritas, resto de la nota), transcripción
+entera hasta 60k y por tramos relevantes por encima, sección objetivo con su
+contenido y evidencia. Cada dato nuevo vuelve con una cita literal que el
+servidor coteja.
+**Aceptar pero marcar (decisión del usuario):** lo que el modelo agrega sin cita
+verificable SE APLICA y llega en `unverified`; lo que se pidió buscar y no
+apareció llega en `unresolved`. `describeAdjustmentOutcome` convierte ambos en
+avisos para el médico; ninguna pantalla los esconde.

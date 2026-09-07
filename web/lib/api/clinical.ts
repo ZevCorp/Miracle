@@ -859,6 +859,13 @@ export interface NoteAdjustmentPayload {
   /** Limita el ajuste a una sección concreta. */
   section_key?: string;
   /**
+   * La nota TAL COMO LA VE EL MÉDICO ahora mismo, con sus ediciones sin
+   * guardar. Sin esto el backend ajusta la última nota persistida y la
+   * propuesta pisa lo que el médico editó a mano en pantalla. Se valida allá
+   * con la misma regla del PUT /note (mismas keys que el snapshot).
+   */
+  note_json?: ClinicalNoteJson;
+  /**
    * Mismas preferencias que el chat. Aquí importan por el campo `explanation`
    * de la respuesta, que es el texto que el médico lee al ajustar una sección
    * ("Juan, la enfermedad actual ya quedó actualizada").
@@ -872,6 +879,22 @@ export interface NoteAdjustmentResult {
   changed_sections: string[];
   explanation: string;
   requires_physician_review: boolean;
+  /** Lo que el médico pidió buscar y no apareció en la consulta. La nota no cambió ahí. */
+  unresolved?: string[];
+  /**
+   * Datos que el modelo agregó sin una cita verificable en la consulta. El
+   * cambio SÍ se aplicó (decisión: aceptar pero marcar); el médico los revisa.
+   */
+  unverified?: { section_key: string; text: string }[];
+  /** "parcial" cuando la transcripción superó el presupuesto y viajaron solo tramos. */
+  transcript_coverage?: "completa" | "parcial";
+  sources_used?: {
+    transcript?: boolean;
+    annotations?: boolean;
+    note?: boolean;
+    instruction?: boolean;
+  };
+  warnings?: string[];
 }
 
 export async function adjustNoteWithAssistant(
@@ -879,12 +902,61 @@ export async function adjustNoteWithAssistant(
 ): Promise<NoteAdjustmentResult> {
   const result = await clinicalRequest<NoteAdjustmentResult>(
     "/api/clinical/assistant/note-adjustment",
-    { method: "POST", body: payload, timeoutMs: ASSISTANT_TIMEOUT_MS },
+    {
+      method: "POST",
+      body: payload.note_json
+        ? { ...payload, note_json: conDocumentoCanonico(payload.note_json) }
+        : payload,
+      timeoutMs: ASSISTANT_TIMEOUT_MS,
+    },
   );
   return {
     ...result,
     proposed_note_json: conDocumentoCanonico(result.proposed_note_json),
   };
+}
+
+/**
+ * Avisos para el médico a partir de la respuesta del ajuste, listos para
+ * mostrar al lado de `explanation`. Puro: lo comparten las dos pantallas.
+ *
+ * - `unresolved` → "No encontré en la consulta: …" (la nota no cambió ahí).
+ * - `unverified` → "Revisa en <sección>: …" (se aplicó, pero sin cita).
+ *
+ * `labels` traduce key → etiqueta de sección; sin ella se muestra la key.
+ */
+export function describeAdjustmentOutcome(
+  result: Pick<NoteAdjustmentResult, "unresolved" | "unverified">,
+  labels: Record<string, string> = {},
+): string[] {
+  const avisos: string[] = [];
+  const unresolved = (result.unresolved ?? []).map((item) => item.trim()).filter(Boolean);
+  if (unresolved.length) {
+    avisos.push(`No encontré en la consulta: ${unresolved.join("; ")}.`);
+  }
+  const porSeccion = new Map<string, string[]>();
+  for (const item of result.unverified ?? []) {
+    const texto = (item?.text ?? "").trim();
+    if (!texto) continue;
+    const key = item.section_key ?? "";
+    porSeccion.set(key, [...(porSeccion.get(key) ?? []), texto]);
+  }
+  for (const [key, textos] of porSeccion) {
+    const seccion = labels[key] ?? key;
+    avisos.push(
+      `Revisa en ${seccion}: ${textos.join("; ")} (sin cita en la consulta).`,
+    );
+  }
+  return avisos;
+}
+
+/** Etiquetas por key de sección, para los avisos del ajuste. */
+export function noteSectionLabels(note: ClinicalNoteJson | null | undefined): Record<string, string> {
+  const labels: Record<string, string> = {};
+  for (const section of note?.sections ?? []) {
+    labels[section.key] = section.label;
+  }
+  return labels;
 }
 
 /* ------------------------------------------------------------------ */

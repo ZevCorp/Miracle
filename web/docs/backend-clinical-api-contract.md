@@ -360,6 +360,45 @@ PUT /api/clinical/encounters/:encounter_id/note
 { "encounter_id": "0b3f...", "status": "completed", "note_json": { ... } }
 ```
 
+### 12. Ajuste de la nota con el asistente (propone, no persiste)
+
+```http
+POST /api/clinical/assistant/note-adjustment
+```
+
+```json
+{
+  "encounter_id": "0b3f...",
+  "instruction": "Agrega lo que dijo sobre la fiebre.",
+  "section_key": "enfermedad_actual",
+  "note_json": { "summary": "...", "sections": [ { "key": "...", "content": "..." } ] },
+  "doctor": { "display_name": "Juan", "address": "tu" }
+}
+```
+
+- Solo `encounter_id` e `instruction` son obligatorios. Cliente: `adjustNoteWithAssistant` en `lib/api/clinical.ts`.
+- `note_json` es la nota **tal como la ve el médico** (ediciones sin guardar incluidas); las dos pantallas la mandan siempre. Sin ella el backend usa la persistida. Se valida como el endpoint 11 (mismas keys que el snapshot; si no → `400 ASSISTANT_INVALID`).
+- `section_key` acota el ajuste a esa sección. Sin él, el backend infiere la sección objetivo del texto como pista, sin acotar.
+- El backend arma el contexto solo: sección objetivo (contenido, `evidence`, instrucción de plantilla), nota completa, transcripción entera (o tramos relevantes por encima de 60k) y las anotaciones escritas por el médico (bloque de `section-drafts.ts`, que el backend separa de la transcripción).
+
+```json
+{
+  "proposed_note_json": { ... },
+  "changed_sections": ["enfermedad_actual"],
+  "explanation": "Agregué la fiebre de 38 grados que refirió el paciente.",
+  "requires_physician_review": true,
+  "unresolved": ["lo que mencionó sobre la cirugía"],
+  "unverified": [{ "section_key": "enfermedad_actual", "text": "rigidez de nuca" }],
+  "transcript_coverage": "completa",
+  "sources_used": { "transcript": true, "annotations": false, "note": false, "instruction": false },
+  "warnings": []
+}
+```
+
+- `unresolved`: lo pedido que no apareció en ninguna fuente; la nota no cambió ahí.
+- `unverified`: datos agregados sin cita verificable. **El cambio se aplica igual** (aceptar pero marcar); `describeAdjustmentOutcome` los convierte en avisos.
+- Nunca persiste: el detalle guarda la propuesta con el endpoint 11; en vivo queda como "cambios sin guardar".
+
 ## Flujo completo (curl)
 
 ```bash

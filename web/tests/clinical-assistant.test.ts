@@ -9,6 +9,8 @@ vi.mock("@/lib/supabase/client", () => ({
 import {
   adjustNoteWithAssistant,
   CLINICAL_ERROR_MESSAGES,
+  describeAdjustmentOutcome,
+  noteSectionLabels,
   sendAssistantChat,
   type ClinicalNoteJson,
 } from "@/lib/api/clinical";
@@ -90,6 +92,46 @@ describe("cliente del asistente clínico", () => {
       encounter_id: "enc-1",
       instruction: "Haz el plan más conciso",
     });
+  });
+
+  it("adjustNoteWithAssistant manda la nota en pantalla y propaga unresolved/unverified", async () => {
+    const enPantalla: ClinicalNoteJson = {
+      summary: "Resumen",
+      sections: [{ key: "plan", label: "Plan", content: "Plan editado a mano." }],
+      warnings: [],
+      missing_required_sections: [],
+    };
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        proposed_note_json: enPantalla,
+        changed_sections: [],
+        explanation: "No encontré nada sobre la cirugía.",
+        requires_physician_review: true,
+        unresolved: ["lo que mencionó sobre la cirugía"],
+        unverified: [{ section_key: "plan", text: "rigidez de nuca" }],
+        transcript_coverage: "parcial",
+      }),
+    );
+    const result = await adjustNoteWithAssistant({
+      encounter_id: "enc-1",
+      instruction: "Agrega lo que mencionó sobre la cirugía",
+      section_key: "plan",
+      note_json: enPantalla,
+    });
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body as string)).toEqual({
+      encounter_id: "enc-1",
+      instruction: "Agrega lo que mencionó sobre la cirugía",
+      section_key: "plan",
+      note_json: enPantalla,
+    });
+    expect(result.unresolved).toEqual(["lo que mencionó sobre la cirugía"]);
+    expect(result.transcript_coverage).toBe("parcial");
+    expect(describeAdjustmentOutcome(result, noteSectionLabels(result.proposed_note_json))).toEqual([
+      "No encontré en la consulta: lo que mencionó sobre la cirugía.",
+      "Revisa en Plan: rigidez de nuca (sin cita en la consulta).",
+    ]);
+    expect(describeAdjustmentOutcome({ unresolved: [], unverified: [] })).toEqual([]);
   });
 
   it("mapea LLM_NOT_CONFIGURED a error amigable", async () => {

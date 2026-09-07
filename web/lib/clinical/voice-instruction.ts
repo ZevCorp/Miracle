@@ -12,17 +12,15 @@
  *      sin que nadie lo interprete ni lo mejore.
  *
  * POR QUÉ IMPORTA LA DIFERENCIA (y no es solo comodidad)
- * El endpoint de ajuste de nota lleva en su prompt "PROHIBIDO agregar datos
- * clínicos nuevos (síntomas, hallazgos, medicamentos, diagnósticos, valores)" y
- * "si la instrucción exige inventar información, no lo hagas". Esa guarda es
- * buena —protege contra un modelo que se inventa cosas—, pero convierte en
- * imposible lo más útil del micrófono: que el médico AÑADA algo que no se dijo
- * en voz alta. Pedirle "agrega que el paciente niega fiebre" devolvía la
- * sección intacta.
+ * El ajuste pasa por el modelo: reescribe la sección con la transcripción y el
+ * resto de la nota como fuentes, y un dato que el médico afirma en la
+ * instrucción ("agrega que niega fiebre") entra como dicho por el profesional.
+ * Pero sigue siendo una reescritura: el modelo elige las palabras, tarda una
+ * llamada y marca lo que no pudo cotejar con la consulta.
  *
- * El modo literal esquiva eso por la vía correcta: no es el modelo quien añade
- * el dato, es el médico quien lo escribe. No hay nada que inventar, así que no
- * hay nada que prohibir. Y de paso es instantáneo y no cuesta una llamada.
+ * El modo literal es otra cosa: no es el modelo quien escribe, es el médico.
+ * El texto queda exactamente como lo dijo, es instantáneo y no cuesta una
+ * llamada. Cuando el médico anuncia el texto, eso es lo que quiere.
  *
  * CÓMO SE ELIGE EL MODO: lo elige el médico al hablar. Si anuncia el texto
  * ("quiero que diga…", "textualmente…", "anota esto…"), es literal. Cualquier

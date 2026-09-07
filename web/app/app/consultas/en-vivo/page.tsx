@@ -75,6 +75,9 @@ import type { Patient } from "@/lib/mock";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import {
   adjustNoteWithAssistant,
+  describeAdjustmentOutcome,
+  noteSectionLabels,
+  type NoteAdjustmentResult,
   ensureClinicalDischarge,
   friendlyClinicalMessage,
   generateClinicalNote,
@@ -977,24 +980,30 @@ function ConsultaActivaInner() {
   }
 
   /**
-   * Ajuste de la nota con IA. El backend calcula la propuesta sobre la ÚLTIMA
-   * nota guardada del encounter y NO la persiste: aquí se aplica al estado
-   * local marcándola como "cambios sin guardar" para que el médico revise y
-   * guarde con el flujo normal.
+   * Lo que lee el médico tras un ajuste: la explicación del modelo más los
+   * avisos del servidor (lo que no encontró en la consulta, lo que agregó sin
+   * cita). Los avisos nunca se esconden: son la parte que hay que revisar.
+   */
+  function explicarAjuste(result: NoteAdjustmentResult, fallback: string): string {
+    const avisos = describeAdjustmentOutcome(
+      result,
+      noteSectionLabels(result.proposed_note_json),
+    );
+    return [result.explanation?.trim() || fallback, ...avisos].join(" ");
+  }
+
+  /**
+   * Ajuste de la nota con IA. Se manda la nota TAL COMO ESTÁ en pantalla
+   * (`note_json`, ediciones sin guardar incluidas) y el backend calcula la
+   * propuesta sobre ella, con la transcripción y las anotaciones de la
+   * consulta como fuentes; NO la persiste. Aquí se aplica al estado local
+   * marcándola como "cambios sin guardar" para que el médico revise y guarde
+   * con el flujo normal. Por eso ya no hace falta avisar que "reemplazará los
+   * cambios": parte de ellos.
    */
   async function pedirAjuste() {
     const instruction = aiInstruction.trim();
     if (!encounterId || !note || busy || !instruction) return;
-    if (noteDirty) {
-      const ok = await confirm({
-        titulo: "Tienes cambios sin guardar",
-        descripcion:
-          "El ajuste se calcula sobre la última nota guardada, así que reemplazará esos cambios.",
-        confirmLabel: "Ajustar de todos modos",
-        tono: "peligro",
-      });
-      if (!ok) return;
-    }
     setPhase("adjusting");
     setFlowError(null);
     setAiExplanation(null);
@@ -1003,13 +1012,15 @@ function ConsultaActivaInner() {
         encounter_id: encounterId,
         // Si el médico escribe el nombre en la instrucción, también se tapa.
         instruction: redactor.redact(instruction),
+        // Se lee de la ref, no del closure: ver noteRef arriba.
+        note_json: noteRef.current ?? note,
         doctor: doctorContext,
       });
       setNote(result.proposed_note_json);
       setNoteDirty(true);
       setNoteSaved(false);
       setAiInstruction("");
-      setAiExplanation(result.explanation?.trim() || "Ajuste aplicado.");
+      setAiExplanation(explicarAjuste(result, "Ajuste aplicado."));
     } catch (error) {
       setFlowError(friendlyClinicalMessage(error));
     } finally {
@@ -1021,13 +1032,13 @@ function ConsultaActivaInner() {
    * El micrófono de una sección. Dos caminos, y los elige el médico al hablar.
    *
    * LITERAL ("quiero que diga esto: …"): lo escribe él, no el modelo. Se aplica
-   * aquí mismo, sin llamada ni espera. Es lo que hace posible AGREGAR un dato
-   * que no se dijo en voz alta: el prompt de ajuste tiene prohibido inventar
-   * datos clínicos nuevos, y ante "agrega que el paciente niega fiebre"
-   * devolvía la sección intacta. Por esta vía no hay nada que inventar.
+   * aquí mismo, sin llamada ni espera: es instantáneo y el texto queda
+   * exactamente como lo dijo.
    *
-   * AJUSTE ("hazla más corta"): eso sí es trabajo del modelo, que reescribe la
-   * sección respetando lo que ya había.
+   * AJUSTE ("hazla más corta", "agrega que niega fiebre"): trabajo del modelo,
+   * que reescribe la sección con la transcripción y el resto de la nota como
+   * fuentes. Un dato que el médico afirma en la instrucción también entra (el
+   * backend lo acepta como dicho por el profesional).
    */
   async function applyVoiceInstruction(section: VoiceTarget, dictado: string) {
     if (!encounterId || !note || busy) return;
@@ -1047,16 +1058,6 @@ function ConsultaActivaInner() {
       return;
     }
 
-    if (noteDirty) {
-      const ok = await confirm({
-        titulo: "Tienes cambios sin guardar",
-        descripcion:
-          "El cambio por voz se calcula sobre la última nota guardada y puede reemplazar esas ediciones.",
-        confirmLabel: "Continuar",
-        tono: "peligro",
-      });
-      if (!ok) return;
-    }
     setPhase("adjusting");
     setFlowError(null);
     setAiExplanation(null);
@@ -1068,6 +1069,8 @@ function ConsultaActivaInner() {
         // El contrato acepta la sección como campo propio y el prompt la usa
         // para acotar el ajuste. Antes solo viajaba dentro del texto libre.
         section_key: section.key || undefined,
+        // La nota en pantalla, con lo que el médico ya editó a mano.
+        note_json: noteRef.current ?? note,
         doctor: doctorContext,
       });
 
@@ -1077,7 +1080,7 @@ function ConsultaActivaInner() {
       // intacta. Ahí es donde el micrófono parecía roto.
       if (!result.changed_sections?.length) {
         setAiExplanation(
-          `${result.explanation?.trim() || "No se aplicó ningún cambio."} Si quieres que quede escrito tal cual, díctalo empezando por «quiero que diga».`,
+          `${explicarAjuste(result, "No se aplicó ningún cambio.")} Si quieres que quede escrito tal cual, díctalo empezando por «quiero que diga».`,
         );
         return;
       }
@@ -1085,7 +1088,7 @@ function ConsultaActivaInner() {
       setNote(result.proposed_note_json);
       setNoteDirty(true);
       setNoteSaved(false);
-      setAiExplanation(result.explanation?.trim() || "Cambio dictado aplicado.");
+      setAiExplanation(explicarAjuste(result, "Cambio dictado aplicado."));
     } catch (error) {
       setFlowError(friendlyClinicalMessage(error));
     } finally {

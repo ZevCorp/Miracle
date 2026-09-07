@@ -17,12 +17,11 @@
  * El prompt de generación vive en el backend clínico y solo recibe dos cosas:
  * la transcripción y el snapshot de la plantilla. No hay un tercer canal.
  *
- * El endpoint de AJUSTE de nota sí acepta una instrucción por sección, pero no
- * sirve para esto: su prompt lleva escrito "PROHIBIDO agregar datos clínicos
- * nuevos (síntomas, hallazgos, medicamentos, diagnósticos, valores)" y "si la
- * instrucción exige inventar información, no lo hagas". Es decir, ante
- * "Sospecha de cáncer" —que es justo el caso que hay que soportar— devolvería
- * la sección intacta. Está construido para impedir exactamente esto.
+ * El endpoint de AJUSTE de nota acepta una instrucción por sección y desde el
+ * ajuste contextual (2026-09) sí admite datos que el médico afirma en la
+ * instrucción; pero es un endpoint de EDICIÓN de una nota ya generada, una
+ * llamada por instrucción. Esto es materia prima de la GENERACIÓN, y su sitio
+ * es el mismo que el de lo hablado.
  *
  * Así que las anotaciones viajan como un bloque rotulado al final de la
  * transcripción que se manda a generar. No es un parche: para el motor, la
@@ -30,7 +29,9 @@
  * de la consulta —las dijo el médico, escribiéndolas—. El rótulo deja claro que
  * se escribieron y no se hablaron, así que el registro no miente sobre su
  * origen, y cada línea lleva el nombre de su sección para que el modelo la
- * lleve ahí y no contamine las demás.
+ * lleve ahí y no contamine las demás. El backend conoce el rótulo: al AJUSTAR
+ * la nota después, separa el bloque de la transcripción y se lo pasa al modelo
+ * como "anotaciones del médico", una fuente propia con su etiqueta.
  *
  * Lo limpio de verdad sería que el backend recibiera `section_inputs` como
  * campo propio y el prompt las tratara sección por sección. Cuando exista, aquí
