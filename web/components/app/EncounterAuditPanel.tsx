@@ -26,7 +26,8 @@ import {
   LayoutTemplate,
   ShieldCheck,
 } from "lucide-react";
-import type { ClinicalEncounter, ClinicalNoteJson } from "@/lib/api/clinical";
+import type { ClinicalEncounter, ClinicalNoteJson, PrivacyShieldSummary } from "@/lib/api/clinical";
+import { describePrivacySummary } from "@/lib/clinical/privacy-summary";
 import {
   noteReviewLabel,
   noteReviewScore,
@@ -144,7 +145,7 @@ export function EncounterAuditPanel({
   note,
   review,
   transcriptLength,
-  identityProtected,
+  privacy,
   onOpenEncounter,
 }: {
   encounter: ClinicalEncounter | null;
@@ -154,8 +155,8 @@ export function EncounterAuditPanel({
   review: NoteReview;
   /** Longitud de la transcripción en pantalla (solo se muestra el número). */
   transcriptLength: number;
-  /** true si el redactor tapa nombre+documento (hay paciente asociado). */
-  identityProtected: boolean;
+  /** Lo que el servidor certificó del último envío a la IA; null = sin dato (no se afirma nada). */
+  privacy: PrivacyShieldSummary | null;
   onOpenEncounter: (id: string) => void;
 }) {
   const score = noteReviewScore(review);
@@ -400,11 +401,7 @@ export function EncounterAuditPanel({
             <ShieldCheck size={15} className="mt-0.5 shrink-0 text-success" />
             <div className="min-w-0">
               <dt className="font-semibold text-deep">Privacidad</dt>
-              <dd className="text-muted">
-                {identityProtected
-                  ? "El nombre y el documento del paciente se taparon antes de enviar cualquier texto a la IA."
-                  : "Sin paciente asociado: solo se ocultan números de documento en el texto enviado a la IA."}
-              </dd>
+              <dd className="text-muted">{describePrivacySummary(privacy).detail}</dd>
             </div>
           </div>
         </dl>
