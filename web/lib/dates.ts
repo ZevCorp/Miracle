@@ -83,6 +83,24 @@ export function esDeHoy(iso: string): boolean {
 }
 
 /**
+ * Días de CALENDARIO que lleva esperando algo fechado en `iso`. 0 = hoy.
+ *
+ * Se cuenta por días de calendario y no por horas transcurridas porque así lo
+ * cuenta el médico: una nota de ayer a las 23:00 "lleva un día", aunque hayan
+ * pasado nueve horas.
+ */
+export function diasDeEspera(iso: string): number {
+  return Math.max(0, indiceDiaZona(new Date()) - indiceDiaZona(new Date(iso)));
+}
+
+/** "hoy" · "1 día" · "12 días". Para decir cuánto lleva algo sin firmar. */
+export function etiquetaEspera(iso: string): string {
+  const dias = diasDeEspera(iso);
+  if (dias === 0) return "hoy";
+  return dias === 1 ? "1 día" : `${dias} días`;
+}
+
+/**
  * Etiqueta relativa: "Hoy · 14:30", "Ayer · 10:20", "18/06 · 22:38", y
  * "18/06/2025 · 22:38" cuando el año difiere del actual (evita ambigüedad con
  * más de un año de historia).

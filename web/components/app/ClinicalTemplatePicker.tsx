@@ -159,7 +159,7 @@ export function ClinicalTemplatePicker({
             role="dialog"
             aria-modal="true"
             aria-label={label}
-            className="relative flex h-dvh max-h-dvh w-full max-w-2xl flex-col overflow-hidden bg-surface shadow-[var(--shadow-xl)] sm:h-auto sm:max-h-[min(720px,calc(100dvh-2rem))] sm:rounded-2xl sm:border sm:border-line"
+            className="relative flex h-dvh max-h-dvh w-full max-w-2xl flex-col overflow-hidden bg-surface shadow-[var(--shadow-xl)] sm:h-auto sm:max-h-[min(720px,calc(100dvh-2rem))] sm:rounded-[24px] sm:border sm:border-line"
           >
             <header className="app-mobile-header flex items-start justify-between gap-4 border-b border-line px-4 py-4 sm:h-auto sm:px-6">
               <div>

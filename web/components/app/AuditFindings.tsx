@@ -36,7 +36,7 @@ export function AuditSeverityBadge({
   if (!severidad) {
     return (
       <span
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-success-soft text-success"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-success-soft text-success"
         aria-label="Al día"
         title="Al día"
       >
@@ -48,7 +48,7 @@ export function AuditSeverityBadge({
   const Icon = style.icon;
   return (
     <span
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${style.chip}`}
+      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] ${style.chip}`}
       aria-label={style.label}
       title={style.label}
     >
@@ -69,7 +69,7 @@ export function AuditFindingList({
 }) {
   if (hallazgos.length === 0) {
     return (
-      <div className="flex items-center gap-2 rounded-md bg-success-soft px-3 py-2.5 text-sm text-success">
+      <div className="flex items-center gap-2 rounded-[12px] bg-success-soft px-3 py-2.5 text-sm text-success">
         <CheckCircle2 size={16} className="shrink-0" />
         <span>{emptyLabel}</span>
       </div>
@@ -87,7 +87,7 @@ export function AuditFindingList({
         return (
           <li key={h.key} className="flex items-start gap-2.5">
             <span
-              className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${style.chip}`}
+              className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] ${style.chip}`}
               aria-label={style.label}
               title={style.label}
             >

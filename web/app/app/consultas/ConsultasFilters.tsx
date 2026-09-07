@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { SearchField } from "@/components/ui/SearchField";
 
 export type DoctorOption = { id: string; label: string };
 
@@ -58,15 +58,12 @@ export function ConsultasFilters({
 
   return (
     <div className="clinical-toolbar">
-      <div className="clinical-control flex flex-1 items-center gap-2 px-3">
-        <Search size={16} className="text-muted" />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por paciente, cédula, motivo o rótulo"
-          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
-        />
-      </div>
+      <SearchField
+        value={q}
+        onChange={setQ}
+        placeholder="Buscar por paciente, cédula, motivo o rótulo"
+        className="flex-1"
+      />
       {doctors.length ? (
         <select
           value={medico}

@@ -1,5 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Schibsted_Grotesk, Geist_Mono, Inter } from "next/font/google";
+import {
+  Schibsted_Grotesk,
+  Geist_Mono,
+  Inter,
+  Source_Serif_4,
+} from "next/font/google";
 import { SITE } from "@/lib/site";
 import "./globals.css";
 
@@ -17,6 +22,17 @@ const mono = Geist_Mono({
 
 const sans = Inter({
   variable: "--ff-sans",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+// La NOTA CLINICA —y solo ella— se compone en serif. No es un gesto editorial:
+// el medico lee seis parrafos de prosa por consulta y los relee al firmar, y una
+// serif de texto sostiene ese renglon mejor que la Inter de la interfaz. Ademas
+// separa de un vistazo lo que es documento (con valor legal) de lo que es
+// herramienta. Una sola familia nueva, con un solo trabajo.
+const doc = Source_Serif_4({
+  variable: "--ff-doc",
   subsets: ["latin"],
   display: "swap",
 });
@@ -78,7 +94,7 @@ export default function RootLayout({
     <html
       lang="es"
       suppressHydrationWarning
-      className={`${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
+      className={`${display.variable} ${sans.variable} ${mono.variable} ${doc.variable} h-full antialiased`}
     >
       <head>
         <script

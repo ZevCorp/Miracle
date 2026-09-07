@@ -42,6 +42,8 @@ export function DictationPanel({
   onCapturingChange,
   onUsageSnapshotReady,
   onAudioSourceChange,
+  onLiveState,
+  onCaptureControls,
 }: {
   disabled: boolean;
   onAppendFinal: (text: string) => void;
@@ -67,6 +69,14 @@ export function DictationPanel({
    * lo adivine: aquí es donde el médico lo elige.
    */
   onAudioSourceChange?: (source: string) => void;
+  /**
+   * Espejo de solo lectura del estado vivo (tiempo, última frase provisional).
+   * Lo consume el modo captura, que es una VISTA sobre esta grabación: el
+   * micrófono, el reloj y la telemetría siguen viviendo aquí.
+   */
+  onLiveState?: (state: { elapsedSec: number; partialText: string }) => void;
+  /** Controles delegables (pausar / finalizar) para el modo captura. */
+  onCaptureControls?: (controls: { pause: () => void; finish: () => void }) => void;
 }) {
   const { status, partialText, error, elapsedSec, stalled, start, pause, stop, getUsageSnapshot } =
     useDictation(onAppendFinal);
@@ -76,6 +86,24 @@ export function DictationPanel({
   useEffect(() => {
     onUsageSnapshotReady?.(getUsageSnapshot);
   }, [getUsageSnapshot, onUsageSnapshotReady]);
+
+  useEffect(() => {
+    onLiveState?.({ elapsedSec, partialText: partialText ?? "" });
+  }, [elapsedSec, partialText, onLiveState]);
+
+  // Sin lista de dependencias a propósito: registra en cada render los
+  // closures más frescos de pause/finishRecording. El receptor los guarda en
+  // un ref, así que esto no re-renderiza nada.
+  useEffect(() => {
+    onCaptureControls?.({
+      pause: () => {
+        void pause();
+      },
+      finish: () => {
+        void finishRecording();
+      },
+    });
+  });
 
   // Fuente de audio: "mic" usa getUserMedia normal; "omi" aprovecha el shim
   // que instaló la conexión global (widget flotante junto a "Grabar
@@ -134,7 +162,7 @@ export function DictationPanel({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-pearl">
+    <div className="overflow-hidden rounded-[16px] border border-line bg-pearl shadow-[var(--elev-1)]">
       <div className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${capturing ? "bg-danger-soft text-danger" : paused ? "bg-warning-soft text-warning" : "bg-ice text-accent"}`}>
@@ -161,18 +189,20 @@ export function DictationPanel({
         {!capturing && !inFlight && omi.supported ? (
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2.5">
             <span className="text-xs font-semibold text-muted">Fuente de audio:</span>
-            <div className="flex overflow-hidden rounded-lg border border-line">
+            <div className="seg" role="group" aria-label="Fuente de audio">
               <button
                 type="button"
                 onClick={() => setSource("mic")}
-                className={`px-3 py-1.5 text-xs font-semibold ${source === "mic" ? "bg-accent text-white" : "bg-pearl text-deep"}`}
+                aria-pressed={source === "mic"}
+                className="seg-item min-h-8 px-3 py-1 text-xs"
               >
                 Micrófono del navegador
               </button>
               <button
                 type="button"
                 onClick={() => setSource("omi")}
-                className={`px-3 py-1.5 text-xs font-semibold ${source === "omi" ? "bg-accent text-white" : "bg-pearl text-deep"}`}
+                aria-pressed={source === "omi"}
+                className="seg-item min-h-8 px-3 py-1 text-xs"
               >
                 Omi
               </button>
@@ -207,18 +237,18 @@ export function DictationPanel({
 
         <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
           {capturing ? (
-            <button type="button" onClick={() => void pause()} disabled={disabled || inFlight} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-warning/35 bg-warning-soft px-5 py-3 text-sm font-semibold text-warning-ink disabled:opacity-60">
+            <button type="button" onClick={() => void pause()} disabled={disabled || inFlight} className="clinical-secondary min-h-12 border-warning/35 bg-warning-soft px-5 text-warning-ink disabled:opacity-60">
               <Pause size={17} /> Pausar
             </button>
           ) : (
-            <button type="button" onClick={() => void startOrContinue()} disabled={disabled || inFlight || (source === "omi" && !omi.isConnected)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60">
+            <button type="button" onClick={() => void startOrContinue()} disabled={disabled || inFlight || (source === "omi" && !omi.isConnected)} className="clinical-primary min-h-12 px-5 disabled:opacity-60">
               {inFlight ? <Loader2 size={17} className="animate-spin" /> : paused ? <Play size={17} /> : <Mic size={17} />}
               {paused ? "Continuar grabación" : status === "error" ? "Intentar de nuevo" : "Iniciar grabación"}
             </button>
           )}
 
           {capturing || paused ? (
-            <button type="button" onClick={() => setFinishConfirm(true)} disabled={disabled || inFlight} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-danger/35 bg-surface px-5 py-3 text-sm font-semibold text-danger hover:bg-danger-soft disabled:opacity-60">
+            <button type="button" onClick={() => setFinishConfirm(true)} disabled={disabled || inFlight} className="clinical-secondary min-h-12 border-danger/35 px-5 text-danger hover:bg-danger-soft disabled:opacity-60">
               <Square size={16} /> {finishLabel ?? "Finalizar"}
             </button>
           ) : null}
@@ -241,8 +271,8 @@ export function DictationPanel({
             <p className="text-sm font-semibold text-deep">¿Finalizar la consulta y generar la nota?</p>
             <p className="mt-1 text-xs leading-relaxed text-muted">Se cerrará el micrófono y se procesará la transcripción acumulada. Esta acción no descarta el texto.</p>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setFinishConfirm(false)} className="rounded-xl border border-line bg-surface px-3 py-2 text-sm font-semibold text-deep">Seguir grabando</button>
-              <button type="button" onClick={() => void finishRecording()} className="rounded-xl bg-danger px-3 py-2 text-sm font-semibold text-white">Sí, finalizar</button>
+              <button type="button" onClick={() => setFinishConfirm(false)} className="clinical-secondary px-3">Seguir grabando</button>
+              <button type="button" onClick={() => void finishRecording()} className="clinical-danger px-3">Sí, finalizar</button>
             </div>
           </div>
         ) : null}

@@ -1,16 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2, Mic, X } from "lucide-react";
+import { AlertBanner } from "@/components/ui/AlertBanner";
 import {
   createClinicalEncounter,
   friendlyClinicalMessage,
-  getClinicalTemplates,
   type ClinicalTemplate,
 } from "@/lib/api/clinical";
 import {
-  getTemplatePreferences,
   pickPreselectedTemplate,
   pinnedTemplateIds,
   readLastTemplateId,
@@ -18,6 +17,10 @@ import {
   type TemplatePreference,
 } from "@/lib/clinical/template-preferences";
 import { useUserPreferences } from "@/lib/preferences/client";
+import {
+  getTemplateContext,
+  invalidateTemplateContext,
+} from "@/lib/clinical/template-prefetch";
 import { createClient } from "@/lib/supabase/client";
 import { ClinicalTemplatePicker } from "./ClinicalTemplatePicker";
 import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
@@ -29,15 +32,22 @@ import { useNavigationGuard } from "@/components/app/UnsavedChangesProvider";
 export function QuickConsultationLauncher({
   userId,
   specialtyCode,
+  open: openProp,
+  onOpenChange,
 }: {
   userId?: string | null;
   specialtyCode?: string | null;
+  /** Modo controlado (lo usa el dock del shell); sin estas props, interno. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const { guardedNavigate } = useNavigationGuard();
   const { preferences: userPreferences } = useUserPreferences();
-  const [open, setOpen] = useState(false);
+  const [openInterno, setOpenInterno] = useState(false);
+  const open = openProp ?? openInterno;
+  const setOpen = onOpenChange ?? setOpenInterno;
   const [templates, setTemplates] = useState<ClinicalTemplate[]>([]);
   const [preferences, setPreferences] = useState<TemplatePreference[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
@@ -47,19 +57,18 @@ export function QuickConsultationLauncher({
 
   function openLauncher() {
     setOpen(true);
+    ensureTemplates();
+  }
+
+  function ensureTemplates() {
     if (templates.length || loadingTemplates) return;
     setLoadingTemplates(true);
     setError(null);
 
-    void Promise.all([
-      getClinicalTemplates(),
-      // Sin preferencias solo se pierde el pin; nunca bloquea el lanzador.
-      getTemplatePreferences(createClient()).catch(
-        () => [] as TemplatePreference[],
-      ),
-    ])
-      .then(([items, prefs]) => {
-        const activeAll = items.filter((template) => template.status !== "archived");
+    // Mismo memo que el dock (template-prefetch): si el dock ya precalentó el
+    // catálogo, la hoja abre con las plantillas al instante.
+    void getTemplateContext(createClient())
+      .then(({ templates: activeAll, preferences: prefs }) => {
         setTemplates(activeAll);
         setPreferences(prefs);
         // Qué queda preseleccionado lo decide el médico en Configuración
@@ -84,6 +93,13 @@ export function QuickConsultationLauncher({
       });
   }
 
+  // En modo controlado la apertura llega desde afuera (el dock): el catalogo
+  // se asegura aqui, no en el onClick del boton propio.
+  useEffect(() => {
+    if (open) ensureTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   function close() {
     if (starting) return;
     setOpen(false);
@@ -101,6 +117,7 @@ export function QuickConsultationLauncher({
         template_id: selectedTemplateId,
       });
       rememberTemplateId(userId, selectedTemplateId);
+      invalidateTemplateContext();
       const params = new URLSearchParams({
         encounter: result.encounter_id,
         record: "1",
@@ -124,18 +141,20 @@ export function QuickConsultationLauncher({
 
   return (
     <>
+      {/* El boton flotante es solo de movil: en escritorio esta accion vive
+          en el dock del shell (ActionDock), que abre esta misma hoja. */}
       <button
         type="button"
         onClick={openLauncher}
-        aria-label="Grabar una consulta nueva"
-        className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] right-3 z-50 inline-flex min-h-12 items-center gap-2 rounded-[12px] bg-accent px-4 py-3 text-sm font-semibold text-white shadow-[var(--shadow-md)] transition-colors active:scale-[0.98] md:bottom-5 md:right-44 md:hover:bg-accent-hover"
+        aria-label="Iniciar una consulta"
+        className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] right-3 z-50 inline-flex min-h-12 items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold text-white shadow-[var(--elev-2)] [background:var(--grad-accent)] transition-shadow active:scale-[0.98] md:hidden"
       >
         <span className="relative inline-flex h-5 w-5 items-center justify-center">
           <Mic size={16} />
           <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full border border-accent bg-danger" aria-hidden />
         </span>
-        <span className="hidden sm:inline">Grabar consulta</span>
-        <span className="sm:hidden">Grabar</span>
+        <span className="hidden sm:inline">Iniciar consulta</span>
+        <span className="sm:hidden">Iniciar</span>
       </button>
 
       {open ? (
@@ -151,7 +170,7 @@ export function QuickConsultationLauncher({
             role="dialog"
             aria-modal="true"
             aria-labelledby="quick-recording-title"
-            className="mobile-bottom-sheet relative max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-t-3xl border border-b-0 border-line bg-surface shadow-[var(--shadow-lg)] sm:rounded-[16px] sm:border-b"
+            className="mobile-bottom-sheet relative max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-t-3xl border border-b-0 border-line bg-surface shadow-[var(--shadow-lg)] sm:rounded-[24px] sm:border-b"
           >
             <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
               <div className="flex items-center gap-3">
@@ -170,7 +189,7 @@ export function QuickConsultationLauncher({
                 onClick={close}
                 aria-label="Cerrar"
                 title="Cerrar inicio rápido"
-                className="mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-[10px] text-muted transition-colors hover:bg-ice-soft hover:text-deep"
+                className="icon-btn mt-0.5"
               >
                 <X size={19} />
               </button>
@@ -192,11 +211,7 @@ export function QuickConsultationLauncher({
                 </p>
               ) : null}
 
-              {error ? (
-                <p role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-sm text-danger">
-                  {error}
-                </p>
-              ) : null}
+              {error ? <AlertBanner tone="danger">{error}</AlertBanner> : null}
 
               <button
                 type="button"

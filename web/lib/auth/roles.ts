@@ -5,13 +5,32 @@
 // supabase/migrations/20260722010000_secretaria_role.sql). A diferencia de
 // "supervisor" (que ve TODA la organización), una secretaria solo ve las
 // consultas de los médicos que tenga asignados en secretary_doctor_access.
-export const APP_ROLES = ["superadmin", "admin", "supervisor", "medico", "secretaria"] as const;
+//
+// "admin_area": jefe de un servicio del hospital (ver
+// supabase/migrations/20260901140000_areas_medicas.sql). Manda dentro de su
+// área y solo dentro de ella: ve sus consultas, gestiona sus cuentas y lee su
+// auditoría, pero no toca la configuración de la institución ni ve los otros
+// servicios. Nació porque la jefa de urgencias del Hospital General tuvo que
+// crearse como `admin` para supervisar a su gente, y con eso quedó viendo
+// también las consultas de patología.
+//
+// La cadena de mando: superadmin > admin > admin_area > supervisor > medico.
+// El alcance real lo impone la RLS (private.supervises), no esta lista.
+export const APP_ROLES = [
+  "superadmin",
+  "admin",
+  "admin_area",
+  "supervisor",
+  "medico",
+  "secretaria",
+] as const;
 
 export type AppRole = (typeof APP_ROLES)[number];
 
 export const APP_ROLE_LABEL: Record<AppRole, string> = {
   superadmin: "Super-admin",
   admin: "Administrador",
+  admin_area: "Jefe de área",
   supervisor: "Supervisor",
   medico: "Médico",
   secretaria: "Secretaría",
@@ -99,11 +118,20 @@ export function canAccessPath(
     return isDemoSection(pathname);
   }
 
+  // Grabar y firmar una nota es de quien ejerce. `admin` NO ejerce: es
+  // gerencia, y un administrador de hospital no atiende pacientes.
+  // `admin_area` sí — el jefe de un servicio médico es un médico que además
+  // administra, y el del servicio de urgencias del Hospital General es
+  // urgentólogo y pasa consulta. Obligarlo a tener dos cuentas para dictar y
+  // para mandar sería una limitación nuestra, no del oficio.
+  //
+  // La base ya lo permitía: la política "insert consultations" solo exige
+  // medico_id = auth.uid(), sin mirar el rol. Esta línea era la única barrera.
   if (
     pathname.startsWith("/app/consultas/nueva") ||
     pathname.startsWith("/app/consultas/en-vivo")
   ) {
-    return role === "medico";
+    return role === "medico" || role === "admin_area";
   }
 
   // /app/laboratorio no se decide aquí: lo gobierna el professional_type en la
@@ -115,12 +143,22 @@ export function canAccessPath(
   // cualquier rol clínico por la regla permisiva del final — un supervisor
   // también tiene nombre, cédula y micrófono. La secretaría sigue fuera por su
   // lista blanca de arriba, y la demo por la suya.
-  if (pathname.startsWith("/app/usuarios") || pathname.startsWith("/app/institucion")) {
+  // OJO con la asimetría, que es deliberada: /app/institucion es del admin de
+  // la institución y NADA más (membrete, servicios, valores por defecto del
+  // hospital, y el organigrama de áreas). Un jefe de área no se inventa áreas
+  // ni se renombra la suya. /app/usuarios sí lo alcanza, pero la RLS le acota
+  // la lista a su propio servicio, así que ve la misma pantalla con menos
+  // gente dentro.
+  if (pathname.startsWith("/app/institucion")) {
     return role === "admin";
   }
 
+  if (pathname.startsWith("/app/usuarios")) {
+    return role === "admin" || role === "admin_area";
+  }
+
   if (pathname.startsWith("/app/auditoria") || pathname.startsWith("/app/reportes")) {
-    return role === "admin" || role === "supervisor";
+    return role === "admin" || role === "supervisor" || role === "admin_area";
   }
 
   return true;

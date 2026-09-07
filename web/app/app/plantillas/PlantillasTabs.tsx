@@ -45,7 +45,7 @@ export function PlantillasTabs({
   }
 
   return (
-    <div className="app-page max-w-[1440px]">
+    <div className="app-page">
       <Tabs
         tabs={[
           { id: "plantillas", label: "Plantillas" },

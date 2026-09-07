@@ -10,15 +10,18 @@ import {
   Loader2,
   Mic,
   Monitor,
-  Search,
   Upload,
+  UserPlus,
   UserRound,
   Video,
-  X,
 } from "lucide-react";
 import { useStore } from "@/app/app/providers";
 import { ClinicalTemplatePicker } from "@/components/app/ClinicalTemplatePicker";
+import { PatientFormDialog } from "@/components/app/PatientFormDialog";
 import { AppPageHeader } from "@/components/app/AppPage";
+import { AlertBanner } from "@/components/ui/AlertBanner";
+import { SearchField } from "@/components/ui/SearchField";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { ConsultationType } from "@/lib/mock";
 import { buildRedactor } from "@/lib/privacy/redact";
 import { createClient } from "@/lib/supabase/client";
@@ -63,6 +66,7 @@ function NuevaConsultaForm() {
   const [patientQuery, setPatientQuery] = useState("");
   const [patientId, setPatientId] = useState<string | null | undefined>(undefined);
   const [patientPickerOpen, setPatientPickerOpen] = useState(false);
+  const [newPatientOpen, setNewPatientOpen] = useState(false);
   const [tipo, setTipo] = useState<Exclude<ConsultationType, "audio">>("presencial");
   const [templates, setTemplates] = useState<ClinicalTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
@@ -401,14 +405,14 @@ function NuevaConsultaForm() {
         description="Confirma la plantilla y comienza a grabar. El paciente es opcional."
         action={
           appointmentName ? (
-            <div className="inline-flex items-center gap-2 rounded-[9px] border border-accent/25 bg-accent-soft/45 px-3 py-2 text-sm font-medium text-accent-ink">
+            <div className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent-soft/45 px-3 py-2 text-sm font-medium text-accent-ink">
               <CalendarClock size={15} /> {appointmentName}
             </div>
           ) : null
         }
       />
 
-      <main className="rounded-[14px] border border-line bg-surface shadow-[var(--shadow-xs)]">
+      <main className="clinical-panel overflow-hidden">
         <section className="border-b border-line px-5 py-5 sm:px-7">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -420,7 +424,7 @@ function NuevaConsultaForm() {
           {templatesLoading ? (
             <p className="mt-4 flex items-center gap-2 text-sm text-muted"><Loader2 size={15} className="animate-spin text-accent" /> Cargando plantillas…</p>
           ) : templatesError ? (
-            <p role="alert" className="mt-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">No se pudieron cargar las plantillas. {templatesError}</p>
+            <AlertBanner tone="danger" className="mt-4">No se pudieron cargar las plantillas. {templatesError}</AlertBanner>
           ) : availableTemplates.length ? (
             <div className="mt-4"><ClinicalTemplatePicker templates={availableTemplates} specialtyCode={profileSpecialtyCode} value={effectiveTemplateId} onChange={setSelectedTemplateId} disabled={creating} pinnedTemplateIds={pinnedIds} /></div>
           ) : (
@@ -434,17 +438,18 @@ function NuevaConsultaForm() {
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Contexto</p>
               <h2 className="mt-1 text-base font-semibold text-deep">Modalidad de atención</h2>
             </div>
-            <div className="inline-flex w-full rounded-xl border border-line bg-pearl p-1 sm:w-auto" role="group" aria-label="Modalidad de atención">
-              {modalities.map((modality) => {
-                const Icon = modality.icon;
-                const active = tipo === modality.id;
-                return (
-                  <button key={modality.id} type="button" onClick={() => setTipo(modality.id)} className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${active ? "bg-surface text-accent shadow-[var(--shadow-xs)]" : "text-muted hover:text-deep"}`} aria-pressed={active}>
-                    <Icon size={15} /> {modality.label}
-                  </button>
-                );
-              })}
-            </div>
+            <SegmentedControl
+              ariaLabel="Modalidad de atención"
+              options={modalities.map((modality) => ({
+                id: modality.id,
+                label: modality.label,
+                icon: modality.icon,
+              }))}
+              value={tipo}
+              onChange={(id) => setTipo(id as typeof tipo)}
+              fullWidth
+              className="sm:w-auto"
+            />
           </div>
 
           {showNameMatchPrompt && nameMatchCandidate ? (
@@ -471,7 +476,7 @@ function NuevaConsultaForm() {
                     setNameMatchResolved(true);
                     void writeAppointmentPatient(nameMatchCandidate.id);
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+                  className="clinical-primary min-h-11 px-4"
                 >
                   <Check size={15} /> Sí, asociar
                 </button>
@@ -481,7 +486,7 @@ function NuevaConsultaForm() {
                     setNameMatchResolved(true);
                     setPatientPickerOpen(true);
                   }}
-                  className="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-semibold text-deep hover:border-mist"
+                  className="clinical-secondary min-h-11 px-4"
                 >
                   No, elegir otro
                 </button>
@@ -498,24 +503,61 @@ function NuevaConsultaForm() {
                    <p className="text-[13px] text-muted">{selectedPatient ? "Asociado a esta consulta" : "Opcional"}</p>
                 </div>
               </div>
-              <button type="button" onClick={() => setPatientPickerOpen((open) => !open)} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-semibold text-accent hover:bg-accent-soft">
+              <button type="button" onClick={() => setPatientPickerOpen((open) => !open)} className="clinical-tertiary min-h-10 px-3">
                 {selectedPatient ? "Cambiar" : "Asociar paciente"} <ChevronDown size={15} />
               </button>
             </div>
             {patientPickerOpen ? (
               <div className="mt-4 border-t border-line pt-4">
-                <div className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 focus-within:border-accent">
-                  <Search size={16} className="text-muted" />
-                  <input value={patientQuery} onChange={(event) => setPatientQuery(event.target.value)} placeholder="Buscar por nombre o documento" aria-label="Buscar paciente" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted" />
-                  {patientQuery ? <button type="button" onClick={() => setPatientQuery("")} aria-label="Limpiar búsqueda" className="text-muted hover:text-deep"><X size={15} /></button> : null}
-                </div>
+                <SearchField
+                  value={patientQuery}
+                  onChange={setPatientQuery}
+                  placeholder="Buscar por nombre o documento"
+                  ariaLabel="Buscar paciente"
+                />
                 <ul className="mt-2 max-h-44 overflow-y-auto rounded-lg border border-line bg-surface p-1">
                   {matchingPatients.length ? matchingPatients.map((patient) => (
                     <li key={patient.id}><button type="button" onClick={() => { setPatientId(patient.id); setPatientQuery(patient.nombre); setPatientPickerOpen(false); }} className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left hover:bg-ice-soft"><span><span className="block text-sm font-medium text-deep">{patient.nombre}</span><span className="block text-xs text-muted">{patient.documento || "Datos por completar"}</span></span>{patient.id === effectivePatientId ? <Check size={15} className="text-accent" /> : null}</button></li>
-                  )) : <li className="px-3 py-2.5 text-sm text-muted">No hay coincidencias. Podrás crear el paciente dentro de la consulta.</li>}
+                  )) : <li className="px-3 py-2.5 text-sm text-muted">No hay coincidencias.</li>}
                 </ul>
-                {selectedPatient ? <button type="button" onClick={() => { setPatientId(null); setPatientPickerOpen(false); }} className="mt-2 text-sm font-semibold text-muted hover:text-deep">Continuar sin paciente asociado</button> : null}
+                {/* Antes aquí decía «Podrás crear el paciente dentro de la
+                    consulta»: un callejón sin salida justo en el momento en que
+                    el paciente está sentado enfrente. Ahora se crea aquí, con
+                    lo tecleado en el buscador ya puesto en el formulario, y
+                    queda asociado sin volver a buscarlo. */}
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNewPatientOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline"
+                  >
+                    <UserPlus size={15} /> Crear paciente nuevo
+                  </button>
+                  {selectedPatient ? <button type="button" onClick={() => { setPatientId(null); setPatientPickerOpen(false); }} className="text-sm font-semibold text-muted hover:text-deep">Continuar sin paciente asociado</button> : null}
+                </div>
               </div>
+            ) : null}
+            {newPatientOpen ? (
+              <PatientFormDialog
+                initialNombre={patientQuery.trim()}
+                onClose={() => setNewPatientOpen(false)}
+                onSaved={(creado) => {
+                  setNewPatientOpen(false);
+                  setPatientId(creado.id);
+                  setPatientQuery(creado.nombre);
+                  setPatientPickerOpen(false);
+                  // La cita ya no tiene por qué seguir preguntando por nombre:
+                  // el médico acaba de decir quién es.
+                  setNameMatchResolved(true);
+                }}
+                onUseExisting={(existente) => {
+                  setNewPatientOpen(false);
+                  setPatientId(existente.id);
+                  setPatientQuery(existente.nombre);
+                  setPatientPickerOpen(false);
+                  setNameMatchResolved(true);
+                }}
+              />
             ) : null}
           </div>
         </section>
@@ -561,14 +603,14 @@ function NuevaConsultaForm() {
               {uploadBusy ? <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-line" role="progressbar" aria-label="Progreso de la grabación" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}><div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${uploadProgress}%` }} /></div> : null}
             </div>
           ) : null}
-          {uploadError ? <p role="alert" className="mt-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">{uploadError} {uploadCanRetry ? "Puedes reintentar sin volver a transcribir el archivo." : ""}</p> : null}
+          {uploadError ? <AlertBanner tone="danger" className="mt-3">{uploadError} {uploadCanRetry ? "Puedes reintentar sin volver a transcribir el archivo." : ""}</AlertBanner> : null}
         </section>
 
-        <section className="mobile-bottom-sheet sticky bottom-0 z-20 rounded-b-[14px] border-t border-line bg-surface px-4 py-4 shadow-[0_-10px_24px_rgb(8_17_31/0.08)] sm:static sm:bg-accent-soft/25 sm:px-7 sm:py-5 sm:shadow-none">
-          {createError ? <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">No se pudo iniciar la consulta. {createError}</p> : null}
+        <section className="glass-bar mobile-bottom-sheet sticky bottom-0 z-20 rounded-b-[16px] border-t border-[var(--glass-edge)] px-4 py-4 sm:static sm:bg-accent-soft/25 sm:px-7 sm:py-5 sm:shadow-none sm:backdrop-blur-none sm:[background:var(--color-accent-soft)]/25">
+          {createError ? <AlertBanner tone="danger" className="mb-4">No se pudo iniciar la consulta. {createError}</AlertBanner> : null}
           <div className="flex justify-end">
              <button type="button" onClick={() => void startRecording()} disabled={!canStart} className="clinical-primary min-h-12 w-full px-6 py-3 sm:w-auto">
-              {creating ? <><Loader2 size={18} className="animate-spin" /> Preparando grabación…</> : <><Mic size={18} /> Grabar ahora</>}
+              {creating ? <><Loader2 size={18} className="animate-spin" /> Preparando grabación…</> : <><Mic size={18} /> Iniciar y grabar</>}
             </button>
           </div>
         </section>

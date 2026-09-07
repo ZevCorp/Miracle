@@ -11,7 +11,7 @@ export function Card({
 }) {
   return (
     <Tag
-      className={`rounded-[14px] border border-line bg-surface p-5 shadow-[var(--shadow-xs)] sm:p-6 ${className}`}
+      className={`rounded-[16px] border border-line bg-surface p-5 shadow-[var(--elev-1)] sm:p-6 ${className}`}
     >
       {children}
     </Tag>

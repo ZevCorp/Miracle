@@ -9,7 +9,11 @@ import {
   PATOLOGO_TYPE,
 } from "@/lib/clinical/pathology";
 import { createClient } from "@/lib/supabase/server";
-import { isAssignableRole, type AssignableRole } from "@/lib/superadmin/roles";
+import {
+  canAssignRole,
+  isAssignableRole,
+  type AssignableRole,
+} from "@/lib/superadmin/roles";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -56,17 +60,38 @@ export async function createDoctorAccount(formData: FormData) {
 
   const isSuper = profile.role === "superadmin";
   const isAdmin = profile.role === "admin";
+  const isAreaAdmin = profile.role === "admin_area";
   const base = isSuper ? "/superadmin/usuarios" : "/app/usuarios";
 
-  if (!isSuper && !isAdmin) {
+  if (!isSuper && !isAdmin && !isAreaAdmin) {
     back("/app/dashboard", "error", "No tienes permiso para crear cuentas.");
+  }
+
+  // Un jefe de servicio sin área no puede dar de alta a nadie: la cuenta
+  // nacería sin área y él mismo no la vería después. La RPC lo rechaza igual;
+  // esto solo lo explica con una frase en vez de con un error de Postgres.
+  if (isAreaAdmin && !profile.areaId) {
+    back(base, "error", "No tienes un área asignada: pídesela al administrador de la institución.");
   }
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const fullName = String(formData.get("fullName") ?? "").trim();
   const roleRaw = String(formData.get("role") ?? "medico");
-  const role: AssignableRole = isAssignableRole(roleRaw) ? roleRaw : "medico";
+  // El rol se valida contra lo que ESTE rol puede repartir, no contra la lista
+  // completa: un jefe de área que mande "admin" en el formulario obtiene
+  // "medico". La base lo recorta otra vez en create_org_member.
+  const role: AssignableRole = canAssignRole(profile.role, roleRaw) ? roleRaw : "medico";
+
+  // El área. A un jefe de servicio se le impone la suya y se ignora lo que
+  // mande el formulario, igual que a un admin de hospital se le impone su
+  // organización. Cadena vacía = sin área.
+  const areaRaw = String(formData.get("areaId") ?? "").trim();
+  const areaId = isAreaAdmin
+    ? profile.areaId
+    : UUID_RE.test(areaRaw)
+      ? areaRaw
+      : null;
 
   // Tipo profesional opcional al crear. Hoy la única división que se marca desde la consola
   // es "patólogo" (habilita los informes desde foto); el resto se define en el onboarding.
@@ -96,6 +121,7 @@ export async function createDoctorAccount(formData: FormData) {
     p_full_name: fullName,
     p_role: role,
     p_organization_id: organizationId,
+    p_area_id: areaId,
   });
 
   if (error) back(base, "error", error.message);

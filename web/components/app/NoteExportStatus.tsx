@@ -34,7 +34,7 @@ export function NoteExportStatus({
 
   if (unavailable) {
     return (
-      <div className={`rounded-xl border border-line bg-ice/40 p-3 text-[13px] text-ink-soft ${className}`}>
+      <div className={`rounded-[16px] border border-line bg-ice/40 p-3 text-[13px] text-ink-soft ${className}`}>
         La exportación automática a historia clínica no está disponible en este entorno.
       </div>
     );
@@ -60,7 +60,7 @@ export function NoteExportStatus({
   const inProgress = job.status === "pending" || job.status === "claimed";
 
   return (
-    <div className={`rounded-xl border border-line bg-surface p-3 ${className}`}>
+    <div className={`clinical-panel p-3 ${className}`}>
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={BADGE_TONE[tone]}>
           <StatusIcon tone={tone} />

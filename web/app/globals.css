@@ -1,5 +1,11 @@
+/* El orden de capas se fija ANTES del import: Tailwind v4 ya no declara una
+   capa `components`, así que declararla después de que exista `utilities` la
+   volvería la más fuerte y clases como sm:hidden dejarían de poder apagar el
+   cromo (.icon-btn, .glass-bar). Con esta línea, utilities siempre gana. */
+@layer theme, base, components, utilities;
 @import "tailwindcss";
 
+@layer components {
 /* ============================================================
    Miracle · Design System (Tailwind v4)
    Premium clínico: fondo casi blanco, mucho aire, un acento azul,
@@ -34,10 +40,15 @@
   /* Superficies deliberadamente oscuras, independientes del tema. */
   --color-statement: #0c1424;
   --color-sidebar: #1d3358;
-  --color-sidebar-hover: #29466f;
+  /* Blanco translúcido, no un navy fijo: el menú del médico es un panel de
+     vidrio cuyo tono depende de lo que tiene detrás, y un color sólido se
+     volvía MÁS oscuro que el panel — el hover se leía como un hundimiento. */
+  --color-sidebar-hover: rgb(255 255 255 / 0.12);
   --color-sidebar-active: #3a5681;
   --color-sidebar-text: #f8fafc;
-  --color-sidebar-muted: #c5d0df;
+  /* Sube con el panel: sobre el navy claro del modo claro, el #c5d0df de antes
+     caía a 3,4:1 con los rótulos del menú (AA pide 4,5:1). */
+  --color-sidebar-muted: #dbe3ee;
   --color-overlay: rgb(6 14 27 / 0.58);
 
   /* Acento (azul confianza). 4.7:1 con blanco en ambas direcciones:
@@ -65,6 +76,20 @@
   --color-info-soft: #e9f1fe;
   --color-info-ink: #174f9f;
 
+  /* ------------------------------------------------------------------
+     El DOCUMENTO. La nota clínica no vive sobre la misma superficie que la
+     herramienta: tiene su propio papel, medio grado más cálido que el lienzo.
+     Es la única licencia cromática del sistema y existe por una razón de uso —
+     el médico distingue de un vistazo lo que es registro con valor legal de lo
+     que son controles— no por gusto editorial. Nada más usa estos tokens.
+     ------------------------------------------------------------------ */
+  --color-doc: #fdfcf9;
+  --color-doc-raised: #ffffff;
+  --color-doc-line: #e9e3d6;
+  --color-doc-line-soft: #f1ece1;
+  --color-doc-ink: #191f28;
+  --color-doc-muted: #6d6a62;
+
   /* Radios (premium, generosos) */
   --radius-sm: 12px;
   --radius-md: 16px;
@@ -85,6 +110,7 @@
   --font-display: var(--ff-display), var(--ff-sans), ui-sans-serif, system-ui,
     sans-serif;
   --font-mono: var(--ff-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-doc: var(--ff-doc), Georgia, "Times New Roman", serif;
 }
 
 /* ============================================================
@@ -109,7 +135,14 @@
   /* Rejilla y ejes: recesivos, nunca compiten con los datos. */
   --color-chart-grid: #eef1f6;
   --color-chart-axis: #97a3b6;
+
+  /* La espina: riel, estación vacía, estación escrita. */
+  --spine-rail: #dfe5ee;
+  --spine-empty: #c3ccd9;
+  --spine-filled: #2f6fe0;
+  --spine-pending: #a34a06;
 }
+
 
 /* ============================================================
    Modo oscuro — la clase vive en <html> para que el lienzo global,
@@ -182,11 +215,119 @@
   --color-chart-grid: #223349;
   --color-chart-axis: #6b7c95;
 
+  /* En oscuro el papel no puede ser cálido —un beige apagado sobre pantalla
+     negra se lee sucio—, así que el documento se separa por ELEVACIÓN y por un
+     filo más claro, no por temperatura. El contraste sigue diciendo lo mismo:
+     esto es el registro, aquello es la herramienta. */
+  --color-doc: #16233a;
+  --color-doc-raised: #1b2b45;
+  --color-doc-line: #30425e;
+  --color-doc-line-soft: #253550;
+  --color-doc-ink: #e9eff8;
+  --color-doc-muted: #9dabbf;
+
+  --spine-rail: #2d3f59;
+  --spine-empty: #4a5f7e;
+  --spine-filled: #6fa6ff;
+  --spine-pending: #f6c65b;
+
   --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.2);
   --shadow-sm: 0 6px 18px rgb(0 0 0 / 0.22);
   --shadow-md: 0 14px 36px rgb(0 0 0 / 0.28);
   --shadow-lg: 0 28px 72px rgb(0 0 0 / 0.34);
   --shadow-xl: 0 44px 110px rgb(0 0 0 / 0.42);
+}
+
+/* ============================================================
+   Materiales del "instrumento iluminado".
+
+   Una sola fuente de luz, arriba a la izquierda: los highlights entran por
+   arriba (inset 1px claro) y las sombras caen hacia abajo. TODO relieve de la
+   app deriva de estos tokens; nada define sombras propias.
+
+   Van fuera de @theme por la misma razón que las series de gráficas: solo se
+   consumen desde clases CSS propias y Tailwind v4 podaría las variables que
+   ninguna utilidad usa.
+
+   Tres materiales, rol estricto:
+   - Vidrio (--glass-*): SOLO cromo fijo (header, dock, scrims, popovers).
+   - Relieve (--neu-*): SOLO lo que se toca (buscadores, segmented, icon-btn).
+     Siempre acompañado de un borde 1px real: el AA nunca depende de sombra.
+   - Papel elevado (--elev-*): donde se lee (tarjetas, listas, la nota).
+   ============================================================ */
+:root {
+  /* La luz cenital: el filo claro superior que unifica todo el sistema. */
+  --edge-top: inset 0 1px 0 rgb(255 255 255 / 0.65);
+  --edge-top-soft: inset 0 1px 0 rgb(255 255 255 / 0.4);
+
+  /* Papel elevado (siempre con border 1px var(--color-line) al lado). */
+  --elev-1: var(--edge-top), 0 1px 2px rgb(14 23 38 / 0.05),
+    0 2px 6px rgb(14 23 38 / 0.04);
+  --elev-2: var(--edge-top), 0 1px 2px rgb(14 23 38 / 0.05),
+    0 6px 16px -4px rgb(14 23 38 / 0.08);
+  --elev-3: var(--edge-top-soft), 0 2px 4px rgb(14 23 38 / 0.06),
+    0 16px 40px -8px rgb(14 23 38 / 0.16);
+
+  /* Relieve táctil: hundido (campos) y elevado (pulgar/botón quieto). */
+  --neu-in: inset 0 1px 3px rgb(14 23 38 / 0.07),
+    inset 0 -1px 0 rgb(255 255 255 / 0.55);
+  --neu-out: inset 0 1px 0 rgb(255 255 255 / 0.8),
+    0 1px 2px rgb(14 23 38 / 0.08), 0 2px 5px rgb(14 23 38 / 0.05);
+
+  /* Vidrio. -strong para superficies con listas de texto (palette, menús). */
+  --glass-bg: rgb(255 255 255 / 0.72);
+  --glass-bg-strong: rgb(255 255 255 / 0.88);
+  --glass-border: rgb(255 255 255 / 0.5);
+  --glass-edge: rgb(14 23 38 / 0.08);
+  --glass-shadow: 0 8px 32px -8px rgb(14 23 38 / 0.18);
+  --glass-blur: 14px;
+
+  /* Acción primaria: gradiente del accent (mismo rango AA con blanco). */
+  --grad-accent: linear-gradient(180deg, #2f6fe0 0%, #2559c4 100%);
+  --grad-accent-hover: linear-gradient(180deg, #3b7ae8 0%, #2c63d1 100%);
+  --glow-accent: 0 0 0 1px rgb(47 111 224 / 0.45),
+    0 6px 18px -4px rgb(47 111 224 / 0.35);
+
+  /* Sidebar: navy con profundidad vertical (claro arriba, hondo abajo). */
+  --grad-sidebar: linear-gradient(
+    180deg,
+    #22406e 0%,
+    var(--color-sidebar) 34%,
+    #142948 100%
+  );
+}
+
+/* En oscuro la "luz" es tenue (un filo blanco fuerte se lee como error) y la
+   profundidad la dan sombras negras más francas. El gradiente primario usa el
+   rango de accent-solid, que ya garantiza AA con texto blanco. */
+:root.dark {
+  --edge-top: inset 0 1px 0 rgb(255 255 255 / 0.07);
+  --edge-top-soft: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --elev-1: var(--edge-top), 0 1px 2px rgb(0 0 0 / 0.3),
+    0 2px 6px rgb(0 0 0 / 0.25);
+  --elev-2: var(--edge-top), 0 1px 2px rgb(0 0 0 / 0.3),
+    0 8px 20px -6px rgb(0 0 0 / 0.45);
+  --elev-3: var(--edge-top-soft), 0 2px 4px rgb(0 0 0 / 0.35),
+    0 20px 48px -8px rgb(0 0 0 / 0.6);
+  --neu-in: inset 0 1px 3px rgb(0 0 0 / 0.4),
+    inset 0 -1px 0 rgb(255 255 255 / 0.04);
+  --neu-out: inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 1px 2px rgb(0 0 0 / 0.4), 0 2px 5px rgb(0 0 0 / 0.3);
+  --glass-bg: rgb(18 31 51 / 0.72);
+  --glass-bg-strong: rgb(18 31 51 / 0.9);
+  --glass-border: rgb(255 255 255 / 0.08);
+  --glass-edge: rgb(0 0 0 / 0.4);
+  --glass-shadow: 0 8px 32px -8px rgb(0 0 0 / 0.55);
+  --grad-accent: linear-gradient(180deg, #3272d9 0%, #2559c4 100%);
+  --grad-accent-hover: linear-gradient(180deg, #3b7ae8 0%, #2c63d1 100%);
+  --glow-accent: 0 0 0 1px rgb(111 166 255 / 0.3),
+    0 6px 20px -4px rgb(50 114 217 / 0.5);
+  --grad-sidebar: linear-gradient(
+    180deg,
+    #0e2138 0%,
+    var(--color-sidebar) 40%,
+    #04090f 100%
+  );
 }
 
 /* ============================================================
@@ -360,7 +501,9 @@
    Miracle Notes · sistema clínico editorial
    ============================================================ */
 .app-shell {
-  background: var(--color-pearl);
+  /* EXPERIMENTO: transparente — el fondo lo pone el lienzo ambiental
+     (.ambient-canvas) y el canal alrededor del sidebar flotante lo enseña. */
+  background: transparent;
 }
 
 .app-page {
@@ -411,9 +554,9 @@
 
 .clinical-panel {
   border: 1px solid var(--color-line);
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--color-surface);
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--elev-1);
 }
 
 .clinical-panel-muted {
@@ -428,17 +571,19 @@
   gap: 0.75rem;
   padding: 0.75rem;
   border: 1px solid var(--color-line);
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--color-surface);
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--elev-1);
 }
 
 .clinical-control {
   min-height: 44px;
   border: 1px solid var(--color-line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--color-field);
   color: var(--color-ink);
+  /* Hundido: lo que recibe texto se lee como un hueco donde escribir. */
+  box-shadow: var(--neu-in);
   transition: border-color 150ms ease, box-shadow 150ms ease,
     background-color 150ms ease;
 }
@@ -450,7 +595,9 @@
 .clinical-control:focus-within,
 .clinical-control:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent);
+  /* El anillo se SUMA al hundido: el campo no "salta" al enfocarse. */
+  box-shadow: var(--neu-in),
+    0 0 0 3px color-mix(in srgb, var(--color-accent) 14%, transparent);
 }
 
 .clinical-primary,
@@ -462,31 +609,36 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 10px;
-  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  padding: 0.65rem 1.15rem;
   font-size: 0.875rem;
   font-weight: 650;
   line-height: 1.2;
   transition: border-color 150ms ease, background-color 150ms ease,
-    color 150ms ease, transform 150ms ease;
+    background-image 150ms ease, color 150ms ease, box-shadow 150ms ease,
+    transform 150ms ease;
 }
 
 .clinical-primary {
-  border: 1px solid var(--color-accent-solid);
-  background: var(--color-accent-solid);
+  border: 1px solid transparent;
+  /* Gradiente en el rango del accent-solid: AA con blanco garantizado en las
+     dos paradas, claro y oscuro. El borde queda transparente (no cero) para
+     que el cambio a pastilla no mueva ni un pixel el layout. */
+  background: var(--grad-accent);
   color: white;
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--edge-top-soft), 0 1px 2px rgb(14 23 38 / 0.1);
 }
 
 .clinical-primary:hover {
-  border-color: var(--color-accent-solid-hover);
-  background: var(--color-accent-solid-hover);
+  background: var(--grad-accent-hover);
+  box-shadow: var(--glow-accent);
 }
 
 .clinical-secondary {
   border: 1px solid var(--color-line-strong);
   background: var(--color-surface);
   color: var(--color-deep);
+  box-shadow: var(--neu-out);
 }
 
 .clinical-secondary:hover {
@@ -518,8 +670,34 @@
   cursor: not-allowed;
   border-color: var(--color-line);
   background: var(--color-disabled);
+  /* Sin esto, el gradiente del primario pisa el fondo deshabilitado. */
+  background-image: none;
   color: var(--color-disabled-ink);
   box-shadow: none;
+}
+
+/* Herramienta del documento (copiar, PDF, regrabar). Peso deliberadamente
+   bajo: son cosas que se le hacen a la nota, no decisiones sobre ella. Puestas
+   con el mismo peso que "Aprobar" —que era el caso— la fila entera se leía
+   como seis acciones iguales y la importante se perdía entre ellas. Viven
+   agrupadas dentro de un clinical-panel-muted, que es lo que las une. */
+.doc-tool {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0 0.75rem;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.doc-tool:hover {
+  background: var(--color-surface);
+  color: var(--color-deep);
 }
 
 .clinical-section-heading {
@@ -542,9 +720,9 @@
 .clinical-list {
   overflow: hidden;
   border: 1px solid var(--color-line);
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--color-surface);
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--elev-1);
 }
 
 .clinical-list-row {
@@ -557,6 +735,399 @@
 
 .clinical-list-row:hover {
   background: var(--color-ice-soft);
+}
+
+/* ============================================================
+   Cromo de vidrio — SOLO elementos fijos que flotan sobre el trabajo:
+   header, dock, bottom-nav, scrims, popovers pequeños, paleta de comandos.
+   Nunca bajo texto denso de contenido (esos cuerpos son bg-surface sólido).
+
+   Todo este bloque vive en @layer components: así las utilidades (que van en
+   la capa utilities, posterior) pueden seguir apagando y prendiendo estas
+   piezas (hidden, sm:inline-flex). Aun así, al aplicar una de estas clases se
+   RETIRAN las utilidades de fondo/borde del call site: superponerlas dejaría
+   el resultado a merced del orden de capas.
+
+   Escala z del shell (no inventar valores nuevos fuera de esta lista):
+   30 header · 40 bottom-nav móvil · 50 dock y FABs · 60 hoja de inicio rápido
+   y diálogos de en-vivo · 70 hoja «Más», picker de plantilla y modo captura ·
+   80 panel del asistente · 90 paleta de comandos · <dialog> nativo top-layer.
+   ============================================================ */
+.glass-bar {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+}
+
+.glass-panel {
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  box-shadow: inset 0 1px 0 var(--glass-border), var(--glass-shadow);
+}
+
+/* Sin soporte de blur, el vidrio degrada a superficie sólida: legible siempre. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-bar,
+  .glass-panel {
+    background: var(--color-surface);
+  }
+}
+
+/* ============================================================
+   Segmented: riel hundido + pulgar elevado. El estado activo se lee por
+   materia (sale del hueco), no solo por color.
+   ============================================================ */
+.seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-pearl);
+  box-shadow: var(--neu-in);
+}
+
+.seg-item {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  color: var(--color-ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: color 140ms ease, background-color 140ms ease,
+    box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.seg-item:hover {
+  color: var(--color-deep);
+}
+
+.seg-item[aria-pressed="true"],
+.seg-item[aria-selected="true"] {
+  border-color: var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-deep);
+  box-shadow: var(--neu-out);
+}
+
+/* ============================================================
+   Icon button táctil (header, cerrar, kebab): plano en reposo, relieve al
+   apuntar. 40px cumple el mínimo táctil de 44 con su padding de área.
+   ============================================================ */
+.icon-btn {
+  display: inline-flex;
+  height: 40px;
+  width: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--color-muted);
+  transition: color 140ms ease, background-color 140ms ease,
+    border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.icon-btn:hover {
+  border-color: var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-deep);
+  box-shadow: var(--neu-out);
+}
+
+/* Ítem activo del sidebar: pastilla luminosa sobre el navy — la luz cenital
+   traducida al material oscuro. La barra blanca izquierda la pone el JSX. */
+.sidebar-item-active {
+  background: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.16),
+    rgb(255 255 255 / 0.07)
+  );
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+}
+
+/* ============================================================
+   EL DOCUMENTO
+   La nota clínica es lo único que se compone como documento: papel propio,
+   serif de texto y datos en monoespaciada. Todo lo demás de la pantalla es
+   herramienta y se queda en la Inter de la interfaz.
+   ============================================================ */
+.doc {
+  border: 1px solid var(--color-doc-line);
+  border-radius: 12px;
+  background: var(--color-doc);
+}
+
+.doc-body {
+  color: var(--color-doc-ink);
+  font-family: var(--font-doc);
+  font-size: 1.0625rem;
+  line-height: 1.62;
+  /* Las cifras de una nota (dosis, tensión, LDL) se comparan en vertical
+     entre secciones; sin tabulares bailan. */
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-body p + p {
+  margin-top: 0.7em;
+}
+
+/* Rótulo de sección: versalita ancha. Es el vocabulario del formulario clínico
+   impreso —MOTIVO DE CONSULTA, EXAMEN FÍSICO— y separa el rótulo del contenido
+   sin necesidad de una regla ni de un tamaño mayor. */
+.doc-label {
+  color: var(--color-doc-muted);
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.11em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.doc-rule {
+  height: 1px;
+  border: 0;
+  background: var(--color-doc-line-soft);
+}
+
+/* Dato clínico: hora, duración, documento, CIE-10, edad, hash de firma.
+   Monoespaciada y tabular para que se puedan comparar en columna y para que
+   un número nunca se confunda con prosa. */
+.data {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ============================================================
+   LA ESPINA
+   Un riel con una estación por sección de la plantilla. Es tres cosas a la vez
+   y por eso existe: índice (se pulsa y salta), medidor de llenado (hueca =
+   vacía, sólida = escrita) y, mientras se graba, el latido de la captura.
+   No va numerada a propósito: las secciones no son una secuencia obligatoria y
+   un 01/02/03 afirmaría un orden que no existe.
+   ============================================================ */
+.spine {
+  --spine-progress: 0;
+  position: relative;
+}
+
+.spine-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0.35rem 0;
+  list-style: none;
+}
+
+/* El riel completo, en gris. */
+.spine-list::before {
+  position: absolute;
+  top: 1.15rem;
+  bottom: 1.15rem;
+  left: 5px;
+  width: 1px;
+  background: var(--spine-rail);
+  content: "";
+}
+
+/* Y encima, la parte ya escrita. Esta es la línea que sube sola mientras el
+   médico habla: el riel se va llenando hasta la última sección con contenido. */
+.spine-list::after {
+  position: absolute;
+  top: 1.15rem;
+  left: 5px;
+  width: 1px;
+  height: calc(var(--spine-progress) * (100% - 2.3rem));
+  background: var(--spine-filled);
+  content: "";
+  transition: height 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.station {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.7rem;
+  border-radius: 8px;
+  padding: 0.3rem 0.5rem 0.3rem 0;
+  text-align: left;
+  transition: background-color 140ms ease;
+}
+
+.station:hover {
+  background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+}
+
+.station-dot {
+  position: relative;
+  z-index: 1;
+  display: block;
+  box-sizing: border-box;
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--spine-empty);
+  border-radius: 999px;
+  margin-left: 0;
+  background: var(--color-surface);
+  transition: background-color 200ms ease, border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.station-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  font-weight: 550;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Escrita: el punto se cierra. */
+.station[data-state="filled"] .station-dot {
+  border-color: var(--spine-filled);
+  background: var(--spine-filled);
+}
+
+.station[data-state="filled"] .station-label {
+  color: var(--color-deep);
+}
+
+/* Propuesta por la IA y todavía sin revisar: el punto queda a medias. El
+   médico tiene que poder distinguir lo que él escribió de lo que le
+   propusieron, y esa diferencia no puede ser solo de color. */
+.station[data-state="pending"] .station-dot {
+  border-color: var(--spine-pending);
+  background: linear-gradient(
+    to right,
+    var(--spine-pending) 50%,
+    transparent 50%
+  );
+}
+
+.station[data-state="pending"] .station-label {
+  color: var(--color-ink-soft);
+}
+
+/* Activa: halo, no relleno — así el estado "dónde estoy" no se confunde con
+   el estado "ya está escrita". */
+.station[aria-current="true"] .station-dot {
+  box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+.station[aria-current="true"] .station-label {
+  color: var(--color-accent-ink);
+  font-weight: 680;
+}
+
+.station[aria-current="true"] {
+  background: var(--color-accent-soft);
+}
+
+/* Contraída (pantallas medianas): solo los puntos, con el rótulo como pista. */
+.spine[data-compact="true"] .station-label {
+  position: absolute;
+  z-index: 40;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 7px;
+  background: var(--color-night);
+  padding: 5px 9px;
+  color: #fff;
+  font-size: 11px;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: var(--shadow-md);
+}
+
+.spine[data-compact="true"] .station:hover .station-label,
+.spine[data-compact="true"] .station:focus-visible .station-label {
+  opacity: 1;
+  transition: opacity 110ms ease 180ms;
+}
+
+/* ============================================================
+   MODO CONSULTA
+   Mientras se graba, el médico mira al paciente. Lo poco que mira la pantalla
+   lo mira de reojo y a un metro: por eso aquí no hay cromo, el tiempo es
+   enorme y la última frase escuchada se lee de lejos.
+   ============================================================ */
+.capture {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-canvas);
+}
+
+.capture-time {
+  color: var(--color-deep);
+  font-family: var(--font-mono);
+  font-size: clamp(2.6rem, 7vw, 4.6rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.capture-caption {
+  color: var(--color-ink-soft);
+  font-size: clamp(1.05rem, 1.9vw, 1.5rem);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+/* El punto de grabación. Un latido lento: a un metro se ve que sigue vivo sin
+   que parpadee lo bastante rápido como para distraer. */
+@keyframes live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 12px color-mix(in srgb, var(--color-danger) 0%, transparent);
+  }
+}
+
+.live-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-danger);
+  animation: live-pulse 2.1s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+  }
+
+  .spine-list::after {
+    transition: none;
+  }
 }
 
 @media (max-width: 639px) {
@@ -625,13 +1196,54 @@
    corre antes del primer pintado ya deja el menú del ancho correcto: si
    dependiera de estado de React, el menú abriría siempre expandido y se
    encogería un instante después, a la vista del usuario. */
+/* El ancho del menú, expuesto como variable. El cromo flotante es `fixed`, así
+   que no lo empuja nadie: sin este dato no puede alinearse con el principio del
+   contenido y solo le queda pegarse a una esquina. Debajo de md no hay menú. */
+:root {
+  --aside-w: 0px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --aside-w: 260px;
+  }
+  html[data-sidebar="collapsed"] {
+    --aside-w: 84px;
+  }
+}
+
+/* EL BUSCADOR, ABIERTO Y CON SITIO.
+   Metido en la cápsula de estado era una lupa apretujada entre el tema y la
+   cuenta: no se leía como un buscador, y con el ⌘K al lado quedaba todo
+   amontonado en la esquina. Aquí empieza donde empieza el contenido (la misma
+   sangría que .app-main en md) y acompaña al menú cuando se contrae, con su
+   mismo tiempo, para que no dé un salto.
+
+   `fixed`, `top` y `z-index` los pone el elemento con utilidades, NO esta
+   clase: si esta hoja no llegara a cargar, un elemento `flex` sin posicionar se
+   metería en el flujo y le robaría el ancho al contenido —ya pasó—. Aquí solo
+   va lo que necesita el calc. */
+.chrome-search {
+  left: calc(var(--aside-w) + 2rem);
+  width: min(24rem, 34vw);
+  transition: left 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chrome-search {
+    transition: none;
+  }
+}
+
 .app-aside {
-  width: 248px;
+  /* 248 de menú + 12 de canal a la izquierda (el panel flota despegado). */
+  width: 260px;
+  padding: 12px 0 12px 12px;
   transition: width 200ms ease;
 }
 
 html[data-sidebar="collapsed"] .app-aside {
-  width: 72px;
+  width: 84px;
 }
 
 /* Las tres reglas se limitan a `.app-aside` a propósito: el mismo componente de
@@ -719,7 +1331,17 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
    siempre -no solo en móvil-, porque los botones están fijos en todos los
    anchos, solo cambian de posición. */
 .app-main {
+  /* Arriba: el sitio que ocupaba la cabecera, ahora reservado para que la
+     cápsula flotante no se pose encima del contenido (y respetando la muesca
+     del teléfono). Abajo: los botones flotantes. */
+  padding-top: calc(4.5rem + env(safe-area-inset-top, 0px));
   padding-bottom: 6rem;
+}
+
+@media (min-width: 768px) {
+  .app-main {
+    padding-top: 5rem;
+  }
 }
 
 @media (max-width: 767px) {
@@ -809,5 +1431,420 @@ html[data-sidebar="collapsed"] .app-aside .sidebar-item:focus-visible .sidebar-l
      render inicial (rompería la hidratación SSR). */
   .parallax-num {
     transform: none !important;
+  }
+}
+
+/* ============================================================
+   EXPERIMENTO · Cabina de cristal
+   Todo lo de esta sección pertenece a la rama experimental. Si el
+   experimento muere, se borra este bloque completo y nada más.
+   ============================================================ */
+
+/* Entrada del panel rápido: desliza desde la derecha. Es animación y no
+   transición por la misma razón que .preview-in: arranca sola al montar y
+   termina siempre en su sitio. */
+@keyframes peek-in {
+  from {
+    opacity: 0.4;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.peek-enter {
+  animation: peek-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .peek-enter {
+    animation: none;
+  }
+}
+
+/* ---------- Sidebar flotante de cristal ---------- */
+/* El menú deja de ser una columna pegada al borde: flota como un panel de
+   vidrio navy dentro de un canal de 12px, con el fondo ambiental respirando
+   alrededor. El fondo, el radio y el filo luminoso viven en ::before y NO hay
+   overflow:hidden en el contenedor: los globos del modo contraído
+   (.sidebar-label, que salen en left: calc(100% + 14px)) tienen que poder
+   asomarse fuera del panel. */
+:root {
+  /* SÓLIDO, no vidrio. A 0.84-0.90 de alfa sobre un lienzo casi blanco se
+     colaba un 10-16% de blanco que no solo aclaraba el navy: le destruía el
+     croma, y el menú se leía gris polvoriento —"un color mal puesto"—. El
+     vidrio es para el cromo que flota SOBRE CONTENIDO (la cápsula, el peek);
+     el menú flota sobre el fondo, donde la transparencia no enseña nada y
+     solo cuesta saturación. Opaco recupera el azul entero. */
+  --grad-sidebar-glass: linear-gradient(
+    188deg,
+    #24406e,
+    #1c3157 52%,
+    #16274a
+  );
+}
+
+:root.dark {
+  --grad-sidebar-glass: linear-gradient(
+    188deg,
+    #0e2039,
+    #08172b 45%,
+    #04101f
+  );
+}
+
+.aside-float {
+  position: relative;
+  height: 100%;
+  border-radius: 24px;
+  /* Sin backdrop-filter: debajo de una capa opaca no difumina nada, cuesta GPU
+     en cada scroll y —lo importante— crea bloque contenedor para cualquier
+     descendiente `fixed`, que es la trampa que dejo la pantalla de grabacion
+     en blanco. Se retira con el vidrio. */
+}
+
+.aside-float::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--grad-sidebar-glass);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 0 0 1px rgb(255 255 255 / 0.08), var(--elev-3);
+  content: "";
+}
+
+/* El contenido interior sí se recorta al radio (cabecera y pie tocan los
+   bordes), pero mediante radios propios, no overflow. */
+.aside-float > * {
+  border-radius: inherit;
+}
+
+/* ---------- Fondo ambiental: UNA luz ---------- */
+/* El material del sistema afirma que la luz entra por arriba a la izquierda:
+   por eso cada panel lleva su filo claro en la cara superior. El fondo anterior
+   contradecia esa afirmacion con tres focos de tres colores -cian, azul y verde
+   menta- derivando desde tres esquinas. Dos versiones opuestas de la misma
+   escena: eso es lo que hacia que el fondo se notara y terminara cansando.
+
+   Aqui hay una sola luz, en el sitio que el material ya prometia, sin color
+   propio mas alla del frio del acento. El color de la app lo pone el contenido,
+   que es de quien tiene que ser. */
+:root {
+  --ambient-key: rgb(138 185 255 / 0.28);
+  /* LA SOMBRA, que en claro hace el trabajo que la luz no puede hacer: sobre un
+     lienzo casi blanco no hay margen hacia arriba, asi que el modelado se
+     consigue OSCURECIENDO todo menos el punto por donde entra la luz. */
+  --ambient-shade: rgb(24 46 88 / 0.1);
+  /* El suelo: un poco de peso abajo para que la pantalla no flote. Sin tinte
+     propio, solo la sombra del propio lienzo. */
+  --ambient-floor: rgb(16 34 66 / 0.05);
+  --ambient-grain: 0.026;
+  /* La trama: rejilla de instrumento y el eco del orbe. Sin color propio. */
+  --ambient-grid: rgb(20 40 78 / 0.072);
+  --ambient-ring: rgb(47 111 224 / 0.13);
+}
+
+:root.dark {
+  --ambient-key: rgb(96 156 255 / 0.16);
+  --ambient-shade: rgb(0 0 0 / 0.22);
+  --ambient-floor: rgb(0 0 0 / 0.32);
+  /* En oscuro el bandeado se ve mucho mas, asi que el grano sube. */
+  --ambient-grain: 0.04;
+  --ambient-grid: rgb(150 195 255 / 0.065);
+  --ambient-ring: rgb(120 175 255 / 0.098);
+}
+
+.ambient-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    /* Transparente donde entra la luz, y va cerrandose hacia la esquina
+       opuesta: eso es lo que convierte un blanco plano en una superficie
+       modelada, sin recurrir al color. */
+    radial-gradient(125% 108% at 12% -6%, transparent 28%, var(--ambient-shade)),
+    linear-gradient(180deg, transparent 42%, var(--ambient-floor));
+}
+
+/* La luz vive en su propia capa para poder derivar con transform sin obligar a
+   repintar el gradiente en cada frame. */
+.ambient-key {
+  position: absolute;
+  inset: -25% -25% auto -25%;
+  height: 135%;
+  background: radial-gradient(
+    58% 55% at 20% 0%,
+    var(--ambient-key),
+    transparent 70%
+  );
+  will-change: transform;
+  /* 90 s y 2,5 vw: imperceptible mirandolo, pero la pantalla no esta muerta. */
+  animation: ambient-respira 90s ease-in-out infinite alternate;
+}
+
+/* LA TRAMA: rejilla de instrumento + el eco del orbe en anillos concentricos,
+   los dos naciendo del mismo punto por el que entra la luz.
+
+   Va enmascarada con un degradado que la apaga al alejarse de ese punto, y esa
+   mascara es la idea entera: la textura no esta pegada encima del fondo, la
+   REVELA la luz. Donde la luz llega se intuye el material; donde no, no hay
+   nada que mirar. Un fondo liso se veia aburrido y una trama uniforme cansaria
+   a los diez minutos; esto tiene algo que mirar sin pedir que lo mires.
+
+   Todo monocromo a proposito: el color de la app lo pone el contenido. */
+.ambient-weave {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-radial-gradient(
+      circle at 16% -8%,
+      transparent 0 124px,
+      var(--ambient-ring) 124px 125px
+    ),
+    repeating-linear-gradient(
+      to right,
+      var(--ambient-grid) 0 1px,
+      transparent 1px 36px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--ambient-grid) 0 1px,
+      transparent 1px 36px
+    );
+  -webkit-mask-image: radial-gradient(125% 135% at 15% 0%, #000, transparent 80%);
+  mask-image: radial-gradient(125% 135% at 15% 0%, #000, transparent 80%);
+}
+
+/* Grano. Invisible de cerca y decisivo de lejos: sin el, una superficie tan
+   grande y tan lisa se parte en escalones de banda, sobre todo en oscuro. Es
+   la diferencia entre "un degradado de CSS" y papel. */
+.ambient-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: var(--ambient-grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+@keyframes ambient-respira {
+  to {
+    transform: translate3d(2.5vw, 1.5vh, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-key {
+    animation: none;
+  }
+}
+
+/* ---------- Luz que sigue el cursor ---------- */
+/* Las superficies con [data-light] ganan un resplandor radial que sigue al
+   puntero (CursorLight escribe --mx/--my; aquí solo se pinta). El ::after no
+   captura eventos y desaparece en táctil y con reduced-motion. */
+[data-light] {
+  position: relative;
+}
+
+[data-light]::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    170px circle at var(--mx, 50%) var(--my, 50%),
+    rgb(255 255 255 / 0.55),
+    transparent 65%
+  );
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+  /* Blanco al 55% pero en mezcla soft-light: sobre claro apenas levanta la
+     superficie; sobre oscuro se ve la lámpara. Un solo valor, dos temas. */
+  mix-blend-mode: soft-light;
+}
+
+[data-light]:hover::after {
+  opacity: 1;
+}
+
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  [data-light]::after {
+    display: none;
+  }
+}
+
+/* ---------- Sesión de firma ---------- */
+@keyframes runway-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.runway-enter {
+  animation: runway-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Presión táctil: los controles ceden un pelo bajo el dedo. Da la sensación
+   física que el relieve promete; imperceptible pero se siente. */
+.clinical-primary:active:not(:disabled),
+.clinical-secondary:active:not(:disabled),
+.clinical-tertiary:active:not(:disabled),
+.icon-btn:active,
+.seg-item:active {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runway-enter {
+    animation: none;
+  }
+
+  .clinical-primary:active:not(:disabled),
+  .clinical-secondary:active:not(:disabled),
+  .clinical-tertiary:active:not(:disabled),
+  .icon-btn:active,
+  .seg-item:active {
+    transform: none;
+  }
+}
+
+/* ---------- HoldToStart: el anillo de intención ---------- */
+.hold-ring {
+  transition: stroke-dashoffset 60ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hold-ring {
+    transition: none;
+  }
+}
+
+/* ---------- El Pulso: el orbe como estado del trabajo ---------- */
+/* El anillo respira con el color del estado. Verde = al dia (respiracion
+   larga, casi imperceptible); ambar = hay cola; rojo = algo lleva mas de una
+   semana (late mas rapido, sin volverse alarma de incendio). */
+@keyframes pulse-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1.5px var(--pulse-color), 0 0 0 0 var(--pulse-halo);
+  }
+  50% {
+    box-shadow: 0 0 0 1.5px var(--pulse-color), 0 0 0 6px transparent;
+  }
+}
+
+.pulse-orb {
+  transition: box-shadow 200ms ease;
+}
+
+.pulse-calma {
+  --pulse-color: rgb(19 121 91 / 0.55);
+  --pulse-halo: rgb(19 121 91 / 0.22);
+  animation: pulse-breathe 4s ease-in-out infinite;
+}
+
+.pulse-cola {
+  --pulse-color: rgb(163 74 6 / 0.65);
+  --pulse-halo: rgb(163 74 6 / 0.28);
+  animation: pulse-breathe 2.6s ease-in-out infinite;
+}
+
+.pulse-alerta {
+  --pulse-color: rgb(179 50 36 / 0.75);
+  --pulse-halo: rgb(179 50 36 / 0.32);
+  animation: pulse-breathe 1.6s ease-in-out infinite;
+}
+
+:root.dark .pulse-calma {
+  --pulse-color: rgb(94 224 176 / 0.5);
+  --pulse-halo: rgb(94 224 176 / 0.2);
+}
+
+:root.dark .pulse-cola {
+  --pulse-color: rgb(246 198 91 / 0.6);
+  --pulse-halo: rgb(246 198 91 / 0.25);
+}
+
+:root.dark .pulse-alerta {
+  --pulse-color: rgb(255 143 135 / 0.7);
+  --pulse-halo: rgb(255 143 135 / 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-calma,
+  .pulse-cola,
+  .pulse-alerta {
+    animation: none;
+    box-shadow: 0 0 0 1.5px var(--pulse-color);
+  }
+}
+
+/* ---------- Feel global: entradas escalonadas y transicion de ruta ---------- */
+/* Las listas entran en cascada (24 ms por fila, tope 12): la pantalla se
+   SIENTE construyendose, no apareciendo de golpe. El frame final es
+   transform:none a proposito: un translateY residual convertiria a cada fila
+   en containing block de cualquier hijo position:fixed. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.stagger-in > * {
+  animation: rise-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.stagger-in > :nth-child(1) { animation-delay: 0ms; }
+.stagger-in > :nth-child(2) { animation-delay: 24ms; }
+.stagger-in > :nth-child(3) { animation-delay: 48ms; }
+.stagger-in > :nth-child(4) { animation-delay: 72ms; }
+.stagger-in > :nth-child(5) { animation-delay: 96ms; }
+.stagger-in > :nth-child(6) { animation-delay: 120ms; }
+.stagger-in > :nth-child(7) { animation-delay: 144ms; }
+.stagger-in > :nth-child(8) { animation-delay: 168ms; }
+.stagger-in > :nth-child(9) { animation-delay: 192ms; }
+.stagger-in > :nth-child(10) { animation-delay: 216ms; }
+.stagger-in > :nth-child(11) { animation-delay: 240ms; }
+.stagger-in > :nth-child(12) { animation-delay: 264ms; }
+
+/* Cambio de seccion: un respiro de 160 ms. Query params no remontan (la key
+   es el pathname), asi que paginar o filtrar no parpadea. Plan B documentado:
+   si la barra fija de en-vivo saltara, degradar a solo opacity. */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.page-enter {
+  animation: page-in 160ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger-in > *,
+  .page-enter {
+    animation: none;
   }
 }

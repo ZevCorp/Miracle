@@ -85,7 +85,7 @@ export function SnippetEditorDialog({
         role="dialog"
         aria-modal="true"
         aria-label={id ? "Editar atajo" : "Nuevo atajo"}
-        className="mobile-bottom-sheet relative w-full max-w-xl rounded-t-3xl border border-b-0 border-line bg-surface p-5 shadow-[var(--shadow-xl)] sm:rounded-2xl sm:border-b sm:p-6"
+        className="mobile-bottom-sheet relative w-full max-w-xl rounded-t-3xl border border-b-0 border-line bg-surface p-5 shadow-[var(--shadow-xl)] sm:rounded-[24px] sm:border-b sm:p-6"
       >
         <button
           type="button"

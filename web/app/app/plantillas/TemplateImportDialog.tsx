@@ -266,7 +266,7 @@ export function TemplateImportDialog({
         role="dialog"
         aria-modal="true"
         aria-label="Trae tu plantilla"
-        className="mobile-bottom-sheet relative flex max-h-[92dvh] w-full max-w-2xl flex-col rounded-t-3xl border border-b-0 border-line bg-surface shadow-[var(--shadow-xl)] sm:max-h-[88dvh] sm:rounded-2xl sm:border-b"
+        className="mobile-bottom-sheet relative flex max-h-[92dvh] w-full max-w-2xl flex-col rounded-t-3xl border border-b-0 border-line bg-surface shadow-[var(--shadow-xl)] sm:max-h-[88dvh] sm:rounded-[24px] sm:border-b"
       >
         <header className="border-b border-line px-5 py-4 pr-14 sm:px-6">
           <h2 className="font-display text-xl font-semibold text-deep">

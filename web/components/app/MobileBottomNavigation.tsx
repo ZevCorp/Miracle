@@ -65,7 +65,7 @@ export function MobileBottomNavigation({
     <>
       <nav
         aria-label="Navegación principal"
-        className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface shadow-[0_-4px_18px_rgb(14_23_38_/_0.06)] md:hidden"
+        className="glass-bar mobile-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-[var(--glass-edge)] md:hidden"
       >
         <div
           className="mx-auto grid max-w-lg px-1.5 pt-1.5"

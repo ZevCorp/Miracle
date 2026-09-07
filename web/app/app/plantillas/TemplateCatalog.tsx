@@ -1,13 +1,15 @@
 "use client";
 
+import { AlertBanner } from "@/components/ui/AlertBanner";
+import { SearchField } from "@/components/ui/SearchField";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { EmptyState } from "@/components/app/EmptyState";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   Copy,
-  Loader2,
   Pencil,
   Plus,
-  Search,
   Star,
   StarOff,
   Upload,
@@ -117,12 +119,15 @@ export function TemplateCatalog({
         `${template.name} ${template.specialty} ${specialtyDisplayName(template.specialty)} ${template.description ?? ""}`,
     )
       .sort((a, b) => {
+        // La fijada del medico va PRIMERA en el estante: es la que usa a
+        // diario y la que el ojo busca. Despues, el orden de siempre.
         const score = (template: ClinicalTemplate) =>
+          (pinned.has(template.id) ? -8 : 0) +
           (template.scope === "personal" ? 1 : 0) +
           (template.is_default ? -2 : 0);
         return score(a) - score(b) || a.name.localeCompare(b.name, "es");
       });
-  }, [filter, query, templates]);
+  }, [filter, query, templates, pinned]);
 
   const selected =
     visible.find((template) => template.id === selectedId) ??
@@ -195,7 +200,7 @@ export function TemplateCatalog({
   }
 
   return (
-    <div className={embedded ? undefined : "app-page max-w-[1440px]"}>
+    <div className={embedded ? undefined : "app-page"}>
       <header className="border-b border-line pb-6">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
@@ -235,68 +240,43 @@ export function TemplateCatalog({
             personales
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="clinical-control flex items-center gap-2 px-3">
-              <Search size={16} className="text-muted" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar plantilla"
-                aria-label="Buscar plantilla"
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none sm:w-64"
-              />
-              {query ? (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  aria-label="Limpiar búsqueda"
-                  className="text-muted hover:text-deep"
-                >
-                  <X size={15} />
-                </button>
-              ) : null}
-            </div>
-            <div className="grid grid-cols-3 rounded-[10px] border border-line bg-surface p-1">
-              {(
-                [
-                  ["todas", "Todas"],
-                  ["mias", "Mis plantillas"],
-                  ["institucionales", "Institucionales"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setFilter(id)}
-                  className={`min-h-10 rounded-[8px] px-1.5 py-1.5 text-[12px] font-semibold sm:px-3 ${filter === id ? "bg-accent text-white" : "text-ink-soft hover:bg-ice-soft"}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <SearchField
+              value={query}
+              onChange={setQuery}
+              placeholder="Buscar plantilla"
+              className="sm:min-w-72"
+            />
+            <SegmentedControl
+              ariaLabel="Filtrar por alcance"
+              options={[
+                { id: "todas", label: "Todas" },
+                // "Mías", igual que en el selector de plantilla: el mismo
+                // alcance no puede llamarse distinto en dos pantallas.
+                { id: "mias", label: "Mías" },
+                { id: "institucionales", label: "Institucionales" },
+              ]}
+              value={filter}
+              onChange={(id) => setFilter(id as typeof filter)}
+            />
           </div>
         </div>
       </header>
 
       {feedback ? (
-        <p
-          role="status"
-          className="mt-4 rounded-lg border border-success/25 bg-mint-soft px-4 py-3 text-sm text-success"
-        >
+        <AlertBanner tone="success" className="mt-4">
           {feedback}
-        </p>
+        </AlertBanner>
       ) : null}
       {error ? (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
-        >
+        <AlertBanner tone="danger" className="mt-4">
           No se pudieron cargar las plantillas. {error}
-        </p>
+        </AlertBanner>
       ) : null}
       {loading ? (
-        <div className="mt-8 flex justify-center rounded-xl border border-line bg-surface p-14 text-sm text-muted">
-          <Loader2 size={18} className="mr-2 animate-spin text-accent" />{" "}
-          Cargando biblioteca clínica…
+        <div aria-busy="true" aria-label="Cargando biblioteca clínica" className="mt-6 space-y-2.5">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-20 animate-pulse rounded-[16px] border border-line bg-ice-soft" />
+          ))}
         </div>
       ) : null}
       {!loading && !error ? (
@@ -304,9 +284,12 @@ export function TemplateCatalog({
            lado, en un panel fijo de 420 px que le comía a la lista casi la
            mitad de la pantalla y dejaba cada plantilla con el nombre y la
            descripción cortados. Ahora el detalle se abre en un diálogo. */
-        <section aria-label="Plantillas disponibles" className="mt-6 space-y-2.5">
+        <section
+          aria-label="Plantillas disponibles"
+          className="stagger-in mt-6 grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        >
           {visible.map((template) => (
-            <TemplateRow
+            <TemplateCard
               key={template.id}
               template={template}
               pinned={pinned.has(template.id)}
@@ -317,7 +300,7 @@ export function TemplateCatalog({
               hace falta explicar los dos caminos. Con el catálogo poblado, los
               dos botones de la cabecera se explican solos. */}
           {visible.length === 0 && !query.trim() && personalTotal === 0 ? (
-            <div className="rounded-xl border border-dashed border-line bg-surface p-8 sm:p-10">
+            <div className="rounded-[16px] border border-dashed border-line bg-surface p-8 sm:col-span-2 sm:p-10 lg:col-span-3">
               <p className="text-center font-semibold text-deep">
                 Todavía no tienes plantillas propias
               </p>
@@ -349,14 +332,10 @@ export function TemplateCatalog({
               </div>
             </div>
           ) : visible.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-line bg-surface p-10 text-center">
-              <p className="font-semibold text-deep">
-                No hay plantillas que coincidan
-              </p>
-              <p className="mt-1 text-sm text-muted">
-                Cambia la búsqueda o crea una nueva estructura clínica.
-              </p>
-            </div>
+            <EmptyState
+              title="No hay plantillas que coincidan"
+              description="Cambia la búsqueda o crea una nueva estructura clínica."
+            />
           ) : null}
         </section>
       ) : null}
@@ -404,7 +383,7 @@ export function TemplateCatalog({
   );
 }
 
-function TemplateRow({
+function TemplateCard({
   template,
   pinned,
   onSelect,
@@ -413,46 +392,71 @@ function TemplateRow({
   pinned: boolean;
   onSelect: () => void;
 }) {
+  /* EL ESTANTE: cada plantilla se muestra como lo que ES — un documento en
+     miniatura. Los titulos reales de sus secciones, en el serif de la nota,
+     dicen mas que cualquier icono: se RECONOCE la plantilla de un vistazo,
+     como se reconoce un formulario impreso en una pila. */
+  const secciones = sortedTemplateSections(template.sections);
+  const mostradas = secciones.slice(0, 6);
+  const restantes = secciones.length - mostradas.length;
+
   return (
-    /* Sin el cuadro del icono: era el mismo dibujo en las 204 filas, así que no
-       distinguía una plantilla de otra y solo empujaba el texto hacia dentro.
-       Lo que sí identifica a cada una —nombre, especialidad, cuántas secciones
-       tiene y para qué sirve— es lo que queda. */
     <button
       type="button"
       onClick={onSelect}
       aria-haspopup="dialog"
-      className="group flex w-full flex-col gap-1 rounded-[14px] border border-line bg-surface p-4 text-left transition-colors hover:border-accent/40 hover:bg-ice-soft/40"
+      data-light
+      className={`group flex w-full flex-col rounded-[16px] border bg-surface p-3.5 text-left shadow-[var(--elev-1)] transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-0.5 hover:shadow-[var(--elev-2)] motion-reduce:hover:translate-y-0 ${
+        pinned ? "border-accent/50 ring-1 ring-accent/25" : "border-line hover:border-accent/35"
+      }`}
     >
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-[15px] font-semibold leading-tight text-deep">
+        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-tight text-deep">
           {template.name}
         </span>
         {pinned ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-[12px] font-semibold text-warning-ink">
-            <Star size={11} /> Tu sugerida
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-semibold text-warning-ink">
+            <Star size={10} /> Tu sugerida
           </span>
         ) : template.is_default ? (
-          <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[12px] font-semibold text-accent">
+          <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent">
             Sugerida
           </span>
         ) : null}
         {template.scope === "personal" ? (
-          <span className="rounded-full bg-mint-soft px-2 py-0.5 text-[12px] font-semibold text-success">
+          <span className="shrink-0 rounded-full bg-mint-soft px-2 py-0.5 text-[11px] font-semibold text-success">
             Personal
           </span>
         ) : null}
       </span>
-      {/* La especialidad y el número de secciones son el dato que se compara
-          entre plantillas, así que van juntos y sin recortar; la descripción
-          va debajo y es la única que cede espacio. */}
-      <span className="text-[13px] font-medium text-ink-soft">
+
+      {/* El papel: la nota en miniatura, con sus secciones de verdad. */}
+      <span className="doc mt-2.5 flex-1 px-3 py-2.5">
+        <span aria-hidden className="doc-rule mb-2 block" />
+        {mostradas.map((section, i) => (
+          <span key={section.key} className="flex items-baseline gap-1.5 py-[3px]">
+            <span className="data w-4 shrink-0 text-[9px] text-doc-muted">
+              {String(i + 1).padStart(2, "0")}
+            </span>
+            <span className="doc-body block truncate !text-[11px] !leading-tight">
+              {section.label}
+            </span>
+          </span>
+        ))}
+        {restantes > 0 ? (
+          <span className="mt-1 block pl-[22px] text-[10px] font-medium text-doc-muted">
+            +{restantes} más
+          </span>
+        ) : null}
+      </span>
+
+      <span className="mt-2.5 text-[12px] font-medium text-ink-soft">
         {specialtyDisplayName(template.specialty)} ·{" "}
-        <span className="tabular-nums">{template.sections.length}</span>{" "}
-        {template.sections.length === 1 ? "sección" : "secciones"}
+        <span className="tabular-nums">{secciones.length}</span>{" "}
+        {secciones.length === 1 ? "sección" : "secciones"}
       </span>
       {template.description ? (
-        <span className="line-clamp-1 text-[13px] text-muted">
+        <span className="line-clamp-1 text-[12px] text-muted">
           {template.description}
         </span>
       ) : null}
@@ -524,7 +528,7 @@ function TemplateDialog({
         /* Ancho de lectura cómodo y alto acotado: el cuerpo se desplaza solo,
            así una plantilla de 13 secciones no empuja los botones fuera de la
            pantalla. */
-        className="mobile-bottom-sheet relative flex max-h-[92dvh] w-full max-w-3xl flex-col rounded-t-3xl border border-b-0 border-line bg-surface shadow-[var(--shadow-xl)] outline-none sm:max-h-[85vh] sm:rounded-2xl sm:border-b"
+        className="mobile-bottom-sheet relative flex max-h-[92dvh] w-full max-w-3xl flex-col rounded-t-3xl border border-b-0 border-line bg-surface shadow-[var(--shadow-xl)] outline-none sm:max-h-[85vh] sm:rounded-[24px] sm:border-b"
       >
         <header className="border-b border-line p-5 pr-14">
           <h2 className="font-display text-xl font-semibold leading-tight text-deep">

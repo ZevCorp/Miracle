@@ -445,11 +445,49 @@ function montar() {
   /* Cada escena dura lo que dura SU frase, no una cifra fija. Con 3.2 s para
    * todas, dos de las locuciones (4.2 s) se cortaban a media palabra. */
   const DUR_FINAL = 4200;                             // el cierre, que no habla
-  const DURS = ESCENAS.map((e) => Math.round(((e.voz && e.voz.dur) || DUR_FINAL) * (REDUCED ? 0.4 : 1)));
-  const INICIOS = DURS.reduce((a, d) => (a.push((a.at(-1) || 0) + d), a), []);
-  const TOTAL = INICIOS.at(-1);
+  /* Los tres se RECALCULAN: el modo render mide la duración real de cada mp3 y
+   * vuelve a repartir el tiempo (ver `ajustarACola`). Por eso son `let` y por
+   * eso la API de abajo los expone con getters — un snapshot se quedaría con
+   * los números viejos. */
+  let DURS = ESCENAS.map((e) => Math.round(((e.voz && e.voz.dur) || DUR_FINAL) * (REDUCED ? 0.4 : 1)));
+  let INICIOS = [];
+  let TOTAL = 0;
+  function repartir() {
+    INICIOS = DURS.reduce((a, d) => (a.push((a.at(-1) || 0) + d), a), []);
+    TOTAL = INICIOS.at(-1);
+  }
+  repartir();
   const t0Escena = (i) => (i === 0 ? 0 : INICIOS[i - 1]);
-  const DUR_ESCENA = DURS[0];                         // solo para la API de consola
+
+  /* La cola: cuánto silencio queda DESPUÉS de cada frase antes de saltar de
+   * escena. Los `dur` escritos a mano dejaban entre 0,78 y 1,22 s de aire —
+   * medido con silencedetect sobre la banda montada— y doce pausas de un
+   * segundo seguidas es exactamente lo que se oye como "se corta mucho".
+   *
+   * Aquí no se adivina: se lee la duración REAL del mp3 y se le suma la cola.
+   * Así, cuando se regeneren las voces, los tiempos se recalculan solos en vez
+   * de quedarse mintiendo. Solo lo usa el render del video. */
+  async function ajustarACola(cola, medidas) {
+    prepararPistas();
+    /* `medidas` son las duraciones ÚTILES —solo la parte que suena— que mide
+     * el render con ffmpeg. Sin ellas se usa la duración del archivo, que
+     * incluye unos 150 ms de aire delante y 270 ms detrás: contarlos como
+     * frase deja el doble de pausa de la que se pidió. */
+    const medida = medidas
+      ? ESCENAS.map((e, i) => (e.voz && e.voz.pista ? medidas[i] : null))
+      : await Promise.all(ESCENAS.map((e) => new Promise((ok) => {
+        const p = e.voz && e.voz.pista && PISTAS[e.voz.pista];
+        if (!p) return ok(null);
+        if (p.readyState >= 1 && isFinite(p.duration)) return ok(p.duration);
+        p.addEventListener("loadedmetadata", () => ok(isFinite(p.duration) ? p.duration : null), { once: true });
+        setTimeout(() => ok(null), 8000);        // si el mp3 no carga, se deja el valor de siempre
+      })));
+    DURS = ESCENAS.map((e, i) => medida[i] == null
+      ? Math.round(((e.voz && e.voz.dur) || DUR_FINAL) * (REDUCED ? 0.4 : 1))
+      : Math.round(medida[i] * 1000) + cola);
+    repartir();
+    return { DURS, INICIOS, TOTAL };
+  }
   let tInicio = -1;                                   // cuándo empezó la película
   let terminada = false;
 
@@ -499,7 +537,6 @@ function montar() {
     a.play().catch(() => {});
   }
 
-  const capaAudio = $("#d-audio");
   /* El scroll se bloquea mientras corre la película.
    * Sin esto la pieza estaba rota de verdad: la pista solo tiene 1080 px de
    * recorrido y un flick normal de trackpad se los come en 1,2 segundos, así
@@ -520,10 +557,6 @@ function montar() {
    * 3. Lo que sí aguanta es ANCLAR la posición: se recuerda dónde estaba y
    *    se vuelve ahí en cada scroll, venga de donde venga. Sin tocar el
    *    layout, así que sigue sin haber salto. */
-  /* Se pone a true al encajar la seccion bajo el cartel y solo se suelta al
-     alejarse mas de media pantalla: si no, cada frame volveria a llamar a
-     scrollTo y la pagina no dejaria de temblar. */
-  let encajado = false;
   let bloqueado = false;
   let yAncla = 0;
   const comer = (e) => { if (bloqueado) e.preventDefault(); };
@@ -547,7 +580,6 @@ function montar() {
     prepararPistas();
     conSonido = sonido;
     arrancado = true;
-    escritorio.classList.remove("esperando");
     escritorio.classList.add("corriendo");
     bloquear(true);
     tInicio = performance.now();
@@ -556,8 +588,6 @@ function montar() {
     // la suena. Llamándolo en los dos sitios, la primera frase arrancaba dos
     // veces con 19 ms de diferencia y se oía un tartamudeo.
   }
-  $("#d-audio-si").addEventListener("click", () => arrancar(true));
-  $("#d-audio-no").addEventListener("click", () => arrancar(false));
 
   const barra = document.createElement("div");
   barra.id = "d-progreso";
@@ -626,37 +656,22 @@ function montar() {
     }
 
     if (enganchado) {
-      /* Ya no arranca sola al engancharse: primero se pregunta por el sonido.
-         Mientras tanto el escritorio se queda desenfocado detrás del cartel. */
+      /* Arranca sola en cuanto la sección se engancha.
+       *
+       * Antes aquí salía un cartel —"Ver con voz / Ver sin voz"— porque la
+       * pieza sonaba y el navegador exige un gesto del usuario para dejar
+       * sonar. Esta película ya no la ve nadie: quedó como el MÁSTER del que
+       * `scripts/render-u.mjs` graba el MP4, y se graba MUDA (la voz se monta
+       * aparte, en una sola pista). Sin sonido no hay gesto que pedir, así que
+       * no hay cartel — y con él se fue el encaje que lo colocaba en su sitio.
+       * (El anclado de scroll de más abajo sigue: en modo render la página no
+       * se mueve, y quitarlo solo sería tocar el máster por tocarlo.)
+       *
+       * Durante el empalme no: ahí .d-sticky lleva un transform que la escala
+       * y la desplaza, y arrancar debajo de eso deja los primeros fotogramas
+       * deformados. Se espera a que lo suelte. */
       if (!arrancado) {
-        /* El cartel NO puede salir durante el empalme. Ahí .d-sticky es fixed
-         * y JS le está aplicando un transform que lo escala y lo desplaza para
-         * encajarlo sobre la pantalla del iMac: el cartel salía gigante y
-         * recortado, y el botón se movía bajo el cursor mientras intentabas
-         * pulsarlo. Se espera a que el empalme suelte el transform. */
-        const empalmando = dentro.classList.contains("empalmando");
-        escritorio.classList.toggle("esperando", !empalmando);
-
-        /* Encajar la seccion bajo el cartel. Los 900 px de aproximacion son el
-           empalme —ahi el scroll ES la animacion y no se puede tocar—, y el
-           cartel sale justo en top 0. El problema es pasarse: con inercia de
-           trackpad se cruza el punto, la seccion se descuelga y el cartel se va
-           antes de que el dedo llegue al boton.
-           Asi que solo se corrige cuando ya te pasaste, una vez, y con tope: mas
-           alla de un cuarto de pantalla se entiende que vas de paso hacia la
-           landing y no se te toca el scroll. */
-        if (!empalmando && !encajado && rd.top < -2 && rd.top > -innerHeight * 0.25) {
-          encajado = true;
-          window.scrollTo({ top: Math.round(window.scrollY + rd.top),
-                            behavior: REDUCED ? "auto" : "smooth" });
-        }
-
-        /* Con el cartel puesto NO se bloquea. El bloqueo es para que nadie
-         * scrollee DURANTE la película, no para retener a quien todavía no ha
-         * decidido verla. Desde que hay una tercera sección debajo, bloquear
-         * aquí dejaba encerrado a quien no pulsara ningún botón: la landing se
-         * volvía inalcanzable. Bloquear ya no da salto —solo se cortan
-         * eventos— así que hacerlo en el clic no mueve nada. */
+        if (!dentro.classList.contains("empalmando")) arrancar(false);
         bloquear(false);
         requestAnimationFrame(frame);
         return;
@@ -741,9 +756,7 @@ function montar() {
         voz.style.top = y + "px";
       }
     } else if (!enganchado && !arrancado) {
-      if (rd.top > innerHeight * 0.8) encajado = false;
       // Fuera del punto de anclaje no hay cartel ni bloqueo.
-      escritorio.classList.remove("esperando");
       bloquear(false);
     }
     if (!dentroVista && arrancado && !terminada) {
@@ -771,7 +784,13 @@ function montar() {
     // Las pistas son objetos Audio del módulo, no elementos del DOM: sin esto
     // no hay forma de comprobar desde fuera que la voz suena de verdad.
     pistas: () => PISTAS,
-    DURS, INICIOS, TOTAL,
+    // El orden importa: el render coloca cada mp3 en el arranque de SU escena
+    // para montar la banda de voz, y sin esta lista tendría que adivinarlo.
+    orden: () => ESCENAS.map((e) => (e.voz && e.voz.pista) || null),
+    ajustarACola,
+    get DURS() { return DURS; },
+    get INICIOS() { return INICIOS; },
+    get TOTAL() { return TOTAL; },
   };
 
   /* ------------------------------ el reloj vivo ------------------------------ */

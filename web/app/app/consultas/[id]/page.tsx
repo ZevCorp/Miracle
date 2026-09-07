@@ -49,7 +49,7 @@ import {
   type NoteSection,
 } from "@/lib/mock";
 import { formatFechaRelativa } from "@/lib/dates";
-import { letterheadLines, responsableLabelDe } from "@/lib/hospital/org";
+import { abrirImpresionNota } from "@/lib/pdf/note-print";
 import { searchCodes } from "@/lib/clinical/codes";
 import { auditConsultation } from "@/lib/clinical/note-audit";
 import { resolveConsultationIdentity } from "@/lib/clinical/patient-identity";
@@ -63,33 +63,6 @@ import { Timeline } from "@/components/app/Timeline";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { HoverHint } from "@/components/ui/HoverHint";
-
-function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-const COMBINING_MARKS_RE = new RegExp("[\\u0300-\\u036f]", "g");
-
-/** Quita tildes ("Patología" → "Patologia") — el sello del sistema del
- *  hospital muestra la especialidad sin acentos (p. ej. "PATOLOGIA"). */
-function sinTildes(s: string): string {
-  return s.normalize("NFD").replace(COMBINING_MARKS_RE, "");
-}
-
-/** DD/MM/AAAA, HH:MM a./p. m. — mismo formato que usa el sistema del
- *  hospital en su sello "Fecha y hora" (con ceros a la izquierda). */
-function formatFechaResponsable(iso: string): string {
-  const d = new Date(iso);
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  let h = d.getHours();
-  const ampm = h >= 12 ? "p. m." : "a. m.";
-  h = h % 12 || 12;
-  const hh = String(h).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${dd}/${mm}/${yyyy}, ${hh}:${mi} ${ampm}`;
-}
 
 export default function ConsultaDetallePage() {
   const params = useParams();
@@ -112,6 +85,7 @@ export default function ConsultaDetallePage() {
     addAddendum,
     showToast,
     loading,
+    ensureConsultation,
     ensureTranscript,
     transcriptFailed,
     role,
@@ -127,6 +101,32 @@ export default function ConsultaDetallePage() {
 
   const c = getConsultation(id);
   const signed = !!c && (c.estado === "aprobada" || c.estado === "exportada");
+
+  // Rescate: el store es una foto tomada al abrir la app y con tope de 300
+  // consultas. La que el médico acaba de terminar nace DESPUÉS de esa foto —y
+  // la escribe el backend, no el navegador—, así que abrir su detalle sin
+  // recargar la página entera mostraba "Consulta no encontrada" sobre una nota
+  // que sí existe. Aquí se pide por id antes de afirmar nada.
+  // Se guarda junto al id que lo produjo: al pasar de una consulta a otra el
+  // desenlace anterior no puede darse por bueno para la nueva.
+  const [rescate, setRescate] = useState<{
+    id: string;
+    estado: "missing" | "error";
+  } | null>(null);
+  const [reintento, setReintento] = useState(0);
+  const rescateFallido = rescate?.id === id ? rescate.estado : null;
+  useEffect(() => {
+    if (c || loading) return;
+    let vigente = true;
+    void ensureConsultation(id).then((estado) => {
+      // "ok" no se guarda: la consulta ya entró al store y `c` deja de ser
+      // undefined en el siguiente render.
+      if (vigente && estado !== "ok") setRescate({ id, estado });
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [c, loading, id, reintento, ensureConsultation]);
 
   // Las adendas viven en su propia tabla y se cargan solo cuando la nota está
   // firmada (antes de la firma no existen por diseño).
@@ -166,12 +166,33 @@ export default function ConsultaDetallePage() {
   }, [serverEstado, id, applyServerConsultationEstado]);
 
   if (!c) {
-    // Mientras el store carga, aún no se sabe si la consulta existe.
-    if (loading) {
+    // Mientras el store carga —o mientras se pide la consulta suelta— aún no
+    // se sabe si existe.
+    if (loading || !rescateFallido) {
       return (
         <div className="flex min-h-[50vh] items-center justify-center">
           <Loader2 size={28} className="animate-spin text-accent" />
         </div>
+      );
+    }
+    // No se pudo preguntar ≠ no existe. Decirle "eliminada" a un médico por un
+    // fallo de red es afirmar algo falso sobre una historia clínica.
+    if (rescateFallido === "error") {
+      return (
+        <EmptyState
+          title="No se pudo abrir la consulta"
+          description="No hubo respuesta del servidor. La nota sigue guardada; revisa tu conexión y vuelve a intentarlo."
+          action={
+            <Button
+              onClick={() => {
+                setRescate(null);
+                setReintento((n) => n + 1);
+              }}
+            >
+              Reintentar
+            </Button>
+          }
+        />
       );
     }
     return (
@@ -316,155 +337,22 @@ export default function ConsultaDetallePage() {
   }
 
   function descargarPDF() {
-    const w = window.open("", "_blank", "width=820,height=1000");
-    if (!w) {
-      showToast("Permita las ventanas emergentes para generar el PDF.", "warning");
-      return;
-    }
-    // Bloque final al estilo del sello que deja el sistema del hospital
-    // ("Nota realizada por / Responsable / Identificación / Reg. Med. /
-    // Especialidad").
-    //
-    // La cédula, el registro médico y el honorífico son datos PERSONALES del
-    // profesional: no se pueden heredar de la institución, así que si el perfil
-    // no los tiene el bloque sigue sin aparecer. La etiqueta de responsable sí
-    // admite un valor institucional por defecto (Configuración) — era el único
-    // de los cuatro que dejaba el bloque fuera para casi todo el equipo.
-    const responsableLabel = responsableLabelDe(org, medicoIdentidad?.responsableLabel);
-    const pieResponsable =
-      medicoIdentidad?.honorific &&
-      responsableLabel &&
-      medicoIdentidad?.identificationNumber &&
-      medicoIdentidad?.professionalRegistration
-        ? `<div class="foot-responsable">
-            <p>Nota realizada por: ${esc(medicoIdentidad.honorific)}. ${esc(
-              medicoNombre ?? "",
-            )}${
-              // El nombre de la institución viene de Configuración. Antes esta
-              // línea decía "Hospital General de Medellín" literalmente, así que
-              // CUALQUIER institución imprimía sus notas con ese nombre.
-              org.name ? ` Empresa: ${esc(org.name)}` : ""
-            } Fecha y hora: ${esc(formatFechaResponsable(c!.fecha))}</p>
-            <p><strong>Responsable:</strong> ${esc(responsableLabel)}</p>
-            <p><strong>Identificación:</strong> CC${esc(medicoIdentidad.identificationNumber)}</p>
-            <p><strong>Reg. Med.:</strong> ${esc(medicoIdentidad.professionalRegistration)}</p>
-            <p><strong>Especialidad:</strong> ${esc(sinTildes(c!.especialidad).toUpperCase())}</p>
-          </div>`
-        : "";
-
-    // Encabezado institucional. Hasta ahora el documento no llevaba ningún dato
-    // de la institución: el único texto institucional era el nombre de Miracle
-    // en el pie, en un papel que se archiva en la historia clínica.
-    const lineasEncabezado = letterheadLines(org);
-    const membrete =
-      org.name || lineasEncabezado.length
-        ? `<div class="membrete">
-            ${org.name ? `<p class="membrete-nombre">${esc(org.name)}</p>` : ""}
-            ${
-              lineasEncabezado.length
-                ? `<p class="membrete-datos">${lineasEncabezado.map(esc).join(" · ")}</p>`
-                : ""
-            }
-          </div>`
-        : "";
-    const aceptados = c!.codigos.filter((k) => k.estado === "aceptado");
-    const secciones = c!.note
-      .map((s) => {
-        const cuerpo =
-          s.kind === "lista" && s.items?.length
-            ? `<ul>${s.items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`
-            : `<p>${esc(s.texto ?? "")}</p>`;
-        return `<section><h2>${esc(s.titulo)}</h2>${cuerpo}</section>`;
-      })
-      .join("");
-    const codigos = aceptados.length
-      ? `<table><thead><tr><th>Sistema</th><th>Código</th><th>Descripción</th></tr></thead><tbody>${aceptados
-          .map(
-            (k) =>
-              `<tr><td>${esc(k.sistema)}</td><td>${esc(k.codigo)}</td><td>${esc(k.descripcion)}</td></tr>`,
-          )
-          .join("")}</tbody></table>`
-      : `<p class="muted">Sin códigos aceptados.</p>`;
-    const fecha = new Date(c!.fecha).toLocaleString("es-CO");
-    w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Nota clínica · ${esc(
-      identidad.nombre ?? "Paciente",
-    )}</title><style>
-      *{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#0e1726;margin:40px;line-height:1.5}
-      h1{font-size:20px;margin:0 0 2px}h2{font-size:14px;margin:18px 0 4px;color:#0c1424;text-transform:uppercase;letter-spacing:.02em}
-      .muted{color:#64748b;font-size:12px}.head{border-bottom:2px solid #0c1424;padding-bottom:10px;margin-bottom:8px}
-      .grid{display:flex;flex-wrap:wrap;gap:4px 24px;font-size:13px;margin-top:6px}
-      section p,section ul{font-size:13px;margin:2px 0}ul{padding-left:18px}
-      table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
-      th,td{border:1px solid #cbd5e1;padding:5px 8px;text-align:left}th{background:#f1f5f9}
-      .foot{margin-top:28px;border-top:1px solid #cbd5e1;padding-top:10px;font-size:11px;color:#64748b}
-      .foot-responsable{margin-top:14px;font-size:12px;color:#0e1726}
-      .foot-responsable p{margin:3px 0}
-      .foot-responsable strong{display:inline-block;min-width:100px}
-      .membrete{margin-bottom:14px}
-      .membrete-nombre{margin:0;font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:#0c1424}
-      .membrete-datos{margin:2px 0 0;font-size:11px;color:#64748b}
-      @media print{body{margin:18mm}}
-    </style></head><body>
-      ${
-        demo
-          ? `<div style="border:2px solid #a34a06;background:#fdeecf;color:#7c3a05;padding:8px 12px;margin-bottom:14px;font-weight:700;font-size:13px">DOCUMENTO DE DEMOSTRACIÓN — generado a partir de una conversación simulada. No válido como historia clínica.</div>`
-          : ""
-      }
-      ${membrete}
-      <div class="head">
-        <h1>${esc(identidad.nombre ?? "Paciente sin identificar")}</h1>
-        <div class="grid">
-          ${
-            patient && patient.edad > 0
-              ? `<span>${patient.edad} años${patient.sexo ? ` · ${patient.sexo === "F" ? "Femenino" : "Masculino"}` : ""}</span>`
-              : ""
-          }
-          ${identidad.documento ? `<span>Doc: ${esc(identidad.documento)}</span>` : ""}
-          <span>${esc(c!.especialidad)} · ${esc(c!.servicio)}</span>
-          <span>${esc(medicoNombre ?? "")}</span>
-          ${
-            medicoIdentidad?.identificationNumber || medicoIdentidad?.professionalRegistration
-              ? `<span>${esc(
-                  [
-                    medicoIdentidad.identificationNumber
-                      ? `CC ${medicoIdentidad.identificationNumber}`
-                      : null,
-                    medicoIdentidad.professionalRegistration
-                      ? `Reg. Med. ${medicoIdentidad.professionalRegistration}`
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · "),
-                )}</span>`
-              : ""
-          }
-          <span>${esc(fecha)}</span>
-        </div>
-      </div>
-      ${secciones}
-      <h2>Codificación</h2>${codigos}
-      ${
-        addenda.length
-          ? `<h2>Adendas</h2>${addenda
-              .map(
-                (a) =>
-                  `<section><p class="muted">${esc(a.autor)} · ${esc(
-                    new Date(a.fecha).toLocaleString("es-CO"),
-                  )}</p><p>${esc(a.contenido)}</p></section>`,
-              )
-              .join("")}<p class="muted">Adenda a nota firmada — no modifica el documento original.</p>`
-          : ""
-      }
-      <p class="foot">${
-        // El documento es de la institución, no del proveedor: su nombre va
-        // primero y Miracle queda como la herramienta con la que se generó.
-        org.name ? `${esc(org.name)} · ` : ""
-      }Documento generado con asistencia de IA y revisado por el profesional de salud. Generado con Miracle.</p>
-      ${pieResponsable}
-    </body></html>`);
-    w.document.close();
-    w.focus();
-    w.print();
+    // El documento se construye en lib/pdf/note-print.ts, compartido con el
+    // panel rápido: una sola plantilla imprimible para las dos superficies.
+    abrirImpresionNota(
+      {
+        consultation: c!,
+        patient,
+        identidad,
+        medicoNombre,
+        medicoIdentidad,
+        org,
+        demo,
+        addenda,
+      },
+      () =>
+        showToast("Permita las ventanas emergentes para generar el PDF.", "warning"),
+    );
   }
 
   return (
@@ -476,8 +364,11 @@ export default function ConsultaDetallePage() {
         <ArrowLeft size={15} /> Consultas
       </Link>
 
-      {/* Header */}
-      <div className="mt-3 flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-start sm:justify-between">
+      {/* Header. Identidad y acciones se ponen lado a lado desde `lg`, no desde
+          `sm`: con el menú lateral ocupando 260 px, en un portátil de 800 el
+          contenido real son ~510 px, y ahí las dos columnas estrujaban el
+          nombre del paciente hasta partirlo en dos líneas. */}
+      <div className="mt-3 flex flex-col gap-4 border-b border-line pb-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-3">
           <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-night text-sm font-semibold text-white">
             {identidad.nombre
@@ -519,72 +410,86 @@ export default function ConsultaDetallePage() {
                 {new Date(c.firma.fecha).toLocaleDateString("es-CO")}
               </p>
             ) : null}
+
+            {/* LA CAJA DE HERRAMIENTAS DEL DOCUMENTO.
+                Copiar, imprimir y regrabar son cosas que se le hacen a la nota;
+                aprobarla es una decisión sobre ella. Antes iban en la misma
+                fila y con el mismo peso, así que el ojo veía seis botones
+                iguales. Ahora bajan aquí, agrupadas y en voz baja, y arriba a
+                la derecha queda solo lo que hace avanzar la consulta.
+                De paso, las dos que eran solo un icono ganan su rótulo: nadie
+                tenía que adivinar qué hacía el micrófono. */}
+            <div className="clinical-panel-muted mt-3.5 inline-flex flex-wrap items-center gap-0.5 p-1">
+              <HoverHint label="Copiar el resumen clínico">
+                <button
+                  type="button"
+                  onClick={() => void copyResumen()}
+                  className="doc-tool"
+                >
+                  <Copy size={15} /> Copiar resumen
+                </button>
+              </HoverHint>
+              <HoverHint label="Copiar la nota completa, igual que el PDF">
+                <button
+                  type="button"
+                  onClick={() => void copiarNota()}
+                  className="doc-tool"
+                >
+                  <ClipboardCopy size={15} /> Copiar nota
+                </button>
+              </HoverHint>
+              <button type="button" onClick={descargarPDF} className="doc-tool">
+                <Printer size={15} /> PDF
+              </button>
+              {/* Regrabar arranca una nueva captura: es una acción exclusiva del
+                  médico (la secretaría no tiene acceso a /app/consultas/nueva). */}
+              {role === "medico" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // La consulta activa exige un encounter del backend, así que
+                    // una nueva captura siempre arranca desde "Nueva consulta".
+                    // Se pasa el id del paciente (UUID opaco), nunca su nombre:
+                    // la URL queda en el historial del navegador y en logs.
+                    const sp = new URLSearchParams();
+                    if (patient?.id) sp.set("paciente", patient.id);
+                    const qs = sp.toString();
+                    router.push(`/app/consultas/nueva${qs ? `?${qs}` : ""}`);
+                  }}
+                  className="doc-tool"
+                  title="Iniciar una nueva grabación para este paciente"
+                >
+                  <Mic size={15} /> Regrabar
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <HoverHint label="Copiar el resumen clínico">
-            <button
-              type="button"
-              onClick={() => void copyResumen()}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:text-deep"
-              aria-label="Copiar resumen"
-            >
-              <Copy size={16} />
-            </button>
-          </HoverHint>
-          <HoverHint label="Copiar la nota completa, igual que el PDF">
-            <button
-              type="button"
-              onClick={() => void copiarNota()}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium text-deep hover:border-mist"
-            >
-              <ClipboardCopy size={16} /> Copiar nota
-            </button>
-          </HoverHint>
-          <button
-            type="button"
-            onClick={descargarPDF}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium text-deep hover:border-mist"
-          >
-            <Printer size={16} /> PDF
-          </button>
-          {/* Regrabar arranca una nueva captura: es una acción exclusiva del
-              médico (la secretaría no tiene acceso a /app/consultas/nueva). */}
-          {role === "medico" ? (
-            <button
-              type="button"
-              onClick={() => {
-                // La consulta activa exige un encounter del backend, así que una
-                // nueva captura siempre arranca desde "Nueva consulta".
-                // Se pasa el id del paciente (UUID opaco), nunca su nombre:
-                // la URL queda en el historial del navegador y en logs.
-                const sp = new URLSearchParams();
-                if (patient?.id) sp.set("paciente", patient.id);
-                const qs = sp.toString();
-                router.push(`/app/consultas/nueva${qs ? `?${qs}` : ""}`);
-              }}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:text-deep"
-              aria-label="Regrabar"
-              title="Iniciar una nueva grabación para este paciente"
-            >
-              <Mic size={16} />
-            </button>
-          ) : null}
-
+        {/* LAS DECISIONES: lo que mueve la consulta de estado. Es lo único que
+            queda con peso de botón, y una sola es primaria. */}
+        <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
           {/* Las consultas de demostración no se firman ni se exportan.
               Marcar revisada/aprobar siguen siendo del médico (canEdit);
               exportar es justamente la tarea de la secretaria, así que se
               abre a cualquier rol una vez la nota ya está aprobada. */}
           {canEdit && c.estado === "borrador" ? (
-            <Button variant="secondary" onClick={() => markReviewed(c.id)} className="hidden sm:inline-flex">
-              Marcar revisada
-            </Button>
+            <button
+              type="button"
+              onClick={() => markReviewed(c.id)}
+              className="clinical-secondary hidden px-4 sm:inline-flex"
+            >
+              <FileCheck2 size={16} /> Marcar revisada
+            </button>
           ) : null}
           {canEdit && (c.estado === "borrador" || c.estado === "revisada") ? (
-            <Button onClick={() => approveNote(c.id)} className="hidden sm:inline-flex">
-              <CheckCircle2 size={16} /> Aprobar
-            </Button>
+            <button
+              type="button"
+              onClick={() => approveNote(c.id)}
+              className="clinical-primary hidden px-5 sm:inline-flex"
+            >
+              <CheckCircle2 size={16} /> Aprobar y firmar
+            </button>
           ) : null}
           {/* Exportación AUTOMÁTICA: pide el trabajo a Graph. El botón se
               deshabilita solo mientras hay uno en vuelo o en curso. */}
@@ -592,15 +497,19 @@ export default function ConsultaDetallePage() {
             <NoteExportButton
               state={exportState}
               label="Exportar a HC"
-              className="hidden min-h-11 items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white sm:inline-flex"
+              className="clinical-primary hidden min-h-11 px-4 sm:inline-flex"
             />
           ) : null}
           {/* Registro MANUAL de la secretaria: ella ya copió la nota al sistema
               del hospital y aquí deja constancia. No envía nada al HIS. */}
           {canExport && !canUseAutomaticExport ? (
-            <Button onClick={() => markExportedManually(c.id)} className="hidden sm:inline-flex">
+            <button
+              type="button"
+              onClick={() => markExportedManually(c.id)}
+              className="clinical-primary hidden px-5 sm:inline-flex"
+            >
               <FileCheck2 size={16} /> Marcar como exportada
-            </Button>
+            </button>
           ) : null}
           {!demo && c.estado === "exportada" ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-2 text-sm font-semibold text-success">
@@ -613,7 +522,7 @@ export default function ConsultaDetallePage() {
       {demo ? (
         <div
           role="alert"
-          className="mt-5 flex items-start gap-3 rounded-lg border-2 border-warning/50 bg-warning-soft px-4 py-3.5"
+          className="mt-5 flex items-start gap-3 rounded-[16px] border border-warning/50 bg-warning-soft px-4 py-3.5"
         >
           <AlertTriangle size={20} className="mt-0.5 shrink-0 text-warning" />
           <div>
@@ -708,7 +617,7 @@ export default function ConsultaDetallePage() {
       ) : null}
 
       {(canEdit || canExport) && c.estado !== "exportada" ? (
-        <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-30 grid gap-2 rounded-[14px] border border-line bg-surface p-2.5 shadow-[var(--shadow-lg)] sm:hidden">
+        <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-30 grid gap-2 rounded-[16px] border border-line bg-surface p-2.5 shadow-[var(--elev-3)] sm:hidden">
           {canEdit && c.estado === "borrador" ? (
             <button type="button" onClick={() => markReviewed(c.id)} className="clinical-secondary">Marcar revisada</button>
           ) : null}
@@ -768,11 +677,11 @@ function AddendaSection({
   return (
     <section
       ref={sectionRef}
-      className="mt-8 scroll-mt-24 rounded-lg border border-line bg-surface p-5"
+      className="clinical-panel mt-8 scroll-mt-24 p-5"
     >
       <div className="flex items-center gap-2">
         <FilePlus2 size={17} className="text-accent" />
-        <h2 className="font-display text-base font-semibold text-deep">
+        <h2 className="clinical-section-title">
           Adendas
         </h2>
       </div>
@@ -784,7 +693,7 @@ function AddendaSection({
       {addenda.length ? (
         <ol className="mt-4 space-y-3">
           {addenda.map((a) => (
-            <li key={a.id} className="rounded-md border border-line bg-field p-3.5">
+            <li key={a.id} className="clinical-panel-muted p-3.5">
               <p className="text-xs font-semibold text-muted">
                 {a.autor} · {new Date(a.fecha).toLocaleString("es-CO")}
               </p>
@@ -797,7 +706,7 @@ function AddendaSection({
       ) : addendaError ? (
         /* Afirmar "no tiene adendas" sobre una nota firmada cuando la consulta
            falló sería un error de contenido en un documento clínico-legal. */
-        <p className="mt-4 rounded-md border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
+        <p className="mt-4 rounded-[12px] border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
           No se pudieron cargar las adendas de esta nota.{" "}
           <button
             type="button"
@@ -808,7 +717,7 @@ function AddendaSection({
           </button>
         </p>
       ) : (
-        <p className="mt-4 rounded-md border border-dashed border-line px-4 py-3 text-sm text-muted">
+        <p className="mt-4 rounded-[12px] border border-dashed border-line px-4 py-3 text-sm text-muted">
           Esta nota aún no tiene adendas.
         </p>
       )}
@@ -826,7 +735,7 @@ function AddendaSection({
             rows={3}
             maxLength={4000}
             placeholder="Describe la corrección o ampliación de la nota firmada…"
-            className="mt-1.5 w-full resize-y rounded-md border border-line bg-field px-3.5 py-2.5 text-sm leading-relaxed outline-none transition-colors focus:border-accent"
+            className="clinical-control mt-1.5 w-full resize-y px-3.5 py-2.5 text-sm leading-relaxed outline-none"
           />
           <div className="mt-2 flex justify-end">
             <Button onClick={() => void submit()} disabled={!texto.trim() || saving}>
@@ -844,7 +753,7 @@ function AddendaSection({
 
 function AiDisclaimer() {
   return (
-    <div className="mb-4 flex items-start gap-2 rounded-md border border-accent/20 bg-accent-soft/50 px-3.5 py-2.5 text-sm text-accent-ink">
+    <div className="mb-4 flex items-start gap-2 rounded-[12px] border border-accent/20 bg-accent-soft/50 px-3.5 py-2.5 text-sm text-accent-ink">
       <Info size={16} className="mt-0.5 shrink-0" />
       <span>
         Contenido generado con IA. Verifique la información; la nota requiere
@@ -870,7 +779,7 @@ function HistoriaTab({
   return (
     <div>
       <AiDisclaimer />
-      <div className="rounded-lg border border-line bg-surface px-3 py-2 sm:px-5">
+      <div className="doc px-4 py-3 sm:px-7 sm:py-5">
         {consultation.note.map((s) => (
           <NoteSectionView
             key={s.id}
@@ -892,7 +801,7 @@ function HistoriaTab({
             onAiEdit(value);
             input.value = "";
           }}
-          className="mt-3 flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 shadow-[var(--shadow-sm)] sm:rounded-full sm:px-4"
+          className="mt-3 flex items-center gap-2 rounded-[16px] border border-line bg-surface px-3 py-2 shadow-[var(--elev-1)] sm:rounded-full sm:px-4"
         >
           <Sparkles size={16} className="text-accent" />
           <input
@@ -956,7 +865,7 @@ function CodificacionTab({
       <div className="space-y-5">
         <section>
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="font-display text-base font-semibold text-deep">
+            <h2 className="clinical-section-title">
               Códigos sugeridos
             </h2>
             {canEdit ? (
@@ -971,7 +880,7 @@ function CodificacionTab({
           </div>
 
           {canEdit && showForm ? (
-            <div className="mb-3 rounded-md border border-line bg-surface p-3">
+            <div className="clinical-panel-muted mb-3 p-3">
               <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
                 <select
                   value={sistema}
@@ -979,7 +888,7 @@ function CodificacionTab({
                     setSistema(e.target.value as ClinicalCode["sistema"])
                   }
                   aria-label="Sistema de codificación"
-                  className="rounded-md border border-line bg-field px-2.5 py-2 text-sm outline-none focus:border-accent"
+                  className="clinical-control px-3 text-sm outline-none"
                 >
                   <option value="CIE-10">CIE-10</option>
                   <option value="CUPS">CUPS</option>
@@ -988,19 +897,19 @@ function CodificacionTab({
                   value={codigo}
                   onChange={(e) => setCodigo(e.target.value)}
                   placeholder="Código (ej. I10)"
-                  className="w-full rounded-md border border-line bg-field px-3 py-2 text-sm uppercase outline-none focus:border-accent sm:w-32"
+                  className="clinical-control w-full px-3 text-sm uppercase outline-none sm:w-32"
                 />
                 <input
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                   placeholder="Descripción del diagnóstico o procedimiento"
-                  className="min-w-0 flex-1 rounded-md border border-line bg-field px-3 py-2 text-sm outline-none focus:border-accent"
+                  className="clinical-control min-w-0 flex-1 px-3 text-sm outline-none"
                 />
               </div>
 
               {(codigo.trim() || descripcion.trim()) &&
               searchCodes(sistema, codigo || descripcion).length ? (
-                <div className="mt-2 max-h-44 overflow-auto rounded-md border border-line">
+                <div className="clinical-panel-muted mt-2 max-h-44 overflow-auto">
                   {searchCodes(sistema, codigo || descripcion).map((s) => (
                     <button
                       key={s.codigo}
@@ -1032,7 +941,7 @@ function CodificacionTab({
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="rounded-full border border-line px-4 py-1.5 text-sm font-medium text-deep hover:border-mist"
+                  className="clinical-secondary px-4"
                 >
                   Cancelar
                 </button>
@@ -1052,7 +961,7 @@ function CodificacionTab({
               ))}
             </div>
           ) : (
-            <p className="rounded-md border border-line bg-surface px-4 py-3 text-sm text-muted">
+            <p className="clinical-panel-muted px-4 py-3 text-sm text-muted">
               No hay códigos sugeridos pendientes. Revise los aceptados.
             </p>
           )}
@@ -1060,7 +969,7 @@ function CodificacionTab({
 
         {aceptados.length ? (
           <section>
-            <h2 className="mb-2 font-display text-base font-semibold text-deep">
+            <h2 className="clinical-section-title mb-2">
               Aceptados
             </h2>
             <div className="space-y-2.5">
@@ -1090,9 +999,9 @@ function CodificacionTab({
       </div>
 
       {/* RIPS */}
-      <aside className="h-fit rounded-lg border border-line bg-surface p-5">
+      <aside className="clinical-panel h-fit p-5">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-base font-semibold text-deep">
+          <h2 className="clinical-section-title">
             Preparación para RIPS
           </h2>
           <span
@@ -1132,18 +1041,18 @@ function ResumenTab({ texto, onCopy }: { texto: string; onCopy: () => void }) {
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-display text-base font-semibold text-deep">
+        <h2 className="clinical-section-title">
           Resumen clínico
         </h2>
         <button
           type="button"
           onClick={onCopy}
-          className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium text-deep hover:border-mist"
+          className="clinical-secondary px-4"
         >
           <Copy size={14} /> Copiar
         </button>
       </div>
-      <div className="rounded-lg border border-line bg-surface p-6 text-[0.97rem] leading-relaxed text-ink">
+      <div className="clinical-panel p-6 text-[0.97rem] leading-relaxed text-ink">
         {texto}
       </div>
     </div>
@@ -1176,7 +1085,7 @@ function TranscripcionTab({
 
   if (fetching && consultation.transcript.length === 0) {
     return (
-      <div className="flex justify-center rounded-lg border border-line bg-surface p-10">
+      <div className="clinical-panel flex justify-center p-10">
         <Loader2 size={22} className="animate-spin text-accent" />
       </div>
     );
@@ -1187,7 +1096,7 @@ function TranscripcionTab({
     // transcripción es la evidencia de la que se derivó la nota.
     if (fallo) {
       return (
-        <p className="rounded-lg border border-warning/40 bg-warning-soft p-6 text-sm text-warning">
+        <p className="rounded-[16px] border border-warning/40 bg-warning-soft p-6 text-sm text-warning">
           No se pudo cargar la transcripción de esta consulta.{" "}
           <button
             type="button"
@@ -1203,14 +1112,14 @@ function TranscripcionTab({
       );
     }
     return (
-      <p className="rounded-lg border border-line bg-surface p-6 text-sm text-muted">
+      <p className="clinical-panel p-6 text-sm text-muted">
         Esta consulta no tiene transcripción registrada.
       </p>
     );
   }
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-6">
+    <div className="clinical-panel p-6">
       <div className="space-y-4">
         {consultation.transcript.map((turn, i) =>
           turn.hablante ? (
@@ -1269,7 +1178,7 @@ function AuditoriaTab({ consultation }: { consultation: Consultation }) {
     <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
       <div className="space-y-5">
         {/* Calidad documental + completitud RIPS */}
-        <div className="rounded-lg border border-line bg-surface p-5">
+        <div className="clinical-panel p-5">
           <div className="flex items-end justify-between gap-4">
             <div>
               <div className="text-sm text-muted">Calidad documental</div>
@@ -1291,7 +1200,7 @@ function AuditoriaTab({ consultation }: { consultation: Consultation }) {
         </div>
 
         {/* Qué se puede mejorar */}
-        <div className="rounded-lg border border-line bg-surface p-5">
+        <div className="clinical-panel p-5">
           <h2 className="mb-4 font-display text-base font-semibold text-deep">
             Qué se puede mejorar
           </h2>
@@ -1302,7 +1211,7 @@ function AuditoriaTab({ consultation }: { consultation: Consultation }) {
         </div>
       </div>
 
-      <div className="h-fit rounded-lg border border-line bg-surface p-5">
+      <div className="clinical-panel h-fit p-5">
         <h2 className="mb-4 font-display text-base font-semibold text-deep">
           Trazabilidad
         </h2>

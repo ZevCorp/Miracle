@@ -60,13 +60,22 @@ const DURACION_MS: Record<ToastTone, number> = {
   warning: 6500,
 };
 
-interface NewPatientInput {
+/**
+ * Los datos con los que nace —o se corrige— una ficha de paciente. Se exporta
+ * porque el formulario único (PatientFormDialog) construye este objeto y el
+ * store solo lo escribe: si divergieran, la mitad de los campos se perdería en
+ * el camino, que es exactamente lo que pasaba con antecedentes y alergias.
+ */
+export interface NewPatientInput {
   nombre: string;
-  documento?: string;
-  edad?: number;
+  documento?: string | null;
+  edad?: number | null;
   sexo?: Patient["sexo"];
-  eps?: string;
-  telefono?: string;
+  eps?: string | null;
+  telefono?: string | null;
+  antecedentes?: string[];
+  alergias?: string[];
+  medicamentos?: string[];
 }
 
 /**
@@ -115,8 +124,33 @@ interface StoreValue {
   ensureTranscript: (id: string) => Promise<void>;
   /** Consultas cuya transcripción falló al leerse (≠ "no tiene transcripción"). */
   transcriptFailed: Record<string, true>;
+  /**
+   * Busca la consulta EN LA FOTO del store. Devolver undefined NO significa
+   * que no exista: la foto se toma al montar el armazón y tiene tope
+   * CONSULTATIONS_CAP. Ninguna pantalla puede concluir "no existe" con esto;
+   * para eso está ensureConsultation.
+   */
   getConsultation: (id: string) => Consultation | undefined;
+  /**
+   * Trae UNA consulta que no está en el store (el cap de la carga inicial es
+   * de 300, y las páginas profundas de /app/notas viven fuera de él). No la
+   * mete al estado global —el cap existe por memoria—: el que la pida se
+   * encarga de recordarla. Sin auditoría: el panel rápido no la muestra.
+   */
+  fetchConsultation: (id: string) => Promise<Consultation | undefined>;
+  /**
+   * Como fetchConsultation, pero SÍ la mete al store: la usa el detalle, que
+   * además de leerla la firma y la edita. "missing" (no existe o la RLS no la
+   * deja ver) y "error" (no se pudo preguntar) se distinguen a propósito.
+   */
+  ensureConsultation: (id: string) => Promise<"ok" | "missing" | "error">;
+  /** Misma advertencia que getConsultation: la foto no es la base. */
   getPatient: (id: string | null | undefined) => Patient | undefined;
+  /**
+   * Mete al store el paciente y SUS consultas. "missing" (no existe o la RLS
+   * no lo deja ver) y "error" (no se pudo preguntar) se distinguen aposta.
+   */
+  ensurePatient: (id: string) => Promise<"ok" | "missing" | "error">;
   getMedicoName: (id: string) => string | undefined;
   /** Cédula y registro médico del profesional — para el PDF y "Copiar nota"
    *  (la secretaria los necesita al llenar el sistema del hospital).
@@ -133,11 +167,20 @@ interface StoreValue {
       }
     | undefined;
   addPatient: (patient: string | NewPatientInput) => Patient;
-  /** Como addPatient, pero espera la confirmación de Supabase antes de resolver. */
+  /** Como addPatient, pero espera la confirmación de Supabase antes de resolver.
+   *  Si falla, la fila optimista se retira del store. */
   addPatientAsync: (
     patient: NewPatientInput,
-  ) => Promise<{ ok: boolean; patient: Patient }>;
+  ) => Promise<{ ok: boolean; patient: Patient; error?: string }>;
+  /** Corrige una ficha existente (incluidas antecedentes, alergias y
+   *  medicamentos). Revierte en memoria si la base rechaza el cambio. */
+  updatePatient: (
+    id: string,
+    patient: NewPatientInput,
+  ) => Promise<{ ok: boolean; patient?: Patient; error?: string }>;
   approveNote: (id: string) => void;
+  /** Como approveNote pero devuelve el desenlace y sin toasts (firma en serie). */
+  approveNoteAsync: (id: string) => Promise<{ ok: boolean; error?: string }>;
   /**
    * Registro MANUAL de la secretaria: marca la consulta como exportada sin
    * enviar nada al HIS. La exportación automática vive en `useNoteExport`.
@@ -188,6 +231,18 @@ function uuid(): string {
 const CONSULTATIONS_CAP = 300;
 const PATIENTS_CAP = 500;
 
+// Columnas de una consulta tal como las necesita el store. `transcript` (el
+// campo más pesado) queda fuera a propósito: se trae bajo demanda con
+// ensureTranscript. Una sola lista para los tres caminos que leen consultas
+// —carga inicial, traer una suelta, rescatar una que falta— para que no se
+// desincronicen.
+const CONSULTATION_COLUMNS =
+  "id, patient_id, medico_id, servicio, especialidad, tipo, estado, fecha, duracion_min, plantilla, motivo, note, resumen, codigos, firma, paciente_nombre, paciente_documento";
+
+/** Igual que arriba, para pacientes: una sola lista para todos los caminos. */
+const PATIENT_COLUMNS =
+  "id, nombre, documento, edad, sexo, eps, telefono, antecedentes, alergias, medicamentos";
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function rowToPatient(r: any): Patient {
   return {
@@ -201,6 +256,51 @@ function rowToPatient(r: any): Patient {
     antecedentes: r.antecedentes ?? [],
     alergias: r.alergias ?? [],
     medicamentos: r.medicamentos ?? [],
+  };
+}
+
+/** Texto de formulario → columna: vacío es ausencia de dato, no cadena vacía. */
+function textoONulo(valor: string | null | undefined): string | null {
+  const limpio = (valor ?? "").trim();
+  return limpio || null;
+}
+
+/**
+ * Un paciente en memoria, a partir de lo que se escribió en el formulario.
+ *
+ * Los "Por registrar" y el "—" viven SOLO aquí, en la copia que se pinta: la
+ * base recibe null (ver patientRow). La distinción importa porque un día se
+ * buscó "por registrar" y salieron treinta pacientes.
+ */
+function patientFromInput(id: string, input: NewPatientInput): Patient {
+  return {
+    id,
+    nombre: input.nombre.trim(),
+    documento: textoONulo(input.documento) ?? "Por registrar",
+    edad: input.edad && input.edad > 0 ? input.edad : 0,
+    // Sin valor por defecto: un dato clínico no registrado queda como null.
+    sexo: input.sexo ?? null,
+    eps: textoONulo(input.eps) ?? "Por registrar",
+    telefono: textoONulo(input.telefono) ?? "—",
+    antecedentes: input.antecedentes ?? [],
+    alergias: input.alergias ?? [],
+    medicamentos: input.medicamentos ?? [],
+  };
+}
+
+/** Las columnas de `patients` tal como se escriben. Las tres listas solo viajan
+ *  si vienen definidas: un alta rápida no debe borrar antecedentes existentes. */
+function patientRow(input: NewPatientInput) {
+  return {
+    nombre: input.nombre.trim(),
+    documento: textoONulo(input.documento),
+    edad: input.edad && input.edad > 0 ? input.edad : null,
+    sexo: input.sexo ?? null,
+    eps: textoONulo(input.eps),
+    telefono: textoONulo(input.telefono),
+    ...(input.antecedentes ? { antecedentes: input.antecedentes } : {}),
+    ...(input.alergias ? { alergias: input.alergias } : {}),
+    ...(input.medicamentos ? { medicamentos: input.medicamentos } : {}),
   };
 }
 
@@ -284,6 +384,13 @@ export function MiracleProvider({
     consultationsRef.current = consultations;
   }, [consultations]);
 
+  // Mismo motivo que el de consultas: los callbacks estables necesitan leer la
+  // lista vigente sin recrearse en cada cambio.
+  const patientsRef = useRef<Patient[]>([]);
+  useEffect(() => {
+    patientsRef.current = patients;
+  }, [patients]);
+
   const dismissToast = useCallback((id: number) => {
     const pendiente = temporizadoresRef.current.get(id);
     if (pendiente) {
@@ -341,16 +448,12 @@ export function MiracleProvider({
     const [patRes, conRes, profRes, orgRes] = await Promise.all([
       supabase
         .from("patients")
-        .select(
-          "id, nombre, documento, edad, sexo, eps, telefono, antecedentes, alergias, medicamentos",
-        )
+        .select(PATIENT_COLUMNS)
         .order("created_at", { ascending: false })
         .limit(PATIENTS_CAP),
       supabase
         .from("consultations")
-        .select(
-          "id, patient_id, medico_id, servicio, especialidad, tipo, estado, fecha, duracion_min, plantilla, motivo, note, resumen, codigos, firma, paciente_nombre, paciente_documento",
-        )
+        .select(CONSULTATION_COLUMNS)
         .order("fecha", { ascending: false })
         .limit(CONSULTATIONS_CAP),
       supabase
@@ -362,6 +465,16 @@ export function MiracleProvider({
       // devuelve una sola fila: la organización del usuario.
       supabase.from("organizations").select(ORG_SETTINGS_COLUMNS).maybeSingle(),
     ]);
+
+    // supabase-js NO lanza: un fallo llega como `error` con `data` en null. Sin
+    // este corte, una consulta que reventó (timeout, RLS, red) se leía como
+    // "no hay nada" y el store se quedaba vacío en silencio — el panel decía
+    // "Estás al día" y el detalle "Consulta no encontrada" sobre notas que
+    // existen. Se lanza para caer en el camino de `loadError`, que sí avisa y
+    // ofrece reintentar. La organización no entra: sus ajustes son cosméticos
+    // y su ausencia no borra historia clínica.
+    const fallo = conRes.error ?? patRes.error ?? profRes.error;
+    if (fallo) throw new Error(fallo.message);
 
     setOrg(rowToOrgSettings((orgRes.data ?? null) as OrgSettingsRow | null));
 
@@ -609,34 +722,71 @@ export function MiracleProvider({
     [patients],
   );
 
+  /**
+   * El gemelo de ensureConsultation para la ficha del paciente, y por la misma
+   * razón: `patients` es una foto con tope PATIENTS_CAP. Un paciente recién
+   * registrado —o el 501 de la lista— daba "Paciente no encontrado" sobre una
+   * ficha que existe.
+   *
+   * Trae también SUS consultas: la ficha las saca del store, y con la foto
+   * capada la historia de un paciente atendido hace meses salía vacía. Decirle
+   * a un médico que un paciente no tiene consultas cuando sí las tiene es
+   * peor que no mostrarle la ficha.
+   */
+  const ensurePatient = useCallback(
+    async (id: string): Promise<"ok" | "missing" | "error"> => {
+      const yaEsta = patientsRef.current.some((p) => p.id === id);
+      const [patRes, conRes] = await Promise.all([
+        yaEsta
+          ? Promise.resolve({ data: null, error: null })
+          : supabase.from("patients").select(PATIENT_COLUMNS).eq("id", id).maybeSingle(),
+        supabase
+          .from("consultations")
+          .select(CONSULTATION_COLUMNS)
+          .eq("patient_id", id)
+          .order("fecha", { ascending: false })
+          .limit(CONSULTATIONS_CAP),
+      ]);
+
+      if (!yaEsta) {
+        if (patRes.error) {
+          console.error("[store] rescate de paciente", patRes.error.message);
+          return "error";
+        }
+        if (!patRes.data) return "missing";
+        const rescatado = rowToPatient(patRes.data);
+        setPatients((list) =>
+          list.some((p) => p.id === id) ? list : [rescatado, ...list],
+        );
+      }
+
+      // Las consultas que falten se suman sin pisar las que ya están: las del
+      // store pueden traer ediciones locales todavía sin confirmar.
+      if (!conRes.error && conRes.data?.length) {
+        setConsultations((list) => {
+          const conocidas = new Set(list.map((c) => c.id));
+          const nuevas = conRes.data
+            .filter((r) => !conocidas.has(r.id))
+            .map((r) => rowToConsultation(r, []));
+          if (!nuevas.length) return list;
+          return [...list, ...nuevas].sort((a, b) =>
+            b.fecha.localeCompare(a.fecha),
+          );
+        });
+      }
+      return "ok";
+    },
+    [supabase],
+  );
+
   const addPatient = useCallback(
     (patient: string | NewPatientInput): Patient => {
       const input = typeof patient === "string" ? { nombre: patient } : patient;
-      const nuevo: Patient = {
-        id: uuid(),
-        nombre: input.nombre.trim(),
-        documento: input.documento?.trim() || "Por registrar",
-        edad: input.edad && input.edad > 0 ? input.edad : 0,
-        // Sin valor por defecto: un dato clínico no registrado queda como null.
-        sexo: input.sexo ?? null,
-        eps: input.eps?.trim() || "Por registrar",
-        telefono: input.telefono?.trim() || "—",
-        antecedentes: [],
-        alergias: [],
-        medicamentos: [],
-      };
+      const nuevo = patientFromInput(uuid(), input);
       setPatients((list) => [nuevo, ...list]);
       supabase
         .from("patients")
-        .insert({
-          id: nuevo.id,
-          nombre: nuevo.nombre,
-          documento: input.documento?.trim() || null,
-          edad: nuevo.edad > 0 ? nuevo.edad : null,
-          sexo: nuevo.sexo ?? null,
-          eps: input.eps?.trim() || null,
-          telefono: input.telefono?.trim() || null,
-        })
+        .insert({ id: nuevo.id, ...patientRow(input) })
         .then(({ error }) => {
           if (error) {
             console.error("[store] insert paciente", error.message);
@@ -654,40 +804,145 @@ export function MiracleProvider({
   const addPatientAsync = useCallback(
     async (
       input: NewPatientInput,
-    ): Promise<{ ok: boolean; patient: Patient }> => {
-      const nuevo: Patient = {
-        id: uuid(),
-        nombre: input.nombre.trim(),
-        documento: input.documento?.trim() || "Por registrar",
-        edad: input.edad && input.edad > 0 ? input.edad : 0,
-        sexo: input.sexo ?? null,
-        eps: input.eps?.trim() || "Por registrar",
-        telefono: input.telefono?.trim() || "—",
-        antecedentes: [],
-        alergias: [],
-        medicamentos: [],
-      };
+    ): Promise<{ ok: boolean; patient: Patient; error?: string }> => {
+      const nuevo = patientFromInput(uuid(), input);
       setPatients((list) => [nuevo, ...list]);
-      const { error } = await supabase.from("patients").insert({
-        id: nuevo.id,
-        nombre: nuevo.nombre,
-        documento: input.documento?.trim() || null,
-        edad: nuevo.edad > 0 ? nuevo.edad : null,
-        sexo: nuevo.sexo ?? null,
-        eps: input.eps?.trim() || null,
-        telefono: input.telefono?.trim() || null,
-      });
+      const { error } = await supabase
+        .from("patients")
+        .insert({ id: nuevo.id, ...patientRow(input) });
       if (error) {
         console.error("[store] insert paciente", error.message);
+        // La fila optimista se retira: dejarla haría creer al médico que el
+        // paciente existe, y la próxima recarga lo borraría sin explicación.
+        setPatients((list) => list.filter((p) => p.id !== nuevo.id));
         showToast("No se pudo guardar el paciente. Intenta de nuevo.", "warning");
-        return { ok: false, patient: nuevo };
+        return { ok: false, patient: nuevo, error: error.message };
       }
       return { ok: true, patient: nuevo };
     },
     [supabase, showToast],
   );
 
+  /**
+   * Corregir una ficha ya guardada. No existía: un paciente creado con el
+   * documento mal escrito se quedaba así para siempre, y las alergias —el dato
+   * que más importa antes de formular— no había forma de registrarlas.
+   *
+   * Optimista con reversa: se pinta el cambio, y si la base lo rechaza (RLS de
+   * `update patients`: solo el creador, o admin/supervisor de la organización)
+   * se devuelve la ficha anterior en vez de dejar en pantalla algo que no se
+   * guardó.
+   */
+  const updatePatient = useCallback(
+    async (
+      id: string,
+      input: NewPatientInput,
+    ): Promise<{ ok: boolean; patient?: Patient; error?: string }> => {
+      let anterior: Patient | undefined;
+      const siguiente = patientFromInput(id, input);
+      setPatients((list) => {
+        anterior = list.find((p) => p.id === id);
+        return list.map((p) => (p.id === id ? siguiente : p));
+      });
+
+      const { data, error } = await supabase
+        .from("patients")
+        .update(patientRow(input))
+        .eq("id", id)
+        .select("id")
+        .maybeSingle();
+
+      if (error || !data) {
+        console.error("[store] update paciente", error?.message ?? "sin filas");
+        if (anterior) {
+          const previo = anterior;
+          setPatients((list) => list.map((p) => (p.id === id ? previo : p)));
+        }
+        showToast("No se pudieron guardar los cambios del paciente.", "warning");
+        return {
+          ok: false,
+          // Sin fila devuelta el update no alcanzó nada: o la RLS lo bloqueó, o
+          // la ficha ya no existe. Las dos se le dicen igual al médico.
+          error: error?.message ?? "No tienes permiso para editar esta ficha.",
+        };
+      }
+      return { ok: true, patient: siguiente };
+    },
+    [supabase, showToast],
+  );
+
   // ---- Consultas ------------------------------------------------------------
+  const fetchConsultation = useCallback(
+    async (id: string): Promise<Consultation | undefined> => {
+      const { data, error } = await supabase
+        .from("consultations")
+        .select(CONSULTATION_COLUMNS)
+        .eq("id", id)
+        .maybeSingle();
+      if (error || !data) return undefined;
+      return rowToConsultation(data, []);
+    },
+    [supabase],
+  );
+
+  /**
+   * Garantiza que UNA consulta esté EN EL STORE, venga o no en la carga
+   * inicial.
+   *
+   * El store es una foto: se toma al montar el armazón y llega hasta
+   * CONSULTATIONS_CAP. La consulta que el médico acaba de terminar nace
+   * después de esa foto —y la mira el backend, no el navegador— así que el
+   * detalle no la encontraba y decía "Consulta no encontrada" sobre una nota
+   * que existe. Lo mismo le pasa a cualquier consulta más vieja que el corte.
+   *
+   * Va al estado global y no a una caché local del que la pida porque el
+   * detalle no solo lee la consulta: la firma, la edita, le agrega códigos y
+   * la exporta, y todas esas operaciones la buscan en `consultationsRef`.
+   *
+   * Devuelve POR QUÉ no está cuando no está: "missing" (la base no la tiene, o
+   * la RLS no deja verla) es distinto de "error" (no se pudo preguntar). Al
+   * médico nunca se le dice "no existe" cuando lo que falló fue la red.
+   */
+  const ensureConsultation = useCallback(
+    async (id: string): Promise<"ok" | "missing" | "error"> => {
+      if (consultationsRef.current.some((c) => c.id === id)) return "ok";
+      const { data, error } = await supabase
+        .from("consultations")
+        .select(CONSULTATION_COLUMNS)
+        .eq("id", id)
+        .maybeSingle();
+      if (error) {
+        console.error("[store] rescate de consulta", error.message);
+        return "error";
+      }
+      if (!data) return "missing";
+      // La auditoría es el timeline del detalle; sin ella la consulta se abre
+      // pero su historia sale vacía. Que falle no invalida el rescate.
+      const { data: audData } = await supabase
+        .from("audit_events")
+        .select("*")
+        .eq("consultation_id", id)
+        .order("fecha", { ascending: true });
+      const auditoria: AuditEvent[] = (audData ?? []).map((a) => ({
+        id: a.id,
+        fecha: a.fecha,
+        actor: a.actor_name ?? "Sistema",
+        accion: a.accion,
+        detalle: a.detalle ?? undefined,
+      }));
+      const rescatada = rowToConsultation(data, auditoria);
+      setConsultations((list) =>
+        list.some((c) => c.id === id)
+          ? list
+          : // Ordenada por fecha, como la deja la carga inicial: una consulta
+            // vieja rescatada no puede colarse al tope de las listas.
+            [...list, rescatada].sort((a, b) => b.fecha.localeCompare(a.fecha)),
+      );
+      return "ok";
+    },
+    [supabase],
+  );
+
   const getConsultation = useCallback(
     (id: string) => consultations.find((c) => c.id === id),
     [consultations],
@@ -958,40 +1213,54 @@ export function MiracleProvider({
 
   // La firma se hace en el servidor (valida sesión, estado y deja hash del
   // contenido en auditoría); aquí solo se refleja el resultado en el estado.
+  //
+  // La variante async devuelve el resultado y NO muestra toasts: la sesión de
+  // firma en serie necesita saber nota a nota qué pasó y contar el desenlace
+  // ella misma (un toast por nota en una tanda de diez sería una lluvia).
+  const approveNoteAsync = useCallback(
+    async (id: string): Promise<{ ok: boolean; error?: string }> => {
+      const result = await signConsultationNote(id);
+      if (!result.ok || !result.firma) {
+        return { ok: false, error: result.error ?? "No se pudo firmar la nota." };
+      }
+      const { firma } = result;
+      setConsultations((list) =>
+        list.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                estado: "aprobada" as const,
+                firma,
+                auditoria: [
+                  ...c.auditoria,
+                  {
+                    id: `a-${Date.now()}`,
+                    fecha: firma.fecha,
+                    actor: firma.por,
+                    accion: "Nota aprobada y firmada",
+                    detalle: `Firmada por ${firma.por}`,
+                  },
+                ],
+              }
+            : c,
+        ),
+      );
+      return { ok: true };
+    },
+    [],
+  );
+
   const approveNote = useCallback(
     (id: string) => {
-      void (async () => {
-        const result = await signConsultationNote(id);
-        if (!result.ok || !result.firma) {
+      void approveNoteAsync(id).then((result) => {
+        if (!result.ok) {
           showToast(result.error ?? "No se pudo firmar la nota.", "warning");
           return;
         }
-        const { firma } = result;
-        setConsultations((list) =>
-          list.map((c) =>
-            c.id === id
-              ? {
-                  ...c,
-                  estado: "aprobada" as const,
-                  firma,
-                  auditoria: [
-                    ...c.auditoria,
-                    {
-                      id: `a-${Date.now()}`,
-                      fecha: firma.fecha,
-                      actor: firma.por,
-                      accion: "Nota aprobada y firmada",
-                      detalle: `Firmada por ${firma.por}`,
-                    },
-                  ],
-                }
-              : c,
-          ),
-        );
         showToast("Nota aprobada y firmada.", "success");
-      })();
+      });
     },
-    [showToast],
+    [approveNoteAsync, showToast],
   );
 
   /**
@@ -1145,12 +1414,17 @@ export function MiracleProvider({
       ensureTranscript,
       transcriptFailed,
       getConsultation,
+      fetchConsultation,
+      ensureConsultation,
       getPatient,
+      ensurePatient,
       getMedicoName,
       getMedicoIdentity,
       addPatient,
       addPatientAsync,
+      updatePatient,
       approveNote,
+      approveNoteAsync,
       markExportedManually,
       applyServerConsultationEstado,
       markReviewed,
@@ -1181,12 +1455,17 @@ export function MiracleProvider({
       ensureTranscript,
       transcriptFailed,
       getConsultation,
+      fetchConsultation,
+      ensureConsultation,
       getPatient,
+      ensurePatient,
       getMedicoName,
       getMedicoIdentity,
       addPatient,
       addPatientAsync,
+      updatePatient,
       approveNote,
+      approveNoteAsync,
       markExportedManually,
       applyServerConsultationEstado,
       markReviewed,

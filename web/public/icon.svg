@@ -1,23 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    Icono de aplicación (favicon, PWA). Mismo orbe que components/brand/BrandMark.tsx.
+    Conserva la teja navy: un icono de app se recorta contra cromo de navegador
+    de cualquier color, y sobre el navy el orbe enciende. Sin sonrisa ni palabra:
+    a 16px ambas se vuelven un borrón.
+  -->
   <defs>
-    <radialGradient id="mk-orb" cx="38%" cy="32%" r="74%">
-      <stop offset="0%" stop-color="#f6fbff"/>
-      <stop offset="34%" stop-color="#cfe6fb"/>
-      <stop offset="66%" stop-color="#7fb2f2"/>
-      <stop offset="100%" stop-color="#2f74d0"/>
+    <radialGradient id="ic-core" cx="43%" cy="41%" r="64%">
+      <stop offset="0%" stop-color="#57d2fd"/>
+      <stop offset="30%" stop-color="#37c9fd"/>
+      <stop offset="62%" stop-color="#12aef2"/>
+      <stop offset="100%" stop-color="#0a9aea"/>
     </radialGradient>
-    <radialGradient id="mk-hi" cx="34%" cy="26%" r="34%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+    <radialGradient id="ic-rim" cx="50%" cy="50%" r="50%">
+      <stop offset="68%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="88%" stop-color="#c8ecff" stop-opacity="0.45"/>
+      <stop offset="97%" stop-color="#ffffff" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="1"/>
+    </radialGradient>
+    <radialGradient id="ic-halo" cx="50%" cy="50%" r="50%">
+      <stop offset="52%" stop-color="#7fd8ff" stop-opacity="0.42"/>
+      <stop offset="72%" stop-color="#7fd8ff" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#7fd8ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ic-spec" cx="32%" cy="30%" r="42%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="mk-shadow" cx="50%" cy="50%" r="50%">
-      <stop offset="70%" stop-color="#0f172a" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.14"/>
     </radialGradient>
   </defs>
   <rect width="512" height="512" rx="112" fill="#0f172a"/>
-  <circle cx="256" cy="256" r="176" fill="url(#mk-orb)"/>
-  <circle cx="256" cy="256" r="176" fill="url(#mk-shadow)"/>
-  <ellipse cx="214" cy="191" rx="73" ry="50" fill="url(#mk-hi)"/>
-  <circle cx="256" cy="256" r="175" fill="none" stroke="#ffffff" stroke-opacity="0.28"/>
+  <circle cx="256" cy="256" r="232" fill="url(#ic-halo)"/>
+  <circle cx="256" cy="256" r="168" fill="url(#ic-core)"/>
+  <circle cx="256" cy="256" r="168" fill="url(#ic-spec)"/>
+  <circle cx="256" cy="256" r="168" fill="url(#ic-rim)"/>
+  <circle cx="256" cy="256" r="166" fill="none" stroke="#ffffff" stroke-opacity="0.95" stroke-width="4"/>
+  <path d="M 152 194 A 166 166 0 0 1 322 93" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity="0.85"/>
 </svg>

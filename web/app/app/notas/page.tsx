@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { FileText } from "lucide-react";
+import { PeekRowLink } from "@/components/app/PeekRowLink";
+import { Avatar } from "@/components/ui/Avatar";
 import { createClient } from "@/lib/supabase/server";
 import { STATUS_LABEL, type ConsultationStatus } from "@/lib/mock";
 import { formatFechaRelativa } from "@/lib/dates";
@@ -35,11 +36,13 @@ type Row = {
 /**
  * Un paciente registrado y asociado a mano manda sobre el nombre copiado de la
  * nota; el de la nota es mejor que rendirse con "Paciente sin identificar".
+ * Devuelve null si no hay identidad: el avatar pinta la silueta gris y el
+ * título cae al rótulo genérico.
  */
-function patientName(row: Row): string {
+function patientName(row: Row): string | null {
   const p = row.patients;
   const asociado = (Array.isArray(p) ? p[0] : p)?.nombre?.trim();
-  return asociado || row.paciente_nombre?.trim() || "Paciente sin identificar";
+  return asociado || row.paciente_nombre?.trim() || null;
 }
 
 export default async function NotasPage({
@@ -101,7 +104,7 @@ export default async function NotasPage({
             <Link
               key={e}
               href={href}
-              className={`inline-flex items-center gap-2 rounded-[9px] border px-3.5 py-2 text-sm font-semibold transition-colors ${
+              className={`inline-flex items-center gap-2 min-h-10 rounded-full border px-3.5 py-2 text-sm font-semibold transition-colors ${
                 active
                   ? STATUS_CHIP_ACTIVE[e]
                   : "border-line bg-surface text-ink-soft hover:border-mist"
@@ -134,26 +137,29 @@ export default async function NotasPage({
       ) : null}
 
       {rows.length ? (
-        <div className="clinical-list mt-5">
+        <div className="clinical-list stagger-in mt-5">
           {rows.map((c) => (
-            <Link
+            <PeekRowLink
               key={c.id}
+              target={{ kind: "consultation", id: c.id }}
+              listIds={rows.map((x) => x.id)}
               href={`/app/consultas/${c.id}`}
               className="clinical-list-row flex items-center gap-3 px-4 py-4 sm:gap-4 sm:px-5"
+              dataLight
             >
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-ice text-accent">
-                <FileText size={16} />
-              </span>
+              {/* Misma anatomía que la lista de pacientes: quién, no qué
+                  documento. Sin identidad, la silueta gris ya lo dice. */}
+              <Avatar name={patientName(c)} />
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold text-deep">
-                  {patientName(c)}
+                  {patientName(c) ?? "Paciente sin identificar"}
                 </div>
                 <div className="mt-0.5 truncate text-[13px] text-muted">
                   {c.motivo || "Motivo sin registrar"} · {c.especialidad} · {formatFechaRelativa(c.fecha)}
                 </div>
               </div>
               <StatusBadge estado={c.estado} />
-            </Link>
+            </PeekRowLink>
           ))}
         </div>
       ) : queryError ? null : (

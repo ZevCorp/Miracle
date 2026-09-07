@@ -41,16 +41,24 @@ describe("experiencia mobile-first Miracle", () => {
   });
 
   it("deja cerrar sesión en TODOS los anchos, sin huecos entre breakpoints", () => {
-    /* Dos zonas y quién cubre cada una, tras retirar el pie del sidebar:
+    /* Dos zonas y quién cubre cada una, tras retirar el pie del sidebar y la
+       cabecera:
          < md   → hoja «Más» de la barra inferior (`md:hidden`)
-         ≥ md   → botón "Salir" de la cabecera
-       Si ese "Salir" vuelve a `lg:inline`, entre 768 y 1024 px el médico se
-       queda encerrado en la sesión: el sidebar ya no tiene salida. */
-    const shell = source("components/app/AppShell.tsx");
+         ≥ md   → menú de cuenta de la cápsula flotante (StatusDock)
+       Si ese menú se va a `lg:`, entre 768 y 1024 px el médico se queda
+       encerrado en la sesión: ni el sidebar ni la barra inferior tienen
+       salida ahí. Ya pasó una vez. */
+    const dock = source("components/app/StatusDock.tsx");
     const sidebar = source("components/app/AppSidebar.tsx");
+    const navigation = source("components/app/MobileBottomNavigation.tsx");
 
-    expect(shell).toMatch(/md:inline[\s\S]{0,80}Salir/);
-    expect(shell).not.toMatch(/lg:inline[\s\S]{0,80}Salir/);
+    expect(dock).toContain("Salir");
+    expect(dock).toContain("signOut");
+    // El disparador de la cuenta abre desde `md`, nunca desde `lg`.
+    expect(dock).toMatch(/md:inline-flex/);
+    expect(dock).not.toMatch(/lg:inline-flex/);
+    // Por debajo de `md` la salida es la hoja «Más».
+    expect(navigation).toContain("Cerrar sesión");
     // El sidebar es solo navegación: ya no ofrece salir (ni instalar).
     expect(sidebar).not.toContain("signOut");
   });

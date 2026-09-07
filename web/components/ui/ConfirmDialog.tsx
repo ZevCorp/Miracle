@@ -117,7 +117,7 @@ function ConfirmDialog({
       onClick={(e) => {
         if (e.target === dialogo.current) onResponder(false);
       }}
-      className="preview-in m-auto w-[min(28rem,calc(100vw-2rem))] rounded-[14px] border border-line bg-surface p-0 text-deep shadow-[var(--shadow-lg)] backdrop:bg-night/40"
+      className="preview-in m-auto w-[min(28rem,calc(100vw-2rem))] rounded-[24px] border border-line bg-surface p-0 text-deep shadow-[var(--elev-3)] backdrop:bg-night/40"
     >
       <div className="flex items-start gap-3 px-5 pb-2 pt-5">
         <span

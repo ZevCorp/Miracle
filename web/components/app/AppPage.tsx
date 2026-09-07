@@ -39,6 +39,39 @@ export function AppPageHeader({
   );
 }
 
+/**
+ * Encabezado de bloque: un rótulo en versalita, una regla que cruza el ancho y,
+ * opcionalmente, un conteo y una acción.
+ *
+ * Existe para dejar de meter cada lista en una tarjeta con borde. En el panel
+ * del médico hay tres bloques seguidos; encerrados en cajas, la pantalla eran
+ * cajas dentro de cajas. La regla agrupa igual y no cuesta un marco.
+ */
+export function SectionRule({
+  title,
+  count,
+  action,
+  className = "",
+}: {
+  title: string;
+  count?: number;
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`mb-3 flex items-center gap-3 ${className}`}>
+      <h2 className="doc-label shrink-0">{title}</h2>
+      {count !== undefined ? (
+        <span className="data shrink-0 rounded-full bg-ice px-2 py-0.5 text-[11px] font-semibold text-accent-ink">
+          {count}
+        </span>
+      ) : null}
+      <span aria-hidden className="h-px min-w-4 flex-1 bg-line" />
+      {action}
+    </div>
+  );
+}
+
 export function ClinicalSectionHeader({
   title,
   action,

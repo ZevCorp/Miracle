@@ -8,9 +8,7 @@ import {
   Loader2,
   Pencil,
   Plus,
-  Search,
   Trash2,
-  X,
 } from "lucide-react";
 import {
   createSnippet,
@@ -21,6 +19,9 @@ import {
   type Snippet,
 } from "@/lib/clinical/snippets";
 import { createClient } from "@/lib/supabase/client";
+import { AlertBanner } from "@/components/ui/AlertBanner";
+import { SearchField } from "@/components/ui/SearchField";
+import { EmptyState } from "@/components/app/EmptyState";
 import { SnippetEditorDialog } from "@/components/app/SnippetEditorDialog";
 import { SnippetImportDialog } from "./SnippetImportDialog";
 import { useSnippets } from "@/components/app/SnippetsProvider";
@@ -183,26 +184,12 @@ export function AtajosManager({
               </>
             )}
           </div>
-          <div className="clinical-control flex items-center gap-2 px-3">
-            <Search size={16} className="text-muted" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar atajo"
-              aria-label="Buscar atajo"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none sm:w-64"
-            />
-            {query ? (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label="Limpiar búsqueda"
-                className="text-muted hover:text-deep"
-              >
-                <X size={15} />
-              </button>
-            ) : null}
-          </div>
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            placeholder="Buscar atajo"
+            className="sm:min-w-72"
+          />
         </div>
       </header>
 
@@ -212,26 +199,21 @@ export function AtajosManager({
       </p>
 
       {feedback ? (
-        <p
-          role="status"
-          className="mt-4 rounded-lg border border-success/25 bg-mint-soft px-4 py-3 text-sm text-success"
-        >
+        <AlertBanner tone="success" className="mt-4">
           {feedback}
-        </p>
+        </AlertBanner>
       ) : null}
       {error ? (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
-        >
+        <AlertBanner tone="danger" className="mt-4">
           {error}
-        </p>
+        </AlertBanner>
       ) : null}
 
       {loading ? (
-        <div className="mt-8 flex justify-center rounded-xl border border-line bg-surface p-14 text-sm text-muted">
-          <Loader2 size={18} className="mr-2 animate-spin text-accent" /> Cargando
-          tus atajos…
+        <div aria-busy="true" aria-label="Cargando tus atajos" className="mt-6 space-y-2.5">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-[16px] border border-line bg-ice-soft" />
+          ))}
         </div>
       ) : null}
 
@@ -242,7 +224,7 @@ export function AtajosManager({
           <div className="mt-6">
             <Suspense
               fallback={
-                <div className="h-40 rounded-[14px] border border-line bg-surface" />
+                <div className="h-40 rounded-[16px] border border-line bg-surface" />
               }
             >
               <MiracleLibrary
@@ -260,9 +242,12 @@ export function AtajosManager({
           </div>
 
           {snippets.length === 0 ? null : visible.length === 0 ? (
-            <p className="mt-6 rounded-xl border border-dashed border-line bg-surface p-8 text-center text-sm text-muted">
-              Ningún atajo coincide con esa búsqueda.
-            </p>
+            <div className="mt-6">
+              <EmptyState
+                title="Ningún atajo coincide"
+                description="Prueba con otra palabra del título o del texto."
+              />
+            </div>
           ) : (
             <div className="mt-6 space-y-6">
               {grupos.map((grupo) => (

@@ -16,8 +16,8 @@ export default async function OnboardingPage() {
     <main className="min-h-screen bg-pearl px-5 py-10 md:py-16">
       <div className="mx-auto w-full max-w-2xl">
         <div className="flex items-center gap-3">
-          <BrandSphere size={44} />
-          <span className="text-sm font-semibold tracking-wide text-accent">MIRACLE · PERFIL CLÍNICO</span>
+          <BrandSphere size={76} />
+          <span className="text-sm font-extralight tracking-[0.22em] text-accent">Miracle · Perfil clínico</span>
         </div>
         <div className="mt-8">
           <span className="text-sm font-medium text-accent">Primer ingreso · menos de 1 minuto</span>

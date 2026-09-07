@@ -86,7 +86,11 @@ export function EncounterNote({
 
       <NoteReviewPanel review={review} />
 
-      <div className="rounded-lg border border-line bg-surface px-3 py-2 sm:px-5">
+      {/* EL DOCUMENTO. La nota vive en su propio papel, medio grado más
+          cálido que el lienzo, con el cuerpo en serif: es lo que el médico
+          relee y firma, y tiene que distinguirse de la herramienta de un
+          vistazo. Todo lo demás de la pantalla sigue siendo instrumento. */}
+      <div className="doc px-4 py-3 sm:px-7 sm:py-5">
         <SummaryBlock
           summary={note.summary}
           editable={editable}
@@ -536,7 +540,7 @@ function EditableBlock({
   }
 
   return (
-    <div className="border-b border-line py-4 last:border-0">
+    <div id={`nota-${target.key || "resumen"}`} className="scroll-mt-24 border-b border-doc-line-soft py-4 last:border-0">
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
@@ -548,7 +552,7 @@ function EditableBlock({
             size={18}
             className={`shrink-0 text-muted transition-transform ${open ? "" : "-rotate-90"}`}
           />
-          <h3 className="font-display text-base font-semibold text-deep">{title}</h3>
+          <h3 className="doc-label">{title}</h3>
         </button>
 
         <div className="flex shrink-0 items-center gap-1">
@@ -692,11 +696,13 @@ function EditableBlock({
               }
               title={editable ? "Toca para editar esta sección" : undefined}
             >
-              <p className="whitespace-pre-wrap">
+              <p className="doc-body whitespace-pre-wrap">
                 {content.trim() ? (
                   content
                 ) : (
-                  <span className="text-muted">Sin contenido.</span>
+                  <span className="font-sans text-sm text-doc-muted">
+                    Sin contenido.
+                  </span>
                 )}
               </p>
             </div>

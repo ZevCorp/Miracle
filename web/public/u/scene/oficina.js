@@ -1186,7 +1186,7 @@ const bezier = (x1, y1, x2, y2) => (t) => {
     u = Math.max(0, Math.min(1, u));
   }
   const u1 = 1 - u;
-  return 3 * u1 * u1 * u * y1 + 3 * u1 * u * u * y2 + u ** 3 * y2 * 0 + u ** 3;
+  return 3 * u1 * u1 * u * y1 + 3 * u1 * u * u * y2 + u ** 3;
 };
 const easeRevelar = bezier(0.22, 0.61, 0.36, 1.0);
 const easeSuccion = bezier(0.65, 0.0, 0.35, 1.0);
@@ -1235,8 +1235,13 @@ let pTarget = P_INICIO, pPos = P_INICIO;
 let qEmpalme = 0;
 const elDentro = document.getElementById("dentro");
 
+/* Se declara fuera para que `resize` pueda volver a leerlo: `qEmpalme` depende
+ * de innerHeight, y si solo se recalcula con el scroll, redimensionar a mitad
+ * del empalme lo deja congelado en el valor de antes — el escritorio a medio
+ * escalar sobre el monitor hasta que alguien vuelva a mover la rueda. */
+let leerScroll = () => {};
 if (MODO_RECORRIDO) {
-  const leerScroll = () => {
+  leerScroll = () => {
     const fin = elDentro ? elDentro.offsetTop - innerHeight : document.body.scrollHeight - innerHeight;
     const q = fin > 0 ? Math.min(1, Math.max(0, scrollY / fin)) : 0;
     pTarget = P_INICIO + (1 - P_INICIO) * q;
@@ -1250,6 +1255,217 @@ if (MODO_RECORRIDO) {
   leerScroll();
 }
 
+/* ------------------------- encaje a las paradas -------------------------
+ * El riel es continuo, pero el TEXTO no: cada bloque de copy vive en una
+ * ventana de p (data-desde/data-hasta) y entre ventana y ventana no hay nada
+ * que leer. Medido en esta misma página: soltar el scroll entre 200 y 500 px,
+ * o entre 1700 y 1950, deja un plano del consultorio sin una sola palabra —
+ * y los 100vh del empalme, peor todavía: se queda el escritorio a medio
+ * escalar sobre el monitor.
+ *
+ * Así que cuando el scroll SE PARA, se termina el viaje: hasta la parada más
+ * cercana, y si el gesto iba claramente hacia adelante o hacia atrás, hasta
+ * la siguiente en esa dirección aunque la de atrás quede más cerca. Un flick
+ * corto avanza una escena entera, que es lo que uno espera al empujar.
+ *
+ * Lo que NO hace, a propósito:
+ *  - No toca nada mientras el dedo está encima: solo al pararse (160 ms).
+ *  - Se cancela con cualquier gesto nuevo. Nunca se pelea con nadie.
+ *  - No pasa de #dentro: la landing de abajo se scrollea como cualquier web.
+ */
+if (MODO_RECORRIDO && elDentro) {
+  const REDUCIDO = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const QUIETO = 160;         // ms sin scroll para dar el gesto por terminado
+  const CERCA = 24;           // px: ya está en su sitio, no se toca
+  const EMPUJE = 70;          // px: por debajo de esto no cuenta como dirección
+
+  const bloques = [...document.querySelectorAll("#relato .copy[data-desde]")];
+
+  function paradas() {
+    const fin = elDentro.offsetTop - innerHeight;
+    if (fin <= 0) return [];
+    /* De la p a los píxeles, con el MISMO mapeo que leerScroll — si un día
+     * cambia P_INICIO, esto cambia con él y no se queda mintiendo. */
+    const y = (p) => Math.round(((p - P_INICIO) / (1 - P_INICIO)) * fin);
+    const medias = bloques
+      .map((b) => (+b.dataset.desde + Math.min(1, +b.dataset.hasta)) / 2)
+      .filter((p) => p > P_INICIO)
+      .map(y)
+      .filter((v) => v > 0 && v < fin);
+    // 0 = el hero; el último = el video ya encajado, con el empalme terminado.
+    return [0, ...medias, elDentro.offsetTop].sort((a, b) => a - b);
+  }
+
+  /* La parada en la que se descansó por última vez. Es lo que hace falta para
+   * saber si un gesto SALIÓ de una parada, y no se puede leer del scroll en el
+   * momento del gesto: los listeners de `wheel` son pasivos, así que Chrome ya
+   * ha movido la página cuando el manejador corre — medido, `scrollY` valía ya
+   * 420 dentro del propio manejador. Por eso el punto de partida se recuerda
+   * al llegar, no al empujar. */
+  let animando = false, quieto = null, ultimaParada = scrollY, iParada = null;
+
+  /* Se guarda la parada Y SU ÍNDICE. El píxel sirve para la regla de
+   * dirección; el índice, para sobrevivir a un cambio de tamaño: al girar el
+   * teléfono el documento entero cambia de alto y el mismo scroll en píxeles
+   * ya no es el mismo sitio — se aterrizaba en la landing sin haber pedido
+   * nada. Con el índice se vuelve a la misma parada, medida de nuevo. */
+  let anclado = false;                 // ¿seguimos donde nos dejó el encaje?
+  function fijar(y) {
+    ultimaParada = y;
+    const P = paradas();
+    const i = P.findIndex((p) => Math.abs(p - y) <= CERCA);
+    iParada = i >= 0 ? i : null;
+    anclado = iParada != null;
+  }
+  fijar(scrollY);
+
+  addEventListener("resize", () => {
+    // Solo si nadie se ha movido desde la última parada: si la persona ya se
+    // fue a la landing, girar el teléfono no puede devolverla al video.
+    if (!anclado || iParada == null) return;
+    const P = paradas();
+    if (!P.length || P[iParada] == null) return;
+    animando = false;
+    scrollTo(0, P[iParada]);
+    ultimaParada = P[iParada];
+  });
+
+  function irA(destino) {
+    const y0 = scrollY, d = destino - y0;
+    // Un par de píxeles no merecen animación, pero sí hay que ponerlos: es la
+    // diferencia entre el empalme terminado y el empalme al 99,7 %.
+    if (Math.abs(d) < 2) { scrollTo(0, destino); fijar(destino); return; }
+    if (REDUCIDO) { scrollTo(0, destino); fijar(destino); return; }
+    // 380–760 ms según lo lejos que esté: cerca, un ajuste; lejos, un viaje.
+    const dur = Math.min(760, Math.max(380, Math.abs(d) * 0.62));
+    const t0 = performance.now();
+    animando = true;
+    const paso = (t) => {
+      if (!animando) return;
+      const k = Math.min(1, (t - t0) / dur);
+      const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+      scrollTo(0, Math.round(y0 + d * e));
+      if (k < 1) requestAnimationFrame(paso);
+      else { animando = false; fijar(destino); }
+    };
+    requestAnimationFrame(paso);
+  }
+
+  // Cualquier gesto cancela el encaje en marcha. Nunca se pelea con nadie.
+  const cancelar = () => { animando = false; anclado = false; };
+  for (const ev of ["wheel", "touchstart", "pointerdown", "keydown"])
+    addEventListener(ev, cancelar, { passive: true });
+
+  /* Con el dedo apoyado no se encaja. `cancelar` corta el encaje que ya está
+   * en marcha, pero un arrastre lento no dispara `touchstart` de nuevo: basta
+   * con parar el dedo 160 ms —sin levantarlo— para que `alPararse` mueva la
+   * página debajo. Medido: 885 px, más de una pantalla, con el dedo puesto; y
+   * al soltar, los píxeles que se siguieron arrastrando se leían como un
+   * empujón nuevo y saltaban otra escena de más.
+   *
+   * El comentario de arriba prometía justo esto ("no toca nada mientras el
+   * dedo está encima") y no estaba implementado. */
+  let dedoAbajo = false;
+  const soltarDedo = () => {
+    if (!dedoAbajo) return;
+    dedoAbajo = false;
+    // Al soltar empieza a contar el reposo, no antes.
+    clearTimeout(quieto);
+    quieto = setTimeout(alPararse, QUIETO);
+  };
+  /* El dedo se sigue con eventos TÁCTILES, no con los de puntero: en cuanto el
+   * navegador decide que el gesto es un scroll, dispara `pointercancel` sobre
+   * ese puntero aunque el dedo siga puesto. Escuchándolo ahí, el dedo se daba
+   * por levantado a los pocos píxeles y volvía el tirón. */
+  addEventListener("touchstart", () => { dedoAbajo = true; }, { passive: true });
+  for (const ev of ["touchend", "touchcancel"])
+    addEventListener(ev, (e) => { if (!e.touches || e.touches.length === 0) soltarDedo(); }, { passive: true });
+  // Ratón y lápiz: arrastrar la barra de scroll es el caso análogo.
+  addEventListener("pointerdown", (e) => { if (e.pointerType !== "touch") dedoAbajo = true; }, { passive: true });
+  for (const ev of ["pointerup", "pointercancel"])
+    addEventListener(ev, (e) => { if (e.pointerType !== "touch") soltarDedo(); }, { passive: true });
+
+  function alPararse() {
+    if (animando || dedoAbajo) return;
+    const P = paradas();
+    if (!P.length) return;
+    const y = scrollY;
+    /* Pasado el pin del video ya no hay riel que encajar: manda el scroll.
+     *
+     * El margen era `innerHeight * 0.12` —108 px en una pantalla de 900— y un
+     * notch de rueda de Chrome son ~100: quien bajaba UN notch y se paraba veía
+     * cómo la página se devolvía sola al video, y otro notch hacía lo mismo.
+     * Quedaba encerrado. Aquí no hace falta margen ninguno: por debajo, la
+     * regla de la última parada ya obliga a aterrizar exacto. */
+    if (y > elDentro.offsetTop + 2) return;
+    if (document.hidden) return;
+
+    let cerca = P[0];
+    for (const p of P) if (Math.abs(p - y) < Math.abs(cerca - y)) cerca = p;
+
+    /* Dirección. Solo se aplica cuando la parada más cercana ES aquella de la
+     * que se venía: devolver a alguien al sitio del que acaba de salir es lo
+     * contrario de lo que pidió al empujar, así que en ese caso se sigue a la
+     * siguiente. Si ya se alejó lo bastante como para tener otra más cerca,
+     * manda la cercanía — si no, medio empalme de scroll te echaba una parada
+     * entera hacia atrás, que es peor que no encajar nada. */
+    const avance = y - ultimaParada;
+    if (Math.abs(avance) > EMPUJE && Math.abs(cerca - ultimaParada) <= CERCA) {
+      const adelante = avance > 0;
+      const sig = adelante ? P.find((p) => p > ultimaParada + CERCA)
+                           : [...P].reverse().find((p) => p < ultimaParada - CERCA);
+      if (sig != null) cerca = sig;
+    }
+    /* En la última parada —el video ya encajado— no vale "casi". Quedarse 20 px
+     * antes es invisible (la escala va en 1.0003), pero el empalme sigue
+     * técnicamente a medias: `tapado` no se activa y el 3D con su post-proceso
+     * sigue dibujando a 60 fps detrás de un canvas invisible mientras se
+     * decodifica el MP4. Medido: 3600 frames en 2 s ahí, contra 0 ya encajado. */
+    const exacto = cerca === P[P.length - 1];
+    if (Math.abs(cerca - y) > (exacto ? 0 : CERCA)) irA(cerca);
+    else fijar(cerca);                                // ya estaba en su sitio
+  }
+
+  /* Las flechas mueven ~40 px, menos que EMPUJE, así que el encaje las leía
+   * como "no te has movido" y devolvía a la parada: pulsar ↓ tres veces dejaba
+   * la página exactamente donde estaba. Con teclado la sección era una pared.
+   * Aquí la flecha deja de competir con el scroll nativo y pasa a ser lo mismo
+   * que un empujón: una parada, en la dirección que se pide. */
+  addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    const t = e.target;
+    /* Solo se aparta donde la flecha YA significa algo: la barra de avance
+     * busca en el video, y los campos y menús se manejan con flechas. Apartarse
+     * de `#dentro` entero era demasiado: con el foco en el botón de play —donde
+     * queda después de pulsarlo— la flecha volvía a no hacer nada. */
+    if (t && t.closest && t.closest("input, textarea, select, dialog, video, [role=slider]")) return;
+    if (t && t.isContentEditable) return;
+    const P = paradas();
+    if (!P.length) return;
+    const y = scrollY;
+    if (y > elDentro.offsetTop + innerHeight * 0.12) return;
+    const abajo = e.key === "ArrowDown";
+    const destino = abajo ? P.find((p) => p > y + CERCA)
+                          : [...P].reverse().find((p) => p < y - CERCA);
+    if (destino == null) return;                 // en los extremos, scroll normal
+    e.preventDefault();
+    irA(destino);
+  }, { passive: false });
+
+  addEventListener("scroll", () => {
+    if (animando) return;
+    clearTimeout(quieto);
+    quieto = setTimeout(alPararse, QUIETO);
+  }, { passive: true });
+
+  window.__encaje = {
+    paradas, irA, alPararse,
+    // Para verificar desde fuera POR QUÉ encajó donde encajó, no solo dónde.
+    estado: () => ({ ultimaParada, animando, y: scrollY }),
+  };
+}
+
 /* ------------------------------- el empalme -------------------------------
  * La pantalla del iMac y el escritorio DOM son el mismo plano: proyectamos las
  * cuatro esquinas de la malla a coordenadas de viewport y encajamos el #dentro
@@ -1258,6 +1474,10 @@ if (MODO_RECORRIDO) {
  */
 const elSticky = document.querySelector("#dentro .d-sticky");
 const elRelato = document.getElementById("relato");
+const elHud = document.getElementById("hud");
+const hudPct = document.getElementById("pct");
+const hudBar = document.querySelector("#bar i");
+let tapado = false;          // el video cubre el 3D: no hay nada que dibujar
 const easeEmpalme = bezier(0.34, 0.0, 0.16, 1.0);
 const _esq = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
@@ -1282,6 +1502,29 @@ function rectPantalla() {
   return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
+/* El rectángulo de la pantalla del video SIN transformar. Medirlo con el
+ * sticky ya escalado daría el de después, así que se quita la transformación,
+ * se mide y se restaura — pero una sola vez por tamaño de ventana, no en cada
+ * frame: la caja solo depende del viewport, y forzar reflow a 60 fps dentro
+ * del empalme es exactamente donde no hay presupuesto.
+ * Sin `.v-pantalla` (modo render) el destino es el viewport, como antes. */
+let _base = null;
+function baseVideo() {
+  const el = document.getElementById("v-pantalla");
+  if (!el) return { x: 0, y: 0, w: innerWidth, h: innerHeight };
+  /* `offsetWidth` es medida de LAYOUT: el transform no la toca. Sirve de llave
+   * de la caché, y así vale también cuando la caja cambia sin que haya habido
+   * un `resize` — por ejemplo si la cabecera pasa a dos filas y `--marca-h`
+   * cambia el hueco de arriba. */
+  if (_base && _base.k === el.offsetWidth) return _base;
+  const antes = elSticky.style.transform;
+  elSticky.style.transform = "none";
+  const r = el.getBoundingClientRect();
+  elSticky.style.transform = antes;
+  if (!r.width || !r.height) return { x: 0, y: 0, w: innerWidth, h: innerHeight };
+  return (_base = { x: r.x, y: r.y, w: r.width, h: r.height, k: el.offsetWidth });
+}
+
 function aplicarEmpalme(q) {
   if (!elSticky || !elDentro) return;
   const activo = q > 0.0005 && q < 0.999;
@@ -1293,18 +1536,47 @@ function aplicarEmpalme(q) {
       elSticky.style.transform = "";
       elSticky.style.opacity = "";
       elSticky.style.removeProperty("--mueble");
-      if (elRelato) elRelato.style.opacity = "";
+      // el relato lo decide la rama de abajo, según de qué lado se salió
     }
   }
   if (!activo) {
-    canvas.style.opacity = q >= 0.999 ? "0" : "1";
+    /* El copy del riel se apaga mientras el video manda. Su ventana llega a
+     * 1.01, así que a q=1 seguía "encendido" detrás del escenario. Con el
+     * escenario opaco no se notaba; desde que se desvanece al salir hacia la
+     * landing, reaparecía "Aprende como tú trabajas." cruzado con la fila de
+     * controles del reproductor. */
+    if (elRelato) elRelato.style.opacity = q >= 0.999 ? "0" : "";
+    /* Tapado del todo = no se dibuja. Con `opacity:0` el canvas seguía
+     * compositándose y el bucle seguía llamando a composer.render() a 60 fps
+     * detrás del video: medidos 182 frames en 1.5 s con la escena invisible,
+     * decodificando el MP4 al mismo tiempo. En un portátil es batería y en un
+     * teléfono es jank. `display:none` además saca la capa del compositor. */
+    tapado = q >= 0.999;
+    canvas.style.opacity = tapado ? "0" : "1";
+    canvas.style.display = tapado ? "none" : "";
+    // El HUD del riel ("93 · recorrido") es del 3D: dentro del video no mide
+    // nada y encima caía justo sobre los controles del reproductor.
+    if (elHud) elHud.style.opacity = tapado ? "0" : "1";
     return;
   }
+  if (tapado) { tapado = false; canvas.style.display = ""; }
 
   const r = rectPantalla();
-  const s0 = Math.min(r.w / innerWidth, r.h / innerHeight);
-  const tx0 = r.x + r.w / 2 - innerWidth / 2;
-  const ty0 = r.y + r.h / 2 - innerHeight / 2;
+  /* Lo que tiene que encajar sobre la pantalla del iMac es la pantalla del
+   * VIDEO, no el viewport entero. Antes coincidían —el escritorio ocupaba la
+   * pantalla completa— y bastaba con escalar el sticky hasta la identidad.
+   * Ahora el video vive dentro de un monitor, más pequeño y centrado, así que
+   * hay que resolver la transformación que lleva ESE rectángulo hasta el del
+   * iMac. Con origen en el centro del sticky (50% 50%), un punto p va a
+   *     C + s·(p − C) + T,   C = centro del viewport
+   * y pidiendo que el centro de la pantalla del video caiga en el de la del
+   * iMac sale la traslación de abajo. En q=1 da s=1 y T=0: identidad, sin
+   * salto, igual que antes. */
+  const b = baseVideo();
+  const s0 = Math.min(r.w / b.w, r.h / b.h);
+  const cx = innerWidth / 2, cy = innerHeight / 2;
+  const tx0 = (r.x + r.w / 2) - cx - s0 * ((b.x + b.w / 2) - cx);
+  const ty0 = (r.y + r.h / 2) - cy - s0 * ((b.y + b.h / 2) - cy);
   const e = easeEmpalme(q);
   const k = 1 - e;
 
@@ -1325,6 +1597,7 @@ function aplicarEmpalme(q) {
   if (elRelato) elRelato.style.opacity = (1 - paso(q, 0, 0.06)).toFixed(3);
   const vin = document.getElementById("vineta");
   if (vin) vin.style.opacity = (0.85 * (1 - paso(q, 0, 0.12))).toFixed(3);
+  if (elHud) elHud.style.opacity = (1 - paso(q, 0, 0.15)).toFixed(3);
 }
 
 function muestrearRiel(p, out) {
@@ -1446,10 +1719,15 @@ function frame(now) {
         if (b) grad.classList.add(b.classList.contains("der") ? "der" : "izq", "on");
       }
     }
-    const hudPct = document.getElementById("pct");
+    /* El avance, normalizado. `pPos` arranca en P_INICIO (0.46) porque el riel
+     * se recorre solo de ahí a 1, así que el crudo marcaba "46 · recorrido" y
+     * la barra medio llena en lo más alto de la página. Se mide lo que se
+     * recorre, no dónde cae en un riel del que la mitad no se usa.
+     * Los dos nodos se buscan UNA vez: esto corre en cada frame. */
     if (hudPct) {
-      hudPct.textContent = String(Math.round(pPos * 100)).padStart(2, "0");
-      document.querySelector("#bar i").style.width = Math.round(pPos * 100) + "%";
+      const av = Math.round(Math.min(1, Math.max(0, (pPos - P_INICIO) / (1 - P_INICIO))) * 100);
+      hudPct.textContent = String(av).padStart(2, "0");
+      if (hudBar) hudBar.style.width = av + "%";
     }
 
     aplicarEmpalme(qEmpalme);
@@ -1467,6 +1745,13 @@ function frame(now) {
     camera.lookAt(CAM.tgt);
   }
 
+  /* Con el video encima no se dibuja NADA de aquí abajo. Saltarse solo el
+   * `composer.render()` no bastaba: el canvas de la pantalla del HIS se seguía
+   * repintando a 8 Hz y las 420 motas se seguían moviendo a 60 fps, todo para
+   * una escena en `display:none`. El estado que sí importa (riel, empalme,
+   * copy) ya se actualizó más arriba. */
+  if (tapado) { requestAnimationFrame(frame); return; }
+
   // El minutero da una vuelta cada 60 s de reloj real (acelerado, se nota vivo).
   pivotMin.rotation.z = -(t / 60) * Math.PI * 2;
 
@@ -1481,11 +1766,10 @@ function frame(now) {
     geoMotas.attributes.position.needsUpdate = true;
   }
 
-  // La pantalla es estática salvo el parpadeo de Ü: repintar solo durante el
-  // parpadeo (o el primer frame). composer.render cuesta 0.85 ms; el cuello
-  // era este canvas de 1100×660 subiendo a GPU sin necesidad.
-  // El formulario avanza a 8 subidas/s como mucho: a 60 fps este canvas de
-  // 1100×660 a GPU era el cuello de botella, a 8 son ~5 MB/s y ni se siente.
+  /* La pantalla del HIS se repinta con cuentagotas: en el parpadeo de Ü, en el
+   * primer frame, y mientras el formulario se escribe — ahí a 8 subidas/s como
+   * mucho. `composer.render` cuesta 0.85 ms; el cuello era este canvas de
+   * 1100×660 subiendo a GPU en cada frame. A 8 Hz son ~5 MB/s y ni se siente. */
   tPantalla = t;
   const escribiendo = !REDUCED && now - ultimoRepintado > 125;
 
@@ -1496,7 +1780,7 @@ function frame(now) {
     ultimoRepintado = now;
   }
 
-  composer.render();
+  if (!tapado) composer.render();
   requestAnimationFrame(frame);
 }
 
@@ -1529,6 +1813,16 @@ function resize() {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
+  /* La caja del video cambia de sitio aunque no cambie de ancho: en pantallas
+   * estrechas el ancho lo fija `100%`, así que la llave de la caché (el
+   * offsetWidth) no se entera de que la barra de URL del móvil movió la `y`
+   * 27 px. A mitad del empalme eso aterriza el escritorio descuadrado. */
+  _base = null;
+  /* El riel y el empalme se miden contra innerHeight: sin releerlos aquí,
+   * redimensionar (o girar el teléfono) a mitad del empalme lo deja clavado
+   * en el valor de antes hasta el siguiente scroll. Medido: q se quedaba en
+   * 0.5 cuando ya tocaba 1. */
+  leerScroll();
 }
 addEventListener("resize", resize);
 resize();

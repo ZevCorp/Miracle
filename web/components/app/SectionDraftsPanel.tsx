@@ -191,8 +191,13 @@ export function SectionDraftsPanel({
  *
  * Cada sección abierta lleva su propio estado: dos campos abiertos a la vez no
  * pueden compartir ni el token de la "/" ni el cursor pendiente.
+ *
+ * Se exporta porque el modo captura escribe en las MISMAS secciones mientras se
+ * graba. Ahí no cabe el panel entero, pero el campo tiene que ser este y no una
+ * copia: los atajos de "/", los huecos y el manejo del cursor son justo lo que
+ * hace que escribir con el paciente delante no cueste.
  */
-function DraftField({
+export function DraftField({
   label,
   value,
   disabled,
