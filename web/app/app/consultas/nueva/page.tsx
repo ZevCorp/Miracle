@@ -43,6 +43,7 @@ import {
   type TemplatePreference,
 } from "@/lib/clinical/template-preferences";
 import { useUserPreferences } from "@/lib/preferences/client";
+import { buildNoteGenerationContext } from "@/lib/preferences/note";
 import {
   transcribeAudioFile,
   validateAudioUpload,
@@ -382,7 +383,10 @@ function NuevaConsultaForm() {
       }
 
       setUploadStatus("generating");
-      await generateClinicalNote(encounterId);
+      // Misma preferencia de extensión que en la consulta en vivo.
+      await generateClinicalNote(encounterId, {
+        doctor: buildNoteGenerationContext(userPreferences),
+      });
       router.push(`/app/consultas/en-vivo?encounter=${encodeURIComponent(encounterId)}`);
     } catch (error) {
       if (controller.signal.aborted) return;

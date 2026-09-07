@@ -20,7 +20,7 @@ import {
 } from "@/lib/clinical/template-preferences";
 import { serviciosDe } from "@/lib/hospital/org";
 import { useUserPreferences } from "@/lib/preferences/client";
-import type { TemplateStartMode } from "@/lib/preferences/types";
+import type { NoteDetail, TemplateStartMode } from "@/lib/preferences/types";
 import { createClient } from "@/lib/supabase/client";
 import { ChoiceGroup, SettingCard, inputClass, type Opcion } from "./ui";
 
@@ -39,6 +39,26 @@ const MODOS: readonly Opcion<TemplateStartMode>[] = [
     value: "manual",
     label: "Elegirla cada vez",
     desc: "No se preselecciona ninguna. Útil si atiendes cosas muy distintas cada día.",
+  },
+];
+
+// Las tres descripciones insisten en lo mismo a propósito: cambia la forma,
+// nunca los datos. Es la duda que le nace a cualquier médico al ver "concisa".
+const EXTENSIONES: readonly Opcion<NoteDetail>[] = [
+  {
+    value: "concisa",
+    label: "Concisa",
+    desc: "Frases cortas, al estilo de la historia clínica. Todo lo dictado queda; sobran las palabras, no los datos.",
+  },
+  {
+    value: "estandar",
+    label: "Estándar",
+    desc: "La redacción de siempre: clara y clínica, sin recortar ni extender.",
+  },
+  {
+    value: "detallada",
+    label: "Detallada",
+    desc: "Oraciones completas, con la cronología, el contexto y los negativos que sí se mencionaron. Más larga por lo dicho, no por relleno.",
   },
 ];
 
@@ -127,6 +147,12 @@ export function GeneralSettings({ specialtyCode }: { specialtyCode: string | nul
     }
   }
 
+  async function cambiarExtension(siguiente: NoteDetail) {
+    if (siguiente === preferences.noteDetail) return;
+    const ok = await update({ noteDetail: siguiente });
+    if (!ok) showToast("No se pudo guardar la preferencia.", "warning");
+  }
+
   const servicios = serviciosDe(org);
 
   async function cambiarServicio(valor: string) {
@@ -194,6 +220,35 @@ export function GeneralSettings({ specialtyCode }: { specialtyCode: string | nul
             )}
           </div>
         ) : null}
+      </SettingCard>
+
+      <SettingCard
+        title="Extensión de la nota"
+        description="Qué tan extensa te redacta Miracle la nota. Cambia solo la forma de escribirla: nunca inventa datos ni deja fuera lo que dictaste."
+        footer={
+          <p className="text-xs leading-relaxed text-muted">
+            Aplica a las notas que generes de ahora en adelante. En especialidades
+            de informe literal (patología, radiología, laboratorio…) no cambia
+            nada: ahí la nota se copia palabra por palabra. Es independiente del{" "}
+            <Link
+              href="/app/configuracion/asistente"
+              className="font-semibold text-accent hover:underline"
+            >
+              nivel de detalle del asistente
+            </Link>
+            .
+          </p>
+        }
+      >
+        {/* La preferencia viaja en el cuerpo de generate-note como
+            { doctor: { note_detail } } y en Graph se vuelve un bloque del
+            system prompt (ver lib/preferences/note.ts). "Estándar" no viaja. */}
+        <ChoiceGroup
+          label="Extensión de la nota generada"
+          value={preferences.noteDetail}
+          options={EXTENSIONES}
+          onChange={(v) => void cambiarExtension(v)}
+        />
       </SettingCard>
 
       <SettingCard

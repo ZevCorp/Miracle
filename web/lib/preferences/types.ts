@@ -15,10 +15,18 @@ export type AssistantAddress = "tu" | "usted";
 /** Cuánto se extiende el asistente al responder. */
 export type AssistantDetail = "breve" | "equilibrado" | "detallado";
 
+/**
+ * Qué tan extensa se redacta la NOTA generada. No confundir con
+ * AssistantDetail: aquel gradúa las respuestas del asistente; este, la nota.
+ */
+export type NoteDetail = "concisa" | "estandar" | "detallada";
+
 export interface UserPreferences {
   templateStartMode: TemplateStartMode;
   /** Servicio con el que nacen sus consultas. null = usar el de la institución. */
   defaultServicio: string | null;
+  /** Extensión de la nota generada. Viaja al backend en generate-note. */
+  noteDetail: NoteDetail;
   assistantAddress: AssistantAddress;
   assistantDetail: AssistantDetail;
   assistantUseName: boolean;
@@ -27,14 +35,16 @@ export interface UserPreferences {
 /**
  * Lo que ve un médico que nunca ha entrado a Configuración.
  *
- * `templateStartMode: "last"` y `assistantDetail: "equilibrado"` reproducen el
- * comportamiento que la app ya tenía, así que estrenar la pantalla no le cambia
+ * `templateStartMode: "last"`, `noteDetail: "estandar"` y
+ * `assistantDetail: "equilibrado"` reproducen el comportamiento que la app ya
+ * tenía, así que estrenar la pantalla no le cambia
  * nada a nadie por debajo. (A quien ya tenía un pin de plantilla la migración lo
  * dejó en "fixed" por el mismo motivo.)
  */
 export const PREFERENCIAS_POR_DEFECTO: UserPreferences = {
   templateStartMode: "last",
   defaultServicio: null,
+  noteDetail: "estandar",
   assistantAddress: "usted",
   assistantDetail: "equilibrado",
   assistantUseName: true,
@@ -43,13 +53,14 @@ export const PREFERENCIAS_POR_DEFECTO: UserPreferences = {
 export interface UserPreferencesRow {
   template_start_mode: string | null;
   default_servicio: string | null;
+  note_detail: string | null;
   assistant_address: string | null;
   assistant_detail: string | null;
   assistant_use_name: boolean | null;
 }
 
 export const USER_PREFERENCES_COLUMNS =
-  "template_start_mode, default_servicio, assistant_address, assistant_detail, assistant_use_name";
+  "template_start_mode, default_servicio, note_detail, assistant_address, assistant_detail, assistant_use_name";
 
 function unaDe<T extends string>(valor: unknown, opciones: readonly T[], porDefecto: T): T {
   return opciones.includes(valor as T) ? (valor as T) : porDefecto;
@@ -72,6 +83,11 @@ export function rowToPreferences(row: UserPreferencesRow | null): UserPreference
       PREFERENCIAS_POR_DEFECTO.templateStartMode,
     ),
     defaultServicio: row.default_servicio?.trim() || null,
+    noteDetail: unaDe(
+      row.note_detail,
+      ["concisa", "estandar", "detallada"] as const,
+      PREFERENCIAS_POR_DEFECTO.noteDetail,
+    ),
     assistantAddress: unaDe(
       row.assistant_address,
       ["tu", "usted"] as const,

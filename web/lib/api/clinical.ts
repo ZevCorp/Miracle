@@ -705,10 +705,17 @@ export async function saveClinicalTranscript(
 
 export async function generateClinicalNote(
   encounterId: string,
+  options: GenerateNoteOptions = {},
 ): Promise<GenerateNoteResult> {
   const result = await clinicalRequest<GenerateNoteResult>(
     `/api/clinical/encounters/${encodeURIComponent(encounterId)}/generate-note`,
-    { method: "POST", timeoutMs: GENERATE_NOTE_TIMEOUT_MS },
+    {
+      method: "POST",
+      // Sin preferencia no hay cuerpo: la petición sale idéntica a la de
+      // siempre (ni Content-Type), y el backend arma el prompt de siempre.
+      body: options.doctor ? { doctor: options.doctor } : undefined,
+      timeoutMs: GENERATE_NOTE_TIMEOUT_MS,
+    },
   );
   return { ...result, note_json: conDocumentoCanonico(result.note_json) };
 }
@@ -761,10 +768,16 @@ export async function savePrivateEncounterNotes(
 export async function regenerateClinicalEncounterWithTemplate(
   encounterId: string,
   templateId: string,
+  options: GenerateNoteOptions = {},
 ): Promise<RegenerateWithTemplateResult> {
   const result = await clinicalRequest<RegenerateWithTemplateResult>(
     `/api/clinical/encounters/${encodeURIComponent(encounterId)}/regenerate-with-template`,
-    { method: "POST", body: { template_id: templateId }, timeoutMs: GENERATE_NOTE_TIMEOUT_MS },
+    {
+      method: "POST",
+      // Rehacer la nota también es generarla: lleva la misma preferencia.
+      body: { template_id: templateId, ...(options.doctor ? { doctor: options.doctor } : {}) },
+      timeoutMs: GENERATE_NOTE_TIMEOUT_MS,
+    },
   );
   return {
     ...result,
@@ -814,6 +827,24 @@ export interface AssistantDoctorContext {
   address?: string;
   /** Extensión de la respuesta: "breve" | "equilibrado" | "detallado". */
   detail?: string;
+}
+
+/**
+ * Preferencias del médico que afectan a la GENERACIÓN de la nota
+ * (Configuración > General). Misma clave raíz `doctor` que el asistente, para
+ * que el contrato tenga un solo patrón; el backend la sanea (whitelist de un
+ * campo + enum cerrado) antes de que toque el prompt.
+ *
+ * Es un objeto aparte de AssistantDoctorContext a propósito: al generador no le
+ * va el nombre ni el trato del médico, solo cuánto extenderse.
+ */
+export interface NoteGenerationDoctorContext {
+  /** "concisa" | "detallada". "estandar" no viaja: es el prompt de siempre. */
+  note_detail?: string;
+}
+
+export interface GenerateNoteOptions {
+  doctor?: NoteGenerationDoctorContext;
 }
 
 export interface AssistantChatPayload {

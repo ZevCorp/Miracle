@@ -67,6 +67,7 @@ import { extractPatientIdentity } from "@/lib/clinical/patient-identity";
 import { servicioPreferidoDe } from "@/lib/hospital/org";
 import { buildDoctorContext } from "@/lib/preferences/assistant";
 import { useUserPreferences } from "@/lib/preferences/client";
+import { buildNoteGenerationContext } from "@/lib/preferences/note";
 import { reviewGeneratedNote } from "@/lib/clinical/note-review";
 import { caretAfterDictation, shouldFollowDictation } from "@/lib/clinical/insert-text";
 import { buildRedactor } from "@/lib/privacy/redact";
@@ -152,6 +153,10 @@ function ConsultaActivaInner() {
   // Las preferencias del asistente valen también aquí: `explanation` es texto
   // que el médico lee ("ya quedó actualizada"), no un dato estructurado.
   const doctorContext = buildDoctorContext(userPreferences, firstName);
+  // Extensión con la que el médico quiere la nota (Configuración > General).
+  // Va al generador, no al asistente: por eso es un bloque distinto de
+  // `doctorContext`. Con "estándar" queda undefined y la petición sale sin cuerpo.
+  const noteGenerationContext = buildNoteGenerationContext(userPreferences);
   const [associatedPatientId, setAssociatedPatientId] = useState(pacienteId || null);
   const [patientAssociationOpen, setPatientAssociationOpen] = useState(false);
   const patient = getPatient(associatedPatientId);
@@ -587,7 +592,7 @@ function ConsultaActivaInner() {
         applyStatus(saved.status);
       }
       setPhase("generating");
-      const generated = await generateClinicalNote(encounterId);
+      const generated = await generateClinicalNote(encounterId, { doctor: noteGenerationContext });
       // La IA solo vio [PACIENTE]/[DOCUMENTO]; la vista (displayNote) muestra
       // la nota rehidratada con los datos reales.
       setNote(generated.note_json);
@@ -967,7 +972,9 @@ function ConsultaActivaInner() {
     setPhase("regenerating");
     setFlowError(null);
     try {
-      const result = await regenerateClinicalEncounterWithTemplate(encounterId, selectedTemplateId);
+      const result = await regenerateClinicalEncounterWithTemplate(encounterId, selectedTemplateId, {
+        doctor: noteGenerationContext,
+      });
       router.push(`/app/consultas/en-vivo?encounter=${encodeURIComponent(result.encounter.id)}`);
     } catch (error) {
       setFlowError(friendlyClinicalMessage(error));

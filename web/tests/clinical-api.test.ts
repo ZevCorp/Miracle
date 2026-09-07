@@ -404,6 +404,48 @@ describe("API client (requests reales al contrato)", () => {
     expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toEqual({ template_id: "tpl_2" });
   });
 
+  it("generateClinicalNote sin preferencia sale sin cuerpo, como siempre", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        encounter_id: "enc_1",
+        status: "note_generated",
+        note_json: { summary: "Resumen", sections: [], warnings: [], missing_required_sections: [] },
+      }),
+    );
+    await generateClinicalNote("enc_1");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://backend.test/api/clinical/encounters/enc_1/generate-note");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeUndefined();
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+  });
+
+  it("generateClinicalNote manda la extensión de la nota bajo la clave doctor", async () => {
+    // Misma clave raíz que el asistente: un solo patrón en el contrato.
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        encounter_id: "enc_1",
+        status: "note_generated",
+        note_json: { summary: "Resumen", sections: [], warnings: [], missing_required_sections: [] },
+      }),
+    );
+    await generateClinicalNote("enc_1", { doctor: { note_detail: "concisa" } });
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body as string)).toEqual({ doctor: { note_detail: "concisa" } });
+  });
+
+  it("regenerar con otra plantilla lleva la misma preferencia de extensión", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(201, { source_encounter_id: "enc_1", encounter: { id: "enc_2", supersedes_encounter_id: "enc_1" } }),
+    );
+    await regenerateClinicalEncounterWithTemplate("enc_1", "tpl_2", { doctor: { note_detail: "detallada" } });
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body as string)).toEqual({
+      template_id: "tpl_2",
+      doctor: { note_detail: "detallada" },
+    });
+  });
+
   it("convierte errores del backend en ClinicalApiError con mensaje amigable", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(400, {
