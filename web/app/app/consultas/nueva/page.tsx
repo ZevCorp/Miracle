@@ -23,7 +23,6 @@ import { AlertBanner } from "@/components/ui/AlertBanner";
 import { SearchField } from "@/components/ui/SearchField";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { ConsultationType } from "@/lib/mock";
-import { buildRedactor } from "@/lib/privacy/redact";
 import { createClient } from "@/lib/supabase/client";
 import {
   createClinicalEncounter,
@@ -347,17 +346,10 @@ function NuevaConsultaForm() {
           signal: controller.signal,
           onProgress: setUploadProgress,
         });
-        // De-identificación antes de cachear y enviar: el backend (y el LLM)
-        // solo ven [PACIENTE]/[DOCUMENTO]. La nota se rehidrata al abrirse en
-        // la consulta activa. Ver lib/privacy/redact.ts.
-        transcript = buildRedactor(
-          selectedPatient
-            ? {
-                nombre: selectedPatient.nombre,
-                documento: selectedPatient.documento,
-              }
-            : null,
-        ).redact(raw);
+        // La transcripción se guarda tal cual: la protección de los datos del
+        // paciente hacia la IA la hace el servidor, en el último salto antes
+        // del proveedor (docs/privacidad-frontera-ia.md).
+        transcript = raw;
         recovery.transcript = transcript;
         setUploadCanRetry(true);
       }
@@ -402,7 +394,7 @@ function NuevaConsultaForm() {
     <div className="app-page max-w-4xl pb-4 sm:pb-8">
       <AppPageHeader
         title="Iniciar consulta"
-        description="Confirma la plantilla y comienza a grabar. El paciente es opcional."
+        description="Confirma la plantilla y comienza a grabar. El paciente es opcional; asociarlo afina la protección de sus datos hacia la IA."
         action={
           appointmentName ? (
             <div className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent-soft/45 px-3 py-2 text-sm font-medium text-accent-ink">

@@ -236,3 +236,36 @@ quita antes de volver a añadirlo, o las anotaciones se duplicarían.
 **Pendiente (mejor camino, otro repo):** que el backend acepte `section_inputs`
 como campo propio y el prompt las trate sección por sección. Cuando exista, aquí
 solo cambia `buildTranscriptWithSectionDrafts`.
+
+## D21 · La frontera de privacidad hacia la IA es el gateway de Graph, no el navegador
+**Decisión:** los identificadores directos del paciente (nombre, documento,
+teléfono, correo, dirección) se reemplazan por marcadores **en Graph, en el
+último salto antes del proveedor de IA**, y se devuelven exactos al volver la
+respuesta, antes de persistir. Esta web retira su redactor (`lib/privacy/redact.ts`)
+y sus afirmaciones fijas de «datos protegidos»; la insignia y el panel de
+auditoría solo dicen lo que el servidor certificó para la consulta (`privacy` en
+las respuestas y `GET /api/clinical/encounters/:id/privacy`). Diseño y pruebas
+en Graph (`docs/privacy-egress-gateway.md`); la vista desde aquí en
+[`privacidad-frontera-ia.md`](./privacidad-frontera-ia.md).
+**Por qué allí:** todas las llamadas de texto al modelo pasan por un solo punto
+en Graph (`LLMProvider.postChatCompletions`, el mismo que ya se instrumentó para
+medir consumo); por debajo no hay ninguna persistencia, así que la nota, el
+espejo en `consultations`, el snapshot de exportación y lo que Operations
+escribe en SAP llevan los datos reales por construcción. La transcripción llega
+a Graph cada 2,5 s por el autosave y la nota pasa por generación, regeneración,
+ajuste y rescate en el servidor: una bóveda en una pestaña del navegador nunca
+iba a estar donde hacía falta.
+**Por qué no aquí:** el redactor del navegador llevaba apagado desde el
+2026-07-21 (su `[NUMERO]` era irreversible), solo tapaba al paciente registrado y
+asociado —que casi nunca lo está—, y encendido guardaba placeholders en Graph,
+desde donde el servidor publica el historial y congela la exportación: los
+placeholders habrían llegado a SAP. Mientras tanto tres pantallas afirmaban una
+protección que no existía.
+**Consecuencia:** Graph lee por primera vez `patients` (nombre, documento,
+teléfono) con service-role, con comprobación de organización, para sembrar la
+protección con el paciente registrado; esta web mantiene su postura de no usar
+service-role. El documento se sigue canonizando aquí (D19). La transcripción
+sigue sin tocarse. Lo que el escudo NO cubre —audio hacia el proveedor de voz,
+fotos hacia modelos de visión, capturas de pantalla de Operations— queda escrito
+como excepción, no disimulado, y el claim comercial espera a que el escudo esté
+en modo `enforce` con el informe de evidencia en verde sobre consultas reales.

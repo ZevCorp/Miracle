@@ -37,6 +37,17 @@ al exterior es **transferencia internacional**, regulada por la Ley 1581 (el pa�
 tener nivel adecuado de protección, o se requieren salvaguardas/autorización). **Revisar con
 abogado** si conviene una región distinta o salvaguardas contractuales.
 
+No es solo Supabase. También cruzan la frontera, y son la misma clase de transferencia:
+
+| Destino | Qué recibe | Mitigación técnica |
+|---|---|---|
+| Proveedor de IA de texto (OpenAI / Google / Azure, según Provider Studio) | transcripción y nota **con los identificadores directos del paciente reemplazados por marcadores** (Graph, 2026-09-07; ver [`privacidad-frontera-ia.md`](./privacidad-frontera-ia.md)) | el escudo de Graph, en modo `enforce` |
+| Proveedor de voz (Deepgram / Soniox) | el **audio** de la consulta, con todo lo que se dijo | ninguna posible sobre el audio: hace falta contrato de encargado sin retención, o un proveedor en región |
+| Modelos de visión (fotos del horario, de la hoja de patología, del formulario) | la imagen completa | ninguna sobre la imagen: son funciones opcionales y declaradas como excepción |
+
+El contrato Responsable/Encargado con cada hospital debe nombrar a estos encargados
+secundarios, no solo a Supabase.
+
 ## 5. Cómo el diseño actual ya ayuda
 
 | Exige la ley | Lo que ya tenemos |
