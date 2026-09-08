@@ -31,11 +31,11 @@ describe("rowToPreferences", () => {
       assistantAddress: "tu",
       assistantDetail: "breve",
       assistantUseName: false,
-      noteDetail: "equilibrado",
+      noteDetail: "estandar",
     });
   });
 
-  it("note_detail se mapea y cae a equilibrado ante un valor raro o una fila vieja", () => {
+  it("note_detail se mapea y cae a estandar ante un valor raro o una fila vieja", () => {
     const base = {
       template_start_mode: "last",
       default_servicio: null,
@@ -43,11 +43,11 @@ describe("rowToPreferences", () => {
       assistant_detail: "equilibrado",
       assistant_use_name: true,
     };
-    expect(rowToPreferences({ ...base, note_detail: "conciso" }).noteDetail).toBe("conciso");
-    expect(rowToPreferences({ ...base, note_detail: "detallado" }).noteDetail).toBe("detallado");
-    expect(rowToPreferences({ ...base, note_detail: "larguísimo" }).noteDetail).toBe("equilibrado");
+    expect(rowToPreferences({ ...base, note_detail: "concisa" }).noteDetail).toBe("concisa");
+    expect(rowToPreferences({ ...base, note_detail: "detallada" }).noteDetail).toBe("detallada");
+    expect(rowToPreferences({ ...base, note_detail: "larguísimo" }).noteDetail).toBe("estandar");
     // Fila anterior a la columna: el campo no viene.
-    expect(rowToPreferences(base).noteDetail).toBe("equilibrado");
+    expect(rowToPreferences(base).noteDetail).toBe("estandar");
   });
 
   it("un valor que no reconoce cae al por defecto en vez de propagarse", () => {

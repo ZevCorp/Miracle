@@ -149,15 +149,15 @@ describe("splitTemplatesBySpecialty", () => {
 });
 
 describe("buildGenerateNoteBody", () => {
-  it("equilibrado es el comportamiento por defecto: no viaja", () => {
-    expect(buildGenerateNoteBody("equilibrado")).toEqual({});
+  it("estandar es el comportamiento por defecto: no viaja", () => {
+    expect(buildGenerateNoteBody("estandar")).toEqual({});
     expect(buildGenerateNoteBody(undefined)).toEqual({});
     expect(buildGenerateNoteBody(null)).toEqual({});
   });
 
-  it("conciso y detallado viajan como note_detail", () => {
-    expect(buildGenerateNoteBody("conciso")).toEqual({ note_detail: "conciso" });
-    expect(buildGenerateNoteBody("detallado")).toEqual({ note_detail: "detallado" });
+  it("concisa y detallada viajan como note_detail", () => {
+    expect(buildGenerateNoteBody("concisa")).toEqual({ note_detail: "concisa" });
+    expect(buildGenerateNoteBody("detallada")).toEqual({ note_detail: "detallada" });
   });
 });
 

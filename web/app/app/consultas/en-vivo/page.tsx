@@ -69,7 +69,8 @@ import { buildDoctorContext } from "@/lib/preferences/assistant";
 import { useUserPreferences } from "@/lib/preferences/client";
 import { reviewGeneratedNote } from "@/lib/clinical/note-review";
 import { caretAfterDictation, shouldFollowDictation } from "@/lib/clinical/insert-text";
-import { buildRedactor } from "@/lib/privacy/redact";
+import { privacyFromLedgerEvents } from "@/lib/clinical/privacy-summary";
+import { PrivacyShieldBadge } from "@/components/app/PrivacyShieldBadge";
 import { createClient } from "@/lib/supabase/client";
 import type { Patient } from "@/lib/mock";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
@@ -92,6 +93,8 @@ import {
   type ClinicalDischarge,
   type ClinicalNoteJson,
   type ClinicalTemplate,
+  getEncounterPrivacy,
+  type PrivacyShieldSummary,
 } from "@/lib/api/clinical";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -156,18 +159,13 @@ function ConsultaActivaInner() {
   const [patientAssociationOpen, setPatientAssociationOpen] = useState(false);
   const patient = getPatient(associatedPatientId);
 
-  // De-identificación: tapa nombre/documento del paciente registrado antes de
-  // que el texto salga hacia el backend (y el LLM) y los restaura al mostrar
-  // la nota. Ver lib/privacy/redact.ts.
-  const redactor = useMemo(
-    () =>
-      buildRedactor(
-        patient
-          ? { nombre: patient.nombre, documento: patient.documento }
-          : null,
-      ),
-    [patient],
-  );
+  // Privacidad hacia la IA: la protección ocurre en el SERVIDOR (Graph tapa
+  // los identificadores en el último salto antes del proveedor y devuelve los
+  // datos reales antes de guardar la nota). Aquí solo se muestra lo que el
+  // servidor certificó para esta consulta; sin dato, no se afirma nada.
+  // Hasta el 2026-09-07 esto lo hacía un redactor del navegador que llevaba
+  // apagado desde julio y cuya insignia afirmaba una protección inexistente.
+  const [privacy, setPrivacy] = useState<PrivacyShieldSummary | null>(null);
 
   // La consulta activa SIEMPRE trabaja sobre un encounter real del backend.
   // Sin encounter_id no hay nada que capturar: el flujo nace en Nueva consulta.
@@ -332,13 +330,25 @@ function ConsultaActivaInner() {
     (mirrorConsultation.estado === "aprobada" ||
       mirrorConsultation.estado === "exportada");
 
-  // El estado `note` vive en formato "de cable" (con [PACIENTE]/[DOCUMENTO],
-  // tal como lo maneja el backend); el médico siempre ve y edita la versión
-  // rehidratada. Al guardar, redactNote vuelve a tapar lo que haya escrito.
-  const displayNote = useMemo(
-    () => (note ? redactor.rehydrateNote(note) : note),
-    [note, redactor],
-  );
+  // La nota llega del servidor ya con los datos reales: lo que se ve es lo que
+  // se guarda. (El nombre `displayNote` se conserva porque lo usa toda la
+  // pantalla; ya no hay una versión «de cable» distinta.)
+  const displayNote = note;
+
+  // Al reabrir una consulta con nota, la protección de su último envío se lee
+  // del ledger del servidor. Best-effort: si falla, la insignia no afirma nada.
+  useEffect(() => {
+    if (!encounterId || loadState !== "ready") return;
+    let ignore = false;
+    getEncounterPrivacy(encounterId)
+      .then((view) => {
+        if (!ignore) setPrivacy((prev) => prev ?? privacyFromLedgerEvents(view.events));
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, [encounterId, loadState]);
 
   // Derivaciones puras adelantadas: los hooks de la espina viven ANTES de los
   // retornos tempranos de carga/error (las reglas de hooks exigen el mismo
@@ -468,15 +478,6 @@ function ConsultaActivaInner() {
     };
   }, [encounterId, reloadKey]);
 
-  // Si el paciente se asocia (o cambia) después de dictar, re-tapa la
-  // transcripción ya acumulada en pantalla. Ajuste de estado durante el
-  // render: https://react.dev/learn/you-might-not-need-an-effect
-  const [lastRedactor, setLastRedactor] = useState(redactor);
-  if (lastRedactor !== redactor) {
-    setLastRedactor(redactor);
-    setTranscriptDraft((prev) => redactor.redact(prev));
-  }
-
   function retryLoad() {
     setLoadState("loading");
     setLoadError(null);
@@ -537,10 +538,9 @@ function ConsultaActivaInner() {
   /** Paso 1 + 2 del flujo: guardar transcripción y pedir la nota al backend. */
   async function generarNota() {
     if (!encounterId || busy) return;
-    // Defensa en profundidad: además del dictado (ya redactado segmento a
-    // segmento), el texto pegado o escrito a mano se redacta aquí, justo
-    // antes de salir hacia el backend.
-    const text = redactor.redact(transcriptDraft.trim());
+    // La transcripción sale tal como se dictó: la protección de los datos del
+    // paciente hacia la IA la hace el servidor antes del proveedor.
+    const text = transcriptDraft.trim();
     if (!text) {
       setFlowError(CLINICAL_ERROR_MESSAGES.TRANSCRIPT_REQUIRED);
       return;
@@ -575,9 +575,9 @@ function ConsultaActivaInner() {
     }
 
     setFlowError(null);
-    // La pantalla refleja exactamente lo que se dictó (con placeholders). El
-    // cuadro de transcripción NO enseña el bloque de anotaciones: ahí va lo que
-    // se habló, y lo escrito ya se ve en su propia sección.
+    // La pantalla refleja exactamente lo que se dictó. El cuadro de
+    // transcripción NO enseña el bloque de anotaciones: ahí va lo que se habló,
+    // y lo escrito ya se ve en su propia sección.
     if (text !== transcriptDraft) setTranscriptDraft(text);
     try {
       if (textoParaGenerar !== savedTranscript.trim()) {
@@ -590,9 +590,10 @@ function ConsultaActivaInner() {
       const generated = await generateClinicalNote(encounterId, {
         noteDetail: userPreferences.noteDetail,
       });
-      // La IA solo vio [PACIENTE]/[DOCUMENTO]; la vista (displayNote) muestra
-      // la nota rehidratada con los datos reales.
+      // La nota llega con los datos reales; `privacy` dice qué tapó el servidor
+      // antes de enviar el texto a la IA (o que no tapó nada, en modo sombra).
       setNote(generated.note_json);
+      setPrivacy(generated.privacy ?? null);
       setNoteDirty(false);
       setNoteSaved(false);
       applyStatus(generated.status);
@@ -641,13 +642,9 @@ function ConsultaActivaInner() {
     setPhase("saving_note");
     setFlowError(null);
     try {
-      // Hacia el backend viaja la versión redactada; el eco se rehidrata para
-      // que el médico y el espejo local conserven el nombre real.
-      const result = await saveEditedClinicalNote(
-        encounterId,
-        redactor.redactNote(notaActual),
-      );
-      const rehydratedNote = redactor.rehydrateNote(result.note_json);
+      // La nota viaja y vuelve con los datos reales: guardar no llama a la IA.
+      const result = await saveEditedClinicalNote(encounterId, notaActual);
+      const rehydratedNote = result.note_json;
       setNote(result.note_json);
       setNoteDirty(false);
       setAiExplanation(null);
@@ -672,8 +669,9 @@ function ConsultaActivaInner() {
               template_snapshot: encounter.template_snapshot,
               created_at: encounter.created_at,
             },
-            // Historia clínica local: nota con datos reales, transcripción
-            // redactada (transcriptDraft ya viene con placeholders).
+            // Historia clínica local: nota y transcripción con datos reales.
+            // La protección hacia la IA ocurre en el servidor y no toca lo que
+            // se guarda.
             note: rehydratedNote,
             patient,
             transcript: transcriptDraft,
@@ -740,12 +738,7 @@ function ConsultaActivaInner() {
       // corrigiendo atras, moverle la vista es peor que no moverla.
       seguirAlFinal.current = shouldFollowDictation(el, caretPendiente.current !== null);
     }
-    setTranscriptDraft((prev) => {
-      // Cada segmento se redacta al llegar: el nombre nunca queda visible en
-      // el contexto acumulado ni viaja después al backend.
-      const clean = redactor.redact(text);
-      return prev.trim() ? `${prev.replace(/\s+$/, "")} ${clean}` : clean;
-    });
+    setTranscriptDraft((prev) => (prev.trim() ? `${prev.replace(/\s+$/, "")} ${text}` : text));
   };
 
   // Devolver el cursor ANTES de pintar (useLayoutEffect, no useEffect): con
@@ -1003,11 +996,12 @@ function ConsultaActivaInner() {
     try {
       const result = await adjustNoteWithAssistant({
         encounter_id: encounterId,
-        // Si el médico escribe el nombre en la instrucción, también se tapa.
-        instruction: redactor.redact(instruction),
+        // Si el médico escribe el nombre en la instrucción, el servidor lo tapa.
+        instruction,
         doctor: doctorContext,
       });
       setNote(result.proposed_note_json);
+      if (result.privacy) setPrivacy(result.privacy);
       setNoteDirty(true);
       setNoteSaved(false);
       setAiInstruction("");
@@ -1074,9 +1068,11 @@ function ConsultaActivaInner() {
       const esDictado = intencion.modo === "dictado" && Boolean(section.key);
       const result = await adjustNoteWithAssistant({
         encounter_id: encounterId,
+        // Sin redactor en el navegador: el servidor tapa los identificadores
+        // antes de enviar la instrucción a la IA (escudo de privacidad).
         instruction: esDictado
-          ? redactor.redact(intencion.texto)
-          : `En la sección "${section.label}", aplica esta instrucción dictada por el médico: "${redactor.redact(intencion.modo === "dictado" ? `agrega que ${intencion.texto}` : intencion.instruccion)}". Modifica únicamente lo necesario para cumplirla y conserva el resto de la nota.`,
+          ? intencion.texto
+          : `En la sección "${section.label}", aplica esta instrucción dictada por el médico: "${intencion.modo === "dictado" ? `agrega que ${intencion.texto}` : intencion.instruccion}". Modifica únicamente lo necesario para cumplirla y conserva el resto de la nota.`,
         // El contrato acepta la sección como campo propio y el prompt la usa
         // para acotar el ajuste. Antes solo viajaba dentro del texto libre.
         section_key: section.key || undefined,
@@ -1270,17 +1266,7 @@ function ConsultaActivaInner() {
                   </h2>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {redactor.hasIdentity ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-1.5 text-xs font-semibold text-success">
-                      <ShieldCheck size={13} className="shrink-0" />
-                      Datos del paciente protegidos antes de enviar a la IA
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1.5 text-xs font-semibold text-warning">
-                      <ShieldCheck size={13} className="shrink-0" />
-                      Sin paciente asociado: solo se ocultan números de documento
-                    </span>
-                  )}
+                  <PrivacyShieldBadge privacy={privacy} />
                   {dictando ? (
                     <span className="inline-flex items-center gap-2 rounded-full bg-danger-soft px-3 py-1.5 text-xs font-semibold text-danger">
                       <span className="h-2 w-2 animate-pulse rounded-full bg-danger" /> Grabando
@@ -1321,8 +1307,9 @@ function ConsultaActivaInner() {
                   />
                   <p className="mt-2 text-xs text-muted">
                     También puedes escribir o pegar la transcripción manualmente.
-                    Antes de enviarla a la IA, el nombre del paciente se
-                    reemplaza por [PACIENTE] y su documento por [DOCUMENTO].
+                    Antes de enviarla a la IA, el servidor reemplaza el nombre,
+                    el documento y los datos de contacto del paciente por
+                    marcadores; la nota vuelve con los datos reales.
                   </p>
                 </>
               ) : null}
@@ -1333,7 +1320,6 @@ function ConsultaActivaInner() {
                   ref={transcriptRef}
                   value={transcriptDraft}
                   onChange={(e) => setTranscriptDraft(e.target.value)}
-                  onBlur={() => setTranscriptDraft((prev) => redactor.redact(prev))}
                   disabled={completed || busy}
                   rows={10}
                   placeholder="Paciente consulta por…"
@@ -1462,7 +1448,7 @@ function ConsultaActivaInner() {
               note={displayNote}
               review={noteReview}
               transcriptLength={transcriptDraft.trim().length}
-              identityProtected={redactor.hasIdentity}
+              privacy={privacy}
               onOpenEncounter={(id) => router.push(`/app/consultas/en-vivo?encounter=${encodeURIComponent(id)}`)}
             />
           ) : null}

@@ -31,17 +31,17 @@ const DETALLES: readonly Opcion<AssistantDetail>[] = [
 
 const REDACCION: readonly Opcion<NoteDetail>[] = [
   {
-    value: "conciso",
+    value: "concisa",
     label: "Conciso",
     desc: "Lo esencial en frases cortas. Nunca omite un dato clínico.",
   },
   {
-    value: "equilibrado",
+    value: "estandar",
     label: "Equilibrado",
     desc: "Redacción clínica estándar: completa sin extenderse.",
   },
   {
-    value: "detallado",
+    value: "detallada",
     label: "Detallado",
     desc: "Incluye cronología, matices y negativos pertinentes de la conversación.",
   },

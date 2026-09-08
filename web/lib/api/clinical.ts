@@ -214,10 +214,50 @@ export interface SaveTranscriptResult {
   transcript_length: number;
 }
 
+/**
+ * Lo que el servidor tapó antes de enviar un texto a la IA y cómo le fue.
+ * Conteos y estados: nunca valores. Es lo único a partir de lo cual la UI puede
+ * afirmar que hubo protección (ver lib/clinical/privacy-summary.ts).
+ */
+export interface PrivacyShieldSummary {
+  /** off | shadow | enforce */
+  mode: string;
+  /** true solo en enforce con el escudo activo en esa llamada. */
+  shielded: boolean;
+  /** Marcadores emitidos por tipo: { PACIENTE_NOMBRE: 2, DOCUMENTO: 1, ... } */
+  tokens: Record<string, number>;
+  /** ok | repaired | blocked | n/a */
+  leak_scan: string;
+  /** complete | incomplete | n/a */
+  rehydration: string;
+  /** true si la IA devolvió un dato real donde debía haber un marcador; null si no aplica. */
+  posthoc_leak: boolean | null;
+  image_parts: number;
+}
+
+export interface PrivacyLedgerEvent {
+  at: string;
+  feature: string;
+  provider: string;
+  model: string;
+  api_family: string;
+  status: string;
+  privacy: (PrivacyShieldSummary & { payload_sha256?: string; error?: string | null }) | null;
+}
+
+export interface EncounterPrivacy {
+  encounter_id: string;
+  /** Modo por defecto del escudo en el servidor (off | shadow | enforce). */
+  mode_default: string;
+  events: PrivacyLedgerEvent[];
+}
+
 export interface GenerateNoteResult {
   encounter_id: string;
   status: string;
   note_json: ClinicalNoteJson;
+  /** Presente cuando el servidor tiene el escudo de privacidad; ausente = sin dato, no «protegido». */
+  privacy?: PrivacyShieldSummary | null;
 }
 
 export interface SaveNoteResult {
@@ -263,6 +303,11 @@ export const CLINICAL_ERROR_MESSAGES: Record<string, string> = {
     "La transcripción es demasiado larga. Divide la consulta o intenta resumirla.",
   LLM_NOT_CONFIGURED:
     "La generación de notas no está configurada en el servidor.",
+  // El escudo de privacidad no pudo proteger el texto y el servidor está en
+  // modo estricto: la llamada a la IA NO salió. No es un fallo del modelo ni
+  // se arregla reintentando de inmediato.
+  PRIVACY_SHIELD_FAILED:
+    "No se pudo proteger los datos del paciente antes de enviarlos a la IA, así que no se enviaron. Avisa al administrador.",
   // Fallos del proveedor de IA que NO se arreglan reintentando: le tocan al
   // administrador, no al médico. Decirle "intenta de nuevo en unos segundos"
   // ante una cuota agotada es mandarlo a un botón que nunca va a funcionar.
@@ -725,7 +770,7 @@ export async function saveClinicalTranscript(
 export interface GenerateNoteOptions {
   /**
    * Preferencia de redacción del médico. Solo afecta a las secciones
-   * interpretativas; "equilibrado" es el comportamiento por defecto y no viaja.
+   * interpretativas; "estandar" es el comportamiento por defecto y no viaja.
    */
   noteDetail?: NoteDetail | null;
 }
@@ -734,7 +779,7 @@ export interface GenerateNoteOptions {
 export function buildGenerateNoteBody(
   noteDetail?: NoteDetail | null,
 ): { note_detail?: NoteDetail } {
-  return noteDetail && noteDetail !== "equilibrado" ? { note_detail: noteDetail } : {};
+  return noteDetail && noteDetail !== "estandar" ? { note_detail: noteDetail } : {};
 }
 
 export async function generateClinicalNote(
@@ -764,6 +809,18 @@ export async function saveEditedClinicalNote(
     { method: "PUT", body: { note_json: conDocumentoCanonico(noteJson) } },
   );
   return { ...result, note_json: conDocumentoCanonico(result.note_json) };
+}
+
+/**
+ * Los envíos a proveedores de IA de esta consulta, con lo que el escudo tapó en
+ * cada uno (conteos, sin valores). Solo el médico dueño del encounter.
+ */
+export async function getEncounterPrivacy(
+  encounterId: string,
+): Promise<EncounterPrivacy> {
+  return clinicalRequest<EncounterPrivacy>(
+    `/api/clinical/encounters/${encodeURIComponent(encounterId)}/privacy`,
+  );
 }
 
 /** Asocia o retira un paciente sin modificar la transcripción ni la plantilla. */
@@ -872,6 +929,7 @@ export interface AssistantChatResult {
   answer: string;
   mode: string;
   specialty?: string;
+  privacy?: PrivacyShieldSummary | null;
   used_context?: {
     encounter?: boolean;
     transcript?: boolean;
@@ -922,6 +980,7 @@ export interface NoteAdjustmentResult {
   instruction_kind?: NoteAdjustmentKind;
   explanation: string;
   requires_physician_review: boolean;
+  privacy?: PrivacyShieldSummary | null;
 }
 
 export async function adjustNoteWithAssistant(

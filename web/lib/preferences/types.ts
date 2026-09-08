@@ -20,7 +20,8 @@ export type AssistantDetail = "breve" | "equilibrado" | "detallado";
  * preferencia distinta a la del asistente: una cosa es cómo te responde y otra
  * cómo redacta la historia clínica. No toca las secciones literales.
  */
-export type NoteDetail = "conciso" | "equilibrado" | "detallado";
+/** Vocabulario de la columna `user_preferences.note_detail` en producción. */
+export type NoteDetail = "concisa" | "estandar" | "detallada";
 
 export interface UserPreferences {
   templateStartMode: TemplateStartMode;
@@ -46,7 +47,7 @@ export const PREFERENCIAS_POR_DEFECTO: UserPreferences = {
   assistantAddress: "usted",
   assistantDetail: "equilibrado",
   assistantUseName: true,
-  noteDetail: "equilibrado",
+  noteDetail: "estandar",
 };
 
 export interface UserPreferencesRow {
@@ -95,7 +96,7 @@ export function rowToPreferences(row: UserPreferencesRow | null): UserPreference
     assistantUseName: row.assistant_use_name ?? PREFERENCIAS_POR_DEFECTO.assistantUseName,
     noteDetail: unaDe(
       row.note_detail,
-      ["conciso", "equilibrado", "detallado"] as const,
+      ["concisa", "estandar", "detallada"] as const,
       PREFERENCIAS_POR_DEFECTO.noteDetail,
     ),
   };
