@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldAlert, UserPlus, Users } from "lucide-react";
+import { ChevronDown, ShieldAlert, UserPlus, Users } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/app/EmptyState";
 import { APP_ROLE_LABEL, APP_ROLES, isAppRole } from "@/lib/auth/roles";
@@ -19,7 +19,15 @@ const inputClass =
 export default async function SuperadminUsuariosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; error?: string; q?: string; org?: string; rol?: string }>;
+  searchParams: Promise<{
+    ok?: string;
+    error?: string;
+    q?: string;
+    org?: string;
+    rol?: string;
+    sort?: string;
+    dir?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const db = await createClient();
@@ -65,6 +73,62 @@ export default async function SuperadminUsuariosPage({
     }
     return true;
   });
+
+  /* ORDEN POR COLUMNA, por URL y resuelto en el servidor.
+     Es lo que convierte una lista en una tabla de trabajo: con 64 cuentas la
+     pregunta nunca es "quien esta", es "quien no ha entrado nunca" o "quien
+     mas dicta". Sin una linea de JS: cada encabezado es un enlace. */
+  const ORDENABLES = ["usuario", "org", "rol", "ingreso", "actividad", "trabajo", "estado"] as const;
+  type Columna = (typeof ORDENABLES)[number];
+  const columna: Columna = (ORDENABLES as readonly string[]).includes(sp.sort ?? "")
+    ? (sp.sort as Columna)
+    : "usuario";
+  const desc = sp.dir === "desc";
+
+  function clave(user: (typeof usuarios)[number], col: Columna): string | number {
+    switch (col) {
+      case "org":
+        return (orgName.get(user.organization_id ?? "") ?? "").toLowerCase();
+      case "rol":
+        return user.role;
+      // Fechas en ISO: comparar como texto ya las ordena bien. El vacio queda
+      // primero al ascender, que es justo a quien se busca ("nunca entro").
+      case "ingreso":
+        return user.last_sign_in_at ?? "";
+      case "actividad":
+        return user.last_activity_at ?? "";
+      case "trabajo":
+        return user.consultations_30d + user.encounters_30d;
+      case "estado":
+        return user.disabled_at ? "zz" : userState(user).label;
+      default:
+        return (user.full_name || user.email).toLowerCase();
+    }
+  }
+
+  usuarios.sort((a, b) => {
+    const va = clave(a, columna);
+    const vb = clave(b, columna);
+    const cmp =
+      typeof va === "number" && typeof vb === "number"
+        ? va - vb
+        : String(va).localeCompare(String(vb), "es");
+    return desc ? -cmp : cmp;
+  });
+
+  /** Enlace del encabezado: conserva los filtros y alterna la direccion. */
+  function hrefOrden(col: Columna): string {
+    const q = new URLSearchParams();
+    if (sp.q) q.set("q", sp.q);
+    if (sp.org) q.set("org", sp.org);
+    if (sp.rol) q.set("rol", sp.rol);
+    q.set("sort", col);
+    q.set("dir", columna === col && !desc ? "desc" : "asc");
+    return `/superadmin/usuarios?${q.toString()}`;
+  }
+
+  const GRID =
+    "xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_.8fr_.85fr_.85fr_.55fr_.8fr_auto]";
 
   return (
     <div className="space-y-6">
@@ -169,35 +233,69 @@ export default async function SuperadminUsuariosPage({
         ]}
       />
 
-      {/* --- Tabla ---------------------------------------------------------- */}
-      <div className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-xs)]">
-        <div className="hidden grid-cols-[1.5fr_.8fr_.9fr_.9fr_.5fr_.7fr_1.4fr] gap-4 border-b border-line px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted xl:grid">
-          <span>Usuario</span>
-          <span>Rol</span>
-          <span>Último ingreso</span>
-          <span>Última consulta</span>
-          <span className="text-center">7d/30d</span>
-          <span>Estado</span>
-          <span>Reasignar</span>
+      {/* --- Tabla -----------------------------------------------------------
+          Antes: el nombre y el correo compartían una columna estrecha y salían
+          cortados («Dra. …», «patolo…»), mientras DOS desplegables y un
+          «Guardar» por fila ocupaban un quinto del ancho de forma permanente
+          para una acción que se hace de vez en cuando. En una lista de usuarios
+          lo único imprescindible es saber quién es quién.
+
+          Ahora: la identidad manda, la organización es columna propia (y se
+          ordena), y reasignar se pliega dentro de la fila: se abre solo la que
+          se toca. Sin una línea de JS — cada fila es un <details>. */}
+      <div className="rounded-[14px] border border-line bg-surface shadow-[var(--shadow-xs)]">
+        <div
+          className={`hidden gap-3 border-b border-line px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted xl:grid ${GRID}`}
+        >
+          <Orden href={hrefOrden("usuario")} activa={columna === "usuario"} desc={desc}>
+            Usuario
+          </Orden>
+          <Orden href={hrefOrden("org")} activa={columna === "org"} desc={desc}>
+            Organización
+          </Orden>
+          <Orden href={hrefOrden("rol")} activa={columna === "rol"} desc={desc}>
+            Rol
+          </Orden>
+          <Orden href={hrefOrden("ingreso")} activa={columna === "ingreso"} desc={desc}>
+            Último ingreso
+          </Orden>
+          <Orden href={hrefOrden("actividad")} activa={columna === "actividad"} desc={desc}>
+            Última consulta
+          </Orden>
+          <Orden
+            href={hrefOrden("trabajo")}
+            activa={columna === "trabajo"}
+            desc={desc}
+            className="xl:justify-center"
+          >
+            7d/30d
+          </Orden>
+          <Orden href={hrefOrden("estado")} activa={columna === "estado"} desc={desc}>
+            Estado
+          </Orden>
+          <span />
         </div>
-        {usuarios.map((user, index) => {
+
+        {usuarios.map((user) => {
           const estado = userState(user);
           const work7 = user.consultations_7d + user.encounters_7d;
           const work30 = user.consultations_30d + user.encounters_30d;
-          return (
-            <div
-              key={user.id}
-              className={`grid grid-cols-1 gap-3 px-5 py-4 xl:grid-cols-[1.5fr_.8fr_.9fr_.9fr_.5fr_.7fr_1.4fr] xl:items-center xl:gap-4 ${
-                index ? "border-t border-line" : ""
-              }`}
-            >
+          const organizacion = user.organization_id
+            ? (orgName.get(user.organization_id) ?? "—")
+            : "—";
+          // Solo estas filas se reasignan; las demás no se abren.
+          const editable = user.role !== "superadmin" && !user.disabled_at;
+
+          const celdas = (
+            <>
               <div className="min-w-0">
-                <div className="truncate font-medium text-deep">{user.full_name || user.email}</div>
-                <div className="truncate text-sm text-muted">
-                  {user.email}
-                  {user.organization_id ? ` · ${orgName.get(user.organization_id) ?? "—"}` : ""}
+                <div className="truncate font-medium text-deep">
+                  {user.full_name || user.email}
                 </div>
+                <div className="data truncate text-[12px] text-muted">{user.email}</div>
               </div>
+
+              <div className="min-w-0 truncate text-sm text-muted">{organizacion}</div>
 
               <div>
                 <Badge tone={user.role === "superadmin" ? "accent" : "neutral"}>
@@ -205,15 +303,15 @@ export default async function SuperadminUsuariosPage({
                 </Badge>
               </div>
 
-              <div className="text-sm text-muted">
+              <div className="text-[13px] text-muted">
                 {user.last_sign_in_at ? formatFechaRelativa(user.last_sign_in_at) : "Nunca"}
               </div>
 
-              <div className="text-sm text-muted">
+              <div className="text-[13px] text-muted">
                 {user.last_activity_at ? formatFechaRelativa(user.last_activity_at) : "—"}
               </div>
 
-              <div className="text-sm text-deep xl:text-center">
+              <div className="data text-[13px] text-deep xl:text-center">
                 {user.role === "medico" ? (
                   <>
                     <span className="font-semibold">{work7}</span>
@@ -224,7 +322,7 @@ export default async function SuperadminUsuariosPage({
                 )}
               </div>
 
-              {/* Una cuenta dada de baja no tiene "estado de uso": lo relevante
+              {/* Una cuenta dada de baja no tiene «estado de uso»: lo relevante
                   es que está cerrada, y eso gana a cualquier otra etiqueta. */}
               {user.disabled_at ? (
                 <div title={user.disabled_reason ?? "Cuenta dada de baja"}>
@@ -235,64 +333,92 @@ export default async function SuperadminUsuariosPage({
                   <Badge tone={estado.tone}>{estado.label}</Badge>
                 </div>
               )}
+            </>
+          );
 
-              {user.role === "superadmin" ? (
-                <span className="text-sm text-muted">Cuenta de plataforma.</span>
-              ) : user.disabled_at ? (
-                <Link
-                  href="/superadmin/mantenimiento"
-                  className="text-sm font-semibold text-accent hover:underline"
-                >
-                  Reactivar en Mantenimiento →
-                </Link>
-              ) : (
-                <form
-                  action={assignUserToOrg}
-                  className="grid grid-cols-[1fr_auto_auto] items-center gap-2"
-                >
-                  <input type="hidden" name="userId" value={user.id} />
-                  <select
-                    name="organizationId"
-                    defaultValue={user.organization_id ?? ""}
-                    aria-label={`Organización de ${user.email}`}
-                    className="rounded-md border border-line bg-field px-2 py-2 text-sm text-deep outline-none focus:border-accent"
+          const filaClase = `grid grid-cols-1 gap-2 px-4 py-2.5 xl:items-center xl:gap-3 ${GRID}`;
+
+          if (!editable) {
+            return (
+              <div key={user.id} className={`${filaClase} border-t border-line`}>
+                {celdas}
+                {user.disabled_at ? (
+                  <Link
+                    href="/superadmin/mantenimiento"
+                    className="text-[12px] font-semibold text-accent hover:underline"
                   >
-                    {orgs.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.name}
-                      </option>
-                    ))}
-                  </select>
+                    Reactivar →
+                  </Link>
+                ) : (
+                  <span className="text-[12px] text-muted">Plataforma</span>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <details key={user.id} className="group border-t border-line">
+              <summary
+                className={`${filaClase} cursor-pointer list-none hover:bg-ice-soft/60 group-open:bg-ice-soft/70 [&::-webkit-details-marker]:hidden`}
+              >
+                {celdas}
+                <span className="flex items-center gap-1 text-[12px] font-semibold text-accent">
+                  Editar
+                  <ChevronDown
+                    size={14}
+                    className="transition-transform group-open:rotate-180"
+                  />
+                </span>
+              </summary>
+
+              <div className="border-t border-line/60 bg-pearl px-4 py-3">
+                <form action={assignUserToOrg} className="flex flex-wrap items-end gap-3">
+                  <input type="hidden" name="userId" value={user.id} />
+                  <label className="text-[12px]">
+                    <span className="mb-1 block font-semibold text-muted">Organización</span>
+                    <select
+                      name="organizationId"
+                      defaultValue={user.organization_id ?? ""}
+                      aria-label={`Organización de ${user.email}`}
+                      className="rounded-md border border-line bg-field px-2.5 py-2 text-sm text-deep outline-none focus:border-accent"
+                    >
+                      {orgs.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   {/* La opción del rol ACTUAL siempre está presente, aunque no
                       sea asignable desde aquí (secretaria). Sin ella el
                       navegador seleccionaba la primera opción —médico— y
                       guardar un simple cambio de organización le quitaba el rol
                       en silencio. La RPC además conserva el rol si no se manda
                       uno, así que hay doble red. */}
-                  <select
-                    name="role"
-                    defaultValue={user.role}
-                    aria-label={`Rol de ${user.email}`}
-                    className="rounded-md border border-line bg-field px-2 py-2 text-sm text-deep outline-none focus:border-accent"
-                  >
-                    {!isAssignableRole(user.role) ? (
-                      <option value={user.role}>
-                        {isAppRole(user.role) ? APP_ROLE_LABEL[user.role] : user.role} (actual)
-                      </option>
-                    ) : null}
-                    <option value="medico">Médico</option>
-                    <option value="supervisor">Supervisor</option>
-                    <option value="admin">Administrador</option>
-                  </select>
-                  <button
-                    type="submit"
-                    className="rounded-full px-3 py-2 text-xs font-semibold text-accent hover:bg-ice-soft"
-                  >
+                  <label className="text-[12px]">
+                    <span className="mb-1 block font-semibold text-muted">Rol</span>
+                    <select
+                      name="role"
+                      defaultValue={user.role}
+                      aria-label={`Rol de ${user.email}`}
+                      className="rounded-md border border-line bg-field px-2.5 py-2 text-sm text-deep outline-none focus:border-accent"
+                    >
+                      {!isAssignableRole(user.role) ? (
+                        <option value={user.role}>
+                          {isAppRole(user.role) ? APP_ROLE_LABEL[user.role] : user.role} (actual)
+                        </option>
+                      ) : null}
+                      <option value="medico">Médico</option>
+                      <option value="supervisor">Supervisor</option>
+                      <option value="admin">Administrador</option>
+                    </select>
+                  </label>
+                  <button type="submit" className="clinical-primary min-h-10 px-4 text-[13px]">
                     Guardar
                   </button>
                 </form>
-              )}
-            </div>
+              </div>
+            </details>
           );
         })}
         {usuarios.length === 0 ? (
@@ -328,5 +454,44 @@ function Encabezado() {
         <ShieldAlert size={15} className="text-danger" /> Dar de baja o eliminar
       </Link>
     </div>
+  );
+}
+
+/**
+ * Encabezado que ordena. Es un enlace, no un botón con estado: el orden vive en
+ * la URL, así que se puede compartir y sobrevive a recargar.
+ */
+function Orden({
+  href,
+  activa,
+  desc,
+  className = "",
+  children,
+}: {
+  href: string;
+  activa: boolean;
+  desc: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-sort={activa ? (desc ? "descending" : "ascending") : "none"}
+      className={`flex items-center gap-1 transition-colors hover:text-deep ${
+        activa ? "text-deep" : ""
+      } ${className}`}
+    >
+      {children}
+      {/* La flecha solo en la columna activa: seis flechas grises a la vez son
+          ruido, y no dicen cuál manda. */}
+      {activa ? (
+        <ChevronDown
+          size={12}
+          className={desc ? "" : "rotate-180"}
+          aria-hidden
+        />
+      ) : null}
+    </Link>
   );
 }
