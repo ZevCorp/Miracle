@@ -41,7 +41,6 @@ import {
   copyRichTextWithFallback,
   copyTextWithFallback,
 } from "@/lib/clinical/consultation-text";
-import { buildRedactor } from "@/lib/privacy/redact";
 import {
   completitud,
   ripsChecklist,
@@ -301,14 +300,9 @@ export default function ConsultaDetallePage() {
     setAiEditing(true);
     showToast("Miracle está ajustando la nota…", "info");
     try {
-      // De-identificación: la instrucción y la nota viajan al backend sin
-      // nombre/documento del paciente; el espejo local guarda la versión
-      // rehidratada (historia clínica completa). Ver lib/privacy/redact.ts.
-      const redactor = buildRedactor(
-        patient
-          ? { nombre: patient.nombre, documento: patient.documento }
-          : null,
-      );
+      // La instrucción y la nota viajan con los datos reales; el servidor tapa
+      // los identificadores del paciente antes de llamar a la IA y devuelve la
+      // propuesta ya rehidratada (docs/privacidad-frontera-ia.md).
       const encounter = await getClinicalEncounter(c.id);
       let notaActual = encounter.note_json ?? null;
       if (notaActual) {
@@ -325,15 +319,12 @@ export default function ConsultaDetallePage() {
       }
       const proposal = await adjustNoteWithAssistant({
         encounter_id: c.id,
-        instruction: redactor.redact(texto),
-        note_json: notaActual ? redactor.redactNote(notaActual) : undefined,
+        instruction: texto,
+        note_json: notaActual ?? undefined,
         doctor: buildDoctorContext(userPreferences, firstName),
       });
-      const saved = await saveEditedClinicalNote(
-        c.id,
-        redactor.redactNote(proposal.proposed_note_json),
-      );
-      const rehydrated = redactor.rehydrateNote(saved.note_json);
+      const saved = await saveEditedClinicalNote(c.id, proposal.proposed_note_json);
+      const rehydrated = saved.note_json;
       const mirror = await upsertConsultation({
         ...c,
         note: noteJsonToSections(rehydrated),

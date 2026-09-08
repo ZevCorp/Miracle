@@ -10,7 +10,7 @@ Navegador (Next.js 16 App Router, client components)
         ├─ lee/escribe tablas (supabase-js)
         └─ llama rutas server /api/* para la IA
 Supabase (Postgres + Auth + RLS)
-Anthropic API (vía /api/chat y /api/generate-note)
+Graph (backend clínico, `NEXT_PUBLIC_API_BASE_URL`) → escudo de privacidad → proveedor de IA
 ```
 
 Las ~15 pantallas consumen `useStore`; **no hablan con Supabase directamente**. Por eso,
@@ -72,17 +72,20 @@ Todo lo clínico cuelga de la organización → aislamiento total entre clientes
 
 ## 5. IA (lista para la key)
 
-- Agnóstica del modelo, vía **rutas server** con `fetch` a Anthropic y **fallback** sin key:
-  - `app/api/chat/route.ts` → chatbot clínico flotante.
-  - `app/api/generate-note/route.ts` → genera la nota desde transcripción + plantilla.
-- La key va en `ANTHROPIC_API_KEY` (env, **solo servidor**). Modelo configurable con
-  `ANTHROPIC_MODEL` (por defecto `claude-sonnet-4-6`).
+- La generación de la nota, el asistente y las sugerencias viven en **Graph** (repo
+  `joseph1356k/Graph`), al que esta web llama desde el navegador con el JWT del médico
+  (`lib/api/clinical.ts`, contrato en `docs/backend-clinical-api-contract.md`). Graph tapa
+  los identificadores del paciente antes de llamar al proveedor de IA y devuelve la nota con
+  los datos reales (D21, [`privacidad-frontera-ia.md`](./privacidad-frontera-ia.md)).
+- Las únicas llamadas directas a un proveedor desde esta web son de **visión** (fotos:
+  `app/api/parse-schedule`, `app/api/clinical/template-from-image`, `app/api/snippets/categorize`)
+  con `ANTHROPIC_API_KEY` (env, **solo servidor**). Son excepciones declaradas del escudo.
 - Planeado: **recomendador de diagnósticos** mientras habla el médico (en la pestaña Codificación).
 
 ## 6. Flujo de una consulta
 
 `consultas/nueva` (elige paciente/plantilla) → `en-vivo` (captura **simulada** hoy; botón
-Finalizar) → llama a `/api/generate-note` (o borrador base sin key) → `addConsultation()`
+Finalizar) → llama a Graph `generate-note` (`lib/api/clinical.ts`) → espejo en `consultations`
 escribe en Supabase → navega a `consultas/[id]` → pestañas Historia (editable + autoguardado)
 · Codificación (CIE-10/CUPS + autocompletar) · Resumen · Transcripción · Auditoría →
 Aprobar/Firmar/Exportar PDF.
@@ -91,7 +94,7 @@ Aprobar/Firmar/Exportar PDF.
 
 ```
 app/(marketing)/   sitio público          app/app/  plataforma
-app/app/providers.tsx  ← el store          app/api/{chat,generate-note}
+app/app/providers.tsx  ← el store          lib/api/clinical.ts → Graph
 components/app/  UI plataforma             components/{marketing,brand,ui}
 lib/mock/  tipos + helpers                 lib/clinical/codes.ts  catálogo CIE-10/CUPS
 lib/{auth,supabase}/                       supabase/migrations/
