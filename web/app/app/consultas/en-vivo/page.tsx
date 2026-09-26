@@ -96,6 +96,7 @@ import {
   getEncounterPrivacy,
   type PrivacyShieldSummary,
 } from "@/lib/api/clinical";
+import { noteAsPlainText, noteSections } from "@/lib/clinical/note-plain-text";
 
 const STATUS_LABEL: Record<string, string> = {
   created: "Creada",
@@ -804,54 +805,6 @@ function ConsultaActivaInner() {
         ok ? "success" : "warning",
       );
     });
-  }
-
-  /**
-   * Secciones de la nota en el mismo orden y contenido que ven el "PDF
-   * clínico" y el texto plano: una sola fuente de verdad para que copiar y
-   * descargar coincidan siempre. Devolver {título, contenido} ya separados
-   * (en vez de un texto plano que luego se re-parte por líneas en blanco)
-   * evita que un salto de línea DENTRO de una sección (p. ej. una
-   * descripción con varios párrafos) se confunda con el inicio de una
-   * sección nueva y aparezca como un encabezado en negrilla espurio.
-   */
-  function noteSections(noteJson: ClinicalNoteJson): { title: string; content: string }[] {
-    const discharge = ensureClinicalDischarge(noteJson.discharge);
-    const plan = [
-      ...discharge.plan.medications.map((item) =>
-        [item.name, item.dose, item.route, item.frequency, item.duration, item.instructions]
-          .filter(Boolean)
-          .join(" · "),
-      ),
-      ...discharge.plan.non_pharmacological.map((item) => item.text),
-      ...discharge.plan.follow_up.map((item) => item.text),
-    ].filter(Boolean);
-    return [
-      { title: "Resumen", content: noteJson.summary.trim() || "Sin información documentada." },
-      ...noteJson.sections.map((section) => ({
-        title: section.label,
-        content: section.content.trim() || "Sin información documentada.",
-      })),
-      { title: "Plan terapéutico", content: plan.join("\n") || "Sin información documentada." },
-      {
-        title: "Recomendaciones",
-        content:
-          discharge.recommendations.map((item) => item.text).join("\n") ||
-          "Sin información documentada.",
-      },
-      {
-        title: "Signos de alarma",
-        content:
-          discharge.alarm_signs.map((item) => item.text).join("\n") ||
-          "Sin información documentada.",
-      },
-    ];
-  }
-
-  function noteAsPlainText(noteJson: ClinicalNoteJson) {
-    return noteSections(noteJson)
-      .map((section) => `${section.title}\n${section.content}`)
-      .join("\n\n");
   }
 
   async function guardarNotasPrivadas(content: string) {
