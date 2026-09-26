@@ -55,7 +55,8 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(461, "Un corte de red no tumba a Ü: si la conexión con Luna no llega a abrirse se reintenta hasta 3 veces, y si no se abre, el pedido termina diciendo la causa; lo que ya salió hacia Luna no se reintenta.", P461);
+        Promesa(462, "«desplaza: abajo|arriba [N]» es un gesto directo con la rueda del ratón real sobre la ventana de delante: N muescas —5 si no se dice, nunca más de 20—, sin preguntarle a Jev; una dirección que no entiende hace fallar el paso diciéndolo, y Luna sabe que existe.", P462);
+        Promesa(461,"Un corte de red no tumba a Ü: si la conexión con Luna no llega a abrirse se reintenta hasta 3 veces, y si no se abre, el pedido termina diciendo la causa; lo que ya salió hacia Luna no se reintenta.", P461);
 
         Console.WriteLine();
         int incumplidas = _mal + _pendientes + _arnes;
@@ -730,6 +731,40 @@ internal static class Contrato
         var prop = T("Raton").GetProperty("PausaEntreLetrasMs") ?? throw new Pendiente("Raton.PausaEntreLetrasMs");
         int pausa = (int)prop.GetValue(null)!;
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
+    }
+
+    private static void P462()
+    {
+        // La prueba de las almejas (2026-09-26, 08:53): Luna pidió «desplazarse por los resultados» como objetivo,
+        // Jev solo sabe pulsar, y eligió la barra de direcciones con confianza 0,30. Un turno de Luna perdido.
+        int? Muescas(string s) => (int?)S("Ejecutor", "LeerDesplazamiento", s);
+        Exige(Muescas("abajo") == -5 && Muescas("arriba") == 5, $"sin número no son 5 muescas: abajo {Muescas("abajo")}, arriba {Muescas("arriba")}");
+        Exige(Muescas("abajo 3") == -3 && Muescas("arriba 2") == 2 && Muescas("down 4") == -4, "el número de muescas no se respeta");
+        Exige(Muescas("abajo 50") == -20, $"«abajo 50» son {Muescas("abajo 50")} muescas: el tope es 20");
+        Exige(Muescas("a la izquierda") == null && Muescas("") == null, "una dirección que no se entiende se tomó por buena");
+
+        var rueda = L(S("Raton", "EventosDeRueda", -2)).Select(o => o.ToString()!).ToList();
+        Exige(rueda.SequenceEqual(new[] { "rueda -120", "rueda -120" }), $"dos muescas abajo no son dos eventos de -120: {string.Join(" | ", rueda)}");
+        Exige(L(S("Raton", "EventosDeRueda", 1)).Select(o => o.ToString()).SequenceEqual(new[] { "rueda 120" }), "una muesca arriba no es +120");
+
+        var (e, anotado) = Ejecutor(_ => true);
+        var prop = e.GetType().GetProperty("Desplazar") ?? throw new Pendiente("Ejecutor.Desplazar");
+        prop.SetValue(e, (Func<int, bool>)(n => { anotado.Add("desplazar " + n); return true; }));
+        var r = I(e, "Ejecutar", new List<string> { "desplaza: abajo 3", "desplaza: arriba" })!;
+        Exige(anotado.SequenceEqual(new[] { "desplazar -3", "desplazar 5" }), $"el desplazamiento no se hizo tal cual: {string.Join(" | ", anotado)}");
+        Exige(!anotado.Any(a => a.StartsWith("jev")), "desplazar le preguntó a Jev");
+        var estados = L(P(P(r, "Resultado")!, "Pasos")).Select(p => (string)P(p, "Estado")!).ToList();
+        Exige(estados.All(s => s == "Hecho"), $"estados: {string.Join(",", estados)}");
+
+        anotado.Clear();
+        var r2 = I(e, "Ejecutar", new List<string> { "desplaza: en diagonal", "tecla: Enter" })!;
+        var est2 = L(P(P(r2, "Resultado")!, "Pasos")).Select(p => (string)P(p, "Estado")!).ToList();
+        string relato = (string)I(r2, "Relato")!;
+        Exige(est2.SequenceEqual(new[] { "Fallido", "Omitido" }) && anotado.Count == 0, $"una dirección desconocida no hizo fallar el paso: {string.Join(",", est2)} · {string.Join(" | ", anotado)}");
+        Exige(relato.Contains("en diagonal"), $"el fallo no dice qué dirección no entendió: {relato}");
+
+        string luna = (string)(T("ProtocoloVivo").GetField("InstruccionesDeLuna")?.GetValue(null) ?? "");
+        Exige(luna.Contains("«desplaza:"), "Luna no sabe que puede desplazar");
     }
 
     private static void P461()
