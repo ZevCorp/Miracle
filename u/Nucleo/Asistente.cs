@@ -188,16 +188,15 @@ public sealed class LunaPorTexto : IDisposable
     }
 
     /// <summary>
-    /// MIENTRAS AVANCE (promesa 463). Hasta el 2026-09-26 esto era un «for» de 8 turnos: cortó la investigación de
-    /// las almejas con los papers ya abiertos, y la de Copilot→Neon a la mitad, sin entregar nada ninguna de las dos.
-    /// Ahora no hay número: se sigue mientras la pantalla cambie, y al parar Luna cuenta lo que logró.
+    /// HASTA QUE LUNA CONTESTE (promesa 463). Hasta el 2026-09-26 esto era un «for» de 8 turnos: cortó la investigación
+    /// de las almejas con los papers ya abiertos, y la de Copilot→Neon a la mitad, sin entregar nada ninguna de las dos.
+    /// Ahora no hay número: solo para Escape o el tope de 10 minutos (<see cref="Marcha"/>), y al parar Luna cuenta lo
+    /// que logró.
     /// </summary>
     public string Pedir(string pedido, Func<string> mirar, Func<string, string, string> atender, Func<bool> hayQueParar, Func<TimeSpan> transcurrido)
     {
         string? anterior = null;
-        string inicial = mirar();
-        object entrada = PrimeraEntrada(pedido, inicial);
-        var marcha = new Marcha(inicial);
+        object entrada = PrimeraEntrada(pedido, mirar());
         for (int turno = 1; ; turno++)
         {
             var (json, falla) = Turno(entrada, anterior, conHerramientas: true);
@@ -206,7 +205,7 @@ public sealed class LunaPorTexto : IDisposable
             anterior = doc.RootElement.GetProperty("id").GetString();
 
             var salidas = new List<object>();
-            string texto = "", ultimaPantalla = "";
+            string texto = "";
             foreach (var item in doc.RootElement.GetProperty("output").EnumerateArray())
             {
                 string tipo = ProtocoloVivo.Texto(item, "type");
@@ -215,7 +214,6 @@ public sealed class LunaPorTexto : IDisposable
                     string nombre = ProtocoloVivo.Texto(item, "name"), args = ProtocoloVivo.Texto(item, "arguments");
                     Log($"🌙 Luna ({_ultimoMs} ms) → {nombre} {args}");
                     string salida = atender(nombre, args);
-                    ultimaPantalla = Marcha.PantallaDe(salida);
                     salidas.Add(new { type = "function_call_output", call_id = ProtocoloVivo.Texto(item, "call_id"), output = ParaLuna.Recortar(salida) });
                 }
                 else if (tipo == "message")
@@ -224,8 +222,7 @@ public sealed class LunaPorTexto : IDisposable
             }
             if (salidas.Count == 0) { Log($"🌙 Luna ({_ultimoMs} ms): {texto}"); return texto; }
 
-            marcha.Turno(ultimaPantalla);
-            string? porQue = marcha.PorQueParar(transcurrido(), hayQueParar());
+            string? porQue = Marcha.PorQueParar(transcurrido(), hayQueParar());
             if (porQue != null) return Cerrar(salidas, anterior, porQue, turno);
             entrada = salidas;
         }
@@ -311,37 +308,19 @@ public sealed class LunaPorTexto : IDisposable
 }
 
 /// <summary>
-/// ¿LUNA AVANZA? (promesa 463). La pantalla que devuelve cada herramienta —el «Ahora:» de «hacer», o «mirar» entera—
-/// ya viaja a Luna: compararla no cuesta ni una lectura más. Tres turnos seguidos con la misma es estar atascada.
+/// CUÁNDO PARA LUNA (promesa 463): cuando la persona pulsa Escape, o a los 10 minutos como red de seguridad. Nada
+/// más. Hubo un «3 turnos sin que la pantalla cambie» y se quitó el 2026-09-26: la pantalla que ve Luna es la lista de
+/// lo pulsable, y en Chrome esa lista es el documento entero, así que desplazar o saltar a una sección de la misma
+/// página la deja igual. En la web de Safix cortó una tarea que avanzaba.
 /// </summary>
-public sealed class Marcha
+public static class Marcha
 {
-    public const int TurnosSinCambio = 3;
     public static readonly TimeSpan Tope = TimeSpan.FromMinutes(10);
 
-    private string _ultima;
-    private int _sinCambio;
-
-    public Marcha(string pantallaInicial) => _ultima = PantallaDe(pantallaInicial);
-
-    public void Turno(string pantalla)
-    {
-        if (pantalla == _ultima) _sinCambio++;
-        else { _sinCambio = 0; _ultima = pantalla; }
-    }
-
-    public string? PorQueParar(TimeSpan transcurrido, bool escape) =>
+    public static string? PorQueParar(TimeSpan transcurrido, bool escape) =>
         escape ? "pulsaste Escape"
-        : _sinCambio >= TurnosSinCambio ? $"{TurnosSinCambio} turnos seguidos sin que la pantalla cambie"
         : transcurrido >= Tope ? "llevo 10 minutos"
         : null;
-
-    /// <summary>La pantalla que describe una salida: lo que va tras el último «Ahora:», o la salida entera si no lo hay.</summary>
-    public static string PantallaDe(string salida)
-    {
-        int i = (salida ?? "").LastIndexOf("Ahora:\n", StringComparison.Ordinal);
-        return i >= 0 ? salida![(i + 7)..] : salida ?? "";
-    }
 }
 
 /// <summary>Lo que dejó mandarle algo a Luna: la respuesta, o por qué no hubo, y cuántas veces se intentó.</summary>
