@@ -1,4 +1,5 @@
-// Plantilla sugerida personal del médico ("mi sugerida").
+// Plantilla predeterminada personal del médico ("mi predeterminada"; hasta el
+// 2026-09-26 la interfaz la llamaba "mi sugerida", y la tabla no cambió).
 //
 // La sugerida institucional (is_default) es una por especialidad y la fija la
 // plataforma; este módulo guarda el pin PERSONAL de cada médico en
@@ -77,7 +78,7 @@ export async function clearTemplatePreference(
   if (error) throw error;
 }
 
-/** Ids fijados, para pintar el badge "Tu sugerida" sin recorrer la lista. */
+/** Ids fijados, para pintar el badge "Tu predeterminada" sin recorrer la lista. */
 export function pinnedTemplateIds(
   preferences: readonly TemplatePreference[],
 ): Set<string> {
@@ -136,7 +137,7 @@ export function rememberTemplateId(
  *
  * El médico decide en Configuración QUÉ debe pasar al empezar (`mode`):
  *
- *  - "fixed"  (por defecto histórico) — manda su pin "mi sugerida". Es una
+ *  - "fixed"  (el por defecto desde el 2026-09-26) — manda su pin "mi predeterminada". Es una
  *    decisión explícita y gana a cualquier heurística. Si la plantilla fijada
  *    ya no existe, cae al resto de la cadena en vez de dejarlo sin nada.
  *  - "last" — manda la última que de verdad usó. Los pines se saltan: si eligió

@@ -25,15 +25,17 @@ import { createClient } from "@/lib/supabase/client";
 import { ChoiceGroup, SettingCard, inputClass, type Opcion } from "./ui";
 
 const MODOS: readonly Opcion<TemplateStartMode>[] = [
+  // Primero la predeterminada: es la que manda por defecto (2026-09-26) y la que
+  // comparte Miracle en Windows — la eliges aquí o allí y arranca igual en los dos.
+  {
+    value: "fixed",
+    label: "Mi plantilla predeterminada",
+    desc: "Eliges una y es con la que arranca cada consulta, aquí y en Miracle para Windows.",
+  },
   {
     value: "last",
     label: "La última que usé",
     desc: "Miracle recuerda con qué plantilla grabaste la última vez y la trae ya puesta.",
-  },
-  {
-    value: "fixed",
-    label: "Siempre la misma",
-    desc: "Eliges una y es con la que arranca cada consulta, sin excepciones.",
   },
   {
     value: "manual",
@@ -171,12 +173,12 @@ export function GeneralSettings({ specialtyCode }: { specialtyCode: string | nul
                   specialtyCode={specialtyCode}
                   value={plantillaFijada}
                   onChange={(id) => void fijarPlantilla(id)}
-                  label="Tu plantilla"
+                  label="Tu plantilla predeterminada"
                   pinnedTemplateIds={pinnedTemplateIds(pins)}
                 />
                 {!plantillaFijada ? (
                   <p className="mt-2 text-xs text-warning">
-                    Aún no has elegido cuál. Mientras tanto se sigue usando la
+                    Aún no has elegido tu predeterminada. Mientras tanto se usa la
                     sugerida de tu especialidad.
                   </p>
                 ) : null}

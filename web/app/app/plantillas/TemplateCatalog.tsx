@@ -33,6 +33,7 @@ import {
   type TemplatePreference,
 } from "@/lib/clinical/template-preferences";
 import { createClient } from "@/lib/supabase/client";
+import { useUserPreferences } from "@/lib/preferences/client";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import {
   TemplateBuilderPanel,
@@ -61,6 +62,7 @@ export function TemplateCatalog({
   embedded?: boolean;
 }) {
   const confirm = useConfirm();
+  const { preferences: preferencias, update: actualizarPreferencias } = useUserPreferences();
   const [templates, setTemplates] = useState<ClinicalTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +80,7 @@ export function TemplateCatalog({
   useEffect(() => {
     let cancelled = false;
     // Las preferencias no bloquean el catálogo: si fallan, solo se pierde el
-    // badge "Tu sugerida".
+    // badge "Tu predeterminada".
     void Promise.all([
       getClinicalTemplates(),
       getTemplatePreferences(createClient()).catch(
@@ -161,14 +163,21 @@ export function TemplateCatalog({
     try {
       if (pinned.has(template.id)) {
         await clearTemplatePreference(supabase, template.specialty);
-        setFeedback("Ya no es tu sugerida.");
+        setFeedback("Ya no es tu predeterminada.");
       } else {
         await setTemplatePreference(supabase, {
           specialtyCode: template.specialty,
           templateId: template.id,
         });
+        // ELEGIR LA PREDETERMINADA ES PEDIR QUE MANDE. Si el médico estaba en
+        // «la última que usé», la estrella se guardaba y no pasaba nada: seguía
+        // arrancando con la última. Fijarla pone el modo en «predeterminada»
+        // (2026-09-26), igual que lo hace Miracle en Windows.
+        if (preferencias.templateStartMode !== "fixed") {
+          await actualizarPreferencias({ templateStartMode: "fixed" });
+        }
         setFeedback(
-          "Fijada como tu sugerida: aparecerá preseleccionada al iniciar consultas.",
+          "Fijada como tu predeterminada: con ella empieza cada consulta, aquí y en Miracle para Windows.",
         );
       }
       setPreferences(await getTemplatePreferences(supabase));
@@ -416,7 +425,7 @@ function TemplateCard({
         </span>
         {pinned ? (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-semibold text-warning-ink">
-            <Star size={10} /> Tu sugerida
+            <Star size={10} /> Tu predeterminada
           </span>
         ) : template.is_default ? (
           <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent">
@@ -597,15 +606,15 @@ function TemplateDialog({
             type="button"
             onClick={onTogglePin}
             disabled={pinning}
-            title="Tu sugerida aparece preseleccionada al iniciar una consulta"
+            title="Tu predeterminada es con la que empieza cada consulta"
             className="clinical-secondary"
           >
             {pinned ? <StarOff size={15} /> : <Star size={15} />}{" "}
             {pinning
               ? "Guardando…"
               : pinned
-                ? "Quitar mi sugerida"
-                : "Fijar como mi sugerida"}
+                ? "Quitar mi predeterminada"
+                : "Fijar como mi predeterminada"}
           </button>
           {personal ? (
             <>
