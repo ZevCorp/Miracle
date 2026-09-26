@@ -90,11 +90,15 @@ export interface ClinicalDischargeItem {
 
 export interface ClinicalMedicationPlanItem {
   name: string;
+  /** Concentración y forma farmacéutica («500 mg/tableta»). La escribe el médico: la fórmula la exige. */
+  concentration?: string;
   dose?: string;
   route?: string;
   frequency?: string;
   duration?: string;
   instructions?: string;
+  /** Cantidad total a dispensar («15 tabletas»). La escribe el médico: la fórmula la exige. */
+  quantity?: string;
   evidence?: string;
 }
 
