@@ -55,7 +55,7 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(463, "Luna no tiene tope de turnos: sigue mientras la pantalla cambie, y solo para con Escape, con 3 turnos seguidos sin que la pantalla cambie o a los 10 minutos; al parar, un último turno sin herramientas le pide contar lo que logró, y eso es lo que se entrega, empezando por «Paré:» y el motivo.", P463);
+        Promesa(463, "Luna no tiene tope de turnos ni se da por atascada: sigue hasta contestar, y solo para con Escape o a los 10 minutos; al parar, un último turno sin herramientas le pide contar lo que logró, y eso es lo que se entrega, empezando por «Paré:» y el motivo.", P463);
         Promesa(462,"«desplaza: abajo|arriba [N]» es un gesto directo con la rueda del ratón real sobre la ventana de delante: N muescas —5 si no se dice, nunca más de 20—, sin preguntarle a Jev; una dirección que no entiende hace fallar el paso diciéndolo, y Luna sabe que existe.", P462);
         Promesa(461,"Un corte de red no tumba a Ü: si la conexión con Luna no llega a abrirse se reintenta hasta 3 veces, y si no se abre, el pedido termina diciendo la causa; lo que ya salió hacia Luna no se reintenta.", P461);
 
@@ -772,24 +772,25 @@ internal static class Contrato
         string r1 = Correr(avanza, () => "Ventana delante: pantalla " + paso++, () => false, () => cero);
         Exige(r1 == "listo: 12 pantallas" && avanza.Cuerpos.Count == 13, $"una tarea que avanza se cortó: {avanza.Cuerpos.Count} peticiones · «{r1}»");
 
-        // Atascada: la pantalla no cambia. Para tras 3 turnos sin cambio, y el cuarto es el cierre sin herramientas.
-        var atascada = new LunaDeMentira(n => n <= 3 ? LunaDeMentira.Hacer(n) : LunaDeMentira.Dice(n, "abrí Copilot pero no pude escribir"));
-        string r2 = Correr(atascada, () => "Ventana delante: siempre la misma", () => false, () => cero);
-        Exige(atascada.Cuerpos.Count == 4, $"atascada, se hicieron {atascada.Cuerpos.Count} peticiones (3 turnos + el cierre)");
-        Exige(r2.StartsWith("Paré:") && r2.Contains("sin que la pantalla cambie") && r2.Contains("abrí Copilot pero no pude escribir"),
-            $"el cierre no dice por qué paró ni lo que logró: «{r2}»");
-        using (var d = JsonDocument.Parse(atascada.Cuerpos[^1]))
+        // La misma pantalla 12 turnos seguidos no es estar atascada: en la web de Safix (2026-09-26, 15:46) desplazar y
+        // saltar a una sección dejó la misma lista —Chrome da el documento entero— y la regla de «3 turnos sin cambio»
+        // cortó una tarea que avanzaba. Sigue hasta que Luna conteste.
+        var igual = new LunaDeMentira(n => n <= 12 ? LunaDeMentira.Hacer(n) : LunaDeMentira.Dice(n, "recorrí las cinco secciones"));
+        string r2 = Correr(igual, () => "Ventana delante: siempre la misma", () => false, () => cero);
+        Exige(igual.Cuerpos.Count == 13 && r2 == "recorrí las cinco secciones", $"con la pantalla igual se cortó: {igual.Cuerpos.Count} peticiones · «{r2}»");
+
+        // Escape pulsado durante el primer turno: para al terminarlo, y el cierre no deja usar herramientas.
+        int llamadas = 0;
+        var conEscape = new LunaDeMentira(n => n == 1 ? LunaDeMentira.Hacer(n) : LunaDeMentira.Dice(n, "iba por la mitad"));
+        string r3 = Correr(conEscape, () => "pantalla " + llamadas++, () => true, () => cero);
+        Exige(conEscape.Cuerpos.Count == 2 && r3.StartsWith("Paré:") && r3.Contains("Escape") && r3.Contains("iba por la mitad"),
+            $"Escape no paró contando lo logrado: {conEscape.Cuerpos.Count} peticiones · «{r3}»");
+        using (var d = JsonDocument.Parse(conEscape.Cuerpos[^1]))
         {
             bool sinHerramientas = d.RootElement.TryGetProperty("tool_choice", out var tc) && tc.GetString() == "none";
             Exige(sinHerramientas, "el cierre deja a Luna usar herramientas");
             Exige(d.RootElement.GetProperty("input").GetRawText().Contains("function_call_output"), "el cierre no devuelve el resultado del último turno");
         }
-
-        // Escape pulsado durante el primer turno: para al terminarlo, sin otro turno de herramientas.
-        int llamadas = 0;
-        var conEscape = new LunaDeMentira(n => n == 1 ? LunaDeMentira.Hacer(n) : LunaDeMentira.Dice(n, "iba por la mitad"));
-        string r3 = Correr(conEscape, () => "pantalla " + llamadas++, () => true, () => cero);
-        Exige(conEscape.Cuerpos.Count == 2 && r3.StartsWith("Paré:") && r3.Contains("Escape"), $"Escape no paró: {conEscape.Cuerpos.Count} peticiones · «{r3}»");
 
         // Diez minutos: el tope de seguridad, aunque avance.
         int q = 0; var t = TimeSpan.Zero;
