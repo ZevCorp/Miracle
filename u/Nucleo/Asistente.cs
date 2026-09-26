@@ -162,9 +162,12 @@ public sealed class LunaPorTexto : IDisposable
     private readonly HttpClient _http;
     public Action<string> Log { get; set; } = _ => { };
 
-    public LunaPorTexto(string claveOpenAI)
+    public LunaPorTexto(string claveOpenAI) : this(claveOpenAI, new HttpClientHandler()) { }
+
+    /// <summary>Con el manejador HTTP que se le dé: el contrato le pone una Luna de mentira (promesa 463).</summary>
+    public LunaPorTexto(string claveOpenAI, HttpMessageHandler manejador)
     {
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
+        _http = new HttpClient(manejador) { Timeout = TimeSpan.FromSeconds(90) };
         _http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", claveOpenAI);
     }
 
@@ -178,52 +181,105 @@ public sealed class LunaPorTexto : IDisposable
             ? pedido
             : pedido + Environment.NewLine + Environment.NewLine + "(Lo que hay delante ahora mismo:" + Environment.NewLine + loQueHayDelante + ")";
 
-    /// <summary>Hasta que Luna conteste con palabras, o 8 turnos de herramientas.</summary>
     public string Pedir(string pedido, Asistente ü)
     {
+        var reloj = Stopwatch.StartNew();
+        return Pedir(pedido, ü.Mirar, ü.Atender, ü.HayQueParar, () => reloj.Elapsed);
+    }
+
+    /// <summary>
+    /// MIENTRAS AVANCE (promesa 463). Hasta el 2026-09-26 esto era un «for» de 8 turnos: cortó la investigación de
+    /// las almejas con los papers ya abiertos, y la de Copilot→Neon a la mitad, sin entregar nada ninguna de las dos.
+    /// Ahora no hay número: se sigue mientras la pantalla cambie, y al parar Luna cuenta lo que logró.
+    /// </summary>
+    public string Pedir(string pedido, Func<string> mirar, Func<string, string, string> atender, Func<bool> hayQueParar, Func<TimeSpan> transcurrido)
+    {
         string? anterior = null;
-        object entrada = PrimeraEntrada(pedido, ü.Mirar());
-        for (int turno = 0; turno < 8; turno++)
+        string inicial = mirar();
+        object entrada = PrimeraEntrada(pedido, inicial);
+        var marcha = new Marcha(inicial);
+        for (int turno = 1; ; turno++)
         {
-            var cuerpo = new Dictionary<string, object?>
-            {
-                ["model"] = ProtocoloVivo.Luna,
-                ["instructions"] = ProtocoloVivo.InstruccionesDeLuna,
-                ["input"] = entrada,
-                ["tools"] = ProtocoloVivo.Herramientas(),
-                ["reasoning"] = new { effort = "low" },
-            };
-            if (anterior != null) cuerpo["previous_response_id"] = anterior;
-            var r = Stopwatch.StartNew();
-            string serializado = JsonSerializer.Serialize(cuerpo);
-            var envio = Enviar(() => _http.PostAsync("https://api.openai.com/v1/responses",
-                new StringContent(serializado, Encoding.UTF8, "application/json")).GetAwaiter().GetResult(), Thread.Sleep);
-            if (envio.Respuesta == null) { Log($"✘ Luna sin conexión tras {envio.Intentos} intento(s): {envio.Falla}"); return "No pude hablar con Luna: " + envio.Falla; }
-            using var res = envio.Respuesta;
-            string json = res.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-            if (!res.IsSuccessStatusCode) return $"Luna contestó HTTP {(int)res.StatusCode}: {(json.Length > 300 ? json[..300] : json)}";
-            using var doc = JsonDocument.Parse(json);
+            var (json, falla) = Turno(entrada, anterior, conHerramientas: true);
+            if (falla != null) return falla;
+            using var doc = JsonDocument.Parse(json!);
             anterior = doc.RootElement.GetProperty("id").GetString();
 
             var salidas = new List<object>();
-            string texto = "";
+            string texto = "", ultimaPantalla = "";
             foreach (var item in doc.RootElement.GetProperty("output").EnumerateArray())
             {
                 string tipo = ProtocoloVivo.Texto(item, "type");
                 if (tipo == "function_call")
                 {
                     string nombre = ProtocoloVivo.Texto(item, "name"), args = ProtocoloVivo.Texto(item, "arguments");
-                    Log($"🌙 Luna ({r.ElapsedMilliseconds} ms) → {nombre} {args}");
-                    salidas.Add(new { type = "function_call_output", call_id = ProtocoloVivo.Texto(item, "call_id"), output = ParaLuna.Recortar(ü.Atender(nombre, args)) });
+                    Log($"🌙 Luna ({_ultimoMs} ms) → {nombre} {args}");
+                    string salida = atender(nombre, args);
+                    ultimaPantalla = Marcha.PantallaDe(salida);
+                    salidas.Add(new { type = "function_call_output", call_id = ProtocoloVivo.Texto(item, "call_id"), output = ParaLuna.Recortar(salida) });
                 }
                 else if (tipo == "message")
                     foreach (var c in item.GetProperty("content").EnumerateArray())
                         texto += ProtocoloVivo.Texto(c, "text");
             }
-            if (salidas.Count == 0) { Log($"🌙 Luna ({r.ElapsedMilliseconds} ms): {texto}"); return texto; }
+            if (salidas.Count == 0) { Log($"🌙 Luna ({_ultimoMs} ms): {texto}"); return texto; }
+
+            marcha.Turno(ultimaPantalla);
+            string? porQue = marcha.PorQueParar(transcurrido(), hayQueParar());
+            if (porQue != null) return Cerrar(salidas, anterior, porQue, turno);
             entrada = salidas;
         }
-        return "Luna usó 8 turnos de herramientas sin terminar: paro.";
+    }
+
+    private long _ultimoMs;
+
+    /// <summary>Un turno de Luna. Devuelve el JSON, o por qué no lo hay, ya dicho para la persona.</summary>
+    private (string? Json, string? Falla) Turno(object entrada, string? anterior, bool conHerramientas)
+    {
+        var cuerpo = new Dictionary<string, object?>
+        {
+            ["model"] = ProtocoloVivo.Luna,
+            ["instructions"] = ProtocoloVivo.InstruccionesDeLuna,
+            ["input"] = entrada,
+            ["tools"] = ProtocoloVivo.Herramientas(),
+            ["reasoning"] = new { effort = "low" },
+        };
+        if (!conHerramientas) cuerpo["tool_choice"] = "none";
+        if (anterior != null) cuerpo["previous_response_id"] = anterior;
+        var r = Stopwatch.StartNew();
+        string serializado = JsonSerializer.Serialize(cuerpo);
+        var envio = Enviar(() => _http.PostAsync("https://api.openai.com/v1/responses",
+            new StringContent(serializado, Encoding.UTF8, "application/json")).GetAwaiter().GetResult(), Thread.Sleep);
+        if (envio.Respuesta == null) { Log($"✘ Luna sin conexión tras {envio.Intentos} intento(s): {envio.Falla}"); return (null, "No pude hablar con Luna: " + envio.Falla); }
+        using var res = envio.Respuesta;
+        string json = res.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+        _ultimoMs = r.ElapsedMilliseconds;
+        if (!res.IsSuccessStatusCode) return (null, $"Luna contestó HTTP {(int)res.StatusCode}: {(json.Length > 300 ? json[..300] : json)}");
+        return (json, null);
+    }
+
+    /// <summary>
+    /// AL PARAR, LO QUE SE LOGRÓ. Un último turno sin herramientas —con el resultado del último «hacer», que la API
+    /// exige de vuelta— donde Luna cuenta qué consiguió y qué falta. Lo que se entrega empieza por el motivo.
+    /// </summary>
+    private string Cerrar(List<object> salidas, string? anterior, string porQue, int turnos)
+    {
+        Log($"⏹ paro tras {turnos} turno(s): {porQue}");
+        var entrada = new List<object>(salidas)
+        {
+            new { role = "user", content = $"Paramos aquí ({porQue}). Sin usar herramientas, cuéntale a la persona en pocas frases lo que lograste y lo que quedó por hacer." },
+        };
+        var (json, falla) = Turno(entrada, anterior, conHerramientas: false);
+        string resumen = "";
+        if (json != null)
+        {
+            using var doc = JsonDocument.Parse(json);
+            foreach (var item in doc.RootElement.GetProperty("output").EnumerateArray())
+                if (ProtocoloVivo.Texto(item, "type") == "message")
+                    foreach (var c in item.GetProperty("content").EnumerateArray()) resumen += ProtocoloVivo.Texto(c, "text");
+            Log($"🌙 Luna ({_ultimoMs} ms): {resumen}");
+        }
+        return $"Paré: {porQue}. " + (resumen.Length > 0 ? resumen : falla ?? "");
     }
 
     /// <summary>
@@ -252,6 +308,40 @@ public sealed class LunaPorTexto : IDisposable
     }
 
     public void Dispose() => _http.Dispose();
+}
+
+/// <summary>
+/// ¿LUNA AVANZA? (promesa 463). La pantalla que devuelve cada herramienta —el «Ahora:» de «hacer», o «mirar» entera—
+/// ya viaja a Luna: compararla no cuesta ni una lectura más. Tres turnos seguidos con la misma es estar atascada.
+/// </summary>
+public sealed class Marcha
+{
+    public const int TurnosSinCambio = 3;
+    public static readonly TimeSpan Tope = TimeSpan.FromMinutes(10);
+
+    private string _ultima;
+    private int _sinCambio;
+
+    public Marcha(string pantallaInicial) => _ultima = PantallaDe(pantallaInicial);
+
+    public void Turno(string pantalla)
+    {
+        if (pantalla == _ultima) _sinCambio++;
+        else { _sinCambio = 0; _ultima = pantalla; }
+    }
+
+    public string? PorQueParar(TimeSpan transcurrido, bool escape) =>
+        escape ? "pulsaste Escape"
+        : _sinCambio >= TurnosSinCambio ? $"{TurnosSinCambio} turnos seguidos sin que la pantalla cambie"
+        : transcurrido >= Tope ? "llevo 10 minutos"
+        : null;
+
+    /// <summary>La pantalla que describe una salida: lo que va tras el último «Ahora:», o la salida entera si no lo hay.</summary>
+    public static string PantallaDe(string salida)
+    {
+        int i = (salida ?? "").LastIndexOf("Ahora:\n", StringComparison.Ordinal);
+        return i >= 0 ? salida![(i + 7)..] : salida ?? "";
+    }
 }
 
 /// <summary>Lo que dejó mandarle algo a Luna: la respuesta, o por qué no hubo, y cuántas veces se intentó.</summary>

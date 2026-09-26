@@ -785,10 +785,10 @@ internal static class Contrato
             Exige(d.RootElement.GetProperty("input").GetRawText().Contains("function_call_output"), "el cierre no devuelve el resultado del último turno");
         }
 
-        // Escape: para en el acto, sin otro turno de herramientas.
+        // Escape pulsado durante el primer turno: para al terminarlo, sin otro turno de herramientas.
         int llamadas = 0;
         var conEscape = new LunaDeMentira(n => n == 1 ? LunaDeMentira.Hacer(n) : LunaDeMentira.Dice(n, "iba por la mitad"));
-        string r3 = Correr(conEscape, () => "pantalla " + llamadas, () => ++llamadas > 1, () => cero);
+        string r3 = Correr(conEscape, () => "pantalla " + llamadas++, () => true, () => cero);
         Exige(conEscape.Cuerpos.Count == 2 && r3.StartsWith("Paré:") && r3.Contains("Escape"), $"Escape no paró: {conEscape.Cuerpos.Count} peticiones · «{r3}»");
 
         // Diez minutos: el tope de seguridad, aunque avance.

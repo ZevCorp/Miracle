@@ -287,7 +287,7 @@ public sealed class PanelDeOrdenes : Window
 
     /// <summary>Lo que Pedir devuelve cuando Luna no llegó a terminar: se pinta en rojo, no en verde.</summary>
     private static bool FalloDeLuna(string r) =>
-        r.StartsWith("Luna contestó HTTP") || r.StartsWith("No pude hablar con Luna") || r.StartsWith("Luna usó 8 turnos");
+        r.StartsWith("Luna contestó HTTP") || r.StartsWith("No pude hablar con Luna") || r.StartsWith("Paré:");
 
     // ── El relato: cada línea del log que importa a la persona, en su idioma ─────────────────────
 
