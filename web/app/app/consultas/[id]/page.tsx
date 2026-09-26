@@ -43,6 +43,7 @@ import {
   ripsListo,
   suggestedCodes,
   TYPE_LABEL,
+  type AuditEvent,
   type ClinicalCode,
   type Consultation,
   type NoteSection,
@@ -1206,8 +1207,81 @@ function AuditoriaTab({ consultation }: { consultation: Consultation }) {
         <h2 className="mb-4 font-display text-base font-semibold text-deep">
           Trazabilidad
         </h2>
-        <Timeline events={consultation.auditoria} />
+        <Trazabilidad consultation={consultation} />
       </div>
     </div>
+  );
+}
+
+/**
+ * La línea de tiempo de la consulta, leída de la base al abrir la pestaña.
+ *
+ * Antes salía de la foto del store, que la cargaba para las 300 consultas en
+ * cada arranque —en serie, antes de poder pintar el Inicio— solo para esta
+ * pestaña. Ahora se pide aquí, cuando alguien la mira. Cada acción de este
+ * navegador sobre la consulta (editar, codificar, firmar…) suma un evento
+ * local: esa es la señal para volver a leer, y loadAuditoria espera a que la
+ * escritura termine antes de leer.
+ */
+function Trazabilidad({ consultation }: { consultation: Consultation }) {
+  const { loadAuditoria } = useStore();
+  const accionesLocales = consultation.auditoria.length;
+  const [eventos, setEventos] = useState<AuditEvent[] | null>(null);
+  const [fallo, setFallo] = useState(false);
+  const [reintento, setReintento] = useState(0);
+
+  useEffect(() => {
+    let vigente = true;
+    void loadAuditoria(consultation.id).then((leidos) => {
+      if (!vigente) return;
+      if (leidos) {
+        setEventos(leidos);
+        setFallo(false);
+      } else {
+        // Se conserva lo último que sí se leyó: un fallo al refrescar no
+        // borra una historia que ya estaba en pantalla.
+        setFallo(true);
+      }
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [consultation.id, accionesLocales, reintento, loadAuditoria]);
+
+  const reintentar = (
+    <button
+      type="button"
+      onClick={() => setReintento((n) => n + 1)}
+      className="font-semibold underline underline-offset-2"
+    >
+      Reintentar
+    </button>
+  );
+
+  if (!eventos) {
+    return fallo ? (
+      // No se pudo leer ≠ no hay eventos: nunca se pinta una línea vacía
+      // sobre una consulta cuya historia no se alcanzó a consultar.
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-warning">
+        <AlertTriangle size={15} className="shrink-0" />
+        No se pudo cargar la trazabilidad. {reintentar}
+      </p>
+    ) : (
+      <div className="flex justify-center py-4" aria-busy="true" aria-label="Cargando la trazabilidad">
+        <Loader2 size={18} className="animate-spin text-muted" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {fallo ? (
+        <p className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-warning">
+          <AlertTriangle size={14} className="shrink-0" />
+          No se pudo actualizar; puede faltar lo más reciente. {reintentar}
+        </p>
+      ) : null}
+      <Timeline events={eventos} />
+    </>
   );
 }

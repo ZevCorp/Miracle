@@ -93,6 +93,11 @@ export interface Consultation {
   transcript: SpeakerTurn[];
   resumen: string;
   codigos: ClinicalCode[];
+  /**
+   * En el store NO es la línea de tiempo completa: la carga inicial solo trae
+   * las marcas de demostración (isDemoConsultation) y lo demás son eventos
+   * optimistas de este navegador. La trazabilidad se lee con loadAuditoria.
+   */
   auditoria: AuditEvent[];
   /** Firma electrónica del profesional al aprobar la nota. */
   firma?: { por: string; fecha: string; hash?: string };
