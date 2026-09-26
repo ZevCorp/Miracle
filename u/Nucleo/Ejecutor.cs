@@ -23,6 +23,24 @@ public sealed class Ejecutor
     /// <summary>Cada paso en cuanto termina, para la burbuja y el log.</summary>
     public Action<string>? AlTerminarPaso { get; set; }
 
+    /// <summary>La rueda del ratón, en muescas: negativas hacia abajo (promesa 462). Sin ella, «desplaza:» falla y lo dice.</summary>
+    public Func<int, bool>? Desplazar { get; set; }
+
+    /// <summary>
+    /// «abajo», «arriba 3», «down 4» → muescas con signo, como la rueda: negativas hacia abajo, 5 si no se dice,
+    /// nunca más de 20. Lo que no se entiende es null, y el paso falla nombrándolo.
+    /// </summary>
+    public static int? LeerDesplazamiento(string texto)
+    {
+        var partes = (texto ?? "").Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (partes.Length is 0 or > 2) return null;
+        int signo = partes[0] switch { "abajo" or "down" => -1, "arriba" or "up" => 1, _ => 0 };
+        if (signo == 0) return null;
+        int n = 5;
+        if (partes.Length == 2 && (!int.TryParse(partes[1], out n) || n <= 0)) return null;
+        return signo * Math.Min(n, 20);
+    }
+
     public Ejecutor(Func<string, bool> abrir, Action<string> escribir, Func<string, bool> tecla,
         Func<string, IReadOnlyList<string>, Recorrido> objetivo, Func<bool> hayQueParar)
     {
@@ -55,6 +73,15 @@ public sealed class Ejecutor
             {
                 ok = _tecla(tecla);
                 linea = ok ? $"pulsé la tecla «{tecla}»" : $"no conozco la tecla «{tecla}»";
+            }
+            else if (Prefijo(paso, "desplaza:", out var hacia))
+            {
+                int? muescas = LeerDesplazamiento(hacia);
+                ok = muescas != null && Desplazar != null && Desplazar(muescas.Value);
+                linea = muescas == null ? $"no entiendo hacia dónde desplazar: «{hacia}» (abajo o arriba, y cuántas muescas)"
+                      : Desplazar == null ? "no sé desplazar aquí"
+                      : ok ? $"desplacé {Math.Abs(muescas.Value)} muesca(s) hacia {(muescas < 0 ? "abajo" : "arriba")}"
+                      : $"no pude desplazar «{hacia}»";
             }
             else
             {

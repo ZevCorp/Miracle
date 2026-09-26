@@ -60,7 +60,7 @@ public sealed class Asistente : IDisposable
             PulsarTeclaYEsperar,
             (objetivo, hecho) => motor.Objetivo(objetivo, MaxPasosPorObjetivo, hecho),
             HayQueParar)
-        { AlTerminarPaso = l => Log("   " + l) };
+        { AlTerminarPaso = l => Log("   " + l), Desplazar = DesplazarYEsperar };
         var r = ejecutor.Ejecutar(pasos);
         Log("↩ " + r.Resultado.Resumen);
         return r.Relato() + "\n\nAhora:\n" + Mirar();
@@ -99,6 +99,25 @@ public sealed class Asistente : IDisposable
         var reloj = Stopwatch.StartNew();
         var a = Asentado.Esperar(() => _lector.Leer(Ventana()).Huella, antes, Ejecutor.EsperaTrasTecla(tecla), () => reloj.ElapsedMilliseconds);
         Log($"   tecla «{tecla}»: {(a.Cambio ? "la pantalla cambió" : "la pantalla no cambió")} en {a.Ms} ms");
+        return true;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr h, out Rect r);
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] private struct Rect { public int L, T, R, B; }
+
+    /// <summary>
+    /// La rueda sobre el centro de la ventana de delante (promesa 462): es donde está el contenido que se lee, y no
+    /// una barra lateral. Después, la misma espera que tras un clic: sale en cuanto la pantalla cambia.
+    /// </summary>
+    private bool DesplazarYEsperar(int muescas)
+    {
+        var v = Donde.Ahora()?.Ventana ?? IntPtr.Zero;
+        if (v == IntPtr.Zero || !GetWindowRect(v, out var r)) return false;
+        string antes = _lector.Leer(v).Huella;
+        var reloj = Stopwatch.StartNew();
+        Raton.Desplazar((r.L + r.R) / 2, (r.T + r.B) / 2, muescas);
+        var a = Asentado.Esperar(() => _lector.Leer(v).Huella, antes, Asentado.TechoMs, () => reloj.ElapsedMilliseconds);
+        Log($"   desplazar {muescas}: {(a.Cambio ? "la pantalla cambió" : "la pantalla no cambió")} en {a.Ms} ms");
         return true;
     }
 

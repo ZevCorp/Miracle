@@ -49,6 +49,27 @@ public static class Raton
 
     public static void Clic(Accionable a) { var (x, y) = Centro(a.Caja); Clic(x, y); }
 
+    private const uint Rueda = 0x0800, UnaMuesca = 120;
+
+    /// <summary>Lo que se va a mandar al desplazar, dicho (promesa 462): un evento de rueda por muesca.</summary>
+    public static IReadOnlyList<string> EventosDeRueda(int muescas) =>
+        Enumerable.Repeat($"rueda {Math.Sign(muescas) * (int)UnaMuesca}", Math.Abs(muescas)).ToList();
+
+    /// <summary>
+    /// LA RUEDA REAL, sobre el punto dado: se lleva el cursor ahí porque la rueda la recibe lo que hay debajo del
+    /// ratón, no lo que tiene el foco. Una muesca por evento, como una rueda de verdad: algunas páginas ignoran
+    /// un solo evento de 600.
+    /// </summary>
+    public static void Desplazar(int x, int y, int muescas)
+    {
+        SetCursorPos(x, y);
+        var e = Enumerable.Range(0, Math.Abs(muescas)).Select(_ => new INPUT
+        {
+            Tipo = 0, U = new UNION { M = new MOUSEINPUT { Flags = Rueda, Datos = unchecked((uint)(Math.Sign(muescas) * (int)UnaMuesca)) } },
+        }).ToArray();
+        if (e.Length > 0) SendInput((uint)e.Length, e, Marshal.SizeOf<INPUT>());
+    }
+
     /// <summary>Texto por teclado real, en Unicode: vale para cualquier distribución de teclado.</summary>
     /// <summary>
     /// Pausa entre letras al escribir, en ms (promesa 460). DE UN SOLO LOTE, el Bloc de notas de Windows 11 cambiaba
