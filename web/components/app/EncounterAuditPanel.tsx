@@ -24,10 +24,10 @@ import {
   CheckCircle2,
   History,
   LayoutTemplate,
-  ShieldCheck,
 } from "lucide-react";
 import type { ClinicalEncounter, ClinicalNoteJson, PrivacyShieldSummary } from "@/lib/api/clinical";
 import { describePrivacySummary } from "@/lib/clinical/privacy-summary";
+import { PrivacyShieldIcon, privacyIconColor } from "./privacy-icon";
 import {
   noteReviewLabel,
   noteReviewScore,
@@ -397,13 +397,7 @@ export function EncounterAuditPanel({
               </dd>
             </div>
           </div>
-          <div className="flex items-start gap-2.5">
-            <ShieldCheck size={15} className="mt-0.5 shrink-0 text-success" />
-            <div className="min-w-0">
-              <dt className="font-semibold text-deep">Privacidad</dt>
-              <dd className="text-muted">{describePrivacySummary(privacy).detail}</dd>
-            </div>
-          </div>
+          <PrivacidadFila privacy={privacy} />
         </dl>
 
         {encounter?.supersedes_encounter_id || encounter?.replaced_by_encounter_id ? (
@@ -429,6 +423,20 @@ export function EncounterAuditPanel({
           </div>
         ) : null}
       </section>
+    </div>
+  );
+}
+
+/** La fila «Privacidad» del panel: icono y texto salen del mismo dato del servidor. */
+function PrivacidadFila({ privacy }: { privacy: PrivacyShieldSummary | null | undefined }) {
+  const { tone, detail } = describePrivacySummary(privacy);
+  return (
+    <div className="flex items-start gap-2.5">
+      <PrivacyShieldIcon tone={tone} className={`mt-0.5 shrink-0 ${privacyIconColor(tone)}`} />
+      <div className="min-w-0">
+        <dt className="font-semibold text-deep">Privacidad</dt>
+        <dd className="text-muted">{detail}</dd>
+      </div>
     </div>
   );
 }

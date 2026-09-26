@@ -70,6 +70,17 @@ estados, nunca valores:
 
 `tests/privacy-claims.test.ts` fija la regla: sin dato del servidor no se afirma
 nada, y ninguna pantalla puede volver a tener un texto fijo de «protegido».
+Desde el 2026-09-26 el icono dice lo mismo que el texto (`components/app/privacy-icon.tsx`):
+escudo con visto solo con protección certificada, con alerta en modo sombra y
+vacío sin dato. Antes el panel de auditoría pintaba siempre el visto verde.
+
+## Una nota con un marcador sin resolver no se firma
+
+Si el modelo deforma un marcador o inventa uno que la llamada no emitió, Graph
+lo deja visible y la nota trae un aviso. `signConsultationNote` además se niega a
+firmarla mientras quede alguno (`lib/clinical/privacy-markers.ts`, misma
+gramática que Graph): una historia firmada con «[PACIENTE_NOMBRE_1]» en lugar
+del nombre sería un documento roto que viajaría al sistema del hospital.
 
 ## Lo que sigue siendo verdad aquí
 

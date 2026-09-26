@@ -4,6 +4,7 @@ import { computeSignatureHash } from "@/lib/clinical/signature-hash";
 import { getCurrentProfile } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEMO_AUDIT_ACCION } from "@/lib/demo";
+import { privacyMarkersInNote } from "@/lib/clinical/privacy-markers";
 
 export interface SignNoteResult {
   ok: boolean;
@@ -48,6 +49,25 @@ export async function signConsultationNote(
     return {
       ok: false,
       error: "Esta es una consulta de demostración y no puede firmarse.",
+    };
+  }
+
+  // Un marcador de privacidad sin resolver («[PACIENTE_NOMBRE_1]») es un
+  // documento roto: firmado, quedaría así en la historia clínica y viajaría al
+  // sistema del hospital. Graph ya avisa en la nota cuando no pudo resolver uno;
+  // aquí se impide cerrar el documento hasta que el médico ponga el dato real.
+  const marcadores = privacyMarkersInNote(
+    consultation.note as { texto?: string; items?: string[] }[] | null,
+    consultation.resumen as string | null,
+  );
+  if (marcadores.length > 0) {
+    const cuales = [...new Set(marcadores)].slice(0, 3).join(", ");
+    return {
+      ok: false,
+      error:
+        marcadores.length === 1
+          ? `La nota tiene un marcador de privacidad sin resolver (${cuales}). Reemplázalo por el dato real antes de firmar.`
+          : `La nota tiene ${marcadores.length} marcadores de privacidad sin resolver (${cuales}). Reemplázalos por los datos reales antes de firmar.`,
     };
   }
 
