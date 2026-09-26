@@ -71,7 +71,7 @@ public sealed class Burbuja : Window
         };
         var menu = new ContextMenu();
         menu.Items.Add(Item("Hablarle", () => _ = Despertar()));
-        menu.Items.Add(Item("Escribirle un pedido…", Escribir));
+        menu.Items.Add(Item("Escribirle una orden…", Escribir));
         menu.Items.Add(Item("Callar", () => _ = _voz?.CerrarAsync("se lo pidieron")));
         menu.Items.Add(Item("Abrir el log", () => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Registro.Carpeta) { UseShellExecute = true })));
         menu.Items.Add(Item("Salir", () => Application.Current.Shutdown()));
@@ -150,31 +150,13 @@ public sealed class Burbuja : Window
         catch (Exception e) { Registro.Log($"✘ no pude abrir la voz: {e.GetType().Name}: {e.Message}"); PonerEstado("error"); }
     }
 
+    private PanelDeOrdenes? _panel;
+
+    /// <summary>El panel de órdenes: uno solo, que se esconde y se vuelve a abrir con lo último que hizo.</summary>
     private void Escribir()
     {
-        var caja = new TextBox { Width = 380, Margin = new Thickness(8) };
-        var w = new Window { Title = "Pídele algo a Ü", Content = caja, SizeToContent = SizeToContent.WidthAndHeight, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterScreen };
-        caja.KeyDown += (_, e) =>
-        {
-            if (e.Key != Key.Enter) return;
-            string pedido = caja.Text.Trim();
-            w.Close();
-            if (pedido.Length == 0) return;
-            Registro.Log("✍ " + pedido);
-            if (_voz is { Abierta: true }) { _ = _voz.EscribirAsync(pedido); return; }
-            if (_claveOpenAI == null) { Registro.Log("✘ sin clave de OpenAI no hay Luna"); return; }
-            // Sin voz abierta, por texto: la ventana del pedido se cerró y el foco vuelve a la app de la persona.
-            _ = Task.Run(() =>
-            {
-                PonerEstado("actuando");
-                using var luna = new LunaPorTexto(_claveOpenAI) { Log = Registro.Log };
-                string r = luna.Pedir(pedido, _ü);
-                Registro.Log("Ü: " + r);
-                PonerEstado("quieta");
-            });
-        };
-        w.Show();
-        caja.Focus();
+        _panel ??= new PanelDeOrdenes(_ü, _claveOpenAI, PonerEstado, () => new Rect(Left, Top, Width, Height));
+        _panel.Abrir();
     }
 
     [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr h, int i);
