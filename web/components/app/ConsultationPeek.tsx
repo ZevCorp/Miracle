@@ -22,7 +22,7 @@ import { HoverHint } from "@/components/ui/HoverHint";
 import { resolveConsultationIdentity } from "@/lib/clinical/patient-identity";
 import { formatFechaRelativa } from "@/lib/dates";
 import { isDemoConsultation } from "@/lib/demo";
-import { abrirImpresionNota } from "@/lib/pdf/note-print";
+import { imprimirDeLaConsulta } from "@/lib/pdf/consultation-documents";
 import { TYPE_LABEL, type Consultation } from "@/lib/mock";
 
 /**
@@ -192,7 +192,11 @@ export function ConsultationPeek() {
 
   function imprimir() {
     if (!c) return;
-    abrirImpresionNota(
+    // El mismo papel que el detalle y que U: lib/pdf/patient-documents.ts. Las
+    // adendas viven en el detalle (se cargan aparte); para el expediente
+    // completo está "Abrir completo".
+    void imprimirDeLaConsulta(
+      "nota",
       {
         consultation: c,
         patient,
@@ -201,10 +205,8 @@ export function ConsultationPeek() {
         medicoIdentidad: getMedicoIdentity(c.medicoId),
         org,
         demo,
-        // Las adendas viven en el detalle (se cargan aparte); el panel imprime
-        // el documento base. Para el expediente completo está "Abrir completo".
       },
-      () => showToast("Permita las ventanas emergentes para generar el PDF.", "warning"),
+      (mensaje) => showToast(mensaje, "warning"),
     );
   }
 
