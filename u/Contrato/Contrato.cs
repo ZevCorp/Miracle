@@ -55,7 +55,8 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(462, "«desplaza: abajo|arriba [N]» es un gesto directo con la rueda del ratón real sobre la ventana de delante: N muescas —5 si no se dice, nunca más de 20—, sin preguntarle a Jev; una dirección que no entiende hace fallar el paso diciéndolo, y Luna sabe que existe.", P462);
+        Promesa(463, "Luna no tiene tope de turnos: sigue mientras la pantalla cambie, y solo para con Escape, con 3 turnos seguidos sin que la pantalla cambie o a los 10 minutos; al parar, un último turno sin herramientas le pide contar lo que logró, y eso es lo que se entrega, empezando por «Paré:» y el motivo.", P463);
+        Promesa(462,"«desplaza: abajo|arriba [N]» es un gesto directo con la rueda del ratón real sobre la ventana de delante: N muescas —5 si no se dice, nunca más de 20—, sin preguntarle a Jev; una dirección que no entiende hace fallar el paso diciéndolo, y Luna sabe que existe.", P462);
         Promesa(461,"Un corte de red no tumba a Ü: si la conexión con Luna no llega a abrirse se reintenta hasta 3 veces, y si no se abre, el pedido termina diciendo la causa; lo que ya salió hacia Luna no se reintenta.", P461);
 
         Console.WriteLine();
@@ -731,6 +732,70 @@ internal static class Contrato
         var prop = T("Raton").GetProperty("PausaEntreLetrasMs") ?? throw new Pendiente("Raton.PausaEntreLetrasMs");
         int pausa = (int)prop.GetValue(null)!;
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
+    }
+
+    /// <summary>Una Luna de mentira: contesta lo que diga «guion» para cada petición, y anota los cuerpos que recibe.</summary>
+    private sealed class LunaDeMentira : HttpMessageHandler
+    {
+        public readonly List<string> Cuerpos = new();
+        private readonly Func<int, string> _guion;
+        public LunaDeMentira(Func<int, string> guion) => _guion = guion;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
+        {
+            Cuerpos.Add(req.Content!.ReadAsStringAsync(ct).GetAwaiter().GetResult());
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                { Content = new StringContent(_guion(Cuerpos.Count), System.Text.Encoding.UTF8, "application/json") });
+        }
+        public static string Hacer(int n) => $"{{\"id\":\"r{n}\",\"output\":[{{\"type\":\"function_call\",\"name\":\"hacer\",\"arguments\":\"{{\\\"pasos\\\":[\\\"x\\\"]}}\",\"call_id\":\"c{n}\"}}]}}";
+        public static string Dice(int n, string texto) => $"{{\"id\":\"r{n}\",\"output\":[{{\"type\":\"message\",\"content\":[{{\"type\":\"output_text\",\"text\":\"{texto}\"}}]}}]}}";
+    }
+
+    private static void P463()
+    {
+        // Almejas (2026-09-26, 08:53) y Copilot→Neon (10:00): «Luna usó 8 turnos de herramientas sin terminar: paro»,
+        // la primera con los papers ya abiertos. Un tope fijo corta igual una tarea que avanza que una atascada.
+        var lunaT = T("LunaPorTexto");
+        var ctor = lunaT.GetConstructor(new[] { typeof(string), typeof(HttpMessageHandler) }) ?? throw new Pendiente("LunaPorTexto(clave, manejador)");
+        var pedir = lunaT.GetMethods().FirstOrDefault(m => m.Name == "Pedir" && m.GetParameters().Length == 5) ?? throw new Pendiente("LunaPorTexto.Pedir/5");
+        string Correr(LunaDeMentira luna, Func<string> pantalla, Func<bool> parar, Func<TimeSpan> reloj)
+        {
+            using var l = (IDisposable)ctor.Invoke(new object[] { "sk-de-mentira", luna });
+            Func<string, string, string> atender = (_, _) => "✔ hecho\n\nAhora:\n" + pantalla();
+            try { return (string)pedir.Invoke(l, new object[] { "haz algo largo", pantalla, atender, parar, reloj })!; }
+            catch (System.Reflection.TargetInvocationException e) when (e.InnerException != null) { throw e.InnerException; }
+        }
+        var cero = TimeSpan.Zero;
+
+        // 12 turnos que avanzan: la pantalla cambia cada vez. Ninguno se corta; al 13 Luna contesta.
+        int paso = 0;
+        var avanza = new LunaDeMentira(n => n <= 12 ? LunaDeMentira.Hacer(n) : LunaDeMentira.Dice(n, "listo: 12 pantallas"));
+        string r1 = Correr(avanza, () => "Ventana delante: pantalla " + paso++, () => false, () => cero);
+        Exige(r1 == "listo: 12 pantallas" && avanza.Cuerpos.Count == 13, $"una tarea que avanza se cortó: {avanza.Cuerpos.Count} peticiones · «{r1}»");
+
+        // Atascada: la pantalla no cambia. Para tras 3 turnos sin cambio, y el cuarto es el cierre sin herramientas.
+        var atascada = new LunaDeMentira(n => n <= 3 ? LunaDeMentira.Hacer(n) : LunaDeMentira.Dice(n, "abrí Copilot pero no pude escribir"));
+        string r2 = Correr(atascada, () => "Ventana delante: siempre la misma", () => false, () => cero);
+        Exige(atascada.Cuerpos.Count == 4, $"atascada, se hicieron {atascada.Cuerpos.Count} peticiones (3 turnos + el cierre)");
+        Exige(r2.StartsWith("Paré:") && r2.Contains("sin que la pantalla cambie") && r2.Contains("abrí Copilot pero no pude escribir"),
+            $"el cierre no dice por qué paró ni lo que logró: «{r2}»");
+        using (var d = JsonDocument.Parse(atascada.Cuerpos[^1]))
+        {
+            bool sinHerramientas = d.RootElement.TryGetProperty("tool_choice", out var tc) && tc.GetString() == "none";
+            Exige(sinHerramientas, "el cierre deja a Luna usar herramientas");
+            Exige(d.RootElement.GetProperty("input").GetRawText().Contains("function_call_output"), "el cierre no devuelve el resultado del último turno");
+        }
+
+        // Escape: para en el acto, sin otro turno de herramientas.
+        int llamadas = 0;
+        var conEscape = new LunaDeMentira(n => n == 1 ? LunaDeMentira.Hacer(n) : LunaDeMentira.Dice(n, "iba por la mitad"));
+        string r3 = Correr(conEscape, () => "pantalla " + llamadas, () => ++llamadas > 1, () => cero);
+        Exige(conEscape.Cuerpos.Count == 2 && r3.StartsWith("Paré:") && r3.Contains("Escape"), $"Escape no paró: {conEscape.Cuerpos.Count} peticiones · «{r3}»");
+
+        // Diez minutos: el tope de seguridad, aunque avance.
+        int q = 0; var t = TimeSpan.Zero;
+        var larga = new LunaDeMentira(n => n <= 50 ? LunaDeMentira.Hacer(n) : LunaDeMentira.Dice(n, "no terminé"));
+        string r4 = Correr(larga, () => "pantalla " + q++, () => false, () => t += TimeSpan.FromMinutes(3));
+        Exige(r4.StartsWith("Paré:") && r4.Contains("10 minutos") && larga.Cuerpos.Count <= 6, $"el tope de 10 minutos no paró: {larga.Cuerpos.Count} peticiones · «{r4}»");
     }
 
     private static void P462()
