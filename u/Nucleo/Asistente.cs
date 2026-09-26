@@ -176,8 +176,11 @@ public sealed class LunaPorTexto : IDisposable
             };
             if (anterior != null) cuerpo["previous_response_id"] = anterior;
             var r = Stopwatch.StartNew();
-            using var res = _http.PostAsync("https://api.openai.com/v1/responses",
-                new StringContent(JsonSerializer.Serialize(cuerpo), Encoding.UTF8, "application/json")).GetAwaiter().GetResult();
+            string serializado = JsonSerializer.Serialize(cuerpo);
+            var envio = Enviar(() => _http.PostAsync("https://api.openai.com/v1/responses",
+                new StringContent(serializado, Encoding.UTF8, "application/json")).GetAwaiter().GetResult(), Thread.Sleep);
+            if (envio.Respuesta == null) { Log($"✘ Luna sin conexión tras {envio.Intentos} intento(s): {envio.Falla}"); return "No pude hablar con Luna: " + envio.Falla; }
+            using var res = envio.Respuesta;
             string json = res.Content.ReadAsStringAsync().GetAwaiter().GetResult();
             if (!res.IsSuccessStatusCode) return $"Luna contestó HTTP {(int)res.StatusCode}: {(json.Length > 300 ? json[..300] : json)}";
             using var doc = JsonDocument.Parse(json);
@@ -204,5 +207,33 @@ public sealed class LunaPorTexto : IDisposable
         return "Luna usó 8 turnos de herramientas sin terminar: paro.";
     }
 
+    /// <summary>
+    /// UN CORTE DE RED NO TUMBA A Ü (promesa 461). El 2026-09-25 (20:45 y 21:09) un «Host desconocido» de
+    /// api.openai.com subió sin capturar y cerró el proceso sin dejar una línea en el log. Solo se reintenta lo
+    /// que no llegó a salir —DNS o conexión rechazada—: un plazo agotado pudo llegar a Luna y hacer algo, y
+    /// repetirlo sería pedírselo dos veces.
+    /// </summary>
+    public static Envio Enviar(Func<HttpResponseMessage> enviar, Action<int> esperarMs)
+    {
+        int[] pausas = { 300, 1000 };
+        for (int intento = 1; ; intento++)
+        {
+            try { return new Envio(enviar(), "", intento); }
+            catch (HttpRequestException e) when (e.InnerException is System.Net.Sockets.SocketException && intento <= pausas.Length)
+            {
+                esperarMs(pausas[intento - 1]);
+            }
+            catch (Exception e)
+            {
+                string causa = "";
+                for (var x = e; x != null; x = x.InnerException) causa += (causa.Length > 0 ? " ← " : "") + $"{x.GetType().Name}: {x.Message}";
+                return new Envio(null, causa, intento);
+            }
+        }
+    }
+
     public void Dispose() => _http.Dispose();
 }
+
+/// <summary>Lo que dejó mandarle algo a Luna: la respuesta, o por qué no hubo, y cuántas veces se intentó.</summary>
+public sealed record Envio(HttpResponseMessage? Respuesta, string Falla, int Intentos);
