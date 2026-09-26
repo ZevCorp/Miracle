@@ -55,6 +55,7 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
+        Promesa(461, "Un corte de red no tumba a Ü: si la conexión con Luna no llega a abrirse se reintenta hasta 3 veces, y si no se abre, el pedido termina diciendo la causa; lo que ya salió hacia Luna no se reintenta.", P461);
 
         Console.WriteLine();
         int incumplidas = _mal + _pendientes + _arnes;
@@ -729,6 +730,40 @@ internal static class Contrato
         var prop = T("Raton").GetProperty("PausaEntreLetrasMs") ?? throw new Pendiente("Raton.PausaEntreLetrasMs");
         int pausa = (int)prop.GetValue(null)!;
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
+    }
+
+    private static void P461()
+    {
+        // Lo que pasó el 2026-09-25 (20:45 y 21:09): «Host desconocido (api.openai.com:443)» sin capturar, el
+        // proceso se cerró y el log se quedó en «Jev caliente», sin una línea que dijera por qué.
+        static Exception SinConexion() => new HttpRequestException("Host desconocido. (api.openai.com:443)",
+            new System.Net.Sockets.SocketException(11001));
+        var esperas = new List<int>();
+        Action<int> esperar = ms => esperas.Add(ms);
+
+        // Dos cortes y luego contesta: llega, al tercer intento.
+        int n = 0;
+        Func<HttpResponseMessage> dosCortes = () => ++n <= 2 ? throw SinConexion() : new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+        var r1 = S("LunaPorTexto", "Enviar", dosCortes, esperar)!;
+        Exige(P(r1, "Respuesta") != null && (int)P(r1, "Intentos")! == 3, $"con dos cortes y luego respuesta no llegó al tercer intento: {r1}");
+        Exige(esperas.Count == 2 && esperas.All(ms => ms > 0), $"entre intentos no se esperó: {string.Join(",", esperas)}");
+
+        // La red no vuelve: no lanza, dice la causa entera, y no pasa de 3 intentos.
+        n = 0; esperas.Clear();
+        Func<HttpResponseMessage> sinRed = () => { n++; throw SinConexion(); };
+        object r2;
+        try { r2 = S("LunaPorTexto", "Enviar", sinRed, esperar)!; }
+        catch (Exception e) when (e is not Pendiente) { throw new Incumplida($"un corte de red salió como excepción: {e.GetType().Name}: {e.Message}"); }
+        string falla = (string)(P(r2, "Falla") ?? "");
+        Exige(P(r2, "Respuesta") == null && n == 3, $"sin red se intentó {n} veces");
+        Exige(falla.Contains("Host desconocido") && falla.Contains("SocketException"), $"la falla no dice la causa entera: «{falla}»");
+
+        // Lo que ya salió no se repite: un plazo agotado puede haber llegado a Luna y hecho algo.
+        n = 0;
+        Func<HttpResponseMessage> plazo = () => { n++; throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout"); };
+        var r3 = S("LunaPorTexto", "Enviar", plazo, esperar)!;
+        Exige(n == 1 && P(r3, "Respuesta") == null, $"un plazo agotado se reintentó ({n} intentos)");
+        Exige(((string)(P(r3, "Falla") ?? "")).Contains("TaskCanceledException"), $"el plazo agotado no se dice: «{P(r3, "Falla")}»");
     }
 
     // ── Delegados tipados sobre tipos que el contrato solo conoce por nombre ───────────────────
