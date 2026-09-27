@@ -55,11 +55,12 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(467, "Lo que no es un clic no se le pide a Jev: un paso con una dirección web se abre como «abre:», un «objetivo:» delante sobra, «esperar…» espera a que la pantalla se quede quieta sin pulsar, y «escribir…» sin texto exacto falla al instante pidiendo «escribe:»; y Luna lo sabe.", P467);
+        Promesa(468, "Luna sabe cuánto lleva: cada resultado que recibe dice el tiempo que va del pedido, y sabe que si la persona pide una duración tiene que seguir hasta cumplirla.", P468);
+        Promesa(467,"Lo que no es un clic no se le pide a Jev: un paso con una dirección web se abre como «abre:», un «objetivo:» delante sobra, «esperar…» espera a que la pantalla se quede quieta sin pulsar, y «escribir…» sin texto exacto falla al instante pidiendo «escribe:»; y Luna lo sabe.", P467);
         Promesa(466,"Jev reintenta la conexión igual que Luna: si no llega a abrirse lo intenta hasta 3 veces, y si no se abre falla diciendo la causa y cuántas veces lo intentó; lo que ya salió hacia Jev no se reintenta.", P466);
         Promesa(465,"Tras pulsar un enlace se espera a que la pantalla cambie hasta 1,5 s, saliendo en cuanto cambia: una página que tarda en cargar no es un clic que no agarró. Tras cualquier otro clic se sigue esperando como mucho 150 ms.", P465);
         Promesa(464,"Un objetivo no se corta por contar pasos: lo paran cumplirse, que Jev no se atreva, Escape, o que Jev elija lo mismo por tercera vez en la misma pantalla —aunque entre medias haya pasado por otras: un bucle—; la red de seguridad es de 50 pasos.", P464);
-        Promesa(463,"Luna no tiene tope de turnos ni se da por atascada: sigue hasta contestar, y solo para con Escape o a los 10 minutos; al parar, un último turno sin herramientas le pide contar lo que logró, y eso es lo que se entrega, empezando por «Paré:» y el motivo.", P463);
+        Promesa(463,"Luna no tiene tope de turnos ni se da por atascada: sigue hasta contestar, y solo para con Escape o a los 60 minutos; al parar, un último turno sin herramientas le pide contar lo que logró, y eso es lo que se entrega, empezando por «Paré:» y el motivo.", P463);
         Promesa(462,"«desplaza: abajo|arriba [N]» es un gesto directo con la rueda del ratón real sobre la ventana de delante: N muescas —5 si no se dice, nunca más de 20—, sin preguntarle a Jev; una dirección que no entiende hace fallar el paso diciéndolo, y Luna sabe que existe.", P462);
         Promesa(461,"Un corte de red no tumba a Ü: si la conexión con Luna no llega a abrirse se reintenta hasta 3 veces, y si no se abre, el pedido termina diciendo la causa; lo que ya salió hacia Luna no se reintenta.", P461);
 
@@ -739,6 +740,26 @@ internal static class Contrato
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
     }
 
+    private static void P468()
+    {
+        // La prueba libre del dueño (2026-09-26, 19:15): «haz muchas pruebas durante media hora» terminó a los 28 s.
+        var lunaT = T("LunaPorTexto");
+        var ctor = lunaT.GetConstructor(new[] { typeof(string), typeof(HttpMessageHandler) }) ?? throw new Pendiente("LunaPorTexto(clave, manejador)");
+        var pedir = lunaT.GetMethods().First(m => m.Name == "Pedir" && m.GetParameters().Length == 5);
+        var luna = new LunaDeMentira(n => n <= 2 ? LunaDeMentira.Hacer(n) : LunaDeMentira.Dice(n, "listo"));
+        var t = TimeSpan.Zero;
+        using (var l = (IDisposable)ctor.Invoke(new object[] { "sk-de-mentira", luna }))
+            pedir.Invoke(l, new object[] { "haz pruebas durante media hora", (Func<string>)(() => "pantalla"),
+                (Func<string, string, string>)((_, _) => "✔ hecho"), (Func<bool>)(() => false), (Func<TimeSpan>)(() => t += TimeSpan.FromSeconds(95)) });
+        using (var d = JsonDocument.Parse(luna.Cuerpos[1]))
+        {
+            string salida = d.RootElement.GetProperty("input").GetRawText();
+            Exige(salida.Contains("Llevas") && salida.Contains("min"), $"el resultado que recibe Luna no dice cuánto lleva: {salida}");
+        }
+        string instr = (string)(T("ProtocoloVivo").GetField("InstruccionesDeLuna")?.GetValue(null) ?? "");
+        Exige(instr.Contains("sigue hasta cumplirla"), "Luna no sabe que una duración pedida se cumple");
+    }
+
     private static void P467()
     {
         // Rondas del 2026-09-26 y la prueba libre del dueño (19:15): «abre https://…» y «objetivo: poner el foco en la
@@ -927,11 +948,11 @@ internal static class Contrato
             Exige(d.RootElement.GetProperty("input").GetRawText().Contains("function_call_output"), "el cierre no devuelve el resultado del último turno");
         }
 
-        // Diez minutos: el tope de seguridad, aunque avance.
+        // Sesenta minutos: la red de seguridad, aunque avance. Eran 10, y una «media hora» pedida se habría cortado.
         int q = 0; var t = TimeSpan.Zero;
         var larga = new LunaDeMentira(n => n <= 50 ? LunaDeMentira.Hacer(n) : LunaDeMentira.Dice(n, "no terminé"));
-        string r4 = Correr(larga, () => "pantalla " + q++, () => false, () => t += TimeSpan.FromMinutes(3));
-        Exige(r4.StartsWith("Paré:") && r4.Contains("10 minutos") && larga.Cuerpos.Count <= 6, $"el tope de 10 minutos no paró: {larga.Cuerpos.Count} peticiones · «{r4}»");
+        string r4 = Correr(larga, () => "pantalla " + q++, () => false, () => t += TimeSpan.FromMinutes(15));
+        Exige(r4.StartsWith("Paré:") && r4.Contains("60 minutos") && larga.Cuerpos.Count <= 6, $"el tope de 60 minutos no paró: {larga.Cuerpos.Count} peticiones · «{r4}»");
     }
 
     private static void P462()
