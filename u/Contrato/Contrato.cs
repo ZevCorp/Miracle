@@ -55,7 +55,8 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(473, "Con el navegador delante, abrir una dirección la carga en la pestaña de delante —escrita de una vez en su barra de direcciones—, no en una pestaña nueva; con otra app delante, o sin navegador, se abre como siempre.", P473);
+        Promesa(474, "Leer la pantalla tiene plazo: UIA espera como mucho 1,5 s para conectar con una app y 3 s por lectura; una ventana que no contesta a tiempo se salta, queda dicho en el log, y la lectura sigue con lo demás.", P474);
+        Promesa(473,"Con el navegador delante, abrir una dirección la carga en la pestaña de delante —escrita de una vez en su barra de direcciones—, no en una pestaña nueva; con otra app delante, o sin navegador, se abre como siempre.", P473);
         Promesa(472,"Si la app pedida se abrió pero Windows no la dejó pasar al frente, Ü busca su ventana —visible, de la app pedida— y la trae él; y leer la pantalla nunca tumba un pedido: si falla, Luna recibe por qué y sigue.", P472);
         Promesa(471,"Lo que cae fuera de su ventana no se ofrece a Jev ni se le cuenta a Luna: un enlace por debajo de lo visible de la página no está en la lista, y lo que asoma aunque sea un poco, sí.", P471);
         Promesa(470,"Abrir una app que ya está delante llega: si tras abrirla la ventana de delante es de la app pedida —por su proceso, y en las de la tienda también por su título—, cuenta como abierta; y si ya estaba delante antes de abrirla, se esperan 700 ms a que cambie, no 3 s.", P470);
@@ -743,6 +744,17 @@ internal static class Contrato
         var prop = T("Raton").GetProperty("PausaEntreLetrasMs") ?? throw new Pendiente("Raton.PausaEntreLetrasMs");
         int pausa = (int)prop.GetValue(null)!;
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
+    }
+
+    private static void P474()
+    {
+        // Ronda libre L5 (2026-09-26, 21:00:55 → 21:02:08): 72 s entre el plan de Luna y la primera tecla, leyendo una
+        // página de YouTube con Chrome a 137 procesos. Sin plazo, una app que no contesta congela a Ü entero.
+        var lectorT = T("LectorUia");
+        using var lector = (IDisposable)(Activator.CreateInstance(lectorT) ?? throw new Pendiente("LectorUia()"));
+        var plazos = lectorT.GetProperty("Plazos")?.GetValue(lector) ?? throw new Pendiente("LectorUia.Plazos");
+        int conectar = (int)plazos.GetType().GetField("Item1")!.GetValue(plazos)!, leer = (int)plazos.GetType().GetField("Item2")!.GetValue(plazos)!;
+        Exige(conectar is > 0 and <= 1500 && leer is > 0 and <= 3000, $"los plazos de UIA son {conectar} ms para conectar y {leer} ms por lectura");
     }
 
     private static void P473()
