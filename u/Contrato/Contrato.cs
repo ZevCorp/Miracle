@@ -55,7 +55,8 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(463, "Luna no tiene tope de turnos ni se da por atascada: sigue hasta contestar, y solo para con Escape o a los 10 minutos; al parar, un último turno sin herramientas le pide contar lo que logró, y eso es lo que se entrega, empezando por «Paré:» y el motivo.", P463);
+        Promesa(464, "Un objetivo no se corta por contar pasos: lo paran cumplirse, que Jev no se atreva, Escape, o que Jev elija lo mismo por tercera vez en la misma pantalla —aunque entre medias haya pasado por otras: un bucle—; la red de seguridad es de 50 pasos.", P464);
+        Promesa(463,"Luna no tiene tope de turnos ni se da por atascada: sigue hasta contestar, y solo para con Escape o a los 10 minutos; al parar, un último turno sin herramientas le pide contar lo que logró, y eso es lo que se entrega, empezando por «Paré:» y el motivo.", P463);
         Promesa(462,"«desplaza: abajo|arriba [N]» es un gesto directo con la rueda del ratón real sobre la ventana de delante: N muescas —5 si no se dice, nunca más de 20—, sin preguntarle a Jev; una dirección que no entiende hace fallar el paso diciéndolo, y Luna sabe que existe.", P462);
         Promesa(461,"Un corte de red no tumba a Ü: si la conexión con Luna no llega a abrirse se reintenta hasta 3 veces, y si no se abre, el pedido termina diciendo la causa; lo que ya salió hacia Luna no se reintenta.", P461);
 
@@ -328,7 +329,7 @@ internal static class Contrato
     }
 
     // Un motor de mentira: pantallas que cambian (o no) y un decisor guionizado.
-    private static (object Motor, List<int> Pulsados) Motor(Func<int, object> decidirEnLaVuelta, bool pantallaCambia, Func<int, bool>? parar = null)
+    private static (object Motor, List<int> Pulsados) Motor(Func<int, object> decidirEnLaVuelta, bool pantallaCambia, Func<int, bool>? parar = null, Func<int, string>? pantalla = null)
     {
         var pulsados = new List<int>();
         int vuelta = 0;
@@ -339,7 +340,8 @@ internal static class Contrato
         var decidirT = typeof(Func<,,,>).MakeGenericType(typeof(string), typeof(string), accionablesT, T("Eleccion"));
         var pulsarT = typeof(Action<>).MakeGenericType(T("Accionable"));
 
-        object Ver() => pantallaCambia ? Lista(("Pantalla " + pulsados.Count, "Text"), ("Siguiente", "Button")) : Lista(("Igual", "Text"), ("Siguiente", "Button"));
+        object Ver() => pantalla != null ? Lista((pantalla(pulsados.Count), "Text"), ("Siguiente", "Button"))
+            : pantallaCambia ? Lista(("Pantalla " + pulsados.Count, "Text"), ("Siguiente", "Button")) : Lista(("Igual", "Text"), ("Siguiente", "Button"));
         object Decidir(string p, string o, object l) { vuelta++; return decidirEnLaVuelta(vuelta); }
         void Pulsar(object a) => pulsados.Add((int)P(a, "Numero")!);
 
@@ -732,6 +734,30 @@ internal static class Contrato
         var prop = T("Raton").GetProperty("PausaEntreLetrasMs") ?? throw new Pendiente("Raton.PausaEntreLetrasMs");
         int pausa = (int)prop.GetValue(null)!;
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
+    }
+
+    private static void P464()
+    {
+        // Almejas (2026-09-26, 08:53): «ir a https://…» agotó los 8 pasos pulsando la barra de direcciones; y un
+        // objetivo que de verdad necesita más de 8 clics —123456 por 789 con los botones— moría igual.
+        var campo = T("Asistente").GetField("PasosDeSeguridad") ?? throw new Pendiente("Asistente.PasosDeSeguridad");
+        int seguridad = (int)campo.GetValue(null)!;
+        Exige(seguridad >= 50, $"la red de seguridad es de {seguridad} pasos: un objetivo largo se corta");
+
+        // 20 clics que avanzan, y cumplido: no se corta.
+        var (largo, pl) = Motor(v => v > 20 ? Eleccion(false, 0, cumplido: 0.9, porque: "cumplido") : Eleccion(true, 2), true);
+        var rl = I(largo, "Objetivo", "calcular 123456 por 789", seguridad)!;
+        Exige(pl.Count == 20 && (bool)P(rl, "Cumplido")!, $"un objetivo de 20 clics que avanza no llegó: {pl.Count} pulsos · {P(rl, "PorQueParo")}");
+
+        // Un bucle entre dos pantallas —pestaña A, pestaña B, A, B…—: la hondura del cambio no lo salva.
+        var (bucle, pb) = Motor(_ => Eleccion(true, 2), true, pantalla: n => n % 2 == 0 ? "Pestaña A" : "Pestaña B");
+        var rb = I(bucle, "Objetivo", "ir a los resultados", seguridad)!;
+        Exige(pb.Count == 5 && ((string)P(rb, "PorQueParo")!).Contains("bucle"), $"un bucle A→B→A no se detuvo a la tercera en A: {pb.Count} pulsos · {P(rb, "PorQueParo")}");
+
+        // Pulsar lo mismo en pantallas distintas no es bucle: el «0» de la calculadora, tres veces seguidas.
+        var (ceros, pc) = Motor(v => v > 3 ? Eleccion(false, 0, cumplido: 0.9, porque: "cumplido") : Eleccion(true, 2), true, pantalla: n => "Pantalla: 1" + new string('0', n));
+        var rc = I(ceros, "Objetivo", "escribir 1000", seguridad)!;
+        Exige(pc.Count == 3 && (bool)P(rc, "Cumplido")!, $"el mismo botón en pantallas distintas se tomó por bucle: {pc.Count} pulsos · {P(rc, "PorQueParo")}");
     }
 
     /// <summary>Una Luna de mentira: contesta lo que diga «guion» para cada petición, y anota los cuerpos que recibe.</summary>
