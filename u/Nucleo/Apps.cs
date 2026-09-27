@@ -25,10 +25,28 @@ public static class Apps
         var otro => otro,
     };
 
-    /// <summary>Abre y espera a que cambie la ventana de delante. Devuelve (llegó, ms).</summary>
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr h, System.Text.StringBuilder s, int max);
+
+    private static string Titulo(IntPtr h)
+    {
+        var sb = new System.Text.StringBuilder(512);
+        GetWindowText(h, sb, sb.Capacity);
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// ¿LLEGÓ? (promesa 469). Otra ventana delante, o la MISMA con otro título: una dirección abierta con el navegador
+    /// delante abre una pestaña en esa ventana, y solo cambia el título. Mirando solo la ventana, «abre: https://…» con
+    /// Chrome delante fallaba siempre a los 3 s —13 veces en un pedido de la ronda libre del 2026-09-26—.
+    /// </summary>
+    public static bool Llego(IntPtr antes, string tituloAntes, IntPtr ahora, string tituloAhora) =>
+        ahora != IntPtr.Zero && (ahora != antes || !string.Equals(tituloAhora, tituloAntes, StringComparison.Ordinal));
+
+    /// <summary>Abre y espera a que cambie la ventana de delante o su título. Devuelve (llegó, ms).</summary>
     public static (bool Llego, long Ms) Abrir(string nombre, int techoMs = 3000)
     {
         var antes = GetForegroundWindow();
+        string tituloAntes = Titulo(antes);
         var r = Stopwatch.StartNew();
         // Un nombre que Windows no sabe abrir es «no llegó», no una excepción que tumbe el plan entero
         // (Luna pidió «abre: comando de Windows» el 2026-09-24, 23:29, y el Win32Exception subió hasta arriba).
@@ -37,7 +55,7 @@ public static class Apps
         while (r.ElapsedMilliseconds < techoMs)
         {
             var ahora = GetForegroundWindow();
-            if (ahora != IntPtr.Zero && ahora != antes) return (true, r.ElapsedMilliseconds);
+            if (Llego(antes, tituloAntes, ahora, Titulo(ahora))) return (true, r.ElapsedMilliseconds);
             Thread.Sleep(15);
         }
         return (false, r.ElapsedMilliseconds);
