@@ -21,7 +21,7 @@ struct NotchView: View {
                         Image(systemName: symbol).font(.system(size: 19, weight: .medium)).frame(width: 24)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(model.presentation.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                            Text(model.status).font(.system(size: 11)).foregroundStyle(.white.opacity(0.72)).lineLimit(1)
+                            Text(model.wakeListening && !model.microphone ? model.wakeStatus : model.status).font(.system(size: 11)).foregroundStyle(.white.opacity(0.72)).lineLimit(1)
                         }.frame(maxWidth: .infinity, alignment: .leading)
                     }.contentShape(Rectangle())
                 }.accessibilityLabel(model.notchExpanded ? "Cerrar chat del notch" : "Abrir chat del notch")

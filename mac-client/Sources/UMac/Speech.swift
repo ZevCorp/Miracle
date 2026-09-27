@@ -25,6 +25,8 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
     private var epoch = UUID()
     private var lastText = ""
     private var consecutiveErrors = 0
+    private var localOnly = false
+    private var startID = UUID()
     public override init() { super.init(); synthesizer.delegate = self }
     public static func authorize() async -> Bool {
         let microphone = await AVCaptureDevice.requestAccess(for: .audio)
@@ -32,13 +34,16 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         let speech = await withCheckedContinuation { continuation in SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) } }
         return speech == .authorized
     }
-    public func start() async {
+    public func start(localOnly: Bool = false) async {
+        let id = UUID(); startID = id
+        self.localOnly = localOnly
         wanted = true; consecutiveErrors = 0
         guard await Self.authorize() else { wanted = false; onError?("Activa Micrófono y Reconocimiento de voz en Privacidad y seguridad."); return }
-        guard wanted else { return }
+        guard wanted, startID == id, !Task.isCancelled else { return }
         open()
     }
     public func stop() {
+        startID = UUID()
         wanted = false; restart?.cancel(); restart = nil
         closeInput(); synthesizer.stopSpeaking(at: .immediate); speaking = false
         onState?(false, false)
@@ -51,7 +56,7 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         speaking = true
         onState?(false, true)
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "es-MX") ?? AVSpeechSynthesisVoice(language: "es-ES")
+        utterance.voice = AVSpeechSynthesisVoice(language: "es-CO") ?? AVSpeechSynthesisVoice(language: "es-MX")
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate
         synthesizer.speak(utterance)
     }
@@ -63,6 +68,12 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
             let id = UUID(); epoch = id; lastText = ""
             let request = SFSpeechAudioBufferRecognitionRequest()
             request.shouldReportPartialResults = true
+            if localOnly { request.contextualStrings = ["Hola Yu", "Oye Yu", "Hola You", "Hola Ü"] }
+            if localOnly && !recognizer.supportsOnDeviceRecognition {
+                wanted = false
+                onError?("La activación por saludo necesita el reconocimiento local de español de macOS. Puedes seguir usando la cara mientras está disponible.")
+                return
+            }
             if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
             self.request = request
             let input = engine.inputNode

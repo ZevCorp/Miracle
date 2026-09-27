@@ -2,6 +2,17 @@ import Foundation
 import UCore
 
 extension AgentTests {
+    func testWakeGreetingRequiresDirectAddress() {
+        for text in ["Hola Yu", "¡Hola, You! ¿Me escuchas?", "Oye Ü, abre el navegador", "hola U", "buenos días Yu"] {
+            XCTAssertEqual(VoiceActivation.isGreeting(text), true)
+        }
+        for text in ["hola", "hola YouTube", "hola ustedes", "le dije hola Yu ayer", "oye Juan"] {
+            XCTAssertEqual(VoiceActivation.isGreeting(text), false)
+        }
+        let session = LiveProtocol.start()["session"] as! [String: Any]
+        XCTAssertEqual((session["instructions"] as! String).contains("colombiano"), true)
+        XCTAssertEqual((session["instructions"] as! String).contains("sin voseo"), true)
+    }
     func testNotchExpansionHasFixedSizesAndFitsSmallDisplays() throws {
         let compact = NotchLayout(expanded: false, availableWidth: 1440, availableHeight: 900)
         let chat = NotchLayout(expanded: true, availableWidth: 1440, availableHeight: 900)
