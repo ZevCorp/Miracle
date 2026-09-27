@@ -626,7 +626,10 @@ internal static class Contrato
         // responder diálogos usaba la lista del explorador autónomo y bloqueaba «No guardar»; y desde que los
         // clics van sin ratón, la carita ya no acompaña a la mano a ninguna parte.
         Prueba("239. responder un diálogo deja guardar y deja NO guardar: el veto de lo destructivo tiene su propia lista —lo que no se deshace— y no la del explorador autónomo; «Guardar», «No guardar» y «Aplicar» se pulsan cuando el modelo lo pide, mientras «Eliminar», «Formatear», «Reiniciar», «Enviar» y «Aceptar» siguen vetados; una etiqueta que niega el verbo pegado a él no es ese verbo; y el explorador autónomo no se relaja", GuardarYNoGuardarSePuedenPulsar);
-        Prueba("240. la carita va a donde Ü acaba de pulsar: los tres clics de la mano avisan con la caja del elemento y escribir o elegir no, el viaje solo vale la pena a partir de un salto real, y su curva es fluida y rápida —empieza acelerando, no se devuelve, no rebota, hace más de medio camino en el primer tercio del tiempo y cruzar la pantalla entera no pasa de 450 ms—", LaCaritaVaADondeSePulsa);
+        // 240 RETIRADA (spec 054, 2026-09-27): la carita que viajaba al clic se posaba ~80 px sobre él y el clic
+        // siguiente de Ü —la tecla de arriba en la Calculadora— caía EN LA CARITA, que abre la voz de pago. Pasó en 5
+        // corridas de prueba en un día. La sustituye la 492. El número no se recicla.
+        Prueba("492. la carita no se pone donde Ü va a hacer clic: ni sigue al cursor automatizado ni viaja al clic, y el ciclo rápido no la avisa", LaCaritaNoSePoneDondeUPulsa);
 
         // «SESIÓN ABIERTA» SE ESCRIBÍA AL CONECTAR EL SOCKET (2026-09-13, nivel 4 del 12): con la cuenta sin crédito
         // salió en el mismo segundo que el error, y el conductor del nivel 4 la tomó por voz abierta. Del 220 al 222 son
@@ -881,6 +884,7 @@ internal static class Contrato
         Prueba("486. homónimos sin which: la lista 1..N en orden de lectura con su tipo, sin pulsar; con which=N pulsa ese y solo ese", ElCicloRapidoNumeraLosHomonimos);
         Prueba("487. antes de pulsar el ciclo lee como mucho UNA vez, y ninguna si la última lectura de esa ventana tiene menos de 2 s; lo que no está se busca en UNA lectura nueva, y si tampoco está, el ciclo no se encarga y decide el camino de siempre", ElCicloRapidoNoLeeDeMas);
         Prueba("488. con el freno echado no pulsa y lo dice; SAP y los selectores que no van por nombre no pasan por el ciclo rápido", ElCicloRapidoRespetaElFrenoYSap);
+        Prueba("491. el ciclo rápido trabaja sobre la ventana de delante, la que la persona ve, como u/; solo si delante está la propia Ü usa su ventana de trabajo", ElCicloTrabajaSobreLoQueHayDelante);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
         Prueba("490. leer la pantalla y saber dónde estoy tienen plazo: si la app no contesta, se sigue sin esa respuesta y se dice, en vez de congelar U; lo que llega tarde no pisa lo que ya se contestó", LeerYUbicarseTienenPlazo);
         Prueba("484. desplazar comprueba la consecuencia en cuanto la hay: sale al primer cambio del porcentaje en vez de dormir 350 ms fijos, y sin cambio agota el mismo techo antes de decir que no se movió", DesplazarNoDuermeFijo);
@@ -13783,6 +13787,34 @@ internal static class Contrato
         var nombre = CicloCon(p);
         Pulsar(nombre, "uia:name=Sistema;ct=ListItem");
         Debe(nombre.Clics.Count == 1, "un selector por nombre y tipo no pasó por el ciclo rápido");
+    }
+
+    private static void LaCaritaNoSePoneDondeUPulsa()
+    {
+        // MEDIDO EL 2026-09-27: «viaje al clic: (734,552) → (743,470)» y, un segundo después, «voz-viva: socket
+        // conectado». Cinco sesiones de voz de pago abiertas por los propios clics de Ü en un día de pruebas.
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO no hay fuentes que mirar."); return; }
+        string c = File.ReadAllText(cara);
+        Debe(!c.Contains("UiaSurface.Pulso += "), "la carita sigue viajando a cada clic de Ü (UiaSurface.Pulso)");
+        Debe(!c.Contains("UiaSurface.CursorMoved += "), "la carita sigue al cursor automatizado (UiaSurface.CursorMoved)");
+        var ciclo = System.Text.RegularExpressions.Regex.Match(c, @"new Navigation\.CicloRapido\([\s\S]*?Titulo = ");
+        Debe(ciclo.Success && !ciclo.Value.Contains("AvisarDelPulso") && !ciclo.Value.Contains("AvisarDelCursor"),
+            "el clic del ciclo rápido sigue avisando a la carita");
+    }
+
+    private static void ElCicloTrabajaSobreLoQueHayDelante()
+    {
+        // MEDIDO EL 2026-09-27: sin el fondo, la ventana de trabajo dejó de seguir al foco. El Bloc de notas y Edge,
+        // abiertos por la persona, se quedaron sin ciclo: 30 clics seguidos «no está en la lectura (23 accionables)»,
+        // que eran los botones de la Calculadora de antes.
+        var elige = CicloRapidoT()?.GetMethod("ElegirVentana", BindingFlags.Public | BindingFlags.Static);
+        if (elige == null) { Pendiente("CicloRapido.ElegirVentana", "491", "054"); return; }
+        IntPtr E(IntPtr delante, bool delanteEsU, IntPtr trabajo) => (IntPtr)elige.Invoke(null, new object[] { delante, delanteEsU, trabajo })!;
+        Debe(E((IntPtr)7, false, (IntPtr)3) == (IntPtr)7, "con otra app delante, el ciclo no trabajó sobre ella sino sobre la ventana de trabajo");
+        Debe(E((IntPtr)7, true, (IntPtr)3) == (IntPtr)3, "con Ü delante, el ciclo no usó su ventana de trabajo");
+        Debe(E(IntPtr.Zero, false, (IntPtr)3) == (IntPtr)3, "sin nada delante, el ciclo no usó su ventana de trabajo");
     }
 
     private static void NadieLeeLaPantallaDeFondo()
