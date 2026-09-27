@@ -45,6 +45,14 @@ public sealed class LectorUia : IDisposable
         _hilo = new Thread(() =>
         {
             _uia = new CUIAutomation8();
+            // PLAZOS (promesa 474): sin ellos, una app que no contesta congela a Ü —72 s leyendo YouTube con Chrome a
+            // 137 procesos, ronda L5 del 2026-09-26—. Con ellos, la llamada falla a tiempo y la lectura sigue.
+            if (_uia is IUIAutomation2 u2)
+            {
+                u2.ConnectionTimeout = PlazoConectarMs;
+                u2.TransactionTimeout = PlazoLeerMs;
+                Plazos = ((int)u2.ConnectionTimeout, (int)u2.TransactionTimeout);
+            }
             _peticion = _uia.CreateCacheRequest();
             foreach (int p in new[] { PropNombre, PropTipo, PropCaja, PropFuera, PropHabilitado, PropFoco, PropValor }) _peticion.AddProperty(p);
             _peticion.AutomationElementMode = AutomationElementMode.AutomationElementMode_None;
@@ -104,7 +112,14 @@ public sealed class LectorUia : IDisposable
         IUIAutomationElement raiz;
         try { raiz = _uia.ElementFromHandle(h); }
         catch (COMException) { return; }   // la ventana murió entre enumerarla y leerla
-        var todos = raiz.FindAllBuildCache(TreeScope.TreeScope_Descendants, _condicion, _peticion);
+        IUIAutomationElementArray todos;
+        try { todos = raiz.FindAllBuildCache(TreeScope.TreeScope_Descendants, _condicion, _peticion); }
+        catch (COMException e)
+        {
+            // Una ventana que no contesta en su plazo se salta, y se dice (promesa 474): las demás se leen igual.
+            Traza?.Invoke($"leer: una ventana no contestó a tiempo, la salto: 0x{e.HResult:X8}: {e.Message}");
+            return;
+        }
         if (todos == null) return;
         // Cada ventana se recorta con SU caja (promesa 471): un menú que sobresale de la principal es otra ventana.
         GetWindowRect(h, out var rv);
@@ -130,6 +145,11 @@ public sealed class LectorUia : IDisposable
             catch (COMException) { /* un nodo que se fue a mitad de lectura no tumba la lectura */ }
         }
     }
+
+    public const uint PlazoConectarMs = 1500, PlazoLeerMs = 3000;
+
+    /// <summary>Los plazos que UIA tiene de verdad, leídos de vuelta tras ponerlos: (conectar, leer), en ms.</summary>
+    public (int, int) Plazos { get; private set; }
 
     /// <summary>Por dónde dice el lector lo que no pudo hacer: un fallo de UIA que se calla parece que no había nada.</summary>
     public static Action<string>? Traza { get; set; }
