@@ -682,7 +682,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     var loc = _locator?.Identificar(h);
                     if (loc != null) { _trabajo.Fijar(h, loc.Id); LogBus.Log("trabajo", $"la ventana de trabajo es ahora «{loc.Id}» (traída)"); }
                     return ok;
-                });
+                },
+                SystemApi.WindowsSystemApi.VentanaDeDelante);
             if (mcp.Map != null) mcp.Map.AbrirPorElNucleo = (app, instancia) =>
             {
                 string antes = FocoDeLaPersona();

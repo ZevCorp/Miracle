@@ -112,7 +112,7 @@ de delante o su título). Se usan esas, no una tercera opinión:
 | # | Promesa |
 |---|---|
 | 480 | abrir encuentra lo ya abierto también por lo que ES, no solo por cómo se llama su proceso: «ms-settings:» y «configuración» encuentran la ventana de ApplicationFrameHost titulada «Configuración» (Apps.EsLaPedida) |
-| 481 | si la ventana de lo pedido ya es la de delante, abrir contesta que ya estás, sin traer nada ni esperar a que algo cambie |
+| 481 | si la ventana de lo pedido ya es la de delante, abrir contesta que ya estás sin esperar a que algo cambie, y esa ventana pasa a ser la de trabajo (traerla es lo que la fija, y estando delante no cuesta) |
 | 482 | lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12 |
 
 ## Lo que queda fuera

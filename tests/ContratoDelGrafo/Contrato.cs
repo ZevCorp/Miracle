@@ -875,7 +875,7 @@ internal static class Contrato
         Prueba("478. la mano rápida avisa a la carita donde pulsó (UiaSurface.Pulso, con la caja) y al cursor (CursorMoved); y con el freno echado no pulsa y lo dice", LaManoRapidaAvisaYRespetaElFreno);
         Prueba("479. lo mismo pedido otra vez en menos de 3 s —el ensayo del doble o la repetición de pulsar— va por la mano de siempre: primero el clic real y, si no agarró, la escalera (aprendizaje nº19)", LoRepetidoVaPorLaEscalera);
         Prueba("480. abrir encuentra lo ya abierto también por lo que ES, no solo por cómo se llama su proceso: «ms-settings:» y «configuración» encuentran la ventana de ApplicationFrameHost titulada «Configuración» (Apps.EsLaPedida)", AbrirEncuentraPorLoQueEs);
-        Prueba("481. si la ventana de lo pedido ya es la de delante, abrir contesta que ya estás, sin traer nada ni esperar a que algo cambie", AbrirLoQueYaEstaDelanteNoEspera);
+        Prueba("481. si la ventana de lo pedido ya es la de delante, abrir contesta que ya estás sin esperar a que algo cambie, y esa ventana pasa a ser la de trabajo", AbrirLoQueYaEstaDelanteNoEspera);
         Prueba("482. lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12", LanzarUnProtocoloEsperaALaVentanaDeDelante);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
@@ -13621,7 +13621,7 @@ internal static class Contrato
         string r = abrir.Abrir("configuración", "");
         long tardo = crono.ElapsedMilliseconds;
         Debe(r.Contains("ya estás", StringComparison.OrdinalIgnoreCase), $"con Configuración delante no dijo que ya estás: «{r}»");
-        Debe(traidas == 0, $"trajo al frente lo que ya estaba delante ({traidas} vez/veces)");
+        Debe(traidas == 1, $"la ventana de delante no pasó a ser la de trabajo: se trajo {traidas} vez/veces (traerla es lo que la fija)");
         Debe(tardo < 300, $"contestar lo que ya está delante tardó {tardo} ms (esperaba a que cambiara algo que no iba a cambiar)");
     }
 
