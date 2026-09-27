@@ -106,6 +106,9 @@ public sealed class LectorUia : IDisposable
         catch (COMException) { return; }   // la ventana murió entre enumerarla y leerla
         var todos = raiz.FindAllBuildCache(TreeScope.TreeScope_Descendants, _condicion, _peticion);
         if (todos == null) return;
+        // Cada ventana se recorta con SU caja (promesa 471): un menú que sobresale de la principal es otra ventana.
+        GetWindowRect(h, out var rv);
+        var ventana = new Caja(rv.L, rv.T, rv.R - rv.L, rv.B - rv.T);
         for (int i = 0; i < todos.Length; i++)
         {
             var e = todos.GetElement(i);
@@ -113,6 +116,7 @@ public sealed class LectorUia : IDisposable
             {
                 var r = e.CachedBoundingRectangle;
                 int tipo = e.CachedControlType;
+                if (!Accionables.SeVe(new Caja(r.left, r.top, r.right - r.left, r.bottom - r.top), ventana)) continue;
                 if (_foco.Length == 0 && e.GetCachedPropertyValue(PropFoco) is bool conFoco && conFoco) _foco = (e.CachedName ?? "").Trim();
                 if ((tipo == 50004 || tipo == 50030) && _campos.Count < 12 && e.CachedIsOffscreen == 0)
                     _campos.Add(((e.CachedName ?? "").Trim(), e.GetCachedPropertyValue(PropValor) as string ?? ""));

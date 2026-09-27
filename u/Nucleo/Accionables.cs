@@ -22,6 +22,14 @@ public static class Accionables
     /// Numera en orden de lectura lo que se ve, y SOLO lo que se ve (promesa 432): fuera de pantalla,
     /// sin tamaño, deshabilitado o sin nombre no se le ofrece a Jev — elegiría algo que no se puede pulsar.
     /// </summary>
+    /// <summary>
+    /// ¿SE VE DENTRO DE SU VENTANA? (promesa 471). Chrome no marca IsOffscreen y entrega la página entera: de 229
+    /// accionables ofrecidos en Wikipedia, 81 estaban por debajo de lo visible (2026-09-26), y Jev dudaba entre cientos.
+    /// Lo que asoma aunque sea un poco, se ve.
+    /// </summary>
+    public static bool SeVe(Caja c, Caja ventana) =>
+        c.X < ventana.X + ventana.Ancho && c.X + c.Ancho > ventana.X && c.Y < ventana.Y + ventana.Alto && c.Y + c.Alto > ventana.Y;
+
     public static IReadOnlyList<Accionable> Numerar(IEnumerable<Crudo> crudos)
     {
         var salida = new List<Accionable>();
