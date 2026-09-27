@@ -51,3 +51,13 @@ Si falla la lectura, se conserva el archivo sin sobrescribir y se muestra un err
 Pruebas: 29 contratos/175 aserciones, incluyendo identidad/texto tras recarga, streaming guardado y corrupción explícita. Sabotear guardado para escribir [] hizo fallar el contrato; restaurado y verde. Las 18 comprobaciones del visor siguen pasando.
 
 Estado de despliegue: NO se reinició ni reemplazó la sesión anterior. Su historial existe solo en RAM. La recuperación por accesibilidad es parcial: inicio, varias páginas intermedias y final guardados; faltan páginas del medio porque macOS se bloqueó. Es imprescindible desbloquear, completar recuperación y verificar cobertura antes de instalar. El archivo de respaldo parcial está marcado complete=false y NO se importa como si fuera una recuperación completa. Este chat de Codex no se modifica.
+
+## Aplicación completada
+
+Tras desbloquear el Mac se recuperó el texto expuesto por AX desde el inicio de la sesión hasta el último mensaje capturado, uniendo fragmentos con solapamiento exacto. Una sola secuencia, 13.985 caracteres, checksum de transferencia comprobado. SHA-256: 45cd7e47061e9167283886d789f6e8e3cac4be7f0b982a3cd47535202616cd2f.
+
+Se guardó fuera del repositorio y se restauró en conversation.json como un bloque explícitamente identificado como “Historial anterior recuperado”. No se inventaron autores ni divisiones de turnos: AX mezclaba transcripciones de voz. No es una copia del audio ni de las burbujas originales, y no recupera contenido que ya hubiera desaparecido antes del respaldo.
+
+Se verificó que el último mensaje no había cambiado antes de instalar. Se mantuvieron preferencias existentes y se añadió continuidad explícita sobre simplicidad, Kaizen, participación pertinente, silencio ante duda, Hermes conceptual, exploración pendiente de diarización y mejora pendiente de fluidez de audio. Ninguna petición pendiente se presentó como implementación verificada.
+
+Instalación realizada en ~/Applications/U.app; binario comparado con el artefacto compilado. Las 18 comprobaciones del scroll se ejecutaron de nuevo usando el binario instalado y pasaron. El historial restaurado siguió presente después de esas pruebas. El chat de Codex y el upstream no se modificaron. Respaldo privado: ~/Documents/Yu Backups/20260927-151016.
