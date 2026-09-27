@@ -55,7 +55,8 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(470, "Abrir una app que ya está delante llega: si tras abrirla la ventana de delante es de la app pedida —por su proceso, y en las de la tienda también por su título—, cuenta como abierta; y si ya estaba delante antes de abrirla, se esperan 700 ms a que cambie, no 3 s.", P470);
+        Promesa(471, "Lo que cae fuera de su ventana no se ofrece a Jev ni se le cuenta a Luna: un enlace por debajo de lo visible de la página no está en la lista, y lo que asoma aunque sea un poco, sí.", P471);
+        Promesa(470,"Abrir una app que ya está delante llega: si tras abrirla la ventana de delante es de la app pedida —por su proceso, y en las de la tienda también por su título—, cuenta como abierta; y si ya estaba delante antes de abrirla, se esperan 700 ms a que cambie, no 3 s.", P470);
         Promesa(469,"Abrir llega también cuando la ventana de delante es la misma pero cambia su título: una dirección abierta con el navegador delante abre una pestaña en esa misma ventana. Si no cambia ni la ventana ni el título, no llegó.", P469);
         Promesa(468,"Luna sabe cuánto lleva: cada resultado que recibe dice el tiempo que va del pedido, y sabe que si la persona pide una duración tiene que seguir hasta cumplirla.", P468);
         Promesa(467,"Lo que no es un clic no se le pide a Jev: un paso con una dirección web se abre como «abre:», un «objetivo:» delante sobra, «esperar…» espera a que la pantalla se quede quieta sin pulsar, y «escribir…» sin texto exacto falla al instante pidiendo «escribe:»; y Luna lo sabe.", P467);
@@ -740,6 +741,19 @@ internal static class Contrato
         var prop = T("Raton").GetProperty("PausaEntreLetrasMs") ?? throw new Pendiente("Raton.PausaEntreLetrasMs");
         int pausa = (int)prop.GetValue(null)!;
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
+    }
+
+    private static void P471()
+    {
+        // Ronda libre L2 (2026-09-26, 20:30): Jev dudó 7 veces con enlaces de Wikipedia (confianza 0,22-0,42). Chrome no
+        // marca lo que está fuera de pantalla: de 229 accionables ofrecidos, 81 estaban por debajo de lo visible
+        // (sonda del 2026-09-26, 10:40), y elegir uno de esos es un clic en el borde de la pantalla.
+        var ventana = N("Caja", 0, 0, 1000, 800);
+        bool Ve(int x, int y, int w, int h) => (bool)S("Accionables", "SeVe", N("Caja", x, y, w, h), ventana)!;
+        Exige(!Ve(100, 900, 80, 20), "un enlace por debajo de la ventana se ofrece");
+        Exige(!Ve(-300, 100, 200, 20), "un enlace a la izquierda de la ventana se ofrece");
+        Exige(Ve(100, 790, 80, 30), "un enlace que asoma por abajo no se ofrece");
+        Exige(Ve(100, 100, 80, 20), "un enlace dentro de la ventana no se ofrece");
     }
 
     private static void P470()
