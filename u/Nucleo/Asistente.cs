@@ -211,7 +211,12 @@ public sealed class LunaPorTexto : IDisposable
     public string Pedir(string pedido, Func<string> mirar, Func<string, string, string> atender, Func<bool> hayQueParar, Func<TimeSpan> transcurrido)
     {
         string? anterior = null;
-        object entrada = PrimeraEntrada(pedido, mirar());
+        // MIRAR NO TUMBA EL PEDIDO (promesa 472): un UIA que no contesta —«Operation timed out» en Chrome, ronda L3—
+        // acababa el pedido sin un solo turno. Luna recibe por qué, y decide.
+        string delante;
+        try { delante = mirar(); }
+        catch (Exception e) { delante = "No pude leer la pantalla: " + e.GetType().Name + ": " + e.Message; Log("✘ " + delante); }
+        object entrada = PrimeraEntrada(pedido, delante);
         for (int turno = 1; ; turno++)
         {
             var (json, falla) = Turno(entrada, anterior, conHerramientas: true);

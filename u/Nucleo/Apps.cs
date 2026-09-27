@@ -73,6 +73,50 @@ public static class Apps
         catch (ArgumentException) { return ""; }   // el proceso ya no existe
     }
 
+    /// <summary>La primera ventana VISIBLE de la app pedida (promesa 472). Sin ninguna, IntPtr.Zero.</summary>
+    public static IntPtr Candidata(IEnumerable<(IntPtr Ventana, string Proceso, string Titulo, bool Visible)> ventanas, string pedida) =>
+        ventanas.FirstOrDefault(v => v.Visible && v.Ventana != IntPtr.Zero && EsLaPedida(pedida, v.Proceso, v.Titulo)).Ventana;
+
+    private delegate bool EnumProc(IntPtr h, IntPtr l);
+    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumProc cb, IntPtr l);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr h, int cmd);
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint a, uint b, bool unir);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+
+    /// <summary>Las ventanas de primer nivel con título, en orden Z (de arriba abajo).</summary>
+    private static List<(IntPtr, string, string, bool)> Ventanas()
+    {
+        var todas = new List<(IntPtr, string, string, bool)>();
+        EnumWindows((h, _) =>
+        {
+            string t = Titulo(h);
+            if (t.Length > 0 && IsWindowVisible(h)) todas.Add((h, Proceso(h), t, true));
+            return todas.Count < 200;
+        }, IntPtr.Zero);
+        return todas;
+    }
+
+    /// <summary>
+    /// TRAER AL FRENTE DE VERDAD, con la técnica de main (UiaSurface.TraerAlFrente): Windows no deja que quien no está
+    /// delante le robe el primer plano —la llamada «funciona» y solo parpadea el botón en la barra—; la salida es
+    /// engancharse un instante a la cola de entrada del hilo que sí está delante. Y se comprueba después.
+    /// </summary>
+    private static bool TraerAlFrente(IntPtr win)
+    {
+        if (GetForegroundWindow() == win) return true;
+        if (IsIconic(win)) ShowWindow(win, 9 /* SW_RESTORE */);
+        uint mio = GetCurrentThreadId(), suyo = GetWindowThreadProcessId(GetForegroundWindow(), out _);
+        bool unido = suyo != 0 && mio != suyo && AttachThreadInput(mio, suyo, true);
+        try { SetForegroundWindow(win); BringWindowToTop(win); }
+        finally { if (unido) AttachThreadInput(mio, suyo, false); }
+        for (int i = 0; i < 12 && GetForegroundWindow() != win; i++) Thread.Sleep(20);
+        return GetForegroundWindow() == win;
+    }
+
     /// <summary>Abre y espera a que cambie la ventana de delante o su título. Devuelve (llegó, ms).</summary>
     public static (bool Llego, long Ms) Abrir(string nombre)
     {
@@ -85,10 +129,19 @@ public static class Apps
         try { Process.Start(new ProcessStartInfo(Comando(nombre)) { UseShellExecute = true })?.Dispose(); }
         catch (System.ComponentModel.Win32Exception) { return (false, r.ElapsedMilliseconds); }
         int techo = Techo(yaDelante);
+        long proximaBusqueda = 300;
         while (r.ElapsedMilliseconds < techo)
         {
             var ahora = GetForegroundWindow();
             if (Llego(antes, tituloAntes, ahora, Titulo(ahora))) return (true, r.ElapsedMilliseconds);
+            // ABIERTA PERO DETRÁS (promesa 472): si su ventana ya existe y no pasó al frente, se trae. Solo se busca
+            // cuando no llegó sola en 300 ms; lo normal no paga la búsqueda.
+            if (!yaDelante && r.ElapsedMilliseconds >= proximaBusqueda)
+            {
+                proximaBusqueda = r.ElapsedMilliseconds + 150;
+                var suya = Candidata(Ventanas(), nombre);
+                if (suya != IntPtr.Zero && suya != ahora && TraerAlFrente(suya)) return (true, r.ElapsedMilliseconds);
+            }
             Thread.Sleep(15);
         }
         // Nada cambió, pero la de delante ES la pedida: ya estaba abierta (promesa 470).
