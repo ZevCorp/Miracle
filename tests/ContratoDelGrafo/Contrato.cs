@@ -874,6 +874,9 @@ internal static class Contrato
         Prueba("477. la mano rápida pulsa sin volver a buscar: si lo pedido coincide con UN solo elemento visible de la lectura rápida —mismo nombre (el del selector o, si va por AutomationId, la etiqueta) y mismo tipo—, el clic es el ratón real en su centro; con nombres repetidos, sin coincidencia o en SAP no pulsa y deja paso a la mano de siempre", LaManoRapidaPulsaSinBuscar);
         Prueba("478. la mano rápida avisa a la carita donde pulsó (UiaSurface.Pulso, con la caja) y al cursor (CursorMoved); y con el freno echado no pulsa y lo dice", LaManoRapidaAvisaYRespetaElFreno);
         Prueba("479. lo mismo pedido otra vez en menos de 3 s —el ensayo del doble o la repetición de pulsar— va por la mano de siempre: primero el clic real y, si no agarró, la escalera (aprendizaje nº19)", LoRepetidoVaPorLaEscalera);
+        Prueba("480. abrir encuentra lo ya abierto también por lo que ES, no solo por cómo se llama su proceso: «ms-settings:» y «configuración» encuentran la ventana de ApplicationFrameHost titulada «Configuración» (Apps.EsLaPedida)", AbrirEncuentraPorLoQueEs);
+        Prueba("481. si la ventana de lo pedido ya es la de delante, abrir contesta que ya estás, sin traer nada ni esperar a que algo cambie", AbrirLoQueYaEstaDelanteNoEspera);
+        Prueba("482. lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12", LanzarUnProtocoloEsperaALaVentanaDeDelante);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -13577,6 +13580,78 @@ internal static class Contrato
         ahora = 5000;
         int antes = clics.Count;
         Debe(Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == antes + 1, "pasados 3 s, el clic no volvió a ser rápido");
+    }
+
+    // LÍNEA BASE DEL 2026-09-27: map_open_app con Configuración ya delante tardaba 13 s y contestaba «no pude traer
+    // «ms-settings:» al frente». Configuración vive en ApplicationFrameHost: por el nombre del proceso no se encuentra.
+    private static readonly (IntPtr Hwnd, string Proceso, string Titulo)[] VentanasConConfiguracion =
+    {
+        ((IntPtr)11, "ApplicationFrameHost.exe", "Configuración"),
+        ((IntPtr)12, "notepad.exe", "Sin título: Bloc de notas"),
+    };
+
+    private static void AbrirEncuentraPorLoQueEs()
+    {
+        foreach (var pedido in new[] { "ms-settings:", "configuración" })
+        {
+            var halladas = AbrirSegunElNucleo.LasDe(pedido, VentanasConConfiguracion);
+            Debe(halladas.Count == 1 && halladas[0].Hwnd == (IntPtr)11,
+                $"«{pedido}» no encontró la ventana de Configuración: [{string.Join(", ", halladas.Select(h => h.Titulo))}]");
+        }
+        var bloc = AbrirSegunElNucleo.LasDe("notepad", VentanasConConfiguracion);
+        Debe(bloc.Count == 1 && bloc[0].Hwnd == (IntPtr)12, "«notepad» dejó de encontrarse por su proceso");
+    }
+
+    private static void AbrirLoQueYaEstaDelanteNoEspera()
+    {
+        var ctor = typeof(AbrirSegunElNucleo).GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 8);
+        if (ctor == null) { Pendiente("AbrirSegunElNucleo(…, delante) — saber qué ventana está delante", "481", "053"); return; }
+        Func<string> donde = () => "uia://applicationframehost.exe/Configuración";
+        Func<Mapeador.ComoMePongoDelante.Plan, bool> traerAlFrente = _ => throw new InvalidOperationException("no había que traer nada");
+        Func<string, string> dominio = _ => "";
+        Func<IReadOnlyList<AbrirSegunElNucleo.AppDelSistema>> instaladas = () => Array.Empty<AbrirSegunElNucleo.AppDelSistema>();
+        Func<string, bool> lanzar = _ => throw new InvalidOperationException("no había que lanzar nada");
+        Func<IReadOnlyList<(IntPtr Hwnd, string Proceso, string Titulo)>> ventanas = () => VentanasConConfiguracion;
+        int traidas = 0;
+        Func<IntPtr, bool> traerVentana = _ => { traidas++; return true; };
+        Func<IntPtr> delante = () => (IntPtr)11;
+        var abrir = (AbrirSegunElNucleo)ctor.Invoke(new object[] { donde, traerAlFrente, dominio, instaladas, lanzar, ventanas, traerVentana, delante });
+
+        var crono = System.Diagnostics.Stopwatch.StartNew();
+        string r = abrir.Abrir("configuración", "");
+        long tardo = crono.ElapsedMilliseconds;
+        Debe(r.Contains("ya estás", StringComparison.OrdinalIgnoreCase), $"con Configuración delante no dijo que ya estás: «{r}»");
+        Debe(traidas == 0, $"trajo al frente lo que ya estaba delante ({traidas} vez/veces)");
+        Debe(tardo < 300, $"contestar lo que ya está delante tardó {tardo} ms (esperaba a que cambiara algo que no iba a cambiar)");
+    }
+
+    private static void LanzarUnProtocoloEsperaALaVentanaDeDelante()
+    {
+        var t = typeof(U.WindowsClient.SystemApi.WindowsSystemApi);
+        var techo = t.GetMethod("TechoDeEspera", BindingFlags.Public | BindingFlags.Static);
+        var espera = t.GetMethod("EsperarLlegada", BindingFlags.Public | BindingFlags.Static);
+        if (techo == null || espera == null) { Pendiente("WindowsSystemApi.TechoDeEspera / EsperarLlegada", "482", "053"); return; }
+
+        Debe((int)techo.Invoke(null, new object[] { "ms-settings:" })! <= 3000, "un protocolo sigue esperando más de 3 s");
+        Debe((int)techo.Invoke(null, new object[] { "mailto:alguien@ejemplo.com" })! <= 3000, "mailto: sigue esperando más de 3 s");
+        Debe((int)techo.Invoke(null, new object[] { "chrome" })! >= 6000, "un programa en frío necesita su paciencia: Chrome pasa de 6 s");
+
+        // Otra ventana delante a los 150 ms: llegó, y se sabe a los 150 ms, no a los 3 s.
+        var crono = System.Diagnostics.Stopwatch.StartNew();
+        Func<(IntPtr, string)> cambia = () => crono.ElapsedMilliseconds < 150 ? ((IntPtr)1, "Explorador") : ((IntPtr)2, "Configuración");
+        bool llego = (bool)espera.Invoke(null, new object[] { cambia, 3000 })!;
+        Debe(llego && crono.ElapsedMilliseconds < 600, $"la ventana de delante cambió a los 150 ms y la espera dijo {llego} a los {crono.ElapsedMilliseconds} ms");
+
+        // La MISMA ventana con otro título también es llegar (Apps.Llego, promesa 469).
+        crono.Restart();
+        Func<(IntPtr, string)> titulo = () => ((IntPtr)1, crono.ElapsedMilliseconds < 100 ? "Configuración" : "Configuración > Pantalla");
+        Debe((bool)espera.Invoke(null, new object[] { titulo, 3000 })!, "el título cambió y no se contó como llegada");
+
+        // Nada cambia: no llegó, y se dice al techo que se le dio.
+        crono.Restart();
+        Func<(IntPtr, string)> quieto = () => ((IntPtr)1, "Explorador");
+        bool nada = (bool)espera.Invoke(null, new object[] { quieto, 400 })!;
+        Debe(!nada && crono.ElapsedMilliseconds < 800, $"sin cambio dijo {nada} a los {crono.ElapsedMilliseconds} ms con techo de 400");
     }
 
     private static void PulsarDeSapEsperaComoSiempre()
