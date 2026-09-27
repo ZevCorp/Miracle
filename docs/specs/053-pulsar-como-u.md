@@ -115,6 +115,26 @@ de delante o su título). Se usan esas, no una tercera opinión:
 | 481 | si la ventana de lo pedido ya es la de delante, abrir contesta que ya estás sin esperar a que algo cambie, y esa ventana pasa a ser la de trabajo (traerla es lo que la fija, y estando delante no cuesta) |
 | 482 | lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12 |
 
+### Resultado de la fase 3 (medido el 2026-09-27, por el MCP, Configuración y Explorador)
+
+| | línea base | fase 3 |
+|---|---|---|
+| abrir lo que ya está delante («configuración», «ms-settings:») | 13 s y «no pude traer» | **194-270 ms**, «ya estás en «Configuración»» |
+| abrir lo abierto detrás (Configuración ↔ Explorador, 3 formas de pedirlo) | — | **227-309 ms**, «Te puse delante» |
+| lanzar con la app cerrada («ms-settings:», «configuración») | 13 s | **389-1.083 ms**, llega |
+| 17 aperturas en total | | 17 de 17 bien · mediana 242 ms |
+
+Hallazgos:
+- **El escritorio es explorer.exe.** Al estrenar la 480, «explorador» contaba «Program Manager» como ventana suya.
+  Chequeo añadido a la 480 en rojo, y fuera.
+- **Una sonda por el MCP no es la persona.** Llamando desde un script, Windows le niega a U cambiar la ventana de
+  delante —nadie le dio entrada—, y traer el Explorador «fallaba» 4 de 4 con la misma técnica que desde otro proceso
+  trae en 10-23 ms (sonda de la API, 6 de 6). Por voz o por el panel la persona acaba de darle entrada: main-limpio
+  tiene 0 «No pude traer» en 30+ aperturas. La sonda ahora le cede el permiso (`AllowSetForegroundWindow`), como la
+  persona al hablarle. No se toca `TraerAlFrente`.
+- Sabotajes: 5, los 5 rojos (solo por proceso, sin mirar delante, sin fijar la ventana de trabajo, protocolo a 12 s,
+  el título no cuenta).
+
 ## Lo que queda fuera
 
 - `PasoDelNucleo` y `ServidorDelNucleo` (8792) usan `_mapaVivo.Pulsar` y no pasan por `PulsarSegunElNucleo`.
