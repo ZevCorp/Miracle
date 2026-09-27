@@ -98,6 +98,21 @@ public sealed class PulsarSegunElNucleo
     /// </remarks>
     public int EsperaDeCampoMs { get; init; } = 300;
 
+    /// <summary>
+    /// LO QUE SE VE EN LA VENTANA DE TRABAJO (promesa 475, spec 053): una huella —accionables, textos y foco— que
+    /// cambia cuando la pantalla cambia, aunque la ubicación sea la misma. Con ella la espera sale en cuanto cambia,
+    /// con techo de 150 ms tras un botón y 1,5 s tras un enlace. Sin ella, o en SAP, la espera de siempre (476).
+    /// </summary>
+    /// <remarks>
+    /// LÍNEA BASE DEL 2026-09-27 (U.exe de main por el MCP): Configuración → «Sistema» esperó 1.864 ms y «Pantalla»
+    /// 1.824 ms, las dos «no cambió» sobre una página que sí cambió: pasar de una sección a otra no cambia la
+    /// ubicación, y la espera solo miraba la ubicación. Es la espera de Ü desde cero (u/Nucleo/Ciclo.cs, Asentado).
+    /// </remarks>
+    public Func<string>? LoQueSeVe { get; set; }
+
+    /// <summary>Techo de la espera que mira lo que se ve: un enlace carga una página; lo demás responde en el acto.</summary>
+    public static int TechoTras(string tipo) => tipo == "Hyperlink" ? 1500 : 150;
+
     /// <summary>Para que el reintento de la 248 no se llame a sí mismo.</summary>
     private bool _yaRepeti;
 
@@ -151,6 +166,11 @@ public sealed class PulsarSegunElNucleo
 
         // EL RELOJ DE «PULSAR», POR PARTES (spec 038): la mano, la espera del cambio y la consulta al terreno. El
         // reloj por fase del tramo dice cuánto cuesta «pulsar»; esto dice en qué se va.
+        // CON VISTA (promesa 475): la huella de ANTES del clic, para saber si lo que se ve cambió. En SAP no (476): UIA
+        // solo ve un panel opaco, y cortar la espera daría por no-agarrado un clic mientras SAP procesa.
+        bool conVista = LoQueSeVe != null && !U.Graph.Surfaces.SapSelector.Owns(selector);
+        string vistaAntes = conVista ? Vista() : "";
+        int techoVista = TechoTras(TipoDe(desde, selector));
         var relojMano = System.Diagnostics.Stopwatch.StartNew();
         string? motivo = _mano(selector, etiqueta, gesto);
         relojMano.Stop();
@@ -159,9 +179,12 @@ public sealed class PulsarSegunElNucleo
                 motivo.Length > 0 ? $"no pude pulsar «{etiqueta}»: {motivo}" : $"no pude pulsar «{etiqueta}».");
         bool esCampo = EsCampoDeTexto(desde, selector);
         var relojEspera = System.Diagnostics.Stopwatch.StartNew();
-        string hasta = EsperarACambiar(desde, esCampo ? EsperaDeCampoMs : EsperaMaximaMs);
+        bool cambioLaVista = false;
+        string hasta = conVista
+            ? EsperarAQueCambieLoQueSeVe(desde, vistaAntes, techoVista, out cambioLaVista)
+            : EsperarACambiar(desde, esCampo ? EsperaDeCampoMs : EsperaMaximaMs);
         relojEspera.Stop();
-        Diagnostics.LogBus.Log("mano", $"⏱ pulsar «{etiqueta}»: la mano {relojMano.ElapsedMilliseconds} ms · esperar el cambio {relojEspera.ElapsedMilliseconds} ms ({_sondeos} sondeo(s) de «dónde») · {(hasta.Length > 0 && hasta != desde ? "cambió" : "no cambió")}");
+        Diagnostics.LogBus.Log("mano", $"⏱ pulsar «{etiqueta}»: la mano {relojMano.ElapsedMilliseconds} ms · esperar el cambio {relojEspera.ElapsedMilliseconds} ms ({_sondeos} {(conVista ? "lectura(s) de lo que se ve" : "sondeo(s) de «dónde»")}) · {(hasta.Length > 0 && hasta != desde ? "cambió" : cambioLaVista ? "cambió lo que se ve" : "no cambió")}");
         // LA VENTANA DE TRABAJO SE CERRÓ (promesa 233): «dónde» volvió al foco de la persona, y eso
         // no es haber ido allí. Se cuenta tal cual y no se aprende ninguna arista.
         string aviso = AvisoDeLaVentana?.Invoke() ?? "";
@@ -175,6 +198,12 @@ public sealed class PulsarSegunElNucleo
         if (esCampo && (hasta.Length == 0 || hasta == desde))
             return new(true, false, desde, desde, false,
                 $"pulsé «{etiqueta}»: es un campo de texto y ya tiene el foco (la pantalla no cambió, que es lo normal). Para escribir en él, map_type.");
+
+        // LO QUE SE VE CAMBIÓ Y LA UBICACIÓN NO (promesa 475): el clic agarró. Ni se ensaya el doble ni se repite —los
+        // dos son para un clic que no agarró—, y no se aprende arista: no se fue a otra ubicación.
+        if (cambioLaVista && (hasta.Length == 0 || hasta == desde))
+            return new(true, true, desde, desde, false,
+                $"pulsé «{etiqueta}» y la pantalla cambió (sigues en «{desde}»).");
 
         // UNA PUERTA QUE LLEVA AQUÍ NO SE ENSAYA NI SE REPITE (promesa 296). Va DESPUÉS de la primera espera a
         // propósito: si la pantalla SÍ cambió —un «Siguiente» que vive en todas las páginas— manda lo que pasó,
@@ -198,7 +227,7 @@ public sealed class PulsarSegunElNucleo
         if ((hasta.Length == 0 || hasta == desde) && gesto.Length == 0 && EsContenido(desde, selector)
             && _mano(selector, etiqueta, "doubleclick") == null)
         {
-            string tras = EsperarACambiar(desde);
+            string tras = conVista ? EsperarAQueCambieLoQueSeVe(desde, vistaAntes, techoVista, out _) : EsperarACambiar(desde);
             if (tras.Length > 0 && tras != desde)
             {
                 hasta = tras;
@@ -222,7 +251,7 @@ public sealed class PulsarSegunElNucleo
                 Diagnostics.LogBus.Log("mano", $"«{etiqueta}» no movió nada y el terreno sabe que lleva a algún sitio: lo repito una vez");
                 if (_mano(selector, etiqueta, gesto) == null)
                 {
-                    string tras = EsperarACambiar(desde);
+                    string tras = conVista ? EsperarAQueCambieLoQueSeVe(desde, vistaAntes, techoVista, out _) : EsperarACambiar(desde);
                     if (tras.Length > 0 && tras != desde) { hasta = tras; gestoUsado = gesto; }
                 }
             }
@@ -292,6 +321,70 @@ public sealed class PulsarSegunElNucleo
     {
         try { return _grafo.DesdeAqui(donde).Any(a => a.Que.Selector == selector && a.Destino.Length > 0); }
         catch { return false; }
+    }
+
+    /// <summary>La huella de lo que se ve, o vacío si leerla falla: una lectura que falla no es un cambio.</summary>
+    private string Vista()
+    {
+        try { return LoQueSeVe?.Invoke() ?? ""; }
+        catch (Exception e) { Diagnostics.LogBus.Log("mano", $"no pude leer lo que se ve: {e.GetType().Name}: {e.Message}"); return ""; }
+    }
+
+    /// <summary>
+    /// ESPERAR MIRANDO LO QUE SE VE (promesa 475): se relee la huella y se sale a la primera diferencia, con el techo
+    /// de lo pulsado. Después se pregunta «dónde» UNA vez: si cambió la ubicación, manda ella y se aprende la arista.
+    /// Cada lectura cuesta lo que cuesta leer la ventana (20-100 ms en u/): no hace falta otro compás.
+    /// </summary>
+    private string EsperarAQueCambieLoQueSeVe(string desde, string vistaAntes, int techoMs, out bool cambio)
+    {
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        cambio = false;
+        _sondeos = 0;
+        string v = "";
+        do
+        {
+            _sondeos++;
+            v = Vista();
+            if (v.Length > 0 && v != vistaAntes) { cambio = true; break; }
+            if (reloj.ElapsedMilliseconds < techoMs) System.Threading.Thread.Sleep(15);
+        }
+        while (reloj.ElapsedMilliseconds < techoMs);
+        if (!cambio) return _donde() ?? "";
+
+        // CAMBIÓ: SE ESPERA A QUE SE ASIENTE, MIRANDO LA UBICACIÓN (promesa 475, caso 5). La lista del Explorador
+        // cambia antes que su título, que es de donde sale la ubicación: saliendo al primer cambio, 5 de 8 clics
+        // que sí cambiaron de carpeta quedaron «sigues en Imágenes» y el grafo no aprendió esas aristas (medido el
+        // 2026-09-27). Dos lecturas iguales separadas al menos 60 ms —como abre u/— o 300 ms más, lo primero que
+        // llegue. La separación es la que hace que «iguales» signifique «quieta»: sin ella, dos lecturas seguidas
+        // de la misma pantalla a medio pintar ya se daban por asentadas.
+        long hastaMs = reloj.ElapsedMilliseconds + 300;
+        long ultima = reloj.ElapsedMilliseconds;
+        while (reloj.ElapsedMilliseconds < hastaMs)
+        {
+            string d = _donde() ?? "";
+            if (d.Length > 0 && d != desde) return d;
+            long falta = 60 - (reloj.ElapsedMilliseconds - ultima);
+            if (falta > 0) System.Threading.Thread.Sleep((int)falta);
+            _sondeos++;
+            string otra = Vista();
+            ultima = reloj.ElapsedMilliseconds;
+            if (otra == v) break;
+            v = otra;
+        }
+        return _donde() ?? "";
+    }
+
+    /// <summary>El tipo de lo pulsado: lo dice el terreno, y si aún no lo conoce, el selector (`;ct=Hyperlink`).</summary>
+    private string TipoDe(string ubicacion, string selector)
+    {
+        try
+        {
+            foreach (var a in _grafo.DesdeAqui(ubicacion))
+                if (a.Que.Selector == selector) return a.Que.Tipo ?? "";
+        }
+        catch { }
+        int i = selector.LastIndexOf(";ct=", StringComparison.OrdinalIgnoreCase);
+        return i >= 0 ? selector[(i + 4)..] : "";
     }
 
     private string EsperarACambiar(string desde) => EsperarACambiar(desde, EsperaMaximaMs);

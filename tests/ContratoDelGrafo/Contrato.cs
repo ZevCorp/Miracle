@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -869,7 +869,7 @@ internal static class Contrato
         Prueba("423. soltar más documentos no vuelve a leer los ya leídos y rehace el motivo con todos; si la lectura falla a mitad, lo leído se conserva, el error nombra el documento que faltó, y reintentar lee solo lo que faltó", SoltarMasNoVuelveALeerLoLeido);
 
         // ── Spec 053: pulsar como Ü desde cero (paso 1 de la integración de u/) ─────────────────────
-        Prueba("475. tras pulsar, la espera sale en cuanto cambia lo que se ve en la ventana de trabajo —aunque la ubicación sea la misma—, y no pasa de 150 ms tras un botón ni de 1,5 s tras un enlace; lo que cambió se cuenta como cambio de pantalla, sin ensayar el doble ni repetir el clic", PulsarSaleEnCuantoCambiaLoQueSeVe);
+        Prueba("475. tras pulsar, la espera sale en cuanto lo que se ve en la ventana de trabajo cambia y se asienta —dos lecturas iguales a 60 ms, o 300 ms más—, aunque la ubicación sea la misma; sin cambio no pasa de 150 ms tras un botón ni de 1,5 s tras un enlace; lo que cambió se cuenta como cambio de pantalla, sin ensayar el doble ni repetir el clic, y si la ubicación llega mientras se asienta, se aprende la arista", PulsarSaleEnCuantoCambiaLoQueSeVe);
         Prueba("476. un pulso de SAP, o uno sin lector de lo que se ve, espera como siempre: la ubicación, hasta el techo de siempre", PulsarDeSapEsperaComoSiempre);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
@@ -13481,6 +13481,14 @@ internal static class Contrato
         var (p4, _) = PulsadorConVista(Mundo(), ms => ms >= 60 ? B : A, ms => ms >= 60 ? "Sistema" : "Inicio");
         var r4 = p4.Pulsa("uia:name=Sistema;ct=ListItem", "Sistema");
         Debe(r4.Hasta == B && r4.Aprendido, $"cuando cambia la ubicación se aprende la arista: hasta «{r4.Hasta}», aprendido={r4.Aprendido}");
+
+        // 5. LA UBICACIÓN LLEGA DESPUÉS DE LO QUE SE VE (medido el 2026-09-27 en el Explorador: 5 de 8 clics que sí
+        //    cambiaron de carpeta salieron «sigues en Imágenes», y el grafo no aprendió esas aristas). Lo que se ve
+        //    cambia a los 40 ms, se asienta a los 90, y el título —la ubicación— cambia a los 150: se aprende igual.
+        var (p5, _) = PulsadorConVista(Mundo(), ms => ms >= 150 ? B : A, ms => ms >= 90 ? "Sistema entera" : ms >= 40 ? "Sistema a medias" : "Inicio");
+        var c5 = System.Diagnostics.Stopwatch.StartNew();
+        var r5 = p5.Pulsa("uia:name=Sistema;ct=ListItem", "Sistema");
+        Debe(r5.Hasta == B && r5.Aprendido && c5.ElapsedMilliseconds < 700, $"la ubicación que llega a los 150 ms se perdió: hasta «{r5.Hasta}», aprendido={r5.Aprendido}, {c5.ElapsedMilliseconds} ms");
     }
 
     private static void PulsarDeSapEsperaComoSiempre()

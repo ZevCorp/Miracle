@@ -33,7 +33,7 @@ patrón → mensaje → físico, con ~560 ms de esperas fijas en el caso físico
 
 | # | Promesa |
 |---|---|
-| 475 | tras pulsar, la espera sale en cuanto cambia lo que se ve en la ventana de trabajo —aunque la ubicación sea la misma—, y no pasa de 150 ms tras un botón ni de 1,5 s tras un enlace; lo que cambió se cuenta como cambio de pantalla, sin ensayar el doble ni repetir el clic |
+| 475 | tras pulsar, la espera sale en cuanto lo que se ve en la ventana de trabajo cambia y se asienta —dos lecturas iguales a 60 ms, o 300 ms más—, aunque la ubicación sea la misma; sin cambio no pasa de 150 ms tras un botón ni de 1,5 s tras un enlace; lo que cambió se cuenta como cambio de pantalla, sin ensayar el doble ni repetir el clic, y si la ubicación llega mientras se asienta, se aprende la arista |
 | 476 | un pulso de SAP, o uno sin lector de lo que se ve, espera como siempre: la ubicación, hasta el techo de siempre (en SAP, UIA no ve nada y cortar la espera haría repetir el clic mientras SAP procesa) |
 
 Lo que no cambia: el grafo aprende solo cuando cambia la **ubicación** (`Cruzar`, promesa 21/46); la mano; SAP.

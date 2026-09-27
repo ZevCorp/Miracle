@@ -794,6 +794,14 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     }
                 });
             pulsar.AvisoDeLaVentana = _trabajo.TomarAviso;
+            // LO QUE SE VE (promesa 475, spec 053): la huella de Ü desde cero sobre la ventana de trabajo —una sola
+            // petición a UIA, 20-100 ms—. Cada lectura vacía la memoria corta de «dónde»: si la ubicación cambió,
+            // la pregunta de después de la espera lo ve al momento y el grafo aprende la arista.
+            pulsar.LoQueSeVe = () =>
+            {
+                _dondeTrabajo.Olvida();
+                return _lectorRapido.Leer(VentanaObjetivo()).Huella;
+            };
             if (mcp.Map != null) mcp.Map.PulsarPorElNucleo = (sel, etq) =>
             {
                 string antes = FocoDeLaPersona();
@@ -5464,6 +5472,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// «dónde estás» llegó a costar 2.771 ms, más que leer la pantalla entera (2026-09-15).
     /// </summary>
     private readonly Navigation.MemoriaCorta<string> _dondeTrabajo = new(400);
+
+    /// <summary>El lector de Ü desde cero (u/Nucleo): una petición a UIA con la condición en el proveedor, en su propio hilo MTA.</summary>
+    private readonly U.Ciclo.LectorUia _lectorRapido = new();
 
     private string DondeTrabajo() => _dondeTrabajo.Pide(() =>
     {
