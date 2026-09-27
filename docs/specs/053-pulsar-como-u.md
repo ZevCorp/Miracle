@@ -1,6 +1,6 @@
 ﻿# Pulsar como Ü desde cero
 
-Estado: **fases 1 y 2 implementadas** (2026-09-27) · Paso 1 de la integración de `u/` en `main`
+Estado: **paso 1 implementado: fases 1-6** (2026-09-27; la 4 medida y descartada) · Paso 1 de la integración de `u/` en `main`
 (plan: https://claude.ai/artifact/N3c1p4GGeNJV9nCcnETN5N) · Rama: `jose/u-pulsar-en-main`, que sale de
 `jose/u-entra-a-main` (main `334f144` + `u/`).
 
@@ -178,6 +178,36 @@ la segunda escritura borró la primera (el título de la pestaña pasó de «hol
 se hizo sobre una pestaña «Sin título» que ya estaba abierta, y su contenido se perdió; las siguientes, en una
 pestaña nueva. Añadir o reemplazar es la pieza P6 de fondo (spec 049, promesa 410, «si el campo no lo refleja»):
 no es de velocidad y va en su propia rama.
+
+## Fase 6 — desplazar (pieza P1 del plan)
+
+`Desplazamiento.Mover` dormía 350 ms fijos tras cada `ScrollVertical` antes de leer el porcentaje.
+
+| # | Promesa |
+|---|---|
+| 484 | desplazar comprueba la consecuencia en cuanto la hay: sale al primer cambio del porcentaje en vez de dormir 350 ms fijos, y sin cambio agota el mismo techo antes de decir que no se movió |
+
+| `map_scroll` en Configuración, 7 desplazamientos (abajo, arriba, principio, final) | línea base | fase 6 |
+|---|---|---|
+| ida y vuelta | 463-503 ms | **115-215 ms** |
+| lo que contestó | 7 de 7 con su porcentaje | 7 de 7, los mismos porcentajes |
+
+Sabotajes: 2, los 2 rojos (dormir el techo entero; decir «no se movió» sin esperar).
+
+## Balance del paso 1 (2026-09-27)
+
+| Qué hace U.exe | línea base (main) | rama | promesas |
+|---|---|---|---|
+| pulsar (ida y vuelta por el MCP) | 3,3-4,0 s | mediana 532 ms | 475-479 |
+| abrir una app | 13 s con Configuración | 194-1.083 ms, 17 de 17 | 480-482 |
+| escribir | 2,2-2,4 s | 382-695 ms | 483 |
+| desplazar | 463-503 ms | 115-215 ms | 484 |
+| mirar | 95-205 ms | sin cambio: medido, y no entra | — |
+
+Lo que no se integra y por qué: el lector de `u/` para mirar (fase 4), y decidir (Jev ya está en main con
+`map_decidir`). SAP no se tocó: sus caminos siguen por la mano y la espera de siempre (promesa 476), y no hubo
+sesión de SAP en este PC para medir la parte que es suya (P11 del plan). La voz (P12) y no replanear (P10) son del
+modelo, no de las manos: van en su spec.
 
 ## Lo que queda fuera
 
