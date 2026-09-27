@@ -41,6 +41,20 @@ Lo que no cambia: el grafo aprende solo cuando cambia la **ubicación** (`Cruzar
 **Presupuesto (regla 1 del plan):** la espera tras un botón ≤ 150 ms; tras un enlace, lo que tarde la página, con
 techo 1,5 s. Se mide contra la tabla de arriba con la misma sonda (`medir-pulsar-main2.ps1`).
 
+### Resultado de la fase 1 (medido el 2026-09-27, 2 vueltas × Configuración y Explorador, 10 pulsos)
+
+| | línea base | fase 1 |
+|---|---|---|
+| esperar el cambio | 1.824-1.864 ms | **mediana 211 ms** |
+| pulsar entero (ida y vuelta por el MCP) | 3.263-4.016 ms | **mediana 930 ms** |
+| aristas aprendidas al cambiar de carpeta | — | **8 de 8** |
+
+Hallazgo al medir: saliendo al PRIMER cambio (mediana 127 ms), 5 de 8 cambios de carpeta del Explorador quedaban
+«sigues en Imágenes» —la lista cambia antes que el título, que es la ubicación— y el grafo no aprendía esas aristas.
+De ahí el asentado (dos lecturas iguales a 60 ms): cuesta ~85 ms de mediana y devuelve el aprendizaje entero.
+Y un fallo del arnés: al referenciar U.exe el núcleo de `u/`, la promesa 162 caía por `FileNotFoundException:
+U.Ciclo`; el contrato ahora referencia sus DLL. Sabotajes: 3, los 3 rojos.
+
 ## Fase 2 — la mano (después, por separado)
 
 El clic con el ratón real de `u/` (SetCursorPos + SendInput al centro del elemento ya resuelto), sin escalera.
