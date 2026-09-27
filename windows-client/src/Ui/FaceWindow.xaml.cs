@@ -777,6 +777,18 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 (sel, etq, gesto) =>
                 {
                     _ultimoMotivoDeLaMano = "";
+                    // LA MANO RÁPIDA PRIMERO (spec 053, fase 2): si lo pedido es UN elemento visible de la lectura rápida,
+                    // el ratón real en su centro. Si no es suyo —SAP, homónimos, sin coincidencia, o repetido en menos
+                    // de 3 s porque el primer clic no agarró—, la mano de siempre, con su escalera.
+                    if (gesto.Length == 0)
+                    {
+                        var reloj = System.Diagnostics.Stopwatch.StartNew();
+                        if (_manoRapida.Intentar(sel, etq, out string? motivoRapido))
+                        {
+                            LogBus.Log("mano", $"mano rápida: «{etq}» en {reloj.ElapsedMilliseconds} ms{(motivoRapido != null ? " · " + motivoRapido : "")}");
+                            return motivoRapido;
+                        }
+                    }
                     if (gesto.Length == 0 || U.Graph.Surfaces.SapSelector.Owns(sel))
                         return (_mapaVivo?.Pulsar?.Invoke(sel, etq) ?? false) ? null : _ultimoMotivoDeLaMano;
                     try
@@ -800,7 +812,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             pulsar.LoQueSeVe = () =>
             {
                 _dondeTrabajo.Olvida();
-                return _lectorRapido.Leer(VentanaObjetivo()).Huella;
+                var l = _lectorRapido.Leer(VentanaObjetivo());
+                _ultimaLectura = (l, Environment.TickCount64);
+                return l.Huella;
             };
             if (mcp.Map != null) mcp.Map.PulsarPorElNucleo = (sel, etq) =>
             {
@@ -5475,6 +5489,23 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
     /// <summary>El lector de Ü desde cero (u/Nucleo): una petición a UIA con la condición en el proveedor, en su propio hilo MTA.</summary>
     private readonly U.Ciclo.LectorUia _lectorRapido = new();
+
+    /// <summary>La mano de Ü desde cero (spec 053, fase 2): el ratón real sobre la caja de la lectura rápida.</summary>
+    private Navigation.ManoRapida? _manoRapidaCache;
+    /// <summary>
+    /// UNA LECTURA POR CLIC (spec 048/053): la huella de antes del clic y la mano rápida leían la misma pantalla dos veces
+    /// seguidas —45-265 ms de más por clic en Configuración, medido el 2026-09-27—. La mano usa la de la huella si es
+    /// de hace menos de 500 ms.
+    /// </summary>
+    private (U.Ciclo.Lectura Lectura, long En)? _ultimaLectura;
+
+    private Navigation.ManoRapida _manoRapida => _manoRapidaCache ??= new Navigation.ManoRapida(
+        () => _ultimaLectura is { } u && Environment.TickCount64 - u.En < 500
+            ? u.Lectura.Accionables
+            : _lectorRapido.Leer(VentanaObjetivo()).Accionables,
+        U.Ciclo.Raton.Clic,
+        () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
+        () => Environment.TickCount64);
 
     private string DondeTrabajo() => _dondeTrabajo.Pide(() =>
     {

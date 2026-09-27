@@ -138,6 +138,21 @@ public sealed class UiaSurface : IUiSurface
     /// </remarks>
     public static event Action<double, double, double, double>? Pulso;
 
+    /// <summary>
+    /// Cuenta un clic que dio OTRA mano —la rápida de Ü desde cero, spec 053—: la carita tiene que viajar igual
+    /// (promesa 240), y el evento solo se podía invocar desde aquí.
+    /// </summary>
+    public static void AvisarDelPulso(double x, double y, double ancho, double alto)
+    {
+        try { if (ancho >= 1 && alto >= 1) Pulso?.Invoke(x, y, ancho, alto); } catch { }
+    }
+
+    /// <summary>Cuenta que el cursor se movió, cuando lo movió otra mano (spec 053).</summary>
+    public static void AvisarDelCursor(int x, int y)
+    {
+        try { CursorMoved?.Invoke(x, y); } catch { }
+    }
+
     /// <summary>Cuenta dónde cayó el clic, si es que alguien escucha y el elemento tiene caja.</summary>
     private static void AvisarDelPulso(AutomationElement el)
     {

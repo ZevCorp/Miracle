@@ -184,7 +184,7 @@ public sealed class PulsarSegunElNucleo
             ? EsperarAQueCambieLoQueSeVe(desde, vistaAntes, techoVista, out cambioLaVista)
             : EsperarACambiar(desde, esCampo ? EsperaDeCampoMs : EsperaMaximaMs);
         relojEspera.Stop();
-        Diagnostics.LogBus.Log("mano", $"⏱ pulsar «{etiqueta}»: la mano {relojMano.ElapsedMilliseconds} ms · esperar el cambio {relojEspera.ElapsedMilliseconds} ms ({_sondeos} {(conVista ? "lectura(s) de lo que se ve" : "sondeo(s) de «dónde»")}) · {(hasta.Length > 0 && hasta != desde ? "cambió" : cambioLaVista ? "cambió lo que se ve" : "no cambió")}");
+        Diagnostics.LogBus.Log("mano", $"⏱ pulsar «{etiqueta}»: la mano {relojMano.ElapsedMilliseconds} ms · esperar el cambio {relojEspera.ElapsedMilliseconds} ms ({_sondeos} {(conVista ? "lectura(s) de lo que se ve" : "sondeo(s) de «dónde»")}) · {(hasta.Length > 0 && hasta != desde ? "cambió" : cambioLaVista ? "cambió lo que se ve" : "no cambió")}{(conVista ? " · " + RepartoDeLaEspera : "")}");
         // LA VENTANA DE TRABAJO SE CERRÓ (promesa 233): «dónde» volvió al foco de la persona, y eso
         // no es haber ido allí. Se cuenta tal cual y no se aprende ninguna arista.
         string aviso = AvisoDeLaVentana?.Invoke() ?? "";
@@ -335,21 +335,40 @@ public sealed class PulsarSegunElNucleo
     /// de lo pulsado. Después se pregunta «dónde» UNA vez: si cambió la ubicación, manda ella y se aprende la arista.
     /// Cada lectura cuesta lo que cuesta leer la ventana (20-100 ms en u/): no hace falta otro compás.
     /// </summary>
+    /// <summary>El reparto de la última espera con vista, para el log: cada lectura y la pregunta final de «dónde».</summary>
+    public string RepartoDeLaEspera { get; private set; } = "";
+
     private string EsperarAQueCambieLoQueSeVe(string desde, string vistaAntes, int techoMs, out bool cambio)
     {
         var reloj = System.Diagnostics.Stopwatch.StartNew();
+        var reparto = new System.Text.StringBuilder();
+        string Leer()
+        {
+            long t0 = reloj.ElapsedMilliseconds;
+            string x = Vista();
+            reparto.Append($"leer {reloj.ElapsedMilliseconds - t0} · ");
+            return x;
+        }
+        string Donde()
+        {
+            long t0 = reloj.ElapsedMilliseconds;
+            string d = _donde() ?? "";
+            reparto.Append($"dónde {reloj.ElapsedMilliseconds - t0}");
+            RepartoDeLaEspera = reparto.ToString();
+            return d;
+        }
         cambio = false;
         _sondeos = 0;
         string v = "";
         do
         {
             _sondeos++;
-            v = Vista();
+            v = Leer();
             if (v.Length > 0 && v != vistaAntes) { cambio = true; break; }
             if (reloj.ElapsedMilliseconds < techoMs) System.Threading.Thread.Sleep(15);
         }
         while (reloj.ElapsedMilliseconds < techoMs);
-        if (!cambio) return _donde() ?? "";
+        if (!cambio) return Donde();
 
         // CAMBIÓ: SE ESPERA A QUE SE ASIENTE, MIRANDO LA UBICACIÓN (promesa 475, caso 5). La lista del Explorador
         // cambia antes que su título, que es de donde sale la ubicación: saliendo al primer cambio, 5 de 8 clics
@@ -357,21 +376,25 @@ public sealed class PulsarSegunElNucleo
         // 2026-09-27). Dos lecturas iguales separadas al menos 60 ms —como abre u/— o 300 ms más, lo primero que
         // llegue. La separación es la que hace que «iguales» signifique «quieta»: sin ella, dos lecturas seguidas
         // de la misma pantalla a medio pintar ya se daban por asentadas.
+        // «Dónde» se pregunta en CADA vuelta: cuesta 0-29 ms, y deja salir en cuanto llega la ubicación nueva. Lo caro es
+        // leer lo que se ve justo después del clic —145-312 ms la primera lectura, con la app repintando; 34-169 las
+        // siguientes— (reparto medido el 2026-09-27 en Configuración y el Explorador). Se probó preguntar «dónde» solo al
+        // final creyendo que era lo caro, y el Explorador pasó de 142-260 a 329-420 ms: hipótesis falsa, medida y deshecha.
         long hastaMs = reloj.ElapsedMilliseconds + 300;
         long ultima = reloj.ElapsedMilliseconds;
         while (reloj.ElapsedMilliseconds < hastaMs)
         {
-            string d = _donde() ?? "";
+            string d = Donde();
             if (d.Length > 0 && d != desde) return d;
             long falta = 60 - (reloj.ElapsedMilliseconds - ultima);
             if (falta > 0) System.Threading.Thread.Sleep((int)falta);
             _sondeos++;
-            string otra = Vista();
+            string otra = Leer();
             ultima = reloj.ElapsedMilliseconds;
             if (otra == v) break;
             v = otra;
         }
-        return _donde() ?? "";
+        return Donde();
     }
 
     /// <summary>El tipo de lo pulsado: lo dice el terreno, y si aún no lo conoce, el selector (`;ct=Hyperlink`).</summary>
