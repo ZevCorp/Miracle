@@ -55,7 +55,8 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(468, "Luna sabe cuánto lleva: cada resultado que recibe dice el tiempo que va del pedido, y sabe que si la persona pide una duración tiene que seguir hasta cumplirla.", P468);
+        Promesa(469, "Abrir llega también cuando la ventana de delante es la misma pero cambia su título: una dirección abierta con el navegador delante abre una pestaña en esa misma ventana. Si no cambia ni la ventana ni el título, no llegó.", P469);
+        Promesa(468,"Luna sabe cuánto lleva: cada resultado que recibe dice el tiempo que va del pedido, y sabe que si la persona pide una duración tiene que seguir hasta cumplirla.", P468);
         Promesa(467,"Lo que no es un clic no se le pide a Jev: un paso con una dirección web se abre como «abre:», un «objetivo:» delante sobra, «esperar…» espera a que la pantalla se quede quieta sin pulsar, y «escribir…» sin texto exacto falla al instante pidiendo «escribe:»; y Luna lo sabe.", P467);
         Promesa(466,"Jev reintenta la conexión igual que Luna: si no llega a abrirse lo intenta hasta 3 veces, y si no se abre falla diciendo la causa y cuántas veces lo intentó; lo que ya salió hacia Jev no se reintenta.", P466);
         Promesa(465,"Tras pulsar un enlace se espera a que la pantalla cambie hasta 1,5 s, saliendo en cuanto cambia: una página que tarda en cargar no es un clic que no agarró. Tras cualquier otro clic se sigue esperando como mucho 150 ms.", P465);
@@ -738,6 +739,17 @@ internal static class Contrato
         var prop = T("Raton").GetProperty("PausaEntreLetrasMs") ?? throw new Pendiente("Raton.PausaEntreLetrasMs");
         int pausa = (int)prop.GetValue(null)!;
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
+    }
+
+    private static void P469()
+    {
+        // Ronda libre L1 (2026-09-26, 20:24): «no pude abrir https://…» 13 veces en un pedido, ~5 s cada una. Con Chrome
+        // delante la dirección se abre en una pestaña de la MISMA ventana, y abrir esperaba a que cambiara la ventana.
+        bool Llego(long a, string ta, long b, string tb) => (bool)S("Apps", "Llego", new IntPtr(a), ta, new IntPtr(b), tb)!;
+        Exige(Llego(100, "Wikipedia - Google Chrome", 100, "Isaac Newton - Wikipedia - Google Chrome"), "una pestaña nueva en la misma ventana no cuenta como llegar");
+        Exige(Llego(100, "Claude", 200, "Calculadora"), "una ventana nueva no cuenta como llegar");
+        Exige(!Llego(100, "Wikipedia - Google Chrome", 100, "Wikipedia - Google Chrome"), "sin cambiar ni ventana ni título se dio por llegado");
+        Exige(!Llego(100, "Chrome", 0, ""), "sin ventana delante se dio por llegado");
     }
 
     private static void P468()
