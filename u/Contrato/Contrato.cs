@@ -55,7 +55,8 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(466, "Jev reintenta la conexión igual que Luna: si no llega a abrirse lo intenta hasta 3 veces, y si no se abre falla diciendo la causa y cuántas veces lo intentó; lo que ya salió hacia Jev no se reintenta.", P466);
+        Promesa(467, "Lo que no es un clic no se le pide a Jev: un paso con una dirección web se abre como «abre:», un «objetivo:» delante sobra, «esperar…» espera a que la pantalla se quede quieta sin pulsar, y «escribir…» sin texto exacto falla al instante pidiendo «escribe:»; y Luna lo sabe.", P467);
+        Promesa(466,"Jev reintenta la conexión igual que Luna: si no llega a abrirse lo intenta hasta 3 veces, y si no se abre falla diciendo la causa y cuántas veces lo intentó; lo que ya salió hacia Jev no se reintenta.", P466);
         Promesa(465,"Tras pulsar un enlace se espera a que la pantalla cambie hasta 1,5 s, saliendo en cuanto cambia: una página que tarda en cargar no es un clic que no agarró. Tras cualquier otro clic se sigue esperando como mucho 150 ms.", P465);
         Promesa(464,"Un objetivo no se corta por contar pasos: lo paran cumplirse, que Jev no se atreva, Escape, o que Jev elija lo mismo por tercera vez en la misma pantalla —aunque entre medias haya pasado por otras: un bucle—; la red de seguridad es de 50 pasos.", P464);
         Promesa(463,"Luna no tiene tope de turnos ni se da por atascada: sigue hasta contestar, y solo para con Escape o a los 10 minutos; al parar, un último turno sin herramientas le pide contar lo que logró, y eso es lo que se entrega, empezando por «Paré:» y el motivo.", P463);
@@ -736,6 +737,36 @@ internal static class Contrato
         var prop = T("Raton").GetProperty("PausaEntreLetrasMs") ?? throw new Pendiente("Raton.PausaEntreLetrasMs");
         int pausa = (int)prop.GetValue(null)!;
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
+    }
+
+    private static void P467()
+    {
+        // Rondas del 2026-09-26 y la prueba libre del dueño (19:15): «abre https://…» y «objetivo: poner el foco en la
+        // barra» como objetivos (la barra de direcciones pulsada 3 veces, dos veces), «escribir una nota de prueba»
+        // (el editor pulsado 3 veces) y «esperar a que aparezcan los resultados» («Navegador» pulsado 6 veces).
+        string N(string paso) => (string)S("Ejecutor", "Normalizar", paso)!;
+        Exige(N("ir a https://scholar.google.com") == "abre: https://scholar.google.com", $"«ir a https://…» quedó «{N("ir a https://scholar.google.com")}»");
+        Exige(N("abre https://xenco.com.co/safix-2/") == "abre: https://xenco.com.co/safix-2/", $"«abre https://…» sin dos puntos quedó «{N("abre https://xenco.com.co/safix-2/")}»");
+        Exige(N("entrar a www.wikipedia.org") == "abre: https://www.wikipedia.org", $"«entrar a www.…» quedó «{N("entrar a www.wikipedia.org")}»");
+        Exige(N("objetivo: pulsar Buscar") == "pulsar Buscar", $"«objetivo:» no se quitó: «{N("objetivo: pulsar Buscar")}»");
+        Exige(N("abrir el menú Archivo") == "abrir el menú Archivo" && N("escribe: hola") == "escribe: hola", "se tocó un paso que estaba bien");
+        Exige(N("pulsar el enlace «Ver en https://ejemplo.com»") == "pulsar el enlace «Ver en https://ejemplo.com»", "un objetivo que solo NOMBRA una dirección se convirtió en abrirla");
+
+        var (e, anotado) = Ejecutor(_ => true);
+        (e.GetType().GetProperty("EsperarQuieta") ?? throw new Pendiente("Ejecutor.EsperarQuieta")).SetValue(e, (Func<bool>)(() => { anotado.Add("esperar"); return true; }));
+        var r = I(e, "Ejecutar", new List<string> { "ir a https://scholar.google.com", "objetivo: pulsar Buscar", "esperar a que aparezcan los resultados" })!;
+        Exige(anotado.Count == 3 && anotado[0] == "abrir https://scholar.google.com" && anotado[1].StartsWith("jev pulsar Buscar") && anotado[2] == "esperar",
+            $"los pasos no se hicieron como gestos: {string.Join(" | ", anotado)}");
+
+        anotado.Clear();
+        var r2 = I(e, "Ejecutar", new List<string> { "escribir una nota de prueba sin guardar", "tecla: Ctrl+S" })!;
+        var est = L(P(P(r2, "Resultado")!, "Pasos")).Select(p => (string)P(p, "Estado")!).ToList();
+        string relato = (string)I(r2, "Relato")!;
+        Exige(anotado.Count == 0 && est.SequenceEqual(new[] { "Fallido", "Omitido" }) && relato.Contains("escribe:"),
+            $"«escribir…» sin texto no falló al instante pidiendo «escribe:»: {string.Join(" | ", anotado)} · {string.Join(",", est)} · {relato}");
+
+        string luna = (string)(T("ProtocoloVivo").GetField("InstruccionesDeLuna")?.GetValue(null) ?? "");
+        Exige(luna.Contains("nunca como objetivo"), "Luna no sabe que las direcciones y los textos no son objetivos");
     }
 
     /// <summary>Un TypeSafe de mentira: corta la conexión las primeras veces que diga «cortes», y luego contesta.</summary>
