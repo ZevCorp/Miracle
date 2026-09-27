@@ -17,6 +17,8 @@ final class NotchPanel: NSPanel {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     lazy var model = AppModel()
+    var diagnosticMode = false
+    private var terminationSignal: DispatchSourceSignal?
     var face: NSPanel!
     var window: NSWindow!
     var statusItem: NSStatusItem!
@@ -29,7 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Diagnostics run in a separate process and must never close the user's UI.
         let diagnosticFlags = ["--chat-scroll-test", "--wake-test", "--spoken-voice-test", "--configure-voice-key", "--voice-test", "--audio-test", "--execution-test", "--smoke-test", "--diagnose"]
-        if !CommandLine.arguments.contains(where: diagnosticFlags.contains) { terminateOlderCopies() }
+        diagnosticMode = CommandLine.arguments.contains(where: diagnosticFlags.contains)
+        if !diagnosticMode { terminateOlderCopies() }
         if let index = CommandLine.arguments.firstIndex(of: "--chat-scroll-test"), CommandLine.arguments.count > index + 1 {
             Task { await ChatScrollProbe.run(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
             return
@@ -74,6 +77,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             return
         }
+        // Route installer termination through AppKit so pending history is flushed.
+        signal(SIGTERM, SIG_IGN)
+        terminationSignal = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        terminationSignal?.setEventHandler { NSApp.terminate(nil) }
+        terminationSignal?.resume()
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 510, height: 630), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Ü para Mac"; window.isReleasedWhenClosed = false; window.delegate = self
         window.contentView = NSHostingView(rootView: MainView(model: model)); window.center()
@@ -151,6 +159,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func stop() { model.stop() }
     @objc func quit() { NSApp.terminate(nil) }
     func applicationWillTerminate(_ notification: Notification) {
+        guard !diagnosticMode else { return }
+        model.flushHistory()
         model.stop()
         if let globalKeys { NSEvent.removeMonitor(globalKeys) }
         if let localKeys { NSEvent.removeMonitor(localKeys) }

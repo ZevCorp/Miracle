@@ -2,6 +2,23 @@ import Foundation
 import UCore
 
 extension AgentTests {
+    func testConversationArchivePreservesHistoryAndRejectsCorruption() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ConversationArchive(url: root.appendingPathComponent("chat.json"))
+        XCTAssertEqual(try store.load().count, 0)
+        let messages = [ConversationMessage(text: "Recuerda mis cambios de voz", user: true), ConversationMessage(text: "Contexto conservado.", user: false)]
+        try store.save(messages)
+        XCTAssertEqual(try store.load(), messages)
+        var stream = messages
+        stream[1].text += " Más tokens."
+        try store.save(stream)
+        XCTAssertEqual(try store.load(), stream)
+        try Data("damaged".utf8).write(to: store.url)
+        XCTAssertThrowsError(try store.load())
+        XCTAssertEqual(try String(contentsOf: store.url), "damaged")
+    }
+
     func testWakeGreetingRequiresDirectAddress() {
         let segments: [(String, Double, Double)] = [("hablando", 0, 0.4), ("contigo", 0.5, 0.3), ("Hola", 2, 0.3), ("You", 2.4, 0.3)]
         XCTAssertEqual(VoiceActivation.latestPhrase(segments), "Hola You")

@@ -3,7 +3,7 @@ import Combine
 import UCore
 import UMac
 
-struct ChatMessage: Identifiable { let id = UUID(); var text: String; let user: Bool }
+typealias ChatMessage = ConversationMessage
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -17,7 +17,11 @@ final class AppModel: ObservableObject {
     var status: String { get { presentation.detail } set { presentation.detail = newValue } }
     @Published var draft = ""
     @Published var partial = ""
-    @Published var messages: [ChatMessage] = []
+    @Published var messages: [ChatMessage] = [] { didSet { scheduleHistorySave() } }
+    private var historyEnabled = false
+    private var historySave: Task<Void, Never>?
+    private let historyQueue = DispatchQueue(label: "com.zevcorp.u.mac.history")
+    private let history = ConversationArchive(url: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("U Mac/conversation.json"))
     @Published var microphone = false
     @Published var busy = false
     @Published var liveConnected = false
@@ -64,7 +68,15 @@ final class AppModel: ObservableObject {
         if let id = UserDefaults.standard.string(forKey: "userID") { return id }
         let id = UUID().uuidString; UserDefaults.standard.set(id, forKey: "userID"); return id
     }()
-    init() {
+    init(persistConversation: Bool = true) {
+        if persistConversation {
+            do {
+                messages = try history.load()
+                historyEnabled = true
+            } catch {
+                status = "No se pudo leer el historial guardado. El archivo se conserva sin sobrescribir."
+            }
+        }
         wakeSpeech.onState = { [weak self] listening, _ in
             self?.wakeListening = listening
             if listening { self?.wakeStatus = "Esperando que llames a You para conversar." }
@@ -138,6 +150,29 @@ final class AppModel: ObservableObject {
             guard let self else { throw CancellationError() }
             return try await self.liveTool(name, args: args)
         }
+    }
+    private func scheduleHistorySave() {
+        guard historyEnabled else { return }
+        historySave?.cancel()
+        historySave = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+            guard let self else { return }
+            let snapshot = self.messages
+            let store = self.history
+            self.historyQueue.async { [weak self] in
+                do { try store.save(snapshot) }
+                catch {
+                    Task { @MainActor [weak self] in self?.status = "No se pudo guardar el historial: " + error.localizedDescription }
+                }
+            }
+        }
+    }
+    func flushHistory() {
+        guard historyEnabled else { return }
+        historySave?.cancel()
+        let snapshot = messages
+        do { try historyQueue.sync { try history.save(snapshot) } }
+        catch { status = "No se pudo guardar el historial: " + error.localizedDescription }
     }
     func setWakeEnabled(_ enabled: Bool) {
         wakeEnabled = enabled

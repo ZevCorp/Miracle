@@ -32,7 +32,7 @@ enum ChatScrollProbe {
         view.textView.setSelectedRange(selection)
         let focus = window.firstResponder
         check(!view.following, "PageUp enters reading")
-        let model = AppModel()
+        let model = AppModel(persistConversation: false)
         model.microphone = true
         model.mode = .speaking
         let start = Date()

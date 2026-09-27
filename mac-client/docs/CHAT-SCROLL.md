@@ -39,3 +39,15 @@ Prueba manual posterior: pedir una respuesta larga; subir y seleccionar texto mi
 Se leyó exclusivamente README de la rama main de https://github.com/NousResearch/hermes-agent (vía raw.githubusercontent.com). Sirvió como referencia conceptual de memoria/ciclos de mejora, no como dependencia ni como código copiado. No se clonó, modificó ni publicó nada en Hermes.
 
 Kaizen aplicado: observar fallo, cambiar el componente de desplazamiento, comprobar regresiones y documentar evidencia. Las reglas sociales y los prompts de voz quedaron fuera de este cambio de UX.
+
+## Preservación antes de aplicar (27 septiembre, seguimiento)
+
+El usuario pidió aplicar el cambio sin perder ninguna conversación. Se creó respaldo privado local fuera del repositorio: bundle Git verificado, app instalada, preferencias y directorio U Mac (memoria y firma). No se exportaron secretos del Llavero ni se alteraron credenciales.
+
+Se añadió ConversationArchive: guarda mensajes con identificadores mediante escritura atómica, permisos 0600 y cola serial fuera del procesamiento de voz. Carga al iniciar, agrupa actualizaciones durante 300 ms y vacía escrituras pendientes al terminar normalmente. SIGTERM del instalador se dirige a terminación AppKit para ejecutar ese vaciado. Un cierre abrupto o fallo eléctrico todavía puede perder los últimos tokens antes de guardarlos; no se promete durabilidad absoluta.
+
+Si falla la lectura, se conserva el archivo sin sobrescribir y se muestra un error. Los diagnósticos no cargan ni guardan el historial personal. Las preferencias y memoria preexistentes permanecen separadas.
+
+Pruebas: 29 contratos/175 aserciones, incluyendo identidad/texto tras recarga, streaming guardado y corrupción explícita. Sabotear guardado para escribir [] hizo fallar el contrato; restaurado y verde. Las 18 comprobaciones del visor siguen pasando.
+
+Estado de despliegue: NO se reinició ni reemplazó la sesión anterior. Su historial existe solo en RAM. La recuperación por accesibilidad es parcial: inicio, varias páginas intermedias y final guardados; faltan páginas del medio porque macOS se bloqueó. Es imprescindible desbloquear, completar recuperación y verificar cobertura antes de instalar. El archivo de respaldo parcial está marcado complete=false y NO se importa como si fuera una recuperación completa. Este chat de Codex no se modifica.
