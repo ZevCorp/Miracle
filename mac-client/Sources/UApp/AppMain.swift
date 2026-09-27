@@ -27,7 +27,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var notch: NSPanel!
     var screenObservation: NSObjectProtocol?
     func applicationDidFinishLaunching(_ notification: Notification) {
-        terminateOlderCopies()
+        // Diagnostics run in a separate process and must never close the user's UI.
+        let diagnosticFlags = ["--spoken-voice-test", "--configure-voice-key", "--voice-test", "--audio-test", "--execution-test", "--smoke-test", "--diagnose"]
+        if !CommandLine.arguments.contains(where: diagnosticFlags.contains) { terminateOlderCopies() }
+        if let index = CommandLine.arguments.firstIndex(of: "--spoken-voice-test"), CommandLine.arguments.count > index + 2 {
+            Task { await SmokeTest.spokenVoice(input: URL(fileURLWithPath: CommandLine.arguments[index + 1]), output: URL(fileURLWithPath: CommandLine.arguments[index + 2])) }
+            return
+        }
+        if let index = CommandLine.arguments.firstIndex(of: "--configure-voice-key"), CommandLine.arguments.count > index + 1 {
+            Task { await SmokeTest.configureVoice(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
+            return
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--audio-test"), CommandLine.arguments.count > index + 1 {
             Task { await SmokeTest.audio(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
             return

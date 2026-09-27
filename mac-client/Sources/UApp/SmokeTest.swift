@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import UCore
 import UMac
 
@@ -13,6 +14,43 @@ private final class AudioProbeState: @unchecked Sendable {
 
 @MainActor
 struct SmokeTest {
+    /// Sends a synthetic spoken fixture; no room audio or desktop actions are captured.
+    static func spokenVoice(input: URL, output: URL) async {
+        var evidence: [String: Any] = ["passed": false, "microphoneOpened": false]
+        defer {
+            if let data = try? JSONSerialization.data(withJSONObject: evidence, options: [.prettyPrinted, .sortedKeys]) { try? data.write(to: output, options: .atomic) }
+            NSApp.terminate(nil)
+        }
+        do {
+            let file = try AVAudioFile(forReading: input)
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)) else { throw AgentError.invalid("Audio de prueba inválido.") }
+            try file.read(into: buffer)
+            let pcm = try PCMEncoder(source: file.processingFormat).encode(buffer)
+            let key = try await Credentials.readChecked("OPENAI_API_KEY") ?? ""
+            evidence["inputBytes"] = pcm.count
+            evidence["spokenInputLunaToolAndAudibleReply"] = try await VoiceProbe.check(key: key, audio: pcm)
+            evidence["passed"] = true
+        } catch { evidence["error"] = error.localizedDescription }
+    }
+    /// Installer recovery input comes from stdin, never argv, preferences or a file.
+    /// Validate the supplied credential before creating a new app-owned Keychain item.
+    static func configureVoice(output: URL) async {
+        var evidence: [String: Any] = ["passed": false, "stage": "validate_voice"]
+        defer {
+            if let data = try? JSONSerialization.data(withJSONObject: evidence, options: [.prettyPrinted, .sortedKeys]) {
+                try? data.write(to: output, options: .atomic)
+            }
+            NSApp.terminate(nil)
+        }
+        do {
+            guard let key = readLine(), !key.isEmpty else { throw AgentError.invalid("Falta la credencial en la entrada del instalador.") }
+            guard try await VoiceProbe.check(key: key) else { throw AgentError.unavailable("La prueba de Live no terminó.") }
+            evidence["stage"] = "save_keychain"
+            try await Credentials.save("OPENAI_API_KEY", value: key)
+            evidence["passed"] = try await Credentials.readChecked("OPENAI_API_KEY") == key
+            evidence["stage"] = "complete"
+        } catch { evidence["error"] = error.localizedDescription }
+    }
     /// Opens the installed app's real microphone and output route without contacting any service.
     static func audio(output: URL) async {
         var evidence: [String: Any] = ["date": ISO8601DateFormatter().string(from: Date()), "passed": false]

@@ -2,6 +2,20 @@
 
 Rama local: `juanpablo/live-graph-recovery`. Sin push ni cambios en main.
 
+## Resultado posterior: recuperación y prueba hablada
+
+La indicación de autorización pendiente más abajo describe el diagnóstico inicial, no el resultado final.
+
+- Reproducción adicional: guardar en el proceso principal permitía reiniciar, pero volver a compilar la app perdía acceso a la credencial incluso con el mismo designated requirement. No bastaba con estabilizar la firma de AX.
+- Se aisló el Llavero en UCredentialStore, un ejecutable sin dependencias del código de UI/voz. Solo atiende al padre Ü con el mismo certificado de firma; las claves viajan por pipes privados, nunca por argumentos o archivos. Un intento directo desde shell fue rechazado con código 77 sin leer el Llavero.
+- Se recuperó la clave ya proporcionada por el usuario, validándola primero con Live/Luna y guardándola desde la app. No se concedió acceso universal al Llavero ni se borraron sus entradas históricas.
+- Se cambió y recompiló el código principal, se reinstaló y se probó la voz SIN volver a aprovisionar la clave. Resultado: inputBytes=179292, spokenInputLunaToolAndAudibleReply=true, passed=true. La prueba transmitió una frase sintética, verificó la llamada health_check de Luna y exigió audio de respuesta con RMS > 0.001. No usó el micrófono ni controló aplicaciones.
+- La captura real de micrófono se verificó por separado: 95728 bytes en dos segundos. La percepción del sonido por el usuario sigue requiriendo su prueba normal de conversación.
+- Los diagnósticos ahora ejecutan un proceso separado sin terminar la interfaz abierta. Al concluir quedó un único proceso de interfaz instalado, PID 72662 durante la verificación.
+- Para probar: tocar la cara pequeña y hablar. Ya no se requiere la secuencia de autorización descrita en el diagnóstico inicial.
+
+Límite de distribución: el componente del Llavero debe conservar su binario durante actualizaciones locales de UI/voz. Si cambia el propio componente o el compilador, se debe validar/migrar su acceso antes de publicar. Una firma local no sustituye Developer ID para distribución pública. La conexión de Graph/Jev y una integración real de Hermes no se dan por verificadas con esta prueba de voz.
+
 ## Evidencia
 
 - La segunda cara grande pertenece al proceso ChatGPT Computer Use, PID 54525 durante la inspección. No era otra instalación de Ü. Confirmado con CGWindowListCopyWindowInfo y NSRunningApplication.bundleURL.
