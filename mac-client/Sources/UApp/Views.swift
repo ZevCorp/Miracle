@@ -83,6 +83,7 @@ struct MainView: View {
                 Text("Usa tu credencial de Graph, la misma cuenta del asistente de Windows. Se guarda en el Llavero de este Mac.").font(.callout).foregroundStyle(.secondary)
                 TextField("Dirección de Graph", text: $model.graphURL).textFieldStyle(.roundedBorder)
                 SecureField(model.hasCredential ? "Nueva credencial (ya hay una guardada)" : "Credencial de Graph", text: $model.credential).textFieldStyle(.roundedBorder)
+                SecureField("Clave de OpenAI para Live 1 (opcional; se guarda en el Llavero)", text: $model.openAICredential).textFieldStyle(.roundedBorder)
                 HStack {
                     Button("Guardar") { Task { await model.saveConfiguration() } }
                     Button("Comprobar conexión") { model.checkConnection() }

@@ -27,6 +27,7 @@ final class AppModel: ObservableObject {
     private var voiceID = UUID()
     @Published var graphURL = UserDefaults.standard.string(forKey: "graphURL") ?? GraphClient.defaultURL
     @Published var credential = ""
+    @Published var openAICredential = ""
     @Published var hasCredential = false
     private var credentialRefresh: Task<Void, Never>?
     @Published var configurationMessage = ""
@@ -118,6 +119,7 @@ final class AppModel: ObservableObject {
         do {
             _ = try GraphClient(baseURL: graphURL, apiKey: "validation")
             if !credential.isEmpty { try await Credentials.save("GRAPH_API_KEY", value: credential); credential = "" }
+            if !openAICredential.isEmpty { try await Credentials.save("OPENAI_API_KEY", value: openAICredential); openAICredential = "" }
             UserDefaults.standard.set(graphURL, forKey: "graphURL")
             hasCredential = await Credentials.read("GRAPH_API_KEY") != nil
             configurationMessage = hasCredential ? "Guardado en el Llavero de macOS." : "Falta la credencial de Graph."
@@ -148,14 +150,18 @@ final class AppModel: ObservableObject {
         Task {
             defer { checkingVoice = false }
             do {
-                let keys = try await makeClient().providerKeys()
-                guard let key = keys.openai, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                    throw AgentError.unavailable("Graph no entrega una credencial de OpenAI para Live 1.")
-                }
+                let local = try await Credentials.readChecked("OPENAI_API_KEY")
+                let graph = try? await makeClient().providerKeys()
+                let key = try await voiceCredential(graph: graph?.openai ?? local)
                 guard try await VoiceProbe.check(key: key) else { throw AgentError.unavailable("Live 1 no completó la prueba.") }
                 voiceCheckMessage = "Live 1 y Luna respondieron. Ahora pulsa Hablar con Live 1 para probar micrófono y altavoces."
             } catch { voiceCheckMessage = error.localizedDescription }
         }
+    }
+    private func voiceCredential(graph: String?) async throws -> String {
+        if let local = try await Credentials.readChecked("OPENAI_API_KEY"), !local.isEmpty { return local }
+        if let graph, !graph.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return graph }
+        throw AgentError.unavailable("No hay una credencial de OpenAI para Live 1. Guárdala en el Llavero o configúrala en Graph.")
     }
     func toggleLiveFromFace() {
         if microphone { stop(); return }
@@ -188,9 +194,10 @@ final class AppModel: ObservableObject {
             guard let self else { return }
             do {
                 self.status = "Accediendo a Graph para conectar Live 1…"
-                let keys = try await self.makeClient().providerKeys()
-                guard let key = keys.openai, !key.isEmpty else { throw AgentError.unavailable("Graph no tiene credencial de voz.") }
-                let jevKey = keys.typesafe
+                let local = try await Credentials.readChecked("OPENAI_API_KEY")
+                let keys = try? await self.makeClient().providerKeys()
+                let key = try await self.voiceCredential(graph: keys?.openai ?? local)
+                let jevKey = keys?.typesafe
                 guard self.voiceID == id, !Task.isCancelled else { return }
                 self.jev = jevKey.flatMap { $0.isEmpty ? nil : JevClient(key: $0) }
                 self.jevStatus = self.jev == nil ? "Jev sin credencial · decide Luna" : "Jev · listo"
