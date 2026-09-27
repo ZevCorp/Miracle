@@ -17,6 +17,13 @@ public static class Asentado
 {
     public const int TechoMs = 150;
 
+    /// <summary>
+    /// CUÁNTO SE MIRA TRAS UN CLIC, según lo pulsado (promesa 465). Un enlace carga una página y tarda: con 150 ms,
+    /// el enlace de un PDF se pulsó tres veces (ronda 1 de la batería de topes, 2026-09-26, 19:57). Es un techo,
+    /// no una espera: se sale en cuanto la pantalla cambia. Lo demás responde en el acto y sigue en 150 ms.
+    /// </summary>
+    public static int TechoTras(string tipo) => tipo == "Hyperlink" ? 1500 : TechoMs;
+
     public static Asentamiento Esperar(Func<string> huellaAhora, string huellaAntes, int techoMs, Func<long> relojMs)
     {
         long inicio = relojMs();
@@ -173,7 +180,7 @@ public sealed class Motor
 
             r.Restart();
             Lectura? ultima = null;
-            var asentado = Asentado.Esperar(() => (ultima = _leer()).Huella, antes, Asentado.TechoMs, () => reloj.ElapsedMilliseconds);
+            var asentado = Asentado.Esperar(() => (ultima = _leer()).Huella, antes, Asentado.TechoTras(a.Tipo), () => reloj.ElapsedMilliseconds);
             double tAsentar = r.Elapsed.TotalMilliseconds;
             yaLeida = ultima;
 
