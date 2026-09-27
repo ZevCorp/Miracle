@@ -755,6 +755,11 @@ internal static class Contrato
         Exige(!Misma("chrome", "chrome") && !Misma("notepad", "chrome"), "abrir una app con el navegador delante se tomó por una dirección");
         var nombres = (string[]?)T("LectorUia").GetField("NombresDeLaBarra")?.GetValue(null) ?? throw new Pendiente("LectorUia.NombresDeLaBarra");
         Exige(nombres.Contains("Barra de direcciones y de búsqueda") && nombres.Contains("Address and search bar"), $"la barra de direcciones no se reconoce en español y en inglés: {string.Join(" | ", nombres)}");
+        // Chrome la llama «Barra de direcciones y de búsqueda » —con un espacio al final— (sonda del 2026-09-26, 20:55):
+        // buscada por el nombre exacto no aparecía, y cada dirección seguía abriendo una pestaña nueva.
+        bool EsBarra(string n) => (bool)S("LectorUia", "EsLaBarra", n)!;
+        Exige(EsBarra("Barra de direcciones y de búsqueda ") && EsBarra("Address and search bar"), "la barra con un espacio al final no se reconoce");
+        Exige(!EsBarra("Buscar en Wikipedia"), "otro campo se tomó por la barra de direcciones");
     }
 
     private static void P472()
