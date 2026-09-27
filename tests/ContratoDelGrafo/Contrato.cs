@@ -876,6 +876,7 @@ internal static class Contrato
         Prueba("479. lo mismo pedido otra vez en menos de 3 s —el ensayo del doble o la repetición de pulsar— va por la mano de siempre: primero el clic real y, si no agarró, la escalera (aprendizaje nº19)", LoRepetidoVaPorLaEscalera);
         Prueba("480. abrir encuentra lo ya abierto también por lo que ES, no solo por cómo se llama su proceso: «ms-settings:» y «configuración» encuentran la ventana de ApplicationFrameHost titulada «Configuración» (Apps.EsLaPedida)", AbrirEncuentraPorLoQueEs);
         Prueba("481. si la ventana de lo pedido ya es la de delante, abrir contesta que ya estás sin esperar a que algo cambie, y esa ventana pasa a ser la de trabajo", AbrirLoQueYaEstaDelanteNoEspera);
+        Prueba("483. escribir sin decir dónde espera a un foco que ACEPTE texto, no a uno que se llame Edit: en cuanto lo hay —también el Document del Bloc de notas de Windows 11— escribe sin esperar más, y el techo de 1,5 s es solo para cuando aún no hay dónde", EscribirNoEsperaAUnEdit);
         Prueba("482. lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12", LanzarUnProtocoloEsperaALaVentanaDeDelante);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
@@ -13629,6 +13630,34 @@ internal static class Contrato
         Debe(r.Contains("ya estás", StringComparison.OrdinalIgnoreCase), $"con Configuración delante no dijo que ya estás: «{r}»");
         Debe(traidas == 1, $"la ventana de delante no pasó a ser la de trabajo: se trajo {traidas} vez/veces (traerla es lo que la fija)");
         Debe(tardo < 300, $"contestar lo que ya está delante tardó {tardo} ms (esperaba a que cambiara algo que no iba a cambiar)");
+    }
+
+    private static void EscribirNoEsperaAUnEdit()
+    {
+        // LÍNEA BASE DEL 2026-09-27: map_type en el Bloc de notas de Windows 11, 2.246-2.378 ms con 4 letras y con 300.
+        // Su editor es un Document: el bucle esperaba un Edit y agotaba 30 × 50 ms cada vez (log: 1,5-2 s entre la
+        // llamada y el Execute).
+        var espera = typeof(SurfaceMapTools).GetMethod("EsperarFocoQueAcepteTexto", BindingFlags.Public | BindingFlags.Static);
+        if (espera == null) { Pendiente("SurfaceMapTools.EsperarFocoQueAcepteTexto", "483", "053"); return; }
+        var crono = System.Diagnostics.Stopwatch.StartNew();
+        bool hay = (bool)espera.Invoke(null, new object[] { (Func<bool>)(() => true), 1500 })!;
+        Debe(hay && crono.ElapsedMilliseconds < 60, $"con el foco ya aceptando texto esperó {crono.ElapsedMilliseconds} ms");
+
+        crono.Restart();
+        bool tarde = (bool)espera.Invoke(null, new object[] { (Func<bool>)(() => crono.ElapsedMilliseconds >= 200), 1500 })!;
+        Debe(tarde && crono.ElapsedMilliseconds < 350, $"el campo apareció a los 200 ms y se salió a los {crono.ElapsedMilliseconds} (una edición en línea tarda un instante)");
+
+        crono.Restart();
+        bool nunca = (bool)espera.Invoke(null, new object[] { (Func<bool>)(() => false), 300 })!;
+        Debe(!nunca && crono.ElapsedMilliseconds < 500, $"sin dónde escribir dijo {nunca} a los {crono.ElapsedMilliseconds} ms con techo de 300");
+
+        // Y la regla de «acepta texto» es la de UiaSurface.AceptaTexto, no el nombre del tipo: la espera la usa Type.
+        // Las fuentes las da U_REPO, como en la 164: sin él se dice que NO PUDE, no que está roto.
+        string archivo = Path.Combine(Environment.GetEnvironmentVariable("U_REPO") ?? "", "windows-client", "src", "Mcp", "SurfaceMapTools.cs");
+        if (!File.Exists(archivo)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la última parte: sin U_REPO no hay fuentes que mirar."); return; }
+        string fuente = File.ReadAllText(archivo);
+        Debe(!fuente.Contains("ControlType == System.Windows.Automation.ControlType.Edit) break;"),
+            "la espera del foco sigue preguntando por un Edit por su nombre");
     }
 
     private static void LanzarUnProtocoloEsperaALaVentanaDeDelante()

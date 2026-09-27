@@ -135,6 +135,24 @@ Hallazgos:
 - Sabotajes: 5, los 5 rojos (solo por proceso, sin mirar delante, sin fijar la ventana de trabajo, protocolo a 12 s,
   el título no cuenta).
 
+## Fase 4 — ver: medida, y NO se integra (2026-09-27)
+
+Se midió antes de escribir nada (`medir-ver.ps1`, `map_what_i_see` por el MCP, 3 vueltas):
+
+| | ida y vuelta | elementos |
+|---|---|---|
+| Configuración | 95-128 ms | 44 |
+| Explorador | 148-205 ms | 74 |
+
+El lector de `u/` lee en 20-100 ms: cambiarlo ahorraría ≤ 100 ms por mirada, y costaría tres cosas que `LoQueVeo`
+tiene y `LectorUia` no: las puertas del grafo y los campos de SAP que se suman a la lista (promesa 285, que
+`map_decidir` comparte a propósito), el selector de cada elemento (el lector rápido no trae AutomationId), y la
+ventana — `LoQueVeo` lee la de la persona y el rápido la de trabajo. **Decisión: no entra.** La regla 1 del plan
+prohíbe subir la latencia; esto es la regla al revés: tampoco entra una pieza cuyo ahorro no paga lo que rompe.
+Lo que sí se aprovecha ya del lector rápido es lo que sí paga: la huella de la espera (fase 1) y la mano (fase 2).
+
+Decidir tampoco se toca aquí: `map_decidir` (Jev, spec 035) ya está en main con su lista numerada y su medida.
+
 ## Lo que queda fuera
 
 - `PasoDelNucleo` y `ServidorDelNucleo` (8792) usan `_mapaVivo.Pulsar` y no pasan por `PulsarSegunElNucleo`.
