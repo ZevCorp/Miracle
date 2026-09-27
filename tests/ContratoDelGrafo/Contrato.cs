@@ -871,6 +871,9 @@ internal static class Contrato
         // ── Spec 053: pulsar como Ü desde cero (paso 1 de la integración de u/) ─────────────────────
         Prueba("475. tras pulsar, la espera sale en cuanto lo que se ve en la ventana de trabajo cambia y se asienta —dos lecturas iguales a 60 ms, o 300 ms más—, aunque la ubicación sea la misma; sin cambio no pasa de 150 ms tras un botón ni de 1,5 s tras un enlace; lo que cambió se cuenta como cambio de pantalla, sin ensayar el doble ni repetir el clic, y si la ubicación llega mientras se asienta, se aprende la arista", PulsarSaleEnCuantoCambiaLoQueSeVe);
         Prueba("476. un pulso de SAP, o uno sin lector de lo que se ve, espera como siempre: la ubicación, hasta el techo de siempre", PulsarDeSapEsperaComoSiempre);
+        Prueba("477. la mano rápida pulsa sin volver a buscar: si lo pedido coincide con UN solo elemento visible de la lectura rápida —mismo nombre (el del selector o, si va por AutomationId, la etiqueta) y mismo tipo—, el clic es el ratón real en su centro; con nombres repetidos, sin coincidencia o en SAP no pulsa y deja paso a la mano de siempre", LaManoRapidaPulsaSinBuscar);
+        Prueba("478. la mano rápida avisa a la carita donde pulsó (UiaSurface.Pulso, con la caja) y al cursor (CursorMoved); y con el freno echado no pulsa y lo dice", LaManoRapidaAvisaYRespetaElFreno);
+        Prueba("479. lo mismo pedido otra vez en menos de 3 s —el ensayo del doble o la repetición de pulsar— va por la mano de siempre: primero el clic real y, si no agarró, la escalera (aprendizaje nº19)", LoRepetidoVaPorLaEscalera);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -13489,6 +13492,86 @@ internal static class Contrato
         var c5 = System.Diagnostics.Stopwatch.StartNew();
         var r5 = p5.Pulsa("uia:name=Sistema;ct=ListItem", "Sistema");
         Debe(r5.Hasta == B && r5.Aprendido && c5.ElapsedMilliseconds < 700, $"la ubicación que llega a los 150 ms se perdió: hasta «{r5.Hasta}», aprendido={r5.Aprendido}, {c5.ElapsedMilliseconds} ms");
+    }
+
+    // ── Spec 053, fase 2: la mano rápida ──────────────────────────────────────────────────────────
+    private static IReadOnlyList<U.Ciclo.Accionable> Lectura(params (string Nombre, string Tipo, int X, int Y)[] e) =>
+        e.Select((x, i) => new U.Ciclo.Accionable(i + 1, x.Nombre, x.Tipo, new U.Ciclo.Caja(x.X, x.Y, 100, 30))).ToList();
+
+    private static Type? ManoRapidaT() => typeof(PulsarSegunElNucleo).Assembly.GetType("U.WindowsClient.Navigation.ManoRapida");
+
+    /// <summary>Una mano rápida de mentira: lee lo que se le dé, anota los clics y consulta el freno dado.</summary>
+    private static (object Mano, List<(int, int)> Clics, Func<long> Reloj) ManoDeMentira(IReadOnlyList<U.Ciclo.Accionable> vista, Func<bool> freno, Func<long> reloj)
+    {
+        var clics = new List<(int, int)>();
+        var t = ManoRapidaT()!;
+        var mano = Activator.CreateInstance(t, (Func<IReadOnlyList<U.Ciclo.Accionable>>)(() => vista), (Action<int, int>)((x, y) => clics.Add((x, y))), freno, reloj)!;
+        return (mano, clics, reloj);
+    }
+
+    private static bool Intentar(object mano, string selector, string etiqueta, out string? motivo)
+    {
+        var args = new object?[] { selector, etiqueta, null };
+        bool r = (bool)mano.GetType().GetMethod("Intentar")!.Invoke(mano, args)!;
+        motivo = (string?)args[2];
+        return r;
+    }
+
+    private static void LaManoRapidaPulsaSinBuscar()
+    {
+        // LÍNEA BASE DEL 2026-09-27: «la mano» de main, 263-875 ms por clic —Resolve con FindAll sobre la ventana, traer a
+        // la vista, la escalera patrón → mensaje → físico con sus esperas fijas—. La lectura rápida ya tiene la caja.
+        if (ManoRapidaT() == null) { Pendiente("Navigation.ManoRapida (la mano de u/)", "477", "053"); return; }
+        var vista = Lectura(("Pantalla", "ListItem", 200, 300), ("Sonido", "ListItem", 200, 340), ("Buscar", "Button", 50, 20), ("Buscar", "Button", 600, 20));
+        var (m, clics, _) = ManoDeMentira(vista, () => false, () => 0);
+
+        Debe(Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == 1 && clics[0] == (250, 315),
+            $"«Pantalla», única, no se pulsó en su centro: {string.Join(" ", clics)}");
+        Debe(Intentar(m, "uia:aid=SoundEntry;ct=ListItem", "Sonido", out _) && clics.Count == 2 && clics[1] == (250, 355),
+            $"por AutomationId no se buscó por la etiqueta: {string.Join(" ", clics)}");
+        Debe(!Intentar(m, "uia:name=Buscar;ct=Button", "Buscar", out _) && clics.Count == 2, "con dos «Buscar» se pulsó uno a ciegas");
+        Debe(!Intentar(m, "uia:name=Bluetooth;ct=ListItem", "Bluetooth", out _) && clics.Count == 2, "sin coincidencia se pulsó algo");
+        Debe(!Intentar(m, "uia:name=Pantalla;ct=Button", "Pantalla", out _) && clics.Count == 2, "con el tipo distinto se pulsó igual");
+        Debe(!Intentar(m, "sap:wnd[0]/tbar[1]/btn[8]", "Pantalla", out _) && clics.Count == 2, "un selector de SAP fue a la mano rápida");
+    }
+
+    private static void LaManoRapidaAvisaYRespetaElFreno()
+    {
+        if (ManoRapidaT() == null) { Pendiente("Navigation.ManoRapida (la mano de u/)", "478", "053"); return; }
+        var vista = Lectura(("Pantalla", "ListItem", 200, 300));
+        (double, double, double, double)? pulso = null; (int, int)? cursor = null;
+        Action<double, double, double, double> alPulso = (x, y, w, h) => pulso = (x, y, w, h);
+        Action<int, int> alCursor = (x, y) => cursor = (x, y);
+        U.Graph.Surfaces.UiaSurface.Pulso += alPulso;
+        U.Graph.Surfaces.UiaSurface.CursorMoved += alCursor;
+        try
+        {
+            var (m, clics, _) = ManoDeMentira(vista, () => false, () => 0);
+            Debe(Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == 1, "no pulsó");
+            Debe(pulso == (200, 300, 100, 30), $"la carita no se enteró de dónde se pulsó: {pulso}");
+            Debe(cursor == (250, 315), $"el cursor no se contó: {cursor}");
+
+            var (conFreno, clics2, _) = ManoDeMentira(vista, () => true, () => 0);
+            bool hizo = Intentar(conFreno, "uia:name=Pantalla;ct=ListItem", "Pantalla", out string? motivo);
+            Debe(hizo && clics2.Count == 0 && (motivo ?? "").Contains("freno"), $"con el freno echado: pulsó {clics2.Count} vez/veces · motivo «{motivo}»");
+        }
+        finally
+        {
+            U.Graph.Surfaces.UiaSurface.Pulso -= alPulso;
+            U.Graph.Surfaces.UiaSurface.CursorMoved -= alCursor;
+        }
+    }
+
+    private static void LoRepetidoVaPorLaEscalera()
+    {
+        if (ManoRapidaT() == null) { Pendiente("Navigation.ManoRapida (la mano de u/)", "479", "053"); return; }
+        long ahora = 0;
+        var (m, clics, _) = ManoDeMentira(Lectura(("Pantalla", "ListItem", 200, 300)), () => false, () => ahora);
+        Debe(Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == 1, "el primer clic no fue rápido");
+        ahora = 1200;
+        Debe(!Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == 1, "la repetición a los 1,2 s no fue por la escalera");
+        ahora = 5000;
+        Debe(Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == 2, "pasados 3 s, el clic no volvió a ser rápido");
     }
 
     private static void PulsarDeSapEsperaComoSiempre()
