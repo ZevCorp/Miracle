@@ -2,8 +2,40 @@ import AppKit
 import UCore
 import UMac
 
+private final class AudioProbeState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var bytes = 0
+    private var message: String?
+    func add(_ count: Int) { lock.lock(); bytes += count; lock.unlock() }
+    func fail(_ value: String) { lock.lock(); message = value; lock.unlock() }
+    func read() -> (Int, String?) { lock.lock(); defer { lock.unlock() }; return (bytes, message) }
+}
+
 @MainActor
 struct SmokeTest {
+    /// Opens the installed app's real microphone and output route without contacting any service.
+    static func audio(output: URL) async {
+        var evidence: [String: Any] = ["date": ISO8601DateFormatter().string(from: Date()), "passed": false]
+        let audio = DuplexAudio()
+        let state = AudioProbeState()
+        defer {
+            audio.stop()
+            if let data = try? JSONSerialization.data(withJSONObject: evidence, options: [.prettyPrinted, .sortedKeys]) {
+                try? data.write(to: output, options: .atomic)
+            }
+            NSApp.terminate(nil)
+        }
+        do {
+            try audio.start(onPCM: { data in state.add(data.count) }, onError: { message in state.fail(message) })
+            try await Task.sleep(for: .seconds(2))
+            let (receivedBytes, streamError) = state.read()
+            evidence["capturedBytes"] = receivedBytes
+            if let streamError { evidence["streamError"] = streamError }
+            evidence["voiceProcessing"] = audio.voiceProcessingEnabled
+            evidence["passed"] = receivedBytes > 0
+        } catch { evidence["error"] = error.localizedDescription }
+    }
+
     /// Writes progress before Keychain access so an OS authorization wait is observable.
     static func voice(output: URL) async {
         var evidence: [String: Any] = ["date": ISO8601DateFormatter().string(from: Date()), "passed": false,

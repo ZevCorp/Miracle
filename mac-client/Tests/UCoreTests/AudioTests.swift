@@ -3,6 +3,14 @@ import AVFoundation
 import UMac
 
 extension AgentTests {
+    func testUnsupportedVoiceProcessingFallsBackToDeviceAudio() throws {
+        enum Probe: Error { case unsupported }
+        XCTAssertEqual(AudioStartup.enableVoiceProcessing { throw Probe.unsupported }, false)
+        XCTAssertEqual(AudioStartup.enableVoiceProcessing {}, true)
+        XCTAssertEqual(AudioStartup.shouldRetryWithoutVoiceProcessing(wasEnabled: true), true)
+        XCTAssertEqual(AudioStartup.shouldRetryWithoutVoiceProcessing(wasEnabled: false), false)
+    }
+
     func testMultichannelMicrophoneProducesReal24kPCM() throws {
         let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 48_000, channels: 2, interleaved: false)!
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4800)!

@@ -28,6 +28,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var screenObservation: NSObjectProtocol?
     func applicationDidFinishLaunching(_ notification: Notification) {
         terminateOlderCopies()
+        if let index = CommandLine.arguments.firstIndex(of: "--audio-test"), CommandLine.arguments.count > index + 1 {
+            Task { await SmokeTest.audio(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
+            return
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--voice-test"), CommandLine.arguments.count > index + 1 {
             Task { await SmokeTest.voice(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
             return

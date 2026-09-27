@@ -29,6 +29,7 @@ struct ContractRunner {
         try tests.testToolBatchWaitsForEveryResultAndOnlyContinuesOnce()
         try await tests.testFailedActionStopsDependentBatchAndCannotBecomeSuccess()
         try await tests.testHTTPAuthenticationErrorsAndCredentialFetch()
+        try tests.testUnsupportedVoiceProcessingFallsBackToDeviceAudio()
         try tests.testMultichannelMicrophoneProducesReal24kPCM()
         try tests.testLiveOneWireAndUTF8Limit()
         try tests.testJevClosedChoicesAndHandoff()
@@ -42,6 +43,6 @@ struct ContractRunner {
         try tests.testMemoryNeverTurnsRememberedIntoLive()
         try tests.testMemoryRoutesOnlyThroughObservedEdges()
         try await tests.testMemoryPersistenceAndCorruptionAreExplicit()
-        print("PASS: 24 contracts, \(checks) assertions. No network, microphone or desktop access.")
+        print("PASS: 25 contracts, \(checks) assertions. No network, microphone or desktop access.")
     }
 }
