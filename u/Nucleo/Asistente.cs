@@ -229,7 +229,8 @@ public sealed class LunaPorTexto : IDisposable
                     string nombre = ProtocoloVivo.Texto(item, "name"), args = ProtocoloVivo.Texto(item, "arguments");
                     Log($"🌙 Luna ({_ultimoMs} ms) → {nombre} {args}");
                     string salida = atender(nombre, args);
-                    salidas.Add(new { type = "function_call_output", call_id = ProtocoloVivo.Texto(item, "call_id"), output = ParaLuna.Recortar(salida) });
+                    salidas.Add(new { type = "function_call_output", call_id = ProtocoloVivo.Texto(item, "call_id"),
+                        output = ParaLuna.Recortar(salida) + $"\n\n(Llevas {Marcha.Dicho(transcurrido())} en este pedido.)" });
                 }
                 else if (tipo == "message")
                     foreach (var c in item.GetProperty("content").EnumerateArray())
@@ -330,12 +331,16 @@ public sealed class LunaPorTexto : IDisposable
 /// </summary>
 public static class Marcha
 {
-    public static readonly TimeSpan Tope = TimeSpan.FromMinutes(10);
+    /// <summary>La red de seguridad. Eran 10 minutos, y «haz pruebas durante media hora» se habría cortado (promesa 468).</summary>
+    public static readonly TimeSpan Tope = TimeSpan.FromMinutes(60);
 
     public static string? PorQueParar(TimeSpan transcurrido, bool escape) =>
         escape ? "pulsaste Escape"
-        : transcurrido >= Tope ? "llevo 10 minutos"
+        : transcurrido >= Tope ? "llevo 60 minutos"
         : null;
+
+    /// <summary>El tiempo, dicho para Luna: «1 min 35 s».</summary>
+    public static string Dicho(TimeSpan t) => t.TotalMinutes >= 1 ? $"{(int)t.TotalMinutes} min {t.Seconds} s" : $"{t.Seconds} s";
 }
 
 /// <summary>Lo que dejó mandarle algo a Luna: la respuesta, o por qué no hubo, y cuántas veces se intentó.</summary>

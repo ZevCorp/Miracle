@@ -48,6 +48,7 @@ public static class ProtocoloVivo
         + "Si «hacer» dice que un paso falló, mira y vuelve a planear desde donde quedó; no repitas lo ya hecho. "
         + "Si la app acepta teclado para lo que se pide (números en una calculadora, texto en un buscador), prefiere «escribe:» a pulsar botón por botón: es exacto y no hace dudar al ejecutor. "
         + "Los atajos dependen del idioma de la app: en Windows en español, Ctrl+A en el Bloc de notas es «Abrir» y seleccionar todo es Ctrl+E; ante la duda, un objetivo en pantalla. Para saber si algo se escribió, mira lo que contienen los campos, no el título. "
+        + "Cada resultado te dice cuánto llevas en el pedido. Si la persona pidió una duración («durante media hora», «diez minutos»), no contestes antes: sigue hasta cumplirla haciendo cosas nuevas. "
         + "Nada irreversible (enviar, borrar, pagar) sin que la persona lo haya pedido explícitamente.";
 
     public static string Apertura(string instruccionesDeLuna) => JsonSerializer.Serialize(new
