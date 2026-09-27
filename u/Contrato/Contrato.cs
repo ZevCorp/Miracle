@@ -55,7 +55,8 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(471, "Lo que cae fuera de su ventana no se ofrece a Jev ni se le cuenta a Luna: un enlace por debajo de lo visible de la página no está en la lista, y lo que asoma aunque sea un poco, sí.", P471);
+        Promesa(472, "Si la app pedida se abrió pero Windows no la dejó pasar al frente, Ü busca su ventana —visible, de la app pedida— y la trae él; y leer la pantalla nunca tumba un pedido: si falla, Luna recibe por qué y sigue.", P472);
+        Promesa(471,"Lo que cae fuera de su ventana no se ofrece a Jev ni se le cuenta a Luna: un enlace por debajo de lo visible de la página no está en la lista, y lo que asoma aunque sea un poco, sí.", P471);
         Promesa(470,"Abrir una app que ya está delante llega: si tras abrirla la ventana de delante es de la app pedida —por su proceso, y en las de la tienda también por su título—, cuenta como abierta; y si ya estaba delante antes de abrirla, se esperan 700 ms a que cambie, no 3 s.", P470);
         Promesa(469,"Abrir llega también cuando la ventana de delante es la misma pero cambia su título: una dirección abierta con el navegador delante abre una pestaña en esa misma ventana. Si no cambia ni la ventana ni el título, no llegó.", P469);
         Promesa(468,"Luna sabe cuánto lleva: cada resultado que recibe dice el tiempo que va del pedido, y sabe que si la persona pide una duración tiene que seguir hasta cumplirla.", P468);
@@ -741,6 +742,42 @@ internal static class Contrato
         var prop = T("Raton").GetProperty("PausaEntreLetrasMs") ?? throw new Pendiente("Raton.PausaEntreLetrasMs");
         int pausa = (int)prop.GetValue(null)!;
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
+    }
+
+    private static void P472()
+    {
+        // Ronda libre L3 (2026-09-26, 20:45-20:48): 9 «no pude abrir» —Paint, Configuración, el Bloc de notas…—. Se
+        // abrían detrás: el panel le devuelve el foco a la app de la persona, y Windows no deja que quien no está
+        // delante le robe el primer plano. Y un «COMException: Operation timed out» al mirar tumbó un pedido entero.
+        var ventanaT = typeof(ValueTuple<IntPtr, string, string, bool>);
+        object V(long h, string p, string t, bool vis) => (IntPtr: new IntPtr(h), p, t, vis);
+        var lista = new List<(IntPtr, string, string, bool)>
+        {
+            (new IntPtr(1), "chrome", "Medellín - Wikipedia", true),
+            (new IntPtr(2), "mspaint", "Sin título - Paint", false),
+            (new IntPtr(3), "mspaint", "Sin título - Paint", true),
+        };
+        var c = S("Apps", "Candidata", lista, "paint");
+        Exige(c is IntPtr h && h == new IntPtr(3), $"la ventana de Paint escondida o la de Chrome se tomaron por candidata: {c}");
+        Exige(S("Apps", "Candidata", lista, "calculadora") is IntPtr z && z == IntPtr.Zero, "sin ventana de la app pedida se inventó una candidata");
+
+        // Mirar lanza (UIA sin contestar): el pedido sigue, y Luna recibe por qué.
+        var lunaT = T("LunaPorTexto");
+        var ctor = lunaT.GetConstructor(new[] { typeof(string), typeof(HttpMessageHandler) }) ?? throw new Pendiente("LunaPorTexto(clave, manejador)");
+        var pedir = lunaT.GetMethods().First(m => m.Name == "Pedir" && m.GetParameters().Length == 5);
+        var luna = new LunaDeMentira(n => LunaDeMentira.Dice(n, "no pude ver la pantalla"));
+        string r;
+        using (var l = (IDisposable)ctor.Invoke(new object[] { "sk-de-mentira", luna }))
+        {
+            try
+            {
+                r = (string)pedir.Invoke(l, new object[] { "busca en Wikipedia", (Func<string>)(() => throw new System.Runtime.InteropServices.COMException("Operation timed out.", unchecked((int)0x80131505))),
+                    (Func<string, string, string>)((_, _) => "✔"), (Func<bool>)(() => false), (Func<TimeSpan>)(() => TimeSpan.Zero) })!;
+            }
+            catch (TargetInvocationException e) { throw new Incumplida($"mirar tumbó el pedido: {e.InnerException?.GetType().Name}: {e.InnerException?.Message}"); }
+        }
+        Exige(r == "no pude ver la pantalla" && luna.Cuerpos.Count == 1 && luna.Cuerpos[0].Contains("Operation timed out"),
+            $"Luna no recibió por qué no se pudo mirar: «{r}» · {luna.Cuerpos.Count} petición(es)");
     }
 
     private static void P471()
