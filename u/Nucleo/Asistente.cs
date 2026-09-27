@@ -19,7 +19,13 @@ public sealed class Asistente : IDisposable
     /// <summary>El freno: Escape, o que la persona lo pida.</summary>
     public Func<bool> HayQueParar { get; set; } = Raton.EscapePulsado;
 
-    public int MaxPasosPorObjetivo { get; init; } = 8;
+    /// <summary>
+    /// La red de seguridad de un objetivo (promesa 464). No es lo que lo para: lo paran cumplirse, que Jev no se
+    /// atreva, Escape, o un bucle. Era 8, y cortaba objetivos largos que avanzaban.
+    /// </summary>
+    public const int PasosDeSeguridad = 50;
+
+    public int MaxPasosPorObjetivo { get; init; } = PasosDeSeguridad;
 
     public Asistente(string claveTypeSafe)
     {

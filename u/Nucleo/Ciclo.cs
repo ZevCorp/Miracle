@@ -117,7 +117,9 @@ public sealed class Motor
         var vueltas = new List<Vuelta>();
         var hecho = new List<string>(yaHecho ?? Array.Empty<string>());
         var reloj = Stopwatch.StartNew();
-        int numeroPrevio = -1, repeticiones = 0;
+        // Cuántas veces se eligió cada cosa en cada pantalla (promesa 464). La pantalla es la huella de ANTES del clic.
+        var elegidas = new Dictionary<string, int>();
+        string? pantallaPrevia = null;
         Lectura? yaLeida = null;   // lo que leyó el asentado: el ciclo siguiente no lo relee
 
         for (int paso = 1; paso <= maxPasos; paso++)
@@ -184,10 +186,17 @@ public sealed class Motor
             if (asentado.Cambio && e.CumpleAlPulsar >= Jev.CumplidoMinimo)
                 return new Recorrido(vueltas, $"cumplido: Jev dijo que pulsar «{a.Nombre}» lo cumplía ({e.CumpleAlPulsar:0.00}) y la pantalla cambió", true);
 
-            repeticiones = asentado.Cambio ? 0 : (e.Numero == numeroPrevio ? repeticiones + 1 : 1);
-            numeroPrevio = e.Numero;
-            if (repeticiones >= 3)
-                return new Recorrido(vueltas, $"Jev repite «{a.Nombre}» tres veces y la pantalla no cambia: paro", false);
+            // LA TERCERA VEZ LO MISMO EN LA MISMA PANTALLA ES UN BUCLE (promesa 464), haya cambiado o no entre medias.
+            // Sustituye al «8 pasos» fijo, que cortaba igual un objetivo largo que avanzaba (123456 por 789 con los
+            // botones) que uno atascado (la barra de direcciones pulsada 8 veces, almejas del 2026-09-26). Pulsar lo
+            // mismo en pantallas distintas —el «0» de la calculadora— no cuenta: la huella lleva lo que la pantalla dice.
+            string clave = antes + "\n→ " + a.Tipo + "|" + a.Nombre + "|" + a.Caja.X + "," + a.Caja.Y;
+            int veces = elegidas[clave] = elegidas.GetValueOrDefault(clave) + 1;
+            if (veces >= 3)
+                return new Recorrido(vueltas, antes == pantallaPrevia || !asentado.Cambio
+                    ? $"Jev repite «{a.Nombre}» tres veces y la pantalla no cambia: paro"
+                    : $"Jev repite «{a.Nombre}» por tercera vez en la misma pantalla: es un bucle, paro", false);
+            pantallaPrevia = antes;
         }
         return new Recorrido(vueltas, $"tope de {maxPasos} pasos sin «cumplido»", false);
     }
