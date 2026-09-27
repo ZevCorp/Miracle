@@ -55,7 +55,8 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(464, "Un objetivo no se corta por contar pasos: lo paran cumplirse, que Jev no se atreva, Escape, o que Jev elija lo mismo por tercera vez en la misma pantalla —aunque entre medias haya pasado por otras: un bucle—; la red de seguridad es de 50 pasos.", P464);
+        Promesa(465, "Tras pulsar un enlace se espera a que la pantalla cambie hasta 1,5 s, saliendo en cuanto cambia: una página que tarda en cargar no es un clic que no agarró. Tras cualquier otro clic se sigue esperando como mucho 150 ms.", P465);
+        Promesa(464,"Un objetivo no se corta por contar pasos: lo paran cumplirse, que Jev no se atreva, Escape, o que Jev elija lo mismo por tercera vez en la misma pantalla —aunque entre medias haya pasado por otras: un bucle—; la red de seguridad es de 50 pasos.", P464);
         Promesa(463,"Luna no tiene tope de turnos ni se da por atascada: sigue hasta contestar, y solo para con Escape o a los 10 minutos; al parar, un último turno sin herramientas le pide contar lo que logró, y eso es lo que se entrega, empezando por «Paré:» y el motivo.", P463);
         Promesa(462,"«desplaza: abajo|arriba [N]» es un gesto directo con la rueda del ratón real sobre la ventana de delante: N muescas —5 si no se dice, nunca más de 20—, sin preguntarle a Jev; una dirección que no entiende hace fallar el paso diciéndolo, y Luna sabe que existe.", P462);
         Promesa(461,"Un corte de red no tumba a Ü: si la conexión con Luna no llega a abrirse se reintenta hasta 3 veces, y si no se abre, el pedido termina diciendo la causa; lo que ya salió hacia Luna no se reintenta.", P461);
@@ -734,6 +735,40 @@ internal static class Contrato
         var prop = T("Raton").GetProperty("PausaEntreLetrasMs") ?? throw new Pendiente("Raton.PausaEntreLetrasMs");
         int pausa = (int)prop.GetValue(null)!;
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
+    }
+
+    private static void P465()
+    {
+        // Ronda 1 de la batería de topes (2026-09-26, 19:57): el enlace del PDF, pulsado tres veces porque a los 150 ms
+        // la página aún no había cambiado. Cada clic de más puede abrir otra pestaña.
+        int Techo(string tipo) => (int)S("Asentado", "TechoTras", tipo)!;
+        Exige(Techo("Hyperlink") == 1500, $"tras un enlace se espera {Techo("Hyperlink")} ms");
+        Exige(Techo("Button") == 150 && Techo("ListItem") == 150 && Techo("TabItem") == 150, "tras otro clic no se esperan 150 ms");
+
+        // Y el motor la usa: una página que cambia a los ~300 ms se ve cambiar tras un enlace, y no tras un botón.
+        string Resultado(string tipo)
+        {
+            int pulsos = 0; var reloj = Stopwatch.StartNew(); long pulsadoEn = long.MaxValue;
+            var lecturaT = T("Lectura");
+            Func<object> leer = () =>
+            {
+                Thread.Sleep(40);
+                bool cargo = reloj.ElapsedMilliseconds - pulsadoEn > 300;
+                return N("Lectura", Lista((cargo ? "Página nueva" : "Página vieja", "Text"), ("Paper", tipo)), new List<string>());
+            };
+            var p = System.Linq.Expressions.Expression.Parameter(T("Contexto"), "c");
+            var dDecidir = System.Linq.Expressions.Expression.Lambda(typeof(Func<,>).MakeGenericType(T("Contexto"), T("Eleccion")),
+                System.Linq.Expressions.Expression.Convert(System.Linq.Expressions.Expression.Invoke(
+                    System.Linq.Expressions.Expression.Constant((Func<object, object>)(_ => pulsos == 0 ? Eleccion(true, 2) : Eleccion(false, 0, cumplido: 0.9))),
+                    System.Linq.Expressions.Expression.Convert(p, typeof(object))), T("Eleccion")), p).Compile();
+            var motor = N("Motor", Delegado(typeof(Func<>).MakeGenericType(T("Ubicacion")), () => Ubicacion(7, "chrome")),
+                Delegado(typeof(Func<>).MakeGenericType(lecturaT), () => leer()), dDecidir,
+                DelegadoAccion(typeof(Action<>).MakeGenericType(T("Accionable")), _ => { pulsos++; pulsadoEn = reloj.ElapsedMilliseconds; }), (Func<bool>)(() => false));
+            var r = I(motor, "Objetivo", "abrir el paper", 5)!;
+            return (string)P(L(P(r, "Vueltas"))[0], "Resultado")!;
+        }
+        Exige(Resultado("Hyperlink") == "cambió", $"tras un enlace que tarda 300 ms, el motor dijo «{Resultado("Hyperlink")}»");
+        Exige(Resultado("Button") == "no cambió", "tras un botón se esperó más de 150 ms");
     }
 
     private static void P464()
