@@ -44,3 +44,13 @@ Build release e instalación canónica ~/Applications/U.app verificadas.
 - https://developer.apple.com/documentation/speech/sfcustomlanguagemodeldata — personalización local.
 - https://developer.apple.com/documentation/speech/sfcustomlanguagemodeldata/custompronunciation — pronunciaciones y límites.
 - https://hermes-agent.nousresearch.com/docs/user-guide/features/memory/ — contexto persistente y memoria.
+
+## Seguimiento 13:14–13:16: escucha continua
+
+- Intento humano 13:13:26–13:13:52: seis frases procesadas, matched=false. Había audio reconocido; ninguna activación registrada.
+- Prueba independiente de red a las 13:14:21: Live/Luna passed=true, Llavero 76 ms, sin abrir micrófono.
+- Eliminado cierre de micrófono por cada frase no dirigida a You. Se conserva el flujo y se separa la frase reciente mediante pausas acústicas de 0.8 segundos. Renovación máxima de 50 segundos permanece.
+- Validación acústica con saludo sintético reproducido por altavoces hacia micrófono real: a las 13:15:45.938 matched=true. Después, notch mostró respuesta de Live: “¡Hola! ¿Cómo estás? ¿En qué te ayudo hoy?”. No fue inyección de texto de diagnóstico.
+- Esto prueba una activación acústica y conexión/respuesta, no todas las pronunciaciones humanas ni la audibilidad subjetiva del usuario.
+- Prueba acústica de “No te estoy hablando” no confirmó cierre; había otras transcripciones en curso. La privacidad por voz sigue dependiendo de que llegue la transcripción correcta. No declarar este recorrido validado.
+- 28 contratos, 170 aserciones. Sabotaje quitando separación de pausas produjo fallo; restaurado, verde.

@@ -3,6 +3,10 @@ import UCore
 
 extension AgentTests {
     func testWakeGreetingRequiresDirectAddress() {
+        let segments: [(String, Double, Double)] = [("hablando", 0, 0.4), ("contigo", 0.5, 0.3), ("Hola", 2, 0.3), ("You", 2.4, 0.3)]
+        XCTAssertEqual(VoiceActivation.latestPhrase(segments), "Hola You")
+        XCTAssertEqual(VoiceActivation.latestPhrase([]), "")
+        XCTAssertEqual(VoiceActivation.latestPhrase([("le dije", 0, 0.5), ("hola You", 0.6, 0.8)]), "le dije hola You")
         for text in ["Hola Yu", "¡Hola, You! ¿Me escuchas?", "Oye Ü, abre el navegador", "hola U", "buenos días Yu", "You", "You, te necesito", "Yu haz esto", "You ¿estás ahí?", "¿Me escuchas, You?"] {
             XCTAssertEqual(VoiceActivation.isGreeting(text), true)
         }

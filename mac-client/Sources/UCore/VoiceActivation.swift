@@ -1,6 +1,17 @@
 import Foundation
 
 public enum VoiceActivation {
+    /// Split by actual acoustic pauses, not by the latency of partial hypotheses.
+    public static func latestPhrase(_ segments: [(text: String, start: Double, duration: Double)]) -> String {
+        var words: [String] = []
+        var end: Double?
+        for segment in segments {
+            if let end, segment.start - end >= 0.8 { words.removeAll(keepingCapacity: true) }
+            words.append(segment.text)
+            end = segment.start + segment.duration
+        }
+        return words.joined(separator: " ")
+    }
     public static func requestsPrivacy(_ text: String) -> Bool {
         let value = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "es-CO"))
         return ["no te estoy hablando", "estoy en una llamada", "guarda silencio", "no me interrumpas"].contains { value.contains($0) }

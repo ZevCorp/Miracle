@@ -27,6 +27,7 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
     private var speaking = false
     private var epoch = UUID()
     private var lastText = ""
+    private var lastDeliveredText = ""
     private var consecutiveErrors = 0
     private var localOnly = false
     private var startID = UUID()
@@ -79,7 +80,7 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         guard let recognizer, recognizer.isAvailable else { onError?("El reconocimiento de voz de macOS no está disponible."); return }
         do {
             closeInput()
-            let id = UUID(); epoch = id; lastText = ""
+            let id = UUID(); epoch = id; lastText = ""; lastDeliveredText = ""
             let request = SFSpeechAudioBufferRecognitionRequest()
             request.shouldReportPartialResults = true
             if localOnly { request.contextualStrings = VoiceActivation.vocabulary; request.customizedLanguageModel = languageModel }
@@ -98,20 +99,26 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
             engine.prepare(); try engine.start()
             listening = true; onState?(true, false)
             recognition = recognizer.recognitionTask(with: request) { [weak self] result, error in
-                let text = result?.bestTranscription.formattedString
+                let transcription = result?.bestTranscription
+                let segments = transcription?.segments.map { ($0.substring, $0.timestamp, $0.duration) }
+                let text = transcription?.formattedString
                 let final = result?.isFinal ?? false
                 Task { @MainActor [weak self] in
                     guard let self, self.epoch == id else { return }
-                    if let text, !text.isEmpty {
+                    if let fullText = text, !fullText.isEmpty {
+                        let text = self.localOnly ? VoiceActivation.latestPhrase(segments ?? []) : fullText
                         self.consecutiveErrors = 0
                         let changed = self.lastText != text
                         self.lastText = text; self.onPartial?(text)
                         if !changed && !final { return }
                         self.silence?.cancel()
-                        if final { self.deliver(id) }
+                        if final {
+                            self.deliver(id)
+                            if self.epoch == id { self.closeInput(); self.scheduleRestart() }
+                        }
                         else {
                             self.silence = Task { [weak self] in
-                                do { try await Task.sleep(nanoseconds: 900_000_000) } catch { return }
+                                do { try await Task.sleep(nanoseconds: 1_200_000_000) } catch { return }
                                 self?.deliver(id)
                             }
                         }
@@ -130,15 +137,23 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
             renew = Task { [weak self] in
                 do { try await Task.sleep(nanoseconds: 50_000_000_000) } catch { return }
                 guard let self, self.epoch == id else { return }
-                if !self.lastText.isEmpty { self.deliver(id) } else { self.closeInput(); self.scheduleRestart() }
+                if !self.lastText.isEmpty { self.deliver(id) }
+                if self.epoch == id { self.closeInput(); self.scheduleRestart() }
             }
         } catch { closeInput(); onError?(error.localizedDescription) }
     }
     private func deliver(_ id: UUID) {
         guard epoch == id, !lastText.isEmpty else { return }
         let text = lastText
+        if localOnly {
+            guard text != lastDeliveredText else { return }
+            lastDeliveredText = text
+            let matched = VoiceActivation.isGreeting(text)
+            logger.notice("Wake utterance processed: matched=\(matched)")
+            // Unrelated speech must not stop the microphone or discard the next invocation.
+            guard matched else { return }
+        }
         closeInput()
-        if localOnly { logger.notice("Wake utterance processed: matched=\(VoiceActivation.isGreeting(text))") }
         onText?(text)
         scheduleRestart()
     }
