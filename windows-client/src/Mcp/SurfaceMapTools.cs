@@ -2145,10 +2145,14 @@ public sealed class SurfaceMapTools
         // herramienta: había seis sitios y la clase de error se arregla una vez donde pasan todos. Lo que
         // compra: la mitad de los actos iban seguidos de un «¿y ahora qué hay?» que ya no hace falta. Va
         // ANTES de parar el reloj, para que el coste de leer la pantalla cuente como parte del acto.
+        long msActo = reloj.ElapsedMilliseconds;
         if (ComoSeContesta.LlevaInventario(tool, r))
         {
             try { r = ComoSeContesta.Pegar(r, InventarioParaLosActos?.Invoke() ?? LoQueVeo()); }
             catch (Exception e) { LogBus.Log("mapa-mcp", $"no pude añadir lo que hay delante: {e.Message}"); }
+            // EL REPARTO DE UN ACTO (spec 053, comparación con u/): cuánto fue el acto y cuánto mirar lo que dejó.
+            // Junto con «⏱ pulsar» (mano y espera) dice en qué se va cada milisegundo de un clic.
+            LogBus.Log("mapa-mcp", $"⏱ {tool}: el acto {msActo} ms · mirar después {reloj.ElapsedMilliseconds - msActo} ms");
         }
 
         reloj.Stop();

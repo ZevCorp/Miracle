@@ -162,8 +162,14 @@ internal static class Programa
 
     // ── MCP ──────────────────────────────────────────────────────────────────────────────────────
 
+    // COMO LA PERSONA: quien le habla a U le da, con esa entrada, permiso de cambiar la ventana de delante. Una sonda
+    // por el MCP no: sin ceder el permiso Windows le niega a U traer nada al frente, y se mediría un fallo que la
+    // persona no tiene (spec 053, fase 3). ASFW_ANY = -1.
+    [DllImport("user32.dll")] private static extern bool AllowSetForegroundWindow(int pid);
+
     private static (string Texto, long Ms) Mcp(string herramienta, Dictionary<string, string> args)
     {
+        AllowSetForegroundWindow(-1);
         string cuerpo = JsonSerializer.Serialize(new
         {
             jsonrpc = "2.0", id = ++_id, method = "tools/call",
