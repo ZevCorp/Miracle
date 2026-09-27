@@ -36,7 +36,7 @@ public final class LiveVoice {
         }
         audio.onSpeaking = { [weak self] speaking in self?.onSpeaking?(speaking) }
     }
-    public func start(key: String, model: String = "gpt-live-1") async throws {
+    public func start(key: String, model: String = "gpt-live-1", userContext: AssistantContext = .init()) async throws {
         stop()
         let id = UUID(); epoch = id
         guard await AVCaptureDevice.requestAccess(for: .audio) else { throw AgentError.permission("Micrófono") }
@@ -70,7 +70,7 @@ public final class LiveVoice {
             self.fail("El servicio de voz no confirmó la sesión.")
         }
         do {
-            try await send(LiveProtocol.start(model: model))
+            try await send(LiveProtocol.start(model: model, userContext: userContext))
         } catch {
             let status = (socket.response as? HTTPURLResponse)?.statusCode
             if epoch == id { stop() }

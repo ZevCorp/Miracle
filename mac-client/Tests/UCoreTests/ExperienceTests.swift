@@ -30,6 +30,13 @@ extension AgentTests {
         XCTAssertEqual(LiveProtocol.connectionError(status: 503, code: -1011).contains("503"), true)
     }
 
+    func testAssistantContextReachesLiveAndGraphWithoutLosingTheUserPreference() throws {
+        let context = AssistantContext(text: "Explica con ejemplos simples; evita interrumpir conversaciones ajenas.")
+        XCTAssertEqual(context.liveInstructions(base: "Base").contains("ejemplos simples"), true)
+        XCTAssertEqual(context.liveInstructions(base: "Base").contains("interrumpir conversaciones ajenas"), true)
+        XCTAssertEqual(context.graphContext, "Explica con ejemplos simples; evita interrumpir conversaciones ajenas.")
+    }
+
     func testLiveAudioPreservesSilentTimeAndRejectsBrokenPCM() throws {
         let silence = try LiveAudioChunk(Data(repeating: 0, count: 4800))
         XCTAssertEqual(silence.frames, 2400)

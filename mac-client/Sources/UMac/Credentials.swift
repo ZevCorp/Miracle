@@ -4,11 +4,21 @@ import UCore
 
 public enum Credentials {
     private static let service = "com.zevcorp.u.mac.native"
+    private static let readTimeoutNanoseconds: UInt64 = 5_000_000_000
     public static func read(_ name: String) async -> String? {
         try? await readChecked(name)
     }
     public static func readChecked(_ name: String) async throws -> String? {
-        try await Task.detached { try readSynchronously(name) }.value
+        try await withThrowingTaskGroup(of: String?.self) { group in
+            group.addTask { try readSynchronously(name) }
+            group.addTask {
+                try await Task.sleep(nanoseconds: readTimeoutNanoseconds)
+                throw AgentError.unavailable("El Llavero tardó demasiado en responder. Abre Configuración, guarda de nuevo la credencial y vuelve a intentarlo.")
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next() else { throw CancellationError() }
+            return first
+        }
     }
     private static func readSynchronously(_ name: String) throws -> String? {
         if let env = ProcessInfo.processInfo.environment[name], !env.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return env }

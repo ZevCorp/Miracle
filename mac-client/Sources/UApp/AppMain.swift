@@ -108,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             Task { @MainActor in self?.model.lastExternalApp = app }
         }
         if let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() { model.lastExternalApp = app }
-        if !model.hasCredential || !model.permissions.snapshot.canControlComputer { model.selectedTab = 1; show() }
+        if !model.permissions.snapshot.canControlComputer { model.selectedTab = 1; show() }
     }
     private func terminateOlderCopies() {
         for app in NSWorkspace.shared.runningApplications {

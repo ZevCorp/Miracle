@@ -26,10 +26,10 @@ public enum LiveProtocol {
             return "El servicio de voz rechazó una operación (\(code))."
         }
     }
-    public static func start(model: String = "gpt-live-1") -> [String: Any] {
+    public static func start(model: String = "gpt-live-1", userContext: AssistantContext = .init()) -> [String: Any] {
         ["type": "session.start", "session": [
             "model": model,
-            "instructions": "Eres Ü. Conversa en español, breve y naturalmente. Escucha incluso mientras hablas. Delega las peticiones de usar el Mac. Nunca inventes acciones ni resultados. Puedes seguir conversando mientras Jev trabaja; en marcha no significa terminado.",
+            "instructions": userContext.liveInstructions(base: "Eres Ü. Conversa en español, breve y naturalmente. Escucha incluso mientras hablas. Delega las peticiones de usar el Mac. Nunca inventes acciones ni resultados. Puedes seguir conversando mientras Jev trabaja; en marcha no significa terminado."),
             "audio": ["format": ["type": "audio/pcm", "rate": 24000], "output": ["voice": "marin"]],
             "delegation": ["type": "responses", "responses": [
                 "model": "gpt-5.6-luna", "parallel_tool_calls": false,

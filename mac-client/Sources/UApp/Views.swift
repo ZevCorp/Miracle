@@ -104,6 +104,15 @@ struct MainView: View {
                 if !model.voiceCheckMessage.isEmpty { Text(model.voiceCheckMessage).font(.caption).textSelection(.enabled) }
                 Text("La comprobación abre una sesión breve con el proveedor; no usa el micrófono ni controla el Mac.").font(.caption).foregroundStyle(.secondary)
                 Divider()
+                Text("Cómo debe ayudarte Ü").font(.headline)
+                TextEditor(text: $model.assistantContext)
+                    .font(.callout)
+                    .frame(minHeight: 110)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+                    .accessibilityLabel("Contexto personal de Ü")
+                Button("Guardar contexto") { model.saveAssistantContext() }
+                Text("Se guarda solo en este Mac y se añade a la siguiente conversación con Live 1 y a las tareas enviadas a Graph.").font(.caption).foregroundStyle(.secondary)
+                Divider()
                 Text("Permisos del Mac").font(.headline)
                 permission("Accesibilidad", detail: "Leer controles y usar teclado y ratón.", state: model.permissionSnapshot.accessibility) { model.permissions.request(.accessibility) }
                 permission("Grabación de pantalla", detail: "Ver imágenes cuando una aplicación no expone sus controles.", state: model.permissionSnapshot.screenCapture) { model.permissions.request(.screenCapture) }

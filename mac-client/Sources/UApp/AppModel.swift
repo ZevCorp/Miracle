@@ -26,10 +26,12 @@ final class AppModel: ObservableObject {
     private var voiceConnection: Task<Void, Never>?
     private var voiceID = UUID()
     @Published var graphURL = UserDefaults.standard.string(forKey: "graphURL") ?? GraphClient.defaultURL
+    @Published var assistantContext = UserDefaults.standard.string(forKey: "assistantContext") ?? ""
     @Published var credential = ""
     @Published var openAICredential = ""
     @Published var hasCredential = false
     private var credentialRefresh: Task<Void, Never>?
+    private var cachedGraphCredential: String?
     @Published var configurationMessage = ""
     @Published var checkingVoice = false
     @Published var voiceCheckMessage = ""
@@ -106,6 +108,8 @@ final class AppModel: ObservableObject {
     }
     func refreshPermissions() {
         permissions.refreshAndPoll()
+    }
+    func refreshCredentialPresence() {
         if credentialRefresh == nil {
             checkingCredential = true
             credentialRefresh = Task { [weak self] in
@@ -118,12 +122,21 @@ final class AppModel: ObservableObject {
     func saveConfiguration() async {
         do {
             _ = try GraphClient(baseURL: graphURL, apiKey: "validation")
-            if !credential.isEmpty { try await Credentials.save("GRAPH_API_KEY", value: credential); credential = "" }
+            if !credential.isEmpty {
+                try await Credentials.save("GRAPH_API_KEY", value: credential)
+                cachedGraphCredential = credential.trimmingCharacters(in: .whitespacesAndNewlines)
+                hasCredential = !cachedGraphCredential!.isEmpty
+                credential = ""
+            }
             if !openAICredential.isEmpty { try await Credentials.save("OPENAI_API_KEY", value: openAICredential); openAICredential = "" }
             UserDefaults.standard.set(graphURL, forKey: "graphURL")
-            hasCredential = await Credentials.read("GRAPH_API_KEY") != nil
-            configurationMessage = hasCredential ? "Guardado en el Llavero de macOS." : "Falta la credencial de Graph."
+            configurationMessage = hasCredential ? "Guardado en el Llavero de macOS." : "La conexión se guardará cuando añadas una credencial de Graph."
         } catch { configurationMessage = error.localizedDescription }
+    }
+    func saveAssistantContext() {
+        assistantContext = AssistantContext(text: assistantContext).text
+        UserDefaults.standard.set(assistantContext, forKey: "assistantContext")
+        configurationMessage = assistantContext.isEmpty ? "El contexto personal se eliminó de este Mac." : "El contexto personal se guardó y se aplicará a la próxima conversación."
     }
     func checkConnection() {
         Task {
@@ -136,9 +149,12 @@ final class AppModel: ObservableObject {
         }
     }
     func makeClient() async throws -> GraphClient {
-        await credentialRefresh?.value
         try Task.checkCancellation()
-        guard let key = try await Credentials.readChecked("GRAPH_API_KEY"), !key.isEmpty else {
+        let key: String
+        if let cachedGraphCredential, !cachedGraphCredential.isEmpty { key = cachedGraphCredential }
+        else if let stored = try await Credentials.readChecked("GRAPH_API_KEY"), !stored.isEmpty {
+            key = stored; cachedGraphCredential = stored
+        } else {
             throw AgentError.unavailable("Falta la credencial de Graph. Guárdala en Configuración para conectar Live 1.")
         }
         hasCredential = true
@@ -195,14 +211,25 @@ final class AppModel: ObservableObject {
             do {
                 self.status = "Accediendo a Graph para conectar Live 1…"
                 let local = try await Credentials.readChecked("OPENAI_API_KEY")
-                let keys = try? await self.makeClient().providerKeys()
+                // A local Live key is enough to start a conversation. Graph may be recovering and
+                // must not hold the microphone UI hostage while its optional Jev key is fetched.
+                let hasLocalVoiceKey = local?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                let keys = hasLocalVoiceKey ? nil : try? await self.makeClient().providerKeys()
                 let key = try await self.voiceCredential(graph: keys?.openai ?? local)
                 let jevKey = keys?.typesafe
                 guard self.voiceID == id, !Task.isCancelled else { return }
                 self.jev = jevKey.flatMap { $0.isEmpty ? nil : JevClient(key: $0) }
                 self.jevStatus = self.jev == nil ? "Jev sin credencial · decide Luna" : "Jev · listo"
                 guard self.voiceID == id, !Task.isCancelled else { return }
-                try await self.liveVoice.start(key: key)
+                try await self.liveVoice.start(key: key, userContext: AssistantContext(text: self.assistantContext))
+                if hasLocalVoiceKey {
+                    Task { [weak self] in
+                        guard let self, let delayedKeys = try? await self.makeClient().providerKeys(),
+                              self.voiceID == id, !Task.isCancelled else { return }
+                        self.jev = delayedKeys.typesafe.flatMap { $0.isEmpty ? nil : JevClient(key: $0) }
+                        self.jevStatus = self.jev == nil ? "Jev sin credencial · decide Luna" : "Jev · listo"
+                    }
+                }
 
             } catch {
                 guard self.voiceID == id else { return }
@@ -302,9 +329,6 @@ final class AppModel: ObservableObject {
             return
         }
         guard !busy else { append("Hay una tarea en curso. Deténla antes de iniciar otra."); return }
-        guard hasCredential else {
-            selectedTab = 1; showWindow?(); fail("Conecta tu cuenta de Graph para comenzar."); return
-        }
         guard permissions.snapshot.canControlComputer else {
             selectedTab = 1; showWindow?(); fail("Falta el permiso de Accesibilidad."); return
         }
@@ -324,6 +348,7 @@ final class AppModel: ObservableObject {
                     execute: { try await self.desktop.execute($0) },
                     ask: { try await self.ask($0) })
                 engine.userID = self.userID
+                engine.userContext = AssistantContext(text: self.assistantContext).graphContext
                 engine.onStatus = { [weak self] text in self?.status = text; self?.mode = .working }
                 engine.onSpeech = { [weak self] text in self?.append(text); if self?.microphone == true { self?.speech.say(text) } }
                 let result = try await engine.run(goal: goal)
