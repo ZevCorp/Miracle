@@ -867,6 +867,10 @@ internal static class Contrato
         Prueba("421. leer la historia la TRANSCRIBE literal, por páginas y párrafos: cada documento viaja precedido de «Documento n — id: Dn», la foto como imagen con detalle alto y el PDF como archivo con su nombre, todo con store:false; las fotos van de 3 en 3 y cada PDF solo; lo que vuelve se convierte en párrafos con id estable «Dn-pP-k»; y un documento del que no volvió nada queda sin leer, diciendo por qué", LaHistoriaSeTranscribeLiteral);
         Prueba("422. «¿por qué vino a cardiología?» se pregunta con los párrafos de TODA la historia —de cardiología o no— y sin ninguna imagen ni archivo; la respuesta es UNA frase de como mucho 220 caracteres, y los párrafos que la sostienen se copian en código de la transcripción por su id: un id que no existe se descarta, y sin ninguna cita válida el titular es «Los documentos no dicen por qué vino a cardiología», aunque el modelo haya escrito una frase", ElMotivoSeCitaCopiandoDelDocumento);
         Prueba("423. soltar más documentos no vuelve a leer los ya leídos y rehace el motivo con todos; si la lectura falla a mitad, lo leído se conserva, el error nombra el documento que faltó, y reintentar lee solo lo que faltó", SoltarMasNoVuelveALeerLoLeido);
+
+        // ── Spec 053: pulsar como Ü desde cero (paso 1 de la integración de u/) ─────────────────────
+        Prueba("475. tras pulsar, la espera sale en cuanto cambia lo que se ve en la ventana de trabajo —aunque la ubicación sea la misma—, y no pasa de 150 ms tras un botón ni de 1,5 s tras un enlace; lo que cambió se cuenta como cambio de pantalla, sin ensayar el doble ni repetir el clic", PulsarSaleEnCuantoCambiaLoQueSeVe);
+        Prueba("476. un pulso de SAP, o uno sin lector de lo que se ve, espera como siempre: la ubicación, hasta el techo de siempre", PulsarDeSapEsperaComoSiempre);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -13418,6 +13422,84 @@ internal static class Contrato
     }
 
     // ── Spec 043 ─────────────────────────────────────────────────────────────────────────────────
+
+    // Un pulsador de mentira para la spec 053: «dónde» y «lo que se ve» los decide el guion, en función de cuánto
+    // hace del último toque de la mano.
+    private static (PulsarSegunElNucleo P, Func<int> Toques) PulsadorConVista(Nucleo.Grafo g, Func<long, string> donde, Func<long, string>? seVe)
+    {
+        int toques = 0;
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        long tocadoEn = long.MinValue / 2;
+        long Desde() => toques == 0 ? -1 : reloj.ElapsedMilliseconds - tocadoEn;
+        var p = new PulsarSegunElNucleo(g, () => donde(Desde()), (sel, et, gesto) => { toques++; tocadoEn = reloj.ElapsedMilliseconds; return true; })
+        { EsperaMaximaMs = 1800 };
+        if (seVe != null) typeof(PulsarSegunElNucleo).GetProperty("LoQueSeVe")?.SetValue(p, (Func<string>)(() => seVe(Desde())));
+        return (p, () => toques);
+    }
+
+    private static void PulsarSaleEnCuantoCambiaLoQueSeVe()
+    {
+        // LÍNEA BASE DEL 2026-09-27 (U.exe de main, por el MCP): Configuración → «Sistema», esperar el cambio 1.864 ms;
+        // → «Pantalla», 1.824 ms; las dos «no cambió» sobre una página que sí cambió. Pasar de una sección a otra no cambia
+        // la ubicación, y la espera solo miraba la ubicación. Ü desde cero mira lo que se ve y sale al cambiar.
+        if (typeof(PulsarSegunElNucleo).GetProperty("LoQueSeVe") == null) { Pendiente("PulsarSegunElNucleo.LoQueSeVe (la espera mira lo que se ve)", "475", "053"); return; }
+        const string A = "uia://SystemSettings.exe/configuracion";
+        Nucleo.Grafo Mundo()
+        {
+            var g = new Nucleo.Grafo();
+            g.Observar(A, new[]
+            {
+                new Nucleo.Elemento("uia:name=Sistema;ct=ListItem", "Sistema", "ListItem"),
+                new Nucleo.Elemento("uia:name=Guardar;ct=Button", "Guardar", "Button"),
+                new Nucleo.Elemento("uia:name=Ver más;ct=Hyperlink", "Ver más", "Hyperlink"),
+            });
+            return g;
+        }
+
+        // 1. LO QUE SE VE CAMBIA A LOS 40 MS Y LA UBICACIÓN NO: se sale ya, se cuenta como cambio, un solo toque —aunque
+        //    sea contenido, donde se ensayaría el doble—, y no se aprende arista: no se fue a otra ubicación.
+        var (p1, t1) = PulsadorConVista(Mundo(), _ => A, ms => ms >= 40 ? "Sistema: Pantalla, Sonido" : "Inicio");
+        var c1 = System.Diagnostics.Stopwatch.StartNew();
+        var r1 = p1.Pulsa("uia:name=Sistema;ct=ListItem", "Sistema");
+        Debe(c1.ElapsedMilliseconds < 400, $"lo que se ve cambió a los 40 ms y la espera tardó {c1.ElapsedMilliseconds} ms: sigue esperando la ubicación");
+        Debe(r1.SePudo && r1.CambioLaPantalla && t1() == 1 && !r1.Aprendido, $"un cambio de lo que se ve es un cambio, con un solo toque y sin arista (toques={t1()}; «{r1.Cuenta}»)");
+
+        // 2. UN BOTÓN QUE NO CAMBIA NADA: 150 ms de techo, no 1.800.
+        var (p2, t2) = PulsadorConVista(Mundo(), _ => A, _ => "Inicio");
+        var c2 = System.Diagnostics.Stopwatch.StartNew();
+        var r2 = p2.Pulsa("uia:name=Guardar;ct=Button", "Guardar");
+        Debe(c2.ElapsedMilliseconds < 400 && !r2.CambioLaPantalla && t2() == 1, $"un botón que no cambia nada esperó {c2.ElapsedMilliseconds} ms (toques={t2()})");
+
+        // 3. UN ENLACE QUE TARDA 600 MS EN CARGAR: se espera, y se ve cambiar.
+        var (p3, _) = PulsadorConVista(Mundo(), _ => A, ms => ms >= 600 ? "Página nueva" : "Página vieja");
+        var c3 = System.Diagnostics.Stopwatch.StartNew();
+        var r3 = p3.Pulsa("uia:name=Ver más;ct=Hyperlink", "Ver más");
+        Debe(r3.CambioLaPantalla && c3.ElapsedMilliseconds is >= 580 and < 1500, $"un enlace que carga a los 600 ms: cambió={r3.CambioLaPantalla} en {c3.ElapsedMilliseconds} ms");
+
+        // 4. SI LA UBICACIÓN CAMBIA, MANDA LA UBICACIÓN: se aprende la arista como siempre.
+        const string B = "uia://SystemSettings.exe/sistema";
+        var (p4, _) = PulsadorConVista(Mundo(), ms => ms >= 60 ? B : A, ms => ms >= 60 ? "Sistema" : "Inicio");
+        var r4 = p4.Pulsa("uia:name=Sistema;ct=ListItem", "Sistema");
+        Debe(r4.Hasta == B && r4.Aprendido, $"cuando cambia la ubicación se aprende la arista: hasta «{r4.Hasta}», aprendido={r4.Aprendido}");
+    }
+
+    private static void PulsarDeSapEsperaComoSiempre()
+    {
+        // En SAP, UIA no ve más que un panel opaco: su huella no cambia nunca, y cortar la espera a 150 ms haría dar por
+        // no-agarrado un clic mientras SAP procesa el round-trip.
+        if (typeof(PulsarSegunElNucleo).GetProperty("LoQueSeVe") == null) { Pendiente("PulsarSegunElNucleo.LoQueSeVe (la espera mira lo que se ve)", "476", "053"); return; }
+        const string A = "sap://NWP1", B = "sap://NV2000";
+        var g = new Nucleo.Grafo();
+        g.Observar(A, new[] { new Nucleo.Elemento("sap:wnd[0]/tbar[1]/btn[8]", "Ejecutar", "GuiButton") });
+        var (p, _) = PulsadorConVista(g, ms => ms >= 700 ? B : A, _ => "panel opaco");
+        var r = p.Pulsa("sap:wnd[0]/tbar[1]/btn[8]", "Ejecutar");
+        Debe(r.Hasta == B && r.CambioLaPantalla, $"un pulso de SAP que llega a los 700 ms se perdió: hasta «{r.Hasta}» («{r.Cuenta}»)");
+
+        // Sin lector de lo que se ve, lo de siempre: la ubicación, hasta el techo.
+        var (p2, _) = PulsadorConVista(new Nucleo.Grafo(), ms => ms >= 700 ? "uia://x/b" : "uia://x/a", null);
+        var r2 = p2.Pulsa("uia:name=Ir;ct=Button", "Ir");
+        Debe(r2.Hasta == "uia://x/b", $"sin lector, un cambio de ubicación a los 700 ms se perdió: hasta «{r2.Hasta}»");
+    }
 
     private static void UnCampoDeTextoNoNavega()
     {
