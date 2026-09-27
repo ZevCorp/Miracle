@@ -449,6 +449,5 @@ final class AppModel: ObservableObject {
     func fail(_ text: String) { mode = .error; status = text; append(text) }
     func append(_ text: String, user: Bool = false) {
         messages.append(ChatMessage(text: text, user: user))
-        if messages.count > 150 { messages.removeFirst(messages.count - 150) }
     }
 }
