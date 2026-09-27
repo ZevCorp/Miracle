@@ -79,6 +79,21 @@ public sealed class Asistente : IDisposable
     /// </summary>
     private bool AbrirYEsperarQueSeLea(string app)
     {
+        // CON EL NAVEGADOR DELANTE, EN LA MISMA PESTAÑA (promesa 473): la dirección se escribe de una vez en su barra y
+        // se confirma con Enter. Si no se encuentra la barra, se abre como siempre.
+        var aqui = Donde.Ahora();
+        if (aqui != null && Apps.EnLaMismaPestana(app, aqui.Proceso))
+        {
+            var rp = Stopwatch.StartNew();
+            string antes = _lector.Leer(aqui.Ventana).Huella;
+            if (_lector.EscribirEnLaBarra(aqui.Ventana, app) && Raton.Tecla("Enter"))
+            {
+                var a = Asentado.Esperar(() => _lector.Leer(aqui.Ventana).Huella, antes, 3000, () => rp.ElapsedMilliseconds);
+                Log($"   abrir «{app}» en la misma pestaña: {(a.Cambio ? "cargó" : "sin cambio visible")} en {rp.ElapsedMilliseconds} ms");
+                return true;
+            }
+            Log($"   abrir «{app}»: no encontré la barra de direcciones; la abro aparte");
+        }
         var (llego, ms) = Apps.Abrir(app);
         if (!llego) { Log($"   abrir «{app}»: no llegó delante en {ms} ms"); return false; }
         var r = Stopwatch.StartNew();

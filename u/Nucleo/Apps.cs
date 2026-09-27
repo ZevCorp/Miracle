@@ -60,6 +60,18 @@ public static class Apps
         return false;
     }
 
+    /// <summary>
+    /// ¿SE CARGA EN LA PESTAÑA DE DELANTE? (promesa 473): una dirección, con un navegador delante. Abrirla con
+    /// ShellExecute crea una pestaña nueva cada vez, y el 2026-09-26 las pruebas dejaron Chrome con 133 procesos y
+    /// 15 GB: leer una página pasó de 1,6 a 4-7 s.
+    /// </summary>
+    public static bool EnLaMismaPestana(string pedida, string procesoDelante)
+    {
+        string c = (pedida ?? "").Trim().ToLowerInvariant();
+        bool direccion = c.StartsWith("http://") || c.StartsWith("https://") || c.StartsWith("www.");
+        return direccion && Navegadores.Contains((procesoDelante ?? "").ToLowerInvariant());
+    }
+
     /// <summary>Cuánto se espera a que cambie algo: poco si la app pedida ya estaba delante (promesa 470).</summary>
     public static int Techo(bool yaEstabaDelante) => yaEstabaDelante ? 700 : 3000;
 

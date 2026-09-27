@@ -131,6 +131,38 @@ public sealed class LectorUia : IDisposable
         }
     }
 
+    /// <summary>Por dónde dice el lector lo que no pudo hacer: un fallo de UIA que se calla parece que no había nada.</summary>
+    public static Action<string>? Traza { get; set; }
+
+    /// <summary>Un trabajo en el hilo MTA del lector, con su resultado.</summary>
+    private T EnElHilo<T>(Func<T> trabajo)
+    {
+        var tcs = new TaskCompletionSource<T>();
+        _cola.Add(() => { try { tcs.SetResult(trabajo()); } catch (Exception e) { tcs.SetException(e); } });
+        return tcs.Task.GetAwaiter().GetResult();
+    }
+
+    /// <summary>Cómo se llama la barra de direcciones de Chrome y Edge, en español y en inglés (promesa 473).</summary>
+    public static readonly string[] NombresDeLaBarra = { "Barra de direcciones y de búsqueda", "Address and search bar" };
+
+    /// <summary>
+    /// Escribe de una vez en la barra de direcciones del navegador (ValuePattern.SetValue, como escribe main): sin
+    /// teclear letra a letra —~16 ms por letra— ni tocar el portapapeles. Devuelve si la encontró y escribió.
+    /// </summary>
+    public bool EscribirEnLaBarra(IntPtr ventana, string texto) => EnElHilo(() =>
+    {
+        try
+        {
+            var nombre = _uia.CreateOrConditionFromArray(NombresDeLaBarra.Select(n => _uia.CreatePropertyCondition(PropNombre, n)).ToArray());
+            var cond = _uia.CreateAndCondition(_uia.CreatePropertyCondition(PropTipo, 50004), nombre);
+            var barra = _uia.ElementFromHandle(ventana).FindFirst(TreeScope.TreeScope_Descendants, cond);
+            if (barra?.GetCurrentPattern(10002 /* ValuePattern */) is not IUIAutomationValuePattern valor) return false;
+            valor.SetValue(texto);
+            return true;
+        }
+        catch (COMException e) { Traza?.Invoke($"barra de direcciones: 0x{e.HResult:X8}: {e.Message}"); return false; }
+    });
+
     private static string NombreDelTipo(int id)
     {
         if (id == TipoTexto) return "Text";

@@ -17,6 +17,7 @@ public static class Programa
     {
         var (openai, typesafe, estado) = Claves.Traer();
         Registro.Log("Ü desde cero arranca · " + estado);
+        LectorUia.Traza = Registro.Log;
         if (typesafe == null) { Registro.Log("✘ sin clave de TypeSafe no hay Jev: no arranco."); return 2; }
 
         using var ü = new Asistente(typesafe) { Log = Registro.Log };
