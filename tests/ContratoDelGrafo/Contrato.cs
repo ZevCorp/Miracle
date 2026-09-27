@@ -877,6 +877,7 @@ internal static class Contrato
         Prueba("480. abrir encuentra lo ya abierto también por lo que ES, no solo por cómo se llama su proceso: «ms-settings:» y «configuración» encuentran la ventana de ApplicationFrameHost titulada «Configuración» (Apps.EsLaPedida)", AbrirEncuentraPorLoQueEs);
         Prueba("481. si la ventana de lo pedido ya es la de delante, abrir contesta que ya estás sin esperar a que algo cambie, y esa ventana pasa a ser la de trabajo", AbrirLoQueYaEstaDelanteNoEspera);
         Prueba("483. escribir sin decir dónde espera a un foco que ACEPTE texto, no a uno que se llame Edit: en cuanto lo hay —también el Document del Bloc de notas de Windows 11— escribe sin esperar más, y el techo de 1,5 s es solo para cuando aún no hay dónde", EscribirNoEsperaAUnEdit);
+        Prueba("484. desplazar comprueba la consecuencia en cuanto la hay: sale al primer cambio del porcentaje en vez de dormir 350 ms fijos, y sin cambio agota el mismo techo antes de decir que no se movió", DesplazarNoDuermeFijo);
         Prueba("482. lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12", LanzarUnProtocoloEsperaALaVentanaDeDelante);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
@@ -13660,6 +13661,27 @@ internal static class Contrato
         Debe(llamada.Success, "escribir ya no espera al foco con EsperarFocoQueAcepteTexto");
         Debe(llamada.Success && llamada.Value.Contains("AceptaTexto(") && !llamada.Value.Contains("ControlType.Edit"),
             $"la espera del foco no pregunta con UiaSurface.AceptaTexto, o sigue preguntando por un Edit por su nombre: «{llamada.Value}»");
+    }
+
+    private static void DesplazarNoDuermeFijo()
+    {
+        // LÍNEA BASE: Desplazamiento.Mover dormía 350 ms fijos tras cada ScrollVertical (2026-09-27), también cuando el
+        // porcentaje ya había cambiado al volver la llamada, que es lo normal.
+        var t = typeof(SurfaceMapTools).Assembly.GetType("U.WindowsClient.Uia.Desplazamiento");
+        var espera = t?.GetMethod("EsperarQueSeMueva", BindingFlags.Public | BindingFlags.Static);
+        if (espera == null) { Pendiente("Desplazamiento.EsperarQueSeMueva", "484", "053"); return; }
+
+        var crono = System.Diagnostics.Stopwatch.StartNew();
+        double ya = (double)espera.Invoke(null, new object[] { (Func<double>)(() => 40.0), 10.0, 350 })!;
+        Debe(ya == 40.0 && crono.ElapsedMilliseconds < 60, $"el porcentaje ya había cambiado y esperó {crono.ElapsedMilliseconds} ms (devolvió {ya})");
+
+        crono.Restart();
+        double tarde = (double)espera.Invoke(null, new object[] { (Func<double>)(() => crono.ElapsedMilliseconds >= 120 ? 55.0 : 10.0), 10.0, 350 })!;
+        Debe(tarde == 55.0 && crono.ElapsedMilliseconds < 250, $"se movió a los 120 ms y se supo a los {crono.ElapsedMilliseconds} (devolvió {tarde})");
+
+        crono.Restart();
+        double quieto = (double)espera.Invoke(null, new object[] { (Func<double>)(() => 100.0), 100.0, 350 })!;
+        Debe(quieto == 100.0 && crono.ElapsedMilliseconds >= 330, $"sin moverse dijo a los {crono.ElapsedMilliseconds} ms: tiene que agotar el techo antes de decir «no se movió»");
     }
 
     private static void LanzarUnProtocoloEsperaALaVentanaDeDelante()
