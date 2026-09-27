@@ -153,6 +153,32 @@ Lo que sí se aprovecha ya del lector rápido es lo que sí paga: la huella de l
 
 Decidir tampoco se toca aquí: `map_decidir` (Jev, spec 035) ya está en main con su lista numerada y su medida.
 
+## Fase 5 — escribir (pieza P6 del plan)
+
+Medido antes de escribir código (`medir-escribir.ps1`, `map_type` por el MCP en el Bloc de notas de Windows 11):
+**2.246-2.378 ms, con 4 letras y con 300**. Que no dependiera del largo decía que no era el tecleo; el log lo dijo:
+1,5-2 s entre la llamada y el Execute. Escribir sin `target` esperaba un foco de tipo **Edit**, 30 × 50 ms, y el
+editor del Bloc de notas de Windows 11 es un **Document**: agotaba el techo siempre, y después escribía bien porque
+`UiaSurface.AceptaTexto` —la regla que decide si se escribe— sí lo acepta. Dos reglas para la misma pregunta.
+
+| # | Promesa |
+|---|---|
+| 483 | escribir sin decir dónde espera a un foco que ACEPTE texto, no a uno que se llame Edit: en cuanto lo hay —también el Document del Bloc de notas de Windows 11— escribe sin esperar más, y el techo de 1,5 s es solo para cuando aún no hay dónde |
+
+| | línea base | fase 5 |
+|---|---|---|
+| `map_type` 4 letras | 2.378 ms | **695 ms** |
+| `map_type` 300 letras | 2.246-2.375 ms | **382-480 ms** |
+
+Sitios con la clase de error (esperar por el nombre del tipo): 1. Los dos `ControlType.Edit` de `SurfaceLocator`
+buscan campos para identificar la pantalla, no esperan, y no se tocan. Sabotajes: 2, los 2 rojos.
+
+**Hallazgo que queda abierto — escribir REEMPLAZA.** `SetValue` pone el texto entero del campo: en el Bloc de notas
+la segunda escritura borró la primera (el título de la pestaña pasó de «hola» a «Las almejas…»). La primera medida
+se hizo sobre una pestaña «Sin título» que ya estaba abierta, y su contenido se perdió; las siguientes, en una
+pestaña nueva. Añadir o reemplazar es la pieza P6 de fondo (spec 049, promesa 410, «si el campo no lo refleja»):
+no es de velocidad y va en su propia rama.
+
 ## Lo que queda fuera
 
 - `PasoDelNucleo` y `ServidorDelNucleo` (8792) usan `_mapaVivo.Pulsar` y no pasan por `PulsarSegunElNucleo`.
