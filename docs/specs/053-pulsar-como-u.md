@@ -1,6 +1,6 @@
-# Pulsar como Ü desde cero
+﻿# Pulsar como Ü desde cero
 
-Estado: **fase 1 en curso** (2026-09-27) · Paso 1 de la integración de `u/` en `main`
+Estado: **fases 1 y 2 implementadas** (2026-09-27) · Paso 1 de la integración de `u/` en `main`
 (plan: https://claude.ai/artifact/N3c1p4GGeNJV9nCcnETN5N) · Rama: `jose/u-pulsar-en-main`, que sale de
 `jose/u-entra-a-main` (main `334f144` + `u/`).
 
@@ -55,14 +55,65 @@ De ahí el asentado (dos lecturas iguales a 60 ms): cuesta ~85 ms de mediana y d
 Y un fallo del arnés: al referenciar U.exe el núcleo de `u/`, la promesa 162 caía por `FileNotFoundException:
 U.Ciclo`; el contrato ahora referencia sus DLL. Sabotajes: 3, los 3 rojos.
 
-## Fase 2 — la mano (después, por separado)
+## Fase 2 — la mano
 
-El clic con el ratón real de `u/` (SetCursorPos + SendInput al centro del elemento ya resuelto), sin escalera.
-**Pide decisión del dueño:** las promesas 234, 237 y 265 consagran la escalera «patrón primero», y 19/aprendizaje
-nº19 explica por qué existe (los menús WinUI y el explorador). Cambiar la mano es cambiar lo que prometen. Lo que la
-fase 2 tiene que conservar, con su sitio (inventario del 2026-09-27): el evento `UiaSurface.Pulso` que mueve la
+El clic con el ratón real de `u/` (SetCursorPos + SendInput al centro del elemento ya leído), sin volver a buscarlo.
+Lo que tenía que conservar, con su sitio (inventario del 2026-09-27): el evento `UiaSurface.Pulso` que mueve la
 carita (sale de `Actuar`, UiaSurface.cs:1163), el freno (`Execute`, :992), el motivo (promesa 231), el log «mano»,
 el doble clic aprendido (82-83) y la guarda de SAP (FaceWindow:780, en pareja con `EsContenido`).
+
+| # | Promesa |
+|---|---|
+| 477 | la mano rápida pulsa sin volver a buscar: si lo pedido coincide con UN solo elemento visible de la lectura rápida —mismo nombre (el del selector o, si va por AutomationId, la etiqueta) y mismo tipo—, el clic es el ratón real en su centro; con nombres repetidos, sin coincidencia o en SAP no pulsa y deja paso a la mano de siempre |
+| 478 | la mano rápida avisa a la carita donde pulsó (UiaSurface.Pulso, con la caja) y al cursor (CursorMoved); y con el freno echado no pulsa y lo dice |
+| 479 | lo mismo pedido otra vez en menos de 3 s —el ensayo del doble o la repetición de pulsar— va por la mano de siempre: primero el clic real y, si no agarró, la escalera (aprendizaje nº19) |
+
+**Decisión sobre 234, 237 y 265 (tomada sin el dueño, por su orden de no preguntar; 2026-09-27):** no se retiran.
+La mano rápida va **delante** de la escalera, no en su lugar: la escalera sigue siendo la mano cuando la rápida no
+se atreve (homónimos, sin coincidencia, SAP, gesto de doble clic, repetición en < 3 s). Es lo que ya dice el
+aprendizaje nº19 —«actuar primero y verificar después: el clic real, y solo si no agarró, el patrón»— y por eso 479
+manda la repetición a la escalera: si el clic real no agarró la primera vez, la segunda no puede ser igual.
+Las promesas de la escalera siguen juzgando la escalera, que existe entera.
+
+### Resultado de la fase 2 (medido el 2026-09-27, Configuración y Explorador, 13 pulsos)
+
+| | línea base | fase 1 | fase 2 |
+|---|---|---|---|
+| la mano | 263-875 ms | igual | **8-47 ms (mediana 37)** |
+| esperar el cambio | 1.824-1.864 ms | mediana 211 ms | **mediana 226 ms** |
+| pulsar entero (ida y vuelta por el MCP) | 3.263-4.016 ms | mediana 930 ms | **mediana 532 ms** |
+
+Hallazgos:
+- **Una lectura por clic, no dos.** La primera versión volvía a leer la ventana para buscar el elemento (~100-300 ms).
+  La lectura que la espera deja guardada (`_ultimaLectura`) vale si tiene < 500 ms: la mano no lee nada.
+- **«Dónde» no es caro.** Hipótesis probada y falsa: sacarlo del bucle de espera empeoró el Explorador. El reparto
+  medido en el log: «dónde» cuesta 0-29 ms; lo caro es la primera lectura de Configuración tras el clic (300-900 ms,
+  la app está animando la transición). Eso es de la app, no nuestro, y no se toca.
+- Sabotajes: 5, los 5 rojos (homónimos, sin tipo, sin aviso a la carita, sin freno, lo repetido rápido). La primera
+  tanda salió roja con el mensaje equivocado —un recuento de clics acumulado hacía culpar a SAP de los homónimos—; cada
+  chequeo cuenta ahora sus clics, y cada sabotaje nombra su causa.
+
+## Fase 3 — abrir (pieza P3 del plan)
+
+Línea base: `map_open_app` con Configuración ya abierta y delante, **13 s**, y contestaba «no pude traer
+«ms-settings:» al frente» con Configuración delante. Inventario de la causa (2026-09-27): lo pedido se compara con
+el NOMBRE DEL PROCESO en cuatro sitios, y Configuración vive en `ApplicationFrameHost` —aprendizaje nº16 otra vez—:
+
+| Sitio | Qué compara | Consecuencia |
+|---|---|---|
+| `AbrirSegunElNucleo.LasDe` | «ms-settings:» con el proceso y el título | no ve la ventana abierta |
+| `AbrirSegunElNucleo.YaEstamos` | `SystemSettings` con «ms-settings:» | no sabe que ya estás |
+| `AppAligner.VentanaDe` | idem | no la trae |
+| `WindowsSystemApi.EsperarVentana` | un proceso llamado «ms-settings:» | **espera los 12 s enteros**, siempre |
+
+`u/` ya lo resuelve con `Apps.EsLaPedida` (proceso, y título para las de la tienda) y `Apps.Llego` (cambió la ventana
+de delante o su título). Se usan esas, no una tercera opinión:
+
+| # | Promesa |
+|---|---|
+| 480 | abrir encuentra lo ya abierto también por lo que ES, no solo por cómo se llama su proceso: «ms-settings:» y «configuración» encuentran la ventana de ApplicationFrameHost titulada «Configuración» (Apps.EsLaPedida) |
+| 481 | si la ventana de lo pedido ya es la de delante, abrir contesta que ya estás, sin traer nada ni esperar a que algo cambie |
+| 482 | lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12 |
 
 ## Lo que queda fuera
 

@@ -13529,11 +13529,15 @@ internal static class Contrato
             $"«Pantalla», única, no se pulsó en su centro: {string.Join(" ", clics)}");
         Debe(Intentar(m, "uia:aid=SoundEntry;ct=ListItem", "Sonido", out _) && clics.Count == 2 && clics[1] == (250, 355),
             $"por AutomationId no se buscó por la etiqueta: {string.Join(" ", clics)}");
-        Debe(!Intentar(m, "uia:name=Buscar;ct=Button", "Buscar", out _) && clics.Count == 2, "con dos «Buscar» se pulsó uno a ciegas");
-        Debe(!Intentar(m, "uia:name=Bluetooth;ct=ListItem", "Bluetooth", out _) && clics.Count == 2, "sin coincidencia se pulsó algo");
-        Debe(!Intentar(m, "uia:name=Pantalla;ct=Button", "Pantalla", out _) && clics.Count == 2, "con el tipo distinto se pulsó igual");
-        Debe(!Intentar(m, "sap:wnd[0]/tbar[1]/btn[8]", "Pantalla", out _) && clics.Count == 2, "un selector de SAP fue a la mano rápida");
+        Debe(Nada(clics, () => !Intentar(m, "uia:name=Buscar;ct=Button", "Buscar", out _)), "con dos «Buscar» se pulsó uno a ciegas");
+        Debe(Nada(clics, () => !Intentar(m, "uia:name=Bluetooth;ct=ListItem", "Bluetooth", out _)), "sin coincidencia se pulsó algo");
+        Debe(Nada(clics, () => !Intentar(m, "uia:name=Pantalla;ct=Button", "Pantalla", out _)), "con el tipo distinto se pulsó igual");
+        Debe(Nada(clics, () => !Intentar(m, "sap:wnd[0]/tbar[1]/btn[8]", "Pantalla", out _)), "un selector de SAP fue a la mano rápida");
     }
+
+    // Cada chequeo cuenta SUS clics. Con el recuento acumulado, un sabotaje que pulsaba de más en el primero hacía caer
+    // a los siguientes, y el último mensaje culpaba a SAP de lo que hacían los homónimos (aprendizaje nº2, 2026-09-27).
+    private static bool Nada(List<(int, int)> clics, Func<bool> intento) { int antes = clics.Count; return intento() && clics.Count == antes; }
 
     private static void LaManoRapidaAvisaYRespetaElFreno()
     {
@@ -13571,7 +13575,8 @@ internal static class Contrato
         ahora = 1200;
         Debe(!Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == 1, "la repetición a los 1,2 s no fue por la escalera");
         ahora = 5000;
-        Debe(Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == 2, "pasados 3 s, el clic no volvió a ser rápido");
+        int antes = clics.Count;
+        Debe(Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == antes + 1, "pasados 3 s, el clic no volvió a ser rápido");
     }
 
     private static void PulsarDeSapEsperaComoSiempre()
