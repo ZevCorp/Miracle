@@ -881,6 +881,7 @@ internal static class Contrato
         Prueba("486. homónimos sin which: la lista 1..N en orden de lectura con su tipo, sin pulsar; con which=N pulsa ese y solo ese", ElCicloRapidoNumeraLosHomonimos);
         Prueba("487. antes de pulsar el ciclo lee como mucho UNA vez, y ninguna si la última lectura de esa ventana tiene menos de 2 s; lo que no está se busca en UNA lectura nueva, y si tampoco está, el ciclo no se encarga y decide el camino de siempre", ElCicloRapidoNoLeeDeMas);
         Prueba("488. con el freno echado no pulsa y lo dice; SAP y los selectores que no van por nombre no pasan por el ciclo rápido", ElCicloRapidoRespetaElFrenoYSap);
+        Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
         Prueba("484. desplazar comprueba la consecuencia en cuanto la hay: sale al primer cambio del porcentaje en vez de dormir 350 ms fijos, y sin cambio agota el mismo techo antes de decir que no se movió", DesplazarNoDuermeFijo);
         Prueba("482. lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12", LanzarUnProtocoloEsperaALaVentanaDeDelante);
         Console.WriteLine();
@@ -13775,6 +13776,25 @@ internal static class Contrato
         Debe(Pulsar(m, "uia:aid=SystemSettings_Display;ct=ListItem") == null && m.Clics.Count == 0, "un selector por AutomationId pasó por el ciclo rápido (la lectura rápida no trae AutomationId)");
         Pulsar(m, "uia:name=Sistema;ct=ListItem");
         Debe(m.Clics.Count == 1, "un selector por nombre y tipo no pasó por el ciclo rápido");
+    }
+
+    private static void NadieLeeLaPantallaDeFondo()
+    {
+        // MEDIDO EL 2026-09-27: con el latido (lee la ventana de delante cada 900 ms), la ubicación de fondo (cada
+        // 250-400 ms, 200-290 ms de UIA en Configuración) y el rastro del cursor (180 ms, justo tras cada clic) leyendo
+        // la MISMA app que el ciclo, las lecturas del ciclo subían: la del Explorador tras un clic, de ~500 a más de 1 s.
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string mapa = Path.Combine(repo, "windows-client", "src", "Navigation", "MapaVivo.cs");
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(mapa) || !File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO no hay fuentes que mirar."); return; }
+        string m = File.ReadAllText(mapa);
+        var arrancar = System.Text.RegularExpressions.Regex.Match(m, @"public void Arrancar\([\s\S]*?\n    \}");
+        Debe(arrancar.Success, "no encontré MapaVivo.Arrancar");
+        Debe(arrancar.Success && !arrancar.Value.Contains("new System.Threading.Timer"),
+            "el mapa vivo sigue arrancando relojes de fondo (latido o ubicación) que leen la pantalla");
+        string c = File.ReadAllText(cara);
+        Debe(!System.Text.RegularExpressions.Regex.IsMatch(c, @"^\s*RastroDelCursor\.Arrancar\(\);", System.Text.RegularExpressions.RegexOptions.Multiline),
+            "el rastro del cursor sigue arrancando con la cara");
     }
 
     private static void DesplazarNoDuermeFijo()
