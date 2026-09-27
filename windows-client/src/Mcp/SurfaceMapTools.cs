@@ -2587,6 +2587,12 @@ public sealed class SurfaceMapTools
     /// </remarks>
     public bool SenalarAlActuar { get; set; }
 
+    /// <summary>
+    /// El ciclo de u/ (spec 054): (qué, which, consulta al tope) → la respuesta y si cambió (null = no pulsó), o null si
+    /// no es suyo y decide el camino de siempre.
+    /// </summary>
+    public Func<string, int, Func<string, string?>?, (string Texto, bool? Cambio)?>? CicloRapido { get; set; }
+
     private string Take(string salida, string cual = "", string decir = "", string recuerdo = "")
     {
         if (salida.Length == 0) return "falta `exit`: qué puerta tomar (su nombre tal como se ve, o su selector)";
@@ -2596,6 +2602,15 @@ public sealed class SurfaceMapTools
         // «dime el selector». Los antiguos `action` y `at` no llegaban aquí desde e3c3ad8: el gesto lo
         // aprende la arista (spec 003), y ofrecerlos era la ilusión de controlarlo (promesa 206).
         int.TryParse(cual, out int n);
+        // EL CICLO DE u/ PRIMERO (spec 054): un clic por nombre en UIA es ver → clic → volver a ver, y contesta con lo
+        // que se ve. Con coreografía (comprobar, decir, recuerdo) va por el camino de siempre, que es quien la sabe.
+        bool coreografia = DarUnPasoConCoreografia != null && (SenalarAlActuar || decir.Length > 0 || recuerdo.Length > 0);
+        if (!coreografia && CicloRapido?.Invoke(salida, n, _antesDePulsar) is { } rapido)
+        {
+            // Pulsó: se logró si cambió. Sin pulsar (homónimos numerados, freno, tope): no fue un intento o no se logró.
+            _ultimaMano = rapido.Cambio is bool c ? new Mano(true, c) : new Mano(false, false, Intento: !rapido.Texto.Contains("which=N"));
+            return rapido.Texto;
+        }
         var paso = new Navigation.RecorrerSegunElNucleo.Paso(salida) { Cual = n, AntesDePulsar = _antesDePulsar };
         // LA MISMA COREOGRAFÍA QUE EL PLAN (promesa 191): al comprobar, o cuando el piloto trae algo que
         // decir o un recuerdo, la mano señala, dice, cuelga y muestra, y solo después pulsa.

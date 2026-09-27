@@ -826,6 +826,42 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 return r.Cuenta;
             };
 
+            // EL CICLO DE u/ (spec 054, promesas 485-488): un clic por nombre en UIA no pasa por la compuerta de vivo,
+            // ni por las ubicaciones, ni por el grafo: ver → clic → volver a ver, y la última lectura es la respuesta.
+            // El clic es el ratón real, así que la ventana de trabajo tiene que estar delante; si no se puede traer, el
+            // ciclo no se encarga y decide el camino de siempre.
+            if (mcp.Map != null)
+            {
+                var ciclo = new Navigation.CicloRapido(
+                    () =>
+                    {
+                        IntPtr v = VentanaObjetivo();
+                        if (v == IntPtr.Zero) return IntPtr.Zero;
+                        return U.Graph.Surfaces.UiaSurface.EstaDelante(v) || U.Graph.Surfaces.UiaSurface.TraerAlFrente(v) ? v : IntPtr.Zero;
+                    },
+                    v => { var l = _lectorRapido.Leer(v); _ultimaLectura = (l, Environment.TickCount64); return l; },
+                    (x, y) =>
+                    {
+                        U.Ciclo.Raton.Clic(x, y);
+                        U.Graph.Surfaces.UiaSurface.AvisarDelCursor(x, y);
+                        U.Graph.Surfaces.UiaSurface.AvisarDelPulso(x - 20, y - 10, 40, 20);
+                    },
+                    () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
+                    () => Environment.TickCount64)
+                { Titulo = U.Graph.Surfaces.UiaSurface.TituloDe };
+                mcp.Map.CicloRapido = (exit, cual, antesDePulsar) =>
+                {
+                    ciclo.AntesDePulsar = antesDePulsar;
+                    string? r = ciclo.Pulsar(exit, cual);
+                    if (r != null && ciclo.Pulso)
+                    {
+                        var t = ciclo.Tiempos;
+                        LogBus.Log("mano", $"⏱ ciclo «{ciclo.Pulsado}»: ver {t.Ver} ms · clic {t.Clic} ms · volver a ver {t.Esperar} ms ({t.Lecturas} lectura(s), {(ciclo.Cambio ? "cambió" : "no cambió")})");
+                    }
+                    return r == null ? null : (r, ciclo.Pulso ? ciclo.Cambio : null);
+                };
+            }
+
             // RECORRER EN BATCH: N pasos por llamada con la compuerta de vida antes de cada uno.
             // Usa EL MISMO pulsar de arriba —mismas manos, misma verificación por consecuencia,
             // mismo aprendizaje de aristas— y el freno de siempre: Escape corta la tanda donde va.
