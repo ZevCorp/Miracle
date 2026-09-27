@@ -90,7 +90,9 @@ public sealed class AbrirSegunElNucleo
         // (13 s medidos el 2026-09-27, con Configuración delante). Apps.EsLaPedida de u/ ya sabe de las de la tienda.
         // Una dirección no: con ella cualquier navegador «es la pedida», y abrirla no es traer Chrome.
         bool porLoQueEs = !EsDireccion(pedido!);
-        return ventanas.Where(v =>
+        // El escritorio es explorer.exe con el título «Program Manager»: por lo que es, «explorador» lo contaba como
+        // ventana suya (medido al estrenar la 480). No es una ventana de ninguna app que se pueda traer.
+        return ventanas.Where(v => !string.Equals(v.Titulo, "Program Manager", StringComparison.Ordinal)).Where(v =>
                 Nombres.Aplanar(SinExe(v.Proceso ?? "")).Contains(q, StringComparison.Ordinal)
                 || Nombres.Aplanar(v.Titulo ?? "").Contains(q, StringComparison.Ordinal)
                 || (porLoQueEs && U.Ciclo.Apps.EsLaPedida(pedido!, SinExe(v.Proceso ?? ""), v.Titulo ?? "")))

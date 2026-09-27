@@ -13600,6 +13600,12 @@ internal static class Contrato
         }
         var bloc = AbrirSegunElNucleo.LasDe("notepad", VentanasConConfiguracion);
         Debe(bloc.Count == 1 && bloc[0].Hwnd == (IntPtr)12, "«notepad» dejó de encontrarse por su proceso");
+
+        // EL ESCRITORIO NO ES EL EXPLORADOR aunque sea explorer.exe. Medido el 2026-09-27 al estrenar la 480: «explorador»
+        // contestaba «2 ventana(s) («Música - Explorador de archivos», «Program Manager»)».
+        var conEscritorio = new[] { ((IntPtr)21, "explorer.exe", "Música - Explorador de archivos"), ((IntPtr)22, "explorer.exe", "Program Manager") };
+        var exp = AbrirSegunElNucleo.LasDe("explorador", conEscritorio);
+        Debe(exp.Count == 1 && exp[0].Hwnd == (IntPtr)21, $"«explorador» contó el escritorio como ventana suya: [{string.Join(", ", exp.Select(h => h.Titulo))}]");
     }
 
     private static void AbrirLoQueYaEstaDelanteNoEspera()
