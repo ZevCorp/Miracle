@@ -172,25 +172,40 @@ public sealed class ClienteJev : IDisposable
     public string Modelo { get; init; } = Jev.ModeloPorDefecto;
     public double Umbral { get; init; } = Jev.UmbralPorDefecto;
 
-    public ClienteJev(string clave, int plazoMs = 3000)
+    public ClienteJev(string clave, int plazoMs = 3000) : this(clave, new SocketsHttpHandler
+    {
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(10),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(30),
+        KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always,
+        KeepAlivePingDelay = TimeSpan.FromSeconds(20),
+        AutomaticDecompression = DecompressionMethods.All,
+    }, plazoMs) { }
+
+    /// <summary>Con el manejador HTTP que se le dé: el contrato le pone un TypeSafe de mentira (promesa 466).</summary>
+    public ClienteJev(string clave, HttpMessageHandler manejador) : this(clave, manejador, 3000) { }
+
+    public ClienteJev(string clave, HttpMessageHandler manejador, int plazoMs)
     {
         _clave = clave ?? throw new ArgumentNullException(nameof(clave));
-        _http = new HttpClient(new SocketsHttpHandler
-        {
-            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(10),
-            PooledConnectionLifetime = TimeSpan.FromMinutes(30),
-            KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always,
-            KeepAlivePingDelay = TimeSpan.FromSeconds(20),
-            AutomaticDecompression = DecompressionMethods.All,
-        })
-        { Timeout = TimeSpan.FromMilliseconds(plazoMs) };
+        _http = new HttpClient(manejador) { Timeout = TimeSpan.FromMilliseconds(plazoMs) };
     }
 
+    /// <summary>
+    /// CON EL MISMO REINTENTO QUE LUNA (promesa 466): la red de esta máquina pierde el DNS a ratos, y un «Host
+    /// desconocido» le costaba a Luna un turno entero —2 de 3 en la web de Safix, 2026-09-26—. Solo se reintenta lo
+    /// que no llegó a salir; cuando la red va bien no cuesta nada.
+    /// </summary>
     public string Preguntar(string cuerpo)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Post, Jev.Url) { Content = new StringContent(cuerpo, Encoding.UTF8, "application/json") };
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _clave);
-        using var res = _http.Send(req);
+        HttpRequestMessage Peticion()
+        {
+            var req = new HttpRequestMessage(HttpMethod.Post, Jev.Url) { Content = new StringContent(cuerpo, Encoding.UTF8, "application/json") };
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _clave);
+            return req;
+        }
+        var envio = LunaPorTexto.Enviar(() => _http.Send(Peticion()), Thread.Sleep);
+        if (envio.Respuesta == null) throw new HttpRequestException($"{envio.Falla} (tras {envio.Intentos} intento(s))");
+        using var res = envio.Respuesta;
         string texto = new StreamReader(res.Content.ReadAsStream()).ReadToEnd();
         if (!res.IsSuccessStatusCode)
             // Sin el cuerpo de la petición: el log se pega en los PR.
