@@ -90,7 +90,8 @@ public final class LiveVoice {
             for await data in stream {
                 guard let self, self.epoch == id, !Task.isCancelled else { return }
                 do {
-                    self.inputLevel = try LiveAudioChunk(data).level
+                    let chunk = try LiveAudioChunk(data)
+                    self.inputLevel = chunk.level
                     self.onLevel?(max(self.inputLevel, self.outputLevel))
                     try await self.send(["type": "session.input_audio.append", "audio": data.base64EncodedString()])
                 }

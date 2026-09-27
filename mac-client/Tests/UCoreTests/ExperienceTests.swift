@@ -35,6 +35,11 @@ extension AgentTests {
         XCTAssertEqual(context.liveInstructions(base: "Base").contains("ejemplos simples"), true)
         XCTAssertEqual(context.liveInstructions(base: "Base").contains("interrumpir conversaciones ajenas"), true)
         XCTAssertEqual(context.graphContext, "Explica con ejemplos simples; evita interrumpir conversaciones ajenas.")
+        let session = LiveProtocol.start(userContext: context)["session"] as! [String: Any]
+        XCTAssertEqual((session["instructions"] as? String)?.contains(context.text), true)
+        let delegation = session["delegation"] as! [String: Any]
+        let planner = delegation["responses"] as! [String: Any]
+        XCTAssertEqual((planner["instructions"] as? String)?.contains(context.text), true)
     }
 
     func testLiveAudioPreservesSilentTimeAndRejectsBrokenPCM() throws {

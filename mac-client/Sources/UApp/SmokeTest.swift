@@ -48,11 +48,22 @@ struct SmokeTest {
         save()
         defer { save(); NSApp.terminate(nil) }
         do {
-            let credential = try await Credentials.readChecked("GRAPH_API_KEY") ?? ""
-            evidence["stage"] = "graph"; save()
-            let graph = try GraphClient(baseURL: UserDefaults.standard.string(forKey: "graphURL") ?? GraphClient.defaultURL, apiKey: credential)
-            let keys = try await graph.providerKeys()
-            guard let key = keys.openai, !key.isEmpty else { throw AgentError.unavailable("Graph no entrega credencial de Live 1.") }
+            let started = Date()
+            let local = try await Credentials.readChecked("OPENAI_API_KEY")
+            evidence["keychainMilliseconds"] = Date().timeIntervalSince(started) * 1000
+            let key: String
+            if let local, !local.isEmpty {
+                key = local
+                evidence["credentialSource"] = "local"
+                evidence["cachedReadMatches"] = try await Credentials.readChecked("OPENAI_API_KEY") == local
+            } else {
+                let credential = try await Credentials.readChecked("GRAPH_API_KEY") ?? ""
+                evidence["stage"] = "graph"; save()
+                let graph = try GraphClient(baseURL: UserDefaults.standard.string(forKey: "graphURL") ?? GraphClient.defaultURL, apiKey: credential)
+                let keys = try await graph.providerKeys()
+                guard let remote = keys.openai, !remote.isEmpty else { throw AgentError.unavailable("Graph no entrega credencial de Live 1.") }
+                key = remote; evidence["credentialSource"] = "graph"
+            }
             evidence["stage"] = "live_one_luna"; save()
             evidence["passed"] = try await VoiceProbe.check(key: key)
             evidence["stage"] = "complete"

@@ -18,6 +18,7 @@ func XCTAssertThrowsError<T>(_ work: @autoclosure () throws -> T, file: StaticSt
 struct ContractRunner {
     @MainActor static func main() async throws {
         let tests = AgentTests()
+        try await tests.testCredentialReadsSharePendingWorkAndCacheSuccess()
         try await tests.testGraphWireContractAndQuestionContinuation()
         try await tests.testTurnLimitNeverReportsSuccess()
         try await tests.testCancellationPreventsActionsAfterNetworkReturns()
@@ -44,6 +45,6 @@ struct ContractRunner {
         try tests.testMemoryNeverTurnsRememberedIntoLive()
         try tests.testMemoryRoutesOnlyThroughObservedEdges()
         try await tests.testMemoryPersistenceAndCorruptionAreExplicit()
-        print("PASS: 26 contracts, \(checks) assertions. No network, microphone or desktop access.")
+        print("PASS: 27 contracts, \(checks) assertions. No network, microphone or desktop access.")
     }
 }

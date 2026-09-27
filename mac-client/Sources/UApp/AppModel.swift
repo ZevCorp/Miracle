@@ -166,16 +166,16 @@ final class AppModel: ObservableObject {
         Task {
             defer { checkingVoice = false }
             do {
-                let local = try await Credentials.readChecked("OPENAI_API_KEY")
-                let graph = try? await makeClient().providerKeys()
-                let key = try await voiceCredential(graph: graph?.openai ?? local)
+                let local = try await Credentials.readChecked("OPENAI_API_KEY", allowInteraction: true)
+                let graph = local == nil ? try await makeClient().providerKeys() : nil
+                let key = try voiceCredential(local: local, graph: graph?.openai)
                 guard try await VoiceProbe.check(key: key) else { throw AgentError.unavailable("Live 1 no completó la prueba.") }
                 voiceCheckMessage = "Live 1 y Luna respondieron. Ahora pulsa Hablar con Live 1 para probar micrófono y altavoces."
             } catch { voiceCheckMessage = error.localizedDescription }
         }
     }
-    private func voiceCredential(graph: String?) async throws -> String {
-        if let local = try await Credentials.readChecked("OPENAI_API_KEY"), !local.isEmpty { return local }
+    private func voiceCredential(local: String?, graph: String?) throws -> String {
+        if let local, !local.isEmpty { return local }
         if let graph, !graph.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return graph }
         throw AgentError.unavailable("No hay una credencial de OpenAI para Live 1. Guárdala en el Llavero o configúrala en Graph.")
     }
@@ -209,13 +209,13 @@ final class AppModel: ObservableObject {
         voiceConnection = Task { [weak self] in
             guard let self else { return }
             do {
-                self.status = "Accediendo a Graph para conectar Live 1…"
+                self.status = "Preparando la credencial de voz…"
                 let local = try await Credentials.readChecked("OPENAI_API_KEY")
                 // A local Live key is enough to start a conversation. Graph may be recovering and
                 // must not hold the microphone UI hostage while its optional Jev key is fetched.
                 let hasLocalVoiceKey = local?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 let keys = hasLocalVoiceKey ? nil : try? await self.makeClient().providerKeys()
-                let key = try await self.voiceCredential(graph: keys?.openai ?? local)
+                let key = try self.voiceCredential(local: local, graph: keys?.openai)
                 let jevKey = keys?.typesafe
                 guard self.voiceID == id, !Task.isCancelled else { return }
                 self.jev = jevKey.flatMap { $0.isEmpty ? nil : JevClient(key: $0) }
