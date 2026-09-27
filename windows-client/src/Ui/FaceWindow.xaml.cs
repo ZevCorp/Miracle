@@ -426,7 +426,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // El rastro del cursor va desde el arranque: cuando alguien dice «ilumina todo esto que te
         // estoy mostrando», ya ha PASADO el ratón por encima. Si se empezara a mirar al oír la
         // frase, lo que se quiere enseñar ya habría ocurrido.
-        RastroDelCursor.Arrancar();
+        // Sin rastro del cursor (spec 054, promesa 489): leía la app bajo el ratón cada 180 ms, justo después de cada
+        // clic del ciclo, para una sola herramienta (map_pointed_trail). Vive entero en 334f144.
 
         var mcp = new LocalMcp(_uia);
         // El terreno, al alcance del cerebro. Desde la gran limpieza (2026-08-30) las
