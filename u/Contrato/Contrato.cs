@@ -948,11 +948,11 @@ internal static class Contrato
             Exige(d.RootElement.GetProperty("input").GetRawText().Contains("function_call_output"), "el cierre no devuelve el resultado del último turno");
         }
 
-        // Sesenta minutos: la red de seguridad, aunque avance. Eran 10, y una «media hora» pedida se habría cortado.
+        // Sesenta minutos: la red de seguridad, aunque avance. Eran 10, y una «media hora» pedida se habría cortado. El reloj va a 15 min por turno: a los 60 son 4 turnos y el cierre, 5 peticiones.
         int q = 0; var t = TimeSpan.Zero;
         var larga = new LunaDeMentira(n => n <= 50 ? LunaDeMentira.Hacer(n) : LunaDeMentira.Dice(n, "no terminé"));
-        string r4 = Correr(larga, () => "pantalla " + q++, () => false, () => t += TimeSpan.FromMinutes(15));
-        Exige(r4.StartsWith("Paré:") && r4.Contains("60 minutos") && larga.Cuerpos.Count <= 6, $"el tope de 60 minutos no paró: {larga.Cuerpos.Count} peticiones · «{r4}»");
+        string r4 = Correr(larga, () => "pantalla " + q++, () => false, () => TimeSpan.FromMinutes(15 * larga.Cuerpos.Count));
+        Exige(r4.StartsWith("Paré:") && r4.Contains("60 minutos") && larga.Cuerpos.Count == 5, $"el tope de 60 minutos no paró: {larga.Cuerpos.Count} peticiones · «{r4}»");
     }
 
     private static void P462()
