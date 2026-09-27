@@ -55,7 +55,8 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(472, "Si la app pedida se abrió pero Windows no la dejó pasar al frente, Ü busca su ventana —visible, de la app pedida— y la trae él; y leer la pantalla nunca tumba un pedido: si falla, Luna recibe por qué y sigue.", P472);
+        Promesa(473, "Con el navegador delante, abrir una dirección la carga en la pestaña de delante —escrita de una vez en su barra de direcciones—, no en una pestaña nueva; con otra app delante, o sin navegador, se abre como siempre.", P473);
+        Promesa(472,"Si la app pedida se abrió pero Windows no la dejó pasar al frente, Ü busca su ventana —visible, de la app pedida— y la trae él; y leer la pantalla nunca tumba un pedido: si falla, Luna recibe por qué y sigue.", P472);
         Promesa(471,"Lo que cae fuera de su ventana no se ofrece a Jev ni se le cuenta a Luna: un enlace por debajo de lo visible de la página no está en la lista, y lo que asoma aunque sea un poco, sí.", P471);
         Promesa(470,"Abrir una app que ya está delante llega: si tras abrirla la ventana de delante es de la app pedida —por su proceso, y en las de la tienda también por su título—, cuenta como abierta; y si ya estaba delante antes de abrirla, se esperan 700 ms a que cambie, no 3 s.", P470);
         Promesa(469,"Abrir llega también cuando la ventana de delante es la misma pero cambia su título: una dirección abierta con el navegador delante abre una pestaña en esa misma ventana. Si no cambia ni la ventana ni el título, no llegó.", P469);
@@ -742,6 +743,18 @@ internal static class Contrato
         var prop = T("Raton").GetProperty("PausaEntreLetrasMs") ?? throw new Pendiente("Raton.PausaEntreLetrasMs");
         int pausa = (int)prop.GetValue(null)!;
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
+    }
+
+    private static void P473()
+    {
+        // Rondas del 2026-09-26: cada «abre: https://…» abría una pestaña nueva y ninguna se cerraba. Al final del día
+        // Chrome tenía 133 procesos y 15 GB, y leer una página de Wikipedia pasó de 1,6 a 4-7 s.
+        bool Misma(string pedida, string proceso) => (bool)S("Apps", "EnLaMismaPestana", pedida, proceso)!;
+        Exige(Misma("https://es.wikipedia.org/wiki/Marte", "chrome") && Misma("https://www.google.com/search?q=x", "msedge"), "con el navegador delante una dirección no va a la misma pestaña");
+        Exige(!Misma("https://es.wikipedia.org/wiki/Marte", "Notepad"), "con otra app delante una dirección se quiso escribir en su barra");
+        Exige(!Misma("chrome", "chrome") && !Misma("notepad", "chrome"), "abrir una app con el navegador delante se tomó por una dirección");
+        var nombres = (string[]?)T("LectorUia").GetField("NombresDeLaBarra")?.GetValue(null) ?? throw new Pendiente("LectorUia.NombresDeLaBarra");
+        Exige(nombres.Contains("Barra de direcciones y de búsqueda") && nombres.Contains("Address and search bar"), $"la barra de direcciones no se reconoce en español y en inglés: {string.Join(" | ", nombres)}");
     }
 
     private static void P472()
