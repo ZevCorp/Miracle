@@ -3,20 +3,26 @@ import AppKit
 import AVFoundation
 import Speech
 import UMac
+import UCore
 
 struct Face: View {
     @ObservedObject var model: AppModel
     @AppStorage("faceDark") private var dark = false
     @State private var blink = false
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 16, paused: model.mode != .speaking)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 16, paused: !model.liveConnected && model.mode != .speaking)) { context in
             let time = context.date.timeIntervalSinceReferenceDate
-            FaceArtwork(mode: model.mode, dark: dark, blink: blink, eyeShift: model.faceEyeShift,
-                        mouthOpen: model.mode == .speaking ? 0.25 + 0.65 * abs(sin(time * 9)) : 0,
-                        mouthRound: (sin(time * 3.7) + 1) / 2)
+            let halo = VoiceHalo(active: model.liveConnected, level: model.voiceLevel, time: time)
+            ZStack {
+                Circle().fill(Color(red: 168 / 255, green: 168 / 255, blue: 174 / 255))
+                    .frame(width: halo.diameter, height: halo.diameter).opacity(halo.opacity)
+                    .allowsHitTesting(false)
+                FaceArtwork(mode: model.mode, dark: dark, blink: blink, eyeShift: model.faceEyeShift,
+                            mouthOpen: model.mode == .speaking ? min(1, pow(model.voiceLevel, 0.55) * 2) : 0,
+                            mouthRound: (sin(time * 3.7) + 1) / 2)
+                    .frame(width: VoiceHalo.faceSize, height: VoiceHalo.faceSize)
+            }.frame(width: VoiceHalo.panelSize, height: VoiceHalo.panelSize)
         }
-        .frame(width: 66, height: 66)
-        .padding(11)
         .contentShape(Rectangle())
         .task {
             do {
@@ -28,10 +34,10 @@ struct Face: View {
                 }
             } catch { blink = false }
         }
-        .onTapGesture(count: 2) { model.toggleMicrophone() }
-        .onTapGesture { model.showWindow?() }
+        .onTapGesture { model.toggleLiveFromFace() }
         .contextMenu {
-            Button("Hablar / silenciar") { model.toggleMicrophone() }
+            Button(model.microphone ? "Cerrar conversación" : "Hablar con Live 1") { model.toggleLiveFromFace() }
+            Button("Abrir chat del notch") { model.setNotchExpanded(true) }
             Button("Detener tarea") { model.stop() }
             Toggle("Carita oscura", isOn: $dark)
             Button("Configuración") { model.selectedTab = 1; model.showWindow?() }
@@ -40,7 +46,8 @@ struct Face: View {
         }
         .help("\(model.mode.rawValue): \(model.status)")
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Ü, \(model.mode.rawValue)")
+        .accessibilityLabel("Ü, \(model.microphone ? "cerrar conversación" : "hablar con Live 1"), \(model.mode.rawValue)")
+        .accessibilityAction { model.toggleLiveFromFace() }
         .accessibilityAddTraits(.isButton)
     }
 }
@@ -68,46 +75,7 @@ struct MainView: View {
             else { configuration }
         }.frame(minWidth: 480, minHeight: 550)
     }
-    var conversation: some View {
-        VStack(spacing: 0) {
-            if model.messages.isEmpty {
-                VStack(spacing: 14) {
-                    Image(systemName: "waveform.circle").font(.system(size: 48, weight: .ultraLight)).foregroundStyle(.purple)
-                    Text("¿Qué hacemos?").font(.title2.weight(.medium))
-                    Text("Abre una aplicación, busca algo en el navegador o trabaja con lo que tienes en pantalla.")
-                        .multilineTextAlignment(.center).foregroundStyle(.secondary).padding(.horizontal, 35)
-                    Text("Pulsa el micrófono para conversar y vuelve a pulsarlo para desconectar.")
-                        .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 14) {
-                            ForEach(model.messages) { message in
-                                HStack {
-                                    if message.user { Spacer(minLength: 35) }
-                                    Text(message.text).textSelection(.enabled).padding(12)
-                                        .background(message.user ? Color.purple.opacity(0.12) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
-                                    if !message.user { Spacer(minLength: 20) }
-                                }.id(message.id)
-                            }
-                        }.padding(20)
-                    }.onChange(of: model.messages.count) { if let last = model.messages.last { proxy.scrollTo(last.id, anchor: .bottom) } }
-                }
-            }
-            VStack(alignment: .leading, spacing: 10) {
-                if model.busy { HStack { ProgressView().controlSize(.small); Text(model.status).font(.caption).lineLimit(2) } }
-                if !model.partial.isEmpty { Text(model.partial).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
-                HStack(spacing: 10) {
-                    Button { model.toggleMicrophone() } label: { Image(systemName: model.microphone ? "mic.fill" : "mic").foregroundStyle(model.microphone ? .purple : .secondary).frame(width: 24, height: 24) }.help("Hablar / silenciar")
-                    TextField(model.mode == .question ? "Tu respuesta…" : "Pídele algo a Ü…", text: $model.draft).textFieldStyle(.plain).onSubmit { model.submitDraft() }
-                    Button { model.submitDraft() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2).foregroundStyle(.purple) }.buttonStyle(.plain).disabled(model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }.padding(12).background(Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
-                Text("Esc detiene la tarea · La carita sigue disponible al cerrar esta ventana")
-                    .font(.system(size: 10)).foregroundStyle(.secondary)
-            }.padding(16)
-        }
-    }
+    var conversation: some View { ConversationView(model: model) }
     var configuration: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -119,10 +87,21 @@ struct MainView: View {
                     Button("Guardar") { Task { await model.saveConfiguration() } }
                     Button("Comprobar conexión") { model.checkConnection() }
                 }
+                if model.checkingCredential { Text("Consultando el Llavero… Si macOS solicita acceso, autoriza a Ü.").font(.caption) }
                 if !model.configurationMessage.isEmpty { Text(model.configurationMessage).font(.caption).foregroundStyle(.secondary) }
                 Toggle("Usar dictado y voz de macOS como respaldo", isOn: $model.nativeDictation)
                     .onChange(of: model.nativeDictation) { UserDefaults.standard.set(model.nativeDictation, forKey: "nativeDictation") }
                 Text("La voz en vivo permite conversar e interrumpir. El dictado nativo envía cada petición a Graph; tras 45 segundos, vuelve a llamarme «oye U».").font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button(model.checkingVoice ? "Comprobando Live 1…" : "Comprobar Live 1") { model.checkVoice() }
+                        .disabled(model.checkingVoice || model.microphone || model.busy)
+                    Button(model.microphone ? "Cerrar voz" : "Hablar con Live 1") {
+                        if !model.microphone { model.nativeDictation = false }
+                        model.toggleMicrophone()
+                    }.disabled(model.checkingVoice || model.busy)
+                }
+                if !model.voiceCheckMessage.isEmpty { Text(model.voiceCheckMessage).font(.caption).textSelection(.enabled) }
+                Text("La comprobación abre una sesión breve con el proveedor; no usa el micrófono ni controla el Mac.").font(.caption).foregroundStyle(.secondary)
                 Divider()
                 Text("Permisos del Mac").font(.headline)
                 permission("Accesibilidad", detail: "Leer controles y usar teclado y ratón.", state: model.permissionSnapshot.accessibility) { model.permissions.request(.accessibility) }

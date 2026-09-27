@@ -8,6 +8,12 @@ final class FloatingPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+final class NotchPanel: NSPanel {
+    var acceptsKeyboard = false
+    override var canBecomeKey: Bool { acceptsKeyboard }
+    override var canBecomeMain: Bool { false }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     lazy var model = AppModel()
@@ -22,6 +28,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var screenObservation: NSObjectProtocol?
     func applicationDidFinishLaunching(_ notification: Notification) {
         terminateOlderCopies()
+        if let index = CommandLine.arguments.firstIndex(of: "--voice-test"), CommandLine.arguments.count > index + 1 {
+            Task { await SmokeTest.voice(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
+            return
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--execution-test"), CommandLine.arguments.count > index + 1 {
             Task { await SmokeTest.execution(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
             return
@@ -45,30 +55,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 510, height: 630), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Ü para Mac"; window.isReleasedWhenClosed = false; window.delegate = self
         window.contentView = NSHostingView(rootView: MainView(model: model)); window.center()
-        face = FloatingPanel(contentRect: NSRect(x: 0, y: 0, width: 88, height: 88), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        face = FloatingPanel(contentRect: NSRect(x: 0, y: 0, width: VoiceHalo.panelSize, height: VoiceHalo.panelSize), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         face.isOpaque = false; face.backgroundColor = .clear; face.hasShadow = false
         face.level = .floating; face.hidesOnDeactivate = false; face.isMovableByWindowBackground = true
         face.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         face.contentView = NSHostingView(rootView: Face(model: model))
-        if let frame = NSScreen.main?.visibleFrame { face.setFrameOrigin(NSPoint(x: frame.maxX - 108, y: frame.minY + 95)) }
+        if let frame = NSScreen.main?.visibleFrame { face.setFrameOrigin(NSPoint(x: frame.maxX - VoiceHalo.panelSize - 20, y: frame.minY + 95)) }
         face.orderFrontRegardless()
-        notch = FloatingPanel(contentRect: NSRect(x: 0, y: 0, width: 420, height: 66), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        notch = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: 420, height: 66), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         notch.isOpaque = false; notch.backgroundColor = .clear; notch.hasShadow = false
         notch.level = .floating; notch.hidesOnDeactivate = false
         notch.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         notch.contentView = NSHostingView(rootView: NotchView(model: model))
+        model.onNotchExpansion = { [weak self] expanded in
+            guard let self else { return }
+            (self.notch as? NotchPanel)?.acceptsKeyboard = expanded
+            self.positionNotch()
+            if expanded { self.notch.makeKeyAndOrderFront(nil) }
+            else { self.notch.resignKey() }
+        }
         positionNotch(); notch.orderFrontRegardless()
         screenObservation = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.positionNotch() }
         }
         model.showWindow = { [weak self] in self?.show() }
-        model.hideWindow = { [weak self] in self?.window.orderOut(nil) }
+        model.hideWindow = { [weak self] in self?.window.orderOut(nil); self?.notch.resignKey() }
         model.desktop.onHighlight = { [weak self] frame in self?.showHighlight(frame); self?.moveFace(beside: frame) }
         model.desktop.onAction = { [weak self] frame in self?.moveFace(beside: frame) }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "Ü"
         let menu = NSMenu()
-        for (title, action, key) in [("Abrir Ü", #selector(show), ""), ("Hablar / silenciar", #selector(toggleVoice), ""), ("Detener tarea", #selector(stop), ""), ("Configuración…", #selector(settings), ","), ("Salir de Ü", #selector(quit), "q")] {
+        for (title, action, key) in [("Abrir Ü", #selector(show), ""), ("Abrir chat del notch", #selector(showChat), ""), ("Hablar / silenciar", #selector(toggleVoice), ""), ("Detener tarea", #selector(stop), ""), ("Configuración…", #selector(settings), ","), ("Salir de Ü", #selector(quit), "q")] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: key); item.target = self; menu.addItem(item)
         }
         statusItem.menu = menu
@@ -105,6 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() { model.lastExternalApp = app }
         NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil); model.refreshPermissions()
     }
+    @objc func showChat() { model.setNotchExpanded(true) }
     @objc func settings() { model.selectedTab = 1; show() }
     @objc func toggleVoice() { model.toggleMicrophone() }
     @objc func stop() { model.stop() }
@@ -119,7 +137,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     private func positionNotch() {
         guard let bounds = NSScreen.main?.visibleFrame else { return }
-        let width = min(420.0, bounds.width - 16), height = min(66.0, bounds.height)
+        let layout = NotchLayout(expanded: model.notchExpanded, availableWidth: bounds.width, availableHeight: bounds.height)
+        let width = layout.width, height = layout.height
         notch.setFrame(NSRect(x: bounds.midX - width / 2, y: max(bounds.minY, bounds.maxY - height - 8), width: width, height: height), display: true)
     }
     private func moveFace(beside quartzFrame: CGRect) {

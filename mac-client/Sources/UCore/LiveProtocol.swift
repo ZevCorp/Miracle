@@ -2,6 +2,18 @@ import Foundation
 
 /// GPT-Live has its own wire protocol; it is not a Realtime model override.
 public enum LiveProtocol {
+    public static func connectionError(status: Int?, code: Int) -> String {
+        if let status, status != 101 {
+            switch status {
+            case 401: return "Live 1 rechazó la credencial de OpenAI configurada en Graph (HTTP 401)."
+            case 403: return "El servidor denegó el acceso a Live 1 (HTTP 403). Revisa el acceso del proyecto y la red."
+            case 429: return "Live 1 rechazó la conexión por un límite del proveedor (HTTP 429)."
+            default: return "No se pudo abrir la conexión con Live 1 (HTTP \(status))."
+            }
+        }
+        if code == -1001 { return "Se agotó el tiempo de conexión con Live 1. Puedes volver a intentarlo." }
+        return "Se interrumpió la conexión con Live 1 (red \(code))."
+    }
     public static func errorMessage(code: String) -> String {
         switch code {
         case "credit_balance_exhausted", "insufficient_quota.credit_balance_exhausted":

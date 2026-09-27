@@ -15,7 +15,7 @@
       "acceptance": "handshake real, audio de entrada/salida, cierre sin micrófono abierto",
       "contracts": [],
       "installed": "unverified",
-      "external": "unverified"
+      "external": "blocked: current installed probe waiting for Keychain authorization"
     },
     {
       "id": "voice.duplex",
@@ -24,11 +24,14 @@
         "windows-client/src/Voice/LiveAudio.cs"
       ],
       "mac": [
-        "mac-client/Sources/UMac/DuplexAudio.swift"
+        "mac-client/Sources/UMac/DuplexAudio.swift",
+        "mac-client/Sources/UCore/LiveAudioChunk.swift"
       ],
       "implementation": "partial",
-      "acceptance": "interrupción audible; sin eco; audio no acumulado",
-      "contracts": [],
+      "acceptance": "captura y reproducción simultáneas; sin eco; preservar tiempo PCM silencioso; cierre libera audio; interrupción audible real",
+      "contracts": [
+        "mac-client/Tests/UCoreTests/ExperienceTests.swift"
+      ],
       "installed": "unverified",
       "external": "unverified"
     },
@@ -45,7 +48,7 @@
       "acceptance": "herramienta real exactamente una vez; resultado continúa; conversación disponible",
       "contracts": [],
       "installed": "unverified",
-      "external": "unverified"
+      "external": "blocked: current installed probe waiting for Keychain authorization"
     },
     {
       "id": "voice.sources",
@@ -69,11 +72,15 @@
         "windows-client/src/Voice/NoSeArreglaReintentando.cs"
       ],
       "mac": [
-        "mac-client/Sources/UCore/LiveProtocol.swift"
+        "mac-client/Sources/UCore/LiveProtocol.swift",
+        "mac-client/Sources/UApp/VoiceProbe.swift",
+        "mac-client/Sources/UMac/Credentials.swift"
       ],
       "implementation": "partial",
-      "acceptance": "causas diferentes y sin reintentos automáticos de saldo/clave",
-      "contracts": [],
+      "acceptance": "distinguir Llavero, Graph, HTTP, error de proveedor y audio local; no reintentar saldo/clave automáticamente",
+      "contracts": [
+        "mac-client/Tests/UCoreTests/ExperienceTests.swift"
+      ],
       "installed": "unverified",
       "external": "unverified"
     },
@@ -372,13 +379,20 @@
         "windows-client/src/Ui/FaceControl.cs"
       ],
       "mac": [
-        "mac-client/Sources/UApp/FaceArtwork.swift"
+        "mac-client/Sources/UApp/FaceArtwork.swift",
+        "mac-client/Sources/UApp/Views.swift",
+        "mac-client/Sources/UCore/VoiceHalo.swift"
       ],
       "implementation": "partial",
-      "acceptance": "misma geometría/paleta; estados fieles; animación acotada",
-      "contracts": [],
-      "installed": "unverified",
-      "external": "unverified"
+      "acceptance": "toque único abre/cierra Live; halo solo en sesión viva; audio mueve halo; claro/oscuro; expresión de error sin rojo; arrastrar no inicia voz",
+      "contracts": [
+        "mac-client/Tests/UCoreTests/ExperienceTests.swift"
+      ],
+      "installed": "partial",
+      "external": "unverified",
+      "evidence": [
+        "mac-client/migration/evidence/2026-09-26-live-notch.json"
+      ]
     },
     {
       "id": "ui.follow",
@@ -403,15 +417,20 @@
       ],
       "mac": [
         "mac-client/Sources/UCore/TaskPresentation.swift",
-        "mac-client/Sources/UApp/NotchView.swift"
+        "mac-client/Sources/UCore/NotchLayout.swift",
+        "mac-client/Sources/UApp/NotchView.swift",
+        "mac-client/Sources/UApp/ConversationView.swift"
       ],
       "implementation": "partial",
-      "acceptance": "tarea persistente; dos líneas; detener distinto de error; posición segura",
+      "acceptance": "dos líneas compactas; expandir chat con historial/borrador compartido; escribir y responder preguntas; plegar conserva texto; tamaño acotado; borde/hover",
       "contracts": [
         "mac-client/Tests/UCoreTests/ExperienceTests.swift"
       ],
-      "installed": "unverified",
-      "external": "unverified"
+      "installed": "partial",
+      "external": "unverified",
+      "evidence": [
+        "mac-client/migration/evidence/2026-09-26-live-notch.json"
+      ]
     },
     {
       "id": "ui.highlight",
@@ -453,8 +472,11 @@
       "implementation": "partial",
       "acceptance": "turnos completos, parciales separados, micrófono y cancelación coherentes",
       "contracts": [],
-      "installed": "unverified",
-      "external": "unverified"
+      "installed": "partial",
+      "external": "unverified",
+      "evidence": [
+        "mac-client/migration/evidence/2026-09-26-live-notch.json"
+      ]
     },
     {
       "id": "system.files",
@@ -511,8 +533,11 @@
       "implementation": "partial",
       "acceptance": "actualizar misma app conserva permisos; detectar efectivo; consentimiento del SO",
       "contracts": [],
-      "installed": "unverified",
-      "external": "unverified"
+      "installed": "partial",
+      "external": "unverified",
+      "evidence": [
+        "mac-client/migration/evidence/2026-09-26-live-notch.json"
+      ]
     },
     {
       "id": "system.update",

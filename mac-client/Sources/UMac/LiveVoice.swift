@@ -4,6 +4,7 @@ import UCore
 
 @MainActor
 public final class LiveVoice {
+    public var onLevel: ((Double) -> Void)?
     public var onState: ((String) -> Void)?
     public var onText: ((String, Bool) -> Void)?
     public var onSpeaking: ((Bool) -> Void)?
@@ -26,7 +27,13 @@ public final class LiveVoice {
     private var activeResponses = Set<String>()
     private var continuationNeeded = false
     private var apiKey = ""
+    private var inputLevel = 0.0
+    private var outputLevel = 0.0
     public init() {
+        audio.onLevel = { [weak self] level in
+            guard let self else { return }
+            self.outputLevel = level; self.onLevel?(max(self.inputLevel, self.outputLevel))
+        }
         audio.onSpeaking = { [weak self] speaking in self?.onSpeaking?(speaking) }
     }
     public func start(key: String, model: String = "gpt-live-1") async throws {
@@ -54,7 +61,7 @@ public final class LiveVoice {
                 }
             } catch {
                 guard let self, self.epoch == id, !Task.isCancelled else { return }
-                self.fail("Se cortó la conexión de voz. Puedes volver a conectarla.")
+                self.fail(LiveProtocol.connectionError(status: (socket.response as? HTTPURLResponse)?.statusCode, code: (error as NSError).code))
             }
         }
         timeout = Task { [weak self] in
@@ -64,7 +71,11 @@ public final class LiveVoice {
         }
         do {
             try await send(LiveProtocol.start(model: model))
-        } catch { if epoch == id { stop() }; throw error }
+        } catch {
+            let status = (socket.response as? HTTPURLResponse)?.statusCode
+            if epoch == id { stop() }
+            throw AgentError.unavailable(LiveProtocol.connectionError(status: status, code: (error as NSError).code))
+        }
     }
     private func startAudio(epoch id: UUID) throws {
         guard epoch == id, !connected else { return }
@@ -78,7 +89,11 @@ public final class LiveVoice {
         sender = Task { [weak self] in
             for await data in stream {
                 guard let self, self.epoch == id, !Task.isCancelled else { return }
-                do { try await self.send(["type": "session.input_audio.append", "audio": data.base64EncodedString()]) }
+                do {
+                    self.inputLevel = try LiveAudioChunk(data).level
+                    self.onLevel?(max(self.inputLevel, self.outputLevel))
+                    try await self.send(["type": "session.input_audio.append", "audio": data.base64EncodedString()])
+                }
                 catch { if self.epoch == id { self.fail("No pude enviar el audio. La conversación se cerró.") }; return }
             }
         }
@@ -90,7 +105,7 @@ public final class LiveVoice {
         }
     }
     public func stop() {
-        epoch = UUID(); connected = false
+        epoch = UUID(); connected = false; inputLevel = 0; outputLevel = 0; onLevel?(0)
         frames?.finish(); frames = nil
         sender?.cancel(); sender = nil; receiver?.cancel(); receiver = nil
         timeout?.cancel(); timeout = nil; lifetime?.cancel(); lifetime = nil
@@ -142,9 +157,11 @@ public final class LiveVoice {
     private func handle(_ bytes: Data, epoch id: UUID) async throws {
         guard let event = try JSONSerialization.jsonObject(with: bytes) as? [String: Any], let type = event["type"] as? String else { return }
         switch type {
-        case "session.started": try startAudio(epoch: id)
+        case "session.started":
+            do { try startAudio(epoch: id) }
+            catch { fail("Live 1 conectó, pero no pude iniciar el audio del Mac: " + error.localizedDescription) }
         case "session.output_audio.delta":
-            if let value = event["delta"] as? String, let data = Data(base64Encoded: value), data.contains(where: { $0 != 0 }) { try audio.play(data) }
+            if let value = event["delta"] as? String, let data = Data(base64Encoded: value) { try audio.play(data) }
         case "session.output_transcript.delta":
             if let text = event["delta"] as? String { onText?(text, false) }
         case "session.input_transcript.delta":

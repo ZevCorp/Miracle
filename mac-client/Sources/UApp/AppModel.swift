@@ -10,6 +10,7 @@ final class AppModel: ObservableObject {
     typealias Mode = TaskPresentation.Phase
     @Published var presentation = TaskPresentation()
     var mode: Mode { get { presentation.phase } set { presentation.phase = newValue } }
+    @Published var voiceLevel = 0.0
     @Published var faceEyeShift = 0.0
     @Published var jevStatus = "Jev · pendiente de conexión"
     private var jev: JevClient?
@@ -29,8 +30,14 @@ final class AppModel: ObservableObject {
     @Published var hasCredential = false
     private var credentialRefresh: Task<Void, Never>?
     @Published var configurationMessage = ""
+    @Published var checkingVoice = false
+    @Published var voiceCheckMessage = ""
+    @Published var checkingCredential = false
     @Published var permissionSnapshot = PermissionCenter.readSnapshot()
     @Published var selectedTab = 0
+    @Published private(set) var notchExpanded = false
+    var onNotchExpansion: ((Bool) -> Void)?
+    func setNotchExpanded(_ expanded: Bool) { notchExpanded = expanded; onNotchExpansion?(expanded) }
     let permissions = PermissionCenter()
     let desktop = Desktop()
     let speech = Speech()
@@ -54,13 +61,14 @@ final class AppModel: ObservableObject {
         speech.onPartial = { [weak self] text in self?.partial = text }
         speech.onText = { [weak self] text in self?.heard(text) }
         speech.onState = { [weak self] listening, speaking in
-            guard let self else { return }
+            guard let self, self.nativeDictation, self.microphone else { return }
             if speaking { self.mode = .speaking }
             else if self.answer != nil { self.mode = .question }
             else if self.busy { self.mode = .working }
             else { self.mode = listening ? .listening : .ready }
         }
         speech.onError = { [weak self] text in self?.microphone = false; self?.fail(text) }
+        liveVoice.onLevel = { [weak self] level in self?.voiceLevel = level }
         liveVoice.onState = { [weak self] text in
             guard let self else { return }
             self.liveConnected = self.liveVoice.connected
@@ -98,10 +106,11 @@ final class AppModel: ObservableObject {
     func refreshPermissions() {
         permissions.refreshAndPoll()
         if credentialRefresh == nil {
+            checkingCredential = true
             credentialRefresh = Task { [weak self] in
-                let present = await Credentials.read("GRAPH_API_KEY") != nil
-                self?.hasCredential = present
-                self?.credentialRefresh = nil
+                defer { self?.credentialRefresh = nil; self?.checkingCredential = false }
+                do { self?.hasCredential = try await Credentials.readChecked("GRAPH_API_KEY") != nil }
+                catch { self?.configurationMessage = error.localizedDescription }
             }
         }
     }
@@ -124,7 +133,36 @@ final class AppModel: ObservableObject {
             } catch { configurationMessage = error.localizedDescription }
         }
     }
-    func makeClient() async throws -> GraphClient { try GraphClient(baseURL: graphURL, apiKey: await Credentials.read("GRAPH_API_KEY") ?? "") }
+    func makeClient() async throws -> GraphClient {
+        await credentialRefresh?.value
+        try Task.checkCancellation()
+        guard let key = try await Credentials.readChecked("GRAPH_API_KEY"), !key.isEmpty else {
+            throw AgentError.unavailable("Falta la credencial de Graph. Guárdala en Configuración para conectar Live 1.")
+        }
+        hasCredential = true
+        return try GraphClient(baseURL: graphURL, apiKey: key)
+    }
+    func checkVoice() {
+        guard !checkingVoice, !microphone, !busy else { return }
+        checkingVoice = true; voiceCheckMessage = "Comprobando Graph y Live 1… No se abrirá el micrófono."
+        Task {
+            defer { checkingVoice = false }
+            do {
+                let keys = try await makeClient().providerKeys()
+                guard let key = keys.openai, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw AgentError.unavailable("Graph no entrega una credencial de OpenAI para Live 1.")
+                }
+                guard try await VoiceProbe.check(key: key) else { throw AgentError.unavailable("Live 1 no completó la prueba.") }
+                voiceCheckMessage = "Live 1 y Luna respondieron. Ahora pulsa Hablar con Live 1 para probar micrófono y altavoces."
+            } catch { voiceCheckMessage = error.localizedDescription }
+        }
+    }
+    func toggleLiveFromFace() {
+        if microphone { stop(); return }
+        nativeDictation = false
+        UserDefaults.standard.set(false, forKey: "nativeDictation")
+        toggleMicrophone()
+    }
     func toggleMicrophone() {
         if microphone {
             voiceID = UUID(); voiceConnection?.cancel(); voiceConnection = nil
@@ -140,19 +178,19 @@ final class AppModel: ObservableObject {
             fail("Activa Micrófono en Configuración para usar la voz en vivo.")
             return
         }
+        guard !checkingVoice else { status = "Espera a que termine la comprobación de Live 1."; return }
         microphone = true; awakeUntil = Date().addingTimeInterval(45)
         if nativeDictation { Task { await speech.start() }; return }
-        guard hasCredential else { microphone = false; selectedTab = 1; showWindow?(); fail("Conecta Graph para usar la voz en vivo."); return }
         let id = UUID(); voiceID = id
         hideWindow?(); lastExternalApp?.activate(options: [])
         desktop.begin()
         voiceConnection = Task { [weak self] in
             guard let self else { return }
             do {
-                self.status = "Conectando la voz…"
+                self.status = "Accediendo a Graph para conectar Live 1…"
                 let keys = try await self.makeClient().providerKeys()
-                guard let key = await Credentials.read("OPENAI_API_KEY") ?? keys.openai, !key.isEmpty else { throw AgentError.unavailable("Graph no tiene credencial de voz.") }
-                let jevKey = await Credentials.read("TYPESAFE_API_KEY") ?? keys.typesafe
+                guard let key = keys.openai, !key.isEmpty else { throw AgentError.unavailable("Graph no tiene credencial de voz.") }
+                let jevKey = keys.typesafe
                 guard self.voiceID == id, !Task.isCancelled else { return }
                 self.jev = jevKey.flatMap { $0.isEmpty ? nil : JevClient(key: $0) }
                 self.jevStatus = self.jev == nil ? "Jev sin credencial · decide Luna" : "Jev · listo"
@@ -296,7 +334,7 @@ final class AppModel: ObservableObject {
     private func ask(_ question: String) async throws -> String {
         try Task.checkCancellation()
         let pendingID = UUID(); questionID = pendingID
-        mode = .question; status = question; append(question); showWindow?()
+        mode = .question; status = question; append(question); setNotchExpanded(true)
         if microphone && !liveConnected { speech.say(question) }
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
@@ -315,8 +353,8 @@ final class AppModel: ObservableObject {
         liveVoice.stop(); liveConnected = false
         desktop.stop(); work?.cancel(); work = nil; runID = UUID()
         answer?.resume(throwing: CancellationError()); answer = nil
-        busy = false; presentation.stop(); partial = ""
-        speech.stop(); microphone = false
+        busy = false; partial = ""; microphone = false
+        speech.stop(); presentation.stop()
     }
     func fail(_ text: String) { mode = .error; status = text; append(text) }
     func append(_ text: String, user: Bool = false) {

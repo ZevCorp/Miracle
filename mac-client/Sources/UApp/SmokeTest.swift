@@ -4,6 +4,28 @@ import UMac
 
 @MainActor
 struct SmokeTest {
+    /// Writes progress before Keychain access so an OS authorization wait is observable.
+    static func voice(output: URL) async {
+        var evidence: [String: Any] = ["date": ISO8601DateFormatter().string(from: Date()), "passed": false,
+                                        "microphoneOpened": false, "stage": "keychain"]
+        func save() {
+            if let data = try? JSONSerialization.data(withJSONObject: evidence, options: [.prettyPrinted, .sortedKeys]) {
+                try? data.write(to: output, options: .atomic)
+            }
+        }
+        save()
+        defer { save(); NSApp.terminate(nil) }
+        do {
+            let credential = try await Credentials.readChecked("GRAPH_API_KEY") ?? ""
+            evidence["stage"] = "graph"; save()
+            let graph = try GraphClient(baseURL: UserDefaults.standard.string(forKey: "graphURL") ?? GraphClient.defaultURL, apiKey: credential)
+            let keys = try await graph.providerKeys()
+            guard let key = keys.openai, !key.isEmpty else { throw AgentError.unavailable("Graph no entrega credencial de Live 1.") }
+            evidence["stage"] = "live_one_luna"; save()
+            evidence["passed"] = try await VoiceProbe.check(key: key)
+            evidence["stage"] = "complete"
+        } catch { evidence["error"] = error.localizedDescription; evidence["stage"] = "failed" }
+    }
     /// Opt-in integration probe. Only clicks the local fixture; never opens the microphone.
     static func execution(output: URL) async {
         var evidence: [String: Any] = ["date": ISO8601DateFormatter().string(from: Date()), "passed": false]
@@ -19,8 +41,8 @@ struct SmokeTest {
             let keys = try await graph.providerKeys()
             evidence["graphVoiceKey"] = keys.openai?.isEmpty == false
             evidence["graphJevKey"] = keys.typesafe?.isEmpty == false
-            if let key = await Credentials.read("OPENAI_API_KEY") ?? keys.openai { evidence["liveOneLunaToolRoundtrip"] = try await voiceContract(key: key) }
-            guard let key = await Credentials.read("TYPESAFE_API_KEY") ?? keys.typesafe, !key.isEmpty else { throw AgentError.unavailable("Graph no entrega typesafe.") }
+            if let key = keys.openai { evidence["liveOneLunaToolRoundtrip"] = try await VoiceProbe.check(key: key) }
+            guard let key = keys.typesafe, !key.isEmpty else { throw AgentError.unavailable("Graph no entrega typesafe.") }
             guard let fixture = NSRunningApplication.runningApplications(withBundleIdentifier: "com.zevcorp.u.mac.fixture").first else { throw AgentError.unavailable("Abre UFixture.app antes de la prueba.") }
             fixture.activate(options: [])
             for _ in 0..<30 {
@@ -40,51 +62,6 @@ struct SmokeTest {
             evidence["fiveClicksVerified"] = observed.uiContext.contains("Contador: 5")
             evidence["passed"] = evidence["fiveClicksVerified"] as? Bool == true && evidence["liveOneLunaToolRoundtrip"] as? Bool == true
         } catch { evidence["error"] = error.localizedDescription }
-    }
-    private static func voiceContract(key: String) async throws -> Bool {
-        let session = URLSession(configuration: .ephemeral)
-        var request = URLRequest(url: URL(string: "wss://api.openai.com/v1/live/sessions")!)
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        let socket = session.webSocketTask(with: request); socket.resume()
-        defer { socket.cancel(with: .normalClosure, reason: nil); session.invalidateAndCancel() }
-        let timeout = Task { try await Task.sleep(for: .seconds(30)); socket.cancel(with: .goingAway, reason: nil) }
-        defer { timeout.cancel() }
-        func send(_ event: [String: Any]) async throws {
-            try await socket.send(.string(String(decoding: JSONSerialization.data(withJSONObject: event), as: UTF8.self)))
-        }
-        var start = LiveProtocol.start(), config = LiveProtocol.start()["session"] as! [String: Any]
-        config["delegation"] = ["type": "responses", "responses": ["model": "gpt-5.6-luna", "parallel_tool_calls": false,
-            "instructions": "Call health_check exactly once. After the result say listo.", "tools": [["type": "function", "name": "health_check", "description": "Local harmless connection check", "parameters": ["type": "object", "properties": [:], "additionalProperties": false]]]]]
-        start["session"] = config
-        try await send(start)
-        var batch = ToolBatch(), returned = false
-        while true {
-            let message = try await socket.receive()
-            let data: Data
-            switch message { case .data(let value): data = value; case .string(let value): data = Data(value.utf8); @unknown default: continue }
-            guard let event = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
-            if event["type"] as? String == "error" {
-                let code = (event["error"] as? [String: Any])?["code"] as? String ?? "unknown"
-                throw AgentError.unavailable("Live 1 rechazó la prueba: \(code)")
-            }
-            if event["type"] as? String == "session.started" {
-                try await send(["type": "response.item.create", "item": ["type": "message", "role": "user", "content": [["type": "input_text", "text": "Ejecuta health_check ahora."]]]])
-                try await send(["type": "response.create"])
-            }
-            if let nested = event["event"] as? [String: Any] {
-                if let call = LiveProtocol.call(in: nested) {
-                    guard call.name == "health_check", !returned else { throw AgentError.invalid("Llamada inesperada en la prueba de voz.") }
-                    _ = batch.begin(call.id)
-                    try await send(LiveProtocol.output(call: call.id, text: "ok"))
-                    _ = batch.finish(call.id); returned = true
-                }
-                if nested["type"] as? String == "response.completed" {
-                    if batch.responseDone() { try await send(["type": "response.create"]) }
-                    else if returned { return true }
-                }
-                if nested["type"] as? String == "response.failed" { throw AgentError.unavailable("Falló el delegado Luna.") }
-            }
-        }
     }
     static func run(output: URL) async {
         var evidence: [String: Any] = ["date": ISO8601DateFormatter().string(from: Date()), "passed": false]

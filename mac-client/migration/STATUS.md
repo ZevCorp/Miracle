@@ -7,10 +7,10 @@ Referencia Windows local: `c3d4399684688377d69eab449e8510dd11251603`. 48 documen
 | Capacidad | Implementación | App instalada | Criterio de aceptación |
 |---|---|---|---|
 | voice.session — Voz Live 1: conexión y cierre | partial | unverified | handshake real, audio de entrada/salida, cierre sin micrófono abierto |
-| voice.duplex — Interrumpir mientras habla | partial | unverified | interrupción audible; sin eco; audio no acumulado |
+| voice.duplex — Interrumpir mientras habla | partial | unverified | captura y reproducción simultáneas; sin eco; preservar tiempo PCM silencioso; cierre libera audio; interrupción audible real |
 | voice.planner — Luna: delegación y continuación | partial | unverified | herramienta real exactamente una vez; resultado continúa; conversación disponible |
 | voice.sources — Micrófono Mac, Omi y teléfono | missing | unverified | selección, desconexión y fallback observable por cada fuente |
-| voice.errors — Credenciales, saldo y reconexión | partial | unverified | causas diferentes y sin reintentos automáticos de saldo/clave |
+| voice.errors — Credenciales, saldo y reconexión | partial | unverified | distinguir Llavero, Graph, HTTP, error de proveedor y audio local; no reintentar saldo/clave automáticamente |
 | execution.jev — Jev: opciones cerradas, umbrales y plazo | partial | unverified | elección observada; no inventar controles; plazo total; fallo vuelve a Luna |
 | execution.segment — Tramo independiente de la voz | partial | unverified | un único operador; pausa/cancelación; límite; entrega de resultado |
 | execution.gate — Ventana y generación antes de actuar | partial | partial | ninguna acción tardía tras parar o cambiar ventana |
@@ -29,16 +29,16 @@ Referencia Windows local: `c3d4399684688377d69eab449e8510dd11251603`. 48 documen
 | learning.verify — Comprobar una skill en el terreno | missing | unverified | cada llegada por evidencia; no publicar como comprobada sin ejecución |
 | learning.library — Catálogo de aprendizajes | missing | unverified | lista, descripción, mostrar, pasos, renombrar, eliminar, capturas propias |
 | learning.replay — Reproducción con datos de esta corrida | missing | unverified | exigir parámetros; respetar control/foco; interrumpible; verificación |
-| ui.face — Carita de Windows y estados | partial | unverified | misma geometría/paleta; estados fieles; animación acotada |
+| ui.face — Carita de Windows y estados | partial | partial | toque único abre/cierra Live; halo solo en sesión viva; audio mueve halo; claro/oscuro; expresión de error sin rojo; arrastrar no inicia voz |
 | ui.follow — Carita junto al clic | partial | unverified | AX y coordenadas; multipantalla; no tapar destino; sin espera del ejecutor |
-| ui.notch — Notch: tarea, paso, voz y parada | partial | unverified | tarea persistente; dos líneas; detener distinto de error; posición segura |
+| ui.notch — Notch: tarea, paso, voz y parada | partial | partial | dos líneas compactas; expandir chat con historial/borrador compartido; escribir y responder preguntas; plegar conserva texto; tamaño acotado; borde/hover |
 | ui.highlight — Señalar controles y recuerdos | partial | unverified | recuadro, selección múltiple, excluir y soltar; overlay no roba clics |
 | ui.memorycard — Tarjetas del recuerdo durante ejecución | missing | unverified | tarjeta ligada al control vivo; texto legible; desaparece al actuar |
-| ui.conversation — Conversación, entrada texto y voz | partial | unverified | turnos completos, parciales separados, micrófono y cancelación coherentes |
+| ui.conversation — Conversación, entrada texto y voz | partial | partial | turnos completos, parciales separados, micrófono y cancelación coherentes |
 | system.files — Navegar y buscar archivos | partial | unverified | listar, filtrar, buscar y abrir rutas sin inventarlas |
 | system.apps — Apps, URL, ventanas y diálogos | partial | unverified | abrir/enfocar/verificar; atajos Mac; desbloquear modal |
 | system.workspaces — Escritorios de trabajo y asistentes secundarios | missing | unverified | aislamiento real con equivalente Mac; nunca operar ventana ajena |
-| system.permissions — Permisos e identidad instalada estable | partial | unverified | actualizar misma app conserva permisos; detectar efectivo; consentimiento del SO |
+| system.permissions — Permisos e identidad instalada estable | partial | partial | actualizar misma app conserva permisos; detectar efectivo; consentimiento del SO |
 | system.update — Distribución, firma y actualización | missing | unverified | firma Developer ID/notarización; actualizar y rollback sin perder identidad |
 | account.identity — Cuenta, onboarding y rol | partial | unverified | misma identidad en toda la UI; credenciales Llavero; cerrar sesión |
 | backend.contract — Graph y catálogo remoto | partial | unverified | auth vigente; catálogo real; schemas; errores HTTP explicados |

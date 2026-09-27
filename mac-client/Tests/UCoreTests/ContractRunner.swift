@@ -33,11 +33,15 @@ struct ContractRunner {
         try tests.testLiveOneWireAndUTF8Limit()
         try tests.testJevClosedChoicesAndHandoff()
         try await tests.testJevHTTPDeadlineRetryAndCancellation()
+        try tests.testNotchExpansionHasFixedSizesAndFitsSmallDisplays()
+        try tests.testConversationHaloIsBoundedAndOffWhenDisconnected()
+        try tests.testLiveHandshakeErrorsDoNotMisreportPermissionsOrBalance()
+        try tests.testLiveAudioPreservesSilentTimeAndRejectsBrokenPCM()
         try tests.testVoicePresentationAccumulatesReplyAndResetsAtNextTurn()
         try tests.testPresentationKeepsTaskAndDistinguishesStop()
         try tests.testMemoryNeverTurnsRememberedIntoLive()
         try tests.testMemoryRoutesOnlyThroughObservedEdges()
         try await tests.testMemoryPersistenceAndCorruptionAreExplicit()
-        print("PASS: 20 contracts, \(checks) assertions. No network, microphone or desktop access.")
+        print("PASS: 24 contracts, \(checks) assertions. No network, microphone or desktop access.")
     }
 }

@@ -2,6 +2,44 @@ import Foundation
 import UCore
 
 extension AgentTests {
+    func testNotchExpansionHasFixedSizesAndFitsSmallDisplays() throws {
+        let compact = NotchLayout(expanded: false, availableWidth: 1440, availableHeight: 900)
+        let chat = NotchLayout(expanded: true, availableWidth: 1440, availableHeight: 900)
+        XCTAssertEqual(compact.height, 66)
+        XCTAssertEqual(chat.width, compact.width)
+        XCTAssertEqual(chat.height, 390)
+        let tiny = NotchLayout(expanded: true, availableWidth: 320, availableHeight: 240)
+        XCTAssertEqual(tiny.width <= 320 && tiny.height <= 240, true)
+    }
+
+    func testConversationHaloIsBoundedAndOffWhenDisconnected() throws {
+        XCTAssertEqual(VoiceHalo(active: false, level: 1, time: 10).opacity, 0)
+        for level in [0.0, 0.003, 0.2, 1, 2, Double.nan] {
+            let halo = VoiceHalo(active: true, level: level, time: 0)
+            XCTAssertEqual(halo.diameter <= VoiceHalo.panelSize, true)
+            XCTAssertEqual(halo.opacity >= 0.5 && halo.opacity <= 0.92, true)
+        }
+        XCTAssertEqual(VoiceHalo(active: true, level: 0.5, time: 0).diameter > VoiceHalo.faceSize, true)
+    }
+
+    func testLiveHandshakeErrorsDoNotMisreportPermissionsOrBalance() throws {
+        XCTAssertEqual(LiveProtocol.connectionError(status: 401, code: -1011).contains("401"), true)
+        XCTAssertEqual(LiveProtocol.connectionError(status: 403, code: -1011).contains("403"), true)
+        XCTAssertEqual(LiveProtocol.connectionError(status: 429, code: -1011).contains("saldo"), false)
+        XCTAssertEqual(LiveProtocol.connectionError(status: nil, code: -1001).contains("tiempo"), true)
+        XCTAssertEqual(LiveProtocol.connectionError(status: 503, code: -1011).contains("503"), true)
+    }
+
+    func testLiveAudioPreservesSilentTimeAndRejectsBrokenPCM() throws {
+        let silence = try LiveAudioChunk(Data(repeating: 0, count: 4800))
+        XCTAssertEqual(silence.frames, 2400)
+        XCTAssertEqual(silence.audible, false)
+        let speech = try LiveAudioChunk(Data([1, 0, 0, 0]))
+        XCTAssertEqual(speech.frames, 2)
+        XCTAssertEqual(speech.audible, true)
+        XCTAssertThrowsError(try LiveAudioChunk(Data([1])))
+    }
+
     func testVoicePresentationAccumulatesReplyAndResetsAtNextTurn() throws {
         var state = TaskPresentation()
         state.receiveUserFragment("Abre informes")

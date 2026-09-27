@@ -1,0 +1,24 @@
+{
+  "date": "2026-09-27T01:45:54.960170+00:00",
+  "binary_sha256": "c2f35ab04ec0ac61eea2229e64e3deb8c1bab71f9b55f8837f5f3a5af75a3dd1",
+  "installed_path": "~/Applications/U.app",
+  "verified": [
+    "AX tree shows microphone, accessibility and screen capture granted",
+    "Face context menu exposes Abrir chat del notch",
+    "Expanded notch visually contains transcript area, text input, microphone, stop, memory and settings",
+    "Closing voice from notch changes microphone to off and disables stop"
+  ],
+  "unverified": [
+    "face single-click start and second-click stop end-to-end",
+    "audible conversation and interruption",
+    "halo during actual Live session",
+    "draft preserved after collapsing: Computer Use timed out"
+  ],
+  "provider_probe": {
+    "date": "2026-09-27T01:44:25Z",
+    "microphoneOpened": false,
+    "passed": false,
+    "stage": "keychain"
+  },
+  "previous_probe": "UI reported bad response from server; precise HTTP status not captured in that version."
+}

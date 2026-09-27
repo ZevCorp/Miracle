@@ -9,7 +9,9 @@ public final class DuplexAudio {
     private let playbackFormat = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1)!
     private var epoch = UUID()
     private var pendingFrames: Int = 0
+    private var pendingAudibleFrames: Int = 0
     private var tapInstalled = false
+    public var onLevel: ((Double) -> Void)?
     public var onSpeaking: ((Bool) -> Void)?
     public init() {}
     public func start(onPCM: @escaping @Sendable (Data) -> Void, onError: @escaping @Sendable (String) -> Void) throws {
@@ -36,8 +38,10 @@ public final class DuplexAudio {
         } catch { stop(); throw error }
     }
     public func play(_ data: Data) throws {
-        guard let player, engine?.isRunning == true, data.count % 2 == 0 else { return }
-        let frames = data.count / 2
+        let chunk = try LiveAudioChunk(data)
+        guard let player, engine?.isRunning == true else { return }
+        onLevel?(chunk.level)
+        let frames = chunk.frames
         guard frames > 0, pendingFrames + frames <= 24_000 * 30 else { throw AgentError.unavailable("La cola de voz se llenó; la conversación se detuvo.") }
         guard let buffer = AVAudioPCMBuffer(pcmFormat: playbackFormat, frameCapacity: AVAudioFrameCount(frames)), let samples = buffer.floatChannelData?[0] else { return }
         buffer.frameLength = AVAudioFrameCount(frames)
@@ -48,18 +52,24 @@ public final class DuplexAudio {
             }
         }
         let id = epoch
-        if pendingFrames == 0 { onSpeaking?(true) }
+        if chunk.audible {
+            if pendingAudibleFrames == 0 { onSpeaking?(true) }
+            pendingAudibleFrames += frames
+        }
         pendingFrames += frames
         player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.epoch == id else { return }
                 self.pendingFrames = max(0, self.pendingFrames - frames)
-                if self.pendingFrames == 0 { self.onSpeaking?(false) }
+                if chunk.audible {
+                    self.pendingAudibleFrames = max(0, self.pendingAudibleFrames - frames)
+                    if self.pendingAudibleFrames == 0 { self.onSpeaking?(false); self.onLevel?(0) }
+                }
             }
         }
     }
     public func stop() {
-        epoch = UUID(); pendingFrames = 0
+        epoch = UUID(); pendingFrames = 0; pendingAudibleFrames = 0
         player?.stop()
         if let engine {
             engine.stop()
@@ -67,6 +77,6 @@ public final class DuplexAudio {
             try? engine.inputNode.setVoiceProcessingEnabled(false)
             engine.reset()
         }
-        engine = nil; player = nil; onSpeaking?(false)
+        engine = nil; player = nil; onSpeaking?(false); onLevel?(0)
     }
 }

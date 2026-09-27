@@ -5,14 +5,22 @@ import UCore
 public enum Credentials {
     private static let service = "com.zevcorp.u.mac.native"
     public static func read(_ name: String) async -> String? {
-        await Task.detached { readSynchronously(name) }.value
+        try? await readChecked(name)
     }
-    private static func readSynchronously(_ name: String) -> String? {
+    public static func readChecked(_ name: String) async throws -> String? {
+        try await Task.detached { try readSynchronously(name) }.value
+    }
+    private static func readSynchronously(_ name: String) throws -> String? {
         if let env = ProcessInfo.processInfo.environment[name], !env.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return env }
         var result: CFTypeRef?
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                     kSecAttrAccount as String: name, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let bytes = result as? Data else { return nil }
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else {
+            throw AgentError.unavailable("No pude acceder a la credencial en el Llavero (\(status)). Desbloquea el Llavero y autoriza a Ü si macOS lo solicita; después vuelve a conectar.")
+        }
+        guard let bytes = result as? Data else { throw AgentError.invalid("La credencial del Llavero no tiene un formato válido.") }
         return String(data: bytes, encoding: .utf8)
     }
     public static func save(_ name: String, value: String) async throws {

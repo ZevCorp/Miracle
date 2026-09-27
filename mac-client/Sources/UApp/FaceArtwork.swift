@@ -37,7 +37,7 @@ struct FaceArtwork: View {
             let scale = min(size.width, size.height) / 150
             context.translateBy(x: size.width / 2, y: size.height / 2)
             context.scaleBy(x: scale, y: scale)
-            let accent: [Double]? = mode == .error ? [255, 59, 48] : mode == .question ? [255, 165, 31] : nil
+            let accent: [Double]? = mode == .question ? [255, 165, 31] : nil
             func color(_ rgb: [Double]) -> Color { Color(red: rgb[0] / 255, green: rgb[1] / 255, blue: rgb[2] / 255) }
             func fill(_ base: Double) -> Color {
                 guard let accent else { return color([base, base, base]) }
