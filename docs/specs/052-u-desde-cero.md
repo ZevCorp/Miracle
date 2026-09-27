@@ -1,6 +1,6 @@
 # Plan de implementación: un ciclo de Ü cabe en medio segundo
 
-Estado: **implementado; falta el nivel 4 a mano (hablarle, con micrófono y altavoz)** · noche del 2026-09-24 · Nace de los tres audios del dueño del 2026-09-24 · Rama: `jose/u-desde-cero`
+Estado: **implementado (2026-09-26)**: promesas 430-474 verdes y nivel 4 hecho por órdenes escritas —siete rondas libres por el panel de la burbuja, las dos últimas sin cortes ni fallos nuevos—; falta el nivel 4 por voz (§*Lo que queda abierto*) · noche del 2026-09-24 y día del 2026-09-26 · Nace de los tres audios del dueño del 2026-09-24 · Rama: `jose/u-entra-a-main` (paso 0 de la integración: `u/` entra a `main` como carpeta aparte, sin tocar U.exe)
 
 ## Qué es Ü, sin nada técnico
 
@@ -99,6 +99,20 @@ Promesas de `u/Contrato/Contrato.cs`, 430-454. Se numeran desde la 430 (las de `
 | 458 | Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título. | 7 |
 | 459 | Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s. | 7 |
 | 460 | Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras. | 7 |
+| 461 | Un corte de red no tumba a Ü: si la conexión con Luna no llega a abrirse se reintenta hasta 3 veces, y si no se abre, el pedido termina diciendo la causa; lo que ya salió hacia Luna no se reintenta. | 8 |
+| 462 | «desplaza: abajo\|arriba [N]» es un gesto directo con la rueda del ratón real sobre la ventana de delante: N muescas —5 si no se dice, nunca más de 20—, sin preguntarle a Jev; una dirección que no entiende hace fallar el paso diciéndolo, y Luna sabe que existe. | 8 |
+| 463 | Luna no tiene tope de turnos ni se da por atascada: sigue hasta contestar, y solo para con Escape o a los 60 minutos; al parar, un último turno sin herramientas le pide contar lo que logró, y eso es lo que se entrega, empezando por «Paré:» y el motivo. | 8 |
+| 464 | Un objetivo no se corta por contar pasos: lo paran cumplirse, que Jev no se atreva, Escape, o que Jev elija lo mismo por tercera vez en la misma pantalla —aunque entre medias haya pasado por otras: un bucle—; la red de seguridad es de 50 pasos. | 8 |
+| 465 | Tras pulsar un enlace se espera a que la pantalla cambie hasta 1,5 s, saliendo en cuanto cambia: una página que tarda en cargar no es un clic que no agarró. Tras cualquier otro clic se sigue esperando como mucho 150 ms. | 8 |
+| 466 | Jev reintenta la conexión igual que Luna: si no llega a abrirse lo intenta hasta 3 veces, y si no se abre falla diciendo la causa y cuántas veces lo intentó; lo que ya salió hacia Jev no se reintenta. | 8 |
+| 467 | Lo que no es un clic no se le pide a Jev: un paso con una dirección web se abre como «abre:», un «objetivo:» delante sobra, «esperar…» espera a que la pantalla se quede quieta sin pulsar, y «escribir…» sin texto exacto falla al instante pidiendo «escribe:»; y Luna lo sabe. | 8 |
+| 468 | Luna sabe cuánto lleva: cada resultado que recibe dice el tiempo que va del pedido, y sabe que si la persona pide una duración tiene que seguir hasta cumplirla. | 8 |
+| 469 | Abrir llega también cuando la ventana de delante es la misma pero cambia su título: una dirección abierta con el navegador delante abre una pestaña en esa misma ventana. Si no cambia ni la ventana ni el título, no llegó. | 8 |
+| 470 | Abrir una app que ya está delante llega: si tras abrirla la ventana de delante es de la app pedida —por su proceso, y en las de la tienda también por su título—, cuenta como abierta; y si ya estaba delante antes de abrirla, se esperan 700 ms a que cambie, no 3 s. | 8 |
+| 471 | Lo que cae fuera de su ventana no se ofrece a Jev ni se le cuenta a Luna: un enlace por debajo de lo visible de la página no está en la lista, y lo que asoma aunque sea un poco, sí. | 8 |
+| 472 | Si la app pedida se abrió pero Windows no la dejó pasar al frente, Ü busca su ventana —visible, de la app pedida— y la trae él; y leer la pantalla nunca tumba un pedido: si falla, Luna recibe por qué y sigue. | 8 |
+| 473 | Con el navegador delante, abrir una dirección la carga en la pestaña de delante —escrita de una vez en su barra de direcciones—, no en una pestaña nueva; con otra app delante, o sin navegador, se abre como siempre. | 8 |
+| 474 | Leer la pantalla tiene plazo: UIA espera como mucho 1,5 s para conectar con una app y 3 s por lectura; una ventana que no contesta a tiempo se salta, queda dicho en el log, y la lectura sigue con lo demás. | 8 |
 
 La que cierra el asunto es la **437**: sin ella el presupuesto es una opinión.
 
@@ -249,11 +263,49 @@ objetivo gasta una llamada de Jev más solo para confirmar que terminó (~200 ms
 **Honestamente**: la meta de 500 ms por vuelta se cumple en el 82 % de las vueltas, no en todas. Lo que falta no es
 el harness —sus tres piezas nunca pasaron de 100 ms— sino esperar menos a que la app pinte (punto abierto 2) y el
 suelo de Jev (punto abierto 1).
+## El 2026-09-26: las pruebas del dueño y lo que arreglaron (promesas 461-474)
+
+El dueño probó `u/` a mano y encontró lo que la batería fija no: tareas largas cortadas por números fijos. De ahí
+salió el método de todo el día —**rondas libres y distintas, por el panel de la burbuja, con la burbuja en el último
+build**— y catorce promesas, cada una roja antes de su código y rota a propósito después (los sabotajes que
+salieron verdes se contaron y se rehicieron: dos, en la 461 y la 463).
+
+| Lo que se vio | Promesa |
+|---|---|
+| Un «Host desconocido» de api.openai.com cerraba el proceso sin una línea en el log | 461 |
+| Luna pedía «desplazarse» y Jev, que solo pulsa, no podía | 462 |
+| Luna se cortaba a los 8 turnos con la tarea a medias (almejas, vuelos, Copilot→Neon), y luego por «3 turnos sin cambio» en una web de una sola página | 463 |
+| Un objetivo se cortaba a los 8 pasos: 123456×789 a mitad de número; y el vaivén A→B→A no se detectaba | 464 |
+| Tras pulsar un enlace se esperaban 150 ms y Jev volvía a pulsarlo (un PDF, tres veces) | 465 |
+| Jev no reintentaba los cortes de DNS: en la web de Safix, 2 de 3 turnos perdidos | 466 |
+| Luna pedía como objetivo lo que no es un clic: «ir a https://…», «escribir una nota», «esperar a que aparezcan» | 467 |
+| «Durante media hora» terminó a los 28 s; y el tope de 10 min la habría cortado | 468 (y 463: 60 min) |
+| Abrir una dirección con Chrome delante fallaba siempre: no cambiaba la ventana, solo el título | 469 |
+| Abrir una app que ya estaba delante fallaba a los 3 s | 470 |
+| Jev recibía la página entera de Chrome: 81 de 229 accionables fuera de la pantalla | 471 |
+| Las apps se abrían detrás (el panel devuelve el foco; Windows no deja robar el primer plano), y un fallo de UIA al mirar tumbaba el pedido | 472 |
+| Cada «abre: https://…» abría una pestaña nueva: al final del día, Chrome con 133 procesos y 15 GB, y leer una página pasó de 1,6 a 4-7 s | 473 |
+| Una lectura de YouTube se colgó 72 s: UIA sin plazo | 474 |
+
+Rondas libres por el panel (seis órdenes nuevas cada una, en Calculadora, Configuración, Explorador, Bloc de notas,
+Paint, Chrome —Google, Maps, YouTube, Wikipedia, webs de la DIAN, la Alcaldía y Safix—):
+
+| Ronda | Resultado |
+|---|---|
+| L1-L3 | 0 cortes por tope; destaparon 469-472 |
+| L4 | 6/6, 0 «no pude abrir», 0 cortes de red |
+| L5 | 6/6, y una lectura colgada 72 s → 474 |
+| L6, L7 | 6/6 cada una, 0 topes, 0 cuelgues, ningún fallo nuevo: el criterio de «listo» |
+
+Lo que se toma de `main` y no se reinventa: traer al frente (`UiaSurface.TraerAlFrente`, 472) y escribir de una vez
+con ValuePattern (473). Y un aviso para quien integre: la promesa 436 dice «techo (150 ms)»; tras la 465 ese es el
+techo de todo clic que no sea un enlace.
+
 ## Cómo verificarlo por la mañana
 
 ```powershell
 cd .claude\worktrees\u-desde-cero
-.\scripts\contrato-u.ps1          # 31 promesas, sin pantalla ni red, ~30 s
+.\scripts\contrato-u.ps1          # 45 promesas, sin pantalla ni red, ~30 s
 .\scripts\bateria-u.ps1           # 7 pedidos reales de punta a punta; MUEVE EL RATÓN: no tocar el equipo
 dotnet build u\App\App.csproj -c Release -o $env:TEMP\u-nuevo-bin
 & $env:TEMP\u-nuevo-bin\U-nuevo.exe   # la burbuja, abajo a la derecha
@@ -278,4 +330,10 @@ También: `U-nuevo.exe --hacer "pedido"` (sin voz), `--voz-prueba "pedido"` (voz
 4. **Chrome** abre a veces el selector de perfiles y Luna elige el de la persona: funciona, pero es un paso que
    nadie pidió.
 5. **SAP** no está: el ciclo nuevo es UIA puro. SAP necesita su propia pieza de accionables (Scripting COM).
-6. **La voz**: eco por turnos (no se le puede hablar encima), y la sesión se cierra a los 90 s de silencio.
+6. **La voz**: eco por turnos (no se le puede hablar encima), y la sesión se cierra a los 90 s de silencio. El
+   2026-09-25 el dueño le habló con gente alrededor y nunca cerró el turno: con ruido no sabe cuándo terminaste.
+   La voz de `main` (GPT-Live) sí funcionó en su prueba del 2026-09-26: el plan es usar esa.
+7. **Leer páginas web grandes** cuesta ~1 ms por nodo en Chrome (Wikipedia: 0,5-1,8 s). Por UIA no baja de ~270 ms
+   en ninguna página normal; la sonda del 2026-09-26 está en la rama `jose/u-leer-lo-visible` (wip).
+8. **No sabe arrastrar**: Paint no puede dibujar, y lo dice.
+9. **Jev duda** (confianza 0,2-0,44) con enlaces nombrados en páginas densas; Luna lo rescata con otro plan.
