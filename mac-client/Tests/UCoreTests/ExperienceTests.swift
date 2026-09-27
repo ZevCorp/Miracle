@@ -3,12 +3,17 @@ import UCore
 
 extension AgentTests {
     func testWakeGreetingRequiresDirectAddress() {
-        for text in ["Hola Yu", "¡Hola, You! ¿Me escuchas?", "Oye Ü, abre el navegador", "hola U", "buenos días Yu"] {
+        for text in ["Hola Yu", "¡Hola, You! ¿Me escuchas?", "Oye Ü, abre el navegador", "hola U", "buenos días Yu", "You", "You, te necesito", "Yu haz esto", "You ¿estás ahí?", "¿Me escuchas, You?"] {
             XCTAssertEqual(VoiceActivation.isGreeting(text), true)
         }
-        for text in ["hola", "hola YouTube", "hola ustedes", "le dije hola Yu ayer", "oye Juan"] {
+        for text in ["hola", "hola YouTube", "hola ustedes", "le dije hola Yu ayer", "oye Juan", "yo te necesito", "hola hijo mío", "hablaba de You ayer"] {
             XCTAssertEqual(VoiceActivation.isGreeting(text), false)
         }
+        for text in ["You, guarda silencio", "no te estoy hablando", "estoy en una llamada"] {
+            XCTAssertEqual(VoiceActivation.requestsPrivacy(text), true)
+        }
+        XCTAssertEqual(VoiceActivation.requestsPrivacy("abre el archivo de llamadas"), false)
+        XCTAssertEqual(AssistantContext().graphContext.contains("Kaizen"), true)
         let session = LiveProtocol.start()["session"] as! [String: Any]
         XCTAssertEqual((session["instructions"] as! String).contains("colombiano"), true)
         XCTAssertEqual((session["instructions"] as! String).contains("sin voseo"), true)
@@ -45,7 +50,7 @@ extension AgentTests {
         let context = AssistantContext(text: "Explica con ejemplos simples; evita interrumpir conversaciones ajenas.")
         XCTAssertEqual(context.liveInstructions(base: "Base").contains("ejemplos simples"), true)
         XCTAssertEqual(context.liveInstructions(base: "Base").contains("interrumpir conversaciones ajenas"), true)
-        XCTAssertEqual(context.graphContext, "Explica con ejemplos simples; evita interrumpir conversaciones ajenas.")
+        XCTAssertEqual(context.graphContext.contains(context.text), true)
         let session = LiveProtocol.start(userContext: context)["session"] as! [String: Any]
         XCTAssertEqual((session["instructions"] as? String)?.contains(context.text), true)
         let delegation = session["delegation"] as! [String: Any]

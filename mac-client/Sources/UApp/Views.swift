@@ -92,7 +92,7 @@ struct MainView: View {
                 if !model.configurationMessage.isEmpty { Text(model.configurationMessage).font(.caption).foregroundStyle(.secondary) }
                 Toggle("Usar dictado y voz de macOS como respaldo", isOn: $model.nativeDictation)
                     .onChange(of: model.nativeDictation) { UserDefaults.standard.set(model.nativeDictation, forKey: "nativeDictation") }
-                Toggle("Activar al decir «hola Yu» u «oye Yu»", isOn: Binding(get: { model.wakeEnabled }, set: { model.setWakeEnabled($0) }))
+                Toggle("Activar por voz: «You», «Hola You», «You, te necesito»", isOn: Binding(get: { model.wakeEnabled }, set: { model.setWakeEnabled($0) }))
                 Text(model.wakeStatus.isEmpty ? "El saludo se detecta en este Mac. Live recibe audio solo durante la conversación." : model.wakeStatus).font(.caption).foregroundStyle(.secondary)
                 Text("La voz en vivo permite conversar e interrumpir. El dictado nativo envía cada petición a Graph; tras 45 segundos, vuelve a llamarme «oye U».").font(.caption).foregroundStyle(.secondary)
                 HStack {

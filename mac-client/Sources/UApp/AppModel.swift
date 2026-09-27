@@ -67,10 +67,11 @@ final class AppModel: ObservableObject {
     init() {
         wakeSpeech.onState = { [weak self] listening, _ in
             self?.wakeListening = listening
-            if listening { self?.wakeStatus = "Di «hola Yu» u «oye Yu» para conversar." }
+            if listening { self?.wakeStatus = "Esperando que llames a You para conversar." }
         }
         wakeSpeech.onError = { [weak self] message in
             self?.wakeListening = false; self?.wakeStatus = message
+            self?.status = message
         }
         wakeSpeech.onText = { [weak self] text in
             guard let self, self.wakeEnabled, !self.microphone, !self.busy,
@@ -117,6 +118,9 @@ final class AppModel: ObservableObject {
                     self.messages[last].text += text
                 } else { self.append(text, user: user) }
             }
+            if user, let utterance = self.messages.last?.text, VoiceActivation.requestsPrivacy(utterance) {
+                self.stop()
+            }
         }
         liveVoice.onSpeaking = { [weak self] speaking in
             guard let self else { return }
@@ -143,6 +147,7 @@ final class AppModel: ObservableObject {
     }
     func startWakeListening() {
         guard wakeEnabled, !microphone, !busy, wakeTask == nil, !wakeListening else { return }
+        wakeStatus = "Preparando activación por voz…"
         let id = UUID(); wakeID = id
         wakeTask = Task { [weak self] in
             guard let self else { return }
