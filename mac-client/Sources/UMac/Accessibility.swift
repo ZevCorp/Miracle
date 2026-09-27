@@ -7,6 +7,7 @@ public struct AccessibleControl: Sendable {
     public let frame: CGRect
     public let value: String
     public let actions: [String]
+    public let identity: String
 }
 
 public struct DesktopSnapshot: @unchecked Sendable {
@@ -77,8 +78,9 @@ public final class AccessibilityReader: @unchecked Sendable {
                 let role = string(kAXRoleAttribute), subrole = string(kAXSubroleAttribute)
                 let secure = subrole == "AXSecureTextField" || role == "AXSecureTextField"
                 let fieldValue = secure ? "[protegido]" : String(string(kAXValueAttribute).prefix(300))
-                let label = [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute, kAXIdentifierAttribute]
-                    .lazy.map { string($0) }.first(where: { !$0.isEmpty }) ?? (secure ? "Campo protegido" : fieldValue)
+                let namedLabel = [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute, kAXIdentifierAttribute]
+                    .lazy.map { string($0) }.first(where: { !$0.isEmpty })
+                let label = namedLabel ?? (secure ? "Campo protegido" : fieldValue)
                 var names: CFArray?
                 AXUIElementCopyActionNames(element, &names)
                 let actions = names as? [String] ?? []
@@ -91,7 +93,11 @@ public final class AccessibilityReader: @unchecked Sendable {
                 }
                 if meaningful, !hidden, (!actionableOnly || (actions.contains("AXPress") && value(kAXEnabledAttribute) as? Bool != false)), let frame = Self.frame(position: value(kAXPositionAttribute), size: value(kAXSizeAttribute)), frame.width > 0, frame.height > 0 {
                     let id = "\(prefix)-\(controls.count + 1)"
-                    controls.append(AccessibleControl(target: AXTarget(id: id, role: role, label: String(label.prefix(300))), frame: frame, value: fieldValue, actions: actions))
+                    let identifier = string(kAXIdentifierAttribute)
+                    let identityParts = [bundleID, role, identifier.isEmpty ? "label:" + label : "id:" + identifier]
+                    let identityData = try JSONSerialization.data(withJSONObject: identityParts)
+                    let identity = namedLabel == nil || secure ? "" : String(decoding: identityData, as: UTF8.self)
+                    controls.append(AccessibleControl(target: AXTarget(id: id, role: role, label: String(label.prefix(300))), frame: frame, value: fieldValue, actions: actions, identity: identity))
                     elements[id] = element
                 }
                 // Copy only a bounded slice. Some virtualized browser trees contain millions of descendants.

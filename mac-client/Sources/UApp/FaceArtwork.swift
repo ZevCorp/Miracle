@@ -11,6 +11,7 @@ struct FaceArtwork: View {
 
     private var pose: [Double] {
         switch mode {
+        case .stopped: return [0, 0, 0.2, 0.2, 0.6, 0.25, 0, 30.6, 0, 0]
         case .ready: return [2, 2.5, 0.3, 0.4, 0.85, 0.15, 0.7, 37.4, 0.3, 0.5]
         case .listening: return [3, 3.5, 0.3, 0.4, 0.90, 0.12, 0.7, 37.4, 0.3, 0.45]
         case .working: return [-1, 4, 0.1, 0.5, 0.75, 0.20, 0.7, 32.3, 0.2, 0.1]

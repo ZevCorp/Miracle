@@ -7,12 +7,13 @@ struct ChatMessage: Identifiable { let id = UUID(); var text: String; let user: 
 
 @MainActor
 final class AppModel: ObservableObject {
-    enum Mode: String { case ready = "Lista", listening = "Te escucho", working = "Trabajando", speaking = "Hablando", question = "Necesito un dato", error = "Necesito atención" }
-    @Published var mode: Mode = .ready
+    typealias Mode = TaskPresentation.Phase
+    @Published var presentation = TaskPresentation()
+    var mode: Mode { get { presentation.phase } set { presentation.phase = newValue } }
     @Published var faceEyeShift = 0.0
     @Published var jevStatus = "Jev · pendiente de conexión"
     private var jev: JevClient?
-    @Published var status = "Dime qué necesitas hacer."
+    var status: String { get { presentation.detail } set { presentation.detail = newValue } }
     @Published var draft = ""
     @Published var partial = ""
     @Published var messages: [ChatMessage] = []
@@ -25,7 +26,8 @@ final class AppModel: ObservableObject {
     private var voiceID = UUID()
     @Published var graphURL = UserDefaults.standard.string(forKey: "graphURL") ?? GraphClient.defaultURL
     @Published var credential = ""
-    @Published var hasCredential = Credentials.read("GRAPH_API_KEY") != nil
+    @Published var hasCredential = false
+    private var credentialRefresh: Task<Void, Never>?
     @Published var configurationMessage = ""
     @Published var permissionSnapshot = PermissionCenter.readSnapshot()
     @Published var selectedTab = 0
@@ -68,6 +70,8 @@ final class AppModel: ObservableObject {
         }
         liveVoice.onText = { [weak self] text, user in
             guard let self else { return }
+            if user { self.presentation.receiveUserFragment(text) }
+            else { self.presentation.receiveAssistantFragment(text) }
             if user, self.answer != nil { self.submit(text) }
             else {
                 // Live sends transcript deltas. Keep one message per speaker turn.
@@ -93,28 +97,34 @@ final class AppModel: ObservableObject {
     }
     func refreshPermissions() {
         permissions.refreshAndPoll()
-        hasCredential = Credentials.read("GRAPH_API_KEY") != nil
+        if credentialRefresh == nil {
+            credentialRefresh = Task { [weak self] in
+                let present = await Credentials.read("GRAPH_API_KEY") != nil
+                self?.hasCredential = present
+                self?.credentialRefresh = nil
+            }
+        }
     }
-    func saveConfiguration() {
+    func saveConfiguration() async {
         do {
             _ = try GraphClient(baseURL: graphURL, apiKey: "validation")
-            if !credential.isEmpty { try Credentials.save("GRAPH_API_KEY", value: credential); credential = "" }
+            if !credential.isEmpty { try await Credentials.save("GRAPH_API_KEY", value: credential); credential = "" }
             UserDefaults.standard.set(graphURL, forKey: "graphURL")
-            hasCredential = Credentials.read("GRAPH_API_KEY") != nil
+            hasCredential = await Credentials.read("GRAPH_API_KEY") != nil
             configurationMessage = hasCredential ? "Guardado en el Llavero de macOS." : "Falta la credencial de Graph."
         } catch { configurationMessage = error.localizedDescription }
     }
     func checkConnection() {
-        saveConfiguration()
         Task {
+            await saveConfiguration()
             do {
-                let client = try makeClient()
+                let client = try await makeClient()
                 let keys = try await client.providerKeys()
                 configurationMessage = "Graph conectado. Voz: \(keys.openai?.isEmpty == false ? "disponible" : "sin credencial"). Jev: \(keys.typesafe?.isEmpty == false ? "disponible" : "sin credencial TypeSafe")."
             } catch { configurationMessage = error.localizedDescription }
         }
     }
-    func makeClient() throws -> GraphClient { try GraphClient(baseURL: graphURL, apiKey: Credentials.read("GRAPH_API_KEY") ?? "") }
+    func makeClient() async throws -> GraphClient { try GraphClient(baseURL: graphURL, apiKey: await Credentials.read("GRAPH_API_KEY") ?? "") }
     func toggleMicrophone() {
         if microphone {
             voiceID = UUID(); voiceConnection?.cancel(); voiceConnection = nil
@@ -123,7 +133,6 @@ final class AppModel: ObservableObject {
             return
         }
         guard !busy else { status = "Detén la tarea antes de cambiar el modo de voz."; return }
-        hasCredential = Credentials.read("GRAPH_API_KEY") != nil
         if !nativeDictation && permissions.snapshot.microphone != .granted {
             selectedTab = 1
             showWindow?()
@@ -142,8 +151,9 @@ final class AppModel: ObservableObject {
             do {
                 self.status = "Conectando la voz…"
                 let keys = try await self.makeClient().providerKeys()
-                guard let key = Credentials.read("OPENAI_API_KEY") ?? keys.openai, !key.isEmpty else { throw AgentError.unavailable("Graph no tiene credencial de voz.") }
-                let jevKey = Credentials.read("TYPESAFE_API_KEY") ?? keys.typesafe
+                guard let key = await Credentials.read("OPENAI_API_KEY") ?? keys.openai, !key.isEmpty else { throw AgentError.unavailable("Graph no tiene credencial de voz.") }
+                let jevKey = await Credentials.read("TYPESAFE_API_KEY") ?? keys.typesafe
+                guard self.voiceID == id, !Task.isCancelled else { return }
                 self.jev = jevKey.flatMap { $0.isEmpty ? nil : JevClient(key: $0) }
                 self.jevStatus = self.jev == nil ? "Jev sin credencial · decide Luna" : "Jev · listo"
                 guard self.voiceID == id, !Task.isCancelled else { return }
@@ -156,6 +166,7 @@ final class AppModel: ObservableObject {
         }
     }
     private func liveTool(_ name: String, args: [String: String]) async throws -> String {
+        presentation.commitUserTurn()
         if name == "stop_task" { stopExecution(); return "Tarea detenida. Puedes seguir conversando." }
         if name == "map_tramo" {
             guard !busy else { return "Ya hay una tarea en marcha." }
@@ -208,7 +219,7 @@ final class AppModel: ObservableObject {
     private func stopExecution() {
         work?.cancel(); work = nil; runID = UUID(); desktop.stop()
         answer?.resume(throwing: CancellationError()); answer = nil
-        busy = false; status = "Tarea detenida."; mode = liveConnected ? .listening : .ready
+        busy = false; presentation.stop()
         if liveConnected { desktop.begin() }
     }
     private func heard(_ phrase: String) {
@@ -233,6 +244,7 @@ final class AppModel: ObservableObject {
     func submit(_ text: String) {
         let goal = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !goal.isEmpty else { return }
+        presentation.begin(goal)
         append(goal, user: true)
         if let continuation = answer {
             answer = nil; mode = .working; hideWindow?()
@@ -261,7 +273,7 @@ final class AppModel: ObservableObject {
             do {
                 // Give macOS the focus handoff after the command window closes.
                 try await Task.sleep(nanoseconds: 250_000_000)
-                let client = try self.makeClient()
+                let client = try await self.makeClient()
                 let engine = AgentEngine(turn: { try await client.turn($0) },
                     observe: { try await self.desktop.observe(screenshot: $0) },
                     execute: { try await self.desktop.execute($0) },
@@ -303,7 +315,7 @@ final class AppModel: ObservableObject {
         liveVoice.stop(); liveConnected = false
         desktop.stop(); work?.cancel(); work = nil; runID = UUID()
         answer?.resume(throwing: CancellationError()); answer = nil
-        busy = false; mode = .ready; status = "Tarea detenida."; partial = ""
+        busy = false; presentation.stop(); partial = ""
         speech.stop(); microphone = false
     }
     func fail(_ text: String) { mode = .error; status = text; append(text) }

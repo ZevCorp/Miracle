@@ -1,0 +1,624 @@
+{
+  "schema": 1,
+  "reference_commit": "c3d4399684688377d69eab449e8510dd11251603",
+  "capabilities": [
+    {
+      "id": "voice.session",
+      "title": "Voz Live 1: conexión y cierre",
+      "windows": [
+        "voz/Realtime/ProtocoloGptLive.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UMac/LiveVoice.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "handshake real, audio de entrada/salida, cierre sin micrófono abierto",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "voice.duplex",
+      "title": "Interrumpir mientras habla",
+      "windows": [
+        "windows-client/src/Voice/LiveAudio.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UMac/DuplexAudio.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "interrupción audible; sin eco; audio no acumulado",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "voice.planner",
+      "title": "Luna: delegación y continuación",
+      "windows": [
+        "voz/Realtime/ProtocoloGptLive.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UCore/LiveProtocol.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "herramienta real exactamente una vez; resultado continúa; conversación disponible",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "voice.sources",
+      "title": "Micrófono Mac, Omi y teléfono",
+      "windows": [
+        "docs/specs/001-hablarle-a-la-carita-por-el-omi.md"
+      ],
+      "mac": [
+        "mac-client/Sources/UMac/Speech.swift"
+      ],
+      "implementation": "missing",
+      "acceptance": "selección, desconexión y fallback observable por cada fuente",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "voice.errors",
+      "title": "Credenciales, saldo y reconexión",
+      "windows": [
+        "windows-client/src/Voice/NoSeArreglaReintentando.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UCore/LiveProtocol.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "causas diferentes y sin reintentos automáticos de saldo/clave",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "execution.jev",
+      "title": "Jev: opciones cerradas, umbrales y plazo",
+      "windows": [
+        "windows-client/src/Decision/ElDecisor.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UCore/JevClient.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "elección observada; no inventar controles; plazo total; fallo vuelve a Luna",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "execution.segment",
+      "title": "Tramo independiente de la voz",
+      "windows": [
+        "windows-client/src/Navigation/ElTramo.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UApp/AppModel.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "un único operador; pausa/cancelación; límite; entrega de resultado",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "execution.gate",
+      "title": "Ventana y generación antes de actuar",
+      "windows": [
+        "docs/specs/020-la-ventana-de-trabajo.md"
+      ],
+      "mac": [
+        "mac-client/Sources/UCore/Protocol.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "ninguna acción tardía tras parar o cambiar ventana",
+      "contracts": [],
+      "installed": "partial",
+      "external": "unverified",
+      "evidence": [
+        "mac-client/migration/evidence/2026-09-26-installed-fixture.json"
+      ]
+    },
+    {
+      "id": "execution.observer",
+      "title": "Observación compartida y por eventos",
+      "windows": [
+        "docs/specs/038-esperar-es-suscribirse.md"
+      ],
+      "mac": [
+        "mac-client/Sources/UMac/Accessibility.swift"
+      ],
+      "implementation": "missing",
+      "acceptance": "sin lecturas duplicadas; invalidación por cambios; p95 de detección",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "execution.typing",
+      "title": "Escribir, comprobar y no duplicar",
+      "windows": [
+        "docs/specs/026-escribir-una-sola-vez.md"
+      ],
+      "mac": [
+        "mac-client/Sources/UMac/InputDriver.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "Unicode; foco; valor final verificado; no reintentar escritura irreversible",
+      "contracts": [],
+      "installed": "partial",
+      "external": "unverified",
+      "evidence": [
+        "mac-client/migration/evidence/2026-09-26-installed-fixture.json"
+      ]
+    },
+    {
+      "id": "execution.controls",
+      "title": "Clic, doble clic, menús, scroll, drag",
+      "windows": [
+        "windows-client/src/Actions/InputExecutor.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UMac/Desktop.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "acciones en fixture y navegador; geometría multipantalla",
+      "contracts": [],
+      "installed": "partial",
+      "external": "unverified",
+      "evidence": [
+        "mac-client/migration/evidence/2026-09-26-installed-fixture.json"
+      ]
+    },
+    {
+      "id": "execution.batch",
+      "title": "Batch sobre nodos vivos",
+      "windows": [
+        "docs/plan-batch-sobre-nodos-vivos.md"
+      ],
+      "mac": [
+        "mac-client/Sources/UCore/AgentEngine.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "dependencias; parar primer fallo; reobservar al navegar",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "execution.latency",
+      "title": "Reloj por fase y presupuesto del harness",
+      "windows": [
+        "docs/specs/029-donde-se-va-el-tiempo.md"
+      ],
+      "mac": [
+        "mac-client/Sources/UMac/Desktop.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "p50/p95 AX, proveedor, acción, verificación y total; muestras reales",
+      "contracts": [],
+      "installed": "partial",
+      "external": "unverified",
+      "evidence": [
+        "mac-client/migration/evidence/2026-09-26-installed-fixture.json"
+      ]
+    },
+    {
+      "id": "memory.graph",
+      "title": "Grafo: vivo separado de recordado",
+      "windows": [
+        "nucleo/Grafo/Grafo.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UCore/NavigationMemory.swift",
+        "mac-client/Sources/UMac/DesktopMemory.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "observar no borra; ubicación explícita; aristas solo comprobadas",
+      "contracts": [
+        "mac-client/Tests/UCoreTests/ExperienceTests.swift"
+      ],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "memory.semantic",
+      "title": "Recuerdos ligados a elementos",
+      "windows": [
+        "docs/specs/014-el-recuerdo-que-se-ve.md"
+      ],
+      "mac": [
+        "mac-client/Sources/UCore/NavigationMemory.swift",
+        "mac-client/Sources/UMac/DesktopMemory.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "enseñar solo elementos vistos; persistir; recordar no permite pulsar",
+      "contracts": [
+        "mac-client/Tests/UCoreTests/ExperienceTests.swift"
+      ],
+      "installed": "partial",
+      "external": "unverified",
+      "evidence": [
+        "mac-client/migration/evidence/2026-09-26-installed-fixture.json"
+      ]
+    },
+    {
+      "id": "memory.persistence",
+      "title": "Durabilidad y recuperación de memoria",
+      "windows": [
+        "nucleo/Grafo/ProyectorNeo4j.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UCore/NavigationMemory.swift",
+        "mac-client/Sources/UMac/DesktopMemory.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "guardar atómicamente; reiniciar; datos corruptos visibles; no borrado silencioso",
+      "contracts": [
+        "mac-client/Tests/UCoreTests/ExperienceTests.swift"
+      ],
+      "installed": "partial",
+      "external": "unverified",
+      "evidence": [
+        "mac-client/migration/evidence/2026-09-26-installed-fixture.json"
+      ]
+    },
+    {
+      "id": "memory.interop",
+      "title": "Memoria Windows/backend y compatibilidad Mac",
+      "windows": [
+        "docs/el-grafo-de-navegacion.md"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "importación/sincronización con procedencia; selectores Windows no ejecutables en Mac",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "memory.navigation",
+      "title": "Próximo paso usando rutas aprendidas",
+      "windows": [
+        "windows-client/src/Navigation/IrSegunElNucleo.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UCore/NavigationMemory.swift",
+        "mac-client/Sources/UMac/DesktopMemory.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "solo primer paso vivo; recalcular tras observar; ciclos acotados",
+      "contracts": [
+        "mac-client/Tests/UCoreTests/ExperienceTests.swift"
+      ],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "learning.record",
+      "title": "Aprender por demostración humana",
+      "windows": [
+        "docs/specs/005-ensena-u-una-skill-por-demostracion.md"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "clics/teclas y narración con identidad temporal; sin secretos",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "learning.compile",
+      "title": "Lección → skill con parámetros",
+      "windows": [
+        "windows-client/src/Navigation/SkillEnsenada.cs"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "no reutilizar datos del ejemplo; conservar procedencia; validar huecos",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "learning.verify",
+      "title": "Comprobar una skill en el terreno",
+      "windows": [
+        "docs/specs/015-el-check-corre-una-skill.md"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "cada llegada por evidencia; no publicar como comprobada sin ejecución",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "learning.library",
+      "title": "Catálogo de aprendizajes",
+      "windows": [
+        "docs/specs/016-el-panel-de-los-aprendizajes.md"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "lista, descripción, mostrar, pasos, renombrar, eliminar, capturas propias",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "learning.replay",
+      "title": "Reproducción con datos de esta corrida",
+      "windows": [
+        "windows-client/src/Navigation/InstanciarSkill.cs"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "exigir parámetros; respetar control/foco; interrumpible; verificación",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "ui.face",
+      "title": "Carita de Windows y estados",
+      "windows": [
+        "windows-client/src/Ui/FaceControl.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UApp/FaceArtwork.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "misma geometría/paleta; estados fieles; animación acotada",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "ui.follow",
+      "title": "Carita junto al clic",
+      "windows": [
+        "docs/specs/022-guardar-y-la-carita-al-clic.md"
+      ],
+      "mac": [
+        "mac-client/Sources/UApp/AppMain.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "AX y coordenadas; multipantalla; no tapar destino; sin espera del ejecutor",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "ui.notch",
+      "title": "Notch: tarea, paso, voz y parada",
+      "windows": [
+        "docs/specs/028-el-notch-arriba-y-dos-lineas.md"
+      ],
+      "mac": [
+        "mac-client/Sources/UCore/TaskPresentation.swift",
+        "mac-client/Sources/UApp/NotchView.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "tarea persistente; dos líneas; detener distinto de error; posición segura",
+      "contracts": [
+        "mac-client/Tests/UCoreTests/ExperienceTests.swift"
+      ],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "ui.highlight",
+      "title": "Señalar controles y recuerdos",
+      "windows": [
+        "windows-client/src/Ui/Senalador.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UApp/AppMain.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "recuadro, selección múltiple, excluir y soltar; overlay no roba clics",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "ui.memorycard",
+      "title": "Tarjetas del recuerdo durante ejecución",
+      "windows": [
+        "windows-client/src/Ui/TarjetasDeRecuerdo.cs"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "tarjeta ligada al control vivo; texto legible; desaparece al actuar",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "ui.conversation",
+      "title": "Conversación, entrada texto y voz",
+      "windows": [
+        "windows-client/src/Ui/FaceWindow.xaml"
+      ],
+      "mac": [
+        "mac-client/Sources/UApp/Views.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "turnos completos, parciales separados, micrófono y cancelación coherentes",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "system.files",
+      "title": "Navegar y buscar archivos",
+      "windows": [
+        "windows-client/src/SystemApi/Explorador.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UMac/Desktop.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "listar, filtrar, buscar y abrir rutas sin inventarlas",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "system.apps",
+      "title": "Apps, URL, ventanas y diálogos",
+      "windows": [
+        "windows-client/src/SystemApi/WindowsSystemApi.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UMac/Desktop.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "abrir/enfocar/verificar; atajos Mac; desbloquear modal",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "system.workspaces",
+      "title": "Escritorios de trabajo y asistentes secundarios",
+      "windows": [
+        "docs/specs/032-cada-asistente-trabaja-en-su-escritorio.md"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "aislamiento real con equivalente Mac; nunca operar ventana ajena",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "system.permissions",
+      "title": "Permisos e identidad instalada estable",
+      "windows": [
+        "docs/specs/mac-native-from-scratch.md"
+      ],
+      "mac": [
+        "mac-client/Sources/UMac/Permissions.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "actualizar misma app conserva permisos; detectar efectivo; consentimiento del SO",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "system.update",
+      "title": "Distribución, firma y actualización",
+      "windows": [
+        "windows-client/src/Update/Updater.cs"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "firma Developer ID/notarización; actualizar y rollback sin perder identidad",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "account.identity",
+      "title": "Cuenta, onboarding y rol",
+      "windows": [
+        "windows-client/src/Cuenta/Identidad.cs"
+      ],
+      "mac": [],
+      "implementation": "partial",
+      "acceptance": "misma identidad en toda la UI; credenciales Llavero; cerrar sesión",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "backend.contract",
+      "title": "Graph y catálogo remoto",
+      "windows": [
+        "windows-client/src/Backend/BackendClient.cs"
+      ],
+      "mac": [
+        "mac-client/Sources/UCore/GraphClient.swift"
+      ],
+      "implementation": "partial",
+      "acceptance": "auth vigente; catálogo real; schemas; errores HTTP explicados",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "clinical.consultation",
+      "title": "Consulta y transcripción clínica",
+      "windows": [
+        "docs/specs/004-la-consulta-vive-en-windows.md"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "flujo equivalente en Mac con datos de prueba; separación paciente/asistente",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "clinical.note",
+      "title": "Nota, triage y ficha",
+      "windows": [
+        "docs/specs/008-la-nota-llega-al-triage.md"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "datos de la consulta correcta; no reutilizar ejemplos; revisión antes de escritura",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "clinical.sap",
+      "title": "SAP y superficies específicas",
+      "windows": [
+        "windows-graph/CLAUDE.md"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "adaptador disponible en Mac o sesión Windows explícita; sin fingir COM en Mac",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "diagnostics.inspector",
+      "title": "Inspector y trazas útiles",
+      "windows": [
+        "windows-client/src/Ui/InspectorOverlay.cs"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "lo visto frente a lo accionable; discrepancia visible; no guardar secretos",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    },
+    {
+      "id": "diagnostics.cost",
+      "title": "Consumo, duración y costes",
+      "windows": [
+        "windows-client/src/Telemetry/Telemetry.cs"
+      ],
+      "mac": [],
+      "implementation": "missing",
+      "acceptance": "duración de Live y proveedor reportados sin duplicar; fallo de reporte no bloquea",
+      "contracts": [],
+      "installed": "unverified",
+      "external": "unverified"
+    }
+  ]
+}

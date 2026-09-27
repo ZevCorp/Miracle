@@ -15,12 +15,12 @@ struct SmokeTest {
         }
         do {
             let graph = try GraphClient(baseURL: UserDefaults.standard.string(forKey: "graphURL") ?? GraphClient.defaultURL,
-                                        apiKey: Credentials.read("GRAPH_API_KEY") ?? "")
+                                        apiKey: await Credentials.read("GRAPH_API_KEY") ?? "")
             let keys = try await graph.providerKeys()
             evidence["graphVoiceKey"] = keys.openai?.isEmpty == false
             evidence["graphJevKey"] = keys.typesafe?.isEmpty == false
-            if let key = Credentials.read("OPENAI_API_KEY") ?? keys.openai { evidence["liveOneLunaToolRoundtrip"] = try await voiceContract(key: key) }
-            guard let key = Credentials.read("TYPESAFE_API_KEY") ?? keys.typesafe, !key.isEmpty else { throw AgentError.unavailable("Graph no entrega typesafe.") }
+            if let key = await Credentials.read("OPENAI_API_KEY") ?? keys.openai { evidence["liveOneLunaToolRoundtrip"] = try await voiceContract(key: key) }
+            guard let key = await Credentials.read("TYPESAFE_API_KEY") ?? keys.typesafe, !key.isEmpty else { throw AgentError.unavailable("Graph no entrega typesafe.") }
             guard let fixture = NSRunningApplication.runningApplications(withBundleIdentifier: "com.zevcorp.u.mac.fixture").first else { throw AgentError.unavailable("Abre UFixture.app antes de la prueba.") }
             fixture.activate(options: [])
             for _ in 0..<30 {
@@ -88,7 +88,8 @@ struct SmokeTest {
     }
     static func run(output: URL) async {
         var evidence: [String: Any] = ["date": ISO8601DateFormatter().string(from: Date()), "passed": false]
-        let desktop = Desktop(); desktop.begin()
+        let memoryURL = output.deletingPathExtension().appendingPathExtension("memory.json")
+        let desktop = Desktop(memoryURL: memoryURL); desktop.begin()
         defer {
             desktop.stop()
             if let data = try? JSONSerialization.data(withJSONObject: evidence, options: [.prettyPrinted, .sortedKeys]) { try? data.write(to: output, options: .atomic) }
@@ -105,6 +106,34 @@ struct SmokeTest {
             let after = try await desktop.observe()
             guard after.uiContext.contains("Contador: 1") else { throw AgentError.unavailable("AXPress no incrementó el contador.") }
             evidence["axPress"] = true
+            _ = try await desktop.tool("map_esto_es", args: ["sobre": "Sumar uno", "significado": "Incrementa el contador de prueba"])
+            let restored = DesktopMemory(url: memoryURL)
+            try await restored.prepare()
+            guard let snap = desktop.snapshot else { throw AgentError.invalid("Falta la observación de prueba.") }
+            let surface = DesktopMemory.surface(snap)
+            guard let entry = restored.graph.entries(surface: surface).first(where: { $0.meaning == "Incrementa el contador de prueba" }),
+                  !restored.graph.isLive(surface: surface, selector: entry.selector) else { throw AgentError.invalid("El recuerdo no sobrevivió o restauró visibilidad obsoleta.") }
+            let recall = try await restored.describe(snapshot: snap)
+            guard recall.contains("visible: Sumar uno") else { throw AgentError.invalid("El recuerdo no se enlazó a la observación nueva.") }
+            evidence["memoryPersistedAndReobserved"] = true
+            try await restored.forget(surface: surface, selector: entry.selector)
+            let forgotten = try await MemoryStore(url: memoryURL).load()
+            guard forgotten.entries(surface: surface).allSatisfy({ $0.meaning == nil }) else { throw AgentError.invalid("Olvidar no persistió.") }
+            evidence["memoryForgotten"] = true
+            var readTimes: [Double] = [], memoryTimes: [Double] = []
+            for _ in 0..<20 {
+                let start = ProcessInfo.processInfo.systemUptime
+                let sample = try await desktop.reader.read(pid: fixture.processIdentifier, bundleID: snap.bundleID, appName: snap.appName, actionableOnly: true)
+                let readEnd = ProcessInfo.processInfo.systemUptime
+                desktop.memory.observe(sample)
+                readTimes.append((readEnd - start) * 1000)
+                memoryTimes.append((ProcessInfo.processInfo.systemUptime - readEnd) * 1000)
+            }
+            func percentiles(_ values: [Double]) -> [String: Double] {
+                let sorted = values.sorted()
+                return ["p50ms": sorted[(sorted.count - 1) / 2], "p95ms": sorted[Int(ceil(Double(sorted.count) * 0.95)) - 1]]
+            }
+            evidence["localHarness"] = ["samples": 20, "fixtureOnly": true, "readAX": percentiles(readTimes), "memory": percentiles(memoryTimes)]
             _ = try await desktop.tool("set_value", args: ["label": "Texto de prueba", "text": "¡Hola, Mac! 👋"])
             let typed = try await desktop.observe()
             guard typed.uiContext.contains("¡Hola, Mac! 👋") else { throw AgentError.unavailable("AXValue no conservó Unicode.") }

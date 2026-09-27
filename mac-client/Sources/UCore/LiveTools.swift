@@ -3,6 +3,8 @@ import Foundation
 /// Luna handles open-ended work; Jev chooses from observed AX controls.
 public enum LiveTools {
     public static let definitions: [[String: Any]] = [
+        function("map_esto_es", "Guarda lo que el usuario enseña sobre un control observado. Nunca inventes recuerdos ni guardes secretos.", ["sobre": "id o etiqueta exacta del control", "significado": "Lo que el usuario enseña"]),
+        function("map_recuerdos", "Consulta los recuerdos de la pantalla. Distingue visible de recordado; no pulses controles recordados que no se ven.", [:]),
         function("map_tramo", "Inicia navegación con Jev en segundo plano (máximo 15 pasos). Devuelve en marcha; el desenlace llegará automáticamente. No consultes en bucle ni actúes simultáneamente.", ["goal": "Objetivo concreto de navegación"]),
         function("map_decidir", "Jev elige y ejecuta un único control de la pantalla actual, o devuelve el motivo para que decidas tú.", ["goal": "Objetivo concreto"]),
         function("look", "Captura la pantalla actual para ver imágenes, colores o controles que AX no expone. La imagen se adjunta a la conversación.", [:]),

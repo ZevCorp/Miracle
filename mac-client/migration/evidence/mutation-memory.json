@@ -1,0 +1,5 @@
+{
+  "mutation": "remembered is always live",
+  "detected_by_assertion": true,
+  "returncode": -5
+}

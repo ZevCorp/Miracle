@@ -5,6 +5,7 @@ import UCore
 public final class Desktop {
     public let gate = ActionGate()
     public let reader = AccessibilityReader()
+    public let memory: DesktopMemory
     private lazy var input: InputDriver = {
         let driver = InputDriver(gate: gate)
         driver.onClick = { [weak self] point in self?.onAction?(CGRect(x: point.x, y: point.y, width: 1, height: 1)) }
@@ -14,17 +15,27 @@ public final class Desktop {
     public private(set) var geometry = ScreenCapture.geometry(CGMainDisplayID())
     private var screenshotRequested = false
     private var displayID = CGMainDisplayID()
+    private var pendingTransition: (snapshot: DesktopSnapshot, control: AccessibleControl, generation: UInt64, time: Double)?
     public private(set) var generation: UInt64 = 0
     public var onHighlight: ((CGRect) -> Void)?
     public var onAction: ((CGRect) -> Void)?
     public private(set) var lastJevTiming: [String: Double] = [:]
-    public init() {
+    public init(memoryURL: URL? = nil) {
+        memory = DesktopMemory(url: memoryURL)
         reader.onPress = { [weak self] frame in
             Task { @MainActor in self?.onAction?(frame) }
         }
     }
-    public func begin() { generation = gate.begin(); snapshot = nil; screenshotRequested = false }
-    public func stop() { gate.stop() }
+    public func begin() { generation = gate.begin(); snapshot = nil; screenshotRequested = false; pendingTransition = nil }
+    public func stop() { gate.stop(); pendingTransition = nil }
+    private func accept(_ snap: DesktopSnapshot) {
+        memory.observe(snap)
+        if let pending = pendingTransition, pending.generation == generation, pending.snapshot.pid == snap.pid,
+           ProcessInfo.processInfo.systemUptime - pending.time < 2 {
+            memory.transition(from: pending.snapshot, control: pending.control, to: snap)
+        }
+        pendingTransition = nil; snapshot = snap
+    }
 
     public func observe(screenshot: Bool = false) async throws -> ScreenState {
         try Task.checkCancellation()
@@ -34,7 +45,7 @@ public final class Desktop {
         }
         let snap = try await reader.read(pid: app.processIdentifier, bundleID: app.bundleIdentifier ?? "pid.\(app.processIdentifier)", appName: app.localizedName ?? "Aplicación")
         try gate.check(generation: generation, expectedPID: snap.pid, currentPID: NSWorkspace.shared.frontmostApplication?.processIdentifier)
-        snapshot = snap
+        accept(snap)
         displayID = ScreenCapture.display(for: snap.windowFrame)
         geometry = ScreenCapture.geometry(displayID)
         var state = ScreenState(screen: "\(snap.appName) · \(snap.title)", uiContext: context(snap), width: Int(geometry.width), height: Int(geometry.height))
@@ -74,7 +85,7 @@ public final class Desktop {
         guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() else { throw AgentError.staleFocus }
         let snap = try await reader.read(pid: app.processIdentifier, bundleID: app.bundleIdentifier ?? "", appName: app.localizedName ?? "App", actionableOnly: true)
         try gate.check(generation: token, expectedPID: snap.pid, currentPID: NSWorkspace.shared.frontmostApplication?.processIdentifier)
-        snapshot = snap
+        accept(snap)
         let controls = snap.controls.filter { $0.actions.contains("AXPress") }
         let choices = controls.enumerated().map { "\($0.offset + 1)) \($0.element.target.label) (\($0.element.target.role))" }
         let screen = "\(snap.appName) · \(snap.title)"
@@ -93,6 +104,7 @@ public final class Desktop {
             guard repeats < 3 else { return "La pantalla no cambia. Tramo detenido; decide Luna con read_screen." }
             onStep("Jev · \(controls[index].target.label)")
             try await reader.press(controls[index].target.id, snapshot: snap, gate: gate, generation: token)
+            pendingTransition = (snap, controls[index], token, ProcessInfo.processInfo.systemUptime)
             // The next step observes the actual post-action state. No fixed sleep or duplicate read.
             return nil
         }
@@ -155,13 +167,25 @@ public final class Desktop {
         try gate.check(generation: generation)
         func arg(_ key: String) -> String { args[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" }
         switch name {
+        case "map_esto_es":
+            try await memory.prepare()
+            _ = try await observe()
+            return try await memory.teach(arg("sobre"), meaning: arg("significado"), snapshot: requireSnapshot())
+        case "map_recuerdos":
+            try await memory.prepare()
+            _ = try await observe()
+            return try await memory.describe(snapshot: requireSnapshot())
         case "map_where_am_i", "map_what_i_see", "read_screen":
             let state = try await observe()
             return "\(state.screen)\n\(state.uiContext)"
         case "map_click", "map_press", "map_take", "click_element", "map_go":
             let snap = try requireSnapshot()
             let query = arg("exit").isEmpty ? arg("label") : arg("exit")
+            let target = try TargetResolver.resolve(query, in: snap.controls.map(\.target))
             try await reader.press(query, snapshot: snap, gate: gate, generation: generation)
+            if let control = snap.controls.first(where: { $0.target.id == target.id }) {
+                pendingTransition = (snap, control, generation, ProcessInfo.processInfo.systemUptime)
+            }
         case "map_type", "set_value":
             let snap = try requireSnapshot()
             let query = !arg("target").isEmpty ? arg("target") : arg("exit").isEmpty ? arg("label") : arg("exit")

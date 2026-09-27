@@ -61,8 +61,11 @@ struct MainView: View {
             Picker("Sección", selection: $model.selectedTab) {
                 Text("Conversación").tag(0)
                 Text("Configuración").tag(1)
+                Text("Memoria").tag(2)
             }.pickerStyle(.segmented).padding(.horizontal, 20).padding(.bottom, 16)
-            if model.selectedTab == 0 { conversation } else { configuration }
+            if model.selectedTab == 0 { conversation }
+            else if model.selectedTab == 2 { MemoryView(memory: model.desktop.memory) }
+            else { configuration }
         }.frame(minWidth: 480, minHeight: 550)
     }
     var conversation: some View {
@@ -113,7 +116,7 @@ struct MainView: View {
                 TextField("Dirección de Graph", text: $model.graphURL).textFieldStyle(.roundedBorder)
                 SecureField(model.hasCredential ? "Nueva credencial (ya hay una guardada)" : "Credencial de Graph", text: $model.credential).textFieldStyle(.roundedBorder)
                 HStack {
-                    Button("Guardar") { model.saveConfiguration() }
+                    Button("Guardar") { Task { await model.saveConfiguration() } }
                     Button("Comprobar conexión") { model.checkConnection() }
                 }
                 if !model.configurationMessage.isEmpty { Text(model.configurationMessage).font(.caption).foregroundStyle(.secondary) }

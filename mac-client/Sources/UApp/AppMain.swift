@@ -10,7 +10,7 @@ final class FloatingPanel: NSPanel {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    let model = AppModel()
+    lazy var model = AppModel()
     var face: NSPanel!
     var window: NSWindow!
     var statusItem: NSStatusItem!
@@ -18,6 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var localKeys: Any?
     var observation: NSObjectProtocol?
     var highlight: NSPanel?
+    var notch: NSPanel!
+    var screenObservation: NSObjectProtocol?
     func applicationDidFinishLaunching(_ notification: Notification) {
         terminateOlderCopies()
         if let index = CommandLine.arguments.firstIndex(of: "--execution-test"), CommandLine.arguments.count > index + 1 {
@@ -29,13 +31,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
         if CommandLine.arguments.contains("--diagnose") {
+            Task {
             let permissions = model.permissions.snapshot
             let result: [String: Any] = ["accessibility": permissions.accessibility.isGranted, "screenCapture": permissions.screenCapture.isGranted,
                                        "microphone": permissions.microphone.isGranted, "speech": permissions.speech.isGranted,
                                        "bundleIdentifier": Bundle.main.bundleIdentifier ?? "", "bundlePath": Bundle.main.bundleURL.path,
-                                       "graphConfigured": Credentials.read("GRAPH_API_KEY") != nil, "architecture": "native-swift", "version": "0.1.0"]
+                                       "graphConfigured": await Credentials.read("GRAPH_API_KEY") != nil, "architecture": "native-swift", "version": "0.1.0"]
             if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]) { print(String(decoding: data, as: UTF8.self)) }
-            NSApp.terminate(nil); return
+            NSApp.terminate(nil)
+            }
+            return
         }
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 510, height: 630), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Ü para Mac"; window.isReleasedWhenClosed = false; window.delegate = self
@@ -47,6 +52,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         face.contentView = NSHostingView(rootView: Face(model: model))
         if let frame = NSScreen.main?.visibleFrame { face.setFrameOrigin(NSPoint(x: frame.maxX - 108, y: frame.minY + 95)) }
         face.orderFrontRegardless()
+        notch = FloatingPanel(contentRect: NSRect(x: 0, y: 0, width: 420, height: 66), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        notch.isOpaque = false; notch.backgroundColor = .clear; notch.hasShadow = false
+        notch.level = .floating; notch.hidesOnDeactivate = false
+        notch.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        notch.contentView = NSHostingView(rootView: NotchView(model: model))
+        positionNotch(); notch.orderFrontRegardless()
+        screenObservation = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.positionNotch() }
+        }
         model.showWindow = { [weak self] in self?.show() }
         model.hideWindow = { [weak self] in self?.window.orderOut(nil) }
         model.desktop.onHighlight = { [weak self] frame in self?.showHighlight(frame); self?.moveFace(beside: frame) }
@@ -100,8 +114,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let globalKeys { NSEvent.removeMonitor(globalKeys) }
         if let localKeys { NSEvent.removeMonitor(localKeys) }
         if let observation { NSWorkspace.shared.notificationCenter.removeObserver(observation) }
+        if let screenObservation { NotificationCenter.default.removeObserver(screenObservation) }
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+    private func positionNotch() {
+        guard let bounds = NSScreen.main?.visibleFrame else { return }
+        let width = min(420.0, bounds.width - 16), height = min(66.0, bounds.height)
+        notch.setFrame(NSRect(x: bounds.midX - width / 2, y: max(bounds.minY, bounds.maxY - height - 8), width: width, height: height), display: true)
+    }
     private func moveFace(beside quartzFrame: CGRect) {
         guard !window.isVisible else { return }
         let primaryHeight = CGDisplayBounds(CGMainDisplayID()).height

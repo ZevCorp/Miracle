@@ -33,6 +33,11 @@ struct ContractRunner {
         try tests.testLiveOneWireAndUTF8Limit()
         try tests.testJevClosedChoicesAndHandoff()
         try await tests.testJevHTTPDeadlineRetryAndCancellation()
-        print("PASS: 15 contracts, \(checks) assertions. No network, microphone or desktop access.")
+        try tests.testVoicePresentationAccumulatesReplyAndResetsAtNextTurn()
+        try tests.testPresentationKeepsTaskAndDistinguishesStop()
+        try tests.testMemoryNeverTurnsRememberedIntoLive()
+        try tests.testMemoryRoutesOnlyThroughObservedEdges()
+        try await tests.testMemoryPersistenceAndCorruptionAreExplicit()
+        print("PASS: 20 contracts, \(checks) assertions. No network, microphone or desktop access.")
     }
 }
