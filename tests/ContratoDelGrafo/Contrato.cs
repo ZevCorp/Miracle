@@ -13751,12 +13751,12 @@ internal static class Contrato
         int trasElPrimero = m.Lecturas;
         Pulsar(m, "Pantalla");
         Debe(m.Clics.Count == 2 && m.Clics[1].LecturasAlPulsar == trasElPrimero,
-            $"la lectura del ciclo anterior tenía menos de 2 s y se volvió a leer antes de pulsar ({m.Clics[1].LecturasAlPulsar} vs {trasElPrimero})");
+            $"la lectura del ciclo anterior tenía menos de 2 s y se volvió a leer antes de pulsar: clics {string.Join(" ", m.Clics)}, lecturas tras el primero {trasElPrimero}");
         int trasElSegundo = m.Lecturas;
         m.Reloj += 2500;
         Pulsar(m, "Sonido");
         Debe(m.Clics.Count == 3 && m.Clics[2].LecturasAlPulsar == trasElSegundo + 1,
-            $"con la última lectura de hace 2,5 s no se leyó UNA vez antes de pulsar ({m.Clics[2].LecturasAlPulsar} vs {trasElSegundo + 1})");
+            $"con la última lectura de hace 2,5 s no se leyó UNA vez antes de pulsar: clics {string.Join(" ", m.Clics)}, lecturas tras el segundo {trasElSegundo}");
 
         var nada = CicloCon(inicio);
         string? r = Pulsar(nada, "Bluetooth");
@@ -13772,11 +13772,17 @@ internal static class Contrato
         m.Freno = true;
         string r = Pulsar(m, "Sistema") ?? "(null)";
         Debe(m.Clics.Count == 0 && r.Contains("freno"), $"con el freno echado pulsó {m.Clics.Count} vez/veces y dijo «{r}»");
-        m.Freno = false;
-        Debe(Pulsar(m, "sap:wnd[0]/tbar[1]/btn[8]") == null && m.Clics.Count == 0, "un selector de SAP pasó por el ciclo rápido");
-        Debe(Pulsar(m, "uia:aid=SystemSettings_Display;ct=ListItem") == null && m.Clics.Count == 0, "un selector por AutomationId pasó por el ciclo rápido (la lectura rápida no trae AutomationId)");
-        Pulsar(m, "uia:name=Sistema;ct=ListItem");
-        Debe(m.Clics.Count == 1, "un selector por nombre y tipo no pasó por el ciclo rápido");
+        // Lo que no es suyo no le cuesta nada: ni un clic ni una lectura (cada chequeo con su ciclo, para que un fallo
+        // no arrastre a los siguientes).
+        var sap = CicloCon(p);
+        Debe(Pulsar(sap, "sap:wnd[0]/tbar[1]/btn[8]") == null && sap.Clics.Count == 0 && sap.Lecturas == 0,
+            $"un selector de SAP pasó por el ciclo rápido: {sap.Clics.Count} clic(s), {sap.Lecturas} lectura(s)");
+        var aid = CicloCon(p);
+        Debe(Pulsar(aid, "uia:aid=SystemSettings_Display;ct=ListItem") == null && aid.Clics.Count == 0 && aid.Lecturas == 0,
+            $"un selector por AutomationId pasó por el ciclo rápido (la lectura rápida no trae AutomationId): {aid.Clics.Count} clic(s), {aid.Lecturas} lectura(s)");
+        var nombre = CicloCon(p);
+        Pulsar(nombre, "uia:name=Sistema;ct=ListItem");
+        Debe(nombre.Clics.Count == 1, "un selector por nombre y tipo no pasó por el ciclo rápido");
     }
 
     private static void NadieLeeLaPantallaDeFondo()
