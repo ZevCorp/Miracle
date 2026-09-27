@@ -38,6 +38,7 @@ public static class ProtocoloVivo
         + "  «abre: <app>» abre una aplicación (notepad, configuración, explorador, calculadora, chrome, edge, paint) o una dirección que Windows sepa abrir —ms-settings:bluetooth, ms-settings:personalization-background, https://…—: es el camino más corto a una sección de Configuración.\n"
         + "  «escribe: <texto>» escribe el texto donde esté el foco.\n"
         + "  «tecla: <tecla>» pulsa una tecla o combinación: Enter, Escape, Tab, Ctrl+S, Alt+F4, F5.\n"
+        + "  Una dirección web va con «abre: https://…» y el texto a teclear con «escribe: <el texto exacto>»: nunca como objetivo. Tampoco «esperar» ni «escribir» son objetivos: el ejecutor solo pulsa.\n"
         + "  «desplaza: abajo|arriba [muescas]» mueve la rueda del ratón sobre la ventana de delante (5 muescas si no dices cuántas, máximo 20): para ver lo que queda fuera de la pantalla. Desplazar nunca es un objetivo; es siempre este paso.\n"
         + "  cualquier otra frase es un OBJETIVO en la pantalla («abrir el menú Archivo», «ir a Bluetooth y dispositivos»): "
         + "el ejecutor mira los botones que hay y pulsa hasta cumplirlo.\n"

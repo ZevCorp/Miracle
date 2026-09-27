@@ -23,6 +23,31 @@ public sealed class Ejecutor
     /// <summary>Cada paso en cuanto termina, para la burbuja y el log.</summary>
     public Action<string>? AlTerminarPaso { get; set; }
 
+    /// <summary>Esperar a que la pantalla se quede quieta, sin pulsar nada (promesa 467).</summary>
+    public Func<bool>? EsperarQuieta { get; set; }
+
+    private static readonly System.Text.RegularExpressions.Regex IrA = new(
+        @"^(?:abre|abrir|ir a|ve a|navega a|navegar a|entra a|entrar a|entra en|entrar en|visita|visitar)\s+(?:la (?:página|web|dirección)\s+)?(?<url>(?:https?://|www\.)\S+)\s*$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    private static readonly System.Text.RegularExpressions.Regex SoloDireccion = new(@"^(?<url>(?:https?://|www\.)\S+)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// LO QUE NO ES UN CLIC, DICHO COMO GESTO (promesa 467). Luna a veces pide como objetivo lo que Jev no puede hacer
+    /// pulsando: «ir a https://…», «abre https://…» sin los dos puntos, «objetivo: …». Cada uno costó 3-8 clics en la
+    /// barra de direcciones (rondas del 2026-09-26). Una instrucción a Luna se puede ignorar; esto no. Solo se toca un
+    /// paso cuyo QUÉ es la dirección: «pulsar el enlace “Ver en https://…”» sigue siendo un objetivo.
+    /// </summary>
+    public static string Normalizar(string paso)
+    {
+        var p = (paso ?? "").Trim();
+        if (p.StartsWith("objetivo:", StringComparison.OrdinalIgnoreCase)) p = p[9..].Trim();
+        var m = IrA.Match(p);
+        if (!m.Success) m = SoloDireccion.Match(p);
+        if (!m.Success) return p;
+        string url = m.Groups["url"].Value.TrimEnd('.', ',', ';');
+        return "abre: " + (url.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? "https://" + url : url);
+    }
+
     /// <summary>La rueda del ratón, en muescas: negativas hacia abajo (promesa 462). Sin ella, «desplaza:» falla y lo dice.</summary>
     public Func<int, bool>? Desplazar { get; set; }
 
@@ -53,10 +78,11 @@ public sealed class Ejecutor
         var hecho = new List<string>();     // lo que se hizo, en la voz de quien lo cuenta: viaja a Jev
         var detalle = new List<string>();
 
-        foreach (var paso in pasos)
+        foreach (var pedido in pasos)
         {
-            if (_hayQueParar()) { detalle.Add("Escape: paré antes de «" + paso + "»"); break; }
+            if (_hayQueParar()) { detalle.Add("Escape: paré antes de «" + pedido + "»"); break; }
 
+            string paso = Normalizar(pedido);
             bool ok; string linea;
             if (Prefijo(paso, "abre:", out var app))
             {
@@ -82,6 +108,18 @@ public sealed class Ejecutor
                       : Desplazar == null ? "no sé desplazar aquí"
                       : ok ? $"desplacé {Math.Abs(muescas.Value)} muesca(s) hacia {(muescas < 0 ? "abajo" : "arriba")}"
                       : $"no pude desplazar «{hacia}»";
+            }
+            else if (EmpiezaPor(paso, "esperar", "espera "))
+            {
+                // Esperar no se hace pulsando: «Navegador» pulsado 6 veces esperando a Google Scholar (2026-09-26).
+                ok = EsperarQuieta != null && EsperarQuieta();
+                linea = ok ? "esperé a que la pantalla se quedara quieta" : "no sé esperar aquí";
+            }
+            else if (EmpiezaPor(paso, "escribir", "escribe ", "teclear", "redactar"))
+            {
+                // Sin el texto exacto no hay nada que teclear, y Jev pulsaba el editor una y otra vez (19:15).
+                ok = false;
+                linea = $"«{paso}» no es un clic: para teclear, un paso «escribe: <el texto exacto>»";
             }
             else
             {
@@ -114,6 +152,9 @@ public sealed class Ejecutor
     /// «*prue», «*prueb»: Luna creía que faltaba texto y lo volvía a escribir (rondas del 2026-09-25, 02:21 y 05:34).
     /// </summary>
     public static int EsperaTrasEscribir(string texto) => Math.Min(1500, 150 + 15 * (texto ?? "").Length);
+
+    private static bool EmpiezaPor(string paso, params string[] inicios) =>
+        inicios.Any(i => (paso ?? "").TrimStart().StartsWith(i, StringComparison.OrdinalIgnoreCase));
 
     private static bool Prefijo(string paso, string prefijo, out string resto)
     {

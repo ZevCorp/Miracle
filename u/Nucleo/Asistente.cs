@@ -66,7 +66,7 @@ public sealed class Asistente : IDisposable
             PulsarTeclaYEsperar,
             (objetivo, hecho) => motor.Objetivo(objetivo, MaxPasosPorObjetivo, hecho),
             HayQueParar)
-        { AlTerminarPaso = l => Log("   " + l), Desplazar = DesplazarYEsperar };
+        { AlTerminarPaso = l => Log("   " + l), Desplazar = DesplazarYEsperar, EsperarQuieta = EsperarQuieta };
         var r = ejecutor.Ejecutar(pasos);
         Log("↩ " + r.Resultado.Resumen);
         return r.Relato() + "\n\nAhora:\n" + Mirar();
@@ -124,6 +124,15 @@ public sealed class Asistente : IDisposable
         Raton.Desplazar((r.L + r.R) / 2, (r.T + r.B) / 2, muescas);
         var a = Asentado.Esperar(() => _lector.Leer(v).Huella, antes, Asentado.TechoMs, () => reloj.ElapsedMilliseconds);
         Log($"   desplazar {muescas}: {(a.Cambio ? "la pantalla cambió" : "la pantalla no cambió")} en {a.Ms} ms");
+        return true;
+    }
+
+    /// <summary>«esperar…» (promesa 467): hasta que dos lecturas seguidas sean iguales, con techo de 3 s. No pulsa nada.</summary>
+    private bool EsperarQuieta()
+    {
+        var reloj = Stopwatch.StartNew();
+        var q = Asentado.Quieta(() => _lector.Leer(Donde.Ahora()?.Ventana ?? IntPtr.Zero), 3000, () => reloj.ElapsedMilliseconds);
+        Log($"   esperar: {(q.Cambio ? "quieta" : "todavía moviéndose")} en {q.Ms} ms ({q.Lecturas} lecturas)");
         return true;
     }
 
