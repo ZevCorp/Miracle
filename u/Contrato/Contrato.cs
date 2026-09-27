@@ -55,7 +55,8 @@ internal static class Contrato
         Promesa(458, "Mirar dice lo que contienen los campos de texto, recortado a 80 caracteres: Luna comprueba lo que escribió en vez de adivinarlo por el título.", P458);
         Promesa(459, "Tras «escribe:» se espera a que la app termine de teclearlo —la pantalla quieta—, con un techo de 150 ms más 15 por carácter y nunca más de 1,5 s.", P459);
         Promesa(460, "Escribir manda las letras de una en una, con al menos 3 ms entre ellas: de un solo lote, el Bloc de notas cambiaba letras por otras.", P460);
-        Promesa(469, "Abrir llega también cuando la ventana de delante es la misma pero cambia su título: una dirección abierta con el navegador delante abre una pestaña en esa misma ventana. Si no cambia ni la ventana ni el título, no llegó.", P469);
+        Promesa(470, "Abrir una app que ya está delante llega: si tras abrirla la ventana de delante es de la app pedida —por su proceso, y en las de la tienda también por su título—, cuenta como abierta; y si ya estaba delante antes de abrirla, se esperan 700 ms a que cambie, no 3 s.", P470);
+        Promesa(469,"Abrir llega también cuando la ventana de delante es la misma pero cambia su título: una dirección abierta con el navegador delante abre una pestaña en esa misma ventana. Si no cambia ni la ventana ni el título, no llegó.", P469);
         Promesa(468,"Luna sabe cuánto lleva: cada resultado que recibe dice el tiempo que va del pedido, y sabe que si la persona pide una duración tiene que seguir hasta cumplirla.", P468);
         Promesa(467,"Lo que no es un clic no se le pide a Jev: un paso con una dirección web se abre como «abre:», un «objetivo:» delante sobra, «esperar…» espera a que la pantalla se quede quieta sin pulsar, y «escribir…» sin texto exacto falla al instante pidiendo «escribe:»; y Luna lo sabe.", P467);
         Promesa(466,"Jev reintenta la conexión igual que Luna: si no llega a abrirse lo intenta hasta 3 veces, y si no se abre falla diciendo la causa y cuántas veces lo intentó; lo que ya salió hacia Jev no se reintenta.", P466);
@@ -739,6 +740,22 @@ internal static class Contrato
         var prop = T("Raton").GetProperty("PausaEntreLetrasMs") ?? throw new Pendiente("Raton.PausaEntreLetrasMs");
         int pausa = (int)prop.GetValue(null)!;
         Exige(pausa >= 3, $"la pausa entre letras por defecto es {pausa} ms; sin pausa se corrompía 1 de cada 4 veces");
+    }
+
+    private static void P470()
+    {
+        // Ronda libre L2 (2026-09-26, 20:30-20:32): «no pude abrir notepad», «no pude abrir ms-settings:bluetooth»,
+        // «…configuración», «…ms-settings:»: la app ya estaba delante, abrirla no cambió ni la ventana ni el título, y
+        // cada intento costó 3 s y un turno de Luna.
+        bool Es(string pedida, string proceso, string titulo) => (bool)S("Apps", "EsLaPedida", pedida, proceso, titulo)!;
+        Exige(Es("notepad", "Notepad", "Sin título - Bloc de notas") && Es("bloc de notas", "notepad", "frutas.txt - Bloc de notas"), "el Bloc de notas delante no se reconoce como el pedido");
+        Exige(Es("ms-settings:bluetooth", "ApplicationFrameHost", "Configuración") && Es("configuración", "SystemSettings", "Configuración"), "Configuración delante no se reconoce como la pedida");
+        Exige(!Es("calculadora", "ApplicationFrameHost", "Configuración"), "Configuración se tomó por la Calculadora: las dos viven en ApplicationFrameHost");
+        Exige(Es("calculadora", "ApplicationFrameHost", "Calculadora"), "la Calculadora delante no se reconoce");
+        Exige(Es("https://es.wikipedia.org/wiki/Marte", "chrome", "Marte - Wikipedia") && Es("chrome", "chrome", "Nueva pestaña"), "el navegador delante no se reconoce para una dirección");
+        Exige(!Es("notepad", "chrome", "Bloc de notas - Google Chrome"), "Chrome con «Bloc de notas» en el título se tomó por el Bloc de notas");
+        Exige(!Es("paint", "Notepad", "Sin título"), "una app que no es la pedida contó como abierta");
+        Exige((int)S("Apps", "Techo", true)! == 700 && (int)S("Apps", "Techo", false)! == 3000, "no se esperan 700 ms cuando ya estaba delante y 3 s cuando no");
     }
 
     private static void P469()
