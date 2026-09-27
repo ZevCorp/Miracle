@@ -877,6 +877,10 @@ internal static class Contrato
         Prueba("480. abrir encuentra lo ya abierto también por lo que ES, no solo por cómo se llama su proceso: «ms-settings:» y «configuración» encuentran la ventana de ApplicationFrameHost titulada «Configuración» (Apps.EsLaPedida)", AbrirEncuentraPorLoQueEs);
         Prueba("481. si la ventana de lo pedido ya es la de delante, abrir contesta que ya estás sin esperar a que algo cambie, y esa ventana pasa a ser la de trabajo", AbrirLoQueYaEstaDelanteNoEspera);
         Prueba("483. escribir sin decir dónde espera a un foco que ACEPTE texto, no a uno que se llame Edit: en cuanto lo hay —también el Document del Bloc de notas de Windows 11— escribe sin esperar más, y el techo de 1,5 s es solo para cuando aún no hay dónde", EscribirNoEsperaAUnEdit);
+        Prueba("485. un clic por nombre va por el ciclo rápido: si lo pedido es UN elemento visible de la lectura, pulsa en su centro, espera como u/ (sale al primer cambio de la huella; techo 150 ms, 1,5 s tras un enlace) y contesta lo que pulsó, si cambió, y lo que se ve DESPUÉS —accionables y textos— con la lectura de esa misma espera, marcado EN PANTALLA AHORA para que nadie vuelva a leer", ElCicloRapidoPulsaYContestaConLoQueVe);
+        Prueba("486. homónimos sin which: la lista 1..N en orden de lectura con su tipo, sin pulsar; con which=N pulsa ese y solo ese", ElCicloRapidoNumeraLosHomonimos);
+        Prueba("487. antes de pulsar el ciclo lee como mucho UNA vez, y ninguna si la última lectura de esa ventana tiene menos de 2 s; lo que no está se busca en UNA lectura nueva, y si tampoco está, el ciclo no se encarga y decide el camino de siempre", ElCicloRapidoNoLeeDeMas);
+        Prueba("488. con el freno echado no pulsa y lo dice; SAP y los selectores que no van por nombre no pasan por el ciclo rápido", ElCicloRapidoRespetaElFrenoYSap);
         Prueba("484. desplazar comprueba la consecuencia en cuanto la hay: sale al primer cambio del porcentaje en vez de dormir 350 ms fijos, y sin cambio agota el mismo techo antes de decir que no se movió", DesplazarNoDuermeFijo);
         Prueba("482. lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12", LanzarUnProtocoloEsperaALaVentanaDeDelante);
         Console.WriteLine();
@@ -13661,6 +13665,116 @@ internal static class Contrato
         Debe(llamada.Success, "escribir ya no espera al foco con EsperarFocoQueAcepteTexto");
         Debe(llamada.Success && llamada.Value.Contains("AceptaTexto(") && !llamada.Value.Contains("ControlType.Edit"),
             $"la espera del foco no pregunta con UiaSurface.AceptaTexto, o sigue preguntando por un Edit por su nombre: «{llamada.Value}»");
+    }
+
+    // ── Spec 054: el ciclo de u/ dentro de map_take ──────────────────────────────────────────────────────────
+    // LÍNEA BASE DEL 2026-09-27: un ciclo (clic + volver a ver) costaba en la rama 2.268 ms de mediana y en u/ 502,
+    // con el clic igual (76 vs 61 ms): el resto era compuerta de vivo, ubicaciones, un asentado largo y OTRA lectura
+    // entera al final.
+
+    private sealed class CicloDeMentira
+    {
+        public readonly List<U.Ciclo.Lectura> Guion = new();
+        public int Siguiente, Lecturas;
+        public long Reloj;
+        public readonly List<(int X, int Y, int LecturasAlPulsar)> Clics = new();
+        public bool Freno;
+        public object Ciclo = null!;
+    }
+
+    private static Type? CicloRapidoT() => typeof(PulsarSegunElNucleo).Assembly.GetType("U.WindowsClient.Navigation.CicloRapido");
+
+    private static U.Ciclo.Lectura Pantalla(string[] textos, params (string Nombre, string Tipo, int X, int Y)[] e) =>
+        new U.Ciclo.Lectura(Lectura(e), textos);
+
+    /// <summary>Un ciclo de mentira: cada lectura cuesta 40 ms de su reloj y devuelve el guion en orden (la última se repite).</summary>
+    private static CicloDeMentira CicloCon(params U.Ciclo.Lectura[] guion)
+    {
+        var m = new CicloDeMentira();
+        m.Guion.AddRange(guion);
+        Func<IntPtr> ventana = () => (IntPtr)5;
+        Func<IntPtr, U.Ciclo.Lectura> leer = _ => { m.Reloj += 40; m.Lecturas++; return m.Guion[Math.Min(m.Siguiente++, m.Guion.Count - 1)]; };
+        Action<int, int> clic = (x, y) => m.Clics.Add((x, y, m.Lecturas));
+        Func<bool> freno = () => m.Freno;
+        Func<long> reloj = () => m.Reloj;
+        m.Ciclo = Activator.CreateInstance(CicloRapidoT()!, ventana, leer, clic, freno, reloj)!;
+        return m;
+    }
+
+    private static string? Pulsar(CicloDeMentira m, string exit, int cual = 0) =>
+        (string?)m.Ciclo.GetType().GetMethod("Pulsar")!.Invoke(m.Ciclo, new object[] { exit, cual });
+
+    private static void ElCicloRapidoPulsaYContestaConLoQueVe()
+    {
+        if (CicloRapidoT() == null) { Pendiente("Navigation.CicloRapido (el ciclo de u/ en map_take)", "485", "054"); return; }
+        var inicio = Pantalla(new[] { "Inicio" }, ("Sistema", "ListItem", 200, 300), ("Inicio", "ListItem", 200, 260));
+        var sistema = Pantalla(new[] { "Resolución 1920 × 1080" }, ("Pantalla", "ListItem", 200, 300), ("Sonido", "ListItem", 200, 340));
+        var m = CicloCon(inicio, inicio, sistema);
+        string r = Pulsar(m, "Sistema") ?? "(null)";
+        Debe(m.Clics.Count == 1 && m.Clics[0].X == 250 && m.Clics[0].Y == 315, $"no pulsó «Sistema» en su centro: {string.Join(" ", m.Clics)}");
+        Debe(r.Contains("«Sistema»") && r.Contains("cambió") && !r.Contains("no cambió"), $"no dijo que pulsó y que cambió: «{r}»");
+        Debe(r.Contains("EN PANTALLA AHORA") && r.Contains("«Pantalla» (ListItem)") && r.Contains("Resolución 1920 × 1080"),
+            $"no contestó con lo que se ve DESPUÉS, accionables y textos: «{r}»");
+        Debe(m.Lecturas == 3, $"leyó {m.Lecturas} veces: una antes y las de la espera hasta el cambio (3), ni una más");
+
+        var quieta = CicloCon(inicio);
+        string r2 = Pulsar(quieta, "Sistema") ?? "(null)";
+        Debe(r2.Contains("no cambió") && quieta.Reloj >= 150 && quieta.Reloj < 400, $"sin cambio: dijo «{r2}» a los {quieta.Reloj} ms (techo 150)");
+
+        var enlace = CicloCon(Pantalla(Array.Empty<string>(), ("Ver más", "Hyperlink", 100, 100)));
+        Pulsar(enlace, "Ver más");
+        Debe(enlace.Reloj >= 1500 && enlace.Reloj < 1800, $"tras un enlace la espera llegó a {enlace.Reloj} ms (techo 1,5 s)");
+    }
+
+    private static void ElCicloRapidoNumeraLosHomonimos()
+    {
+        if (CicloRapidoT() == null) { Pendiente("Navigation.CicloRapido (el ciclo de u/ en map_take)", "486", "054"); return; }
+        var p = Pantalla(Array.Empty<string>(), ("Buscar", "Button", 50, 20), ("Buscar", "Edit", 600, 20), ("Sistema", "ListItem", 200, 300));
+        var m = CicloCon(p);
+        string r = Pulsar(m, "Buscar") ?? "(null)";
+        Debe(m.Clics.Count == 0 && r.Contains("1)") && r.Contains("2)") && r.Contains("Button") && r.Contains("Edit"),
+            $"con dos «Buscar» y sin which: pulsó {m.Clics.Count} vez/veces y dijo «{r}»");
+        Pulsar(m, "Buscar", 2);
+        Debe(m.Clics.Count == 1 && m.Clics[0].X == 650 && m.Clics[0].Y == 35, $"con which=2 no pulsó el segundo «Buscar»: {string.Join(" ", m.Clics)}");
+    }
+
+    private static void ElCicloRapidoNoLeeDeMas()
+    {
+        if (CicloRapidoT() == null) { Pendiente("Navigation.CicloRapido (el ciclo de u/ en map_take)", "487", "054"); return; }
+        var inicio = Pantalla(Array.Empty<string>(), ("Sistema", "ListItem", 200, 300));
+        var sistema = Pantalla(Array.Empty<string>(), ("Pantalla", "ListItem", 200, 300), ("Sonido", "ListItem", 200, 340));
+        var pantalla = Pantalla(Array.Empty<string>(), ("Brillo", "Slider", 200, 300), ("Sonido", "ListItem", 200, 340));
+        var m = CicloCon(inicio, sistema, pantalla);
+        Pulsar(m, "Sistema");
+        int trasElPrimero = m.Lecturas;
+        Pulsar(m, "Pantalla");
+        Debe(m.Clics.Count == 2 && m.Clics[1].LecturasAlPulsar == trasElPrimero,
+            $"la lectura del ciclo anterior tenía menos de 2 s y se volvió a leer antes de pulsar ({m.Clics[1].LecturasAlPulsar} vs {trasElPrimero})");
+        int trasElSegundo = m.Lecturas;
+        m.Reloj += 2500;
+        Pulsar(m, "Sonido");
+        Debe(m.Clics.Count == 3 && m.Clics[2].LecturasAlPulsar == trasElSegundo + 1,
+            $"con la última lectura de hace 2,5 s no se leyó UNA vez antes de pulsar ({m.Clics[2].LecturasAlPulsar} vs {trasElSegundo + 1})");
+
+        var nada = CicloCon(inicio);
+        string? r = Pulsar(nada, "Bluetooth");
+        Debe(r == null && nada.Clics.Count == 0 && nada.Lecturas == 2,
+            $"lo que no está: devolvió «{r}», pulsó {nada.Clics.Count} y leyó {nada.Lecturas} veces (una y una más, y el camino de siempre)");
+    }
+
+    private static void ElCicloRapidoRespetaElFrenoYSap()
+    {
+        if (CicloRapidoT() == null) { Pendiente("Navigation.CicloRapido (el ciclo de u/ en map_take)", "488", "054"); return; }
+        var p = Pantalla(Array.Empty<string>(), ("Sistema", "ListItem", 200, 300));
+        var m = CicloCon(p);
+        m.Freno = true;
+        string r = Pulsar(m, "Sistema") ?? "(null)";
+        Debe(m.Clics.Count == 0 && r.Contains("freno"), $"con el freno echado pulsó {m.Clics.Count} vez/veces y dijo «{r}»");
+        m.Freno = false;
+        Debe(Pulsar(m, "sap:wnd[0]/tbar[1]/btn[8]") == null && m.Clics.Count == 0, "un selector de SAP pasó por el ciclo rápido");
+        Debe(Pulsar(m, "uia:aid=SystemSettings_Display;ct=ListItem") == null && m.Clics.Count == 0, "un selector por AutomationId pasó por el ciclo rápido (la lectura rápida no trae AutomationId)");
+        Pulsar(m, "uia:name=Sistema;ct=ListItem");
+        Debe(m.Clics.Count == 1, "un selector por nombre y tipo no pasó por el ciclo rápido");
     }
 
     private static void DesplazarNoDuermeFijo()
