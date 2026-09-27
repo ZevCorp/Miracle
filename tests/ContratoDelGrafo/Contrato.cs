@@ -882,6 +882,7 @@ internal static class Contrato
         Prueba("487. antes de pulsar el ciclo lee como mucho UNA vez, y ninguna si la última lectura de esa ventana tiene menos de 2 s; lo que no está se busca en UNA lectura nueva, y si tampoco está, el ciclo no se encarga y decide el camino de siempre", ElCicloRapidoNoLeeDeMas);
         Prueba("488. con el freno echado no pulsa y lo dice; SAP y los selectores que no van por nombre no pasan por el ciclo rápido", ElCicloRapidoRespetaElFrenoYSap);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
+        Prueba("490. leer la pantalla y saber dónde estoy tienen plazo: si la app no contesta, se sigue sin esa respuesta y se dice, en vez de congelar U; lo que llega tarde no pisa lo que ya se contestó", LeerYUbicarseTienenPlazo);
         Prueba("484. desplazar comprueba la consecuencia en cuanto la hay: sale al primer cambio del porcentaje en vez de dormir 350 ms fijos, y sin cambio agota el mismo techo antes de decir que no se movió", DesplazarNoDuermeFijo);
         Prueba("482. lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12", LanzarUnProtocoloEsperaALaVentanaDeDelante);
         Console.WriteLine();
@@ -13795,6 +13796,32 @@ internal static class Contrato
         string c = File.ReadAllText(cara);
         Debe(!System.Text.RegularExpressions.Regex.IsMatch(c, @"^\s*RastroDelCursor\.Arrancar\(\);", System.Text.RegularExpressions.RegexOptions.Multiline),
             "el rastro del cursor sigue arrancando con la cara");
+    }
+
+    private static void LeerYUbicarseTienenPlazo()
+    {
+        // MEDIDO EL 2026-09-27: el Explorador tardó 252.579 ms en contestar UNA lectura del lector viejo, que no tiene
+        // plazo (System.Windows.Automation no lo admite). U entero se quedó esperando: abrir la Calculadora «tardó» 350 s.
+        var t = typeof(PulsarSegunElNucleo).Assembly.GetType("U.WindowsClient.Uia.Plazo");
+        var con = t?.GetMethods().FirstOrDefault(m => m.Name == "Con" && m.IsGenericMethodDefinition)?.MakeGenericMethod(typeof(int));
+        if (con == null) { Pendiente("Uia.Plazo.Con (leer con plazo)", "490", "054"); return; }
+        object?[] a = { (Func<int>)(() => { Thread.Sleep(2000); return 7; }), 200, null };
+        var crono = System.Diagnostics.Stopwatch.StartNew();
+        bool aTiempo = (bool)con.Invoke(null, a)!;
+        Debe(!aTiempo && crono.ElapsedMilliseconds < 450, $"una app que no contesta en 200 ms se esperó {crono.ElapsedMilliseconds} ms (a tiempo={aTiempo})");
+        object?[] b = { (Func<int>)(() => 7), 200, null };
+        Debe((bool)con.Invoke(null, b)! && (int)b[2]! == 7, "lo que contesta a tiempo no llegó con su valor");
+        object?[] c = { (Func<int>)(() => throw new InvalidOperationException("sin proveedor")), 200, null };
+        bool lanzo = false;
+        try { con.Invoke(null, c); } catch (TargetInvocationException e) when (e.InnerException is InvalidOperationException) { lanzo = true; }
+        Debe(lanzo, "un fallo dentro del plazo se tragó en vez de subir con su causa (aprendizaje nº3)");
+
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string lector = Path.Combine(repo, "windows-client", "src", "Uia", "UiaReader.cs");
+        string donde = Path.Combine(repo, "windows-client", "src", "Uia", "SurfaceLocator.cs");
+        if (!File.Exists(lector) || !File.Exists(donde)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        Debe(File.ReadAllText(lector).Contains("Plazo.Con("), "UiaReader.Read sigue leyendo sin plazo");
+        Debe(File.ReadAllText(donde).Contains("Plazo.Con("), "SurfaceLocator sigue ubicándose sin plazo");
     }
 
     private static void DesplazarNoDuermeFijo()
