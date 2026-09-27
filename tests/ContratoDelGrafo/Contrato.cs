@@ -13656,8 +13656,10 @@ internal static class Contrato
         string archivo = Path.Combine(Environment.GetEnvironmentVariable("U_REPO") ?? "", "windows-client", "src", "Mcp", "SurfaceMapTools.cs");
         if (!File.Exists(archivo)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la última parte: sin U_REPO no hay fuentes que mirar."); return; }
         string fuente = File.ReadAllText(archivo);
-        Debe(!fuente.Contains("ControlType == System.Windows.Automation.ControlType.Edit) break;"),
-            "la espera del foco sigue preguntando por un Edit por su nombre");
+        var llamada = System.Text.RegularExpressions.Regex.Match(fuente, @"EsperarFocoQueAcepteTexto\(\(\) =>[\s\S]{0,400}?\}, \d+\)");
+        Debe(llamada.Success, "escribir ya no espera al foco con EsperarFocoQueAcepteTexto");
+        Debe(llamada.Success && llamada.Value.Contains("AceptaTexto(") && !llamada.Value.Contains("ControlType.Edit"),
+            $"la espera del foco no pregunta con UiaSurface.AceptaTexto, o sigue preguntando por un Edit por su nombre: «{llamada.Value}»");
     }
 
     private static void LanzarUnProtocoloEsperaALaVentanaDeDelante()

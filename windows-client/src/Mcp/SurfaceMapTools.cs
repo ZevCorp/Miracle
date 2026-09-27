@@ -2718,16 +2718,14 @@ public sealed class SurfaceMapTools
             // carpeta recién creada— tarda un instante en aparecer, y desde que las acciones son
             // rápidas se llegaba aquí antes que ella: se respondía «no hay ningún campo con el
             // foco» y la carpeta se quedaba como «Nueva carpeta» (2026-08-03).
-            for (int i = 0; i < 30; i++)
+            // Se espera a un foco que ACEPTE texto, con la misma regla que decide si se escribe (promesa 483). Se
+            // preguntaba si se llamaba Edit, y el editor del Bloc de notas de Windows 11 es un Document: cada map_type
+            // allí agotaba el techo, 2,2-2,4 s con 4 letras y con 300 (2026-09-27).
+            EsperarFocoQueAcepteTexto(() =>
             {
-                try
-                {
-                    var f = System.Windows.Automation.AutomationElement.FocusedElement;
-                    if (f != null && f.Current.ControlType == System.Windows.Automation.ControlType.Edit) break;
-                }
-                catch { }
-                System.Threading.Thread.Sleep(50);   // se sondea fino: se sale en cuanto aparece
-            }
+                var f = System.Windows.Automation.AutomationElement.FocusedElement;
+                return f != null && U.Graph.Surfaces.UiaSurface.AceptaTexto(f);
+            }, 1500);
 
             // El campo con el foco: es donde una persona escribiría sin pensarlo. Pero SOLO si de
             // verdad es un campo. Sin esta comprobación, cuando la edición en línea no llegaba a
@@ -2818,6 +2816,22 @@ public sealed class SurfaceMapTools
 
         LogBus.Log("mapa-mcp", $"✓ escrito «{texto}» en {selector}");
         return RelatoDeEscribir(texto, antes, ahora);
+    }
+
+    /// <summary>
+    /// Espera, con reloj, a que el foco acepte texto (promesa 483). true en cuanto lo acepta; false al agotar el techo.
+    /// Un fallo de UIA al preguntar cuenta como «todavía no» y se vuelve a mirar: el foco está cambiando justo entonces.
+    /// </summary>
+    public static bool EsperarFocoQueAcepteTexto(Func<bool> focoAcepta, int techoMs)
+    {
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
+        {
+            try { if (focoAcepta()) return true; }
+            catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or System.Runtime.InteropServices.COMException) { }
+            if (reloj.ElapsedMilliseconds >= techoMs) return false;
+            System.Threading.Thread.Sleep(25);
+        }
     }
 
     /// <summary>
