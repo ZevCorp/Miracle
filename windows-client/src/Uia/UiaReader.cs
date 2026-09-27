@@ -61,6 +61,26 @@ public sealed class UiaReader
     /// </summary>
     public ScreenState Read(IntPtr hwnd)
     {
+        // CON PLAZO (promesa 490): una app que no contesta no congela U. Lo que llega tarde no pisa lo contestado:
+        // la lectura se hace sobre un lector aparte y solo se copia aquí si llegó a tiempo.
+        var aparte = new UiaReader();
+        if (Plazo.Con(() => aparte.LeerSinPlazo(hwnd), PlazoMs, out var hecho) && hecho != null)
+        {
+            Elements = aparte.Elements; ForegroundProcess = aparte.ForegroundProcess; ComoLeyo = aparte.ComoLeyo;
+            return hecho;
+        }
+        string proc = hwnd == IntPtr.Zero ? "" : ProcessName(hwnd);
+        Diagnostics.LogBus.Log("lector", $"«{proc}» no contestó en {PlazoMs} ms: sigo sin su lectura");
+        Elements = Array.Empty<UiElement>(); ForegroundProcess = proc; ComoLeyo = $"sin lectura: no contestó en {PlazoMs} ms";
+        return new ScreenState { Width = GetSystemMetrics(SM_CXSCREEN), Height = GetSystemMetrics(SM_CYSCREEN), Screen = proc,
+                                 UiContext = $"«{proc}» no contestó a tiempo: no sé qué hay en pantalla." };
+    }
+
+    /// <summary>Cuánto se espera a que una app conteste una lectura (promesa 490). El lector de u/ usa 3 s de transacción.</summary>
+    public const int PlazoMs = 3000;
+
+    private ScreenState LeerSinPlazo(IntPtr hwnd)
+    {
         var state = new ScreenState
         {
             Width = GetSystemMetrics(SM_CXSCREEN),
