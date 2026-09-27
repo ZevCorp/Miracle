@@ -149,14 +149,18 @@ public sealed class LectorUia : IDisposable
     /// Escribe de una vez en la barra de direcciones del navegador (ValuePattern.SetValue, como escribe main): sin
     /// teclear letra a letra —~16 ms por letra— ni tocar el portapapeles. Devuelve si la encontró y escribió.
     /// </summary>
+    /// <summary>¿Es la barra de direcciones? Sin espacios sobrantes: Chrome la llama «Barra de direcciones y de búsqueda ».</summary>
+    public static bool EsLaBarra(string nombre) => NombresDeLaBarra.Contains((nombre ?? "").Trim());
+
     public bool EscribirEnLaBarra(IntPtr ventana, string texto) => EnElHilo(() =>
     {
         try
         {
-            var nombre = _uia.CreateOrConditionFromArray(NombresDeLaBarra.Select(n => _uia.CreatePropertyCondition(PropNombre, n)).ToArray());
-            var cond = _uia.CreateAndCondition(_uia.CreatePropertyCondition(PropTipo, 50004), nombre);
-            var barra = _uia.ElementFromHandle(ventana).FindFirst(TreeScope.TreeScope_Descendants, cond);
-            if (barra?.GetCurrentPattern(10002 /* ValuePattern */) is not IUIAutomationValuePattern valor) return false;
+            // El PRIMER campo de texto de la ventana, que en Chrome y Edge es la barra: 9 ms (sonda del 2026-09-26).
+            // Por nombre exacto no se encontraba —lleva un espacio al final—; se comprueba después, sin espacios.
+            var barra = _uia.ElementFromHandle(ventana).FindFirst(TreeScope.TreeScope_Descendants, _uia.CreatePropertyCondition(PropTipo, 50004));
+            if (barra == null || !EsLaBarra(barra.CurrentName)) return false;
+            if (barra.GetCurrentPattern(10002 /* ValuePattern */) is not IUIAutomationValuePattern valor) return false;
             valor.SetValue(texto);
             return true;
         }
