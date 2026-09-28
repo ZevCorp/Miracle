@@ -1168,10 +1168,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         }
 
         // EL SERVIDOR MCP DE VERDAD (F2 del plan de batch): la puerta por la que el Agent SDK —o
-        // cualquier cliente MCP genérico— conduce el terreno. El catálogo es EL MISMO de la voz,
-        // filtrado a lo que el mapa despacha, más map_batch (que la voz aún no usa; F4 unifica);
+        // cualquier cliente MCP genérico— conduce el terreno. El catálogo es el DEL PILOTO: el de la voz
+        // más «decir» y «recuerdo» para comprobar (promesa 500), filtrado a lo que el mapa despacha, más map_batch (que la voz aún no usa; F4 unifica);
         // el despacho es el MISMO LocalMcp: mismas manos, mismos vetos, mismo freno.
-        var catalogoMcp = Voice.ConversacionEnVivo.Herramientas()
+        var catalogoMcp = Voice.ConversacionEnVivo.HerramientasDelPiloto()
             .Where(u => SurfaceMapTools.IsMapTool(u.Nombre))
             .Append(new Voz.Realtime.Utensilio("map_batch",
                 "RECORRE VARIOS PASOS DE UNA SOLA LLAMADA sobre el mapa del computador, con una "

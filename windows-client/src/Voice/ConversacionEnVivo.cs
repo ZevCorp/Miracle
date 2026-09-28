@@ -978,13 +978,19 @@ public sealed class ConversacionEnVivo : IDisposable
     // mapa despacha) para que una pregunta se responda en un solo sitio — dos catálogos del mismo
     // terreno se desincronizan en silencio. La unificación completa (que la voz y el MCP compartan
     // también map_batch) es la F4 del plan de batch.
-    internal static IReadOnlyList<Utensilio> Herramientas()
-    {
-        var todas = Catalogo();
+    internal static IReadOnlyList<Utensilio> Herramientas() => ConElDecisor(Catalogo(conCoreografia: false));
+
+    /// <summary>
+    /// EL CATÁLOGO DEL PILOTO (promesa 500): el de la voz, más «decir» y «recuerdo» en map_take y map_type, que la mano
+    /// del piloto lleva al comprobar una lección (191). Lo sirve el MCP, que es por donde entran sus manos. La voz NO los
+    /// tiene: el esquema era la invitación, y el modelo los mandaba en casi cada clic (2026-09-28).
+    /// </summary>
+    internal static IReadOnlyList<Utensilio> HerramientasDelPiloto() => ConElDecisor(Catalogo(conCoreografia: true));
+
+    private static IReadOnlyList<Utensilio> ConElDecisor(IReadOnlyList<Utensilio> todas) =>
         // CON EL DECISOR APAGADO EL CATÁLOGO QUEDA BYTE A BYTE COMO HOY (promesa 284): no se le ofrece a
         // Luna una herramienta que contestaría «todavía no sé decidir».
-        return ConDecisor ? todas.Append(MapDecidir).Append(MapTramo).Append(MapAlto).Append(MapTramoEstado).ToList() : todas;
-    }
+        ConDecisor ? todas.Append(MapDecidir).Append(MapTramo).Append(MapAlto).Append(MapTramoEstado).ToList() : todas;
 
     /// <summary>
     /// QUIÉN ELIGE LA PUERTA (spec 035). Falso = Luna, como siempre. Lo pone la ventana al arrancar
@@ -1000,9 +1006,7 @@ public sealed class ConversacionEnVivo : IDisposable
         + "en…» o «la pantalla no cambió»). Si contesta «no se acciona», no se atrevió: te dice por qué "
         + "y te deja el inventario delante — entonces elige tú con map_take.",
         ("objetivo", "Qué quieres conseguir en esta pantalla, con tus palabras («crear el triage "
-                   + "administrativo del paciente», «abrir la carpeta Descargas»)."),
-        ("decir", "Una frase corta que Ü dice con su voz JUSTO ANTES de pulsar."),
-        ("recuerdo", "Qué es y para qué sirve lo que se va a pulsar, con tus palabras, si lo sabes."));
+                   + "administrativo del paciente», «abrir la carpeta Descargas»)."));
 
     /// <summary>EL TRAMO (spec 037): muchos clics de una llamada, y la llamada vuelve al instante.</summary>
     private static readonly Utensilio MapTramo = Fn("map_tramo",
@@ -1012,8 +1016,7 @@ public sealed class ConversacionEnVivo : IDisposable
         + "persona. Cuando pare te llega un mensaje con la cuenta; map_tramo_estado dice por dónde va; "
         + "map_alto lo para. Úsalo para «abre X y entra en Y», «llega hasta Z»: varias puertas seguidas.",
         ("objetivo", "Qué se quiere conseguir, con tus palabras («abrir Descargas y entrar en la carpeta Facturas»)."),
-        ("tope", "Cuántos pasos como mucho. Vacío = 15."),
-        ("decir", "Una frase corta que Ü dice al arrancar."));
+        ("tope", "Cuántos pasos como mucho. Vacío = 15."));
 
     private static readonly Utensilio MapAlto = Fn("map_alto",
         "PARA EL TRAMO EN MARCHA en el paso en curso. Úsalo cuando la persona diga que pare, que espere, o "
@@ -1041,7 +1044,12 @@ public sealed class ConversacionEnVivo : IDisposable
         tiempo. Si la persona dice que pare o cambia de idea, map_alto. Si pregunta cómo va, map_tramo_estado.
         """;
 
-    private static Utensilio[] Catalogo() => new[]
+    /// <summary>
+    /// «decir» y «recuerdo» van SOLO en el catálogo del piloto (promesa 500): son la voz y la tarjeta que su mano lleva al
+    /// comprobar una lección. Ofrecidos a la voz, el modelo los mandaba en casi cada clic y cada clic tomaba el camino
+    /// lento de la coreografía (0 de 9 map_take por el ciclo rápido, sesión del 2026-09-28).
+    /// </summary>
+    private static Utensilio[] Catalogo(bool conCoreografia) => new[]
     {
         Fn("map_where_am_i", "Dice en qué pantalla estás ahora mismo y qué salidas conoce el mapa desde ahí. "
             + "Si hay un diálogo delante, lo describe en vez de fingir que es un lugar."),
@@ -1055,16 +1063,18 @@ public sealed class ConversacionEnVivo : IDisposable
             + "Contesta QUÉ PASÓ: «ahora estás en…» o «la pantalla no cambió». Si esperabas NAVEGAR y "
             + "no cambió, por ahí no era: prueba otra cosa en vez de repetir. Un botón que hace su "
             + "trabajo sin cambiar de pantalla —Guardar, Copiar, una casilla— está bien aunque no cambie.",
-            ("exit", "Nombre de lo que hay que pulsar («Nuevo», «Buscar», «Pegar») o un selector «uia:name=X;ct=ListItem»."),
-            ("which", "Solo cuando map_take te devolvió una lista numerada de varios con ese nombre: el "
-                    + "número del que quieres, «1», «2»…, en el orden de ESA lista. Vacío lo normal."),
-            ("decir", "Una frase corta que Ü dice con su voz JUSTO ANTES de pulsar. Al comprobar una lección va siempre: la carita se pone al lado, lo dice, y entonces pulsa."),
-            ("recuerdo", "Qué es y para qué sirve lo que vas a pulsar, con tus palabras. Se cuelga del elemento y se muestra en tarjeta antes de tocarlo.")),
+            Comprobando(conCoreografia,
+                ("exit", "Nombre de lo que hay que pulsar («Nuevo», «Buscar», «Pegar») o un selector «uia:name=X;ct=ListItem»."),
+                ("which", "Solo cuando map_take te devolvió una lista numerada de varios con ese nombre: el "
+                        + "número del que quieres, «1», «2»…, en el orden de ESA lista. Vacío lo normal."),
+                ("decir", "Al comprobar una lección: la frase corta que Ü dice con su voz JUSTO ANTES de pulsar. La carita se pone al lado, lo dice, y entonces pulsa."),
+                ("recuerdo", "Al comprobar una lección: qué es y para qué sirve lo que vas a pulsar. Se muestra en tarjeta antes de tocarlo."))),
         Fn("map_type", "Escribe texto en el campo abierto; sirve para nombrar una carpeta recién creada.",
-            ("text", "Lo que hay que escribir."),
-            ("target", "El campo por su nombre tal como se lee («Preguntar a Google», «Términos de búsqueda») o su selector; en SAP, su etiqueta, su nombre técnico o el selector de la lección. Vacío = el campo con el foco, si es de texto. En una terminal (PowerShell, cmd, Git Bash) déjalo vacío: se teclea en ella y se confirma con Enter."),
-            ("decir", "Una frase corta que Ü dice con su voz JUSTO ANTES de escribir. Al comprobar una lección va siempre."),
-            ("recuerdo", "Qué es ese campo y para qué sirve, con tus palabras. Se cuelga y se muestra en tarjeta antes de escribir.")),
+            Comprobando(conCoreografia,
+                ("text", "Lo que hay que escribir."),
+                ("target", "El campo por su nombre tal como se lee («Preguntar a Google», «Términos de búsqueda») o su selector; en SAP, su etiqueta, su nombre técnico o el selector de la lección. Vacío = el campo con el foco, si es de texto. En una terminal (PowerShell, cmd, Git Bash) déjalo vacío: se teclea en ella y se confirma con Enter."),
+                ("decir", "Al comprobar una lección: la frase corta que Ü dice con su voz JUSTO ANTES de escribir."),
+                ("recuerdo", "Al comprobar una lección: qué es ese campo y para qué sirve. Se muestra en tarjeta antes de escribir."))),
         Fn("map_unblock", "Resuelve un diálogo que está bloqueando el paso y reanuda la tarea.",
             ("at", "A dónde volver DESPUÉS, como superficie (uia://… o web://…), o vacío para quedarse donde está. NO es el nombre del diálogo."),
             ("choose", "La opción a pulsar. Vacío = solo si hay una única salida posible.")),
@@ -1336,6 +1346,10 @@ public sealed class ConversacionEnVivo : IDisposable
 
     private static Utensilio Fn(string nombre, string descripcion, params (string Nombre, string Que)[] args)
         => new(nombre, descripcion, args.Select(a => new Argumento(a.Nombre, a.Que)).ToList());
+
+    /// <summary>Los argumentos de siempre; y los dos últimos, «decir» y «recuerdo», solo en el catálogo del piloto (promesa 500).</summary>
+    private static (string Nombre, string Que)[] Comprobando(bool conCoreografia, params (string Nombre, string Que)[] args)
+        => conCoreografia ? args : args[..^2];
 
     // ── El caño ──────────────────────────────────────────────────────────────
 

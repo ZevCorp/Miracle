@@ -232,7 +232,7 @@ public sealed class SurfaceMapTools
     /// catálogo de la voz ni la ofrece. Así el camino que usa el hospital hoy queda byte a byte igual.
     ///
     /// LAS PUERTAS SALEN DE <see cref="PuertasDeAhora"/>, la misma función que map_what_i_see, y la
-    /// elegida entra por <see cref="Take"/>: misma coreografía, mismos vetos, mismo juez de llegada,
+    /// elegida entra por <see cref="Take"/>: el mismo camino (el ciclo rápido), mismos vetos, mismo juez de llegada,
     /// misma <see cref="Mano"/> para el tope de intentos. Esta pieza no pulsa nada por su cuenta.
     ///
     /// CUANDO EL DECISOR NO ACTÚA, EL CONTROL VUELVE CON EL INVENTARIO. La respuesta empieza por
@@ -240,13 +240,13 @@ public sealed class SurfaceMapTools
     /// hasta hoy. Y la mano NO cuenta un intento: no se pulsó nada, y contarlo frenaría el «pruebo
     /// otro» del tope de la 204 —el mismo argumento que la lista de homónimos (207).
     /// </remarks>
-    private string Decidir(string objetivo, string decir, string recuerdo)
+    private string Decidir(string objetivo)
     {
         if (objetivo.Length == 0) return "falta `objetivo`: qué se quiere conseguir en esta pantalla, para que el decisor elija la puerta";
         if (Decisor == null)
             return "todavía no sé decidir: el decisor está apagado (U_DECISOR ausente o en «luna»), así que decide Luna. "
                  + "Elige tú la puerta con map_take.";
-        return UnPasoDecidido(objetivo, decir, recuerdo).Cuenta;
+        return UnPasoDecidido(objetivo).Cuenta;
     }
 
     /// <summary>
@@ -254,7 +254,7 @@ public sealed class SurfaceMapTools
     /// primera no está—. Es el cuerpo de map_decidir, y el paso que repite el tramo (spec 037). Devuelve qué pasó
     /// como datos, y la cuenta con las mismas palabras de siempre.
     /// </summary>
-    private Navigation.ElTramo.Paso UnPasoDecidido(string objetivo, string decir, string recuerdo)
+    private Navigation.ElTramo.Paso UnPasoDecidido(string objetivo)
     {
         Navigation.ElTramo.Paso Sin(string cuenta, string porque, double conf = 0, bool cumplido = false)
         {
@@ -327,7 +327,7 @@ public sealed class SurfaceMapTools
                     $"contestó «{id}», que no se ofreció", d.Confianza);
             string numero = id.Substring(0, id.IndexOf(')'));
             var relojPulsar = System.Diagnostics.Stopwatch.StartNew();
-            string cuenta = Take(puerta.Selector, "", decir, recuerdo);
+            string cuenta = Take(puerta.Selector);
             relojPulsar.Stop();
             var mano = _ultimaMano;
             string tiempos = $"leer {relojLeer.ElapsedMilliseconds} ms · decidir {reloj.ElapsedMilliseconds} ms · pulsar {relojPulsar.ElapsedMilliseconds} ms";
@@ -1756,7 +1756,7 @@ public sealed class SurfaceMapTools
 
     private Navigation.ElTramo ElTramo() => _tramo ??= new Navigation.ElTramo(new Navigation.ElTramo.Manos(
         Donde: () => { try { return _where()?.Id ?? ""; } catch { return ""; } },
-        Paso: objetivo => UnPasoDecidido(objetivo, "", ""),
+        Paso: objetivo => UnPasoDecidido(objetivo),
         HayQueParar: () => HayQueParar?.Invoke() ?? Actions.Freno.Pidieron,
         Progreso: l => Progreso?.Invoke(l),
         Inventario: () => InventarioParaLosActos?.Invoke() ?? LoQueVeo(),
@@ -1766,7 +1766,7 @@ public sealed class SurfaceMapTools
         AlTerminar: () => AlTerminarTramo?.Invoke()));
 
     /// <summary>«map_tramo»: contesta al instante y el bucle corre por detrás (291).</summary>
-    private string Tramo(string objetivo, string tope, string decir)
+    private string Tramo(string objetivo, string tope)
     {
         if (objetivo.Length == 0) return "falta `objetivo`: qué se quiere conseguir, para que el tramo sepa hacia dónde ir";
         if (Decisor == null)
@@ -2087,8 +2087,8 @@ public sealed class SurfaceMapTools
             "map_where_am_i" => WhereAmI(),
             "map_go_to" => GoTo(A("surface")),
             "map_take" => Take(A("exit"), A("which"), A("decir"), A("recuerdo")),
-            "map_decidir" => Decidir(A("objetivo"), A("decir"), A("recuerdo")),
-            "map_tramo" => Tramo(A("objetivo"), A("tope"), A("decir")),
+            "map_decidir" => Decidir(A("objetivo")),
+            "map_tramo" => Tramo(A("objetivo"), A("tope")),
             "map_alto" => Alto(),
             "map_tramo_estado" => EstadoDelTramo(),
             "map_type" => Type(A("text"), A("target"), A("decir"), A("recuerdo")),
