@@ -52,6 +52,7 @@ public sealed class ManoRapida
         if (hallada is not { } caja) return false;
         if (_freno()) { motivo = "el freno está echado: no pulso"; return true; }
         var (x, y) = Raton.Centro(caja);
+        if (U.Graph.Surfaces.UiaSurface.LibrarElPunto?.Invoke(x, y) is { Length: > 0 } tapado) { motivo = $"no pulso: {tapado}"; return true; }
         _clic(x, y);
         U.Graph.Surfaces.UiaSurface.AvisarDelCursor(x, y);
         if (U.Graph.Surfaces.UiaSurface.AvisarDelPulso(caja.X, caja.Y, caja.Ancho, caja.Alto) is { } fallo)

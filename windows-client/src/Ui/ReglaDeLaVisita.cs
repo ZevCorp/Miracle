@@ -42,20 +42,28 @@ public static class ReglaDeLaVisita
     private static double Entre(double v, double min, double max) => max < min ? min : Math.Clamp(v, min, max);
 
     /// <summary>
-    /// ¿Está libre el punto donde Ü va a pulsar? null = sí. Si bajo él está la carita, se aparta —se vuelve fantasma— y
-    /// se vuelve a mirar; si es otra ventana de Ü, no está libre y se dice cuál.
+    /// ¿Está libre el punto donde Ü va a pulsar? null = sí. Si la persona tiene el ratón, no. Si el punto cae en la carita
+    /// —tocable, o ya fantasma pero de vuelta a casa por encima—, se aparta y se vuelve a mirar; si es otra ventana de Ü,
+    /// no está libre y se dice cuál.
     /// </summary>
     /// <remarks>
     /// EXISTE PORQUE LA FIRMA NO BASTA (sonda 0, 2026-09-28): un clic firmado que cae en una ventana de Ü se tira, pero la
     /// ventana se activa igual —le quita el foco a SAP— y el clic no llega a lo que había debajo. Mirar antes de pulsar
     /// cuesta dos llamadas de microsegundos.
+    ///
+    /// LA CARITA SE APARTA AUNQUE YA SEA FANTASMA si el punto cae en ella: apartarla le empieza otra vez el rato fuera. Sin
+    /// eso, la coreografía de lección —que tarda hasta 4 s en pulsar por la tarjeta de lectura— la veía volver a casa y
+    /// posarse tocable justo antes del clic (segunda crítica del plan, 2026-09-28). Y SI LA PERSONA TIENE EL RATÓN
+    /// —pulsando o arrastrando la carita— no se pulsa: la captura se llevaría el clic de Ü a la carita, estuviera donde
+    /// estuviera, y el arrastre la dejaría encima de lo que Ü iba a pulsar.
     /// </remarks>
     public static string? LibrarElPunto(Func<IntPtr> bajo, Func<IntPtr, bool> esDeU, IntPtr carita, Action apartar,
-                                        Func<IntPtr, string> nombre)
+                                        Func<IntPtr, string> nombre, Func<bool> enLaCarita, Func<string?> ocupado)
     {
+        if (ocupado() is { Length: > 0 } porQue) return porQue;
         IntPtr h = bajo();
-        if (h == IntPtr.Zero || !esDeU(h)) return null;
-        if (h != carita) return $"lo tapa «{nombre(h)}», una ventana de Ü";
+        if (h != carita && !enLaCarita())
+            return h == IntPtr.Zero || !esDeU(h) ? null : $"lo tapa «{nombre(h)}», una ventana de Ü";
         apartar();
         IntPtr ahora = bajo();
         if (ahora == IntPtr.Zero || !esDeU(ahora)) return null;

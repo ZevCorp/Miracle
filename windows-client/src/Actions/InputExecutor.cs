@@ -52,6 +52,11 @@ public static class InputExecutor
     public static bool Tap(int x, int y)
     {
         if (Parado) return false;
+        if (U.Graph.Surfaces.UiaSurface.LibrarElPunto?.Invoke(x, y) is { Length: > 0 } tapado)
+        {
+            U.WindowsClient.Diagnostics.LogBus.Log("mano", $"toque en ({x},{y}) no dado: {tapado}");
+            return false;
+        }
         MoveTo(x, y);
         Thread.Sleep(30);
         Mouse(MOUSEEVENTF_LEFTDOWN);

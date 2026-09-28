@@ -136,6 +136,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         InitializeComponent();
         // LA CARITA DE VISITA (spec 061): la regla decide si sale, a dónde y cuándo vuelve; aquí solo se le dan las manos.
         _visita = new EstanciaDeLaCarita(Traspasable, VolarDeVisita, () => Environment.TickCount64);
+        ToquesDeU.Proteger(this);   // su clic abre o cuelga la voz: un clic de Ü no es la persona (promesa 508)
         // La precarga del plan dispara cuando el carrusel lleva 300 ms quieto sobre un workflow (spec 007).
         _precarga.Tick += (_, _) =>
         {
@@ -214,6 +215,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // Y A LO QUE Ü PULSA (promesa 504): el ciclo rápido, la mano rápida y la escalera avisan por el mismo pulso, con la
         // caja del elemento y después del clic. Se atiende con BeginInvoke: quien pulsa no espera a la carita.
         U.Graph.Surfaces.UiaSurface.Pulso += (x, y, w, h) => Dispatcher.BeginInvoke(() => Visitar(new Rect(x, y, w, h)));
+        // Y NINGUNA MANO PULSA SOBRE Ü (promesa 510): la escalera, la mano rápida y los toques de computer-use miran con la
+        // misma regla que el ciclo rápido antes de cada clic físico.
+        U.Graph.Surfaces.UiaSurface.LibrarElPunto = LibrarElPuntoDeUnClic;
 
         // ILUMINAR ES PARA QUIEN MIRA, NO PARA QUIEN PROGRAMA. El recuadro se pintaba solo desde
         // GraphExplorerWindow —la ventana del grafo, una herramienta de desarrollo— así que señalar
@@ -852,8 +856,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     TrasPulsar = Navigation.CicloRapido.AvisarALaCarita,
                     // Y NO PULSA SOBRE Ü (promesa 510): si bajo el punto está la carita, se aparta —fantasma— y se pulsa;
                     // si es otra ventana de Ü, no se pulsa y se dice cuál. Solo espera a la interfaz cuando la tapa la carita.
-                    LibrarElPunto = (x, y) => ReglaDeLaVisita.LibrarElPunto(() => VentanasDeU.Bajo(x, y), VentanasDeU.EsDeU,
-                        _hwndCarita, () => Dispatcher.Invoke(() => _visita.Salir()), VentanasDeU.Nombre),
+                    LibrarElPunto = LibrarElPuntoDeUnClic,
                 };
                 // MIRAR COMO u/ (promesa 495): la ventana de delante, con sus textos, por el mismo ciclo —el clic siguiente
                 // reutiliza esta lectura—. SAP no: UIA solo ve un panel opaco, y su lector de siempre lee el dynpro.
@@ -889,6 +892,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                         var t = ciclo.Tiempos;
                         LogBus.Log("mano", $"⏱ ciclo «{ciclo.Pulsado}»: ver {t.Ver} ms · clic {t.Clic} ms · volver a ver {t.Esperar} ms ({t.Lecturas} lectura(s), {(ciclo.Cambio ? "cambió" : "no cambió")})");
                         if (ciclo.AvisoFallido.Length > 0) LogBus.Log("mano", $"el aviso a la carita reventó y el clic no se enteró: {ciclo.AvisoFallido}");
+                        if (ciclo.MsLibrar > 0) LogBus.Log("mano", $"⏱ librar el punto de «{ciclo.Pulsado}»: {ciclo.MsLibrar} ms (hubo que apartar la carita)");
                     }
                     return r == null ? null : (r, ciclo.Pulso ? ciclo.Cambio : null, ciclo.ClaveDelPulsado);
                 };
@@ -1958,6 +1962,29 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
     private readonly EstanciaDeLaCarita _visita;
     private IntPtr _hwndCarita;
+
+    /// <summary>
+    /// ¿Está libre el punto de un clic de Ü? (promesa 510). Se llama desde el hilo que pulsa: solo Win32, y a la interfaz
+    /// solo se le pide algo —con techo— si hay que apartar la carita.
+    /// </summary>
+    private string? LibrarElPuntoDeUnClic(int x, int y) =>
+        ReglaDeLaVisita.LibrarElPunto(() => VentanasDeU.Bajo(x, y), VentanasDeU.EsDeU, _hwndCarita, ApartarLaCarita, VentanasDeU.Nombre,
+            enLaCarita: () => VentanasDeU.Dentro(_hwndCarita, x, y),
+            ocupado: () => VentanasDeU.LaPersonaTieneElRaton(_hwndCarita) ? "la persona tiene el ratón (está pulsando o arrastrando)" : null);
+
+    /// <summary>
+    /// Aparta la carita —fantasma, y su rato fuera empieza otra vez— antes de un clic que caería en ella. Con techo: 100 ms a
+    /// la prioridad más alta. Si la interfaz no llega, el punto sigue tapado y el clic lo dice en vez de esperar.
+    /// </summary>
+    private void ApartarLaCarita()
+    {
+        try
+        {
+            Dispatcher.Invoke(() => _visita.Salir(), System.Windows.Threading.DispatcherPriority.Send,
+                System.Threading.CancellationToken.None, TimeSpan.FromMilliseconds(100));
+        }
+        catch (Exception e) { LogBus.Log("ui-anim", $"no pude apartar la carita a tiempo: {e.GetType().Name}: {e.Message}"); }
+    }
 
     // --- Recordar dónde dejó el usuario la barra ---
     //

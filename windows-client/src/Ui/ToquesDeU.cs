@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Windows;
 using System.Windows.Interop;
 using U.WindowsClient.Diagnostics;
 
@@ -32,6 +33,24 @@ public static class ToquesDeU
         if (!Descartar(msg, extra())) return false;
         anotar($"toque de Ü sobre 0x{hwnd.ToInt64():X} (msg 0x{msg:X}): descartado, no es la persona");
         return true;
+    }
+
+    /// <summary>
+    /// Además del filtro de hilo, un gancho EN LA VENTANA: corre aunque un bucle modal —un diálogo, un arrastre con
+    /// DragMove— despache los mensajes sin pasar por el filtro. Para las ventanas cuyo clic abre o cuelga la voz: la
+    /// carita, el muelle y la consulta. La sonda 0 midió que un gancho así lee la firma antes que WPF.
+    /// </summary>
+    public static void Proteger(Window ventana)
+    {
+        void Enganchar() => HwndSource.FromHwnd(new WindowInteropHelper(ventana).Handle)?.AddHook(Gancho);
+        if (new WindowInteropHelper(ventana).Handle != IntPtr.Zero) Enganchar();
+        else ventana.SourceInitialized += (_, _) => Enganchar();
+    }
+
+    private static IntPtr Gancho(IntPtr hwnd, int msg, IntPtr wp, IntPtr lp, ref bool manejado)
+    {
+        if (!manejado && AlMensaje(hwnd, msg, GetMessageExtraInfo, s => LogBus.Log("toque", s))) manejado = true;
+        return IntPtr.Zero;
     }
 
     private static bool _instalado;

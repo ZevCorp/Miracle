@@ -63,6 +63,9 @@ public sealed class CicloRapido
             throw new InvalidOperationException(fallo);
     }
 
+    /// <summary>Lo que costó mirar bajo el punto en el último Pulsar, en ms: casi siempre 0; más solo si hubo que apartar la carita.</summary>
+    public long MsLibrar { get; private set; }
+
     /// <summary>Por qué reventó el último aviso, o vacío. El clic no se entera; el log sí (patrón nº3: nada de catch mudo).</summary>
     public string AvisoFallido { get; private set; } = "";
 
@@ -95,7 +98,7 @@ public sealed class CicloRapido
     public string? Pulsar(string exit, int cual)
     {
         Pulso = false; Cambio = false; Pulsado = ""; ClaveDelPulsado = ""; Tiempos = default;
-        PorQueNo = ""; AvisoFallido = "";
+        PorQueNo = ""; AvisoFallido = ""; MsLibrar = 0;
         if (!QueSePide(exit, out string nombre, out string tipo)) { PorQueNo = "no es un clic por nombre en UIA"; return null; }
         IntPtr v = _ventana();
         if (v == IntPtr.Zero) { PorQueNo = "no hay ventana de trabajo delante (ni se pudo traer)"; return null; }
@@ -134,7 +137,10 @@ public sealed class CicloRapido
         var (x, y) = Raton.Centro(el.Caja);
         // UN CLIC DE Ü NO CAE SOBRE UNA VENTANA DE Ü (promesa 510). La firma (508) evita que abra la voz, pero no que la
         // ventana se active ni que el clic se pierda: se mira antes, y si está tapado, se dice y no se pulsa.
-        if (LibrarElPunto?.Invoke(x, y) is { Length: > 0 } tapado) return $"no pulsé «{el.Nombre}»: {tapado}.";
+        long tl = _reloj();
+        string? tapado = LibrarElPunto?.Invoke(x, y);
+        MsLibrar = _reloj() - tl;
+        if (tapado is { Length: > 0 }) return $"no pulsé «{el.Nombre}»: {tapado}.";
         long tc = _reloj();
         _clic(x, y);
         long msClic = _reloj() - tc;

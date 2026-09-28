@@ -19,6 +19,12 @@ internal static class VentanasDeU
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr h, StringBuilder texto, int max);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr h, StringBuilder texto, int max);
+    [StructLayout(LayoutKind.Sequential)] private struct RECT { public int L, T, R, B; }
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int tecla);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GUITHREADINFO { public int cbSize, flags; public IntPtr hwndActive, hwndFocus, hwndCapture, hwndMenuOwner, hwndMoveSize, hwndCaret; public RECT rcCaret; }
+    [DllImport("user32.dll")] private static extern bool GetGUIThreadInfo(uint hilo, ref GUITHREADINFO info);
 
     /// <summary>La ventana de arriba del todo que recibiría un clic en ese punto (en píxeles físicos).</summary>
     public static IntPtr Bajo(int x, int y) => GetAncestor(WindowFromPoint(new PUNTO { X = x, Y = y }), 2 /* GA_ROOT */);
@@ -29,6 +35,23 @@ internal static class VentanasDeU
         if (ventana == IntPtr.Zero) return false;
         GetWindowThreadProcessId(ventana, out uint pid);
         return pid == (uint)Environment.ProcessId;
+    }
+
+    /// <summary>¿Cae el punto dentro de esa ventana, sea transparente o no?</summary>
+    public static bool Dentro(IntPtr ventana, int x, int y) =>
+        ventana != IntPtr.Zero && GetWindowRect(ventana, out var r) && x >= r.L && x < r.R && y >= r.T && y < r.B;
+
+    /// <summary>
+    /// ¿La persona tiene el ratón? El botón izquierdo abajo, o una ventana del hilo de Ü con la captura (pulsando o
+    /// arrastrando la carita): mientras tanto, cualquier clic va a quien tiene la captura.
+    /// </summary>
+    public static bool LaPersonaTieneElRaton(IntPtr ventanaDeU)
+    {
+        if ((GetAsyncKeyState(0x01 /* VK_LBUTTON */) & 0x8000) != 0) return true;
+        if (ventanaDeU == IntPtr.Zero) return false;
+        uint hilo = GetWindowThreadProcessId(ventanaDeU, out _);
+        var info = new GUITHREADINFO { cbSize = Marshal.SizeOf<GUITHREADINFO>() };
+        return GetGUIThreadInfo(hilo, ref info) && info.hwndCapture != IntPtr.Zero;
     }
 
     /// <summary>Cómo se llama, para decirlo: su título, o su clase si no tiene.</summary>

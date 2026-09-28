@@ -170,6 +170,7 @@ public sealed partial class ConsultaWindow : Window
     public ConsultaWindow(SesionMiracle sesion, GraphConfig graphConfig)
     {
         _sesion = sesion;
+        ToquesDeU.Proteger(this);   // aloja la carita y graba: un clic de Ü no es la persona (promesa 508)
         _clinica = new ClinicaClient(graphConfig.BaseUrl, sesion);
         _audio = new LiveAudio();
         _dictado = new DictadoEnVivo(graphConfig, _audio, sesion);

@@ -986,6 +986,13 @@ public sealed class UiaSurface : IUiSurface
     /// </remarks>
     public static Func<bool>? HayQueParar;
 
+    /// <summary>
+    /// ¿Está libre el punto de un clic? null = sí; si no, por qué (promesa 510, spec 061): un clic de Ü no cae sobre una
+    /// ventana de Ü. La pone la cara; aquí se consulta antes de cada clic físico, igual que la mano rápida, el ciclo y los
+    /// toques de computer-use. Sin nadie que la ponga (el contrato, una sonda), todo punto está libre.
+    /// </summary>
+    public static Func<int, int, string?>? LibrarElPunto;
+
     /// <summary>Lo que se contesta al negarse. Dice QUIÉN paró: un «no se encontró» mandaría a
     /// buscar un elemento que sí estaba.</summary>
     public const string ParasteTu = "paraste tú con Escape; no sigo hasta que arranques otra cosa";
@@ -1062,6 +1069,11 @@ public sealed class UiaSurface : IUiSurface
                 L($"  selector no resolvió → fallback por POSICIÓN: clic en ({x},{y}) [ventana+({rel.RelX},{rel.RelY})]");
                 try
                 {
+                    if (LibrarElPunto?.Invoke(x, y) is { Length: > 0 } tapado)
+                    {
+                        error = $"no pulso por posición en ({x},{y}): {tapado}";
+                        return false;
+                    }
                     SmoothMove(x, y);
                     Thread.Sleep(20);
                     mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, (IntPtr)FirmaDeU);
@@ -1644,6 +1656,11 @@ public sealed class UiaSurface : IUiSurface
             }
 
             int cx = (int)(r.Left + r.Width / 2), cy = (int)(r.Top + r.Height / 2);
+            if (LibrarElPunto?.Invoke(cx, cy) is { Length: > 0 } tapado)
+            {
+                error = $"no abro el menú en ({cx},{cy}): {tapado}";
+                return false;
+            }
             SmoothMove(cx, cy);
             Thread.Sleep(30);
             mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, (IntPtr)FirmaDeU);
@@ -2030,6 +2047,12 @@ public sealed class UiaSurface : IUiSurface
                     cx = r.Left + r.Width / 2; cy = r.Top + r.Height / 2;
                 }
                 L($"    RealClick: rect={r} punto=({(int)cx},{(int)cy}) ventana='{WindowLabel(el)}'{(IsDesktopWindow(win) ? " (ESCRITORIO)" : "")}");
+                if (LibrarElPunto?.Invoke((int)cx, (int)cy) is { Length: > 0 } tapado)
+                {
+                    error = $"no pulso en ({(int)cx},{(int)cy}): {tapado}";
+                    L($"    {error}");
+                    return false;
+                }
                 L($"    → clic físico en ({(int)cx},{(int)cy})");
                 SmoothMove((int)cx, (int)cy);
                 Thread.Sleep(20);
