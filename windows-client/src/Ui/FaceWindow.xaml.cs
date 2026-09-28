@@ -3463,7 +3463,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// ES UNA SOLA FUNCIÓN A PROPÓSITO (2026-09-08): vivía dentro del recorrido del plan, y cuando el
     /// plan paraba y el piloto seguía con las manos, la experiencia desaparecía: ni carita, ni voz, ni
     /// tarjeta. El dueño lo vio en la undécima prueba: «quiero que esa sea la experiencia estándar que
-    /// siempre suceda». Ahora map_take y map_type pasan por aquí.
+    /// siempre suceda». map_take y map_type pasan por aquí SOLO cuando la app señala al actuar (comprobación, encargo):
+    /// desde el 2026-09-28 (promesa 497) lo que traiga el modelo —decir, recuerdo— ya no saca un clic del ciclo rápido.
     /// </remarks>
     private Navigation.RecorrerSegunElNucleo.Resultado DarUnPasoConCoreografia(string senalar,
         Navigation.RecorrerSegunElNucleo.Paso paso, string recuerdo, string decir)

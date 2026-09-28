@@ -2633,8 +2633,10 @@ public sealed class SurfaceMapTools
         int.TryParse(cual, out int n);
         bool porNombre = EsClicPorNombreUia(salida);
         // EL CICLO DE u/ PRIMERO (spec 054): un clic por nombre en UIA es ver → clic → volver a ver, y contesta con lo
-        // que se ve. Con coreografía (comprobar, decir, recuerdo) va por el camino de siempre, que es quien la sabe.
-        bool coreografia = DarUnPasoConCoreografia != null && (SenalarAlActuar || decir.Length > 0 || recuerdo.Length > 0);
+        // que se ve. La coreografía, SOLO cuando la app la pide al señalar al actuar —comprobación, encargo— (promesa 497).
+        // Hasta el 2026-09-28 bastaba con que el modelo trajera «decir» o «recuerdo», y los trae en casi cada clic: 0 de 9
+        // clics de voz llegaron al ciclo rápido (2.349 ms de mediana contra 182), cada uno con un recuerdo y una foto de más.
+        bool coreografia = DarUnPasoConCoreografia != null && SenalarAlActuar;
         if (!coreografia && porNombre && CicloRapido?.Invoke(salida, n, _antesDePulsar) is { } rapido)
         {
             _camino = ("ciclo-rapido", "clic por nombre en UIA", false);
@@ -2646,11 +2648,11 @@ public sealed class SurfaceMapTools
             return rapido.Texto;
         }
         var paso = new Navigation.RecorrerSegunElNucleo.Paso(salida) { Cual = n, AntesDePulsar = _antesDePulsar };
-        // LA MISMA COREOGRAFÍA QUE EL PLAN (promesa 191): al comprobar, o cuando el piloto trae algo que
-        // decir o un recuerdo, la mano señala, dice, cuelga y muestra, y solo después pulsa.
+        // LA MISMA COREOGRAFÍA QUE EL PLAN (promesa 191): al comprobar o en un encargo, la mano señala, dice, cuelga y
+        // muestra, y solo después pulsa. Lo que traiga (decir, recuerdo) lo usa ella; fuera de ahí, no desvía nada (497).
         if (coreografia)
         {
-            _camino = ("coreografia", SenalarAlActuar ? "la app señala al actuar (comprobación, encargo)" : "trae decir o recuerdo", porNombre && !SenalarAlActuar);
+            _camino = ("coreografia", "la app señala al actuar (comprobación, encargo)", false);
             return Anotar(DarUnPasoConCoreografia!(salida, paso, recuerdo, decir), escribe: false);
         }
         _camino = ("nucleo", porNombre ? "el ciclo rápido no se encargó (ver «ciclo rápido:» en el log)" : "SAP, AutomationId o destino del grafo", porNombre);
@@ -2719,10 +2721,11 @@ public sealed class SurfaceMapTools
         // la etiqueta que la persona ve y el nombre técnico del campo (promesa 185).
         if ((_where()?.Id ?? "").StartsWith("sapgui://", StringComparison.OrdinalIgnoreCase) && RecorrerPorElNucleo != null)
         {
-            // Y con la coreografía del plan cuando toca (promesa 191): se señala el campo, se dice, y luego se escribe.
-            if (DarUnPasoConCoreografia != null && (SenalarAlActuar || decir.Length > 0 || recuerdo.Length > 0))
+            // Y con la coreografía del plan cuando la app la pide (promesas 191 y 497): se señala el campo, se dice, y luego
+            // se escribe. Que el modelo traiga decir o recuerdo ya no basta.
+            if (DarUnPasoConCoreografia != null && SenalarAlActuar)
             {
-                _camino = ("coreografia", SenalarAlActuar ? "SAP, la app señala al actuar" : "SAP, trae decir o recuerdo", false);
+                _camino = ("coreografia", "SAP, la app señala al actuar", false);
                 return Anotar(DarUnPasoConCoreografia(target, new Navigation.RecorrerSegunElNucleo.Paso(target, texto), recuerdo, decir), escribe: true);
             }
             _camino = ("nucleo", "SAP: la mano de SAP", false);
