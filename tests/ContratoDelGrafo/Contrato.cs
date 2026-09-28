@@ -882,7 +882,10 @@ internal static class Contrato
         Prueba("483. escribir sin decir dónde espera a un foco que ACEPTE texto, no a uno que se llame Edit: en cuanto lo hay —también el Document del Bloc de notas de Windows 11— escribe sin esperar más, y el techo de 1,5 s es solo para cuando aún no hay dónde", EscribirNoEsperaAUnEdit);
         Prueba("485. un clic por nombre va por el ciclo rápido: si lo pedido es UN elemento visible de la lectura, pulsa en su centro, espera como u/ (sale al primer cambio de la huella; techo 150 ms, 1,5 s tras un enlace) y contesta lo que pulsó, si cambió, y lo que se ve DESPUÉS —accionables y textos— con la lectura de esa misma espera, marcado EN PANTALLA AHORA para que nadie vuelva a leer", ElCicloRapidoPulsaYContestaConLoQueVe);
         Prueba("486. homónimos sin which: la lista 1..N en orden de lectura con su tipo, sin pulsar; con which=N pulsa ese y solo ese", ElCicloRapidoNumeraLosHomonimos);
-        Prueba("487. antes de pulsar el ciclo lee como mucho UNA vez, y ninguna si la última lectura de esa ventana tiene menos de 2 s; lo que no está se busca en UNA lectura nueva, y si tampoco está, el ciclo no se encarga y decide el camino de siempre", ElCicloRapidoNoLeeDeMas);
+        // 487 RETIRADA (spec 054, 2026-09-27): «si tampoco está, decide el camino de siempre». En Edge ese camino se
+        // colgó 60 s por clic (4 de 14 en la corrida variada); u/ contesta «no está» al momento. La sustituye la 493.
+        Prueba("493. antes de pulsar el ciclo lee como mucho UNA vez, y ninguna si la última lectura de esa ventana tiene menos de 2 s; lo que no está se busca en UNA lectura nueva, y si tampoco está, contesta al momento que no está y lo que se ve, sin pulsar y sin ir al camino de siempre", ElCicloRapidoNoLeeDeMas);
+        Prueba("494. una lectura del lector de u/ tiene plazo total: si no vuelve en 4 s se contesta vacía, y mientras esa no termine las siguientes también, sin hacer cola detrás", ElLectorDeUTienePlazoTotal);
         Prueba("488. con el freno echado no pulsa y lo dice; SAP y los selectores que no van por nombre no pasan por el ciclo rápido", ElCicloRapidoRespetaElFrenoYSap);
         Prueba("491. el ciclo rápido trabaja sobre la ventana de delante, la que la persona ve, como u/; solo si delante está la propia Ü usa su ventana de trabajo", ElCicloTrabajaSobreLoQueHayDelante);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
@@ -13764,8 +13767,26 @@ internal static class Contrato
 
         var nada = CicloCon(inicio);
         string? r = Pulsar(nada, "Bluetooth");
-        Debe(r == null && nada.Clics.Count == 0 && nada.Lecturas == 2,
-            $"lo que no está: devolvió «{r}», pulsó {nada.Clics.Count} y leyó {nada.Lecturas} veces (una y una más, y el camino de siempre)");
+        Debe(r != null && r.Contains("no está") && r.Contains("«Sistema» (ListItem)") && nada.Clics.Count == 0 && nada.Lecturas == 2,
+            $"lo que no está: devolvió «{r}», pulsó {nada.Clics.Count} y leyó {nada.Lecturas} veces (una y una más, y contestar con lo que se ve)");
+    }
+
+    private static void ElLectorDeUTienePlazoTotal()
+    {
+        // MEDIDO EL 2026-09-27: una lectura de Wikipedia en Edge tardó 64.495 ms en u/ y hasta 136.531 ms en la rama, a
+        // pesar de los plazos de COM (1,5 s y 3 s): la llamada no se cuelga, es larga. Y el lector tiene UN hilo con cola:
+        // lo siguiente esperaba detrás.
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string lector = Path.Combine(repo, "u", "Nucleo", "LectorUia.cs");
+        if (!File.Exists(lector)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO no hay fuentes que mirar."); return; }
+        var t = typeof(U.Ciclo.LectorUia);
+        var plazo = t.GetField("PlazoTotalMs", BindingFlags.Public | BindingFlags.Static);
+        if (plazo == null) { Pendiente("LectorUia.PlazoTotalMs (plazo total de una lectura)", "494", "054"); return; }
+        Debe((int)plazo.GetValue(null)! <= 4000, $"el plazo total de una lectura es {plazo.GetValue(null)} ms (más de 4 s)");
+        string f = File.ReadAllText(lector);
+        var leer = System.Text.RegularExpressions.Regex.Match(f, @"public Lectura Leer\(IntPtr ventana\)[\s\S]*?\n    \}");
+        Debe(leer.Success && leer.Value.Contains("Wait(PlazoTotalMs)") && leer.Value.Contains("_atascada"),
+            "Leer no espera con plazo total, o no sabe que la anterior sigue atascada (y las siguientes harían cola)");
     }
 
     private static void ElCicloRapidoRespetaElFrenoYSap()
