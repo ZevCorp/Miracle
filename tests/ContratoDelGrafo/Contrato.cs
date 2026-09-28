@@ -892,6 +892,7 @@ internal static class Contrato
         Prueba("498. con SAP delante, un clic por nombre no entra al ciclo rápido: no lee, no pulsa, dice que es SAP y lo da la mano de SAP; y saber si una ventana es SAP es UNA regla —su proceso—, la misma para pulsar, mirar y esperar tras escribir", ConSapDelanteNoHayCicloRapido);
         Prueba("499. el tope de intentos ve los clics del ciclo rápido: la mano de un clic rápido lleva lo pulsado con la misma clave con la que se le pregunta al tope antes de pulsar, y el tercer intento sobre el mismo botón no se da", ElTopeVeLosClicsRapidos);
         Prueba("497. hacer es rápido: un clic por nombre con map_take va por el ciclo rápido traiga los argumentos que traiga —decir, recuerdo o cualquiera desconocido—; ni coreografía, ni recuerdo, ni foto. La coreografía solo cuando la app la pide al señalar al actuar (comprobación, encargo), y map_type en SAP tampoco se desvía por decir o recuerdo", HacerEsRapidoTraigaLoQueTraiga);
+        Prueba("500. la voz no ofrece decir ni recuerdo: en el catálogo de la voz, map_take, map_type, map_decidir y map_tramo no los declaran; el catálogo del piloto sí los declara en map_take y map_type, que es para lo que la mano del piloto los lleva (191)", LaVozNoOfreceDecirNiRecuerdo);
         Prueba("509. cada llamada dice por qué camino fue y por qué —ciclo rápido, núcleo, coreografía— en el log y en la mano; y un clic por nombre en UIA que no va por el ciclo rápido fuera de una comprobación deja «⚠ camino inesperado» con su razón", CadaLlamadaDiceSuCamino);
         Prueba("496. tras escribir, la espera es la de u/ —dos lecturas iguales con el lector rápido, techo 300 ms— y lo que se cuenta después es esa misma lectura, sin volver a leer", EscribirEsperaComoU);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
@@ -13839,6 +13840,66 @@ internal static class Contrato
         var bloque = System.Text.RegularExpressions.Regex.Match(c, @"var ciclo = new Navigation\.CicloRapido\([\s\S]*?mcp\.Map\.CicloRapido = ");
         Debe(bloque.Success && bloque.Value.Contains("Uia.Sap.EsVentana") && !System.Text.RegularExpressions.Regex.IsMatch(bloque.Value, "StartsWith\\(\"(sap|SAP)\""),
             "pulsar, mirar y esperar tras escribir no usan la misma regla de SAP (Uia.Sap.EsVentana), o alguno guarda su propio StartsWith");
+    }
+
+    /// <summary>Los argumentos de una herramienta en el catálogo que devuelve <paramref name="metodo"/>, o null.</summary>
+    private static HashSet<string>? ArgumentosEn(string metodo, string herramienta)
+    {
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+        var m = t?.GetMethod(metodo, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+        if (m?.Invoke(null, null) is not System.Collections.IEnumerable todas) return null;
+        foreach (var u in todas)
+        {
+            var tu = u?.GetType();
+            if (tu == null || (string?)tu.GetProperty("Nombre")?.GetValue(u) != herramienta) continue;
+            var set = new HashSet<string>(StringComparer.Ordinal);
+            if (tu.GetProperty("Args")?.GetValue(u) is System.Collections.IEnumerable args)
+                foreach (var a in args) if (a?.GetType().GetProperty("Nombre")?.GetValue(a) is string n) set.Add(n);
+            return set;
+        }
+        return null;
+    }
+
+    private static void LaVozNoOfreceDecirNiRecuerdo()
+    {
+        // EL ESQUEMA ERA LA INVITACIÓN: ninguna instrucción pedía decir/recuerdo en cada clic, pero el catálogo los ofrecía
+        // en map_take y map_type, y el modelo los mandó en casi todos (sesión del 2026-09-28; ElRecuerdoQueSeVe midió 89%).
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+        var piloto = t?.GetMethod("HerramientasDelPiloto", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+        var pCon = t?.GetProperty("ConDecisor", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+        if (piloto == null || pCon == null) { Pendiente("ConversacionEnVivo.HerramientasDelPiloto (el catálogo del piloto aparte)", "500", "054"); return; }
+        bool antes = (bool)pCon.GetValue(null)!;
+        try
+        {
+            foreach (bool conDecisor in new[] { false, true })
+            {
+                pCon.SetValue(null, conDecisor);
+                foreach (var h in new[] { "map_take", "map_type", "map_decidir", "map_tramo" })
+                {
+                    var a = ArgumentosEn("Herramientas", h);
+                    if (a == null) continue;   // map_decidir y map_tramo solo existen con el decisor
+                    Debe(!a.Contains("decir") && !a.Contains("recuerdo"), $"la voz ofrece decir/recuerdo en {h} (decisor {(conDecisor ? "encendido" : "apagado")})");
+                }
+            }
+            pCon.SetValue(null, true);
+            foreach (var h in new[] { "map_take", "map_type" })
+            {
+                var a = ArgumentosEn("HerramientasDelPiloto", h);
+                Debe(a != null && a.Contains("decir") && a.Contains("recuerdo"), $"el piloto no tiene decir/recuerdo en {h}: su mano los lleva para comprobar (191)");
+            }
+            foreach (var h in new[] { "map_decidir", "map_tramo" })
+            {
+                var a = ArgumentosEn("HerramientasDelPiloto", h);
+                Debe(a == null || (!a.Contains("decir") && !a.Contains("recuerdo")), $"el piloto ofrece decir/recuerdo en {h}, que no los usa");
+            }
+        }
+        finally { pCon.SetValue(null, antes); }
+
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        Debe(File.ReadAllText(cara).Contains("var catalogoMcp = Voice.ConversacionEnVivo.HerramientasDelPiloto()"),
+            "el servidor MCP (por donde entran las manos del piloto) no usa el catálogo del piloto");
     }
 
     private static void HacerEsRapidoTraigaLoQueTraiga()
