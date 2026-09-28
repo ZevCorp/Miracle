@@ -888,6 +888,7 @@ internal static class Contrato
         Prueba("494. una lectura del lector de u/ tiene plazo total: si no vuelve en 4 s se contesta vacía y su hilo se abandona; las siguientes van a un hilo nuevo, sin hacer cola detrás de la atascada", ElLectorDeUTienePlazoTotal);
         Prueba("488. con el freno echado no pulsa y lo dice; SAP y los selectores que no van por nombre no pasan por el ciclo rápido", ElCicloRapidoRespetaElFrenoYSap);
         Prueba("491. el ciclo rápido trabaja sobre la ventana de delante, la que la persona ve, como u/; solo si delante está la propia Ü usa su ventana de trabajo", ElCicloTrabajaSobreLoQueHayDelante);
+        Prueba("495. mirar —map_what_i_see y lo que se pega a cada acto— lee con el lector de u/ la ventana de delante y cuenta accionables y textos; SAP, que UIA no ve, sigue por el lector de siempre", MirarLeeComoU);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
         Prueba("490. leer la pantalla y saber dónde estoy tienen plazo: si la app no contesta, se sigue sin esa respuesta y se dice, en vez de congelar U; lo que llega tarde no pisa lo que ya se contestó", LeerYUbicarseTienenPlazo);
         Prueba("484. desplazar comprueba la consecuencia en cuanto la hay: sale al primer cambio del porcentaje en vez de dormir 350 ms fijos, y sin cambio agota el mismo techo antes de decir que no se movió", DesplazarNoDuermeFijo);
@@ -13817,6 +13818,24 @@ internal static class Contrato
         var nombre = CicloCon(p);
         Pulsar(nombre, "uia:name=Sistema;ct=ListItem");
         Debe(nombre.Clics.Count == 1, "un selector por nombre y tipo no pasó por el ciclo rápido");
+    }
+
+    private static void MirarLeeComoU()
+    {
+        // MEDIDO EL 2026-09-27: map_what_i_see costaba 95-205 ms con el lector viejo, de la ventana de la persona y sin los
+        // textos de la pantalla —el visor de la Calculadora no se veía, y Jev pulsó «Siete» seis veces—. El lector de u/
+        // lee 20-100 ms y trae los textos.
+        var t = typeof(SurfaceMapTools);
+        var p = t.GetProperty("LoQueVeoRapido");
+        if (p == null) { Pendiente("SurfaceMapTools.LoQueVeoRapido (mirar con el lector de u/)", "495", "054"); return; }
+        Debe(p.PropertyType == typeof(Func<string?>), $"LoQueVeoRapido es {p.PropertyType.Name}: tiene que ser Func<string?> (null = SAP, decide el lector de siempre)");
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string herramientas = Path.Combine(repo, "windows-client", "src", "Mcp", "SurfaceMapTools.cs");
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(herramientas) || !File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        var loQueVeo = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(herramientas), @"private string LoQueVeo\(\)[\s\S]*?\n    \}");
+        Debe(loQueVeo.Success && loQueVeo.Value.Contains("LoQueVeoRapido?.Invoke()"), "LoQueVeo no pregunta primero al lector de u/");
+        Debe(File.ReadAllText(cara).Contains("LoQueVeoRapido ="), "nadie conecta LoQueVeoRapido: mirar seguiría con el lector viejo");
     }
 
     private static void LaCaritaNoSePoneDondeUPulsa()
