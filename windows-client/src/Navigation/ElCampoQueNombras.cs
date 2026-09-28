@@ -7,7 +7,7 @@ namespace U.WindowsClient.Navigation;
 /// <remarks>
 /// EXISTE PORQUE ENSEÑAR NO FUNCIONABA DENTRO DE SAP. «Esto es X» resuelve el elemento de dos
 /// maneras: por el cursor (se señala) o por su nombre (<c>sobre</c>). La segunda pasaba siempre por
-/// el lector de UIA (<c>SurfaceMapTools.BuscarEnPantalla</c>), y dentro de una sesión de SAP UIA ve
+/// el lector de UIA (hoy <c>SurfaceMapTools.LoQueSePuedeNombrar</c>), y dentro de una sesión de SAP UIA ve
 /// un Pane opaco: ni un campo, ni una etiqueta. Es la misma frontera que obligó a que el terreno
 /// tuviera dos mundos (<see cref="SentidoPorMundo"/>) — solo que la enseñanza se quedó de un lado.
 ///
@@ -38,5 +38,27 @@ public static class ElCampoQueNombras
             .Where(p => Nombres.Aplanar(p.Etiqueta).Contains(busco, StringComparison.Ordinal))
             .ToList();
         return parecidas.Count == 1 ? parecidas[0] : null;
+    }
+
+    /// <summary>
+    /// Los que empatan por ese nombre, para DECIRLOS (promesa 503): los exactos si hay varios, o los que lo contienen si
+    /// no hay exacto y son varios. Vacío si hay uno solo o ninguno: entonces decide <see cref="Resolver"/>.
+    /// </summary>
+    /// <remarks>
+    /// DESDE EL 2026-09-28 ESTA REGLA DECIDE TAMBIÉN EN UIA. Allí era «el primero que lo contenga», y «Search» se colgó
+    /// de «Search by voice» en la sesión de voz real. Una regla para los dos mundos, no dos.
+    /// </remarks>
+    public static IReadOnlyList<string> Empatados(
+        string nombre, IReadOnlyList<(string Selector, string Etiqueta, string Tipo)> puertas)
+    {
+        string busco = Nombres.Aplanar(nombre ?? "");
+        if (busco.Length == 0 || puertas == null || puertas.Count == 0) return Array.Empty<string>();
+        var exactas = puertas.Where(p => Nombres.Aplanar(p.Etiqueta) == busco).ToList();
+        if (exactas.Count == 1) return Array.Empty<string>();
+        var empate = exactas.Count > 1 ? exactas
+            : puertas.Where(p => Nombres.Aplanar(p.Etiqueta).Contains(busco, StringComparison.Ordinal)).ToList();
+        return empate.Count > 1
+            ? empate.Select(p => p.Tipo.Length > 0 ? $"{p.Etiqueta} ({p.Tipo})" : p.Etiqueta).ToList()
+            : Array.Empty<string>();
     }
 }

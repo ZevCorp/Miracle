@@ -993,6 +993,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // archivo aparte con las mismas claves, y el usuario lo vio en cuanto se lo dibujé:
             // «¿es paralelo al grafo?». Lo era, y dos sitios que saben de lo mismo se desincronizan
             // sin avisar. Solo la foto se queda en disco: la ruta va al grafo, el PNG no.
+            // OJO DESDE LA 054: quien proyectaba el grafo a Neo4j era el latido, y el latido no corre (promesa 489). Un
+            // recuerdo vive en memoria mientras esta Ü esté abierta; que sobreviva a cerrarla está pendiente (spec 054).
             if (mcp.Map != null)
             {
                 mcp.Map.Ensenar = (donde, sel, que, foto) => _mapaVivo.Nucleo.Ensenar(donde, sel, que, foto);

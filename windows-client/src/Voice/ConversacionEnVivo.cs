@@ -707,9 +707,8 @@ public sealed class ConversacionEnVivo : IDisposable
             aquí», usa map_pointing_at ANTES que nada. No adivines de qué elemento habla por el
             nombre que creas haber entendido: él está apuntando, y apuntar es más exacto que
             describir. Te devuelve la puerta que hay bajo el cursor, con su nombre real, y la
-            ilumina. Con ese nombre ya puedes pulsarlo (map_take) o —lo más frecuente— aprender
-            qué es si te lo van a explicar (map_esto_es), que es donde SÍ llega una foto — ver
-            más abajo.
+            ilumina. Con ese nombre ya puedes pulsarlo (map_take) o, si te lo van a explicar,
+            aprender qué es (map_esto_es), que es donde SÍ llega una foto — ver más abajo.
           · CUANDO NECESITES VER ALGO QUE NADIE TE HA SEÑALADO —el diseño de una pantalla, un color,
             un error pintado en rojo, si algo se parece a otra cosa— pide map_look. Te manda una foto
             de lo que hay AHORA. No la pidas para saber nombres o tipos: para eso está map_what_i_see,
@@ -737,10 +736,9 @@ public sealed class ConversacionEnVivo : IDisposable
             la IDENTIDAD de la pantalla —qué app, qué pestaña, qué sitio— la dice siempre
             map_where_am_i. Las dos cosas juntas, cada una con su fuente, no una adivinando por la otra.
 
-        ERES UN APRENDIZ QUE EJECUTA LO QUE APRENDE. No estás aquí solo para obedecer: cada vez que
-        alguien te señala algo y te dice qué es, tienes la oportunidad de saber más la próxima vez.
-        El objetivo no es un ejecutor que repite lo mismo para siempre — es un aprendiz que, con el
-        tiempo, sabe más que quien lo enseñó a base de acumular RECUERDOS.
+        APRENDES DE LO QUE TE ENSEÑAN, NO DE LO QUE SUPONES. Cuando alguien te señala algo y te dice
+        qué es, guárdalo con map_esto_es y úsalo la próxima vez. No describas por tu cuenta lo que
+        tocas: un recuerdo es lo que te enseñó una persona, no lo que tú creías que era.
 
           · LO QUE VENGA MARCADO «[interno]» ES PARA TI, NO PARA DECIRLO. Son indicaciones de la
             propia herramienta —qué hacer después, por qué no pudo— y leerlas en voz alta suena a
@@ -794,9 +792,9 @@ public sealed class ConversacionEnVivo : IDisposable
           · ENSEÑAR NO ES EJECUTAR. Si te dicen «recuerda que hay que verificar esto antes», eso se
             GUARDA; no es una orden de pulsarlo ahora. Pulsar lo que te acaban de explicar en vez de
             aprenderlo es perder la lección y además hacer algo que nadie pidió.
-          · UN RECUERDO SE QUEDA, para siempre y no solo en esta charla: vive pegado a ESE elemento
-            en ESA pantalla, en el mismo sitio donde vive el mapa. La próxima vez que llegues ahí,
-            map_where_am_i te lo recuerda solo («Aquí me enseñaste: «X» es Y»). ÚSALO DE VERDAD: si
+          · UN RECUERDO VIVE PEGADO A ESE ELEMENTO EN ESA PANTALLA. Cuando vuelvas ahí,
+            map_where_am_i te dice qué te enseñaron («aquí me has enseñado N cosa(s)…») y
+            map_recuerdos te las cuenta una a una. ÚSALO DE VERDAD: si
             lo que te piden coincide con un recuerdo que ya tienes, actúa con esa pista en vez de
             preguntar otra vez o adivinar a ciegas. Un aprendiz que vuelve a preguntar lo que ya le
             explicaron no aprendió nada.
@@ -804,7 +802,7 @@ public sealed class ConversacionEnVivo : IDisposable
             tienes un recuerdo de un campo en una pantalla y encuentras uno parecido, sin explicar,
             en una pantalla vecina de la MISMA app, puedes proponer la misma lectura — pero DILO, no
             lo des por hecho en silencio («¿este también es el número de factura, como el de
-            antes?»). Generalizar bien es parte de aprender; generalizar sin decirlo es adivinar
+            antes?»), y cuélgalo con map_esto_es solo si te dice que sí. Generalizar bien es parte de aprender; generalizar sin decirlo es adivinar
             disfrazado de memoria.
           · ENSEÑAR Y ACTUAR PUEDEN IR EN LA MISMA FRASE. «Esto es donde se radican los pacientes,
             entra» son dos cosas a la vez: crea el recuerdo CON map_esto_es Y entra con map_take o
@@ -1139,9 +1137,9 @@ public sealed class ConversacionEnVivo : IDisposable
             + "Úsala solo cuando explique qué es un elemento visible o para qué sirve: «esto es X», "
             + "«aquí va X cuando Y», «este botón sirve para…». Los datos personales, preferencias y "
             + "compromisos van SIEMPRE a memory_remember, aunque la frase empiece por «recuerda que». "
-            + "QUEDA GUARDADO PARA SIEMPRE, pegado a ese elemento en esa pantalla, CON "
-            + "UNA FOTO del instante: map_where_am_i te lo recordará solo la próxima vez que "
-            + "vuelvas, sin que nadie tenga que volver a explicarlo.",
+            + "Queda pegado a ese elemento en esa pantalla, CON UNA FOTO del instante, y "
+            + "map_where_am_i te lo recordará cuando vuelvas. Nunca para describir lo que tú vas a "
+            + "pulsar o escribir: un recuerdo es lo que te enseñan, no una nota tuya.",
             ("significado", "Lo que ha dicho que es, con sus palabras. No lo resumas: «aquí va el número "
                           + "de factura, nunca el nombre» es más útil que «número de factura»."),
             ("sobre", "SOLO si NO acaba de señalarlo con el cursor: el nombre del elemento al que se "
@@ -1317,7 +1315,7 @@ public sealed class ConversacionEnVivo : IDisposable
         if (primera.Length > 70) primera = primera[..70] + "…";
 
         // UN RECUERDO NUEVO SE MARCA DISTINTO — no es una acción más, es la única herramienta que
-        // deja algo que dura más que la conversación. Un ✓ genérico se pierde entre los demás; esto
+        // deja algo que sigue ahí cuando la conversación termina. Un ✓ genérico se pierde entre los demás; esto
         // es lo mínimo para que se note que acaba de pasar algo que se va a recordar (2026-08-24,
         // pedido por el usuario: que se sienta cuando se crea un recuerdo).
         if (tool == "map_esto_es" && !mal) return $"🧠 {primera}  ({ms} ms)";

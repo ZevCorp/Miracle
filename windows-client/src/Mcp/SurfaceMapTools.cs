@@ -709,6 +709,10 @@ public sealed class SurfaceMapTools
         bool hayGesto = _ultimoSenalado is { } s
                      && Navigation.LoQueSenalas.SigueValiendo(s.Cuando, DateTime.UtcNow);
 
+        // Lo que se ve, leído UNA vez y solo si hace falta: sin gesto y con un nombre.
+        var vistas = !hayGesto && sobre.Length > 0 ? LoQueSePuedeNombrar() : Array.Empty<(string Selector, string Etiqueta, string Tipo)>();
+        var empatados = Navigation.ElCampoQueNombras.Empatados(sobre, vistas);
+
         string selector, nombre, tipo;
         if (hayGesto)
         {
@@ -717,11 +721,17 @@ public sealed class SurfaceMapTools
             nombre = ult.Nombre;
             tipo = "";
         }
-        else if (sobre.Length > 0 && BuscarEnPantalla(sobre) is { } visto)
+        else if (sobre.Length > 0 && Navigation.ElCampoQueNombras.Resolver(sobre, vistas) is { } visto)
         {
-            selector = Uia.Reconocedor.SelectorDe(visto);
-            nombre = visto.Label;
-            tipo = visto.ControlType;
+            (selector, nombre, tipo) = visto;
+        }
+        // UN EMPATE NO SE ADIVINA (promesa 503): colgar una enseñanza del elemento equivocado es peor que no guardarla,
+        // porque quien enseña se queda tranquilo y el dato acaba en otro sitio.
+        else if (empatados.Count > 1)
+        {
+            return $"hay {empatados.Count} cosas que se llaman como «{sobre}»: "
+                 + string.Join(", ", empatados.Select(e => $"«{e}»"))
+                 + ". No lo colgué de ninguna: dime cuál con su nombre entero, o señálamela con el cursor.";
         }
         // DENTRO DE SAP, WINDOWS NO VE NADA (promesa 117). El lector de arriba es UIA, y en una
         // sesión de SAP se queda en un Pane opaco: enseñar un campo del triage por su nombre era
@@ -793,7 +803,7 @@ public sealed class SurfaceMapTools
         UltimaFotoDeRecuerdo = foto;
         LogBus.Log("recuerdo", $"«{nombre}» en «{donde}» → {significado}"
             + (foto.Length > 0 ? $" · foto {System.IO.Path.GetFileName(foto)}" : " · sin foto"));
-        return $"nuevo recuerdo: «{nombre}» es {significado}. Lo recordaré cuando vuelva aquí.";
+        return $"nuevo recuerdo: «{nombre}» es {significado.TrimEnd('.', ' ')}.";
     }
 
     /// <summary>
@@ -1214,20 +1224,32 @@ public sealed class SurfaceMapTools
     }
 
     /// <summary>
-    /// El elemento que se llama así en la pantalla de AHORA, o null. Exacto primero, y si no,
-    /// el que lo contenga — quien enseña dice «Acceder al sistema» y el botón puede llamarse
-    /// «Acceder al sistema (Enter)».
+    /// Lo que se puede nombrar al enseñar (promesa 503): selector, etiqueta y tipo de lo visible. Sin asignar, lo lee UIA.
     /// </summary>
-    private UiaReader.UiElement? BuscarEnPantalla(string nombre)
+    public Func<IReadOnlyList<(string Selector, string Etiqueta, string Tipo)>>? PuertasParaNombrar { get; set; }
+
+    /// <summary>
+    /// Lo que se puede nombrar en la pantalla de AHORA: las puertas visibles y, además, los campos y los combos aunque
+    /// sean anchos. El «Search» de Google es un ComboBox de 1.203 px, y sin él «Search» se colgaba de «Search by voice»
+    /// (sesión de voz del 2026-09-28). A cuál se refiere un nombre lo decide <see cref="Navigation.ElCampoQueNombras"/>.
+    /// </summary>
+    private IReadOnlyList<(string Selector, string Etiqueta, string Tipo)> LoQueSePuedeNombrar()
     {
+        if (PuertasParaNombrar != null) return PuertasParaNombrar();
         try
         {
             _lector.Read();
-            var puertas = _lector.Elements.Where(e => e.Label.Length > 0 && EsPuertaVisible(e)).ToList();
-            return puertas.FirstOrDefault(e => e.Label.Equals(nombre, StringComparison.OrdinalIgnoreCase))
-                ?? puertas.FirstOrDefault(e => e.Label.Contains(nombre, StringComparison.OrdinalIgnoreCase));
+            return _lector.Elements
+                .Where(e => e.Label.Length > 0 && (EsPuertaVisible(e)
+                    || (e.Bounds.Width >= 12 && e.Bounds.Height >= 12 && e.ControlType.ToLowerInvariant() is "edit" or "combobox")))
+                .Select(e => (Uia.Reconocedor.SelectorDe(e), e.Label, e.ControlType))
+                .ToList();
         }
-        catch (Exception e) { LogBus.Log("recuerdo", $"no pude buscar «{nombre}»: {e.Message}"); return null; }
+        catch (Exception e)
+        {
+            LogBus.Log("recuerdo", $"no pude leer lo que se ve para nombrarlo: {e.Message}");
+            return Array.Empty<(string, string, string)>();
+        }
     }
     private string LoQueSenala()
     {
