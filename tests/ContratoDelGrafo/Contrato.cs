@@ -13840,6 +13840,10 @@ internal static class Contrato
         var bloque = System.Text.RegularExpressions.Regex.Match(c, @"var ciclo = new Navigation\.CicloRapido\([\s\S]*?mcp\.Map\.CicloRapido = ");
         Debe(bloque.Success && bloque.Value.Contains("Uia.Sap.EsVentana") && !System.Text.RegularExpressions.Regex.IsMatch(bloque.Value, "StartsWith\\(\"(sap|SAP)\""),
             "pulsar, mirar y esperar tras escribir no usan la misma regla de SAP (Uia.Sap.EsVentana), o alguno guarda su propio StartsWith");
+        // EL SABOTAJE DEL 2026-09-28 LO ENSEÑÓ: quitar «EsSap» del ciclo dejaba verde la línea de arriba, porque mirar y esperar
+        // tras escribir siguen nombrando la regla en el mismo bloque. Sin él, con SAP delante el ciclo lee el panel opaco.
+        Debe(bloque.Success && bloque.Value.Contains("EsSap = Uia.Sap.EsVentana"),
+            "[cableado] el ciclo que pulsa no sabe qué es SAP (falta EsSap = Uia.Sap.EsVentana al construirlo)");
     }
 
     /// <summary>Los argumentos de una herramienta en el catálogo que devuelve <paramref name="metodo"/>, o null.</summary>
@@ -13952,6 +13956,23 @@ internal static class Contrato
         for (int i = 0; i < 2; i++)
             tope.Despues("map_take", "Guardar", false, mano?.Intento, mano?.Logro, "la pantalla no cambió", null, mano?.Pulsado);
         Debe(tope.AntesDePulsar("map_take", clave) != null, "tras dos clics rápidos fallidos sobre el mismo botón, el tope no frena el tercero");
+
+        // Y EL CICLO DE VERDAD LO DICE. Lo de arriba usa un ciclo de mentira que ya trae la clave; el sabotaje del 2026-09-28
+        // dejó al ciclo sin decir qué pulsó y la promesa siguió verde. Aquí se le pregunta al ciclo: la clave con la que
+        // consulta al tope antes de pulsar es la misma que dice después.
+        var guardar = Pantalla(new[] { "Documento" }, ("Guardar", "Button", 200, 300));
+        var cm = CicloCon(guardar, guardar);
+        string? preguntada = null;
+        cm.Ciclo.GetType().GetProperty("AntesDePulsar")!.SetValue(cm.Ciclo, new Func<string, string?>(k => { preguntada = k; return null; }));
+        Pulsar(cm, "Guardar");
+        string dicha = (string)cm.Ciclo.GetType().GetProperty("ClaveDelPulsado")!.GetValue(cm.Ciclo)!;
+        Debe(preguntada == clave && dicha == clave,
+            $"el ciclo no consulta al tope y dice lo pulsado con la misma clave: preguntó «{preguntada}», dijo «{dicha}»");
+
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        Debe(File.ReadAllText(cara).Contains("ciclo.ClaveDelPulsado)"), "[cableado] la cara no le pasa a la mano lo que el ciclo pulsó");
     }
 
     private static void CadaLlamadaDiceSuCamino()
