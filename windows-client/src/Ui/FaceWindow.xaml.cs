@@ -848,6 +848,20 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
                     () => Environment.TickCount64)
                 { Titulo = U.Graph.Surfaces.UiaSurface.TituloDe };
+                // MIRAR COMO u/ (promesa 495): la ventana de delante, con sus textos, por el mismo ciclo —el clic siguiente
+                // reutiliza esta lectura—. SAP no: UIA solo ve un panel opaco, y su lector de siempre lee el dynpro.
+                mcp.Map.LoQueVeoRapido = () =>
+                {
+                    var (delante, esU) = Navigation.CicloRapido.Delante();
+                    IntPtr v = Navigation.CicloRapido.ElegirVentana(delante, esU, VentanaObjetivo());
+                    if (v == IntPtr.Zero) return null;
+                    if (U.Graph.Surfaces.UiaSurface.TituloDe(v).StartsWith("SAP", StringComparison.OrdinalIgnoreCase)
+                        || Uia.AppAligner.ProcesoDe(v).StartsWith("sap", StringComparison.OrdinalIgnoreCase)) return null;
+                    var l = ciclo.Mirar(v);
+                    return l.Accionables.Count == 0
+                        ? "no pude leer la pantalla a tiempo: no sé qué hay delante."
+                        : ciclo.Describir(l, v);
+                };
                 mcp.Map.CicloRapido = (exit, cual, antesDePulsar) =>
                 {
                     ciclo.AntesDePulsar = antesDePulsar;

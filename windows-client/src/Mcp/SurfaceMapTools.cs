@@ -196,8 +196,15 @@ public sealed class SurfaceMapTools
         return (aqui, lista, vivos.Count + delTerreno.Count);
     }
 
+    /// <summary>
+    /// Mirar con el lector de u/ (spec 054, promesa 495): la ventana de delante, accionables y textos. null = no es suyo
+    /// (SAP, que UIA no ve) y decide el lector de siempre.
+    /// </summary>
+    public Func<string?>? LoQueVeoRapido { get; set; }
+
     private string LoQueVeo()
     {
+        if (LoQueVeoRapido?.Invoke() is { } rapido) return rapido;
         var (aqui, puertas, total) = PuertasDeAhora();
         if (aqui.Length == 0) return "no sé en qué pantalla estoy";
         // EL «NO VEO NADA» VA DESPUÉS DE MIRAR EN LOS TRES SITIOS (2026-09-08): con UIA en blanco

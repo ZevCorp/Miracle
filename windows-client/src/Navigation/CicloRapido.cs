@@ -139,6 +139,12 @@ public sealed class CicloRapido
         return sb.ToString().TrimEnd();
     }
 
+    /// <summary>
+    /// MIRAR con el mismo lector y la misma memoria que el ciclo (promesa 495): lo que se lee aquí es lo que el clic
+    /// siguiente reutiliza si tiene menos de 2 s.
+    /// </summary>
+    public Lectura Mirar(IntPtr v) => Leer(v);
+
     private Lectura Leer(IntPtr v)
     {
         var l = _leer(v);
