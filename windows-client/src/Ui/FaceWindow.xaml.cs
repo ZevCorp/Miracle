@@ -134,6 +134,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     public FaceWindow()
     {
         InitializeComponent();
+        // LA CARITA DE VISITA (spec 061): la regla decide si sale, a dónde y cuándo vuelve; aquí solo se le dan las manos.
+        _visita = new EstanciaDeLaCarita(Traspasable, VolarDeVisita, () => Environment.TickCount64);
         // La precarga del plan dispara cuando el carrusel lleva 300 ms quieto sobre un workflow (spec 007).
         _precarga.Tick += (_, _) =>
         {
@@ -208,7 +210,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // LA CARITA VA A DONDE MIRA. Cuando el asistente dice que ve un elemento, ponerse a su lado
         // es lo que convierte «lo veo» en algo comprobable: si se planta junto a otra cosa, se ve al
         // instante. Es la misma idea que el recuadro, dicha con el cuerpo (2026-08-05).
-        Senalador.Senala += (caja, _) => Dispatcher.BeginInvoke(() => IrJuntoA(caja));
+        Senalador.Senala += (caja, _) => Dispatcher.BeginInvoke(() => Visitar(caja));
 
         // ILUMINAR ES PARA QUIEN MIRA, NO PARA QUIEN PROGRAMA. El recuadro se pintaba solo desde
         // GraphExplorerWindow —la ventana del grafo, una herramienta de desarrollo— así que señalar
@@ -1822,6 +1824,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
         top = Math.Clamp(top, wa.Top, Math.Max(wa.Top, wa.Bottom - ActualHeight));
         MoveTo(left, top);
+        // LA CASA ES DONDE LA DEJÓ LA PERSONA, y la de verdad es esta: lo guardado puede faltar, haberse descartado o no
+        // estar pegado a un lado; esto es lo que quedó aplicado (promesa 507).
+        _visita.Casa = new Point(left, top);
 
         // Aserción viva: colocar la ventana depende de tres cosas que cambian solas (el tamaño ya
         // asentado, el área de trabajo y lo guardado). Cuando alguna falla, el síntoma es «aparece
@@ -1885,24 +1890,58 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     }
 
     /// <summary>
-    /// EL VIAJE AL CLIC (era la promesa 240, retirada en la 054). Hoy no lo llama nadie —IrJuntoA ya no recibe
-    /// <c>alClic</c>—, y se queda porque la carita volverá a ir a cada elemento, que es lo que pide el dueño. Como <see cref="MoverConMuelle"/> pero con la curva y los
-    /// tiempos de <see cref="ComoViajaLaCarita"/> —más corta, y sin el rebote del lanzamiento—.
-    ///
-    /// No se reutiliza el muelle de lanzar porque esto pasa en CADA clic: 720 ms con rebote está bien
-    /// para un gesto de la persona, y encadenado veinte veces en un plan se lee como gelatina.
+    /// EL VUELO DE UNA VISITA (spec 061): la curva sin rebote y los tiempos de <see cref="ComoViajaLaCarita"/> —150 a
+    /// 430 ms—, no el muelle de lanzar, que rebota ~8 % y cruzaría el elemento al posarse. Tiempo cero = al momento.
     /// </summary>
-    private void ViajarAlClic(double left, double top)
+    private void VolarDeVisita(Point destino, TimeSpan dur, Action<Point>? alPosarse)
     {
-        double dx = left - Left, dy = top - Top;
-        double dist = Math.Sqrt(dx * dx + dy * dy);
-        if (!ComoViajaLaCarita.MereceViaje(dist)) { MoveTo(left, top); return; }
-        var dur = ComoViajaLaCarita.Cuanto(dist);
-        // Se anota porque es lo único que hace medible el viaje sin mirar la pantalla: en el log se lee
-        // de dónde salió, a dónde fue y cuánto tardó.
-        LogBus.Log("ui-anim", $"viaje al clic: ({Left:0},{Top:0}) → ({left:0},{top:0}) · {dist:0} px en {dur.TotalMilliseconds:0} ms");
-        Vuelo.Mover(this, left, top, dur, new CurvaDelClic(), new CurvaDelClic());
+        Action? alAterrizar = alPosarse == null ? null : () => alPosarse(new Point(Left, Top));
+        if (dur <= TimeSpan.Zero) { MoveTo(destino.X, destino.Y); alAterrizar?.Invoke(); return; }
+        // Se anota porque es lo único que hace medible el viaje sin mirar la pantalla.
+        LogBus.Log("ui-anim", $"visita: vuelo ({Left:0},{Top:0}) → ({destino.X:0},{destino.Y:0}) en {dur.TotalMilliseconds:0} ms");
+        Vuelo.Mover(this, destino.X, destino.Y, dur, new CurvaDelClic(), new CurvaDelClic(), alAterrizar: alAterrizar);
     }
+
+    /// <summary>
+    /// EL FANTASMA (promesa 505): fuera de casa el ratón atraviesa la carita. Es lo único que toca su estilo, y dice lo
+    /// que quedó releyéndolo de la ventana.
+    /// </summary>
+    private void Traspasable(bool fantasma)
+    {
+        int estilo = Fantasma.Poner(new System.Windows.Interop.WindowInteropHelper(this).Handle, fantasma);
+        if (fantasma)
+        {
+            // El globo de la línea es OTRA ventana, que el bit no cubre: si se abriera junto al elemento que Ü acaba de
+            // tocar, un clic en él abriría el chat y robaría el foco. Se cierra, y se paran sus relojes.
+            _lineaTimer.Stop();
+            _cerrarLineaTimer.Stop();
+            GhostPista.IsOpen = false;
+            (_latidoDeVisita ??= NuevoLatidoDeVisita()).Start();
+        }
+        else
+        {
+            _latidoDeVisita?.Stop();
+            try { CollapsedFace?.DejarDeMirar(); } catch (Exception e) { LogBus.Log("ui-anim", $"no pude dejar de mirar: {e.Message}"); }
+        }
+        LogBus.Log("ui-anim", fantasma
+            ? $"carita fantasma: el ratón la atraviesa · exstyle=0x{estilo:X}"
+            : $"carita en casa: vuelve a dejarse tocar · exstyle=0x{estilo:X}");
+    }
+
+    private System.Windows.Threading.DispatcherTimer? _latidoDeVisita;
+
+    /// <summary>
+    /// El latido de la vuelta: cada 250 ms le dice a la regla dónde está y si vuela. Solo mueve su propia ventana y nunca
+    /// lee la pantalla (promesa 489).
+    /// </summary>
+    private System.Windows.Threading.DispatcherTimer NuevoLatidoDeVisita()
+    {
+        var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        t.Tick += (_, _) => _visita.Latido(new Point(Left, Top), Vuelo.EnCurso);
+        return t;
+    }
+
+    private readonly EstanciaDeLaCarita _visita;
 
     // --- Recordar dónde dejó el usuario la barra ---
     //
@@ -2169,6 +2208,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         if (anfitrion is not Muelle) anfitrion.Ventana.Closed += ElAnfitrionSeFue;
         // Sentada en la consulta, el botón de llevar tiene quien lleve (promesa 274).
         if (anfitrion is ConsultaWindow consulta) consulta.Llevar = (destino, nuevo) => _ = ViajarAsync(destino, nuevo);
+        _visita.VolverYa();   // sentada, la ventana flotante se esconde: que no se quede fantasma para cuando vuelva
         Hide();
     }
 
@@ -2797,6 +2837,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 // contra el borde: «me oculto» y seguir viéndose es peor que no ocultarse.
                 _muelle?.Plegar("Ü se oculta");
                 _muelle?.Hide();
+                // A casa y tocable ANTES de esconderse: el fantasma sobrevive a Hide/Show, y volvería intocable.
+                _visita.VolverYa();
                 Hide();
                 // Se ofrece el doble Ctrl y no Ctrl+Alt+U porque es el gesto que ya usa para
                 // hablarle: una tecla menos que recordar, y la misma que tenía en la mano.
@@ -3933,6 +3975,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </summary>
     private void OnWindowMoved(double left, double top)
     {
+        // Moverla la persona es cambiarle la casa: a donde vuelve tras una visita (promesa 507).
+        _visita.Casa = new Point(left, top);
         SavePositionSoon(left, top);
         var wa = SystemParameters.WorkArea;
         ApplyCaritaSide(left + ActualWidth / 2 < (wa.Left + wa.Right) / 2);
@@ -4637,94 +4681,75 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// Es la misma regla que ya sigue el vigilante de clics: siempre activo, porque el terreno se
     /// aprende viviendo. Lo que el usuario decide aquí es si quiere VERLO, no si el sistema sabe.
     /// </summary>
-    /// <summary>
-    /// Lleva la carita junto a una caja de pantalla, sin taparla.
-    ///
-    /// Se coloca a la DERECHA del elemento y, si ahí no cabe, a la izquierda: taparlo justo cuando
-    /// se está diciendo «mira esto» sería la peor forma de señalarlo. La caja llega en píxeles
-    /// físicos —como los da UIA— y se convierte aquí, porque el escalado lo sabe la ventana.
-    /// </summary>
     /// <summary>Cuando se señalan varias, el aviso de «una» llega detrás y no debe pisar el recorrido.</summary>
     private bool _recorridoReciénLanzado;
 
-    /// <param name="alClic">
-    /// Viene de un clic de la mano y no de señalar: viaja con la curva rápida, y solo si está
-    /// colapsada. Con el panel abierto la carita es una barra con contenido, y arrastrarla por la
-    /// pantalla en cada clic taparía justo lo que la persona está leyendo.
-    /// </param>
-    private void IrJuntoA(Rect fisico, bool alClic = false)
+    /// <summary>
+    /// LA VISITA (spec 061): la carita va junto a lo que Ü tocó o señaló. TODO lo que la mueve por iniciativa de Ü pasa por
+    /// aquí (promesa 505): la regla la vuelve fantasma ANTES de volar, la posa al lado y nunca encima (506), y la trae
+    /// sola a casa (507). La caja llega en píxeles físicos, como la da UIA.
+    /// </summary>
+    private void Visitar(Rect fisico)
     {
-        if (alClic && !_collapsed) return;
-        if (JuntoA(fisico) is not { } sitio) return;
+        if (!IsVisible) { LogBus.Log("ui-anim", "visita: la carita está oculta, no visita"); return; }
+        if (_silla.Ocupada) { LogBus.Log("ui-anim", $"visita: sentada en «{_silla.Donde}», no visita"); return; }
+        if (EnDips(fisico) is not { } d) return;
 
-        // SEÑALAR VARIAS EMITE LAS DOS SEÑALES. Senalador avisa de «estas seis» y acto seguido de
-        // «la principal es esta», y las dos llegan a la carita: el recorrido arrancaba y el aviso
-        // siguiente lo sustituía por un viaje corriente a la primera. Desde fuera parecía que el
-        // recorrido no se había implementado (2026-08-07). Los ojos sí miran; lo que se ignora es
-        // el movimiento, que ya lo lleva la ruta.
+        // SEÑALAR VARIAS EMITE LAS DOS SEÑALES. Senalador avisa de «estas seis» y acto seguido de «la principal es
+        // esta», y las dos llegan a la carita: el recorrido arrancaba y el aviso siguiente lo sustituía por un viaje
+        // corriente a la primera (2026-08-07). Los ojos sí miran; lo que se ignora es el movimiento, que ya lleva la ruta.
         if (_recorridoReciénLanzado) _recorridoReciénLanzado = false;
-        else if (alClic) ViajarAlClic(sitio.X, sitio.Y);
-        else MoverConMuelle(sitio.X, sitio.Y);
+        else if (_visita.Visitar(d.Elemento, new Point(Left, Top), TamañoDeLaCarita, d.Area))
+            LogBus.Log("ui-anim", $"visita «{d.Elemento.X:0},{d.Elemento.Y:0} {d.Elemento.Width:0}x{d.Elemento.Height:0}»");
+        else
+            LogBus.Log("ui-anim", $"visita: no cabe junto a {d.Elemento.X:0},{d.Elemento.Y:0} {d.Elemento.Width:0}x{d.Elemento.Height:0} sin taparlo: no vuela");
 
-        // Y los ojos hacia él: si la carita quedó a su derecha, mira a la izquierda.
-        try
-        {
-            var m = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
-                    ?? System.Windows.Media.Matrix.Identity;
-            var tl = m.Transform(new Point(fisico.X, fisico.Y));
-            var br = m.Transform(new Point(fisico.Right, fisico.Bottom));
-            double ancho = ActualWidth > 0 ? ActualWidth : 160;
-            CollapsedFace?.MirarHacia((tl.X + br.X) / 2 < sitio.X + ancho / 2);
-        }
-        catch { }
+        // Y los ojos hacia él, desde donde se posa: si queda a su derecha, mira a la izquierda.
+        if (ReglaDeLaVisita.Junto(d.Elemento, TamañoDeLaCarita, d.Area) is { } posada)
+            try { CollapsedFace?.MirarHacia(d.Elemento.X + d.Elemento.Width / 2 < posada.X + TamañoDeLaCarita.Width / 2); }
+            catch (Exception e) { LogBus.Log("ui-anim", $"no pude mirar hacia el elemento: {e.Message}"); }
     }
+
+    /// <summary>El tamaño de la carita para posarla: la ventana entera, con su sombra, que también recoge clics.</summary>
+    private Size TamañoDeLaCarita => new(ActualWidth > 0 ? ActualWidth : 160, ActualHeight > 0 ? ActualHeight : 160);
 
     /// <summary>
     /// DÓNDE SE PONE la carita para señalar algo. Solo lo calcula; no la mueve.
     /// </summary>
     /// <remarks>
-    /// Separado de <see cref="IrJuntoA"/> porque hay dos formas de usarlo y solo una mueve: señalar
+    /// Separado de <see cref="Visitar"/> porque hay dos formas de usarlo y solo una mueve: señalar
     /// una cosa va y se planta, y señalar varias necesita SABER los sitios de todas antes de salir,
     /// para trazar un camino que pase por ellos. Si el cálculo viviera dentro del movimiento, el
     /// recorrido tendría que ir parándose para preguntar (2026-08-07).
     /// </remarks>
-    private Point? JuntoA(Rect fisico)
+    private Point? JuntoA(Rect fisico) =>
+        EnDips(fisico) is { } d ? ReglaDeLaVisita.Junto(d.Elemento, TamañoDeLaCarita, d.Area) : null;
+
+    /// <summary>La caja de UIA en DIP, y el área donde puede posarse la carita. null, dicho en el log, si no se pudo.</summary>
+    private (Rect Elemento, Rect Area)? EnDips(Rect fisico)
     {
         try
         {
             var src = PresentationSource.FromVisual(this);
             System.Windows.Media.Matrix m = src?.CompositionTarget?.TransformFromDevice
                 ?? System.Windows.Media.Matrix.Identity;
-            var tl = m.Transform(new Point(fisico.X, fisico.Y));
-            var br = m.Transform(new Point(fisico.Right, fisico.Bottom));
+            var elemento = new Rect(m.Transform(new Point(fisico.X, fisico.Y)), m.Transform(new Point(fisico.Right, fisico.Bottom)));
 
-            // DÓNDE PUEDE PONERSE. El área de trabajo es la del monitor PRINCIPAL, así que recortar
-            // contra ella arrastraba la carita de vuelta a la pantalla principal cada vez que el
-            // elemento estaba en otra: quedaba lejísimos de lo que decía estar mirando. Si el
-            // elemento cae dentro del área de trabajo se usa esa —así no tapa la barra de tareas—;
-            // si no, manda el escritorio ENTERO, que es donde de verdad está (2026-08-05).
+            // DÓNDE PUEDE PONERSE. El área de trabajo es la del monitor PRINCIPAL, así que recortar contra ella arrastraba
+            // la carita de vuelta a la pantalla principal cada vez que el elemento estaba en otra. Si el elemento cae
+            // dentro del área de trabajo se usa esa —así no tapa la barra de tareas—; si no, manda el escritorio ENTERO,
+            // que es donde de verdad está (2026-08-05).
             var trabajo = SystemParameters.WorkArea;
             var todo = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
                                 SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
-            var elemento = new Rect(tl, br);
-            var area = trabajo.Contains(elemento) ? trabajo : todo;
-
-            double ancho = ActualWidth > 0 ? ActualWidth : 160;
-            double alto = ActualHeight > 0 ? ActualHeight : 160;
-
-            double x = br.X + 12;
-            if (x + ancho > area.Right) x = tl.X - ancho - 12;      // no cabe a la derecha: al otro lado
-            x = Math.Max(area.Left, Math.Min(x, area.Right - ancho));
-
-            double y = tl.Y + ((br.Y - tl.Y) / 2) - (alto / 2);      // centrada con el elemento
-            y = Math.Max(area.Top, Math.Min(y, area.Bottom - alto));
-
-            return new Point(x, y);
+            return (elemento, trabajo.Contains(elemento) ? trabajo : todo);
         }
-        catch { return null; }
+        catch (Exception e)
+        {
+            LogBus.Log("ui-anim", $"no pude pasar la caja {fisico} a DIP: {e.GetType().Name}: {e.Message}");
+            return null;
+        }
     }
-
-    private int _recorrido;   // cada recorrido nuevo invalida el anterior
 
     /// <summary>
     /// Va PASANDO por todas las cosas señaladas, una tras otra, en vez de plantarse junto a la
@@ -4736,19 +4761,14 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// enumera algo con la mano — y de paso convierte una lista en algo que se puede seguir con la
     /// mirada, que es justo lo que no se puede hacer con seis recuadros encendidos de golpe.
     ///
-    /// Se para en cada una lo justo para que se lea, y se acaba en la primera: es la que manda —la
-    /// que <see cref="Senalador"/> considera la principal— y dejar la carita en la última sería
-    /// terminar señalando algo que no es el asunto.
+    /// Aminora junto a cada una sin pararse, y termina donde termina la lista.
     ///
-    /// Cada recorrido nuevo cancela el anterior por número de serie y no por una bandera: si el
-    /// asistente señala otra cosa a mitad de camino, el recorrido viejo tiene que morir en silencio,
-    /// no pelearse por mover la ventana.
+    /// Cada recorrido nuevo cancela el anterior: <see cref="Vuelo"/> lleva un solo viaje a la vez. Y sale de casa
+    /// por la visita (promesa 505): fantasma antes de moverse, y de vuelta sola cuando acaba.
     /// </remarks>
     private void Recorrer(IReadOnlyList<Rect> cajas)
     {
-        if (cajas.Count <= 1) return;   // una sola ya la lleva IrJuntoA
-
-        _recorrido++;
+        if (cajas.Count <= 1) return;   // una sola ya la lleva Visitar
 
         // TODAS, sin recortar. Antes se enseñaban seis por miedo a que fuera largo, y eso mentía:
         // se marcaban treinta recuadros y el cuerpo visitaba seis. Lo que hacía largo el recorrido
@@ -4792,7 +4812,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // una barra lateral se despachaban en menos de un segundo y no daba tiempo a leer nada.
         var dur = TimeSpan.FromMilliseconds(
             Math.Clamp(500 + largo * 0.55 + paradas.Count * 260, 900, 8000));
+        if (!IsVisible || _silla.Ocupada) return;
         _recorridoReciénLanzado = true;
+        _visita.Salir();
         Vuelo.Recorrido(this, paradas, dur);
     }
 
@@ -4804,6 +4826,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     {
         try
         {
+            // El carrusel es un gesto de la persona, no una visita: si la carita estaba de visita, primero a casa y
+            // tocable, para que el sitio de antes sea el suyo y no el de lo último que tocó Ü.
+            _visita.VolverYa();
             _sitioDeAntes ??= (Left, Top);
             double ancho = ActualWidth > 0 ? ActualWidth : 160;
             double alto = ActualHeight > 0 ? ActualHeight : 160;

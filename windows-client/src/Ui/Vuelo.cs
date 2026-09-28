@@ -56,10 +56,15 @@ internal static class Vuelo
     /// los dos extremos y separado al máximo por la mitad (2026-08-06, pedido por el usuario: «se
     /// siente muy recto de un lado a otro»).
     /// </param>
+    /// <param name="alAterrizar">
+    /// Se llama al posarse de verdad en el destino, nunca si otro vuelo, una mano o un fallo lo cortan (promesa 507: la
+    /// carita solo se vuelve tocable al llegar a casa, y un vuelo cortado no es una llegada).
+    /// </param>
     public static void Mover(Window win, double destLeft, double destTop, TimeSpan dur,
-                            IEasingFunction ejeX, IEasingFunction ejeY, double arco = 0)
+                            IEasingFunction ejeX, IEasingFunction ejeY, double arco = 0, Action? alAterrizar = null)
     {
         Termina();
+        _alAterrizar = alAterrizar;
         _win = win;
         _x0 = win.Left; _y0 = win.Top;
         _x1 = destLeft; _y1 = destTop;
@@ -221,9 +226,12 @@ internal static class Vuelo
                     + (-a + 3 * b - 3 * c + d) * u3);
     }
 
-    /// <summary>Se acabó: alguien ha puesto la ventana en un sitio a mano.</summary>
+    private static Action? _alAterrizar;
+
+    /// <summary>Se acabó: alguien ha puesto la ventana en un sitio a mano. Cortar NO avisa de la llegada.</summary>
     public static void Termina()
     {
+        _alAterrizar = null;
         if (!_andando) return;
         _andando = false;
         CompositionTarget.Rendering -= Cuadro;
@@ -238,6 +246,7 @@ internal static class Vuelo
         double t = (DateTime.UtcNow - _inicio).TotalMilliseconds / _dur.TotalMilliseconds;
         bool ultimo = t >= 1;
         if (ultimo) t = 1;
+        bool fallo = false;
 
         try
         {
@@ -262,7 +271,7 @@ internal static class Vuelo
                 win.Top = _y0 + (_y1 - _y0) * (_ey?.Ease(t) ?? t) + _arcoY * panza;
             }
         }
-        catch { ultimo = true; }   // ventana cerrándose: no hay a dónde mover nada
+        catch { ultimo = true; fallo = true; }   // ventana cerrándose: no hay a dónde mover nada, ni llegada que avisar
 
         if (ultimo)
         {
@@ -273,8 +282,10 @@ internal static class Vuelo
                 if (_ruta != null) { win.Left = _ruta[^1].X; win.Top = _ruta[^1].Y; }
                 else { win.Left = _x1; win.Top = _y1; }
             }
-            catch { }
+            catch { fallo = true; }
+            var alAterrizar = _alAterrizar;   // Termina lo borra: cortar no es llegar
             Termina();
+            if (!fallo) alAterrizar?.Invoke();
         }
     }
 }
