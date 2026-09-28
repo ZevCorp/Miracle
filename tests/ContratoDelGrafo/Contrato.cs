@@ -742,7 +742,9 @@ internal static class Contrato
         Prueba("265. un patrón que lanza no es un clic que falló: la escalera de pulsar termina siempre en el clic físico —tras el patrón, tras el mensaje— y sólo el físico decide que no se pudo", LaEscaleraTerminaEnElClicFisico);
         // LAS DOS TANDAS QUE SIENTE EL DUEÑO: la coreografía de la 014 —tarjeta y pausa de lectura de hasta 4 s— aplicada
         // a clics normales, porque el modelo pone decir/recuerdo en el 89% de ellos. Fuera de una comprobación sobra.
-        Prueba("266. fuera de una comprobación, pulsar es señalar y tocar en un solo gesto: sin tarjeta ni pausa de lectura, y el recuerdo que el modelo mande se escribe DESPUÉS de tocar; dentro de una comprobación la coreografía de la 180 sigue entera", FueraDeUnaComprobacionPulsarEsUnSoloGesto);
+        // 266 RETIRADA (spec 054, 2026-09-28): «fuera de una comprobación, pulsar es señalar y tocar en un solo gesto, y el
+        // recuerdo se escribe DESPUÉS de tocar». Desde la 497 fuera de una comprobación no hay coreografía: el clic va por el
+        // ciclo rápido y recordar es map_esto_es, explícito. Lo de dentro ya lo promete la 180.
         Prueba("267. un paso que hizo 0 de N se ve como fallo, no con ✓: el notch y el registro lo pintan como lo que fue", CeroDeUnoSeVeComoFallo);
 
         Prueba("258. el modelo puede pedir lo que vio antes: pedir la mirada de una ubicación devuelve su foto con su ficha —cuándo fue y qué estaba pasando—, y si de esa no hay, dice QUÉ ubicaciones sí recuerda en vez de contestar que no hay nada", ElModeloPuedePedirLoQueVioAntes);
@@ -11241,29 +11243,6 @@ internal static class Contrato
             $"tras el mensaje también (salió {E(U.Graph.Surfaces.ComoSePulsa.Gesto.Mensaje)})");
         Debe(E(U.Graph.Surfaces.ComoSePulsa.Gesto.Fisico) == "Fisico",
             "y el físico es el último peldaño: el único que puede decir que no se pudo");
-    }
-
-    private static void FueraDeUnaComprobacionPulsarEsUnSoloGesto()
-    {
-        var t = Capacidad("U.WindowsClient.Piloto.ElRecuerdoQueSeVe");
-        var m = t?.GetMethods(BindingFlags.Public | BindingFlags.Static).FirstOrDefault(x => x.Name == "Coreografia" && x.GetParameters().Length == 4);
-        if (m == null) { Pendiente("ElRecuerdoQueSeVe.Coreografia(elemento, recuerdo, decir, enComprobacion)", "266", "030"); return; }
-        string C(bool e, bool r, bool d, bool comp) =>
-            string.Join(">", ((System.Collections.IEnumerable)m.Invoke(null, new object[] { e, r, d, comp })!).Cast<object>().Select(g => g.ToString()));
-
-        string fuera = C(true, true, true, false);
-        Debe(fuera == "Senalar>Decir>Actuar>Escribir>Soltar",
-            $"fuera de una comprobación: señalar, decir, TOCAR, y el recuerdo después —sin tarjeta ni pausa— (salió {fuera})");
-        Debe(!fuera.Contains("Mostrar") && !fuera.Contains("Esperar"),
-            "ni tarjeta ni pausa de lectura: la persona no está leyendo una lección, está esperando el clic");
-        Debe(fuera.IndexOf("Escribir", StringComparison.Ordinal) > fuera.IndexOf("Actuar", StringComparison.Ordinal),
-            "y escribir el recuerdo va DESPUÉS de tocar: no se paga antes de lo que la persona pidió");
-        Debe(C(true, false, false, false) == "Senalar>Actuar>Soltar", "sin recuerdo ni frase: señalar, tocar, soltar");
-        Debe(C(false, true, true, false) == "Decir>Actuar>Escribir", "sin elemento en pantalla no hay señal: decir, tocar, escribir");
-
-        string dentro = C(true, true, true, true);
-        Debe(dentro == "Senalar>Decir>Escribir>Mostrar>Esperar>Actuar>Cerrar>Soltar",
-            $"dentro de una comprobación la coreografía de la 180 sigue entera (salió {dentro})");
     }
 
     private static void CeroDeUnoSeVeComoFallo()

@@ -65,7 +65,7 @@ Y el notch pinta **✓** sobre «hice 0 de 1»: `Terminado` decide el icono busc
 |---|---|---|
 | 264 | vivo se juzga mirando AHORA: si el mapa no tiene una puerta como viva, antes de rendirse la compuerta vuelve a mirar la ventana; si al mirar aparece, se pulsa en el acto; si no aparece ni mirando, se dice que no se ve, como hasta hoy | 1 |
 | 265 | un patrón que lanza no es un clic que falló: la escalera de pulsar termina siempre en el clic físico —tras el patrón, tras el mensaje— y sólo el físico decide que no se pudo | 1 |
-| 266 | fuera de una comprobación, pulsar es señalar y tocar en un solo gesto: sin tarjeta ni pausa de lectura, y el recuerdo que el modelo mande se escribe DESPUÉS de tocar; dentro de una comprobación la coreografía de la 180 sigue entera | 1 |
+| 266 | ~~fuera de una comprobación, pulsar es señalar y tocar en un solo gesto: sin tarjeta ni pausa de lectura, y el recuerdo que el modelo mande se escribe DESPUÉS de tocar; dentro de una comprobación la coreografía de la 180 sigue entera~~ — **retirada el 2026-09-28** (spec 054): fuera de una comprobación ya no hay coreografía | 1 |
 | 267 | un paso que hizo 0 de N se ve como fallo, no con ✓: el notch y el registro lo pintan como lo que fue | 1 |
 
 ### Con qué se juzga

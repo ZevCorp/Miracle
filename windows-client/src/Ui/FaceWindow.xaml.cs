@@ -3472,11 +3472,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         var mano = _mapaDeMano!;
         recuerdo ??= ""; decir ??= ""; senalar ??= "";
         bool hayElemento = senalar.Length > 0 && mano.SenalarElemento(senalar, senalar);
-        // FUERA DE UNA COMPROBACIÓN NO HAY TARJETA NI PAUSA (promesa 266): la coreografía de la 180 es para cuando la
-        // persona está viendo una lección; en un clic normal quería ver la carita al lado y el clic, en un solo gesto.
-        bool enComprobacion = mano.Llegue != null;
-        var coreografia = Piloto.ElRecuerdoQueSeVe.Coreografia(hayElemento, recuerdo.Length > 0 && senalar.Length > 0, decir.Length > 0, enComprobacion);
-        if (!hayElemento && senalar.Length > 0) LogBus.Log("comprobar", $"paso · «{senalar}» no está en pantalla para señalarlo: va al ejecutor sin tarjeta");
+        var coreografia = Piloto.ElRecuerdoQueSeVe.Coreografia(hayElemento, recuerdo.Length > 0 && senalar.Length > 0, decir.Length > 0);
+        if (!hayElemento && senalar.Length > 0) LogBus.Log("coreografia", $"paso · «{senalar}» no está en pantalla para señalarlo: va al ejecutor sin tarjeta");
         foreach (var gesto in coreografia)
         {
             switch (gesto)
@@ -3488,7 +3485,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 case Piloto.ElRecuerdoQueSeVe.Gesto.Escribir:
                 {
                     string r = mano.Call("map_esto_es", new Dictionary<string, string> { ["significado"] = recuerdo, ["sobre"] = senalar });
-                    LogBus.Log("comprobar", $"paso · recuerdo en «{senalar}»: {(r.Length > 120 ? r[..120] + "…" : r)}");
+                    LogBus.Log("coreografia", $"paso · recuerdo en «{senalar}»: {(r.Length > 120 ? r[..120] + "…" : r)}");
                     break;
                 }
                 case Piloto.ElRecuerdoQueSeVe.Gesto.Mostrar:
@@ -3515,13 +3512,6 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         {
             if (gesto == Piloto.ElRecuerdoQueSeVe.Gesto.Cerrar) TarjetasDeRecuerdo.Cerrar();
             if (gesto == Piloto.ElRecuerdoQueSeVe.Gesto.Soltar) Senalador.Soltar();
-            // EL RECUERDO SE ESCRIBE DESPUÉS DE TOCAR fuera de una comprobación (promesa 266): lo que el modelo quiso
-            // recordar se guarda igual, pero no se paga antes de lo que la persona pidió.
-            if (gesto == Piloto.ElRecuerdoQueSeVe.Gesto.Escribir)
-            {
-                string r = mano.Call("map_esto_es", new Dictionary<string, string> { ["significado"] = recuerdo, ["sobre"] = senalar });
-                LogBus.Log("comprobar", $"paso · recuerdo tras tocar en «{senalar}»: {(r.Length > 120 ? r[..120] + "…" : r)}");
-            }
         }
         return res;
     }
