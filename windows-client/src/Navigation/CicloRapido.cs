@@ -69,7 +69,13 @@ public sealed class CicloRapido
         var antes = fresca ? _ultima! : Leer(v);
         var iguales = Buscar(antes, nombre, tipo);
         if (iguales.Count == 0) { antes = Leer(v); iguales = Buscar(antes, nombre, tipo); }
-        if (iguales.Count == 0) { PorQueNo = $"«{nombre}» no está en la lectura ({antes.Accionables.Count} accionables)"; return null; }
+        // LO QUE NO ESTÁ SE DICE AL MOMENTO (promesa 493), como u/. Caer al camino de siempre costaba 60 s por clic en
+        // Edge (2026-09-27): el grafo que ese camino consultaba ya no se alimenta, y su lector no aguanta una página.
+        if (iguales.Count == 0)
+            // Sin un solo accionable no es «no está»: es que la pantalla no se dejó leer a tiempo (promesa 494). Dos causas, dos frases.
+            return antes.Accionables.Count == 0
+                ? $"no pude leer la pantalla a tiempo: no sé si «{nombre}» está. No pulsé nada."
+                : $"«{nombre}» no está a la vista: no pulsé nada.\n\n" + Describir(antes, v);
 
         Accionable el;
         if (iguales.Count > 1)

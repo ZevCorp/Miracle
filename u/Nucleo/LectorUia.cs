@@ -79,7 +79,12 @@ public sealed class LectorUia : IDisposable
     /// </summary>
     public Lectura Leer(IntPtr ventana)
     {
-        var tcs = new TaskCompletionSource<Lectura>();
+        // PLAZO TOTAL (spec 054, promesa 494). Los plazos de COM cortan una llamada que no contesta, no una que tarda:
+        // Wikipedia en Edge tardó 64-136 s en una sola lectura (2026-09-27), y este lector tiene UN hilo con cola, así
+        // que lo siguiente esperaba detrás. Ahora se espera PlazoTotalMs y se contesta vacío; mientras esa lectura siga
+        // atascada, las siguientes también contestan vacío al momento, sin hacer cola. Vacío es «no sé», no «no hay».
+        if (_atascada) { UltimaAgotada = true; return Lectura.Vacia; }
+        var tcs = new TaskCompletionSource<Lectura>(TaskCreationOptions.RunContinuationsAsynchronously);
         _cola.Add(() =>
         {
             try
@@ -88,12 +93,28 @@ public sealed class LectorUia : IDisposable
                 var textos = crudos.Where(c => c.Tipo == "Text" && !c.FueraDePantalla && c.Caja.Ancho > 0)
                     .Select(c => (c.Nombre ?? "").Trim()).Where(t => t.Length > 0)
                     .Select(t => t.Length > 80 ? t[..80] + "…" : t).Distinct().Take(MaxTextos).ToList();
-                tcs.SetResult(new Lectura(Accionables.Numerar(crudos.Where(c => c.Tipo != "Text")), textos) { Foco = _foco, Campos = _campos.ToArray() });
+                tcs.TrySetResult(new Lectura(Accionables.Numerar(crudos.Where(c => c.Tipo != "Text")), textos) { Foco = _foco, Campos = _campos.ToArray() });
             }
-            catch (Exception e) { tcs.SetException(e); }
+            catch (Exception e) { tcs.TrySetException(e); }
+            finally { _atascada = false; }
         });
+        if (!tcs.Task.Wait(PlazoTotalMs))
+        {
+            _atascada = true;
+            UltimaAgotada = true;
+            return Lectura.Vacia;
+        }
+        UltimaAgotada = false;
         return tcs.Task.GetAwaiter().GetResult();
     }
+
+    /// <summary>Lo más que se espera una lectura entera (promesa 494). Una sana tarda 20-900 ms; Edge con Wikipedia, ~3 s.</summary>
+    public const int PlazoTotalMs = 4000;
+
+    /// <summary>Si la última lectura se contestó vacía por el plazo total, y no porque no hubiera nada.</summary>
+    public bool UltimaAgotada { get; private set; }
+
+    private volatile bool _atascada;
 
     private List<Crudo> LeerEnElHilo(IntPtr ventana)
     {
