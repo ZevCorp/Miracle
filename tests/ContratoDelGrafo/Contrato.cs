@@ -13769,6 +13769,13 @@ internal static class Contrato
         string? r = Pulsar(nada, "Bluetooth");
         Debe(r != null && r.Contains("no está") && r.Contains("«Sistema» (ListItem)") && nada.Clics.Count == 0 && nada.Lecturas == 2,
             $"lo que no está: devolvió «{r}», pulsó {nada.Clics.Count} y leyó {nada.Lecturas} veces (una y una más, y contestar con lo que se ve)");
+
+        // Una lectura VACÍA no se repite: es que la pantalla no se dejó leer a tiempo (494), y otra lectura cuesta otros
+        // 4 s para lo mismo. En Edge, 14 s por clic para decir «no pude leer» (2026-09-27).
+        var sinLeer = CicloCon(Pantalla(Array.Empty<string>()));
+        string? r2 = Pulsar(sinLeer, "Bluetooth");
+        Debe(r2 != null && r2.Contains("no pude leer") && sinLeer.Lecturas == 1,
+            $"con la lectura vacía: devolvió «{r2}» y leyó {sinLeer.Lecturas} veces (una sola: vacío es «no sé»)");
     }
 
     private static void ElLectorDeUTienePlazoTotal()

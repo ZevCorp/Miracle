@@ -68,7 +68,9 @@ public sealed class CicloRapido
         bool fresca = _ultima != null && _ultimaVentana == v && t0 - _ultimaEn < VigenciaMs;
         var antes = fresca ? _ultima! : Leer(v);
         var iguales = Buscar(antes, nombre, tipo);
-        if (iguales.Count == 0) { antes = Leer(v); iguales = Buscar(antes, nombre, tipo); }
+        // Se busca en una lectura nueva solo si la de antes LEYÓ algo: una vacía es «no se dejó leer a tiempo» (494), y
+        // repetirla eran otros 4 s para lo mismo (14 s por clic en Edge, 2026-09-27).
+        if (iguales.Count == 0 && antes.Accionables.Count > 0) { antes = Leer(v); iguales = Buscar(antes, nombre, tipo); }
         // LO QUE NO ESTÁ SE DICE AL MOMENTO (promesa 493), como u/. Caer al camino de siempre costaba 60 s por clic en
         // Edge (2026-09-27): el grafo que ese camino consultaba ya no se alimenta, y su lector no aguanta una página.
         if (iguales.Count == 0)
