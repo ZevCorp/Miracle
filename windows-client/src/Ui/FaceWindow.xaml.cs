@@ -849,7 +849,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     Titulo = U.Graph.Surfaces.UiaSurface.TituloDe, EsSap = Uia.Sap.EsVentana,
                     // LA CARITA VA DESPUÉS DEL CLIC (promesa 504), por el mismo pulso que las otras manos. El ciclo no la
                     // espera: la cara lo atiende con BeginInvoke, y si el aviso revienta el clic no se entera.
-                    TrasPulsar = c => U.Graph.Surfaces.UiaSurface.AvisarDelPulso(c.X, c.Y, c.Ancho, c.Alto),
+                    TrasPulsar = Navigation.CicloRapido.AvisarALaCarita,
                     // Y NO PULSA SOBRE Ü (promesa 510): si bajo el punto está la carita, se aparta —fantasma— y se pulsa;
                     // si es otra ventana de Ü, no se pulsa y se dice cuál. Solo espera a la interfaz cuando la tapa la carita.
                     LibrarElPunto = (x, y) => ReglaDeLaVisita.LibrarElPunto(() => VentanasDeU.Bajo(x, y), VentanasDeU.EsDeU,
@@ -4707,23 +4707,28 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </summary>
     private void Visitar(Rect fisico)
     {
-        if (!IsVisible) { LogBus.Log("ui-anim", "visita: la carita está oculta, no visita"); return; }
-        if (_silla.Ocupada) { LogBus.Log("ui-anim", $"visita: sentada en «{_silla.Donde}», no visita"); return; }
-        if (EnDips(fisico) is not { } d) return;
+        try
+        {
+            if (!IsVisible) { LogBus.Log("ui-anim", "visita: la carita está oculta, no visita"); return; }
+            if (_silla.Ocupada) { LogBus.Log("ui-anim", $"visita: sentada en «{_silla.Donde}», no visita"); return; }
+            if (EnDips(fisico) is not { } d) return;
 
-        // SEÑALAR VARIAS EMITE LAS DOS SEÑALES. Senalador avisa de «estas seis» y acto seguido de «la principal es
-        // esta», y las dos llegan a la carita: el recorrido arrancaba y el aviso siguiente lo sustituía por un viaje
-        // corriente a la primera (2026-08-07). Los ojos sí miran; lo que se ignora es el movimiento, que ya lleva la ruta.
-        if (_recorridoReciénLanzado) _recorridoReciénLanzado = false;
-        else if (_visita.Visitar(d.Elemento, new Point(Left, Top), TamañoDeLaCarita, d.Area))
-            LogBus.Log("ui-anim", $"visita «{d.Elemento.X:0},{d.Elemento.Y:0} {d.Elemento.Width:0}x{d.Elemento.Height:0}»");
-        else
-            LogBus.Log("ui-anim", $"visita: no cabe junto a {d.Elemento.X:0},{d.Elemento.Y:0} {d.Elemento.Width:0}x{d.Elemento.Height:0} sin taparlo: no vuela");
+            // SEÑALAR VARIAS EMITE LAS DOS SEÑALES. Senalador avisa de «estas seis» y acto seguido de «la principal es
+            // esta», y las dos llegan a la carita: el recorrido arrancaba y el aviso siguiente lo sustituía por un viaje
+            // corriente a la primera (2026-08-07). Los ojos sí miran; lo que se ignora es el movimiento, que ya lleva la ruta.
+            if (_recorridoReciénLanzado) _recorridoReciénLanzado = false;
+            else if (_visita.Visitar(d.Elemento, new Point(Left, Top), TamañoDeLaCarita, d.Area))
+                LogBus.Log("ui-anim", $"visita «{d.Elemento.X:0},{d.Elemento.Y:0} {d.Elemento.Width:0}x{d.Elemento.Height:0}»");
+            else
+                LogBus.Log("ui-anim", $"visita: no cabe junto a {d.Elemento.X:0},{d.Elemento.Y:0} {d.Elemento.Width:0}x{d.Elemento.Height:0} sin taparlo: no vuela");
 
-        // Y los ojos hacia él, desde donde se posa: si queda a su derecha, mira a la izquierda.
-        if (ReglaDeLaVisita.Junto(d.Elemento, TamañoDeLaCarita, d.Area) is { } posada)
-            try { CollapsedFace?.MirarHacia(d.Elemento.X + d.Elemento.Width / 2 < posada.X + TamañoDeLaCarita.Width / 2); }
-            catch (Exception e) { LogBus.Log("ui-anim", $"no pude mirar hacia el elemento: {e.Message}"); }
+            // Y los ojos hacia él, desde donde se posa: si queda a su derecha, mira a la izquierda.
+            if (ReglaDeLaVisita.Junto(d.Elemento, TamañoDeLaCarita, d.Area) is { } posada)
+                CollapsedFace?.MirarHacia(d.Elemento.X + d.Elemento.Width / 2 < posada.X + TamañoDeLaCarita.Width / 2);
+        }
+        // UN FALLO DE LA VISITA NO ES UN FALLO DEL CLIC. Esto corre desde un BeginInvoke: sin este catch, la excepción
+        // subiría al manejador de la app, que abre el diálogo de «Ü tropezó» encima de lo que Ü está pulsando.
+        catch (Exception e) { LogBus.Log("ui-anim", $"la visita reventó y el clic siguió: {e.GetType().Name}: {e.Message}"); }
     }
 
     /// <summary>El tamaño de la carita para posarla: la ventana entera, con su sombra, que también recoge clics.</summary>
@@ -4796,6 +4801,17 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             if (JuntoA(caja) is { } sitio) paradas.Add(sitio);
         }
         if (paradas.Count == 0) return;
+        // UNA SOLA PARADA NO ES UN RECORRIDO: el de una parada vuela con el muelle que rebota ~8 % y cruzaría el
+        // elemento al posarse. Se va como una visita, con la curva sin rebote.
+        if (paradas.Count == 1)
+        {
+            if (!IsVisible || _silla.Ocupada) return;
+            _recorridoReciénLanzado = true;
+            _visita.Salir();
+            double d1 = (paradas[0] - new Point(Left, Top)).Length;
+            VolarDeVisita(paradas[0], ComoViajaLaCarita.MereceViaje(d1) ? ComoViajaLaCarita.Cuanto(d1) : TimeSpan.Zero, null);
+            return;
+        }
 
         // EL ORDEN EN QUE LLEGAN NO ES UN ORDEN. Las cosas se señalan pasando el ratón por encima,
         // y eso se hace en desorden —arriba, abajo, otra vez arriba—, así que recorrerlas en ese

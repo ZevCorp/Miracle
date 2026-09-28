@@ -149,9 +149,12 @@ public sealed class UiaSurface : IUiSurface
     /// Cuenta un clic que dio OTRA mano —la rápida de Ü desde cero, spec 053—: el pulso es el mismo venga de la mano
     /// que venga, y el evento solo se podía invocar desde aquí.
     /// </summary>
-    public static void AvisarDelPulso(double x, double y, double ancho, double alto)
+    /// <returns>null si se avisó (o no había a quién); si quien escucha revienta, POR QUÉ. Antes se lo tragaba un catch
+    /// mudo, y un aviso roto era indistinguible de uno que nadie escucha (spec 061, patrón nº3).</returns>
+    public static string? AvisarDelPulso(double x, double y, double ancho, double alto)
     {
-        try { if (ancho >= 1 && alto >= 1) Pulso?.Invoke(x, y, ancho, alto); } catch { }
+        try { if (ancho >= 1 && alto >= 1) Pulso?.Invoke(x, y, ancho, alto); return null; }
+        catch (Exception e) { return $"{e.GetType().Name}: {e.Message}"; }
     }
 
     /// <summary>Cuenta que el cursor se movió, cuando lo movió otra mano (spec 053).</summary>

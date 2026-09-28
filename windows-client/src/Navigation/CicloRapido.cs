@@ -53,6 +53,16 @@ public sealed class CicloRapido
     /// </summary>
     public Action<Caja>? TrasPulsar { get; set; }
 
+    /// <summary>
+    /// EL AVISO DE VERDAD (promesa 504): por el mismo pulso que la mano rápida y la escalera, con la caja del elemento. Si
+    /// quien lo escucha revienta, lanza con el porqué, y el ciclo lo deja en <see cref="AvisoFallido"/>.
+    /// </summary>
+    public static void AvisarALaCarita(Caja c)
+    {
+        if (U.Graph.Surfaces.UiaSurface.AvisarDelPulso(c.X, c.Y, c.Ancho, c.Alto) is { } fallo)
+            throw new InvalidOperationException(fallo);
+    }
+
     /// <summary>Por qué reventó el último aviso, o vacío. El clic no se entera; el log sí (patrón nº3: nada de catch mudo).</summary>
     public string AvisoFallido { get; private set; } = "";
 

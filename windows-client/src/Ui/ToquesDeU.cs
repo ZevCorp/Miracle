@@ -37,13 +37,15 @@ public static class ToquesDeU
     private static bool _instalado;
 
     /// <summary>Se engancha al hilo de la interfaz una sola vez. Idempotente, como SinCarteles.</summary>
-    public static void Instalar()
+    /// <param name="firma">Quién lee la firma del mensaje. Solo el contrato lo cambia: fuera, GetMessageExtraInfo.</param>
+    public static void Instalar(Func<IntPtr>? firma = null)
     {
         if (_instalado) return;
         _instalado = true;
+        var leer = firma ?? GetMessageExtraInfo;
         ComponentDispatcher.ThreadFilterMessage += (ref MSG m, ref bool manejado) =>
         {
-            if (!manejado && AlMensaje(m.hwnd, m.message, GetMessageExtraInfo, s => LogBus.Log("toque", s))) manejado = true;
+            if (!manejado && AlMensaje(m.hwnd, m.message, leer, s => LogBus.Log("toque", s))) manejado = true;
         };
     }
 }

@@ -54,7 +54,8 @@ public sealed class ManoRapida
         var (x, y) = Raton.Centro(caja);
         _clic(x, y);
         U.Graph.Surfaces.UiaSurface.AvisarDelCursor(x, y);
-        U.Graph.Surfaces.UiaSurface.AvisarDelPulso(caja.X, caja.Y, caja.Ancho, caja.Alto);
+        if (U.Graph.Surfaces.UiaSurface.AvisarDelPulso(caja.X, caja.Y, caja.Ancho, caja.Alto) is { } fallo)
+            U.WindowsClient.Diagnostics.LogBus.Log("mano", $"el aviso a la carita reventó y el clic siguió: {fallo}");
         return true;
     }
 
