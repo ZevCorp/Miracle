@@ -518,11 +518,21 @@ public sealed class SurfaceMapTools
 
     /// <summary>Lo que una persona llamaría «un elemento» de la pantalla: algo que se puede pulsar
     /// y que ocupa un sitio razonable. No un contenedor ni una etiqueta suelta.</summary>
-    private static bool EsPuertaVisible(UiaReader.UiElement e) =>
-        e.Bounds.Width >= 12 && e.Bounds.Height >= 12
-        && e.Bounds.Width < 900                       // un contenedor ancho no es un elemento
-        && e.ControlType.ToLowerInvariant() is "button" or "listitem" or "treeitem" or "tabitem"
+    private static bool EsPuertaVisible(UiaReader.UiElement e) => EsPuertaVisible(e.ControlType, e.Bounds.Width, e.Bounds.Height);
+
+    private static bool EsPuertaVisible(string tipo, double ancho, double alto) =>
+        ancho >= 12 && alto >= 12
+        && ancho < 900                                // un contenedor ancho no es un elemento
+        && tipo.ToLowerInvariant() is "button" or "listitem" or "treeitem" or "tabitem"
             or "menuitem" or "hyperlink" or "checkbox" or "radiobutton" or "splitbutton" or "combobox";
+
+    /// <summary>
+    /// LO QUE SE PUEDE NOMBRAR AL ENSEÑAR (promesa 503): las puertas visibles y, además, los campos y los combos aunque
+    /// sean anchos. Un campo no es un contenedor por medir más de 900 px: el «Search» de Google mide 1.203.
+    /// </summary>
+    private static bool SePuedeNombrar(string tipo, double ancho, double alto) =>
+        EsPuertaVisible(tipo, ancho, alto)
+        || (ancho >= 12 && alto >= 12 && tipo.ToLowerInvariant() is "edit" or "combobox");
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
@@ -1240,8 +1250,7 @@ public sealed class SurfaceMapTools
         {
             _lector.Read();
             return _lector.Elements
-                .Where(e => e.Label.Length > 0 && (EsPuertaVisible(e)
-                    || (e.Bounds.Width >= 12 && e.Bounds.Height >= 12 && e.ControlType.ToLowerInvariant() is "edit" or "combobox")))
+                .Where(e => e.Label.Length > 0 && SePuedeNombrar(e.ControlType, e.Bounds.Width, e.Bounds.Height))
                 .Select(e => (Uia.Reconocedor.SelectorDe(e), e.Label, e.ControlType))
                 .ToList();
         }
