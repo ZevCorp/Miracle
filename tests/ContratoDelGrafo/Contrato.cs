@@ -889,6 +889,7 @@ internal static class Contrato
         Prueba("488. con el freno echado no pulsa y lo dice; SAP y los selectores que no van por nombre no pasan por el ciclo rápido", ElCicloRapidoRespetaElFrenoYSap);
         Prueba("491. el ciclo rápido trabaja sobre la ventana de delante, la que la persona ve, como u/; solo si delante está la propia Ü usa su ventana de trabajo", ElCicloTrabajaSobreLoQueHayDelante);
         Prueba("495. mirar —map_what_i_see y lo que se pega a cada acto— lee con el lector de u/ la ventana de delante y cuenta accionables y textos; SAP, que UIA no ve, sigue por el lector de siempre", MirarLeeComoU);
+        Prueba("496. tras escribir, la espera es la de u/ —dos lecturas iguales con el lector rápido, techo 300 ms— y lo que se cuenta después es esa misma lectura, sin volver a leer", EscribirEsperaComoU);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
         Prueba("490. leer la pantalla y saber dónde estoy tienen plazo: si la app no contesta, se sigue sin esa respuesta y se dice, en vez de congelar U; lo que llega tarde no pisa lo que ya se contestó", LeerYUbicarseTienenPlazo);
         Prueba("484. desplazar comprueba la consecuencia en cuanto la hay: sale al primer cambio del porcentaje en vez de dormir 350 ms fijos, y sin cambio agota el mismo techo antes de decir que no se movió", DesplazarNoDuermeFijo);
@@ -13818,6 +13819,24 @@ internal static class Contrato
         var nombre = CicloCon(p);
         Pulsar(nombre, "uia:name=Sistema;ct=ListItem");
         Debe(nombre.Clics.Count == 1, "un selector por nombre y tipo no pasó por el ciclo rápido");
+    }
+
+    private static void EscribirEsperaComoU()
+    {
+        // MEDIDO EL 2026-09-27: map_type, 447 ms de acto con la escritura instantánea: el resto era EsperarPantallaLista,
+        // que cuenta accionables con el lector viejo cada 90 ms hasta dos iguales, techo 900.
+        var p = typeof(SurfaceMapTools).GetProperty("EsperarTrasEscribir");
+        if (p == null) { Pendiente("SurfaceMapTools.EsperarTrasEscribir (la espera de u/ tras escribir)", "496", "054"); return; }
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string herramientas = Path.Combine(repo, "windows-client", "src", "Mcp", "SurfaceMapTools.cs");
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(herramientas) || !File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO."); return; }
+        string h = File.ReadAllText(herramientas), c = File.ReadAllText(cara);
+        Debe(h.Contains("EsperarTrasEscribir?.Invoke()"), "escribir no usa la espera de u/");
+        var conexion = System.Text.RegularExpressions.Regex.Match(c, @"EsperarTrasEscribir = [\s\S]{0,600}?;\s*\n");
+        Debe(conexion.Success && conexion.Value.Contains("Asentado.Quieta") && conexion.Value.Contains("300"), "nadie conecta la espera de u/ tras escribir (Asentado.Quieta, techo 300 ms)");
+        var mirar = System.Text.RegularExpressions.Regex.Match(c, @"LoQueVeoRapido = \(\) =>[\s\S]*?\};");
+        Debe(mirar.Success && mirar.Value.Contains("UltimaEnMs"), "mirar después de escribir vuelve a leer en vez de usar la lectura de la espera");
     }
 
     private static void MirarLeeComoU()
