@@ -818,14 +818,6 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 _ultimaLectura = (l, Environment.TickCount64);
                 return l.Huella;
             };
-            if (mcp.Map != null) mcp.Map.PulsarPorElNucleo = (sel, etq) =>
-            {
-                string antes = FocoDeLaPersona();
-                ObservarLaVentanaDeTrabajo();
-                var r = pulsar.Pulsa(sel, etq);
-                SeguirElFoco(antes);
-                return r.Cuenta;
-            };
 
             // EL CICLO DE u/ (spec 054, promesas 485-488): un clic por nombre en UIA no pasa por la compuerta de vivo,
             // ni por las ubicaciones, ni por el grafo: ver → clic → volver a ver, y la última lectura es la respuesta.
@@ -1974,29 +1966,6 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     // --- La carita sigue al cursor automatizado (solo colapsada) ---
 
     private long _lastFollowMs;
-
-    /// <summary>
-    /// Mueve la carita colapsada junto al cursor automatizado, con un offset para no tapar el objetivo
-    /// del clic. Throttle a ~30ms para no inundar el Dispatcher (el cursor emite frame a frame). Las
-    /// coordenadas llegan en píxeles físicos; WPF posiciona en DIPs → se divide por la escala de DPI.
-    /// </summary>
-    private void OnAutomationCursorMoved(int x, int y)
-    {
-        long now = Environment.TickCount64;
-        if (now - _lastFollowMs < 30) return;
-        _lastFollowMs = now;
-        Dispatcher.BeginInvoke(new Action(() =>
-        {
-            if (!_collapsed) return;
-            var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
-            double px = x / dpi.DpiScaleX + 18, py = y / dpi.DpiScaleY + 18;
-            var wa = SystemParameters.WorkArea;
-            // Por MoveTo y no por asignación directa: si el usuario lanzó la carita a un borde, la
-            // animación retenida se traga los Left/Top y la carita se queda plantada sin seguir a nadie.
-            MoveTo(Math.Clamp(px, wa.Left, Math.Max(wa.Left, wa.Right - ActualWidth)),
-                   Math.Clamp(py, wa.Top, Math.Max(wa.Top, wa.Bottom - ActualHeight)));
-        }));
-    }
 
     // --- Colapsar / expandir: la carita alterna entre la barra y solo ella misma ---
 
@@ -4686,13 +4655,6 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </summary>
     /// <summary>Cuando se señalan varias, el aviso de «una» llega detrás y no debe pisar el recorrido.</summary>
     private bool _recorridoReciénLanzado;
-
-    /// <summary>
-    /// LA MANO ACABA DE PULSAR AHÍ: la carita va a verlo (promesa 240). La caja llega en píxeles
-    /// físicos, que es como la da UIA y como la espera <see cref="IrJuntoA"/>.
-    /// </summary>
-    private void OnManoPulso(double x, double y, double ancho, double alto)
-        => Dispatcher.BeginInvoke(new Action(() => IrJuntoA(new Rect(x, y, ancho, alto), alClic: true)));
 
     /// <param name="alClic">
     /// Viene de un clic de la mano y no de señalar: viaja con la curva rápida, y solo si está

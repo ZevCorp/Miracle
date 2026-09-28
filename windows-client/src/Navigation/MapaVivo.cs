@@ -565,16 +565,6 @@ public sealed class MapaVivo : IDisposable
     }
 
     /// <summary>
-    /// «Se pulsó esto aquí y acabamos allí». Lo llama quien de verdad cruzó algo — es el otro hecho
-    /// que el núcleo guarda, y el único que no se puede deducir mirando.
-    /// </summary>
-    public void Cruzado(string desde, string selector, string hasta)
-    {
-        _grafo.Cruzar(desde, selector, hasta);
-        _proyector.Proyectar(_grafo);
-    }
-
-    /// <summary>
     /// EL TEXTO DE DENTRO DE UN BOTÓN NO ES OTRA COSA ALCANZABLE. UIA expone el control y, aparte,
     /// la etiqueta que lleva dentro, las dos con el mismo nombre: «Catálogo» salía como Button y
     /// como Text, y el anillo mostraba cada puerta por duplicado (2026-08-12, lo vio el usuario).

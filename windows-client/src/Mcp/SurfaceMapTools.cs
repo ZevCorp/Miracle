@@ -1827,13 +1827,6 @@ public sealed class SurfaceMapTools
     public Func<string, string, string>? AbrirPorElNucleo { get; set; }
 
     /// <summary>
-    /// PULSAR, contestado por el núcleo: se toca, se comprueba qué pasó y el grafo lo aprende.
-    /// Resolver el selector y escalar al doble clic siguen siendo de UIA.
-    /// Ver <see cref="Navigation.PulsarSegunElNucleo"/>.
-    /// </summary>
-    public Func<string, string, string>? PulsarPorElNucleo { get; set; }
-
-    /// <summary>
     /// RECORRER EN BATCH: N pasos por llamada con la compuerta de vida antes de cada uno.
     /// Ver <see cref="Navigation.RecorrerSegunElNucleo"/> y docs/plan-batch-sobre-nodos-vivos.md.
     /// </summary>

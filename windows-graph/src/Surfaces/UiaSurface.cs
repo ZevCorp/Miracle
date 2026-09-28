@@ -1074,35 +1074,6 @@ public sealed class UiaSurface : IUiSurface
     }
 
     /// <summary>
-    /// Actúa sobre un elemento QUE YA SE TIENE EN LA MANO, sin volver a buscarlo por selector.
-    ///
-    /// Quien lee la pantalla se queda con el <see cref="AutomationElement"/> exacto; volver a
-    /// resolverlo por nombre es un rodeo que puede fallar aunque el elemento siga ahí — y fallaba:
-    /// el lector encontraba «Buscar en Notas» (Edit) y el ejecutor no lo resolvía ni en cinco
-    /// intentos, así que el asistente veía la barra de búsqueda y no podía pulsarla (2026-08-05).
-    ///
-    /// Esto NO es pulsar por coordenadas: es pulsar EXACTAMENTE el elemento que se vio, que es la
-    /// forma más fuerte de acción por identidad que hay — no hay nombre que pueda quedarse a medias
-    /// ni homónimo que confunda, porque no se busca nada.
-    /// </summary>
-    public bool EjecutarSobre(AutomationElement el, PlanStep step, out string error)
-    {
-        L($"Ejecutar directo «{step.Label}» · {step.ActionType} · sobre el elemento ya leído "
-          + $"(name='{Safe(() => el.Current.Name)}' ct={Safe(() => el.Current.ControlType.ProgrammaticName)})");
-
-        // SOBRE UNA VENTANA TAPADA NO SE ACTÚA. Con la ventana detrás, UIA no da punto pulsable
-        // —dice, con razón, que está tapado— y SetFocus no agarra: el foco se queda donde estaba.
-        // Eso produjo lo peor que puede pasar aquí: se pulsó la barra de búsqueda del explorador,
-        // se dio por hecha, y el texto siguiente acabó en la barra de direcciones de Chrome, que
-        // sí tenía el foco, y navegó (2026-08-05). Se sube la ventana ANTES y se comprueba.
-        IntPtr win = TopLevelWindow(el);
-        if (win != IntPtr.Zero && !TraerAlFrente(win))
-            L("    NO se pudo traer la ventana al frente; se actúa igual, pero puede no agarrar");
-
-        return Actuar(el, step, flexible: false, out error);
-    }
-
-    /// <summary>
     /// Sube una ventana al primer plano DE VERDAD, y dice si lo consiguió. La única forma de
     /// hacerlo: quien la necesite, que llame aquí.
     /// </summary>

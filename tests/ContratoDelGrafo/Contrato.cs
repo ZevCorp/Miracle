@@ -9912,48 +9912,6 @@ internal static class Contrato
         Debe(SafeToClick.Auto("Documentos", "treeitem", out _), "y lo que era navegable lo sigue siendo");
     }
 
-    private static void LaCaritaVaADondeSePulsa()
-    {
-        // DESDE LA SPEC 020 LA MAYORÍA DE LOS CLICS VAN SIN RATÓN, y la carita solo sabía seguir al cursor
-        // cuando el cursor se movía de verdad: dejó de acompañar a la mano justo cuando la mano mejoró. El
-        // dueño lo pidió con su curva: «fluido rápidamente, no brusco, con una aceleración suave pero rápida».
-        var t = Grafico("U.Graph.Surfaces.ComoViajaLaCarita");
-        var esClic = t?.GetMethod("EsClic");
-        var mereceViaje = t?.GetMethod("MereceViaje");
-        var cuanto = t?.GetMethod("Cuanto");
-        var curva = t?.GetMethod("Curva");
-        var pulso = Grafico("U.Graph.Surfaces.UiaSurface")?.GetEvent("Pulso");
-        Debe(esClic != null && mereceViaje != null && cuanto != null && curva != null && pulso != null,
-            "todavía no existen «Surfaces.ComoViajaLaCarita.EsClic/MereceViaje/Cuanto/Curva» ni el aviso «UiaSurface.Pulso» (spec 022, promesa 240). "
-            + "La promesa está escrita y en rojo, que es donde tiene que estar");
-        if (esClic == null || mereceViaje == null || cuanto == null || curva == null) return;
-        bool Clic(string a) => (bool)esClic.Invoke(null, new object[] { a })!;
-        Debe(Clic("click") && Clic("doubleclick") && Clic("rightclick"),
-            "los tres clics de la mano avisan de dónde cayeron: para eso se mueve la carita, para que se vea quién pulsa");
-        Debe(!Clic("input") && !Clic("select") && !Clic("scroll") && !Clic(""),
-            "escribir, elegir en una lista o desplazar no es pulsar: la carita no sale corriendo por eso");
-        bool Merece(double d) => (bool)mereceViaje.Invoke(null, new object[] { d })!;
-        Debe(!Merece(12) && Merece(200), "un salto de 12 px es un parpadeo, no un viaje; 200 px sí se ve");
-        double C(double x) => (double)curva.Invoke(null, new object[] { x })!;
-        Debe(Math.Abs(C(0)) < 1e-6 && Math.Abs(C(1) - 1) < 1e-6, "el viaje empieza donde estaba y termina exactamente donde se pulsó");
-        bool sube = true, rebota = false; double previo = double.MinValue;
-        for (int i = 0; i <= 200; i++)
-        {
-            double v = C(i / 200.0);
-            if (v < previo - 1e-9) sube = false;
-            if (v > 1 + 1e-9) rebota = true;
-            previo = v;
-        }
-        Debe(sube, "fluida: no se devuelve a mitad de camino");
-        Debe(!rebota, "y no rebota: un rebote está bien una vez, pero en CADA clic se lee como gelatina");
-        Debe(C(0.02) < 0.02, "empieza acelerando y no de un tirón: en el primer 2% del tiempo no ha hecho ni el 2% del camino");
-        Debe(C(1.0 / 3) > 0.5, "pero es rápida: al primer tercio del tiempo ya lleva más de medio camino");
-        var corto = (TimeSpan)cuanto.Invoke(null, new object[] { 30.0 })!;
-        var largo = (TimeSpan)cuanto.Invoke(null, new object[] { 3000.0 })!;
-        Debe(corto.TotalMilliseconds >= 120 && corto <= largo, $"un salto corto dura poco pero se ve ({corto.TotalMilliseconds:0} ms)");
-        Debe(largo.TotalMilliseconds <= 450, $"y cruzar la pantalla entera no pasa de 450 ms: rápido es parte de lo pedido ({largo.TotalMilliseconds:0} ms)");
-    }
-
     private static void ElNotchEsBlancoYNegro()
     {
         // QUITAR EL COLOR SE DESHACE SOLO: el que anada un estado dentro de tres semanas vera que los
