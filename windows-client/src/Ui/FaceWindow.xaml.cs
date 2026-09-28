@@ -103,7 +103,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// <summary>Las manos del asistente, para poder preguntarles desde el panel. Ver OnVerRecuerdos.</summary>
     private Mcp.SurfaceMapTools? _mapaDeMano;
 
-    /// <summary>La puerta MCP real (127.0.0.1:8790/mcp) por la que entra el Agent SDK.</summary>
+    /// <summary>La puerta MCP real (127.0.0.1, en ServidorMcp.Puerto) por la que entra el Agent SDK.</summary>
     private Mcp.ServidorMcp? _servidorMcp;
     /// <summary>Los nombres del catálogo MCP, para armar las dos cajas del piloto (spec 013).</summary>
     private List<string> _nombresMcp = new();
@@ -5272,7 +5272,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     {
         string cuerpo = System.Text.Json.JsonSerializer.Serialize(new
         { jsonrpc = "2.0", id = 1, method = "tools/call", @params = new { name, arguments = args } });
-        using var res = await _demoHttp.PostAsync("http://127.0.0.1:8790/mcp/",
+        using var res = await _demoHttp.PostAsync($"http://127.0.0.1:{Mcp.ServidorMcp.Puerto}/mcp/",
             new System.Net.Http.StringContent(cuerpo, System.Text.Encoding.UTF8, "application/json"));
         using var doc = System.Text.Json.JsonDocument.Parse(await res.Content.ReadAsStringAsync());
         string r = doc.RootElement.GetProperty("result").GetProperty("content")[0].GetProperty("text").GetString() ?? "";

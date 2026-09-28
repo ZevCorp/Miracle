@@ -23,7 +23,15 @@ namespace U.WindowsClient.Mcp;
 /// </remarks>
 public sealed class ServidorMcp : IDisposable
 {
-    public const int Puerto = 8790;
+    /// <summary>
+    /// El puerto: 8790, o el que diga U_MCP_PUERTO (promesa 511). Sin la variable, el de siempre. El 2026-09-28 probar la
+    /// carita en el PC real obligaba a cerrar la Ü del dueño, porque las dos querían el mismo puerto.
+    /// </summary>
+    public static int Puerto { get; } = PuertoDe(Environment.GetEnvironmentVariable("U_MCP_PUERTO"));
+
+    /// <summary>El puerto que dice el texto, o 8790 si no dice uno que valga (vacío, texto, reservado o fuera de rango).</summary>
+    public static int PuertoDe(string? valor) =>
+        int.TryParse((valor ?? "").Trim(), out int p) && p is >= 1024 and <= 65535 ? p : 8790;
 
     private readonly ProtocoloMcp _protocolo;
     private HttpListener? _listener;
