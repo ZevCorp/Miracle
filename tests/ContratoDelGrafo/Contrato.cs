@@ -891,6 +891,7 @@ internal static class Contrato
         Prueba("495. mirar —map_what_i_see y lo que se pega a cada acto— lee con el lector de u/ la ventana de delante y cuenta accionables y textos; SAP, que UIA no ve, sigue por el lector de siempre", MirarLeeComoU);
         Prueba("498. con SAP delante, un clic por nombre no entra al ciclo rápido: no lee, no pulsa, dice que es SAP y lo da la mano de SAP; y saber si una ventana es SAP es UNA regla —su proceso—, la misma para pulsar, mirar y esperar tras escribir", ConSapDelanteNoHayCicloRapido);
         Prueba("499. el tope de intentos ve los clics del ciclo rápido: la mano de un clic rápido lleva lo pulsado con la misma clave con la que se le pregunta al tope antes de pulsar, y el tercer intento sobre el mismo botón no se da", ElTopeVeLosClicsRapidos);
+        Prueba("497. hacer es rápido: un clic por nombre con map_take va por el ciclo rápido traiga los argumentos que traiga —decir, recuerdo o cualquiera desconocido—; ni coreografía, ni recuerdo, ni foto. La coreografía solo cuando la app la pide al señalar al actuar (comprobación, encargo), y map_type en SAP tampoco se desvía por decir o recuerdo", HacerEsRapidoTraigaLoQueTraiga);
         Prueba("509. cada llamada dice por qué camino fue y por qué —ciclo rápido, núcleo, coreografía— en el log y en la mano; y un clic por nombre en UIA que no va por el ciclo rápido fuera de una comprobación deja «⚠ camino inesperado» con su razón", CadaLlamadaDiceSuCamino);
         Prueba("496. tras escribir, la espera es la de u/ —dos lecturas iguales con el lector rápido, techo 300 ms— y lo que se cuenta después es esa misma lectura, sin volver a leer", EscribirEsperaComoU);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
@@ -13838,6 +13839,35 @@ internal static class Contrato
         var bloque = System.Text.RegularExpressions.Regex.Match(c, @"var ciclo = new Navigation\.CicloRapido\([\s\S]*?mcp\.Map\.CicloRapido = ");
         Debe(bloque.Success && bloque.Value.Contains("Uia.Sap.EsVentana") && !System.Text.RegularExpressions.Regex.IsMatch(bloque.Value, "StartsWith\\(\"(sap|SAP)\""),
             "pulsar, mirar y esperar tras escribir no usan la misma regla de SAP (Uia.Sap.EsVentana), o alguno guarda su propio StartsWith");
+    }
+
+    private static void HacerEsRapidoTraigaLoQueTraiga()
+    {
+        // LOS ARGUMENTOS DEL MODELO DE VERDAD (sesión de voz del 2026-09-28, 03:40:09): map_take exit=«Barra de direcciones
+        // y de búsqueda» decir=«Compruebo si es la empresa…» recuerdo=«Barra para cambiar la búsqueda del navegador».
+        var m = MapaConManosContadas();
+        m.Mapa.Call("map_take", new Dictionary<string, string>
+        {
+            ["exit"] = "Barra de direcciones y de búsqueda", ["which"] = "",
+            ["decir"] = "Compruebo si es la empresa de crédito de tu teléfono.",
+            ["recuerdo"] = "Barra para cambiar la búsqueda del navegador.", ["foo"] = "bar",
+        });
+        Debe(m.Ciclo == 1 && m.Coreografia == 0 && m.Nucleo == 0,
+            $"con decir y recuerdo el clic no fue por el ciclo rápido: ciclo {m.Ciclo}, coreografía {m.Coreografia}, núcleo {m.Nucleo}");
+
+        // El modo explícito sobrevive: cuando la app señala al actuar (comprobación, encargo), coreografía.
+        var e = MapaConManosContadas();
+        e.Mapa.SenalarAlActuar = true;
+        e.Mapa.Call("map_take", new Dictionary<string, string> { ["exit"] = "Buscar", ["decir"] = "Busco." });
+        Debe(e.Coreografia == 1 && e.Ciclo == 0, $"en una comprobación la coreografía no se dio: coreografía {e.Coreografia}, ciclo {e.Ciclo}");
+
+        // Escribir en SAP con decir y recuerdo va por la mano de SAP, no por la coreografía.
+        var s = MapaConManosContadas();
+        var sap = new SurfaceMapTools(() => new U.WindowsClient.Uia.SurfaceLocator.SurfaceLocation("sapgui://PRD/NV2000", "sapgui", "NV2000"));
+        sap.RecorrerPorElNucleo = s.Mapa.RecorrerPorElNucleo;
+        sap.DarUnPasoConCoreografia = s.Mapa.DarUnPasoConCoreografia;
+        sap.Call("map_type", new Dictionary<string, string> { ["text"] = "123", ["target"] = "Documento", ["decir"] = "Escribo.", ["recuerdo"] = "El documento." });
+        Debe(s.Coreografia == 0 && s.Nucleo == 1, $"escribir en SAP con decir y recuerdo se desvió: coreografía {s.Coreografia}, núcleo {s.Nucleo}");
     }
 
     private static void ElTopeVeLosClicsRapidos()
