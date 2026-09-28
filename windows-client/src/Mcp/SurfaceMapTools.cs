@@ -202,6 +202,9 @@ public sealed class SurfaceMapTools
     /// </summary>
     public Func<string?>? LoQueVeoRapido { get; set; }
 
+    /// <summary>La espera de u/ tras escribir y confirmar (promesa 496): true/false si cambió; null = no es suya (SAP), la de siempre.</summary>
+    public Func<bool?>? EsperarTrasEscribir { get; set; }
+
     private string LoQueVeo()
     {
         if (LoQueVeoRapido?.Invoke() is { } rapido) return rapido;
@@ -2820,7 +2823,9 @@ public sealed class SurfaceMapTools
             keybd_event(0x0D, 0, 0, IntPtr.Zero);
             keybd_event(0x0D, 0, 2, IntPtr.Zero);
         }
-        EsperarPantallaLista(900);
+        // LA ESPERA DE u/ (promesa 496): dos lecturas iguales con el lector rápido, techo 300 ms. La de siempre contaba
+        // accionables con el lector viejo cada 90 ms, techo 900: ~400 ms de los 447 de un map_type (2026-09-27).
+        if (EsperarTrasEscribir?.Invoke() == null) EsperarPantallaLista(900);
 
         // EL ENTER PUEDE HABERNOS METIDO DENTRO. Al renombrar una carpeta recién creada queda
         // seleccionada, y el Enter que confirma el nombre también la ABRE: la tarea seguía creyendo

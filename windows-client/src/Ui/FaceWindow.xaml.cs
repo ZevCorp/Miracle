@@ -857,10 +857,21 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     if (v == IntPtr.Zero) return null;
                     if (U.Graph.Surfaces.UiaSurface.TituloDe(v).StartsWith("SAP", StringComparison.OrdinalIgnoreCase)
                         || Uia.AppAligner.ProcesoDe(v).StartsWith("sap", StringComparison.OrdinalIgnoreCase)) return null;
-                    var l = ciclo.Mirar(v);
+                    // La lectura con la que acaba de asentarse un acto (496) ES lo que se ve: no se lee otra vez.
+                    var l = ciclo.Ultima != null && ciclo.UltimaVentana == v && Environment.TickCount64 - ciclo.UltimaEnMs < 250
+                        ? ciclo.Ultima
+                        : ciclo.Mirar(v);
                     return l.Accionables.Count == 0
                         ? "no pude leer la pantalla a tiempo: no sé qué hay delante."
                         : ciclo.Describir(l, v);
+                };
+                // TRAS ESCRIBIR, COMO u/ (promesa 496): dos lecturas iguales, techo 300 ms; la última queda en el ciclo.
+                mcp.Map.EsperarTrasEscribir = () =>
+                {
+                    var (delante, esU) = Navigation.CicloRapido.Delante();
+                    IntPtr v = Navigation.CicloRapido.ElegirVentana(delante, esU, VentanaObjetivo());
+                    if (v == IntPtr.Zero || Uia.AppAligner.ProcesoDe(v).StartsWith("sap", StringComparison.OrdinalIgnoreCase)) return null;
+                    return U.Ciclo.Asentado.Quieta(() => ciclo.Mirar(v), 300, () => Environment.TickCount64).Cambio;
                 };
                 mcp.Map.CicloRapido = (exit, cual, antesDePulsar) =>
                 {

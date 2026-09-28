@@ -13833,7 +13833,7 @@ internal static class Contrato
         if (!File.Exists(herramientas) || !File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO."); return; }
         string h = File.ReadAllText(herramientas), c = File.ReadAllText(cara);
         Debe(h.Contains("EsperarTrasEscribir?.Invoke()"), "escribir no usa la espera de u/");
-        var conexion = System.Text.RegularExpressions.Regex.Match(c, @"EsperarTrasEscribir = [\s\S]{0,600}?;\s*\n");
+        var conexion = System.Text.RegularExpressions.Regex.Match(c, @"EsperarTrasEscribir = \(\) =>[\s\S]*?\};");
         Debe(conexion.Success && conexion.Value.Contains("Asentado.Quieta") && conexion.Value.Contains("300"), "nadie conecta la espera de u/ tras escribir (Asentado.Quieta, techo 300 ms)");
         var mirar = System.Text.RegularExpressions.Regex.Match(c, @"LoQueVeoRapido = \(\) =>[\s\S]*?\};");
         Debe(mirar.Success && mirar.Value.Contains("UltimaEnMs"), "mirar después de escribir vuelve a leer en vez de usar la lectura de la espera");
