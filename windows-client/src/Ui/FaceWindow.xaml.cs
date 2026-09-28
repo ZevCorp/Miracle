@@ -875,7 +875,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                         var t = ciclo.Tiempos;
                         LogBus.Log("mano", $"⏱ ciclo «{ciclo.Pulsado}»: ver {t.Ver} ms · clic {t.Clic} ms · volver a ver {t.Esperar} ms ({t.Lecturas} lectura(s), {(ciclo.Cambio ? "cambió" : "no cambió")})");
                     }
-                    return r == null ? null : (r, ciclo.Pulso ? ciclo.Cambio : null);
+                    return r == null ? null : (r, ciclo.Pulso ? ciclo.Cambio : null, ciclo.ClaveDelPulsado);
                 };
             }
 

@@ -45,6 +45,14 @@ public sealed class CicloRapido
     public bool Pulso { get; private set; }
     public bool Cambio { get; private set; }
     public string Pulsado { get; private set; } = "";
+
+    /// <summary>
+    /// La clave de lo pulsado, la MISMA con la que se consultó al tope antes de pulsar (promesa 499): así el tope cuenta los
+    /// fallos de ese botón aunque la próxima vez se pida de otra forma.
+    /// </summary>
+    public string ClaveDelPulsado { get; private set; } = "";
+
+    private static string ClaveDe(Accionable a) => $"uia:name={a.Nombre};ct={a.Tipo}";
     public (long Ver, long Clic, long Esperar, int Lecturas) Tiempos { get; private set; }
 
     /// <summary>Por qué el último Pulsar no se encargó (null), para que el log lo diga: tres causas, tres frases (aprendizaje nº2).</summary>
@@ -61,7 +69,7 @@ public sealed class CicloRapido
     /// </summary>
     public string? Pulsar(string exit, int cual)
     {
-        Pulso = false; Cambio = false; Pulsado = ""; Tiempos = default;
+        Pulso = false; Cambio = false; Pulsado = ""; ClaveDelPulsado = ""; Tiempos = default;
         PorQueNo = "";
         if (!QueSePide(exit, out string nombre, out string tipo)) { PorQueNo = "no es un clic por nombre en UIA"; return null; }
         IntPtr v = _ventana();
@@ -93,7 +101,8 @@ public sealed class CicloRapido
         else el = iguales[0];
 
         if (_freno()) return $"no pulsé «{el.Nombre}»: el freno está echado (Escape).";
-        string? veto = AntesDePulsar?.Invoke($"uia:name={el.Nombre};ct={el.Tipo}");
+        string clave = ClaveDe(el);
+        string? veto = AntesDePulsar?.Invoke(clave);
         if (!string.IsNullOrWhiteSpace(veto)) return veto;
 
         long msVer = _reloj() - t0;
@@ -104,7 +113,7 @@ public sealed class CicloRapido
 
         Lectura despues = antes;
         var a = Asentado.Esperar(() => { despues = Leer(v); return despues.Huella; }, antes.Huella, Asentado.TechoTras(el.Tipo), _reloj);
-        Pulso = true; Cambio = a.Cambio; Pulsado = el.Nombre;
+        Pulso = true; Cambio = a.Cambio; Pulsado = el.Nombre; ClaveDelPulsado = clave;
         Tiempos = (msVer, msClic, a.Ms, a.Lecturas);
         return $"pulsé «{el.Nombre}» ({el.Tipo}) y la pantalla {(a.Cambio ? "cambió" : "no cambió")}.\n\n" + Describir(despues, v);
     }

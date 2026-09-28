@@ -2599,10 +2599,10 @@ public sealed class SurfaceMapTools
     public bool SenalarAlActuar { get; set; }
 
     /// <summary>
-    /// El ciclo de u/ (spec 054): (qué, which, consulta al tope) → la respuesta y si cambió (null = no pulsó), o null si
-    /// no es suyo y decide el camino de siempre.
+    /// El ciclo de u/ (spec 054): (qué, which, consulta al tope) → la respuesta, si cambió (null = no pulsó) y la clave de
+    /// lo pulsado —la misma con la que consultó al tope (499)—, o null si no es suyo y decide el camino de siempre.
     /// </summary>
-    public Func<string, int, Func<string, string?>?, (string Texto, bool? Cambio)?>? CicloRapido { get; set; }
+    public Func<string, int, Func<string, string?>?, (string Texto, bool? Cambio, string Pulsado)?>? CicloRapido { get; set; }
 
     // EL CAMINO DE CADA LLAMADA (spec 054, promesa 509). Por hilo, como la mano: la voz lo lee en el suyo.
     [ThreadStatic] private static (string Camino, string Razon, bool Inesperado)? _camino;
@@ -2639,7 +2639,10 @@ public sealed class SurfaceMapTools
         {
             _camino = ("ciclo-rapido", "clic por nombre en UIA", false);
             // Pulsó: se logró si cambió. Sin pulsar (homónimos numerados, freno, tope): no fue un intento o no se logró.
-            _ultimaMano = rapido.Cambio is bool c ? new Mano(true, c) : new Mano(false, false, Intento: !rapido.Texto.Contains("which=N"));
+            // Con lo pulsado (499): sin eso el tope de la 204 no ve los fallos de un clic rápido sobre el mismo botón.
+            _ultimaMano = rapido.Cambio is bool c
+                ? new Mano(true, c) { Pulsado = string.IsNullOrWhiteSpace(rapido.Pulsado) ? null : rapido.Pulsado }
+                : new Mano(false, false, Intento: !rapido.Texto.Contains("which=N"));
             return rapido.Texto;
         }
         var paso = new Navigation.RecorrerSegunElNucleo.Paso(salida) { Cual = n, AntesDePulsar = _antesDePulsar };

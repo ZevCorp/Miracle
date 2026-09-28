@@ -13791,7 +13791,7 @@ internal static class Contrato
     private sealed class ManosContadas
     {
         public int Ciclo, Nucleo, Coreografia;
-        public (string Texto, bool? Cambio)? RespuestaDelCiclo = ("pulsé «Buscar» (Button) y la pantalla cambió.\n\nEN PANTALLA AHORA (1 elemento(s)):\n  «Buscar» (Button)", true);
+        public (string Texto, bool? Cambio, string Pulsado)? RespuestaDelCiclo = ("pulsé «Buscar» (Button) y la pantalla cambió.\n\nEN PANTALLA AHORA (1 elemento(s)):\n  «Buscar» (Button)", true, "uia:name=Buscar;ct=Button");
         public SurfaceMapTools Mapa = null!;
     }
 
