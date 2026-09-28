@@ -897,6 +897,8 @@ internal static class Contrato
         Prueba("500. la voz no ofrece decir ni recuerdo: en el catálogo de la voz, map_take, map_type, map_decidir y map_tramo no los declaran; el catálogo del piloto sí los declara en map_take y map_type, que es para lo que la mano del piloto los lleva (191)", LaVozNoOfreceDecirNiRecuerdo);
         Prueba("509. cada llamada dice por qué camino fue y por qué —ciclo rápido, núcleo, coreografía— en el log y en la mano; y un clic por nombre en UIA que no va por el ciclo rápido fuera de una comprobación deja «⚠ camino inesperado» con su razón", CadaLlamadaDiceSuCamino);
         Prueba("501. parar la comprobación para el plan: tras cancelarla no se da ni un paso más, y los que faltaban cuentan como no dados sobre el total del plan; el plan del piloto y el de una skill se recorren con ese mismo recorrido", PararLaComprobacionParaElPlan);
+        Prueba("502. recordar es explícito y honesto: las instrucciones no piden acumular recuerdos ni prometen que duren para siempre, la herramienta de recordar dice que no es para describir lo que Ü va a pulsar, y su respuesta empieza por «nuevo recuerdo:» sin prometer «lo recordaré»", RecordarEsExplicitoYHonesto);
+        Prueba("503. un recuerdo se cuelga del elemento por su nombre exacto; «contiene» solo cuando hay uno solo que lo contenga, y si hay varios se dicen y no se cuelga de ninguno", UnRecuerdoSeCuelgaPorSuNombreExacto);
         Prueba("496. tras escribir, la espera es la de u/ —dos lecturas iguales con el lector rápido, techo 300 ms— y lo que se cuenta después es esa misma lectura, sin volver a leer", EscribirEsperaComoU);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
         Prueba("490. leer la pantalla y saber dónde estoy tienen plazo: si la app no contesta, se sigue sin esa respuesta y se dice, en vez de congelar U; lo que llega tarde no pisa lo que ya se contestó", LeerYUbicarseTienenPlazo);
@@ -13927,6 +13929,69 @@ internal static class Contrato
         Debe(fc.Contains("Piloto.ElRecorridoDelPlan.Recorrer(") && fc.Contains("cancelar?.IsCancellationRequested"),
             "[cableado] el plan del piloto se recorre con ElRecorridoDelPlan y para con la cancelación de la comprobación");
         Debe(fm.Contains("Piloto.ElRecorridoDelPlan.Recorrer("), "[cableado] una skill se recorre con el mismo recorrido, no con un bucle propio");
+    }
+
+    private static void RecordarEsExplicitoYHonesto()
+    {
+        // LA SESIÓN DEL 2026-09-28: 9 de 9 clics traían un «recuerdo» que el modelo se inventaba de lo que iba a pulsar. Las
+        // instrucciones se lo pedían como meta —«sabe más que quien lo enseñó a base de acumular RECUERDOS»— y prometían
+        // que duraban «para siempre», cuando desde la 054 viven en memoria mientras Ü está abierta.
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+        string texto = t?.GetProperty("InstruccionesNormales", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as string ?? "";
+        if (texto.Length == 0) { Debe(false, "no encuentro «ConversacionEnVivo.InstruccionesNormales»"); return; }
+        foreach (var dicho in new[] { "acumular RECUERDOS", "para siempre", "lo más frecuente" })
+            Debe(!texto.Contains(dicho, StringComparison.Ordinal), $"las instrucciones todavía dicen «{dicho}»");
+
+        string desc = "";
+        if (t?.GetMethod("Herramientas", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null) is System.Collections.IEnumerable todas)
+            foreach (var u in todas)
+                if ((string?)u?.GetType().GetProperty("Nombre")?.GetValue(u) == "map_esto_es")
+                    desc = (string?)u.GetType().GetProperty("Descripcion")?.GetValue(u) ?? "";
+        Debe(desc.Contains("Nunca para describir lo que tú vas a pulsar", StringComparison.Ordinal),
+            $"la herramienta de recordar no dice que no es para describir lo que Ü va a pulsar (dice «{desc[..Math.Min(120, desc.Length)]}…»)");
+        Debe(!desc.Contains("PARA SIEMPRE", StringComparison.OrdinalIgnoreCase), "la herramienta de recordar promete que dura para siempre");
+
+        // [texto] La respuesta sigue empezando por «nuevo recuerdo:» —la voz la marca con 🧠 y anatomia-del-clic la cuenta—
+        // y no promete lo que no depende de ella.
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string mapa = Path.Combine(repo, "windows-client", "src", "Mcp", "SurfaceMapTools.cs");
+        if (!File.Exists(mapa)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        string fm = File.ReadAllText(mapa);
+        Debe(fm.Contains("return $\"nuevo recuerdo: «{nombre}» es ", StringComparison.Ordinal), "[texto] la respuesta de recordar ya no empieza por «nuevo recuerdo:»");
+        Debe(!fm.Contains("Lo recordaré cuando vuelva aquí", StringComparison.Ordinal), "[texto] la respuesta de recordar sigue prometiendo «Lo recordaré cuando vuelva aquí»");
+    }
+
+    private static void UnRecuerdoSeCuelgaPorSuNombreExacto()
+    {
+        var p = typeof(SurfaceMapTools).GetProperty("PuertasParaNombrar");
+        if (p == null) { Pendiente("SurfaceMapTools.PuertasParaNombrar (lo que se puede nombrar al enseñar)", "503", "054"); return; }
+        (string Respuesta, string Colgado) Ensenar(string sobre, params (string Selector, string Etiqueta, string Tipo)[] puertas)
+        {
+            string colgado = "";
+            var mapa = new SurfaceMapTools(() => null)
+            {
+                // Se contesta que no para que no se tome la foto: lo que se juzga es DE QUÉ se colgaría.
+                Ensenar = (donde, sel, que, foto) => { colgado = sel; return false; },
+            };
+            p.SetValue(mapa, new Func<IReadOnlyList<(string Selector, string Etiqueta, string Tipo)>>(() => puertas));
+            string r = mapa.Call("map_esto_es", new Dictionary<string, string> { ["significado"] = "el campo de la búsqueda", ["sobre"] = sobre });
+            return (r, colgado);
+        }
+
+        // La sesión real del 2026-09-28: «Search» es un ComboBox de 1.203 px, y se colgó de «Search by voice».
+        var exacto = Ensenar("Search", ("uia:aid=ti6dpd;ct=ComboBox", "Search", "ComboBox"),
+            ("uia:name=Search by voice;ct=Button", "Search by voice", "Button"), ("uia:name=Search by image;ct=Button", "Search by image", "Button"));
+        Debe(exacto.Colgado == "uia:aid=ti6dpd;ct=ComboBox",
+            $"con «Search» en pantalla, el recuerdo se cuelga de «Search» y no de lo que lo contiene (se colgó de «{exacto.Colgado}»)");
+
+        var empate = Ensenar("Search", ("uia:name=Search by voice;ct=Button", "Search by voice", "Button"),
+            ("uia:name=Search by image;ct=Button", "Search by image", "Button"));
+        Debe(empate.Colgado == "", $"si varios lo contienen no se cuelga de ninguno (se colgó de «{empate.Colgado}»)");
+        Debe(empate.Respuesta.Contains("Search by voice") && empate.Respuesta.Contains("Search by image"),
+            $"y se dicen los dos, para que quien enseña elija (dijo «{empate.Respuesta}»)");
+
+        var unico = Ensenar("Copilot", ("uia:name=Copilot anclado;ct=Button", "Copilot anclado", "Button"));
+        Debe(unico.Colgado == "uia:name=Copilot anclado;ct=Button", $"si uno solo lo contiene, es ese (se colgó de «{unico.Colgado}»)");
     }
 
     private static void HacerEsRapidoTraigaLoQueTraiga()
