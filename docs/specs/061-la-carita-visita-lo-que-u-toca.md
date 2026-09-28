@@ -29,7 +29,7 @@ La última fila decide el diseño: la firma evita la voz, pero no el robo del fo
 
 | # | Promesa | Fase |
 |---|---|---|
-| 504 | la carita va a lo que Ü pulsó DESPUÉS de pulsarlo, con la caja del elemento, y el ciclo no la espera: el aviso sale tras el clic, se atiende en el hilo de la interfaz, y el ciclo contesta lo mismo aunque el aviso reviente | 4 |
+| 504 | la carita va a lo que Ü pulsó DESPUÉS de pulsarlo, con la caja del elemento, y el ciclo no la espera: el aviso sale tras el clic, se atiende en el hilo de la interfaz, y el ciclo contesta lo mismo aunque el aviso reviente; y no sigue al cursor automatizado | 4 |
 | 505 | fuera de casa la carita no se deja tocar: desde que Ü la saca de casa hasta que se posa otra vez en casa es transparente al ratón, y todo lo que la mueve por iniciativa de Ü pasa por la misma visita | 2, 3 |
 | 506 | la carita se posa junto a lo que Ü tocó y nunca encima: al primer lado que quepa —derecha, izquierda, abajo, arriba— sin cortar la caja del elemento, con la curva sin rebote; si no cabe en ningún lado, no viaja | 2 |
 | 507 | la carita vuelve sola a su sitio —el que eligió la persona— tras un rato sin visitas, y solo al posarse ahí vuelve a dejarse tocar; un vuelo cortado no cuenta como llegada | 2, 3 |

@@ -909,7 +909,7 @@ internal static class Contrato
         Prueba("484. desplazar comprueba la consecuencia en cuanto la hay: sale al primer cambio del porcentaje en vez de dormir 350 ms fijos, y sin cambio agota el mismo techo antes de decir que no se movió", DesplazarNoDuermeFijo);
         Prueba("482. lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12", LanzarUnProtocoloEsperaALaVentanaDeDelante);
         // ── Spec 061: la carita visita lo que Ü toca, y no le roba un clic ──
-        Prueba("504. la carita va a lo que Ü pulsó DESPUÉS de pulsarlo, con la caja del elemento, y el ciclo no la espera: el aviso sale tras el clic, se atiende en el hilo de la interfaz, y el ciclo contesta lo mismo aunque el aviso reviente", LaCaritaVaDespuesDelClic);
+        Prueba("504. la carita va a lo que Ü pulsó DESPUÉS de pulsarlo, con la caja del elemento, y el ciclo no la espera: el aviso sale tras el clic, se atiende en el hilo de la interfaz, y el ciclo contesta lo mismo aunque el aviso reviente; y no sigue al cursor automatizado", LaCaritaVaDespuesDelClic);
         Prueba("505. fuera de casa la carita no se deja tocar: desde que Ü la saca de casa hasta que se posa otra vez en casa es transparente al ratón, y todo lo que la mueve por iniciativa de Ü pasa por la misma visita", FueraDeCasaNoSeDejaTocar);
         Prueba("506. la carita se posa junto a lo que Ü tocó y nunca encima: al primer lado que quepa —derecha, izquierda, abajo, arriba— sin cortar la caja del elemento, con la curva sin rebote; si no cabe en ningún lado, no viaja", LaCaritaSePosaAlLadoYNuncaEncima);
         Prueba("507. la carita vuelve sola a su sitio —el que eligió la persona— tras un rato sin visitas, y solo al posarse ahí vuelve a dejarse tocar; un vuelo cortado no cuenta como llegada", LaCaritaVuelveSolaASuSitio);
@@ -14199,11 +14199,31 @@ internal static class Contrato
         nada.Freno = true; Pulsar(nada, "Sistema");
         Debe(n == 0, $"hubo aviso sin clic ({n})");
 
-        // [cableado] El ciclo de la cara avisa por el pulso; la cara lo atiende UNA vez, con BeginInvoke —el ciclo no la
-        // espera— y por Visitar. Y no vuelve a seguir al cursor automatizado (lo que quedaba de la 492).
+        // EL AVISO DE VERDAD llega por el pulso con la caja, y si quien escucha revienta, el aviso lo dice en vez de
+        // tragárselo (la crítica del 2026-09-28: AvisarDelPulso tenía un catch mudo y AvisoFallido nunca se habría visto).
+        var avisar = CicloRapidoT()?.GetMethod("AvisarALaCarita", BindingFlags.Public | BindingFlags.Static);
+        if (avisar == null) { Pendiente("CicloRapido.AvisarALaCarita (el aviso de verdad, por el pulso)", "504", "061"); return; }
+        (double, double, double, double)? llego = null;
+        Action<double, double, double, double> oye = (x, y, w, h) => llego = (x, y, w, h);
+        Action<double, double, double, double> revienta = (_, _, _, _) => throw new InvalidOperationException("la carita no está");
+        U.Graph.Surfaces.UiaSurface.Pulso += oye;
+        try { avisar.Invoke(null, new object[] { new U.Ciclo.Caja(200, 300, 100, 30) }); }
+        finally { U.Graph.Surfaces.UiaSurface.Pulso -= oye; }
+        Debe(llego == (200, 300, 100, 30), $"el aviso no llegó al pulso con la caja del elemento ({llego})");
+        U.Graph.Surfaces.UiaSurface.Pulso += revienta;
+        string dicho = "";
+        try { avisar.Invoke(null, new object[] { new U.Ciclo.Caja(200, 300, 100, 30) }); }
+        catch (TargetInvocationException e) { dicho = e.InnerException?.Message ?? ""; }
+        finally { U.Graph.Surfaces.UiaSurface.Pulso -= revienta; }
+        Debe(dicho.Contains("la carita no está"), "si quien escucha el pulso revienta, el aviso se lo traga en vez de decirlo");
+
+        // [cableado] El ciclo de la cara avisa con ESE aviso; la cara lo atiende UNA vez, con BeginInvoke —el ciclo no la
+        // espera— y por Visitar, que no deja escapar un fallo al diálogo de «Ü tropezó». Y no sigue al cursor automatizado.
         if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } c) return;
         var bloque = System.Text.RegularExpressions.Regex.Match(c, @"var ciclo = new Navigation\.CicloRapido\([\s\S]*?mcp\.Map\.CicloRapido = ");
-        Debe(bloque.Success && bloque.Value.Contains("TrasPulsar = "), "[cableado] el ciclo de la cara no avisa tras el clic");
+        Debe(bloque.Success && bloque.Value.Contains("TrasPulsar = Navigation.CicloRapido.AvisarALaCarita"), "[cableado] el ciclo de la cara no avisa a la carita tras el clic");
+        var visita = System.Text.RegularExpressions.Regex.Match(c, @"private void Visitar\(Rect [\s\S]*?\r?\n    }\r?\n");
+        Debe(visita.Success && visita.Value.Contains("catch (Exception"), "[cableado] un fallo de la visita sube al diálogo de «Ü tropezó» en mitad de un clic");
         var sus = System.Text.RegularExpressions.Regex.Matches(c, @"UiaSurface\.Pulso \+= [^;]*;");
         Debe(sus.Count == 1 && sus[0].Value.Contains("Dispatcher.BeginInvoke(") && sus[0].Value.Contains("Visitar(") && !sus[0].Value.Contains("Dispatcher.Invoke("),
             $"[cableado] la cara no atiende el pulso una sola vez, con BeginInvoke y por Visitar ({sus.Count} suscripción(es))");
@@ -14273,8 +14293,39 @@ internal static class Contrato
         r.T.GetMethod("Salir")!.Invoke(r.E, null);
         Debe(r.Log.SequenceEqual(new[] { "traspasable" }) && !r.Tocable, $"salir para un recorrido no la volvió transparente (salió: {string.Join(" · ", r.Log)})");
 
+        // EL BIT, EN UNA VENTANA DE VERDAD: con fantasma lleva WS_EX_TRANSPARENT (0x20) y sigue en capas (0x80000); sin él,
+        // no. Un fantasma invertido pasaba todo lo demás y traía de vuelta el incidente del 2026-09-27.
+        var poner = Capacidad("U.WindowsClient.Ui.Fantasma")?.GetMethod("Poner", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+        if (poner == null) { Debe(false, "no encuentro Ui.Fantasma.Poner"); return; }
+        var w = new System.Windows.Window { WindowStyle = System.Windows.WindowStyle.None, AllowsTransparency = true, ShowInTaskbar = false };
+        try
+        {
+            IntPtr h = new System.Windows.Interop.WindowInteropHelper(w).EnsureHandle();
+            int con = (int)poner.Invoke(null, new object[] { h, true })!, sin = (int)poner.Invoke(null, new object[] { h, false })!;
+            Debe((con & 0x20) != 0 && (con & 0x80000) != 0, $"con fantasma el ratón no la atraviesa (estilo 0x{con:X})");
+            Debe((sin & 0x20) == 0 && (sin & 0x80000) != 0, $"sin fantasma sigue sin dejarse tocar, o dejó de estar en capas (estilo 0x{sin:X})");
+        }
+        finally { w.Close(); }
+
         // [cableado] Todo lo que la mueve por iniciativa de Ü pasa por la visita, y solo ella toca el estilo de la ventana.
         if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } c) return;
+        string Cuerpo(string firma) => System.Text.RegularExpressions.Regex.Match(c, System.Text.RegularExpressions.Regex.Escape(firma) + @"[\s\S]*?\r?\n    }\r?\n").Value;
+        string trasp = Cuerpo("private void Traspasable(bool fantasma)");
+        Debe(trasp.Contains("Fantasma.Poner(new System.Windows.Interop.WindowInteropHelper(this).Handle, fantasma)")
+             && trasp.Contains("(_latidoDeVisita ??= NuevoLatidoDeVisita()).Start()") && trasp.Contains("_latidoDeVisita?.Stop()"),
+            "[cableado] el fantasma no pone el bit que le piden, o no arranca y para la vuelta a casa");
+        Debe(Cuerpo("private System.Windows.Threading.DispatcherTimer NuevoLatidoDeVisita()").Contains("_visita.Latido("), "[cableado] el latido de la vuelta no le pregunta a la regla");
+        string volar = Cuerpo("private void VolarDeVisita(");
+        Debe(volar.Contains("new CurvaDelClic()") && volar.Contains("alAterrizar: alAterrizar") && !volar.Contains("MoverConMuelle("),
+            "[cableado] la visita no vuela con la curva sin rebote, o pierde el aviso de llegada");
+        string recorrer = Cuerpo("private void Recorrer(");
+        int enSalir = recorrer.IndexOf("_visita.Salir();", StringComparison.Ordinal), enRecorrido = recorrer.IndexOf("Vuelo.Recorrido(", StringComparison.Ordinal);
+        Debe(enSalir >= 0 && enRecorrido > enSalir, "[cableado] el recorrido de varias no sale de casa por la visita antes de volar");
+        Debe(recorrer.Contains("paradas.Count == 1"), "[cableado] un recorrido que se queda en una parada vuela con el muelle que rebota");
+        // Lo único que mueve con el muelle es el carrusel, que es un gesto de la persona (fuera de la visita, dicho en la spec).
+        var muelle = System.Text.RegularExpressions.Regex.Matches(c, @"(?<!void )MoverConMuelle\(").Count;
+        Debe(muelle == 2 && Cuerpo("private void EncimaDe(").Contains("MoverConMuelle(") && Cuerpo("private void VolverASuSitio(").Contains("MoverConMuelle("),
+            $"[cableado] algo más que el carrusel mueve la carita con el muelle ({muelle} llamada(s))");
         Debe(!c.Contains("IrJuntoA("), "[cableado] sigue existiendo un camino que mueve la carita sin pasar por la visita (IrJuntoA)");
         var senala = System.Text.RegularExpressions.Regex.Match(c, @"Senalador\.Senala \+= [^;]*;");
         Debe(senala.Success && senala.Value.Contains("Visitar("), "[cableado] señalar no pasa por la visita");
@@ -14364,6 +14415,13 @@ internal static class Contrato
         Debe(m.Tocable && m.Log.Count(l => l == "tocable") == 1, $"al posarse en casa no volvió a dejarse tocar (salió: {string.Join(" · ", m.Log)})");
         Debe(m.CasaAhora == EstanciaDeMentira.Casa, $"una visita cambió la casa: ahora es {m.CasaAhora}");
 
+        // Si otra cosa la dejó ya en casa (el carrusel al cerrarse), el latido la da por llegada sin volar.
+        var ya = EstanciaCon()!;
+        ya.Visitar(new System.Windows.Rect(800, 500, 100, 30), EstanciaDeMentira.Casa);
+        ya.Log.Clear();
+        ya.Reloj = quietud; ya.Latido(EstanciaDeMentira.Casa, false);
+        Debe(ya.Tocable && ya.Log.SequenceEqual(new[] { "tocable" }), $"ya en casa, no volvió a dejarse tocar sin volar (salió: {string.Join(" · ", ya.Log)})");
+
         var sinCasa = EstanciaCon(conCasa: false)!;
         Debe(!sinCasa.Visitar(new System.Windows.Rect(800, 500, 100, 30), EstanciaDeMentira.Casa) && sinCasa.Log.Count == 0,
             "sin casa conocida salió igual: no sabría volver");
@@ -14407,14 +14465,28 @@ internal static class Contrato
             $"el filtro no tira lo firmado y deja pasar lo demás, diciéndolo una vez ({string.Join(" · ", anotado)})");
 
         // [cableado] Los 6 sitios de botón y los 3 de rueda firman (patrón nº5), y el filtro se instala al arrancar.
+        // EL FILTRO INSTALADO tira de verdad: un botón firmado que pasa por el hilo se da por manejado; uno sin firma, no.
+        var instalar = toques!.GetMethod("Instalar", BindingFlags.Public | BindingFlags.Static);
+        if (instalar == null || instalar.GetParameters().Length != 1) { Pendiente("ToquesDeU.Instalar(lector de la firma)", "508", "061"); return; }
+        IntPtr leido = F;
+        instalar.Invoke(null, new object?[] { new Func<IntPtr>(() => leido) });
+        var boton = new System.Windows.Interop.MSG { message = 0x201 };
+        bool tirado = System.Windows.Interop.ComponentDispatcher.RaiseThreadMessage(ref boton);
+        leido = IntPtr.Zero;
+        bool paso = !System.Windows.Interop.ComponentDispatcher.RaiseThreadMessage(ref boton);
+        Debe(tirado && paso, $"el filtro instalado no tira el botón firmado ({tirado}) o tira el de la persona ({!paso})");
+
         if (FuenteDe("u", "Nucleo", "Raton.cs") is not { } raton) return;
-        Debe(raton.Contains("EntradasDelClic()") && !raton.Contains("new MOUSEINPUT { Flags = IzquierdoAbajo }"), "[cableado] Raton.Clic no usa las entradas firmadas");
+        string Metodo(string fuente, string firma) => System.Text.RegularExpressions.Regex.Match(fuente, System.Text.RegularExpressions.Regex.Escape(firma) + @"[\s\S]*?\r?\n    }\r?\n").Value;
+        string clic = Metodo(raton, "public static void Clic(int x, int y)");
+        Debe(clic.Contains("EntradasDelClic()") && clic.Contains("Extra = p.Extra"), "[cableado] Raton.Clic no manda las entradas firmadas");
+        Debe(Metodo(raton, "public static void Desplazar(int x, int y, int muescas)").Contains("Extra = Firma"), "[cableado] la rueda de Raton no lleva firma: sobre la carita en casa, la lanzaría y le cambiaría la casa");
         if (FuenteDe("windows-graph", "src", "Surfaces", "UiaSurface.cs") is not { } uia) return;
         var llamadas = System.Text.RegularExpressions.Regex.Matches(uia, @"(?<!extern void )mouse_event\([^;]*\);").Select(x => x.Value).ToList();
         Debe(llamadas.Count == 10 && llamadas.All(l => l.Contains("FirmaDeU")), $"[cableado] UiaSurface: {llamadas.Count(l => l.Contains("FirmaDeU"))} de {llamadas.Count} mouse_event firmados (se esperan 10 de 10)");
         if (FuenteDe("windows-client", "src", "Actions", "InputExecutor.cs") is not { } exe) return;
         var entradasIe = System.Text.RegularExpressions.Regex.Matches(exe, @"new MOUSEINPUT \{[^}]*\}").Select(x => x.Value).ToList();
-        Debe(entradasIe.Count == 3 && entradasIe.All(e => e.Contains("dwExtraInfo")), $"[cableado] InputExecutor: {entradasIe.Count(e => e.Contains("dwExtraInfo"))} de {entradasIe.Count} MOUSEINPUT firmados");
+        Debe(entradasIe.Count == 3 && entradasIe.All(e => e.Contains("dwExtraInfo = U.Ciclo.Raton.Firma")), $"[cableado] InputExecutor: {entradasIe.Count(e => e.Contains("dwExtraInfo = U.Ciclo.Raton.Firma"))} de {entradasIe.Count} MOUSEINPUT firmados");
         if (FuenteDe("windows-client", "App.xaml.cs") is not { } app) return;
         int carteles = app.IndexOf("Ui.SinCarteles.Aplicar()", StringComparison.Ordinal), filtro = app.IndexOf("Ui.ToquesDeU.Instalar()", StringComparison.Ordinal);
         Debe(carteles >= 0 && filtro > carteles, "[cableado] el filtro de toques no se instala al arrancar (después de SinCarteles, promesa 164)");
