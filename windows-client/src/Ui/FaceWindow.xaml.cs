@@ -836,17 +836,15 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 var ciclo = new Navigation.CicloRapido(
                     () =>
                     {
-                        IntPtr v = VentanaObjetivo();
+                        // Lo de delante, como u/ (promesa 491); la de trabajo solo si delante está Ü o nada.
+                        var (delante, esU) = Navigation.CicloRapido.Delante();
+                        IntPtr v = Navigation.CicloRapido.ElegirVentana(delante, esU, VentanaObjetivo());
                         if (v == IntPtr.Zero) return IntPtr.Zero;
-                        return U.Graph.Surfaces.UiaSurface.EstaDelante(v) || U.Graph.Surfaces.UiaSurface.TraerAlFrente(v) ? v : IntPtr.Zero;
+                        return v == delante || U.Graph.Surfaces.UiaSurface.EstaDelante(v) || U.Graph.Surfaces.UiaSurface.TraerAlFrente(v) ? v : IntPtr.Zero;
                     },
                     v => { var l = _lectorRapido.Leer(v); _ultimaLectura = (l, Environment.TickCount64); return l; },
-                    (x, y) =>
-                    {
-                        U.Ciclo.Raton.Clic(x, y);
-                        U.Graph.Surfaces.UiaSurface.AvisarDelCursor(x, y);
-                        U.Graph.Surfaces.UiaSurface.AvisarDelPulso(x - 20, y - 10, 40, 20);
-                    },
+                    // El ratón real y nada más: sin avisar a la carita (promesa 492), que se posaba sobre el clic siguiente.
+                    (x, y) => U.Ciclo.Raton.Clic(x, y),
                     () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
                     () => Environment.TickCount64)
                 { Titulo = U.Graph.Surfaces.UiaSurface.TituloDe };
@@ -854,6 +852,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 {
                     ciclo.AntesDePulsar = antesDePulsar;
                     string? r = ciclo.Pulsar(exit, cual);
+                    if (r == null) LogBus.Log("mano", $"ciclo rápido: «{exit}» va por el camino de siempre: {ciclo.PorQueNo}");
                     if (r != null && ciclo.Pulso)
                     {
                         var t = ciclo.Tiempos;
@@ -1383,12 +1382,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // plegado. Toda la coreografía vive en la región «menú extendido» de abajo.
         WireMenu();
 
-        // La carita colapsada SIGUE al cursor automatizado durante la ejecución de workflows: se ve
-        // "quién" está haciendo los clics. Evento estático de UiaSurface; se suelta al cerrar.
-        UiaSurface.CursorMoved += OnAutomationCursorMoved;
-        Closed += (_, __) => UiaSurface.CursorMoved -= OnAutomationCursorMoved;
-        UiaSurface.Pulso += OnManoPulso;
-        Closed += (_, __) => UiaSurface.Pulso -= OnManoPulso;
+        // La carita YA NO sigue al cursor automatizado ni viaja a cada clic (spec 054, promesa 492): se posaba ~80 px
+        // sobre el clic y el siguiente clic de Ü caía en ella, que abre la voz de pago — 5 sesiones en un día de pruebas
+        // (2026-09-27). OnAutomationCursorMoved y OnManoPulso siguen aquí; su conexión vive en 334f144.
 
         // La voz ya dice cuándo está escuchando y cuándo hablando (antes no lo decía nadie y la UI lo
         // simulaba escribiendo «Escuchando…» y cruzando los dedos). Llega desde el hilo del motor de

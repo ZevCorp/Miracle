@@ -44,6 +44,9 @@ public sealed class CicloRapido
     public string Pulsado { get; private set; } = "";
     public (long Ver, long Clic, long Esperar, int Lecturas) Tiempos { get; private set; }
 
+    /// <summary>Por qué el último Pulsar no se encargó (null), para que el log lo diga: tres causas, tres frases (aprendizaje nº2).</summary>
+    public string PorQueNo { get; private set; } = "";
+
     /// <summary>La última lectura, para quien quiera contar lo que se ve sin volver a leer.</summary>
     public Lectura? Ultima => _ultima;
     public IntPtr UltimaVentana => _ultimaVentana;
@@ -56,16 +59,17 @@ public sealed class CicloRapido
     public string? Pulsar(string exit, int cual)
     {
         Pulso = false; Cambio = false; Pulsado = ""; Tiempos = default;
-        if (!QueSePide(exit, out string nombre, out string tipo)) return null;
+        PorQueNo = "";
+        if (!QueSePide(exit, out string nombre, out string tipo)) { PorQueNo = "no es un clic por nombre en UIA"; return null; }
         IntPtr v = _ventana();
-        if (v == IntPtr.Zero) return null;
+        if (v == IntPtr.Zero) { PorQueNo = "no hay ventana de trabajo delante (ni se pudo traer)"; return null; }
 
         long t0 = _reloj();
         bool fresca = _ultima != null && _ultimaVentana == v && t0 - _ultimaEn < VigenciaMs;
         var antes = fresca ? _ultima! : Leer(v);
         var iguales = Buscar(antes, nombre, tipo);
         if (iguales.Count == 0) { antes = Leer(v); iguales = Buscar(antes, nombre, tipo); }
-        if (iguales.Count == 0) return null;
+        if (iguales.Count == 0) { PorQueNo = $"«{nombre}» no está en la lectura ({antes.Accionables.Count} accionables)"; return null; }
 
         Accionable el;
         if (iguales.Count > 1)
@@ -90,6 +94,26 @@ public sealed class CicloRapido
         Pulso = true; Cambio = a.Cambio; Pulsado = el.Nombre;
         Tiempos = (msVer, msClic, a.Ms, a.Lecturas);
         return $"pulsé «{el.Nombre}» ({el.Tipo}) y la pantalla {(a.Cambio ? "cambió" : "no cambió")}.\n\n" + Describir(despues, v);
+    }
+
+    /// <summary>
+    /// SOBRE QUÉ VENTANA (promesa 491): la de delante, la que la persona ve, como u/. Solo si delante está la propia Ü
+    /// —o nada—, la de trabajo. Sin el fondo, la ventana de trabajo dejó de seguir al foco y el ciclo leía la
+    /// Calculadora de antes con el Bloc de notas delante (30 clics seguidos, 2026-09-27).
+    /// </summary>
+    public static IntPtr ElegirVentana(IntPtr delante, bool delanteEsU, IntPtr trabajo) =>
+        delante != IntPtr.Zero && !delanteEsU ? delante : trabajo;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+
+    /// <summary>La ventana de delante y si es de este mismo proceso (la carita, el panel).</summary>
+    public static (IntPtr Ventana, bool EsU) Delante()
+    {
+        IntPtr h = GetForegroundWindow();
+        if (h == IntPtr.Zero) return (IntPtr.Zero, false);
+        GetWindowThreadProcessId(h, out uint pid);
+        return (h, pid == (uint)Environment.ProcessId);
     }
 
     /// <summary>Lo que se ve, en el formato del inventario de los actos (promesa 263): EN PANTALLA AHORA, y lo que dice.</summary>
