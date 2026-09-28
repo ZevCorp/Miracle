@@ -167,11 +167,91 @@ abierta en las rondas 3-final. **Lo que no se midió: SAP** — no hay sesión d
 de siempre (la mano de SAP y su espera por `session.Busy`), sin el fondo compitiendo, y su medida queda pendiente para
 una sesión real.
 
+### Fase 6 — hacer es rápido traiga lo que traiga (2026-09-28)
+
+**Lo que dijo la sesión de voz real.** Dos pruebas del dueño por voz se sintieron lentas. El log las cuenta así: el
+modelo se lleva ~80 % del tiempo y las herramientas ~20 %. Pero **ninguno de los 9 `map_take` llegó al ciclo rápido**:
+2.349 ms de mediana contra los 182 de la sonda. La razón no estaba en el ciclo, estaba en la puerta. El modelo manda
+`decir` y `recuerdo` en casi cada clic, porque el esquema se los ofrecía. Y `Take` desviaba todo clic con uno de los
+dos a la coreografía de lección: señalar, colgar un recuerdo, sacar una foto, y pulsar por el núcleo.
+
+La sonda no lo vio porque llamaba a `map_take` solo con `exit`. Medía el componente y no la entrada real con los
+argumentos reales. Es la raíz del diagnóstico de fiabilidad, y la 497 la cierra con los argumentos literales de esa
+sesión.
+
+| # | Promesa |
+|---|---|
+| 497 | hacer es rápido: un clic por nombre con map_take va por el ciclo rápido traiga los argumentos que traiga —decir, recuerdo o cualquiera desconocido—; ni coreografía, ni recuerdo, ni foto. La coreografía solo cuando la app la pide al señalar al actuar (comprobación, encargo), y map_type en SAP tampoco se desvía por decir o recuerdo |
+| 498 | con SAP delante, un clic por nombre no entra al ciclo rápido: no lee, no pulsa, dice que es SAP y lo da la mano de SAP; y saber si una ventana es SAP es UNA regla —su proceso—, la misma para pulsar, mirar y esperar tras escribir |
+| 499 | el tope de intentos ve los clics del ciclo rápido: la mano de un clic rápido lleva lo pulsado con la misma clave con la que se le pregunta al tope antes de pulsar, y el tercer intento sobre el mismo botón no se da |
+| 500 | la voz no ofrece decir ni recuerdo: en el catálogo de la voz, map_take, map_type, map_decidir y map_tramo no los declaran; el catálogo del piloto sí los declara en map_take y map_type, que es para lo que la mano del piloto los lleva (191) |
+| 509 | cada llamada dice por qué camino fue y por qué —ciclo rápido, núcleo, coreografía— en el log y en la mano; y un clic por nombre en UIA que no va por el ciclo rápido fuera de una comprobación deja «⚠ camino inesperado» con su razón |
+
+La 509 es la que evita que esto vuelva a pasar en silencio. Cada llamada deja `camino: map_take → ciclo-rapido (…)`
+en el log. Un desvío deja `⚠ camino inesperado` con su razón, y eso se ve en la primera sesión, no en la tercera.
+
+Las tres de la 498 eran tres copias de la misma pregunta —¿es SAP?— con tres respuestas: `Uia.Sap.EsVentana` es
+ahora la única. La 499 arregla un hueco que abrió la fase 1. Los clics rápidos no le decían al tope qué habían
+pulsado, así que el tope de la 204 no los contaba.
+
+**Sitios con la clase de error (patrón nº5).** Cuatro herramientas en el catálogo de la voz declaraban
+`decir`/`recuerdo`, y dos puertas los usaban para desviar (`Take` y la rama SAP de `Type`). Hay tres firmas que solo
+los pasaban de largo (`Decidir`, `UnPasoDecidido` y `Tramo`). Todos están corregidos.
+
+### Fase 7 — recordar es un complemento, no un efecto de cada clic (2026-09-28)
+
+Con la fase 6, un clic ya no cuelga recuerdos. Queda limpiar lo que esa costumbre dejó detrás: una segunda coreografía
+para «fuera de una comprobación», un recuerdo que se escribía después de tocar, unas instrucciones que pedían
+acumular recuerdos y una búsqueda por nombre que colgaba el recuerdo del elemento equivocado.
+
+| # | Promesa |
+|---|---|
+| 501 | parar la comprobación para el plan: tras cancelarla no se da ni un paso más, y los que faltaban cuentan como no dados sobre el total del plan; el plan del piloto y el de una skill se recorren con ese mismo recorrido |
+| 502 | recordar es explícito y honesto: las instrucciones no piden acumular recuerdos ni prometen que duren para siempre, la herramienta de recordar dice que no es para describir lo que Ü va a pulsar, y su respuesta empieza por «nuevo recuerdo:» sin prometer «lo recordaré» |
+| 503 | un recuerdo se cuelga del elemento por su nombre exacto; «contiene» solo cuando hay uno solo que lo contenga, y si hay varios se dicen y no se cuelga de ninguno |
+
+**La 501** salió al leer el bucle del plan para sacarlo de `FaceWindow`: no miraba el botón de parar. El plan corre en
+el hilo del servidor MCP, y cancelar solo le llegaba al piloto. Había dos bucles con la misma regla (el del plan y el
+de una skill) y ninguno paraba. Ahora hay uno, `Piloto.ElRecorridoDelPlan`.
+
+**La 503** es el recuerdo mal colgado de la sesión real. El modelo mandó `recuerdo` sobre «Search», y se colgó de
+«Search by voice». El «Search» de Google es un ComboBox de 1.203 px, y el filtro de puertas visibles descarta lo que
+mide más de 900 px de ancho. Sin el exacto, ganaba el primero que lo contuviera. La regla de SAP (`ElCampoQueNombras`)
+ya hacía lo correcto: exacto primero, «contiene» solo si es único y un empate no se adivina. Ahora es la misma para los
+dos mundos.
+
+**Sabotajes de las fases 6 y 7: 30, todos rojos.** Por promesa: 497 ×2, 498 ×3, 499 ×3, 500 ×3, 509 ×3, 501 ×4,
+502 ×4 y 503 ×8. Tres no mordían a la primera y se endurecieron sus pruebas (ver Hallazgos, nº2). Uno no llegaba a
+aplicarse —el patrón no casaba— y se rehízo sobre la regla pura `SePuedeNombrar`.
+
+**Lo que queda abierto: que un recuerdo sobreviva a cerrar Ü.** Quien proyectaba el grafo a Neo4j era el latido, y
+desde la 489 no corre. Además, en este PC no hay Neo4j. Un recuerdo vive en memoria mientras esa Ü esté abierta. Las
+instrucciones ya no prometen «para siempre».
+
 ## Promesas retiradas
 
 | # | Retirada el | Por qué | La sustituye |
 |---|---|---|---|
+| 266 | 2026-09-28 | «fuera de una comprobación, pulsar es señalar y tocar en un solo gesto, y el recuerdo se escribe DESPUÉS de tocar»: desde la 497, fuera de una comprobación no hay coreografía, y recordar es `map_esto_es`, explícito. Lo de dentro ya lo promete la 180 | 497 |
 | 240 | 2026-09-27 | la carita que viaja al clic se posaba sobre el clic siguiente de Ü y abría la voz de pago | 492 |
 | 487 | 2026-09-27 | «si tampoco está, decide el camino de siempre»: ese camino se colgaba 60 s por clic en Edge | 493 |
 
 ## Hallazgos
+
+1. **La sonda medía el componente, no la entrada.** El «182 ms» de la fase 5 era verdad para `map_take` con solo
+   `exit`. La voz manda `exit`, `decir` y `recuerdo`, y con eso ningún clic llegaba al ciclo. Desde la 497 el
+   contrato llama con los argumentos literales de la sesión real.
+2. **Tres sabotajes de diecisiete no mordieron a la primera**, y los tres por lo mismo: la prueba miraba algo que
+   se parecía a la propiedad sin serlo.
+   - La 498 exigía que la regla de SAP se nombrara en el bloque, y mirar y esperar la siguen nombrando. Quitar
+     `EsSap` del ciclo no la ponía roja.
+   - La 499 usaba un ciclo de mentira que ya traía la clave de lo pulsado.
+   - La 503 inyectaba la lista de lo que se puede nombrar, y el filtro que dejó fuera el «Search» de 1.203 px no
+     lo juzgaba nadie.
+
+   Las tres se endurecieron y ahora muerden (`db22152`, `522714a`).
+3. **La 291 es un reloj de pared.** Contesta «en marcha» en menos de 150 ms. Salió roja una vez (258 ms) con la
+   máquina cargada y verde en la corrida siguiente. No es un fallo del núcleo, pero un juez que depende de la
+   carga dice «culpable» sin haberlo probado (aprendizaje nº17). Queda anotada, sin cambiar.
+4. **Los recuerdos viven en memoria.** Quien proyectaba el grafo a Neo4j era el latido, apagado desde la 489, y
+   en este PC Neo4j no está. Hasta que se decida cómo persistir, un recuerdo dura lo que dura la Ü que lo aprendió.
