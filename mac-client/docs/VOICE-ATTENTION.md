@@ -73,3 +73,15 @@ No se promete cero interrupciones ni identificación de la persona dueña de la 
 Cambios solo en mac-client, rama local; no cambios a Hermes, main ni publicación remota.
 
 Instalación verificada: binario instalado idéntico al release; 138 mensajes idénticos byte por byte. Respaldo privado: /Users/juanpablo/Documents/Yu Backups/attention-20260927-224829.
+
+## Corrección comprobada — 2026-09-28
+
+Con saldo disponible, la sonda real detectó otro fallo: la sesión conectaba pero devolvía
+cero bytes de audio sin entrada PCM. Se mantiene ahora el reloj de Live con bloques de
+ceros generados localmente (100 ms). No contienen audio del micrófono ni de otras apps.
+La métrica liveInputAudioBytesSent cuenta únicamente PCM capturado, excluyendo esos ceros.
+Se reforzó la sonda: exige RMS > 0.001 y al menos 4800 bytes audibles; silencio recibido
+no equivale a respuesta hablada. La versión corregida produjo 9600 bytes audibles y
+cero bytes capturados enviados; lectura de Core Audio confirmó salida sin entrada.
+El error credit_balance_exhausted anterior no se reprodujo. Activación acústica del
+saludo de la persona todavía no verificada: los registros mostraban matched=false.

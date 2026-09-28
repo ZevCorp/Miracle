@@ -13,6 +13,7 @@ public final class LiveVoice {
     private var hasProtectedRequest = false
     public private(set) var inputAudioBytesSent = 0
     public private(set) var outputAudioBytesPlayed = 0
+    public private(set) var audibleOutputBytesPlayed = 0
     public var onSpeaking: ((Bool) -> Void)?
     public var onError: ((String) -> Void)?
     public var onTool: ((String, [String: String]) async throws -> String)?
@@ -46,7 +47,7 @@ public final class LiveVoice {
         stop()
         privacy = VoicePrivacyLatch()
         self.inputMode = inputMode; hasProtectedRequest = false
-        inputAudioBytesSent = 0; outputAudioBytesPlayed = 0
+        inputAudioBytesSent = 0; outputAudioBytesPlayed = 0; audibleOutputBytesPlayed = 0
         let id = UUID(); epoch = id
         if inputMode.forwardsMicrophone {
             guard await AVCaptureDevice.requestAccess(for: .audio) else { throw AgentError.permission("Micrófono") }
@@ -100,6 +101,21 @@ public final class LiveVoice {
         connected = true; timeout?.cancel(); timeout = nil
         onState?(inputMode.forwardsMicrophone ? "Conversación en vivo" : "Modo protegido: di Ü al comenzar cada petición.")
         sender = Task { [weak self] in
+            if self?.inputMode == .addressedText {
+                // Live's audio clock must continue even when room audio is withheld.
+                let silence = Data(repeating: 0, count: 4800).base64EncodedString()
+                while !Task.isCancelled {
+                    guard let self, self.epoch == id else { return }
+                    do {
+                        try await self.send(["type": "session.input_audio.append", "audio": silence])
+                        try await Task.sleep(nanoseconds: 100_000_000)
+                    } catch {
+                        if self.epoch == id && !Task.isCancelled { self.fail("Se interrumpió el canal de voz protegido.") }
+                        return
+                    }
+                }
+                return
+            }
             for await data in stream {
                 guard let self, self.epoch == id, !Task.isCancelled else { return }
                 do {
@@ -180,7 +196,10 @@ public final class LiveVoice {
             do { try startAudio(epoch: id) }
             catch { fail("Live 1 conectó, pero no pude iniciar el audio del Mac: " + error.localizedDescription) }
         case "session.output_audio.delta":
-            if let value = event["delta"] as? String, let data = Data(base64Encoded: value) { try audio.play(data); outputAudioBytesPlayed += data.count }
+            if let value = event["delta"] as? String, let data = Data(base64Encoded: value) {
+                try audio.play(data); outputAudioBytesPlayed += data.count
+                if try LiveAudioChunk(data).level > 0.001 { audibleOutputBytesPlayed += data.count }
+            }
         case "session.output_transcript.delta":
             if let text = event["delta"] as? String { onText?(text, false) }
         case "session.input_transcript.delta":

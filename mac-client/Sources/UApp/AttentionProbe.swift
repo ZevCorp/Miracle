@@ -49,13 +49,14 @@ enum AttentionProbe {
             guard voice.connected else { throw AgentError.unavailable(failure ?? "Live no conectó") }
             try await voice.text("Yu, esta es una prueba. Responde solamente: listo. No uses herramientas.")
             for _ in 0..<150 {
-                if voice.outputAudioBytesPlayed > 0 || failure != nil { break }
+                if voice.audibleOutputBytesPlayed >= 4800 || failure != nil { break }
                 try await Task.sleep(nanoseconds: 200_000_000)
             }
+            result["audibleOutputBytesPlayed"] = voice.audibleOutputBytesPlayed
             result["liveInputAudioBytesSent"] = voice.inputAudioBytesSent
             result["liveOutputAudioBytesPlayed"] = voice.outputAudioBytesPlayed
             if let failure { result["error"] = failure }
-            result["passed"] = external && ownInput == false && failure == nil && voice.inputAudioBytesSent == 0 && voice.outputAudioBytesPlayed > 0
+            result["passed"] = external && ownInput == false && failure == nil && voice.inputAudioBytesSent == 0 && voice.audibleOutputBytesPlayed >= 4800
         } catch { result["error"] = error.localizedDescription }
     }
 }
