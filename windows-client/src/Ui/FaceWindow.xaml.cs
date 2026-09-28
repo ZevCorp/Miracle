@@ -3418,36 +3418,36 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         LogBus.Log("comprobar", $"plan del piloto: {pasos.Count} paso(s) → "
             + string.Join(" → ", pasos.Select(p => p.Texto.Length > 0 ? $"escribir «{p.Texto}» en «{p.Exit}»" : $"«{p.Exit}»")));
         var reloj = System.Diagnostics.Stopwatch.StartNew();
-        int hechos = 0;
-        for (int i = 0; i < pasos.Count; i++)
-        {
-            var p = pasos[i];
-            // LA GUARDA CRECE CON EL PLAN (2026-09-08): 18 pasos con su tarjeta de lectura pasan de
-            // 100 s, y el corte cayó justo en el paso 18. Ocho segundos por paso, y nunca menos de 100.
-            if (reloj.Elapsed > TimeSpan.FromSeconds(Math.Max(100, 8 * pasos.Count)))
-                return Piloto.PlanDeComprobacion.Relato(hechos, pasos.Count, i + 1,
-                    "se me acabó el tiempo de una sola llamada; el resto lo sigues tú o me vuelves a mandar el plan desde aquí.",
-                    _locator?.DondeEstoy()?.Id ?? "", registro.Hechos, registro.Total, LoQueFalta(registro));
-
-            // LA IDENTIDAD DEL PASO SE DECIDE EN UN SITIO (promesa 191): se señala y se nombra por la
-            // puerta aunque el piloto traiga el selector; se escribe por el selector de la lección
-            // aunque traiga el nombre. La llegada viaja con el paso: es la que el terreno aprendió, y
-            // el batch la verifica con su propia compuerta (promesas 103 y 122).
-            var evento = p.N > 0 ? leccion.Eventos.FirstOrDefault(e => e.N == p.N) : null;
-            var id = Piloto.ElPasoQueSeDa.Resolver(p.Exit, evento?.Etiqueta ?? "", evento?.Selector ?? "", p.Texto);
-            var res = DarUnPasoConCoreografia(id.ParaSenalar,
-                new Navigation.RecorrerSegunElNucleo.Paso(id.ParaElEjecutor, p.Texto, evento?.Llegada ?? "", p.Tecla), p.Recuerdo, p.Decir);
-            if (res.Hechos < 1)
+        // LA GUARDA CRECE CON EL PLAN (2026-09-08): 18 pasos con su tarjeta de lectura pasan de
+        // 100 s, y el corte cayó justo en el paso 18. Ocho segundos por paso, y nunca menos de 100.
+        var techo = TimeSpan.FromSeconds(Math.Max(100, 8 * pasos.Count));
+        // EL BOTÓN DE PARAR PARA TAMBIÉN EL PLAN (promesa 501). El plan corre en el hilo del servidor MCP, y
+        // cancelar solo le llegaba al piloto: el plan seguía pulsando hasta el final. Es el de ESTA comprobación.
+        var cancelar = _cts;
+        var r = Piloto.ElRecorridoDelPlan.Recorrer(pasos.Count,
+            darUnPaso: i =>
             {
-                LogBus.Log("comprobar", $"plan · PARÓ en el paso {i + 1} «{id.ParaSenalar}»: {res.Cuenta}");
-                return Piloto.PlanDeComprobacion.Relato(hechos, pasos.Count, i + 1, res.Cuenta,
-                    _locator?.DondeEstoy()?.Id ?? "", registro.Hechos, registro.Total, LoQueFalta(registro));
-            }
-            hechos++;
-            if (p.N > 0) registro.Llegue(p.N, _locator?.DondeEstoy()?.Id ?? "");
-        }
-        LogBus.Log("comprobar", $"plan · hice los {pasos.Count} paso(s) en {reloj.ElapsedMilliseconds} ms · {registro.Hechos}/{registro.Total} hechos");
-        return Piloto.PlanDeComprobacion.Relato(hechos, pasos.Count, 0, "", _locator?.DondeEstoy()?.Id ?? "", registro.Hechos, registro.Total, LoQueFalta(registro));
+                var p = pasos[i];
+                // LA IDENTIDAD DEL PASO SE DECIDE EN UN SITIO (promesa 191): se señala y se nombra por la
+                // puerta aunque el piloto traiga el selector; se escribe por el selector de la lección
+                // aunque traiga el nombre. La llegada viaja con el paso: es la que el terreno aprendió, y
+                // el batch la verifica con su propia compuerta (promesas 103 y 122).
+                var evento = p.N > 0 ? leccion.Eventos.FirstOrDefault(e => e.N == p.N) : null;
+                var id = Piloto.ElPasoQueSeDa.Resolver(p.Exit, evento?.Etiqueta ?? "", evento?.Selector ?? "", p.Texto);
+                var res = DarUnPasoConCoreografia(id.ParaSenalar,
+                    new Navigation.RecorrerSegunElNucleo.Paso(id.ParaElEjecutor, p.Texto, evento?.Llegada ?? "", p.Tecla), p.Recuerdo, p.Decir);
+                if (res.Hechos < 1) return res.Cuenta.Length > 0 ? res.Cuenta : $"«{id.ParaSenalar}» no se dio";
+                if (p.N > 0) registro.Llegue(p.N, _locator?.DondeEstoy()?.Id ?? "");
+                return "";
+            },
+            parar: _ => cancelar?.IsCancellationRequested == true ? "paraste la comprobación: no doy ni un paso más."
+                : reloj.Elapsed > techo ? "se me acabó el tiempo de una sola llamada; el resto lo sigues tú o me vuelves a mandar el plan desde aquí."
+                : "");
+        LogBus.Log("comprobar", r.ParoEn > 0
+            ? $"plan · PARÓ en el paso {r.ParoEn} de {r.Total} ({r.Omitidos} sin dar): {r.Motivo}"
+            : $"plan · hice los {r.Total} paso(s) en {reloj.ElapsedMilliseconds} ms · {registro.Hechos}/{registro.Total} hechos");
+        return Piloto.PlanDeComprobacion.Relato(r.Dados, r.Total, r.ParoEn, r.Motivo, _locator?.DondeEstoy()?.Id ?? "",
+            registro.Hechos, registro.Total, LoQueFalta(registro));
     }
 
     /// <summary>Lo que el juez todavía no da por hecho, dicho para el piloto: evento, nombre y motivo.</summary>
@@ -5746,9 +5746,13 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         {
             // EN OTRO HILO: la coreografía espera a que se lea cada tarjeta, y esto lo llama la
             // ventana de la consulta desde SU hilo de interfaz — hacerlo aquí la congelaría.
+            // PARAR ES PARAR TAMBIÉN AQUÍ (promesa 501): el token solo evitaba EMPEZAR; con los pasos en marcha, seguía.
+            var cancelar = _cts;
             var res = await Task.Run(() => Mcp.SurfaceMapTools.RecorrerSkill(pasos, paso =>
-                DarUnPasoConCoreografia(paso.Exit, paso, "",
-                    porPuerta.TryGetValue(paso.Exit, out var f) ? f : "")), _cts.Token);
+                cancelar.IsCancellationRequested
+                    ? new Navigation.RecorrerSegunElNucleo.Resultado(0, 1, "", false, "paraste: no doy ni un paso más.")
+                    : DarUnPasoConCoreografia(paso.Exit, paso, "",
+                        porPuerta.TryGetValue(paso.Exit, out var f) ? f : "")), cancelar.Token);
             LogBus.Log("aprendizajes", "← " + res.Cuenta);
             return res.Cuenta;
         }

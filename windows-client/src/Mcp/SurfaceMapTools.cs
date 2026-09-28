@@ -1073,21 +1073,19 @@ public sealed class SurfaceMapTools
         Func<Navigation.RecorrerSegunElNucleo.Paso, Navigation.RecorrerSegunElNucleo.Resultado> darUnPaso)
     {
         pasos ??= Array.Empty<Navigation.RecorrerSegunElNucleo.Paso>();
-        int hechos = 0; string donde = "";
-        for (int i = 0; i < pasos.Count; i++)
+        string donde = "";
+        // EL MISMO RECORRIDO QUE EL PLAN DEL PILOTO (promesa 501): eran dos bucles con la misma regla, y ninguno paraba.
+        var r = Piloto.ElRecorridoDelPlan.Recorrer(pasos.Count, i =>
         {
-            var r = darUnPaso(pasos[i]);
-            if (r.Donde.Length > 0) donde = r.Donde;
-            if (r.Hechos < 1)
-            {
-                string que = pasos[i].Exit.Length > 0 ? pasos[i].Exit : pasos[i].Tecla.Length > 0 ? "tecla " + pasos[i].Tecla : $"paso {i + 1}";
-                return new(hechos, pasos.Count, donde, false,
-                    $"hice {hechos} de {pasos.Count} y paré en el paso {i + 1} «{que}»: {r.Cuenta}");
-            }
-            hechos++;
-        }
-        return new(hechos, pasos.Count, donde, true,
-            $"hice los {pasos.Count} paso(s)" + (donde.Length > 0 ? $": quedaste en «{donde}»" : ""));
+            var x = darUnPaso(pasos[i]);
+            if (x.Donde.Length > 0) donde = x.Donde;
+            return x.Hechos >= 1 ? "" : x.Cuenta.Length > 0 ? x.Cuenta : "no se dio";
+        }, _ => "");
+        if (r.ParoEn == 0)
+            return new(r.Dados, r.Total, donde, true, $"hice los {r.Total} paso(s)" + (donde.Length > 0 ? $": quedaste en «{donde}»" : ""));
+        var p = pasos[r.ParoEn - 1];
+        string que = p.Exit.Length > 0 ? p.Exit : p.Tecla.Length > 0 ? "tecla " + p.Tecla : $"paso {r.ParoEn}";
+        return new(r.Dados, r.Total, donde, false, $"hice {r.Dados} de {r.Total} y paré en el paso {r.ParoEn} «{que}»: {r.Motivo}");
     }
 
 
