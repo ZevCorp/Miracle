@@ -890,6 +890,7 @@ internal static class Contrato
         Prueba("491. el ciclo rápido trabaja sobre la ventana de delante, la que la persona ve, como u/; solo si delante está la propia Ü usa su ventana de trabajo", ElCicloTrabajaSobreLoQueHayDelante);
         Prueba("495. mirar —map_what_i_see y lo que se pega a cada acto— lee con el lector de u/ la ventana de delante y cuenta accionables y textos; SAP, que UIA no ve, sigue por el lector de siempre", MirarLeeComoU);
         Prueba("498. con SAP delante, un clic por nombre no entra al ciclo rápido: no lee, no pulsa, dice que es SAP y lo da la mano de SAP; y saber si una ventana es SAP es UNA regla —su proceso—, la misma para pulsar, mirar y esperar tras escribir", ConSapDelanteNoHayCicloRapido);
+        Prueba("499. el tope de intentos ve los clics del ciclo rápido: la mano de un clic rápido lleva lo pulsado con la misma clave con la que se le pregunta al tope antes de pulsar, y el tercer intento sobre el mismo botón no se da", ElTopeVeLosClicsRapidos);
         Prueba("509. cada llamada dice por qué camino fue y por qué —ciclo rápido, núcleo, coreografía— en el log y en la mano; y un clic por nombre en UIA que no va por el ciclo rápido fuera de una comprobación deja «⚠ camino inesperado» con su razón", CadaLlamadaDiceSuCamino);
         Prueba("496. tras escribir, la espera es la de u/ —dos lecturas iguales con el lector rápido, techo 300 ms— y lo que se cuenta después es esa misma lectura, sin volver a leer", EscribirEsperaComoU);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
@@ -13837,6 +13838,29 @@ internal static class Contrato
         var bloque = System.Text.RegularExpressions.Regex.Match(c, @"var ciclo = new Navigation\.CicloRapido\([\s\S]*?mcp\.Map\.CicloRapido = ");
         Debe(bloque.Success && bloque.Value.Contains("Uia.Sap.EsVentana") && !System.Text.RegularExpressions.Regex.IsMatch(bloque.Value, "StartsWith\\(\"(sap|SAP)\""),
             "pulsar, mirar y esperar tras escribir no usan la misma regla de SAP (Uia.Sap.EsVentana), o alguno guarda su propio StartsWith");
+    }
+
+    private static void ElTopeVeLosClicsRapidos()
+    {
+        // Con el 100 % de los clics de voz por el ciclo rápido, una mano rápida sin «Pulsado» dejaría ciego al tope de la
+        // 204: el tercer intento sobre el mismo botón se daría. Hoy la mano rápida no lo lleva (SurfaceMapTools, Take).
+        var prop = typeof(SurfaceMapTools).GetProperty("CicloRapido")!;
+        var ret = prop.PropertyType.GetGenericArguments().Last();
+        var tupla = Nullable.GetUnderlyingType(ret) ?? ret;
+        if (tupla.GetGenericArguments().Length < 3) { Pendiente("CicloRapido devuelve lo pulsado (texto, cambio, pulsado)", "499", "054"); return; }
+        const string clave = "uia:name=Guardar;ct=Button";
+        var mapa = new SurfaceMapTools(() => null);
+        mapa.RecorrerPorElNucleo = _ => new RecorrerSegunElNucleo.Resultado(1, 1, "", true, "hice los 1 paso(s)");
+        Func<string, int, Func<string, string?>?, (string, bool?, string)?> ciclo = (_, __, ___) => ("pulsé «Guardar» (Button) y la pantalla no cambió.", false, clave);
+        prop.SetValue(mapa, ciclo);
+        mapa.Call("map_take", new Dictionary<string, string> { ["exit"] = "Guardar" });
+        var mano = mapa.UltimaMano;
+        Debe(mano?.Pulsado == clave, $"la mano del clic rápido no lleva lo pulsado: «{mano?.Pulsado}»");
+
+        var tope = new TopeDeIntentos();
+        for (int i = 0; i < 2; i++)
+            tope.Despues("map_take", "Guardar", false, mano?.Intento, mano?.Logro, "la pantalla no cambió", null, mano?.Pulsado);
+        Debe(tope.AntesDePulsar("map_take", clave) != null, "tras dos clics rápidos fallidos sobre el mismo botón, el tope no frena el tercero");
     }
 
     private static void CadaLlamadaDiceSuCamino()
