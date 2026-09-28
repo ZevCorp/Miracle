@@ -46,6 +46,18 @@ public final class DuplexAudio {
         }
     }
 
+    /// Protected mode has no input node or microphone tap; local wake recognition owns input.
+    public func startPlaybackOnly() throws {
+        stop()
+        let engine = AVAudioEngine(), player = AVAudioPlayerNode()
+        self.engine = engine; self.player = player
+        engine.attach(player)
+        engine.connect(player, to: engine.mainMixerNode, format: playbackFormat)
+        engine.prepare()
+        do { try engine.start(); player.play() }
+        catch { stop(); throw AudioStartup.failure("salida de voz protegida", error) }
+    }
+
     private func startEngine(enableVoiceProcessing: Bool,
                              onPCM: @escaping @Sendable (Data) -> Void,
                              onError: @escaping @Sendable (String) -> Void) throws {
@@ -119,7 +131,7 @@ public final class DuplexAudio {
         if let engine {
             engine.stop()
             if tapInstalled { engine.inputNode.removeTap(onBus: 0); tapInstalled = false }
-            try? engine.inputNode.setVoiceProcessingEnabled(false)
+            if voiceProcessingEnabled { try? engine.inputNode.setVoiceProcessingEnabled(false) }
             engine.reset()
         }
         engine = nil; player = nil; onSpeaking?(false); onLevel?(0)

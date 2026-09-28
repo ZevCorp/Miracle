@@ -23,6 +23,7 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
     private var restart: Task<Void, Never>?
     private var tapInstalled = false
     private var wanted = false
+    private var inputPaused = false
     private var listening = false
     private var speaking = false
     private var epoch = UUID()
@@ -41,7 +42,7 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
     public func start(localOnly: Bool = false) async {
         let id = UUID(); startID = id
         self.localOnly = localOnly
-        wanted = true; consecutiveErrors = 0
+        wanted = true; inputPaused = false; consecutiveErrors = 0
         guard await Self.authorize() else { wanted = false; onError?("Activa Micrófono y Reconocimiento de voz en Privacidad y seguridad."); return }
         guard wanted, startID == id, !Task.isCancelled else { return }
         if localOnly {
@@ -63,8 +64,8 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         closeInput(); synthesizer.stopSpeaking(at: .immediate); speaking = false
         onState?(false, false)
     }
-    public func pauseInput() { closeInput() }
-    public func resumeInput() { if wanted, !speaking { open() } }
+    public func pauseInput() { inputPaused = true; restart?.cancel(); restart = nil; closeInput() }
+    public func resumeInput() { inputPaused = false; if wanted, !speaking { open() } }
     public func say(_ text: String) {
         guard !text.isEmpty else { return }
         closeInput()
@@ -76,7 +77,7 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.speak(utterance)
     }
     private func open() {
-        guard wanted, !speaking, !listening else { return }
+        guard wanted, !inputPaused, !speaking, !listening else { return }
         guard let recognizer, recognizer.isAvailable else { onError?("El reconocimiento de voz de macOS no está disponible."); return }
         do {
             closeInput()
@@ -169,7 +170,7 @@ public final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         restart?.cancel()
         restart = Task { [weak self] in
             do { try await Task.sleep(nanoseconds: 450_000_000) } catch { return }
-            self?.resumeInput()
+            if self?.inputPaused == false { self?.resumeInput() }
         }
     }
     nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {

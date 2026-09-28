@@ -2,6 +2,26 @@ import Foundation
 import UCore
 
 extension AgentTests {
+    func testAudioContextProtectsMediaCallsAndUnknownState() {
+        let own = AudioActivity(pid: 7, input: true, output: true)
+        XCTAssertEqual(VoiceEnvironment.evaluate([own], ownPID: 7), .quiet)
+        XCTAssertEqual(VoiceEnvironment.evaluate([own, .init(pid: 8, input: false, output: true)], ownPID: 7), .otherAudio)
+        XCTAssertEqual(VoiceEnvironment.evaluate([.init(pid: 8, input: true, output: false)], ownPID: 7), .otherAudio)
+        XCTAssertEqual(VoiceEnvironment.evaluate([.init(pid: 8, input: false, output: false)], ownPID: 7), .quiet)
+        XCTAssertEqual(VoiceEnvironment.evaluate(nil, ownPID: 7), .unknown)
+        XCTAssertEqual(VoiceEnvironment.unknown.inputMode, .addressedText)
+        XCTAssertEqual(VoiceEnvironment.otherAudio.inputMode, .addressedText)
+        XCTAssertEqual(VoiceEnvironment.quiet.inputMode, .microphone)
+        for text in ["abre el navegador", "él dijo hola Yu", "mira ese video", "YouTube", "oye amor ven"] {
+            XCTAssertEqual(LiveInputMode.addressedText.acceptsLocalUtterance(text), false)
+        }
+        for text in ["Yu abre el navegador", "Hola You, te necesito", "Oye Ü, explícame esto"] {
+            XCTAssertEqual(LiveInputMode.addressedText.acceptsLocalUtterance(text), true)
+        }
+        XCTAssertEqual(LiveInputMode.addressedText.forwardsMicrophone, false)
+        XCTAssertEqual(LiveInputMode.microphone.forwardsMicrophone, true)
+    }
+
     func testPrivacyStopsEvenWhenTranscriptArrivesInFragments() {
         for phrase in ["Yu, no me interrumpas", "estoy viendo un vídeo", "estoy hablando con otra persona", "déjame ver el video", "no te estoy hablando", "guarda silencio"] {
             let chars = Array(phrase)

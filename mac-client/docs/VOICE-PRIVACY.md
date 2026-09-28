@@ -35,7 +35,7 @@ ni parámetros no verificados.
   byte por byte después de instalar. Copia privada de app, datos y preferencias:
   ~/Documents/Yu Backups/privacy-20260927-194000.
 
-## Límites pendientes, no presentarlos como resueltos
+## Límites de esta revisión (actualización posterior: VOICE-ATTENTION.md)
 
 No hay detector automático de reproducción de video, identificación del hablante ni una
 compuerta semántica nativa por petición completa. El audio puede provocar respuesta antes

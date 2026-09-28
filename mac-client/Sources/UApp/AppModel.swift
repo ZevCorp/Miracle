@@ -52,6 +52,9 @@ final class AppModel: ObservableObject {
     private var wakeTask: Task<Void, Never>?
     private var wakeID = UUID()
     private var pendingWakeGreeting: String?
+    private var audioEnvironmentTask: Task<Void, Never>?
+    private var protectedListening = false
+    private var resumeProtectedWake: Task<Void, Never>?
     @Published var wakeListening = false
     @Published var wakeStatus = ""
     @Published var wakeEnabled = UserDefaults.standard.object(forKey: "wakeEnabled") as? Bool ?? true
@@ -86,11 +89,22 @@ final class AppModel: ObservableObject {
             self?.status = message
         }
         wakeSpeech.onText = { [weak self] text in
-            guard let self, self.wakeEnabled, !self.microphone, !self.busy,
+            guard let self, self.wakeEnabled, !self.busy,
                   VoiceActivation.isGreeting(text) else { return }
+            if self.microphone {
+                guard self.liveConnected, self.protectedListening,
+                      LiveInputMode.addressedText.acceptsLocalUtterance(text) else { return }
+                self.append(text, user: true)
+                Task { do { try await self.liveVoice.text(text) } catch { self.fail(error.localizedDescription) } }
+                return
+            }
             self.pendingWakeGreeting = text
             self.nativeDictation = false
             self.toggleMicrophone()
+        }
+        wakeSpeech.onPartial = { [weak self] text in
+            guard let self, self.protectedListening, VoiceActivation.requestsPrivacy(text) else { return }
+            self.stop(); self.status = "En silencio. Llámame cuando me necesites."
         }
         permissionObservation = permissions.$snapshot.sink { [weak self] snapshot in
             self?.permissionSnapshot = snapshot
@@ -113,8 +127,10 @@ final class AppModel: ObservableObject {
             self.mode = self.liveConnected ? .listening : .ready
             if self.liveConnected, let greeting = self.pendingWakeGreeting {
                 self.pendingWakeGreeting = nil
+                if self.protectedListening { self.append(greeting, user: true) }
                 Task { do { try await self.liveVoice.text(greeting) } catch { self.fail(error.localizedDescription) } }
             }
+            if self.liveConnected && self.protectedListening { self.startWakeListening() }
             if !self.liveConnected && text.contains("terminó") {
                 self.microphone = false; self.desktop.stop(); self.startWakeListening()
             }
@@ -145,6 +161,17 @@ final class AppModel: ObservableObject {
         liveVoice.onSpeaking = { [weak self] speaking in
             guard let self else { return }
             self.mode = speaking ? .speaking : self.busy ? .working : .listening
+            if self.protectedListening {
+                self.resumeProtectedWake?.cancel()
+                if speaking { self.wakeSpeech.pauseInput() }
+                else {
+                    self.resumeProtectedWake = Task { [weak self] in
+                        do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return }
+                        guard let self, self.protectedListening, self.liveConnected else { return }
+                        self.wakeSpeech.resumeInput()
+                    }
+                }
+            }
         }
         liveVoice.onError = { [weak self] text in
             guard let self else { return }
@@ -157,6 +184,24 @@ final class AppModel: ObservableObject {
         liveVoice.onTool = { [weak self] name, args in
             guard let self else { throw CancellationError() }
             return try await self.liveTool(name, args: args)
+        }
+        if persistConversation {
+            audioEnvironmentTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    guard let self else { return }
+                    // A metadata read, never a capture of another application's sound.
+                    if self.microphone && !self.protectedListening {
+                        let environment = AudioEnvironment.read()
+                        if environment != .quiet {
+                            self.stop()
+                            self.status = environment == .otherAudio
+                                ? "Hay audio de otra app. Llámame para una petición en modo protegido."
+                                : "No pude comprobar el audio del Mac. Llámame para una petición en modo protegido."
+                        }
+                    }
+                    do { try await Task.sleep(nanoseconds: 500_000_000) } catch { return }
+                }
+            }
         }
     }
     private func scheduleHistorySave() {
@@ -189,7 +234,7 @@ final class AppModel: ObservableObject {
         else { stopWakeListening(); wakeStatus = "Activación por saludo desactivada." }
     }
     func startWakeListening() {
-        guard wakeEnabled, !microphone, !busy, wakeTask == nil, !wakeListening else { return }
+        guard wakeEnabled, (!microphone || (protectedListening && liveConnected)), !busy, wakeTask == nil, !wakeListening else { return }
         wakeStatus = "Preparando activación por voz…"
         let id = UUID(); wakeID = id
         wakeTask = Task { [weak self] in
@@ -284,6 +329,9 @@ final class AppModel: ObservableObject {
     }
     func toggleMicrophone() {
         if microphone {
+            protectedListening = false
+            resumeProtectedWake?.cancel(); resumeProtectedWake = nil
+            stopWakeListening()
             voiceID = UUID(); voiceConnection?.cancel(); voiceConnection = nil
             microphone = false; liveConnected = false; liveVoice.stop(); speech.stop(); partial = ""
             if busy { stop() } else { mode = .ready }
@@ -300,6 +348,8 @@ final class AppModel: ObservableObject {
         }
         guard !checkingVoice else { status = "Espera a que termine la comprobación de Live 1."; return }
         stopWakeListening()
+        protectedListening = AudioEnvironment.read().inputMode == .addressedText
+        if protectedListening { nativeDictation = false }
         microphone = true; awakeUntil = Date().addingTimeInterval(45)
         if nativeDictation { Task { await speech.start() }; return }
         let id = UUID(); voiceID = id
@@ -320,7 +370,8 @@ final class AppModel: ObservableObject {
                 self.jev = jevKey.flatMap { $0.isEmpty ? nil : JevClient(key: $0) }
                 self.jevStatus = self.jev == nil ? "Jev sin credencial · decide Luna" : "Jev · listo"
                 guard self.voiceID == id, !Task.isCancelled else { return }
-                try await self.liveVoice.start(key: key, userContext: AssistantContext(text: self.assistantContext))
+                try await self.liveVoice.start(key: key, userContext: AssistantContext(text: self.assistantContext),
+                                               inputMode: self.protectedListening ? .addressedText : .microphone)
                 if hasLocalVoiceKey {
                     Task { [weak self] in
                         guard let self, let delayedKeys = try? await self.makeClient().providerKeys(),
@@ -481,6 +532,9 @@ final class AppModel: ObservableObject {
         }
     }
     func stop() {
+        resumeProtectedWake?.cancel(); resumeProtectedWake = nil
+        protectedListening = false
+        stopWakeListening()
         voiceID = UUID(); voiceConnection?.cancel(); voiceConnection = nil
         liveVoice.stop(); liveConnected = false
         desktop.stop(); work?.cancel(); work = nil; runID = UUID()
