@@ -35,6 +35,7 @@ La última fila decide el diseño: la firma evita la voz, pero no el robo del fo
 | 507 | la carita vuelve sola a su sitio —el que eligió la persona— tras un rato sin visitas, y solo al posarse ahí vuelve a dejarse tocar; un vuelo cortado no cuenta como llegada | 2, 3 |
 | 508 | un clic que manda Ü lleva su firma, y ninguna ventana de Ü lo toma por un toque de la persona: el filtro del hilo de la interfaz lo tira antes que WPF, y el log lo dice | 1 |
 | 510 | un clic de Ü no cae sobre una ventana de Ü: antes de pulsar se mira qué hay bajo el punto; si es la carita, se aparta —fantasma— y se pulsa; si es otra ventana de Ü, no se pulsa y se dice cuál | 4 |
+| 511 | el puerto del MCP se puede cambiar con U_MCP_PUERTO, para que una Ü de pruebas no le quite el 8790 a la Ü del dueño; sin la variable, o con un puerto que no vale, es el 8790 | 5 |
 
 La 509 ya existe (spec 054). Los números 504-508 y 510 no los usa ninguna rama.
 

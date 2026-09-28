@@ -915,6 +915,7 @@ internal static class Contrato
         Prueba("507. la carita vuelve sola a su sitio —el que eligió la persona— tras un rato sin visitas, y solo al posarse ahí vuelve a dejarse tocar; un vuelo cortado no cuenta como llegada", LaCaritaVuelveSolaASuSitio);
         Prueba("508. un clic que manda Ü lleva su firma, y ninguna ventana de Ü lo toma por un toque de la persona: el filtro del hilo de la interfaz lo tira antes que WPF, y el log lo dice", UnClicDeUNoEsUnToque);
         Prueba("510. un clic de Ü no cae sobre una ventana de Ü: antes de pulsar se mira qué hay bajo el punto; si es la carita, se aparta —fantasma— y se pulsa; si es otra ventana de Ü, no se pulsa y se dice cuál", UnClicDeUNoCaeSobreU);
+        Prueba("511. el puerto del MCP se puede cambiar con U_MCP_PUERTO, para que una Ü de pruebas no le quite el 8790 a la Ü del dueño; sin la variable, o con un puerto que no vale, es el 8790", DosUEnElMismoPc);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -14491,6 +14492,25 @@ internal static class Contrato
         if (FuenteDe("windows-client", "App.xaml.cs") is not { } app) return;
         int carteles = app.IndexOf("Ui.SinCarteles.Aplicar()", StringComparison.Ordinal), filtro = app.IndexOf("Ui.ToquesDeU.Instalar()", StringComparison.Ordinal);
         Debe(carteles >= 0 && filtro > carteles, "[cableado] el filtro de toques no se instala al arrancar (después de SinCarteles, promesa 164)");
+    }
+
+    private static void DosUEnElMismoPc()
+    {
+        // EL 2026-09-28 LA ÚNICA FORMA DE PROBAR LA CARITA EN EL PC REAL ERA CERRAR LA Ü DEL DUEÑO: las dos querían el 8790.
+        var m = typeof(U.WindowsClient.Mcp.ServidorMcp).GetMethod("PuertoDe", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+        if (m == null) { Pendiente("ServidorMcp.PuertoDe (el puerto del MCP, de U_MCP_PUERTO)", "511", "061"); return; }
+        int P(string? v) => (int)m.Invoke(null, new object?[] { v })!;
+        Debe(P(null) == 8790 && P("") == 8790 && P("   ") == 8790, "sin la variable el MCP no escucha en el 8790 de siempre");
+        Debe(P("8795") == 8795 && P(" 8795 ") == 8795, "con U_MCP_PUERTO=8795 el MCP no escucha en el 8795");
+        Debe(P("abc") == 8790 && P("0") == 8790 && P("70000") == 8790 && P("80") == 8790,
+            "un puerto que no vale (texto, 0, fuera de rango, o de los reservados por debajo de 1024) no cae al 8790");
+
+        // [cableado] El servidor y la URL que se le da al piloto salen de ese puerto, no de un número escrito a mano.
+        if (FuenteDe("windows-client", "src", "Mcp", "ServidorMcp.cs") is not { } s) return;
+        Debe(s.Contains(@"public static int Puerto { get; } = PuertoDe(Environment.GetEnvironmentVariable(""U_MCP_PUERTO""));")
+             && s.Contains("http://127.0.0.1:{Puerto}/mcp/"), "[cableado] el servidor MCP no escucha en el puerto que dice U_MCP_PUERTO");
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(!cara.Contains("127.0.0.1:8790"), "[cableado] la cara le da al piloto un 8790 escrito a mano");
     }
 
     private static void UnClicDeUNoCaeSobreU()
