@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -889,6 +889,7 @@ internal static class Contrato
         Prueba("488. con el freno echado no pulsa y lo dice; SAP y los selectores que no van por nombre no pasan por el ciclo rápido", ElCicloRapidoRespetaElFrenoYSap);
         Prueba("491. el ciclo rápido trabaja sobre la ventana de delante, la que la persona ve, como u/; solo si delante está la propia Ü usa su ventana de trabajo", ElCicloTrabajaSobreLoQueHayDelante);
         Prueba("495. mirar —map_what_i_see y lo que se pega a cada acto— lee con el lector de u/ la ventana de delante y cuenta accionables y textos; SAP, que UIA no ve, sigue por el lector de siempre", MirarLeeComoU);
+        Prueba("509. cada llamada dice por qué camino fue y por qué —ciclo rápido, núcleo, coreografía— en el log y en la mano; y un clic por nombre en UIA que no va por el ciclo rápido fuera de una comprobación deja «⚠ camino inesperado» con su razón", CadaLlamadaDiceSuCamino);
         Prueba("496. tras escribir, la espera es la de u/ —dos lecturas iguales con el lector rápido, techo 300 ms— y lo que se cuenta después es esa misma lectura, sin volver a leer", EscribirEsperaComoU);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
         Prueba("490. leer la pantalla y saber dónde estoy tienen plazo: si la app no contesta, se sigue sin esa respuesta y se dice, en vez de congelar U; lo que llega tarde no pisa lo que ya se contestó", LeerYUbicarseTienenPlazo);
@@ -13777,6 +13778,61 @@ internal static class Contrato
         var nombre = CicloCon(p);
         Pulsar(nombre, "uia:name=Sistema;ct=ListItem");
         Debe(nombre.Clics.Count == 1, "un selector por nombre y tipo no pasó por el ciclo rápido");
+    }
+
+    // ── Spec 054, fase 6: el clic siempre por la vía rápida ─────────────────────────────────────────────────
+    // MEDIDO EL 2026-09-28 en las dos sesiones de voz reales del dueño: 0 de 9 map_take llegaron al ciclo rápido. El
+    // modelo manda «decir» y «recuerdo» en cada clic y Take los tomaba por coreografía: 2.349 ms de mediana contra 182.
+    // Y NADA LO DECÍA: el ciclo rápido ni se invocaba, así que el log no tenía dónde contarlo.
+
+    /// <summary>Un mapa con manos de mentira que cuentan por dónde pasó cada llamada.</summary>
+    private sealed class ManosContadas
+    {
+        public int Ciclo, Nucleo, Coreografia;
+        public (string Texto, bool? Cambio)? RespuestaDelCiclo = ("pulsé «Buscar» (Button) y la pantalla cambió.\n\nEN PANTALLA AHORA (1 elemento(s)):\n  «Buscar» (Button)", true);
+        public SurfaceMapTools Mapa = null!;
+    }
+
+    private static ManosContadas MapaConManosContadas()
+    {
+        var m = new ManosContadas();
+        var mapa = new SurfaceMapTools(() => null);
+        var hecho = new RecorrerSegunElNucleo.Resultado(1, 1, "", true, "hice los 1 paso(s)", Cambio: true);
+        mapa.RecorrerPorElNucleo = _ => { m.Nucleo++; return hecho; };
+        mapa.DarUnPasoConCoreografia = (_, __, ___, ____) => { m.Coreografia++; return hecho; };
+        mapa.CicloRapido = (_, __, ___) => { m.Ciclo++; return m.RespuestaDelCiclo; };
+        m.Mapa = mapa;
+        return m;
+    }
+
+    private static (string Camino, string Razon, bool Inesperado)? CaminoDe(SurfaceMapTools mapa)
+    {
+        var p = typeof(SurfaceMapTools).GetProperty("UltimoCamino");
+        return p?.GetValue(mapa) as (string, string, bool)?;
+    }
+
+    private static void CadaLlamadaDiceSuCamino()
+    {
+        if (typeof(SurfaceMapTools).GetProperty("UltimoCamino") == null) { Pendiente("SurfaceMapTools.UltimoCamino (el camino de cada llamada)", "509", "054"); return; }
+        var m = MapaConManosContadas();
+        m.Mapa.Call("map_take", new Dictionary<string, string> { ["exit"] = "Buscar" });
+        var c = CaminoDe(m.Mapa);
+        Debe(c?.Camino == "ciclo-rapido" && c?.Inesperado == false, $"un clic por nombre por el ciclo rápido no lo dijo así: {c}");
+        Debe(U.WindowsClient.Diagnostics.LogBus.Snapshot().TakeLast(6).Any(l => l.Contains("camino: map_take → ciclo-rapido")), "el log no dice por qué camino fue el clic");
+
+        // El ciclo no se encarga (no es suyo): va por el núcleo, y fuera de una comprobación eso es inesperado.
+        var n = MapaConManosContadas();
+        n.RespuestaDelCiclo = null;
+        n.Mapa.Call("map_take", new Dictionary<string, string> { ["exit"] = "Buscar" });
+        var cn = CaminoDe(n.Mapa);
+        Debe(cn?.Camino == "nucleo" && cn?.Inesperado == true && (cn?.Razon ?? "").Length > 0, $"un clic por nombre que acabó en el núcleo no dejó razón ni alarma: {cn}");
+        Debe(U.WindowsClient.Diagnostics.LogBus.Snapshot().TakeLast(6).Any(l => l.Contains("⚠ camino inesperado")), "no hay «⚠ camino inesperado» en el log");
+
+        // SAP va por el núcleo y es lo esperado: sin alarma.
+        var s = MapaConManosContadas();
+        s.Mapa.Call("map_take", new Dictionary<string, string> { ["exit"] = "sap:wnd[0]/tbar[1]/btn[8]" });
+        var cs = CaminoDe(s.Mapa);
+        Debe(cs?.Camino == "nucleo" && cs?.Inesperado == false, $"un selector de SAP por el núcleo se tomó por inesperado: {cs}");
     }
 
     private static void EscribirEsperaComoU()
