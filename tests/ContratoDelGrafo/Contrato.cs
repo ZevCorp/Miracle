@@ -14223,10 +14223,7 @@ internal static class Contrato
         var bloque = System.Text.RegularExpressions.Regex.Match(c, @"var ciclo = new Navigation\.CicloRapido\([\s\S]*?mcp\.Map\.CicloRapido = ");
         Debe(bloque.Success && bloque.Value.Contains("TrasPulsar = Navigation.CicloRapido.AvisarALaCarita"), "[cableado] el ciclo de la cara no avisa a la carita tras el clic");
         var visita = System.Text.RegularExpressions.Regex.Match(c, @"private void Visitar\(Rect [\s\S]*?\r?\n    }\r?\n");
-        Debe(visita.Success && System.Text.RegularExpressions.Regex.IsMatch(visita.Value, @"^private void Visitar\(Rect fisico\)?
-    \{?
-        try?
-")
+        Debe(visita.Success && System.Text.RegularExpressions.Regex.IsMatch(visita.Value, @"^private void Visitar\(Rect fisico\)\r?\n    \{\r?\n        try\r?\n")
              && visita.Value.Contains("catch (Exception"), "[cableado] un fallo de la visita sube al diálogo de «Ü tropezó» en mitad de un clic (el cuerpo entero tiene que ir dentro del try)");
         var sus = System.Text.RegularExpressions.Regex.Matches(c, @"UiaSurface\.Pulso \+= [^;]*;");
         Debe(sus.Count == 1 && sus[0].Value.Contains("Dispatcher.BeginInvoke(") && sus[0].Value.Contains("Visitar(") && !sus[0].Value.Contains("Dispatcher.Invoke("),
