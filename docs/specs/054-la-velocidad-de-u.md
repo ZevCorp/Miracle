@@ -1,6 +1,6 @@
 ﻿# La velocidad de u/ en U.exe
 
-Estado: **en curso** (2026-09-27) · Rama `jose/u-pulsar-en-main` (sigue a la 053) · Decisiones del agente, sin
+Estado: **implementada** (2026-09-27; SAP sin medir) · Rama `jose/u-pulsar-en-main` (sigue a la 053) · Decisiones del agente, sin
 preguntas, por orden del dueño.
 
 ## Qué se quiere
@@ -130,6 +130,42 @@ página (151 accionables en Wikipedia, 2,9 s).
 
 Edge, tras volver a la página de Colombia, no se deja leer en 4 s ni por u/ ni por la rama: es la página, no el
 ciclo. La rama tardaba 14 s en decirlo porque volvía a leer una lectura vacía; ya no (493).
+
+### Fase 3 — mirar y escribir con la misma lectura
+
+| # | Promesa |
+|---|---|
+| 495 | mirar —map_what_i_see y lo que se pega a cada acto— lee con el lector de u/ la ventana de delante y cuenta accionables y textos; SAP, que UIA no ve, sigue por el lector de siempre |
+| 496 | tras escribir, la espera es la de u/ —dos lecturas iguales con el lector rápido, techo 300 ms— y lo que se cuenta después es esa misma lectura, sin volver a leer |
+
+| | antes | ahora |
+|---|---|---|
+| mirar (`map_what_i_see`) | 95-205 ms | **38-117 ms** |
+| escribir 4-300 letras (`map_type`) | 500-900 ms (main: 2,2-2,4 s) | **172-287 ms** |
+| abrir una app | 242 ms | **201 ms** |
+
+Sabotajes: 495 ×1, 496 ×1 — rojos.
+
+### Fase 5 — fuera lo muerto (118 líneas)
+
+`PulsarPorElNucleo` (se asignaba y nadie lo leía), `MapaVivo.Cruzado` y `UiaSurface.EjecutarSobre` (cero llamadas),
+`OnManoPulso` y `OnAutomationCursorMoved` (sin suscripción desde la 492), y la prueba de la 240. Todo vive en 334f144.
+
+### El cierre (2026-09-27, último build, plan variado, 59 y 62 clics)
+
+| mediana por ciclo | main real (334f144) | rama | u/ |
+|---|---|---|---|
+| todas | 2.399 ms | **182 ms** | 171 ms |
+| Configuración | — | 229 ms | 236 ms |
+| Explorador | — | 315 ms | 253 ms |
+| Calculadora | — | 75 ms | 82 ms |
+| Bloc de notas | — | 129 ms | 140 ms |
+| Edge (Wikipedia) | — | 1.771 ms | 1.483 ms (4 de 14 clics en las dos: la página, no el ciclo) |
+
+Compuerta: contrato del grafo 333/333, voz 46/46, contrato de u/ intacto. Nivel 4: 5 apps. Ninguna sesión de voz
+abierta en las rondas 3-final. **Lo que no se midió: SAP** — no hay sesión de SAP en este PC; SAP sigue por su camino
+de siempre (la mano de SAP y su espera por `session.Busy`), sin el fondo compitiendo, y su medida queda pendiente para
+una sesión real.
 
 ## Promesas retiradas
 
