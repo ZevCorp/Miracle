@@ -31,19 +31,27 @@ public sealed class LectorUia : IDisposable
         (50024, "TreeItem"), (50029, "DataItem"), (50031, "SplitButton"), (50035, "HeaderItem"), (50030, "Document"),
     };
 
-    private readonly BlockingCollection<Action> _cola = new();
-    private readonly Thread _hilo;
-    private IUIAutomation _uia = null!;
-    private IUIAutomationCacheRequest _peticion = null!;
-    private IUIAutomationCondition _condicion = null!;
-    private string _foco = "";
-    private readonly List<(string, string)> _campos = new();
+    private BlockingCollection<Action> _cola = null!;
+    private Thread _hilo = null!;
+    // DE CADA HILO, NO DEL LECTOR (promesa 494): una lectura atascada deja su hilo abandonado con su UIA, y el hilo
+    // nuevo trae el suyo; si fueran del lector, el atascado y el nuevo se pisarían.
+    [ThreadStatic] private static IUIAutomation _uia;
+    [ThreadStatic] private static IUIAutomationCacheRequest _peticion;
+    [ThreadStatic] private static IUIAutomationCondition _condicion;
+    [ThreadStatic] private static string _foco;
+    [ThreadStatic] private static List<(string, string)> _campos;
 
-    public LectorUia()
+    public LectorUia() => ArrancarHilo();
+
+    /// <summary>Un hilo MTA con su UIA y su cola. Se llama al crear el lector, y otra vez cada vez que una lectura se atasca.</summary>
+    private void ArrancarHilo()
     {
+        var cola = new BlockingCollection<Action>();
         var listo = new ManualResetEventSlim();
-        _hilo = new Thread(() =>
+        var hilo = new Thread(() =>
         {
+            _foco = "";
+            _campos = new List<(string, string)>();
             _uia = new CUIAutomation8();
             // PLAZOS (promesa 474): sin ellos, una app que no contesta congela a Ü —72 s leyendo YouTube con Chrome a
             // 137 procesos, ronda L5 del 2026-09-26—. Con ellos, la llamada falla a tiempo y la lectura sigue.
@@ -65,12 +73,14 @@ public sealed class LectorUia : IDisposable
                 _uia.CreateOrConditionFromArray(tipos),
                 _uia.CreatePropertyCondition(PropFuera, false));
             listo.Set();
-            foreach (var trabajo in _cola.GetConsumingEnumerable()) trabajo();
+            foreach (var trabajo in cola.GetConsumingEnumerable()) trabajo();
         })
         { IsBackground = true, Name = "u-lector-uia" };
-        _hilo.SetApartmentState(ApartmentState.MTA);
-        _hilo.Start();
+        hilo.SetApartmentState(ApartmentState.MTA);
+        hilo.Start();
         listo.Wait();
+        _cola = cola;
+        _hilo = hilo;
     }
 
     /// <summary>
@@ -82,8 +92,8 @@ public sealed class LectorUia : IDisposable
         // PLAZO TOTAL (spec 054, promesa 494). Los plazos de COM cortan una llamada que no contesta, no una que tarda:
         // Wikipedia en Edge tardó 64-136 s en una sola lectura (2026-09-27), y este lector tiene UN hilo con cola, así
         // que lo siguiente esperaba detrás. Ahora se espera PlazoTotalMs y se contesta vacío; mientras esa lectura siga
-        // atascada, las siguientes también contestan vacío al momento, sin hacer cola. Vacío es «no sé», no «no hay».
-        if (_atascada) { UltimaAgotada = true; return Lectura.Vacia; }
+        // atascada, las siguientes también contestaban vacío... y dejaban a Ü sin ojos el resto de la corrida (10 clics en
+        // Edge, 2026-09-27). Ahora el hilo atascado se abandona y las siguientes van a uno nuevo. Vacío es «no sé», no «no hay».
         var tcs = new TaskCompletionSource<Lectura>(TaskCreationOptions.RunContinuationsAsynchronously);
         _cola.Add(() =>
         {
@@ -96,11 +106,12 @@ public sealed class LectorUia : IDisposable
                 tcs.TrySetResult(new Lectura(Accionables.Numerar(crudos.Where(c => c.Tipo != "Text")), textos) { Foco = _foco, Campos = _campos.ToArray() });
             }
             catch (Exception e) { tcs.TrySetException(e); }
-            finally { _atascada = false; }
         });
         if (!tcs.Task.Wait(PlazoTotalMs))
         {
-            _atascada = true;
+            var atascada = _cola;
+            ArrancarHilo();
+            atascada.CompleteAdding();   // el hilo viejo termina lo suyo y se va; nadie espera ya su respuesta
             UltimaAgotada = true;
             return Lectura.Vacia;
         }
@@ -113,8 +124,6 @@ public sealed class LectorUia : IDisposable
 
     /// <summary>Si la última lectura se contestó vacía por el plazo total, y no porque no hubiera nada.</summary>
     public bool UltimaAgotada { get; private set; }
-
-    private volatile bool _atascada;
 
     private List<Crudo> LeerEnElHilo(IntPtr ventana)
     {

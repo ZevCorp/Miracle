@@ -885,7 +885,7 @@ internal static class Contrato
         // 487 RETIRADA (spec 054, 2026-09-27): «si tampoco está, decide el camino de siempre». En Edge ese camino se
         // colgó 60 s por clic (4 de 14 en la corrida variada); u/ contesta «no está» al momento. La sustituye la 493.
         Prueba("493. antes de pulsar el ciclo lee como mucho UNA vez, y ninguna si la última lectura de esa ventana tiene menos de 2 s; lo que no está se busca en UNA lectura nueva, y si tampoco está, contesta al momento que no está y lo que se ve, sin pulsar y sin ir al camino de siempre", ElCicloRapidoNoLeeDeMas);
-        Prueba("494. una lectura del lector de u/ tiene plazo total: si no vuelve en 4 s se contesta vacía, y mientras esa no termine las siguientes también, sin hacer cola detrás", ElLectorDeUTienePlazoTotal);
+        Prueba("494. una lectura del lector de u/ tiene plazo total: si no vuelve en 4 s se contesta vacía y su hilo se abandona; las siguientes van a un hilo nuevo, sin hacer cola detrás de la atascada", ElLectorDeUTienePlazoTotal);
         Prueba("488. con el freno echado no pulsa y lo dice; SAP y los selectores que no van por nombre no pasan por el ciclo rápido", ElCicloRapidoRespetaElFrenoYSap);
         Prueba("491. el ciclo rápido trabaja sobre la ventana de delante, la que la persona ve, como u/; solo si delante está la propia Ü usa su ventana de trabajo", ElCicloTrabajaSobreLoQueHayDelante);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
@@ -13785,8 +13785,10 @@ internal static class Contrato
         Debe((int)plazo.GetValue(null)! <= 4000, $"el plazo total de una lectura es {plazo.GetValue(null)} ms (más de 4 s)");
         string f = File.ReadAllText(lector);
         var leer = System.Text.RegularExpressions.Regex.Match(f, @"public Lectura Leer\(IntPtr ventana\)[\s\S]*?\n    \}");
-        Debe(leer.Success && leer.Value.Contains("Wait(PlazoTotalMs)") && leer.Value.Contains("_atascada"),
-            "Leer no espera con plazo total, o no sabe que la anterior sigue atascada (y las siguientes harían cola)");
+        // Con un solo hilo, «mientras esa no termine, las siguientes vacías» dejó sin ojos a Ü el resto de la corrida
+        // (2026-09-27: 10 clics seguidos en Edge «no pude leer», y el Explorador de después a 570 ms).
+        Debe(leer.Success && leer.Value.Contains("Wait(PlazoTotalMs)") && leer.Value.Contains("ArrancarHilo()"),
+            "Leer no espera con plazo total, o tras una lectura atascada no abre un hilo nuevo (y las siguientes harían cola detrás)");
     }
 
     private static void ElCicloRapidoRespetaElFrenoYSap()
