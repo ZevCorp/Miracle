@@ -14490,6 +14490,11 @@ internal static class Contrato
         var entradasIe = System.Text.RegularExpressions.Regex.Matches(exe, @"new MOUSEINPUT \{[^}]*\}").Select(x => x.Value).ToList();
         Debe(entradasIe.Count == 3 && entradasIe.All(e => e.Contains("dwExtraInfo = U.Ciclo.Raton.Firma")), $"[cableado] InputExecutor: {entradasIe.Count(e => e.Contains("dwExtraInfo = U.Ciclo.Raton.Firma"))} de {entradasIe.Count} MOUSEINPUT firmados");
         if (FuenteDe("windows-client", "App.xaml.cs") is not { } app) return;
+        foreach (var ventana in new[] { new[] { "Ui", "FaceWindow.xaml.cs" }, new[] { "Ui", "Muelle.cs" }, new[] { "Ui", "ConsultaWindow.cs" } })
+        {
+            if (FuenteDe(new[] { "windows-client", "src" }.Concat(ventana).ToArray()) is not { } v) return;
+            Debe(v.Contains("ToquesDeU.Proteger(this)"), $"[cableado] {ventana[1]} abre la voz con un clic y no tiene su propio gancho: un bucle modal se salta el filtro de hilo");
+        }
         int carteles = app.IndexOf("Ui.SinCarteles.Aplicar()", StringComparison.Ordinal), filtro = app.IndexOf("Ui.ToquesDeU.Instalar()", StringComparison.Ordinal);
         Debe(carteles >= 0 && filtro > carteles, "[cableado] el filtro de toques no se instala al arrancar (después de SinCarteles, promesa 164)");
     }
@@ -14534,8 +14539,10 @@ internal static class Contrato
 
         // La decisión: ajena → libre; la carita → se aparta y se vuelve a mirar; otra de Ü → no, y se dice cuál.
         IntPtr carita = new(10), muelle = new(20), ajena = new(30);
-        string? L(Func<IntPtr> bajo, Action apartar) => (string?)regla.Invoke(null, new object[]
-            { bajo, new Func<IntPtr, bool>(h => h == carita || h == muelle), carita, apartar, new Func<IntPtr, string>(h => h == muelle ? "Muelle" : "carita") });
+        if (regla.GetParameters().Length != 7) { Pendiente("ReglaDeLaVisita.LibrarElPunto con la carita sobre el punto y la persona con el ratón", "510", "061"); return; }
+        string? L(Func<IntPtr> bajo, Action apartar, bool enLaCarita = false, string? ocupado = null) => (string?)regla.Invoke(null, new object[]
+            { bajo, new Func<IntPtr, bool>(h => h == carita || h == muelle), carita, apartar, new Func<IntPtr, string>(h => h == muelle ? "Muelle" : "carita"),
+              new Func<bool>(() => enLaCarita), new Func<string?>(() => ocupado) });
         int apartadas = 0;
         Debe(L(() => ajena, () => apartadas++) == null && apartadas == 0, "con una ventana ajena bajo el punto no lo dio por libre, o apartó la carita sin motivo");
         var bajo = carita;
@@ -14546,12 +14553,33 @@ internal static class Contrato
         apartadas = 0;
         string? otra = L(() => muelle, () => apartadas++);
         Debe(otra != null && apartadas == 0 && otra.Contains("Muelle"), $"con otra ventana de Ü bajo el punto no dijo cuál o apartó la carita («{otra}»)");
+        // La persona tiene el ratón (pulsa o arrastra la carita): la captura se lleva el clic adonde vaya. No se pulsa.
+        apartadas = 0;
+        string? ocupada = L(() => ajena, () => apartadas++, ocupado: "la persona tiene el ratón");
+        Debe(ocupada != null && ocupada.Contains("la persona tiene el ratón") && apartadas == 0, $"con la persona pulsando se pulsó igual («{ocupada}»)");
+        // La carita ya fantasma sobre el punto (vuelve a casa por encima): se aparta igual, para que su rato fuera empiece
+        // otra vez y no se pose tocable justo antes de que llegue el clic (la coreografía tarda hasta 4 s en pulsar).
+        apartadas = 0;
+        Debe(L(() => ajena, () => apartadas++, enLaCarita: true) == null && apartadas == 1, "con la carita fantasma sobre el punto no se apartó, y podría posarse tocable antes del clic");
 
         // [cableado] El ciclo de la cara mira bajo el punto con esa regla.
         if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } c) return;
         var bloque = System.Text.RegularExpressions.Regex.Match(c, @"var ciclo = new Navigation\.CicloRapido\([\s\S]*?mcp\.Map\.CicloRapido = ");
-        Debe(bloque.Success && bloque.Value.Contains("LibrarElPunto = ") && bloque.Value.Contains("ReglaDeLaVisita.LibrarElPunto("),
-            "[cableado] el ciclo de la cara no mira qué hay bajo el punto antes de pulsar");
+        Debe(bloque.Success && bloque.Value.Contains("LibrarElPunto = LibrarElPuntoDeUnClic"), "[cableado] el ciclo de la cara no mira qué hay bajo el punto antes de pulsar");
+        string Cuerpo(string fuente, string firma) => System.Text.RegularExpressions.Regex.Match(fuente, System.Text.RegularExpressions.Regex.Escape(firma) + @"[\s\S]*?\r?\n    }\r?\n").Value;
+        Debe(Cuerpo(c, "private string? LibrarElPuntoDeUnClic(").Contains("ReglaDeLaVisita.LibrarElPunto("), "[cableado] la cara no mira bajo el punto con la regla");
+        string apartar = Cuerpo(c, "private void ApartarLaCarita()");
+        Debe(apartar.Contains("DispatcherPriority.Send") && apartar.Contains("TimeSpan.FromMilliseconds(100)"), "[cableado] apartar la carita espera a la interfaz sin techo: el clic se quedaría colgado");
+        Debe(c.Contains("U.Graph.Surfaces.UiaSurface.LibrarElPunto = LibrarElPuntoDeUnClic;"), "[cableado] las otras manos no miran bajo el punto con la misma regla");
+        // LOS SEIS SITIOS QUE PULSAN (patrón nº5): el ciclo, la mano rápida, InputExecutor y los tres clics físicos de la
+        // escalera (el doble pasa por el primero). La coreografía de lección pulsa por la escalera.
+        if (FuenteDe("windows-graph", "src", "Surfaces", "UiaSurface.cs") is not { } uia) return;
+        int enUia = System.Text.RegularExpressions.Regex.Matches(uia, @"LibrarElPunto\?\.Invoke\(").Count;
+        Debe(enUia == 3, $"[cableado] la escalera mira bajo el punto en {enUia} de sus 3 clics físicos");
+        if (FuenteDe("windows-client", "src", "Navigation", "ManoRapida.cs") is not { } mano) return;
+        Debe(mano.Contains("UiaSurface.LibrarElPunto?.Invoke(x, y)"), "[cableado] la mano rápida no mira bajo el punto");
+        if (FuenteDe("windows-client", "src", "Actions", "InputExecutor.cs") is not { } exe) return;
+        Debe(exe.Contains("UiaSurface.LibrarElPunto?.Invoke(x, y)"), "[cableado] los toques de computer-use no miran bajo el punto");
     }
 
     private static void ElCicloTrabajaSobreLoQueHayDelante()
