@@ -35,6 +35,9 @@ public sealed class CicloRapido
     /// <summary>El título de la ventana, para la cabecera de lo que se ve. Sin él, la cabecera va sin nombre.</summary>
     public Func<IntPtr, string>? Titulo { get; set; }
 
+    /// <summary>¿La ventana es SAP? Entonces el ciclo no se encarga (promesa 498). La regla es Uia.Sap.EsVentana.</summary>
+    public Func<IntPtr, bool>? EsSap { get; set; }
+
     /// <summary>La consulta al tope de intentos antes de pulsar (promesa 204): si devuelve algo, no se pulsa y eso se contesta.</summary>
     public Func<string, string?>? AntesDePulsar { get; set; }
 
@@ -63,6 +66,8 @@ public sealed class CicloRapido
         if (!QueSePide(exit, out string nombre, out string tipo)) { PorQueNo = "no es un clic por nombre en UIA"; return null; }
         IntPtr v = _ventana();
         if (v == IntPtr.Zero) { PorQueNo = "no hay ventana de trabajo delante (ni se pudo traer)"; return null; }
+        // SAP no es del ciclo (promesa 498): por UIA solo se ve un panel opaco, y «no está» mentiría. Ni se lee.
+        if (EsSap?.Invoke(v) == true) { PorQueNo = "delante está SAP: va por la mano de SAP"; return null; }
 
         long t0 = _reloj();
         bool fresca = _ultima != null && _ultimaVentana == v && t0 - _ultimaEn < VigenciaMs;

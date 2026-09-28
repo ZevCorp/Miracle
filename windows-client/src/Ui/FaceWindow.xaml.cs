@@ -839,7 +839,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     (x, y) => U.Ciclo.Raton.Clic(x, y),
                     () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
                     () => Environment.TickCount64)
-                { Titulo = U.Graph.Surfaces.UiaSurface.TituloDe };
+                // SAP es UNA regla, su proceso (promesa 498): la misma para pulsar, mirar y esperar tras escribir.
+                { Titulo = U.Graph.Surfaces.UiaSurface.TituloDe, EsSap = Uia.Sap.EsVentana };
                 // MIRAR COMO u/ (promesa 495): la ventana de delante, con sus textos, por el mismo ciclo —el clic siguiente
                 // reutiliza esta lectura—. SAP no: UIA solo ve un panel opaco, y su lector de siempre lee el dynpro.
                 mcp.Map.LoQueVeoRapido = () =>
@@ -847,8 +848,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     var (delante, esU) = Navigation.CicloRapido.Delante();
                     IntPtr v = Navigation.CicloRapido.ElegirVentana(delante, esU, VentanaObjetivo());
                     if (v == IntPtr.Zero) return null;
-                    if (U.Graph.Surfaces.UiaSurface.TituloDe(v).StartsWith("SAP", StringComparison.OrdinalIgnoreCase)
-                        || Uia.AppAligner.ProcesoDe(v).StartsWith("sap", StringComparison.OrdinalIgnoreCase)) return null;
+                    if (Uia.Sap.EsVentana(v)) return null;
                     // La lectura con la que acaba de asentarse un acto (496) ES lo que se ve: no se lee otra vez.
                     var l = ciclo.Ultima != null && ciclo.UltimaVentana == v && Environment.TickCount64 - ciclo.UltimaEnMs < 250
                         ? ciclo.Ultima
@@ -862,7 +862,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 {
                     var (delante, esU) = Navigation.CicloRapido.Delante();
                     IntPtr v = Navigation.CicloRapido.ElegirVentana(delante, esU, VentanaObjetivo());
-                    if (v == IntPtr.Zero || Uia.AppAligner.ProcesoDe(v).StartsWith("sap", StringComparison.OrdinalIgnoreCase)) return null;
+                    if (v == IntPtr.Zero || Uia.Sap.EsVentana(v)) return null;
                     return U.Ciclo.Asentado.Quieta(() => ciclo.Mirar(v), 300, () => Environment.TickCount64).Cambio;
                 };
                 mcp.Map.CicloRapido = (exit, cual, antesDePulsar) =>
