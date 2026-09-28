@@ -894,6 +894,7 @@ internal static class Contrato
         Prueba("497. hacer es rápido: un clic por nombre con map_take va por el ciclo rápido traiga los argumentos que traiga —decir, recuerdo o cualquiera desconocido—; ni coreografía, ni recuerdo, ni foto. La coreografía solo cuando la app la pide al señalar al actuar (comprobación, encargo), y map_type en SAP tampoco se desvía por decir o recuerdo", HacerEsRapidoTraigaLoQueTraiga);
         Prueba("500. la voz no ofrece decir ni recuerdo: en el catálogo de la voz, map_take, map_type, map_decidir y map_tramo no los declaran; el catálogo del piloto sí los declara en map_take y map_type, que es para lo que la mano del piloto los lleva (191)", LaVozNoOfreceDecirNiRecuerdo);
         Prueba("509. cada llamada dice por qué camino fue y por qué —ciclo rápido, núcleo, coreografía— en el log y en la mano; y un clic por nombre en UIA que no va por el ciclo rápido fuera de una comprobación deja «⚠ camino inesperado» con su razón", CadaLlamadaDiceSuCamino);
+        Prueba("501. parar la comprobación para el plan: tras cancelarla no se da ni un paso más, y los que faltaban cuentan como no dados sobre el total del plan; el plan del piloto y el de una skill se recorren con ese mismo recorrido", PararLaComprobacionParaElPlan);
         Prueba("496. tras escribir, la espera es la de u/ —dos lecturas iguales con el lector rápido, techo 300 ms— y lo que se cuenta después es esa misma lectura, sin volver a leer", EscribirEsperaComoU);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
         Prueba("490. leer la pantalla y saber dónde estoy tienen plazo: si la app no contesta, se sigue sin esa respuesta y se dice, en vez de congelar U; lo que llega tarde no pisa lo que ya se contestó", LeerYUbicarseTienenPlazo);
@@ -13904,6 +13905,49 @@ internal static class Contrato
         if (!File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
         Debe(File.ReadAllText(cara).Contains("var catalogoMcp = Voice.ConversacionEnVivo.HerramientasDelPiloto()"),
             "el servidor MCP (por donde entran las manos del piloto) no usa el catálogo del piloto");
+    }
+
+    private static void PararLaComprobacionParaElPlan()
+    {
+        var t = Capacidad("U.WindowsClient.Piloto.ElRecorridoDelPlan");
+        var m = t?.GetMethod("Recorrer", BindingFlags.Public | BindingFlags.Static);
+        if (m == null) { Pendiente("Piloto.ElRecorridoDelPlan.Recorrer (el recorrido del plan, con freno)", "501", "054"); return; }
+        (int Dados, int Total, int ParoEn, int Omitidos, string Motivo) R(object r)
+        {
+            var tr = r.GetType();
+            int I(string p) => (int)tr.GetProperty(p)!.GetValue(r)!;
+            return (I("Dados"), I("Total"), I("ParoEn"), I("Omitidos"), (string)tr.GetProperty("Motivo")!.GetValue(r)!);
+        }
+        (int, int, int, int, string) Correr(int total, Func<int, string> dar, Func<int, string> parar) =>
+            R(m.Invoke(null, new object[] { total, dar, parar })!);
+
+        // Cinco pasos, y la persona pulsa «parar» mientras se da el segundo.
+        int dados = 0; bool cancelado = false;
+        var c = Correr(5, i => { dados++; if (i == 1) cancelado = true; return ""; },
+                          _ => cancelado ? "paraste la comprobación" : "");
+        Debe(dados == 2, $"tras cancelar no se da ni un paso más (se dieron {dados} de 5; la cancelación llegó en el 2º)");
+        Debe(c.Item1 == 2 && c.Item2 == 5 && c.Item4 == 3,
+            $"la cuenta es sobre el plan: 2 dados y 3 sin dar, de 5 (salió {c.Item1}/{c.Item2}, {c.Item4} sin dar)");
+        Debe(c.Item3 == 3 && c.Item5.Contains("paraste"), $"y dice dónde y por qué paró (salió paso {c.Item3}: «{c.Item5}»)");
+
+        // Un paso que no se da para el plan ahí, y cuenta como no dado.
+        dados = 0;
+        var f = Correr(4, i => { dados++; return i == 1 ? "«Guardar» no está a la vista" : ""; }, _ => "");
+        Debe(dados == 2 && f.Item1 == 1 && f.Item4 == 3 && f.Item3 == 2,
+            $"un paso que no se da para el plan ahí: 1 dado, 3 sin dar, paró en el 2º (salió {f.Item1}/{f.Item2}, paró en {f.Item3})");
+
+        var todo = Correr(3, _ => "", _ => "");
+        Debe(todo.Item1 == 3 && todo.Item4 == 0 && todo.Item3 == 0, "sin freno ni fallo se dan todos, y no para en ninguno");
+
+        // [cableado] Los dos recorridos de planes que hay —el del piloto y el de una skill— son este mismo.
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        string mapa = Path.Combine(repo, "windows-client", "src", "Mcp", "SurfaceMapTools.cs");
+        if (!File.Exists(cara) || !File.Exists(mapa)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        string fc = File.ReadAllText(cara), fm = File.ReadAllText(mapa);
+        Debe(fc.Contains("Piloto.ElRecorridoDelPlan.Recorrer(") && fc.Contains("cancelar?.IsCancellationRequested"),
+            "[cableado] el plan del piloto se recorre con ElRecorridoDelPlan y para con la cancelación de la comprobación");
+        Debe(fm.Contains("Piloto.ElRecorridoDelPlan.Recorrer("), "[cableado] una skill se recorre con el mismo recorrido, no con un bucle propio");
     }
 
     private static void HacerEsRapidoTraigaLoQueTraiga()
