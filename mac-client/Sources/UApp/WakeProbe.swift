@@ -27,7 +27,7 @@ enum WakeProbe {
                 if matched || error != nil { break }
                 try await Task.sleep(nanoseconds: 150_000_000)
             }
-        } catch { }
+        } catch let caught { error = caught.localizedDescription }
         speech.stop()
         if player.isRunning { player.terminate() }
         let evidence: [String: Any] = ["matched": matched, "candidates": candidates, "error": error ?? "", "microphoneOpened": true]
