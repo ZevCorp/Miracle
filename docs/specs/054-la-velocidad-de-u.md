@@ -1,4 +1,4 @@
-# La velocidad de u/ en U.exe
+﻿# La velocidad de u/ en U.exe
 
 Estado: **en curso** (2026-09-27) · Rama `jose/u-pulsar-en-main` (sigue a la 053) · Decisiones del agente, sin
 preguntas, por orden del dueño.
@@ -62,8 +62,80 @@ pantalla— sigue por el camino de siempre, que no se toca en esta fase.
 | 487 | antes de pulsar el ciclo lee como mucho UNA vez, y ninguna si la última lectura de esa ventana tiene menos de 2 s; lo que no está se busca en UNA lectura nueva, y si tampoco está, el ciclo no se encarga y decide el camino de siempre |
 | 488 | con el freno echado no pulsa y lo dice; SAP y los selectores que no van por nombre no pasan por el ciclo rápido |
 
+| 489 | U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide |
+| 490 | leer la pantalla y saber dónde estoy tienen plazo: si la app no contesta, se sigue sin esa respuesta y se dice, en vez de congelar U; lo que llega tarde no pisa lo que ya se contestó |
+
+## Resultados
+
+### Fase 1 — el ciclo rápido (2026-09-27, plan fijo, Configuración ×20, Explorador ×12, Calculadora ×16)
+
+| mediana por ciclo | rama antes | rama con el ciclo rápido | u/ |
+|---|---|---|---|
+| Configuración | 2.257 ms | **703 ms** | 749 ms |
+| Explorador | 3.545 ms | **1.297 ms** | 833 ms |
+| Calculadora | 1.071 ms | **331 ms** | 172 ms |
+| todas | 2.268 ms | **616 ms** | 502 ms |
+
+El resto de la diferencia estaba en la espera (lecturas más lentas con el fondo leyendo la misma app): fase 2.
+
+### Fase 2 — sin fondo, y con plazo
+
+- Latido, ubicación de fondo y rastro del cursor desconectados (489).
+- **El cuelgue de 60 s al abrir la Calculadora no era por quitar el fondo**: el Explorador tardó 252.579 ms en
+  contestar UNA lectura del lector viejo, que no tiene plazo, y U entero esperó detrás. Con plazo (490): leer 3 s,
+  ubicarse 1,5 s. Sitios con la clase de error en el camino del ciclo: 2, los 2 con plazo. SAP se ubica en su hilo,
+  sin plazo (su scripting es COM).
+- Sabotajes: 485 ×2, 486 ×1, 487 ×1, 488 ×2, 489 ×1, 490 ×2 — los 9 rojos. La primera tanda de la 488 no pilló
+  «SAP pasa»: un selector de SAP no se pulsaba pero se leía la pantalla dos veces por él. La 488 exige ahora cero
+  lecturas para lo que no es suyo.
+
+### El navegador
+
+Chrome, con ~100 procesos abiertos en este PC, no contesta a UIA: cada lectura del lector de u/ se agota (1,5-4,7 s)
+y vuelve vacía — el 2026-09-26 ya pasaba con 133 procesos y 15 GB. La prueba de navegador se hace en Edge, limpio.
+Edge activa su accesibilidad al primer cliente: la primera lectura trae solo la barra del navegador, la segunda la
+página (151 accionables en Wikipedia, 2,9 s).
+
+### Fase 2b — lo que salió al probar variado (Bloc de notas y Edge)
+
+| # | Promesa |
+|---|---|
+| 491 | el ciclo rápido trabaja sobre la ventana de delante, la que la persona ve, como u/; solo si delante está la propia Ü usa su ventana de trabajo |
+| 492 | la carita no se pone donde Ü va a hacer clic: ni sigue al cursor automatizado ni viaja al clic, y el ciclo rápido no la avisa |
+| 493 | antes de pulsar el ciclo lee como mucho UNA vez, y ninguna si la última lectura de esa ventana tiene menos de 2 s; lo que no está se busca en UNA lectura nueva —si la primera leyó algo—, y si tampoco está, contesta al momento que no está y lo que se ve, sin pulsar y sin ir al camino de siempre |
+| 494 | una lectura del lector de u/ tiene plazo total: si no vuelve en 4 s se contesta vacía y su hilo se abandona; las siguientes van a un hilo nuevo, sin hacer cola detrás de la atascada |
+
+- **Sin el fondo, la ventana de trabajo dejó de seguir al foco** (491): el Bloc de notas y Edge, abiertos por la
+  persona, se quedaban sin ciclo — 30 clics «no está en la lectura (23 accionables)», los de la Calculadora de antes.
+- **La carita robaba clics y abría la voz de pago** (492): viajaba al clic y se posaba ~80 px encima; el clic
+  siguiente de Ü —la tecla de arriba en la Calculadora— caía en ella. Cinco sesiones de voz en un día de pruebas.
+  Las sondas cierran ahora la U si ven «voz-viva: socket conectado».
+- **Lo que no está, al momento** (493): caer al camino de siempre costaba 60 s por clic en Edge.
+- **Una lectura atascada no deja ciego al resto** (494): Wikipedia en Edge tardó 64-136 s en una sola lectura pese a
+  los plazos de COM (cortan lo que no contesta, no lo que tarda), y el lector tenía UN hilo con cola.
+- **Las pruebas ensuciaban el terreno**: cada corrida abría una pestaña de Wikipedia y no la cerraba; con 13 copias de
+  «Colombia», leer Edge se encarecía ronda a ronda. Se cerraron las 13 (no las demás pestañas) y las sondas cierran
+  ahora la suya.
+
+### Rondas con el plan variado (Configuración, Explorador, Calculadora, Bloc de notas, Edge)
+
+| mediana por ciclo | ronda 3 | ronda 4 | ronda 5 |
+|---|---|---|---|
+| rama / u/ — todas | 182 / 170 | 186 / 153 | **191 / 168** |
+| Configuración | 214 / 221 | 278 / 232 | 299 / 260 |
+| Explorador | 294 / 239 | 570 / 218 | 354 / 297 |
+| Calculadora | 78 / 59 | 81 / 77 | 72 / 76 |
+| Bloc de notas | 112 / 150 | 176 / 123 | 116 / 119 |
+| Edge (Wikipedia) | 19.725 / 182 | 2.993 / 953 | 3.833 / 2.019 (4 de 14 clics en las dos) |
+
+Edge, tras volver a la página de Colombia, no se deja leer en 4 s ni por u/ ni por la rama: es la página, no el
+ciclo. La rama tardaba 14 s en decirlo porque volvía a leer una lectura vacía; ya no (493).
+
 ## Promesas retiradas
 
-(se anotan aquí con su número y el porqué, a medida que se retiren)
+| # | Retirada el | Por qué | La sustituye |
+|---|---|---|---|
+| 240 | 2026-09-27 | la carita que viaja al clic se posaba sobre el clic siguiente de Ü y abría la voz de pago | 492 |
+| 487 | 2026-09-27 | «si tampoco está, decide el camino de siempre»: ese camino se colgaba 60 s por clic en Edge | 493 |
 
 ## Hallazgos
