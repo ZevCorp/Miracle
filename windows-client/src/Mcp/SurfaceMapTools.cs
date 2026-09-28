@@ -2063,6 +2063,7 @@ public sealed class SurfaceMapTools
     {
         string A(string k) => args.TryGetValue(k, out var v) ? v.Trim() : "";
         _ultimaMano = null;   // cada llamada dice SU resultado, no el de la anterior (spec 017)
+        _camino = null;       // y su camino (509)
 
         // Se registra CADA llamada y su respuesta. Sin esto, «el mapa no aportó nada» y «el modelo
         // ni lo intentó» se ven exactamente igual en el log — y esa ambigüedad me llevó a un
@@ -2149,6 +2150,13 @@ public sealed class SurfaceMapTools
         // compra: la mitad de los actos iban seguidos de un «¿y ahora qué hay?» que ya no hace falta. Va
         // ANTES de parar el reloj, para que el coste de leer la pantalla cuente como parte del acto.
         long msActo = reloj.ElapsedMilliseconds;
+        // EL CAMINO, DICHO (promesa 509): una sesión real tiene que poder contestar «¿por dónde fue este clic?» sin
+        // teorizar. Y lo que no debió pasar se marca, para que no dependa de que alguien lea el log a tiempo.
+        if (_camino is { } cam)
+        {
+            LogBus.Log("mapa-mcp", $"camino: {tool} → {cam.Camino} ({cam.Razon})");
+            if (cam.Inesperado) LogBus.Log("mapa-mcp", $"⚠ camino inesperado: {tool} {args_} fue por {cam.Camino}: {cam.Razon}");
+        }
         if (ComoSeContesta.LlevaInventario(tool, r))
         {
             try { r = ComoSeContesta.Pegar(r, InventarioParaLosActos?.Invoke() ?? LoQueVeo()); }
@@ -2596,6 +2604,24 @@ public sealed class SurfaceMapTools
     /// </summary>
     public Func<string, int, Func<string, string?>?, (string Texto, bool? Cambio)?>? CicloRapido { get; set; }
 
+    // EL CAMINO DE CADA LLAMADA (spec 054, promesa 509). Por hilo, como la mano: la voz lo lee en el suyo.
+    [ThreadStatic] private static (string Camino, string Razon, bool Inesperado)? _camino;
+
+    /// <summary>
+    /// Por qué camino fue la última llamada de este hilo, y por qué. Existe porque el desvío era MUDO: el 2026-09-28,
+    /// 0 de 9 clics de voz llegaron al ciclo rápido y ninguna línea lo decía, porque el ciclo ni se invocaba.
+    /// </summary>
+    public (string Camino, string Razon, bool Inesperado)? UltimoCamino => _camino;
+
+    /// <summary>¿Es un clic por nombre en UIA, el que le toca al ciclo rápido? SAP, AutomationId y destinos del grafo no.</summary>
+    private static bool EsClicPorNombreUia(string exit)
+    {
+        string e = (exit ?? "").Trim();
+        if (e.Length == 0 || e.StartsWith("sap:", StringComparison.OrdinalIgnoreCase) || e.Contains("://")) return false;
+        return !e.StartsWith(UiaSelector.Prefix, StringComparison.OrdinalIgnoreCase)
+            || UiaSelector.Parse(e).TryGetValue("name", out var n) && !string.IsNullOrWhiteSpace(n);
+    }
+
     private string Take(string salida, string cual = "", string decir = "", string recuerdo = "")
     {
         if (salida.Length == 0) return "falta `exit`: qué puerta tomar (su nombre tal como se ve, o su selector)";
@@ -2605,11 +2631,13 @@ public sealed class SurfaceMapTools
         // «dime el selector». Los antiguos `action` y `at` no llegaban aquí desde e3c3ad8: el gesto lo
         // aprende la arista (spec 003), y ofrecerlos era la ilusión de controlarlo (promesa 206).
         int.TryParse(cual, out int n);
+        bool porNombre = EsClicPorNombreUia(salida);
         // EL CICLO DE u/ PRIMERO (spec 054): un clic por nombre en UIA es ver → clic → volver a ver, y contesta con lo
         // que se ve. Con coreografía (comprobar, decir, recuerdo) va por el camino de siempre, que es quien la sabe.
         bool coreografia = DarUnPasoConCoreografia != null && (SenalarAlActuar || decir.Length > 0 || recuerdo.Length > 0);
-        if (!coreografia && CicloRapido?.Invoke(salida, n, _antesDePulsar) is { } rapido)
+        if (!coreografia && porNombre && CicloRapido?.Invoke(salida, n, _antesDePulsar) is { } rapido)
         {
+            _camino = ("ciclo-rapido", "clic por nombre en UIA", false);
             // Pulsó: se logró si cambió. Sin pulsar (homónimos numerados, freno, tope): no fue un intento o no se logró.
             _ultimaMano = rapido.Cambio is bool c ? new Mano(true, c) : new Mano(false, false, Intento: !rapido.Texto.Contains("which=N"));
             return rapido.Texto;
@@ -2617,10 +2645,13 @@ public sealed class SurfaceMapTools
         var paso = new Navigation.RecorrerSegunElNucleo.Paso(salida) { Cual = n, AntesDePulsar = _antesDePulsar };
         // LA MISMA COREOGRAFÍA QUE EL PLAN (promesa 191): al comprobar, o cuando el piloto trae algo que
         // decir o un recuerdo, la mano señala, dice, cuelga y muestra, y solo después pulsa.
-        var r = DarUnPasoConCoreografia != null && (SenalarAlActuar || decir.Length > 0 || recuerdo.Length > 0)
-            ? DarUnPasoConCoreografia(salida, paso, recuerdo, decir)
-            : RecorrerPorElNucleo(new[] { paso });
-        return Anotar(r, escribe: false);
+        if (coreografia)
+        {
+            _camino = ("coreografia", SenalarAlActuar ? "la app señala al actuar (comprobación, encargo)" : "trae decir o recuerdo", porNombre && !SenalarAlActuar);
+            return Anotar(DarUnPasoConCoreografia!(salida, paso, recuerdo, decir), escribe: false);
+        }
+        _camino = ("nucleo", porNombre ? "el ciclo rápido no se encargó (ver «ciclo rápido:» en el log)" : "SAP, AutomationId o destino del grafo", porNombre);
+        return Anotar(RecorrerPorElNucleo(new[] { paso }), escribe: false);
     }
 
     /// <summary>
@@ -2687,9 +2718,14 @@ public sealed class SurfaceMapTools
         {
             // Y con la coreografía del plan cuando toca (promesa 191): se señala el campo, se dice, y luego se escribe.
             if (DarUnPasoConCoreografia != null && (SenalarAlActuar || decir.Length > 0 || recuerdo.Length > 0))
+            {
+                _camino = ("coreografia", SenalarAlActuar ? "SAP, la app señala al actuar" : "SAP, trae decir o recuerdo", false);
                 return Anotar(DarUnPasoConCoreografia(target, new Navigation.RecorrerSegunElNucleo.Paso(target, texto), recuerdo, decir), escribe: true);
+            }
+            _camino = ("nucleo", "SAP: la mano de SAP", false);
             return Anotar(RecorrerPorElNucleo(new[] { new Navigation.RecorrerSegunElNucleo.Paso(target, texto) }), escribe: true);
         }
+        _camino = ("escribir-uia", target.Length > 0 ? "con target" : "en el foco", false);
 
         // ESCRIBIR VA A LA VENTANA DE TRABAJO (promesa 235), como pulsar. Un `target` por nombre se resuelve
         // a un campo de esa ventana; una terminal se teclea; sin `target` y con la ventana de trabajo
