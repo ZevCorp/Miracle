@@ -13992,6 +13992,14 @@ internal static class Contrato
 
         var unico = Ensenar("Copilot", ("uia:name=Copilot anclado;ct=Button", "Copilot anclado", "Button"));
         Debe(unico.Colgado == "uia:name=Copilot anclado;ct=Button", $"si uno solo lo contiene, es ese (se colgó de «{unico.Colgado}»)");
+
+        // Y LO QUE SE PUEDE NOMBRAR INCLUYE LOS CAMPOS ANCHOS. Lo de arriba inyecta la lista; el sabotaje del 2026-09-28
+        // mostró que el filtro de verdad —el que dejó fuera el «Search» de 1.203 px— no lo juzgaba nadie.
+        var sePuede = typeof(SurfaceMapTools).GetMethod("SePuedeNombrar", BindingFlags.NonPublic | BindingFlags.Static);
+        if (sePuede == null) { Pendiente("SurfaceMapTools.SePuedeNombrar (qué se puede nombrar al enseñar)", "503", "054"); return; }
+        bool N(string tipo, double ancho) => (bool)sePuede.Invoke(null, new object[] { tipo, ancho, 63.0 })!;
+        Debe(N("ComboBox", 1203) && N("Edit", 1203), "un campo o un combo ancho no se puede nombrar: el «Search» de Google mide 1.203 px");
+        Debe(N("Button", 80) && !N("Pane", 1203) && !N("Button", 1203), "una puerta visible sí se nombra; un panel, o un botón que ocupa media pantalla, no");
     }
 
     private static void HacerEsRapidoTraigaLoQueTraiga()
