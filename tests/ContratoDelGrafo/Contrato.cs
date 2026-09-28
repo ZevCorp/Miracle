@@ -889,6 +889,7 @@ internal static class Contrato
         Prueba("488. con el freno echado no pulsa y lo dice; SAP y los selectores que no van por nombre no pasan por el ciclo rápido", ElCicloRapidoRespetaElFrenoYSap);
         Prueba("491. el ciclo rápido trabaja sobre la ventana de delante, la que la persona ve, como u/; solo si delante está la propia Ü usa su ventana de trabajo", ElCicloTrabajaSobreLoQueHayDelante);
         Prueba("495. mirar —map_what_i_see y lo que se pega a cada acto— lee con el lector de u/ la ventana de delante y cuenta accionables y textos; SAP, que UIA no ve, sigue por el lector de siempre", MirarLeeComoU);
+        Prueba("498. con SAP delante, un clic por nombre no entra al ciclo rápido: no lee, no pulsa, dice que es SAP y lo da la mano de SAP; y saber si una ventana es SAP es UNA regla —su proceso—, la misma para pulsar, mirar y esperar tras escribir", ConSapDelanteNoHayCicloRapido);
         Prueba("509. cada llamada dice por qué camino fue y por qué —ciclo rápido, núcleo, coreografía— en el log y en la mano; y un clic por nombre en UIA que no va por el ciclo rápido fuera de una comprobación deja «⚠ camino inesperado» con su razón", CadaLlamadaDiceSuCamino);
         Prueba("496. tras escribir, la espera es la de u/ —dos lecturas iguales con el lector rápido, techo 300 ms— y lo que se cuenta después es esa misma lectura, sin volver a leer", EscribirEsperaComoU);
         Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
@@ -13809,6 +13810,33 @@ internal static class Contrato
     {
         var p = typeof(SurfaceMapTools).GetProperty("UltimoCamino");
         return p?.GetValue(mapa) as (string, string, bool)?;
+    }
+
+    private static void ConSapDelanteNoHayCicloRapido()
+    {
+        // Hallado leyendo el código el 2026-09-28, no medido (no hay SAP en este PC): con el desvío por decir/recuerdo
+        // quitado, un clic por nombre como «Triage» con SAP delante entraría al ciclo rápido, que por UIA solo ve un panel
+        // opaco, y contestaría «no está» sin pasar nunca por la mano de SAP. Y «qué es SAP» eran 3 criterios en 3 sitios.
+        var regla = typeof(SurfaceMapTools).Assembly.GetType("U.WindowsClient.Uia.Sap")?.GetMethod("EsProceso", BindingFlags.Public | BindingFlags.Static);
+        var esSap = CicloRapidoT()?.GetProperty("EsSap");
+        if (regla == null || esSap == null) { Pendiente("Uia.Sap.EsProceso y CicloRapido.EsSap (una sola regla de qué es SAP)", "498", "054"); return; }
+        bool Es(string p) => (bool)regla.Invoke(null, new object[] { p })!;
+        Debe(Es("saplogon") && Es("SAPGUI") && !Es("notepad") && !Es("msedge"), "la regla de SAP no reconoce su proceso, o reconoce otros");
+
+        var m = CicloCon(Pantalla(Array.Empty<string>(), ("Triage", "ListItem", 200, 300)));
+        esSap.SetValue(m.Ciclo, (Func<IntPtr, bool>)(_ => true));
+        string? r = Pulsar(m, "Triage");
+        string porQue = (string)(CicloRapidoT()!.GetProperty("PorQueNo")!.GetValue(m.Ciclo) ?? "");
+        Debe(r == null && m.Lecturas == 0 && m.Clics.Count == 0 && porQue.Contains("SAP"),
+            $"con SAP delante: devolvió «{r}», leyó {m.Lecturas}, pulsó {m.Clics.Count}, dijo «{porQue}»");
+
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        string c = File.ReadAllText(cara);
+        var bloque = System.Text.RegularExpressions.Regex.Match(c, @"var ciclo = new Navigation\.CicloRapido\([\s\S]*?mcp\.Map\.CicloRapido = ");
+        Debe(bloque.Success && bloque.Value.Contains("Uia.Sap.EsVentana") && !System.Text.RegularExpressions.Regex.IsMatch(bloque.Value, "StartsWith\\(\"(sap|SAP)\""),
+            "pulsar, mirar y esperar tras escribir no usan la misma regla de SAP (Uia.Sap.EsVentana), o alguno guarda su propio StartsWith");
     }
 
     private static void CadaLlamadaDiceSuCamino()
