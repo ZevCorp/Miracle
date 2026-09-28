@@ -59,7 +59,7 @@ La 497 llama a `map_take` con los argumentos literales de la sesión del 2026-09
 - **Siguiente paso:** un script que coseche las llamadas de cada sesión real y las sanee (nada de SAP ni de datos
   de pacientes). Van a `tests/ContratoDelGrafo/bronce/voz/` y el contrato las recorre todas.
 
-### 3. Cada enrutador tiene su tabla completa
+### 3. Cada enrutador tiene su tabla completa — pendiente
 
 Toda función que elige entre dos caminos (`Take`, `Type`, `LoQueVeo`) tiene una promesa con **todas** las
 combinaciones de entrada y el camino esperado de cada una. Se juzga por `Call`, no por el componente.
@@ -68,35 +68,43 @@ combinaciones de entrada y el camino esperado de cada una. Se juzga por `Call`, 
   coreografía **al escribir la spec**, y el choque con la 191 aparece antes del código.
 - **Costo:** unas dos horas por enrutador. Hoy hay tres o cuatro.
 
-### 4. La mano de Ü nunca toca a Ü, y la voz solo la abre una persona
+### 4. La mano de Ü nunca toca a Ü, y la voz solo la abre una persona — hecho (spec 061)
 
-Son dos guardas en tiempo de ejecución:
+Son tres guardas en tiempo de ejecución, cada una con su promesa:
 
-- Antes de cada clic sintético se mira qué ventana hay bajo el punto. Si es de U, no se pulsa y sale una alarma.
-- El clic de Ü lleva una firma, y la carita no abre la voz con un clic firmado.
+- **Fuera de casa la carita es fantasma** (505): transparente al ratón desde que sale hasta que se posa en casa.
+- **Antes de cada clic sintético se mira qué hay bajo el punto** (510), en las seis manos que pulsan. Si es la carita,
+  se aparta; si es otra ventana de Ü, no se pulsa y se dice cuál. Si la persona tiene el ratón, tampoco.
+- **El clic de Ü lleva una firma** (508), y ninguna ventana de Ü lo toma por un toque de la persona.
 
-- **Qué atrapa:** las cinco sesiones de voz abiertas por clics de Ü.
-- **Qué desbloquea:** que la carita vuelva a viajar a cada elemento, que es lo que quiere el dueño. La 492
-  («la carita no viaja») era una prohibición, no la propiedad que se buscaba.
+- **Qué atrapó en el PC real:** 28 clics sobre teclas apiladas y listas, con la carita visitando cada una. Hubo 0
+  sesiones de voz abiertas y 0 clics perdidos. Una vez hubo que apartar la carita, y costó 15 ms.
+- **Lo que desbloqueó:** la carita vuelve a ir a cada elemento. La 492 («la carita no viaja») se retiró: era una
+  prohibición, no la propiedad que se buscaba.
+- **Lo que queda:** la firma no evita que una ventana se active (medido). La 510 lo evita en las seis manos, pero
+  `WS_EX_NOACTIVATE` en la carita, el muelle y el notch cerraría el hueco del todo: otra spec.
 
-### 5. Plazo por herramienta y un perro guardián del hilo de UI
+### 5. Plazo por herramienta y un perro guardián del hilo de UI — pendiente
 
 Ninguna herramienta bloquea U más allá de su techo (8 s para un clic, 30 s como tope global). Si el hilo de UI
 llega más de un segundo tarde, se anota con su pila.
 
 - **Qué atrapa:** los 252 s del Explorador habrían sido «no terminé en 8 s» y una línea con la pila.
+- **Lo único hecho:** apartar la carita antes de un clic espera a la interfaz como mucho 100 ms, y se mide.
 
-### 6. El sabotaje lo hace un script que comprueba que mordió
+### 6. El sabotaje lo hace un script que comprueba que mordió — hecho en parte
 
 Cada spec declara sus sabotajes como datos: archivo, qué buscar, qué poner y qué promesa tiene que ponerse roja.
 El script normaliza los finales de línea y exige una coincidencia y un diff no vacío. Restaura desde una copia,
 nunca con `git checkout`, y falla si la promesa nombrada no se pone roja.
 
 - **Qué atrapa:** las dos variantes del incidente 7.
-- **Estado:** existe en el scratchpad y ya se usa. Falta versionarlo en `scripts/` y hacer que restaure desde una
-  copia.
+- **Lo que atrapó hoy:** de los primeros 17 sabotajes, 3 salían verdes. Las pruebas miraban algo parecido a la
+  propiedad sin serlo, y se endurecieron hasta que mordieron. Uno no llegaba a aplicarse y el script lo dijo.
+- **Estado:** existe en el scratchpad y ya prueba con CRLF si no casa con LF. Falta versionarlo en `scripts/` y
+  hacer que restaure desde una copia.
 
-### 7. Sacar la composición de `FaceWindow`
+### 7. Sacar la composición de `FaceWindow` — pendiente
 
 El cableado (qué lector, qué mano y qué ventana usa cada herramienta) pasa a una clase que el contrato pueda
 construir con dobles. La regex sobre fuentes queda solo para «esto no debe existir», marcada `[cableado]` y con
@@ -106,16 +114,41 @@ un cupo que solo baja.
   y habría salido roja.
 - **Costo:** dos o tres días en ramas cortas. `FaceWindow` es zona de choque alta.
 
-### 8. Una implementación por capacidad, con trinquete
+### 8. Una implementación por capacidad, con trinquete — hecho en parte
 
 Leer, esperar y pulsar tienen **una** implementación cada una. Una spec que añade otra borra la vieja o deja un
 contador que el portero hace bajar. Quitar código obliga a listar lo que ese código escribía: el latido escribía
 la ventana de trabajo, y al quitarlo nadie lo sabía.
 
-### 9. Una spec de velocidad se acepta por la voz real
+Hoy se juntaron cinco pares en uno: un recorrido de planes (eran dos bucles), una regla de «¿es SAP?» (eran tres),
+una regla de «¿a qué elemento se refiere un nombre?» (eran dos), una regla de «¿está libre el punto?» (para las seis
+manos) y una firma. Falta el trinquete que impida que vuelvan a separarse.
+
+### 9. Una spec de velocidad se acepta por la voz real — hecho en parte
 
 Si una spec promete velocidad en algo que usa la voz, su evidencia incluye una sesión de voz real después del
 cambio: el % de llamadas por el camino esperado y el p50. Las cifras de la sonda no bastan.
+
+Hoy se midió con los argumentos de la voz real, por el MCP y en el PC real: 28 de 28 clics por el ciclo rápido. Se
+midió también con un A/B contra la rama sin carita, en las mismas condiciones, y la carita cuesta ~16 ms en la
+Calculadora. Falta una sesión de voz del dueño.
+
+### 10. Atacar el plan antes de escribir el código — nueva, y funcionó
+
+Antes de implementar la carita, el plan lo atacaron dos críticos con el código delante: uno buscando cómo podría
+seguir robando un clic, otro buscando pruebas que salieran verdes sin probar nada. Encontraron **17 objeciones, 4
+altas**:
+
+- la coreografía de lección dejaba volver la carita a casa, tocable, justo antes del clic;
+- la guarda estaba en 1 de 6 manos;
+- con la persona pulsando la carita, la captura se llevaba el clic de Ü;
+- un fantasma invertido pasaba el contrato.
+
+Ninguna de las pruebas escritas hasta entonces las veía: todas estaban verdes. Cada objeción aceptada entró primero
+como prueba en rojo.
+
+- **Cuándo:** en toda spec que toque la UI de `windows-client` o un efecto de pago.
+- **Costo:** una hora de agentes, frente al día perdido que costaba un fallo en la sesión del dueño.
 
 ## Lo que ya cambió en la rama
 
@@ -126,16 +159,21 @@ cambio: el % de llamadas por el camino esperado y el p50. Las cifras de la sonda
 | 499 | el tope de intentos cuenta también los clics rápidos |
 | 500 | la voz ya no ofrece `decir` ni `recuerdo`; el piloto sí, para comprobar lecciones |
 | 509 | cada llamada dice su camino, y un desvío avisa |
+| 501 | parar una comprobación para el plan, y los pasos que faltan cuentan como no dados |
+| 502, 503 | recordar es explícito y honesto, y se cuelga del elemento por su nombre exacto |
+| 504-508, 510 | la carita va a cada elemento que Ü pulsa, fantasma fuera de casa, y ninguna mano pulsa sobre Ü |
+| 511 | una Ü de pruebas convive con la del dueño (`U_MCP_PUERTO`) |
 
 Los recuerdos pasan a ser un **complemento explícito**: `map_esto_es`, cuando la persona enseña algo. Ya no son
 un efecto lateral de cada clic.
 
 ## El orden que se recomienda
 
-1. Terminar la limpieza: quitar el recuerdo tras el clic (501, retirar 266), instrucciones honestas (502) y
-   colgar recuerdos por nombre exacto (503).
-2. Medir la voz real por el MCP con las llamadas cosechadas: 100 % ciclo rápido y 0 alarmas.
-3. Guardas de la práctica 4, y después la carita vuelve a viajar a cada elemento.
-4. Plazo por herramienta y trinquete (prácticas 5 y 8).
-5. Versionar el sabotaje por script (práctica 6) y la sonda con modo de reproducción.
-6. Sacar la composición de `FaceWindow`, por trozos (práctica 7).
+Hecho hoy: la limpieza (501-503), la medida con los argumentos reales y las guardas de la carita (504-511).
+
+1. Una sesión de voz del dueño con la carita visitando, contada con `anatomia-del-clic.ps1`.
+2. Plazo por herramienta y trinquete (prácticas 5 y 8).
+3. Versionar el sabotaje por script (práctica 6) y el guion del nivel 4 (`nivel4-carita.ps1`) en `scripts/`.
+4. La tabla completa de cada enrutador (práctica 3).
+5. Sacar la composición de `FaceWindow`, por trozos (práctica 7).
+6. Decidir cómo persisten los recuerdos: hoy viven en memoria mientras la Ü está abierta.

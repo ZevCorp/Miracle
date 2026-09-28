@@ -1,6 +1,10 @@
 # Plan de implementación: la carita visita lo que Ü toca, y no le roba un clic
 
-Estado: **en curso** · Nace de la limpieza del 2026-09-28 (spec 054, fases 6-7) · Rama: `jose/u-pulsar-en-main`
+Estado: **implementado; nivel 4 hecho en Calculadora y Configuración** (falta una sesión de voz del dueño) · Nace de la limpieza del 2026-09-28 (spec 054, fases 6-7) · Rama: `jose/u-pulsar-en-main`
+
+> **Excepción a «una spec = una rama», dicha a propósito.** Esta rama ya lleva las specs 053 y 054, y el dueño la usa
+> como su «main» de trabajo: no se integra a `main` todavía. La carita va aquí porque sin ella la 054 quita algo que el
+> dueño quiere y no lo devuelve. Cuando esta rama vaya a `main`, el PR tiene que contar las tres specs por separado.
 
 ## Qué se quiere
 
@@ -85,6 +89,85 @@ encima de B, que es justo el botón vecino del teclado de la Calculadora. La 508
 | **Qué toca** | `CicloRapido.cs` (`TrasPulsar`, `LibrarElPunto`, propiedades y no parámetros del constructor: la usan 485-499 con 5 argumentos), `FaceWindow.xaml.cs` (el ciclo avisa por el pulso, la cara se suscribe una vez) |
 | **Terminado** | 504 y 510 verdes; 485-499 y 509 intactas |
 
+### Fase 5 — dos Ü en el mismo PC (511)
+
+| | |
+|---|---|
+| **Qué toca** | `windows-client/src/Mcp/ServidorMcp.cs` (`Puerto` sale de `U_MCP_PUERTO`), `FaceWindow.xaml.cs` (un 8790 escrito a mano) |
+| **Por qué entra aquí** | el nivel 4 de esta spec no se podía correr sin cerrar la Ü del dueño: las dos querían el 8790 |
+| **Terminado** | 511 verde |
+
+### Lo que cambió al atacar el plan (dos críticas, workflow del 2026-09-28)
+
+El plan lo atacaron dos agentes, uno buscando cómo la carita podría seguir robando un clic y otro buscando pruebas
+que salieran verdes sin probar nada. Se aceptaron sus objeciones con evidencia, y cada una entró primero como prueba
+en rojo:
+
+- **La mirada bajo el punto estaba en 1 de las 6 manos que pulsan.** La coreografía de lección enseña la tarjeta hasta
+  4 s antes de pulsar, y la carita volvía a casa tocable justo antes del clic. Ahora la regla es una
+  (`UiaSurface.LibrarElPunto`) y la consultan las seis. Si el punto cae en la carita, aunque ya sea fantasma, se aparta
+  y su rato fuera empieza otra vez.
+- **La persona con el ratón manda.** Si pulsa o arrastra la carita, la captura se lleva cualquier clic de Ü. Mientras
+  el botón esté abajo o una ventana de Ü tenga la captura, Ü no pulsa.
+- **Apartar la carita esperaba a la interfaz sin techo.** Ahora son 100 ms a la prioridad más alta, y se mide
+  (`⏱ librar el punto`).
+- **Pruebas que no miraban la propiedad:**
+  - un fantasma invertido pasaba: ahora el bit se juzga en una ventana de verdad;
+  - un aviso vacío pasaba: ahora el aviso tiene nombre (`AvisarALaCarita`) y se comprueba que llega;
+  - un `dwExtraInfo = IntPtr.Zero` pasaba: ahora se exige la firma;
+  - un filtro que nunca tiraba pasaba: ahora el filtro instalado se prueba con un mensaje.
+- **Un fallo de la visita abría el diálogo de «Ü tropezó» encima de lo que Ü pulsaba.** Ahora la visita entera va en
+  `try`. `AvisarDelPulso` se tragaba el fallo; ahora lo devuelve.
+- **Un recorrido que se quedaba en una parada volaba con el muelle que rebota.** Ahora va como una visita.
+- **Un bucle modal se salta el filtro de hilo.** La carita, el muelle y la consulta tienen además su propio gancho.
+
+## Sabotajes: 15, todos rojos
+
+Uno o más por promesa y por archivo que la sostiene, aplicados después del commit y comprobados:
+- 504 ×3: el aviso antes del clic, el catch mudo y la cara esperando a la carita;
+- 505 ×2: el bit invertido, que salió `0x80120` en la ventana de verdad, y salir sin fantasma;
+- 506 ×1: vuelve la sujeción que la dejaba encima;
+- 507 ×2: tocable en cualquier sitio, y volver sin esperar;
+- 508 ×3: el clic sin firma, el filtro que tira también el de la persona, y un `mouse_event` sin firma;
+- 510 ×3: el ciclo no mira, la carita no se aparta, y la persona con el ratón no manda;
+- 511 ×1: se ignora la variable.
+
+Ninguno quedó sin aplicar ni sin veredicto: el guion prueba con CRLF si el patrón no casa con LF.
+
+## Nivel 4: el PC real (2026-09-28, 13:36-13:46)
+
+Una Ü de la rama en el 8795 (promesa 511), con datos propios y **sin clave de voz**, junto a la Ü estable del dueño
+abierta. Los 28 clics por `map_take` llevaban `decir`, `recuerdo` y un argumento inventado, como la voz real. Fueron 19
+en teclas apiladas de la Calculadora (el incidente del 2026-09-27) y 9 en Configuración. El guion es
+`nivel4-carita.ps1`: solo corre con el PC quieto y vigila también el log de la Ü del dueño.
+
+| Qué | Medido |
+|---|---|
+| clics por el ciclo rápido | 28 de 28 (`⏱ ciclo` en cada uno) |
+| clics dados con visita | todos; los 2 sin visita de una corrida fueron clics no dados («no está», la página aún cargaba) |
+| fantasma al salir | `carita fantasma … exstyle=0x80028` (en capas, encima y 0x20), releído de la ventana |
+| vuelta a casa tocable | 2 de 2 tandas: `carita en casa … exstyle=0x80008` a los 3,5 s |
+| hubo que apartar la carita | 1 vez, 15 ms (`⏱ librar el punto`) |
+| toques de Ü descartados / clics tapados | 0 / 0 |
+| sesiones de voz, en la rama y en la Ü del dueño | 0 y 0 |
+
+### Lo que cuesta la carita: A/B en las mismas condiciones
+
+El mismo guion contra la rama justo antes de la carita (`6cb5fce` + el puerto de la 511), alternando, con la Ü del
+dueño abierta en todas las corridas:
+
+| mediana del ciclo | sin carita | con carita |
+|---|---|---|
+| Calculadora | 140 · 140 ms | 171 · 157 · 156 ms |
+| Configuración | 578 · 907 ms | 750 · 734 · 906 ms |
+
+En la Calculadora la carita cuesta **~16 ms**, un paso del reloj del sistema (15,6 ms), y lo cuesta en «volver a ver»:
+sin ella 94 ms, con ella 125. El clic no cambia. El vuelo arranca justo tras el clic y compite con la lectura de la
+app. En Configuración la diferencia se pierde en el ruido de la propia página (±300 ms entre corridas iguales).
+
+Si esos 16 ms importan, la salida es avisar a la carita después de «volver a ver» y no antes. Llegaría ~100 ms más
+tarde y la 504 cambiaría de enunciado: lo decide el dueño.
+
 ## Lo que NO entra
 
 - **El carrusel** (`EncimaDe`/`VolverASuSitio`) se queda fuera de `Visitar`: es un gesto de la persona, no de Ü. Solo
@@ -97,6 +180,10 @@ encima de B, que es justo el botón vecino del teclado de la Calculadora. La 508
   guarda: otra spec.
 - **SAP.** Sus clics son COM, no ratón: no se pueden robar, y tampoco avisan a la carita. SAP no tendrá visita hasta
   que su superficie dé una caja.
+- **Lo que cuesta el pulso en la escalera.** Con la cara escuchando el pulso, cada clic lento pregunta otra vez a UIA
+  por la caja del elemento (una llamada entre procesos), aunque ya la tenía. Está fuera del ciclo rápido. Arreglarlo es
+  pasar la caja pulsada en vez de volver a preguntarla: otra spec, midiendo el `⏱ TIEMPOS` de la escalera antes y
+  después.
 
 ## Promesas retiradas
 
@@ -106,9 +193,31 @@ encima de B, que es justo el botón vecino del teclado de la Calculadora. La 508
 
 ## Hallazgos
 
+1. **La firma sola no basta.** La sonda 0 midió que tirar un clic firmado no evita que la ventana se active. Sin eso, la
+   508 se habría dado por la guarda completa. De ahí la 510.
+2. **Un plan revisado por dos críticos con evidencia encontró 17 objeciones.** 4 eran altas, y dos de ellas habrían
+   dejado la carita robando clics en la coreografía de lección y con la persona pulsándola. Ninguna prueba escrita hasta
+   entonces las habría visto: todas salían verdes.
+3. **En esta consola, un `<<'EOF'` se come una de cada dos barras invertidas.** Un patrón `\r?\n` escrito así acabó
+   como un retorno de carro real y partió una línea del contrato (commit `1007d1b`). Los scripts con barras invertidas
+   se escriben a archivo, no por heredoc.
+4. **La firma de la sonda (`0x55C11C00`) no es la de producción (`0x0055DC01`).** El mecanismo no depende del valor:
+   lo que se probó es que el gancho lee lo que se mande. En el nivel 4 no hizo falta: ningún clic de Ü cayó en una
+   ventana de Ü, porque el fantasma y la 510 lo evitaron antes.
+5. **La Ü estable del dueño encarece las lecturas de cualquier otra.** Es un build anterior a la 054 y todavía lee la
+   ventana de delante cada 250 ms (≈136 ms por lectura). Con ella abierta, la Configuración de la rama iba a ~750 ms por
+   ciclo contra los 229 de la spec 054. Por eso el A/B se hizo con ella abierta en las dos versiones.
+6. **Con 2 s de quietud, en una app lenta la carita vuelve a casa entre clic y clic.** En Configuración cada ciclo tarda
+   casi un segundo y la carita hace elemento → casa → elemento. `QuietudMs` es una propuesta, no una medida: se ajusta
+   con el dueño.
+7. **Una carpeta de datos nueva se para en la ventana que pide el correo.** La Ü de pruebas quedó viva, sin MCP y sin una
+   línea de log. Hay que sembrar la configuración, con una identidad de prueba y el servidor apuntando a un puerto
+   muerto. `ci-terreno.ps1` arranca igual y tendrá el mismo problema: queda anotado para su dueño.
+
 ## Cierre
 
-- [ ] 504-508 y 510 verdes; 492 retirada con su fila
-- [ ] Sabotaje de cada una, comprobado
+- [x] 504-508, 510 y 511 verdes; 492 retirada con su fila
+- [x] Sabotaje de cada una, comprobado (15 de 15 rojos)
 - [ ] `.\scripts\verificar.ps1` y contrato de u/ en verde
-- [ ] Nivel 4 en Calculadora y Configuración, con el log pegado
+- [x] Nivel 4 en Calculadora y Configuración (arriba), con 0 sesiones de voz
+- [ ] Una sesión de voz del dueño con la carita visitando
