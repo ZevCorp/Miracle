@@ -7,6 +7,8 @@ public final class LiveVoice {
     public var onLevel: ((Double) -> Void)?
     public var onState: ((String) -> Void)?
     public var onText: ((String, Bool) -> Void)?
+    public var onPrivacy: ((String) -> Void)?
+    private var privacy = VoicePrivacyLatch()
     public var onSpeaking: ((Bool) -> Void)?
     public var onError: ((String) -> Void)?
     public var onTool: ((String, [String: String]) async throws -> String)?
@@ -38,6 +40,7 @@ public final class LiveVoice {
     }
     public func start(key: String, model: String = "gpt-live-1", userContext: AssistantContext = .init()) async throws {
         stop()
+        privacy = VoicePrivacyLatch()
         let id = UUID(); epoch = id
         guard await AVCaptureDevice.requestAccess(for: .audio) else { throw AgentError.permission("Micrófono") }
         guard epoch == id, !Task.isCancelled else { throw CancellationError() }
@@ -166,7 +169,15 @@ public final class LiveVoice {
         case "session.output_transcript.delta":
             if let text = event["delta"] as? String { onText?(text, false) }
         case "session.input_transcript.delta":
-            if let text = event["delta"] as? String { onText?(text, true) }
+            if let text = event["delta"] as? String {
+                // Stop locally before forwarding the fragment to any question/tool flow.
+                if privacy.receive(text) {
+                    stop()
+                    onPrivacy?(text)
+                    return
+                }
+                onText?(text, true)
+            }
         case "session.closed": fail("La sesión Live 1 se cerró.")
         case "response.event":
             guard let nested = event["event"] as? [String: Any] else { return }

@@ -2,6 +2,25 @@ import Foundation
 import UCore
 
 extension AgentTests {
+    func testPrivacyStopsEvenWhenTranscriptArrivesInFragments() {
+        for phrase in ["Yu, no me interrumpas", "estoy viendo un vídeo", "estoy hablando con otra persona", "déjame ver el video", "no te estoy hablando", "guarda silencio"] {
+            let chars = Array(phrase)
+            for split in 0...chars.count {
+                var gate = VoicePrivacyLatch()
+                _ = gate.receive(String(chars.prefix(split)))
+                XCTAssertEqual(gate.receive(String(chars.dropFirst(split))), true)
+                XCTAssertEqual(gate.receive("Yu abre el navegador"), true)
+            }
+            XCTAssertEqual(VoiceActivation.isGreeting(phrase), false)
+        }
+        var gate = VoicePrivacyLatch()
+        XCTAssertEqual(gate.receive("Yu, abre el archivo"), false)
+        XCTAssertEqual(gate.receive(" de videos y explícame el contenido"), false)
+        let context = AssistantContext(text: "Mis preferencias conservadas")
+        XCTAssertEqual(context.graphContext.contains("Mis preferencias conservadas"), true)
+        XCTAssertEqual(context.graphContext.contains("No ejecutes acciones a partir de fragmentos"), true)
+    }
+
     func testConversationArchivePreservesHistoryAndRejectsCorruption() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

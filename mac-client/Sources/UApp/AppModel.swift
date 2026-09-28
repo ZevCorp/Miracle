@@ -119,6 +119,14 @@ final class AppModel: ObservableObject {
                 self.microphone = false; self.desktop.stop(); self.startWakeListening()
             }
         }
+        liveVoice.onPrivacy = { [weak self] text in
+            guard let self else { return }
+            if let last = self.messages.indices.last, self.messages[last].user {
+                self.messages[last].text += text
+            } else { self.append(text, user: true) }
+            self.stop()
+            self.status = "En silencio. Llámame cuando me necesites."
+        }
         liveVoice.onText = { [weak self] text, user in
             guard let self else { return }
             if user { self.presentation.receiveUserFragment(text) }
