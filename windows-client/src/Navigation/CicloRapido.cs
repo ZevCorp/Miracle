@@ -41,6 +41,21 @@ public sealed class CicloRapido
     /// <summary>La consulta al tope de intentos antes de pulsar (promesa 204): si devuelve algo, no se pulsa y eso se contesta.</summary>
     public Func<string, string?>? AntesDePulsar { get; set; }
 
+    /// <summary>
+    /// ¿Está libre el punto que se va a pulsar? null = sí; si no, por qué (promesa 510): un clic de Ü no cae sobre una
+    /// ventana de Ü. Es una propiedad y no un parámetro: el contrato construye el ciclo con cinco (485-499).
+    /// </summary>
+    public Func<int, int, string?>? LibrarElPunto { get; set; }
+
+    /// <summary>
+    /// EL AVISO TRAS EL CLIC, con la caja de lo pulsado (promesa 504): la carita va a verlo. Sale después del clic y antes
+    /// de esperar el cambio, y no se le espera: quien lo atiende lo pasa al hilo de la interfaz.
+    /// </summary>
+    public Action<Caja>? TrasPulsar { get; set; }
+
+    /// <summary>Por qué reventó el último aviso, o vacío. El clic no se entera; el log sí (patrón nº3: nada de catch mudo).</summary>
+    public string AvisoFallido { get; private set; } = "";
+
     /// <summary>Del último Pulsar: si se pulsó algo, si la pantalla cambió, y lo que costó cada parte.</summary>
     public bool Pulso { get; private set; }
     public bool Cambio { get; private set; }
@@ -70,7 +85,7 @@ public sealed class CicloRapido
     public string? Pulsar(string exit, int cual)
     {
         Pulso = false; Cambio = false; Pulsado = ""; ClaveDelPulsado = ""; Tiempos = default;
-        PorQueNo = "";
+        PorQueNo = ""; AvisoFallido = "";
         if (!QueSePide(exit, out string nombre, out string tipo)) { PorQueNo = "no es un clic por nombre en UIA"; return null; }
         IntPtr v = _ventana();
         if (v == IntPtr.Zero) { PorQueNo = "no hay ventana de trabajo delante (ni se pudo traer)"; return null; }
@@ -107,9 +122,14 @@ public sealed class CicloRapido
 
         long msVer = _reloj() - t0;
         var (x, y) = Raton.Centro(el.Caja);
+        // UN CLIC DE Ü NO CAE SOBRE UNA VENTANA DE Ü (promesa 510). La firma (508) evita que abra la voz, pero no que la
+        // ventana se active ni que el clic se pierda: se mira antes, y si está tapado, se dice y no se pulsa.
+        if (LibrarElPunto?.Invoke(x, y) is { Length: > 0 } tapado) return $"no pulsé «{el.Nombre}»: {tapado}.";
         long tc = _reloj();
         _clic(x, y);
         long msClic = _reloj() - tc;
+        try { TrasPulsar?.Invoke(el.Caja); }
+        catch (Exception e) { AvisoFallido = $"{e.GetType().Name}: {e.Message}"; }
 
         Lectura despues = antes;
         var a = Asentado.Esperar(() => { despues = Leer(v); return despues.Huella; }, antes.Huella, Asentado.TechoTras(el.Tipo), _reloj);

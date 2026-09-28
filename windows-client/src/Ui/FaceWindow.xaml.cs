@@ -211,6 +211,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // es lo que convierte «lo veo» en algo comprobable: si se planta junto a otra cosa, se ve al
         // instante. Es la misma idea que el recuadro, dicha con el cuerpo (2026-08-05).
         Senalador.Senala += (caja, _) => Dispatcher.BeginInvoke(() => Visitar(caja));
+        // Y A LO QUE Ü PULSA (promesa 504): el ciclo rápido, la mano rápida y la escalera avisan por el mismo pulso, con la
+        // caja del elemento y después del clic. Se atiende con BeginInvoke: quien pulsa no espera a la carita.
+        U.Graph.Surfaces.UiaSurface.Pulso += (x, y, w, h) => Dispatcher.BeginInvoke(() => Visitar(new Rect(x, y, w, h)));
 
         // ILUMINAR ES PARA QUIEN MIRA, NO PARA QUIEN PROGRAMA. El recuadro se pintaba solo desde
         // GraphExplorerWindow —la ventana del grafo, una herramienta de desarrollo— así que señalar
@@ -837,12 +840,21 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                         return v == delante || U.Graph.Surfaces.UiaSurface.EstaDelante(v) || U.Graph.Surfaces.UiaSurface.TraerAlFrente(v) ? v : IntPtr.Zero;
                     },
                     v => { var l = _lectorRapido.Leer(v); _ultimaLectura = (l, Environment.TickCount64); return l; },
-                    // El ratón real y nada más: sin avisar a la carita (promesa 492), que se posaba sobre el clic siguiente.
+                    // El ratón real y nada más. La carita se entera DESPUÉS, por TrasPulsar (promesa 504).
                     (x, y) => U.Ciclo.Raton.Clic(x, y),
                     () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
                     () => Environment.TickCount64)
                 // SAP es UNA regla, su proceso (promesa 498): la misma para pulsar, mirar y esperar tras escribir.
-                { Titulo = U.Graph.Surfaces.UiaSurface.TituloDe, EsSap = Uia.Sap.EsVentana };
+                {
+                    Titulo = U.Graph.Surfaces.UiaSurface.TituloDe, EsSap = Uia.Sap.EsVentana,
+                    // LA CARITA VA DESPUÉS DEL CLIC (promesa 504), por el mismo pulso que las otras manos. El ciclo no la
+                    // espera: la cara lo atiende con BeginInvoke, y si el aviso revienta el clic no se entera.
+                    TrasPulsar = c => U.Graph.Surfaces.UiaSurface.AvisarDelPulso(c.X, c.Y, c.Ancho, c.Alto),
+                    // Y NO PULSA SOBRE Ü (promesa 510): si bajo el punto está la carita, se aparta —fantasma— y se pulsa;
+                    // si es otra ventana de Ü, no se pulsa y se dice cuál. Solo espera a la interfaz cuando la tapa la carita.
+                    LibrarElPunto = (x, y) => ReglaDeLaVisita.LibrarElPunto(() => VentanasDeU.Bajo(x, y), VentanasDeU.EsDeU,
+                        _hwndCarita, () => Dispatcher.Invoke(() => _visita.Salir()), VentanasDeU.Nombre),
+                };
                 // MIRAR COMO u/ (promesa 495): la ventana de delante, con sus textos, por el mismo ciclo —el clic siguiente
                 // reutiliza esta lectura—. SAP no: UIA solo ve un panel opaco, y su lector de siempre lee el dynpro.
                 mcp.Map.LoQueVeoRapido = () =>
@@ -876,6 +888,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     {
                         var t = ciclo.Tiempos;
                         LogBus.Log("mano", $"⏱ ciclo «{ciclo.Pulsado}»: ver {t.Ver} ms · clic {t.Clic} ms · volver a ver {t.Esperar} ms ({t.Lecturas} lectura(s), {(ciclo.Cambio ? "cambió" : "no cambió")})");
+                        if (ciclo.AvisoFallido.Length > 0) LogBus.Log("mano", $"el aviso a la carita reventó y el clic no se enteró: {ciclo.AvisoFallido}");
                     }
                     return r == null ? null : (r, ciclo.Pulso ? ciclo.Cambio : null, ciclo.ClaveDelPulsado);
                 };
@@ -1661,6 +1674,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        // El HWND de la carita, para quien mira bajo un clic desde el hilo que pulsa (promesa 510): allí no se toca WPF.
+        _hwndCarita = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         _hotkeys.Attach(this, InvocarPorAtajo, MicPorAtajo);
         Closed += (_, __) => _hotkeys.Dispose();
         // El atajo que quedó ACTIVO —no el que se pretendía— lo dice HotkeyStatus, dentro del panel.
@@ -1942,6 +1957,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     }
 
     private readonly EstanciaDeLaCarita _visita;
+    private IntPtr _hwndCarita;
 
     // --- Recordar dónde dejó el usuario la barra ---
     //
