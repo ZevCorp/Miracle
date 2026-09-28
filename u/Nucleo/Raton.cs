@@ -36,14 +36,27 @@ public static class Raton
     public static IReadOnlyList<string> Gesto(int x, int y) =>
         new[] { $"mover {x},{y}", "izquierdo abajo", "izquierdo arriba" };
 
+    /// <summary>
+    /// LA FIRMA DE Ü en <c>dwExtraInfo</c> (promesa 508, spec 061): lo que las ventanas de Ü leen para saber que un clic lo
+    /// mandó Ü y no la persona. Sin ella, un clic de Ü que caía en la carita abría la voz de pago —cinco veces el
+    /// 2026-09-27—. No choca con la de WPF para el lápiz (0xFF5157xx). UiaSurface.FirmaDeU tiene el mismo valor y el
+    /// contrato lo comprueba: son dos literales porque windows-graph no conoce a u/.
+    /// </summary>
+    public static readonly IntPtr Firma = (IntPtr)0x0055DC01;
+
+    /// <summary>¿Lo mandó Ü? Solo mira la firma: el resto de lo inyectado (otros programas) es de la persona.</summary>
+    public static bool EsDeU(IntPtr extra) => extra == Firma;
+
+    /// <summary>Lo que un clic manda, dicho: bajar y subir el izquierdo, los dos firmados. Es lo que juzga la 508.</summary>
+    public static IReadOnlyList<(uint Flags, IntPtr Extra)> EntradasDelClic() =>
+        new[] { (IzquierdoAbajo, Firma), (IzquierdoArriba, Firma) };
+
     public static void Clic(int x, int y)
     {
         SetCursorPos(x, y);
-        var e = new INPUT[]
-        {
-            new() { Tipo = 0, U = new UNION { M = new MOUSEINPUT { Flags = IzquierdoAbajo } } },
-            new() { Tipo = 0, U = new UNION { M = new MOUSEINPUT { Flags = IzquierdoArriba } } },
-        };
+        var e = EntradasDelClic()
+            .Select(p => new INPUT { Tipo = 0, U = new UNION { M = new MOUSEINPUT { Flags = p.Flags, Extra = p.Extra } } })
+            .ToArray();
         SendInput((uint)e.Length, e, Marshal.SizeOf<INPUT>());
     }
 
@@ -65,7 +78,7 @@ public static class Raton
         SetCursorPos(x, y);
         var e = Enumerable.Range(0, Math.Abs(muescas)).Select(_ => new INPUT
         {
-            Tipo = 0, U = new UNION { M = new MOUSEINPUT { Flags = Rueda, Datos = unchecked((uint)(Math.Sign(muescas) * (int)UnaMuesca)) } },
+            Tipo = 0, U = new UNION { M = new MOUSEINPUT { Flags = Rueda, Datos = unchecked((uint)(Math.Sign(muescas) * (int)UnaMuesca)), Extra = Firma } },
         }).ToArray();
         if (e.Length > 0) SendInput((uint)e.Length, e, Marshal.SizeOf<INPUT>());
     }

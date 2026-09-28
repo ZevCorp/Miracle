@@ -74,6 +74,12 @@ public sealed class UiaSurface : IUiSurface
     // del código. La ejecución por coordenadas es el espejo de cómo se graba (por posición).
     [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, IntPtr dwExtraInfo);
+
+    /// <summary>
+    /// La firma de Ü en dwExtraInfo (promesa 508, spec 061): el mismo valor que U.Ciclo.Raton.Firma, que esta capa no
+    /// puede ver. Con ella, ninguna ventana de Ü toma un clic de Ü por un toque de la persona.
+    /// </summary>
+    public const long FirmaDeU = 0x0055DC01;
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
     [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr hWnd);
@@ -116,8 +122,8 @@ public sealed class UiaSurface : IUiSurface
         if (!RealClick(el, out error, permitirSelect: false)) return false;
 
         System.Threading.Thread.Sleep(60);
-        mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, IntPtr.Zero);
-        mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, IntPtr.Zero);
+        mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, (IntPtr)FirmaDeU);
+        mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, (IntPtr)FirmaDeU);
         L("    → segundo clic del doble (mismo punto, sin recolocar)");
         return true;
     }
@@ -1055,8 +1061,8 @@ public sealed class UiaSurface : IUiSurface
                 {
                     SmoothMove(x, y);
                     Thread.Sleep(20);
-                    mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, IntPtr.Zero);
-                    mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, IntPtr.Zero);
+                    mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, (IntPtr)FirmaDeU);
+                    mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, (IntPtr)FirmaDeU);
                     return true;
                 }
                 catch (Exception e) { error = $"fallback por posición falló: {e.Message}"; }
@@ -1228,11 +1234,11 @@ public sealed class UiaSurface : IUiSurface
         int notch = delta > 0 ? 120 : -120, remaining = delta, guard = 0;
         while (Math.Abs(remaining) >= 120 && guard++ < 400)
         {
-            mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (uint)notch, IntPtr.Zero);
+            mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (uint)notch, (IntPtr)FirmaDeU);
             Thread.Sleep(12);
             remaining -= notch;
         }
-        if (remaining != 0) mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (uint)remaining, IntPtr.Zero);
+        if (remaining != 0) mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (uint)remaining, (IntPtr)FirmaDeU);
         return true;
     }
 
@@ -1637,8 +1643,8 @@ public sealed class UiaSurface : IUiSurface
             int cx = (int)(r.Left + r.Width / 2), cy = (int)(r.Top + r.Height / 2);
             SmoothMove(cx, cy);
             Thread.Sleep(30);
-            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, IntPtr.Zero);
-            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, IntPtr.Zero);
+            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, (IntPtr)FirmaDeU);
+            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, (IntPtr)FirmaDeU);
             L($"    → clic DERECHO en ({cx},{cy})");
             return true;
         }
@@ -2024,8 +2030,8 @@ public sealed class UiaSurface : IUiSurface
                 L($"    → clic físico en ({(int)cx},{(int)cy})");
                 SmoothMove((int)cx, (int)cy);
                 Thread.Sleep(20);
-                mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, IntPtr.Zero);
-                mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, IntPtr.Zero);
+                mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, (IntPtr)FirmaDeU);
+                mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, (IntPtr)FirmaDeU);
 
                 // ¿AGARRÓ? Solo se puede preguntar en lo seleccionable, y ahí basta: si tras el clic
                 // real el elemento no quedó seleccionado, esta app ignora el ratón sintético y hay
