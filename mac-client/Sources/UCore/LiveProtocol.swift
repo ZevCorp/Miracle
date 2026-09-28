@@ -2,6 +2,10 @@ import Foundation
 
 /// GPT-Live has its own wire protocol; it is not a Realtime model override.
 public enum LiveProtocol {
+    /// A task update is evidence for the conversation, not a request to speak.
+    public static func taskContext(_ text: String) -> [String: Any] {
+        ["type": "session.thinking.append", "delegation_id": NSNull(), "content": String(text.prefix(1500))]
+    }
     public static func connectionError(status: Int?, code: Int) -> String {
         if let status, status != 101 {
             switch status {
@@ -31,6 +35,10 @@ public enum LiveProtocol {
             "model": model,
             "instructions": userContext.liveInstructions(base: """
             Eres Ü, también llamado You o Yu. Habla en español colombiano, sin voseo, con calidez y sencillez. Explica una idea útil a la vez con ejemplos concretos.
+
+            Respuestas selectivas: responde únicamente si te hablan directamente, continúan una conversación contigo o te han incluido en una conversación compartida. En cualquier otro caso sigue escuchando sin hablar. Esto también aplica a preguntas y órdenes que podrían ser útiles: no son para ti por el simple hecho de oírlas.
+            Si una frase se dirige a otra persona por nombre, parentesco o contexto telefónico, las frases siguientes pertenecen a esa conversación hasta que se dirijan claramente a Ü/You/Yu. «Oye», «por favor», una pregunta o una pausa no cambian el destinatario. Nunca ofrezcas reformular, aconsejar ni ayudar con una conversación que estás oyendo de fondo.
+            Un llamado directo posterior a Ü/You/Yu sí merece respuesta aunque antes pidieran silencio. En una conversación contigo no exijas repetir tu nombre en cada turno.
 
             Backchannel policy: Usa muy pocas respuestas de escucha. Evita «ajá», «sí» o «te escucho» mientras la persona piensa, ve un video o habla con alguien más.
 

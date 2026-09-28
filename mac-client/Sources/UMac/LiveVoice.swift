@@ -122,7 +122,7 @@ public final class LiveVoice {
         try await send(["type": "response.create"])
     }
     public func notify(_ text: String) async throws {
-        try await send(["type": "session.commentary.append", "delegation_id": NSNull(), "content": String(text.prefix(1500))])
+        try await send(LiveProtocol.taskContext(text))
         // Wake the planner only after outstanding tool results have been returned.
         try await send(["type": "response.item.create", "item": ["type": "message", "role": "developer", "content": [["type": "input_text", "text": String(text.prefix(6000))]]]])
         continuationNeeded = true

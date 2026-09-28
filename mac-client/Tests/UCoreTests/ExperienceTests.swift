@@ -2,6 +2,14 @@ import Foundation
 import UCore
 
 extension AgentTests {
+    func testTaskUpdatesInformWithoutDemandingSpeech() {
+        let event = LiveProtocol.taskContext("Video abierto; reproducción no comprobada")
+        XCTAssertEqual(event["type"] as? String, "session.thinking.append")
+        XCTAssertEqual(event["content"] as? String, "Video abierto; reproducción no comprobada")
+        XCTAssertEqual(event["delegation_id"] is NSNull, true)
+        XCTAssertEqual(AssistantContext.principles.contains("conversación compartida"), true)
+    }
+
     func testLiveUsesNativeConversationPolicy() {
         let session = LiveProtocol.start()["session"] as! [String: Any]
         let prompt = session["instructions"] as! String
