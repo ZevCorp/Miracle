@@ -1,5 +1,7 @@
 # Atención contextual de voz — 2026-09-27
 
+> Registro histórico: la política de corte local y el modo protegido se retiraron por petición del usuario. Véase LIVE-NATIVE.md para el comportamiento vigente.
+
 ## Fuentes y decisión
 
 - Apple Core Audio: kAudioHardwarePropertyProcessObjectList y

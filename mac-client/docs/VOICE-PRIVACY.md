@@ -1,5 +1,7 @@
 # Privacidad de voz — 2026-09-27
 
+> Registro histórico: la política de corte local y el modo protegido se retiraron por petición del usuario. Véase LIVE-NATIVE.md para el comportamiento vigente.
+
 ## Problema observado en código
 
 LiveVoice enviaba PCM ambiente durante toda la sesión. Sus instrucciones pedían silencio,

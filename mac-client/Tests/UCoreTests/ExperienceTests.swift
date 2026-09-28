@@ -2,43 +2,22 @@ import Foundation
 import UCore
 
 extension AgentTests {
-    func testAudioContextProtectsMediaCallsAndUnknownState() {
-        let own = AudioActivity(pid: 7, input: true, output: true)
-        XCTAssertEqual(VoiceEnvironment.evaluate([own], ownPID: 7), .quiet)
-        XCTAssertEqual(VoiceEnvironment.evaluate([own, .init(pid: 8, input: false, output: true)], ownPID: 7), .otherAudio)
-        XCTAssertEqual(VoiceEnvironment.evaluate([.init(pid: 8, input: true, output: false)], ownPID: 7), .otherAudio)
-        XCTAssertEqual(VoiceEnvironment.evaluate([.init(pid: 8, input: false, output: false)], ownPID: 7), .quiet)
-        XCTAssertEqual(VoiceEnvironment.evaluate(nil, ownPID: 7), .unknown)
-        XCTAssertEqual(VoiceEnvironment.unknown.inputMode, .addressedText)
-        XCTAssertEqual(VoiceEnvironment.otherAudio.inputMode, .addressedText)
-        XCTAssertEqual(VoiceEnvironment.quiet.inputMode, .microphone)
-        for text in ["abre el navegador", "él dijo hola Yu", "mira ese video", "YouTube", "oye amor ven"] {
-            XCTAssertEqual(LiveInputMode.addressedText.acceptsLocalUtterance(text), false)
+    func testLiveUsesNativeConversationPolicy() {
+        let session = LiveProtocol.start()["session"] as! [String: Any]
+        let prompt = session["instructions"] as! String
+        for heading in ["Backchannel policy:", "Interruption policy:", "Delegation policy:"] {
+            XCTAssertEqual(prompt.contains(heading), true)
         }
-        for text in ["Yu abre el navegador", "Hola You, te necesito", "Oye Ü, explícame esto"] {
-            XCTAssertEqual(LiveInputMode.addressedText.acceptsLocalUtterance(text), true)
-        }
-        XCTAssertEqual(LiveInputMode.addressedText.forwardsMicrophone, false)
-        XCTAssertEqual(LiveInputMode.microphone.forwardsMicrophone, true)
-    }
-
-    func testPrivacyStopsEvenWhenTranscriptArrivesInFragments() {
-        for phrase in ["Yu, no me interrumpas", "estoy viendo un vídeo", "estoy hablando con otra persona", "déjame ver el video", "no te estoy hablando", "guarda silencio"] {
-            let chars = Array(phrase)
-            for split in 0...chars.count {
-                var gate = VoicePrivacyLatch()
-                _ = gate.receive(String(chars.prefix(split)))
-                XCTAssertEqual(gate.receive(String(chars.dropFirst(split))), true)
-                XCTAssertEqual(gate.receive("Yu abre el navegador"), true)
-            }
-            XCTAssertEqual(VoiceActivation.isGreeting(phrase), false)
-        }
-        var gate = VoicePrivacyLatch()
-        XCTAssertEqual(gate.receive("Yu, abre el archivo"), false)
-        XCTAssertEqual(gate.receive(" de videos y explícame el contenido"), false)
-        let context = AssistantContext(text: "Mis preferencias conservadas")
-        XCTAssertEqual(context.graphContext.contains("Mis preferencias conservadas"), true)
-        XCTAssertEqual(context.graphContext.contains("No ejecutes acciones a partir de fragmentos"), true)
+        XCTAssertNil(session["turn_detection"])
+        XCTAssertEqual(session["model"] as? String, "gpt-live-1")
+        XCTAssertEqual(VoiceActivation.isGreeting("Hola me escuchas"), true)
+        XCTAssertEqual(VoiceActivation.isGreeting("Hola, ¿estás ahí?"), true)
+        XCTAssertEqual(VoiceActivation.isGreeting("hola me escuchas dijo Juan"), false)
+        XCTAssertEqual(VoiceActivation.isGreeting("hola"), false)
+        XCTAssertEqual(VoiceActivation.isGreeting("You, hola, ¿me escuchas?"), true)
+        XCTAssertEqual(VoiceActivation.isGreeting("Hola Ü, te necesito"), true)
+        XCTAssertEqual(VoiceActivation.isGreeting("Oye Yu, ayúdame"), true)
+        XCTAssertEqual(VoiceActivation.isGreeting("estaba viendo YouTube"), false)
     }
 
     func testConversationArchivePreservesHistoryAndRejectsCorruption() throws {

@@ -19,9 +19,8 @@ struct ContractRunner {
     @MainActor static func main() async throws {
         let tests = AgentTests()
         try tests.testConversationArchivePreservesHistoryAndRejectsCorruption()
-        tests.testAudioContextProtectsMediaCallsAndUnknownState()
+        tests.testLiveUsesNativeConversationPolicy()
         tests.testWakeGreetingRequiresDirectAddress()
-        tests.testPrivacyStopsEvenWhenTranscriptArrivesInFragments()
         try await tests.testCredentialReadsSharePendingWorkAndCacheSuccess()
         try await tests.testGraphWireContractAndQuestionContinuation()
         try await tests.testTurnLimitNeverReportsSuccess()
@@ -49,6 +48,6 @@ struct ContractRunner {
         try tests.testMemoryNeverTurnsRememberedIntoLive()
         try tests.testMemoryRoutesOnlyThroughObservedEdges()
         try await tests.testMemoryPersistenceAndCorruptionAreExplicit()
-        print("PASS: 31 contracts, \(checks) assertions. No network, microphone or desktop access.")
+        print("PASS: 30 contracts, \(checks) assertions. No network, microphone or desktop access.")
     }
 }

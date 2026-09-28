@@ -7,13 +7,6 @@ public final class LiveVoice {
     public var onLevel: ((Double) -> Void)?
     public var onState: ((String) -> Void)?
     public var onText: ((String, Bool) -> Void)?
-    public var onPrivacy: ((String) -> Void)?
-    private var privacy = VoicePrivacyLatch()
-    public private(set) var inputMode: LiveInputMode = .microphone
-    private var hasProtectedRequest = false
-    public private(set) var inputAudioBytesSent = 0
-    public private(set) var outputAudioBytesPlayed = 0
-    public private(set) var audibleOutputBytesPlayed = 0
     public var onSpeaking: ((Bool) -> Void)?
     public var onError: ((String) -> Void)?
     public var onTool: ((String, [String: String]) async throws -> String)?
@@ -43,15 +36,10 @@ public final class LiveVoice {
         }
         audio.onSpeaking = { [weak self] speaking in self?.onSpeaking?(speaking) }
     }
-    public func start(key: String, model: String = "gpt-live-1", userContext: AssistantContext = .init(), inputMode: LiveInputMode = .microphone) async throws {
+    public func start(key: String, model: String = "gpt-live-1", userContext: AssistantContext = .init()) async throws {
         stop()
-        privacy = VoicePrivacyLatch()
-        self.inputMode = inputMode; hasProtectedRequest = false
-        inputAudioBytesSent = 0; outputAudioBytesPlayed = 0; audibleOutputBytesPlayed = 0
         let id = UUID(); epoch = id
-        if inputMode.forwardsMicrophone {
-            guard await AVCaptureDevice.requestAccess(for: .audio) else { throw AgentError.permission("Micrófono") }
-        }
+        guard await AVCaptureDevice.requestAccess(for: .audio) else { throw AgentError.permission("Micrófono") }
         guard epoch == id, !Task.isCancelled else { throw CancellationError() }
         onState?("Conectando la voz…")
         apiKey = key
@@ -93,38 +81,19 @@ public final class LiveVoice {
         guard epoch == id, !connected else { return }
         let stream = AsyncStream<Data>(bufferingPolicy: .bufferingNewest(16)) { frames = $0 }
         let continuation = frames!
-        if inputMode.forwardsMicrophone {
-            try audio.start(onPCM: { data in continuation.yield(data) }, onError: { [weak self] reason in
-                Task { @MainActor in if self?.epoch == id { self?.fail(reason) } }
-            })
-        } else { try audio.startPlaybackOnly() }
+        try audio.start(onPCM: { data in continuation.yield(data) }, onError: { [weak self] reason in
+            Task { @MainActor in if self?.epoch == id { self?.fail(reason) } }
+        })
         connected = true; timeout?.cancel(); timeout = nil
-        onState?(inputMode.forwardsMicrophone ? "Conversación en vivo" : "Modo protegido: di Ü al comenzar cada petición.")
+        onState?("Conversación en vivo")
         sender = Task { [weak self] in
-            if self?.inputMode == .addressedText {
-                // Live's audio clock must continue even when room audio is withheld.
-                let silence = Data(repeating: 0, count: 4800).base64EncodedString()
-                while !Task.isCancelled {
-                    guard let self, self.epoch == id else { return }
-                    do {
-                        try await self.send(["type": "session.input_audio.append", "audio": silence])
-                        try await Task.sleep(nanoseconds: 100_000_000)
-                    } catch {
-                        if self.epoch == id && !Task.isCancelled { self.fail("Se interrumpió el canal de voz protegido.") }
-                        return
-                    }
-                }
-                return
-            }
             for await data in stream {
                 guard let self, self.epoch == id, !Task.isCancelled else { return }
                 do {
                     let chunk = try LiveAudioChunk(data)
                     self.inputLevel = chunk.level
                     self.onLevel?(max(self.inputLevel, self.outputLevel))
-                    guard self.inputMode.forwardsMicrophone else { continue }
                     try await self.send(["type": "session.input_audio.append", "audio": data.base64EncodedString()])
-                    self.inputAudioBytesSent += data.count
                 }
                 catch { if self.epoch == id { self.fail("No pude enviar el audio. La conversación se cerró.") }; return }
             }
@@ -149,7 +118,6 @@ public final class LiveVoice {
     }
     public func text(_ text: String) async throws {
         guard connected else { throw AgentError.unavailable("La conversación todavía no está conectada.") }
-        hasProtectedRequest = true
         try await send(["type": "response.item.create", "item": ["type": "message", "role": "user", "content": [["type": "input_text", "text": text]]]])
         try await send(["type": "response.create"])
     }
@@ -189,29 +157,16 @@ public final class LiveVoice {
     }
     private func handle(_ bytes: Data, epoch id: UUID) async throws {
         guard let event = try JSONSerialization.jsonObject(with: bytes) as? [String: Any], let type = event["type"] as? String else { return }
-        if inputMode == .addressedText && !hasProtectedRequest &&
-            ["session.output_audio.delta", "session.output_transcript.delta", "response.event"].contains(type) { return }
         switch type {
         case "session.started":
             do { try startAudio(epoch: id) }
             catch { fail("Live 1 conectó, pero no pude iniciar el audio del Mac: " + error.localizedDescription) }
         case "session.output_audio.delta":
-            if let value = event["delta"] as? String, let data = Data(base64Encoded: value) {
-                try audio.play(data); outputAudioBytesPlayed += data.count
-                if try LiveAudioChunk(data).level > 0.001 { audibleOutputBytesPlayed += data.count }
-            }
+            if let value = event["delta"] as? String, let data = Data(base64Encoded: value) { try audio.play(data) }
         case "session.output_transcript.delta":
             if let text = event["delta"] as? String { onText?(text, false) }
         case "session.input_transcript.delta":
-            if let text = event["delta"] as? String {
-                // Stop locally before forwarding the fragment to any question/tool flow.
-                if privacy.receive(text) {
-                    stop()
-                    onPrivacy?(text)
-                    return
-                }
-                onText?(text, true)
-            }
+            if let text = event["delta"] as? String { onText?(text, true) }
         case "session.closed": fail("La sesión Live 1 se cerró.")
         case "response.event":
             guard let nested = event["event"] as? [String: Any] else { return }
