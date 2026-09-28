@@ -2,7 +2,8 @@ namespace U.Graph.Surfaces;
 
 /// <summary>
 /// CÓMO VIAJA LA CARITA HASTA EL CLIC: qué avisa, cuándo merece la pena moverse, cuánto dura el viaje
-/// y con qué curva. Promesa 240 (spec 022). Pura.
+/// y con qué curva. Era la promesa 240 (spec 022), retirada en la 054 porque la carita se posaba sobre el clic
+/// siguiente de Ü. Se queda para cuando vuelva a viajar, detrás de una guarda que lo impida. Pura.
 /// </summary>
 /// <remarks>
 /// LA CARITA DEJÓ DE ACOMPAÑAR A LA MANO JUSTO CUANDO LA MANO MEJORÓ. Hasta la spec 020 casi todos los

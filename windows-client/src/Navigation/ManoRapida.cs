@@ -11,7 +11,7 @@ namespace U.WindowsClient.Navigation;
 /// (el físico típico, ~560 ms; el peor, más de 1,8 s). La lectura rápida de u/ ya tiene la caja de cada elemento
 /// visible: si lo pedido es UNO solo de ellos, el clic es el ratón real en su centro y nada más.
 ///
-/// LO QUE NO SE PIERDE: la carita viaja (UiaSurface.Pulso, promesa 240), el cursor se cuenta, el freno manda
+/// LO QUE NO SE PIERDE: el pulso se avisa (UiaSurface.Pulso; desde la 492 no lo escucha nadie), el cursor se cuenta, el freno manda
 /// (promesa 27). Y la escalera no se tira: lo MISMO pedido otra vez en menos de 3 s —el ensayo del doble o la
 /// repetición de PulsarSegunElNucleo, que solo ocurren cuando el primer clic no cambió nada— va por la mano de
 /// siempre. Es el aprendizaje nº19 al pie de la letra: actuar con el clic real primero y, si no agarró, el patrón.

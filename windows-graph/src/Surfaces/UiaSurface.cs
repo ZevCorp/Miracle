@@ -128,7 +128,8 @@ public sealed class UiaSurface : IUiSurface
 
     /// <summary>
     /// DÓNDE ACABA DE CAER UN CLIC de la mano: la caja del elemento en píxeles físicos (x, y, ancho,
-    /// alto), como los da UIA. La carita lo escucha para ir a plantarse al lado (promesa 240).
+    /// alto), como los da UIA. Era lo que la carita escuchaba para ir a plantarse al lado (promesa 240); desde la
+    /// 492 (spec 054) no lo escucha nadie, y se conserva para cuando vuelva a viajar.
     /// </summary>
     /// <remarks>
     /// Hace falta aparte de <see cref="CursorMoved"/>, que solo emite cuando el ratón se mueve DE
@@ -139,8 +140,8 @@ public sealed class UiaSurface : IUiSurface
     public static event Action<double, double, double, double>? Pulso;
 
     /// <summary>
-    /// Cuenta un clic que dio OTRA mano —la rápida de Ü desde cero, spec 053—: la carita tiene que viajar igual
-    /// (promesa 240), y el evento solo se podía invocar desde aquí.
+    /// Cuenta un clic que dio OTRA mano —la rápida de Ü desde cero, spec 053—: el pulso es el mismo venga de la mano
+    /// que venga, y el evento solo se podía invocar desde aquí.
     /// </summary>
     public static void AvisarDelPulso(double x, double y, double ancho, double alto)
     {
@@ -1144,7 +1145,7 @@ public sealed class UiaSurface : IUiSurface
                 _ => Fail($"actionType no soportado en UIA: {step.ActionType}", out error),
             };
             L($"  resultado acción: ok={ok}{(ok ? "" : $" · motivo='{error}'")}");
-            // LA CARITA VA A DONDE SE PULSÓ (promesa 240). Un solo sitio para los tres clics: aquí pasan
+            // EL PULSO SE AVISA DONDE SE PULSÓ (era la promesa 240; desde la 492 nadie lo escucha). Un solo sitio para los tres clics: aquí pasan
             // el simple, el doble y el derecho, vengan del plan o de la mano suelta.
             if (ok && ComoViajaLaCarita.EsClic(step.ActionType ?? "")) AvisarDelPulso(el);
             if (!ok && flexible) { L("  flexible → se salta pese al fallo (ok)"); error = ""; return true; }

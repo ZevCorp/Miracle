@@ -3007,20 +3007,6 @@ public sealed class SurfaceMapTools
         catch { return 0; }
     }
 
-    /// <summary>Espera a que la superficie DEJE de ser la de partida y devuelve la nueva, o "".</summary>
-    private string EsperarCambio(string desde, int msMax)
-    {
-        for (int i = 0; i < msMax / 80; i++)
-        {
-            System.Threading.Thread.Sleep(80);
-            string ahora = _where()?.Id ?? "";
-            if (ahora.Length > 0 && !string.Equals(ahora, desde, StringComparison.OrdinalIgnoreCase)
-                && !ahora.EndsWith("/ventana", StringComparison.OrdinalIgnoreCase))
-                return ahora;
-        }
-        return "";
-    }
-
     /// <summary>Espera a que la superficie sea la esperada. La UI tarda; la paciencia va aquí.</summary>
     private bool Llego(string esperada, int msMax)
     {

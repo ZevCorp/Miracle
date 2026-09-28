@@ -1403,7 +1403,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
         // La carita YA NO sigue al cursor automatizado ni viaja a cada clic (spec 054, promesa 492): se posaba ~80 px
         // sobre el clic y el siguiente clic de Ü caía en ella, que abre la voz de pago — 5 sesiones en un día de pruebas
-        // (2026-09-27). OnAutomationCursorMoved y OnManoPulso siguen aquí; su conexión vive en 334f144.
+        // (2026-09-27). OnAutomationCursorMoved y OnManoPulso se borraron en la fase 5 de la 054; viven en 334f144.
 
         // La voz ya dice cuándo está escuchando y cuándo hablando (antes no lo decía nadie y la UI lo
         // simulaba escribiendo «Escuchando…» y cruzando los dedos). Llega desde el hilo del motor de
@@ -1885,7 +1885,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     }
 
     /// <summary>
-    /// EL VIAJE AL CLIC (promesa 240): como <see cref="MoverConMuelle"/> pero con la curva y los
+    /// EL VIAJE AL CLIC (era la promesa 240, retirada en la 054). Hoy no lo llama nadie —IrJuntoA ya no recibe
+    /// <c>alClic</c>—, y se queda porque la carita volverá a ir a cada elemento, que es lo que pide el dueño. Como <see cref="MoverConMuelle"/> pero con la curva y los
     /// tiempos de <see cref="ComoViajaLaCarita"/> —más corta, y sin el rebote del lanzamiento—.
     ///
     /// No se reutiliza el muelle de lanzar porque esto pasa en CADA clic: 720 ms con rebote está bien
@@ -1909,8 +1910,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     // la carita. Los otros dos orígenes se ignoran a propósito:
     //   · OnSizeChanged mueve la ventana cada vez que se abre el menú o el globo — eso es layout, no
     //     intención, y guardarlo desplazaría la barra un poco en cada arranque.
-    //   · OnAutomationCursorMoved la mueve DECENAS DE VECES POR SEGUNDO mientras corre un workflow;
-    //     persistir eso dejaría la barra en un punto aleatorio de SAP el próximo arranque.
+    //   · El seguimiento del cursor automatizado la movía DECENAS DE VECES POR SEGUNDO mientras corría un
+    //     workflow; persistir eso dejaba la barra en un punto aleatorio de SAP. Ya no existe (spec 054), y la
+    //     regla se queda para cuando la carita vuelva a viajar.
 
     private System.Windows.Threading.DispatcherTimer? _saveTimer;
 
@@ -1964,10 +1966,6 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             StopBtn.Visibility == Visibility.Visible ||
             RestartTeachBtn.Visibility == Visibility.Visible
                 ? Visibility.Visible : Visibility.Collapsed;
-
-    // --- La carita sigue al cursor automatizado (solo colapsada) ---
-
-    private long _lastFollowMs;
 
     // --- Colapsar / expandir: la carita alterna entre la barra y solo ella misma ---
 
@@ -5730,7 +5728,6 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
         LogBus.Log("aprendizajes", $"mostrando «{skill.Nombre}»: {pasos.Count} paso(s) de {skill.Pasos.Count}");
         await PrestarLaVozAlPilotoAsync("aprendizajes");
-        _mapaDeMano.SenalarAlActuar = true;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         ShowStop(true);
         SetWorking(true);
@@ -5756,7 +5753,6 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         finally
         {
             SetWorking(false); ShowStop(false);
-            _mapaDeMano.SenalarAlActuar = false;
             _mapaDeMano.Decir = null;
             await DevolverLaVozAsync("aprendizajes");
         }
