@@ -1,6 +1,6 @@
 # Migración de experiencia Windows → Mac
 
-Generado por `python3 mac-client/migration/verify.py --test`. Ninguna capacidad se considera migrada por existir su archivo.
+Generado por `python3 apps/mac/migration/verify.py --test`. Ninguna capacidad se considera migrada por existir su archivo.
 
 Referencia Windows local: `c3d4399684688377d69eab449e8510dd11251603`. 48 documentos de especificación revisables; 34 nombres de herramientas referenciados.
 

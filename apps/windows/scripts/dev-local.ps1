@@ -11,7 +11,8 @@
 [CmdletBinding()]
 param(
   [int]$Puerto = 3000,
-  [string]$GraphRepo = "C:\Users\felip\OneDrive\Documentos\Code\Graph",
+  # Graph vive en el monorepo desde el 2026-09-28: services/graph, tres niveles arriba de este script.
+  [string]$GraphRepo = (Join-Path $PSScriptRoot "..\..\..\services\graph"),
   [switch]$SoloBackend
 )
 

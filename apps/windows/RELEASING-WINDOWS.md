@@ -1,7 +1,7 @@
 # Publicar actualizaciones (Ü Windows)
 
 Cómo sacar una versión nueva de la carita (`U.exe`) y que le llegue **sola** a los clientes ya
-instalados. El equivalente de [`RELEASING.md`](RELEASING.md), que cubre la app Android.
+instalados. El equivalente de [`apps/android/RELEASING.md`](../android/RELEASING.md), que cubre la app Android.
 
 > Para el **backend** no hay nada que hacer: vive en Vercel y se actualiza con un `git push`. Este
 > documento es solo para el cliente Windows, que vive como `.exe` en la máquina del usuario.

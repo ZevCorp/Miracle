@@ -121,13 +121,13 @@ mide LA MÉTRICA                                     ├─ RecorrerSegunElNucle
 **El contrato** (compila el núcleo, compila el contrato contra esos binarios, juzga):
 
 ```bash
-cd C:\Users\felip\OneDrive\Documentos\Code\windows-app; .\scripts\contrato-del-grafo.ps1
+cd C:\Users\felip\OneDrive\Documentos\Code\windows-app\apps\windows; .\scripts\contrato-del-grafo.ps1
 ```
 
 El contrato del mapeador va aparte:
 
 ```bash
-cd C:\Users\felip\OneDrive\Documentos\Code\windows-app; dotnet run --project mapeador\Contrato
+cd C:\Users\felip\OneDrive\Documentos\Code\windows-app\apps\windows; dotnet run --project mapeador\Contrato
 ```
 
 **Compilar y relanzar la app** (hay que reiniciar `U.exe` o pruebas el binario viejo):
@@ -162,7 +162,7 @@ curl -s -X POST http://127.0.0.1:7474/db/neo4j/tx/commit -u neo4j:grafo-local-20
 **El piloto** (necesita `CLAUDE_CODE_OAUTH_TOKEN` como variable de usuario):
 
 ```bash
-cd C:\Users\felip\OneDrive\Documentos\Code\windows-app\piloto; node piloto.mjs "la tarea en lenguaje natural"
+cd C:\Users\felip\OneDrive\Documentos\Code\windows-app\apps\windows\piloto; node piloto.mjs "la tarea en lenguaje natural"
 ```
 
 Imprime la traza de llamadas y, al final, **LA MÉTRICA**.

@@ -10,12 +10,18 @@
 # entera con otros hashes, y el siguiente merge dejaría de ser una sincronización para ser un
 # segundo import duplicado.
 #
+# Y por eso sigue importando a graph/, android/ y web/, aunque desde el monorepo ordenado
+# (2026-09-28) vivan en services/graph/, apps/android/ y apps/web/: la mezcla con
+# merge.directoryRenames=true lleva lo nuevo a la carpeta nueva, archivos añadidos incluidos, porque
+# git sabe que la carpeta vieja se movió entera.
+#
 # Uso (desde la raíz del repo):
-#     bash scripts/monorepo/importar.sh
+#     bash tools/monorepo/importar.sh
 #     git switch -c jose/sincroniza-graph origin/main
-#     git merge importado/graph/main            # y PR, como todo
+#     git -c merge.directoryRenames=true merge importado/graph/main      # y PR, como todo
 #
 # Las ramas de origen quedan en importado/<carpeta>/<rama>, que son refs locales: no se empujan.
+# Sirve hasta que los repos de origen se archiven.
 
 set -euo pipefail
 

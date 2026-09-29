@@ -41,6 +41,13 @@ concurrency:
 permissions:
   contents: write
 
+# Windows vive en apps/windows/ desde el 2026-09-28: los pasos run corren desde ahí, y out/ queda en
+# apps/windows/out. El nombre del archivo NO cambia: Graph dispara este workflow por su nombre
+# (WindowsAppReleaseService.js, WINDOWS_APP_GITHUB_WORKFLOW_FILE = windows-release.yml).
+defaults:
+  run:
+    working-directory: apps/windows
+
 jobs:
   build:
     runs-on: windows-latest
@@ -206,12 +213,13 @@ jobs:
       # Perder los paquetes de aqui no pierde nada: este paso solo corre si «Publicar la release»
       # salio bien, asi que nunca fue un respaldo de una publicacion fallida — cuando esa falla, el
       # job se para antes de llegar aqui.
+      # upload-artifact no mira working-directory: la ruta es desde la raíz del repo.
       - uses: actions/upload-artifact@v4
         if: ${{ inputs.dry_run != true }}
         continue-on-error: true
         with:
           name: windows-release-${{ inputs.version }}
           path: |
-            out/releases/releases.win.json
-            out/releases/RELEASES
+            apps/windows/out/releases/releases.win.json
+            apps/windows/out/releases/RELEASES
           if-no-files-found: error

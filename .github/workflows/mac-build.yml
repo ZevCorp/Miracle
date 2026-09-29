@@ -1,13 +1,19 @@
-name: Native Mac
+name: Mac · build
+
+# Contratos, app empaquetada y binario universal (arm64 + x86_64) de Ü para Mac. Venía como
+# mac-native.yml; desde el 2026-09-28 la Mac vive en apps/mac/ y todo corre desde ahí.
 on:
   push:
     branches: ['main']
-    paths: ['mac-client/**', '.github/workflows/mac-native.yml']
+    paths: ['apps/mac/**', '.github/workflows/mac-build.yml']
   pull_request:
-    paths: ['mac-client/**', '.github/workflows/mac-native.yml']
+    paths: ['apps/mac/**', '.github/workflows/mac-build.yml']
   workflow_dispatch:
 permissions:
   contents: read
+defaults:
+  run:
+    working-directory: apps/mac
 jobs:
   build:
     # macos-15 y no 14: el Xcode por defecto de macos-14 (Swift 5.10) da error en «[weak self]» dentro
@@ -18,9 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Contracts and packaged app
-        run: mac-client/build.sh release
+        run: ./build.sh release
       - name: Cross-compile Apple Silicon and Intel
-        working-directory: mac-client
         run: |
           swift build -c release --product U --triple arm64-apple-macosx14.0 --scratch-path .build-arm
           swift build -c release --product U --triple x86_64-apple-macosx14.0 --scratch-path .build-intel
@@ -30,8 +35,9 @@ jobs:
           codesign --force --sign - .artifacts/U.app
           codesign --verify --deep --strict .artifacts/U.app
           ditto -c -k --keepParent .artifacts/U.app .artifacts/U-Mac.zip
+      # upload-artifact no mira working-directory: la ruta es desde la raíz del repo.
       - uses: actions/upload-artifact@v4
         with:
           name: U-Mac-universal-development
-          path: mac-client/.artifacts/U-Mac.zip
+          path: apps/mac/.artifacts/U-Mac.zip
           retention-days: 14

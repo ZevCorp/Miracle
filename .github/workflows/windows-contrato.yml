@@ -1,4 +1,4 @@
-name: Contrato del grafo
+name: Windows · contrato
 
 # La mitad que SI puede correr en la nube. El contrato juzga las PROMESAS del nucleo
 # (tests/ContratoDelGrafo/Contrato.cs) y no toca la pantalla, asi que un runner sin escritorio ni
@@ -6,15 +6,26 @@ name: Contrato del grafo
 # (scripts/ci-local.ps1): esos abren apps de verdad y miden el resultado sobre el terreno, y por
 # eso viven en la maquina del desarrollador.
 #
-# Corre en cada PR a main porque main roto bloquea a los tres. Una rama con promesas PENDIENTES da
-# rojo aqui, y esta bien que asi sea: las fases intermedias son commits de la rama, no merges.
+# Corre en cada PR a main que toque Windows, porque main roto bloquea a todos. Una rama con promesas
+# PENDIENTES da rojo aqui, y esta bien que asi sea: las fases intermedias son commits de la rama, no
+# merges.
+#
+# Desde el 2026-09-28 Windows vive en apps/windows/ dentro del monorepo: todo corre desde esa carpeta
+# (defaults.run.working-directory), y solo cuando algo de ella cambia. Un PR del portal no tiene por
+# que esperar al runner de Windows, ni uno de Windows al build de Next.js.
 
 on:
   pull_request:
     branches: [main]
+    paths: ['apps/windows/**', '.github/workflows/windows-contrato.yml']
   push:
     branches: [main]
+    paths: ['apps/windows/**', '.github/workflows/windows-contrato.yml']
   workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: apps/windows
 
 concurrency:
   group: contrato-${{ github.ref }}

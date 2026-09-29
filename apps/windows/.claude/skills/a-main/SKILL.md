@@ -42,7 +42,7 @@ git push -u origin <persona>/<que-hace>
 gh pr create --base main --title "<mismo estilo que el commit>" --body-file <cuerpo>
 ```
 
-El cuerpo sale de [`.github/pull_request_template.md`](../../../.github/pull_request_template.md) y no
+El cuerpo sale de [`.github/pull_request_template.md`](../../../../../.github/pull_request_template.md) y no
 puede faltarle:
 
 1. **Qué promete ahora el sistema que antes no**, con los números de promesa.
@@ -55,7 +55,7 @@ Ese `git push` ya publica commits, así que **deja su aviso**: [`/avisa`](../avi
 `#miracle-updates` con la rama y el link al PR. No se espera al merge para contarlo — el sentido del
 aviso es que los otros dos se enteren *antes* de que llegue el conflicto.
 
-CI corre el contrato en cada PR a `main` ([`contrato.yml`](../../../.github/workflows/contrato.yml)).
+CI corre el contrato en cada PR a `main` ([`windows-contrato.yml`](../../../../../.github/workflows/windows-contrato.yml)).
 Si sale rojo allí y verde en local: no es «cosa del CI» — es una diferencia de máquina, y descubrirla
 es el trabajo.
 

@@ -6,7 +6,7 @@ set -euo pipefail
 APP="$HOME/Applications/U.app"
 IDENTIFIER="com.zevcorp.u.mac"
 if [[ ! -x "$APP/Contents/MacOS/U" ]]; then
-  echo "Instala primero la app actual con ./mac-client/instalar.sh" >&2
+  echo "Instala primero la app actual con ./apps/mac/instalar.sh" >&2
   exit 1
 fi
 

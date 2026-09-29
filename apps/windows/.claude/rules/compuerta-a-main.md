@@ -21,7 +21,7 @@ eso son locales: un runner en la nube no tiene este escritorio ni estas apps.
 ## Nivel 2: el contrato
 
 Lo corre `.\scripts\contrato-del-grafo.ps1` y también CI en cada PR a `main`
-([`.github/workflows/contrato.yml`](../../.github/workflows/contrato.yml)). Dos veredictos:
+([`.github/workflows/windows-contrato.yml`](../../../../.github/workflows/windows-contrato.yml)). Dos veredictos:
 
 ```
 CONTRATO INTACTO: el grafo se comporta como el día que se congeló.
@@ -63,7 +63,7 @@ Para eso están, y se usan antes de decir que algo funciona:
 
 ## El PR
 
-Plantilla en [`.github/pull_request_template.md`](../../.github/pull_request_template.md). Lo que no
+Plantilla en [`.github/pull_request_template.md`](../../../../.github/pull_request_template.md). Lo que no
 puede faltar:
 
 1. **Qué promete ahora el sistema que antes no** — con los números de promesa.

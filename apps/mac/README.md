@@ -1,6 +1,6 @@
 # Ü para Mac — cliente nativo desde cero
 
-Esta implementación vive en la rama `codex/mac-from-scratch` y no reutiliza el cliente Mac anterior.
+Esta implementación vive en `apps/mac/` del monorepo (nació en la rama `codex/mac-from-scratch` y entró a `main` en #127) y no reutiliza el cliente Mac anterior.
 La app está escrita en Swift/AppKit y usa:
 
 - `AXUIElement` para leer y accionar controles accesibles.
@@ -33,7 +33,7 @@ de 2 segundos, incluidos los reintentos de HTTP 429/529. No se pide permiso por 
 Con el Mac desbloqueado y UFixture recién abierta (contador a cero):
 
 ```bash
-open mac-client/.artifacts/UFixture.app
+open apps/mac/.artifacts/UFixture.app
 open -n "$HOME/Applications/U.app" --args --execution-test /tmp/u-execution-test.json
 ```
 
@@ -48,7 +48,7 @@ La conversación e interrupción de voz se comprueban manualmente con el micróf
 Desde la raíz del repositorio:
 
 ```bash
-./mac-client/abrir.sh
+./apps/mac/abrir.sh
 ```
 
 El lanzador abre siempre la copia instalada en `~/Applications/U.app`; si todavía no existe, ejecuta la instalación automáticamente. También puedes abrir directamente:
@@ -60,7 +60,7 @@ open "$HOME/Applications/U.app"
 Para probar el flujo como lo usará una persona instalada, compila y copia el bundle a `~/Applications`:
 
 ```bash
-./mac-client/instalar.sh
+./apps/mac/instalar.sh
 ```
 
 Después abre `~/Applications/U.app`. No alternes entre el ejecutable suelto, `.artifacts/U.app` y
@@ -94,12 +94,12 @@ El permiso de Accesibilidad es el que permite usar otras aplicaciones. Sin él, 
 Solo si una instalación anterior conservó un interruptor verde que Ü no reconoce, ejecuta una vez:
 
 ```bash
-./mac-client/reparar-permisos.sh
+./apps/mac/reparar-permisos.sh
 ```
 
 Esto resetea únicamente Accesibilidad y Grabación de pantalla de `com.zevcorp.u.mac`; no se ejecuta
 desde la app ni durante actualizaciones normales. Vuelve a conceder ambos permisos y, desde entonces,
-actualiza siempre con `./mac-client/instalar.sh`.
+actualiza siempre con `./apps/mac/instalar.sh`.
 
 ## Configurar Graph
 
@@ -110,7 +110,7 @@ En Configuración pega la API key de Graph y pulsa **Guardar**. Se guarda en el 
 Para probar la lectura y acción sin red ni Graph, compila la app de fixture:
 
 ```bash
-cd mac-client
+cd apps/mac
 swift build -c debug --product UFixture
 open -n .build/arm64-apple-macosx/debug/UFixture
 ```
@@ -140,4 +140,4 @@ El diagnóstico debe ejecutarse con Ü cerrada para que `--args` llegue a una in
 - Doble toque en la carita: activar o silenciar el micrófono.
 - `Esc`: detener una tarea y cerrar la voz en vivo.
 - Para cerrar completamente: menú **Ü** en la barra de menús → **Salir de Ü**.
-- Para abrir otra vez: `./mac-client/abrir.sh`.
+- Para abrir otra vez: `./apps/mac/abrir.sh`.
