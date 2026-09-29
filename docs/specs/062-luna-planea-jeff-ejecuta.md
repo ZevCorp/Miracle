@@ -56,6 +56,10 @@ plan viejo.
 
 | 522 | todo lo que Ü guarda de la persona vive donde dice `U_DATA_DIR`: la conversación se escribe bajo esa carpeta, y ningún archivo del cliente pide la carpeta de Windows por su cuenta | 5 |
 
+| 523 | abrir una app en el plan espera a que pinte algo más que su marco: una lectura con solo los botones de la ventana (menú del sistema, minimizar, maximizar, restaurar, cerrar) no es una app lista, y no se da por quieta | 5 |
+
+| 524 | «pulsa: <nombre>» que no encuentra el nombre espera UNA vez a que la pantalla se quede quieta y lo busca otra vez por el ciclo rápido antes de pasarlo a Jev; si aparece, Jev ni se entera | 5 |
+
 > **Por qué la 522 está en esta spec.** La encontró la tanda de GPT-6 Sol (2026-09-29, 02:41): la conversación se guardaba
 > en `%APPDATA%\U\conversacion-personal.json` aunque la Ü de pruebas tuviera su `U_DATA_DIR`, así que cada orden heredaba
 > las anteriores —Sol hizo la de Configuración dentro de la de la calculadora— y 26 turnos de prueba quedaron en el archivo

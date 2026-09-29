@@ -927,6 +927,8 @@ internal static class Contrato
         Prueba("519. el plan trabaja sobre la misma ventana que el ciclo rápido: la de delante, y si delante está Ü o nada, la de trabajo; sin ninguna de las dos, dice que no hay ventana", ElPlanTrabajaDondeElCiclo);
         Prueba("521. abrir una app nunca lanza a la propia Ü: el acceso directo «U» no casa con nada, y un acceso cuyo nombre está DENTRO de lo pedido solo cuenta si tiene al menos 4 letras; lo exacto gana y lo que no casa no lanza nada", AbrirNuncaLanzaAU);
         Prueba("522. todo lo que Ü guarda de la persona vive donde dice U_DATA_DIR: la conversación se escribe bajo esa carpeta, y ningún archivo del cliente pide la carpeta de Windows por su cuenta", LoGuardadoVaDondeDiceUDataDir);
+        Prueba("523. abrir una app en el plan espera a que pinte algo más que su marco: una lectura con solo los botones de la ventana (menú del sistema, minimizar, maximizar, restaurar, cerrar) no es una app lista, y no se da por quieta", AbrirEsperaAQuePinte);
+        Prueba("524. «pulsa: <nombre>» que no encuentra el nombre espera UNA vez a que la pantalla se quede quieta y lo busca otra vez por el ciclo rápido antes de pasarlo a Jev; si aparece, Jev ni se entera", PulsaEsperaALaPaginaAntesDeJev);
         Prueba("520. quien planea es GPT-6 Sol a la máxima velocidad que la API acepta: delegado gpt-6-sol con reasoning.effort = low y service_tier = priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
@@ -14740,6 +14742,49 @@ internal static class Contrato
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"new U\.Ciclo\.Motor\(DondeDelPlan,"), "[cableado] el motor de Jev no pregunta dónde con la regla del ciclo");
         Debe(cara.Contains("new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero)"), "[cableado] las manos del plan no trabajan sobre la ventana del ciclo");
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"DondeDelPlan\(\)[\s\S]{0,300}Navigation\.ElPlanPorObjetivos\.Donde\("), "[cableado] DondeDelPlan no usa ElPlanPorObjetivos.Donde");
+    }
+
+    private static void PulsaEsperaALaPaginaAntesDeJev()
+    {
+        // MEDIDO EL 2026-09-29 (02:55:47): «pulsa: Sistema» y justo después «pulsa: Notificaciones», con la página de Sistema
+        // aún cargando: el ciclo rápido no vio «Notificaciones», el paso pasó a Jev, Jev dudó (0,39) y el plan se cortó. Luna
+        // tuvo que replanear. Un segundo más tarde, map_take lo pulsó a la primera.
+        var t = PlanT();
+        var pEsperar = t?.GetProperty("EsperarQuieta");
+        if (t?.GetMethod("Objetivo") == null || pEsperar == null) { Pendiente("ElPlanPorObjetivos.Objetivo con EsperarQuieta", "524", "062"); return; }
+        int intentos = 0, esperas = 0;
+        var (plan, hecho) = PlanDeMentira(nombre => ++intentos >= 2, _ => true);
+        pEsperar.SetValue(plan, new Func<bool>(() => { esperas++; return true; }));
+        var r = (U.Ciclo.Recorrido)t.GetMethod("Objetivo")!.Invoke(plan, new object[] { "pulsa: Notificaciones", Array.Empty<string>() })!;
+        Debe(r.Cumplido && esperas == 1 && intentos == 2 && !hecho.Any(h => h.StartsWith("jev:")),
+            $"el nombre que aparece tras cargar no se pulsó por el ciclo rápido tras UNA espera ({esperas} espera(s), {intentos} intento(s), {string.Join(", ", hecho)})");
+        // Si tampoco aparece, a Jev, y sin esperar más de una vez.
+        intentos = 0; esperas = 0; hecho.Clear();
+        var (plan2, hecho2) = PlanDeMentira(_ => { intentos++; return false; }, _ => true);
+        pEsperar.SetValue(plan2, new Func<bool>(() => { esperas++; return true; }));
+        var r2 = (U.Ciclo.Recorrido)t.GetMethod("Objetivo")!.Invoke(plan2, new object[] { "pulsa: Diez", Array.Empty<string>() })!;
+        Debe(r2.Cumplido && esperas == 1 && intentos == 2 && hecho2.Any(h => h.StartsWith("jev:")),
+            $"lo que no aparece ni tras esperar no pasó a Jev, o se esperó más de una vez ({esperas} espera(s), {intentos} intento(s))");
+    }
+
+    private static void AbrirEsperaAQuePinte()
+    {
+        // MEDIDO EL 2026-09-29 (02:52): «abre: calculadora» se dio por quieta con UN elemento —«System» (MenuItem), el marco
+        // de una app de la tienda que aún no pinta— y las tres «escribe:» siguientes cayeron en el vacío. Luna rehízo la
+        // cuenta en cinco planes: 14,5 s pensando donde bastaba uno.
+        var pintada = typeof(U.WindowsClient.Navigation.ManosDelPlan).GetMethod("Pintada", BindingFlags.Public | BindingFlags.Static);
+        if (pintada == null) { Pendiente("ManosDelPlan.Pintada (una app abierta que ya pintó algo más que su marco)", "523", "062"); return; }
+        bool P(params (string Nombre, string Tipo, int X, int Y)[] e) => (bool)pintada.Invoke(null, new object[] { Pantalla(Array.Empty<string>(), e) })!;
+        Debe(!P(), "una lectura vacía se dio por pintada");
+        Debe(!P(("System", "MenuItem", 5, 5)), "solo el menú del sistema se dio por una app lista");
+        Debe(!P(("Sistema", "MenuItem", 5, 5), ("Minimizar Calculadora", "Button", 900, 5), ("Maximizar Calculadora", "Button", 950, 5), ("Cerrar Calculadora", "Button", 1000, 5)),
+            "solo los botones de la ventana se dieron por una app lista");
+        Debe(!P(("Restaurar", "Button", 950, 5), ("Cerrar", "Button", 1000, 5)), "restaurar y cerrar solos se dieron por una app lista");
+        Debe(P(("System", "MenuItem", 5, 5), ("Cerrar Calculadora", "Button", 1000, 5), ("Uno", "Button", 100, 300)), "con un botón propio de la app no se dio por pintada");
+
+        // [cableado] Abrir espera con esa regla.
+        if (FuenteDe("windows-client", "src", "Navigation", "ManosDelPlan.cs") is not { } manos) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(manos, @"public bool Abrir\(string app\)[\s\S]*?Pintada\("), "[cableado] abrir no espera a que la app pinte");
     }
 
     private static void LoGuardadoVaDondeDiceUDataDir()
