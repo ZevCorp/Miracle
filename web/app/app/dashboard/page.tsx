@@ -87,7 +87,12 @@ export default function DashboardPage() {
     [reales],
   );
 
-  if (loading || role === "secretaria") return <DashboardSkeleton />;
+  // Ya NO se espera al store para pintar el Inicio. Esa espera escondía detrás
+  // de un esqueleto lo que no depende de él —el orbe para empezar a grabar, la
+  // hora, la agenda— y, para el administrador, retrasaba la RPC de su panel
+  // (que no lee el store) hasta que el store terminara: dos cargas en serie.
+  // Ahora cada vista decide qué parte suya necesita los datos.
+  if (role === "secretaria") return <DashboardSkeleton />;
 
   // El proxy rebota aquí a quien abre una sección que su rol no alcanza
   // (proxy.ts) con ?error=forbidden. Hasta ahora ese parámetro solo tenía
@@ -101,9 +106,15 @@ export default function DashboardPage() {
       {viewRole === "admin" ? (
         <AdminView />
       ) : viewRole === "supervisor" ? (
-        <SupervisorView consultations={reales} pendientes={pendientes} />
+        // Todo lo de esta vista son cifras del store: sin él no hay nada
+        // verdadero que enseñar todavía.
+        loading ? (
+          <DashboardSkeleton />
+        ) : (
+          <SupervisorView consultations={reales} pendientes={pendientes} />
+        )
       ) : (
-        <MedicoView hoy={hoy} pendientes={pendientes} />
+        <MedicoView hoy={hoy} pendientes={pendientes} cargando={loading} />
       )}
     </>
   );
@@ -157,9 +168,12 @@ function DashboardSkeleton() {
 function MedicoView({
   hoy,
   pendientes,
+  cargando,
 }: {
   hoy: Consultation[];
   pendientes: Consultation[];
+  /** El store aún no respondió: las cifras y la cola todavía no son ciertas. */
+  cargando: boolean;
 }) {
   const { getPatient, orgKind, loadError, retryLoad } = useStore();
   const { openRunway } = useRunway();
@@ -200,6 +214,9 @@ function MedicoView({
     <AppPage className="max-w-3xl">
       <TurnoHUD
         ahora={ahora}
+        cifras={
+          cargando || agenda.cargando ? "cargando" : loadError ? "fallo" : "listas"
+        }
         atendidasHoy={atendidasHoy}
         enAgenda={enAgenda}
         porFirmar={cola.length}
@@ -231,7 +248,16 @@ function MedicoView({
           }
         />
 
-        {cola.length ? (
+        {cargando ? (
+          <div className="clinical-list" aria-busy="true" aria-label="Cargando las notas por firmar">
+            {[0, 1].map((i) => (
+              <div key={i} className="clinical-list-row flex items-center gap-3 px-4 py-3">
+                <span className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-ice" />
+                <span className="h-3.5 flex-1 animate-pulse rounded bg-ice-soft" />
+              </div>
+            ))}
+          </div>
+        ) : cola.length ? (
           <div className="clinical-list stagger-in">
             {cola.slice(0, 4).map((c) => (
               <SignQueueRow

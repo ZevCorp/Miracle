@@ -61,7 +61,9 @@ export function DayFlow({
   ahora: Date | null;
   agenda: UseAgendaHoy;
 }) {
-  const { consultations, getPatient } = useStore();
+  // `loading`: el riel funde agenda y consultas, así que hasta que lleguen las
+  // dos no se puede afirmar "el día está limpio".
+  const { consultations, getPatient, loading } = useStore();
   const [showAdd, setShowAdd] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -128,7 +130,7 @@ export function DayFlow({
         <AgendaQuickAdd onAgregar={agenda.agregar} onClose={() => setShowAdd(false)} />
       ) : null}
 
-      {agenda.cargando ? (
+      {agenda.cargando || loading ? (
         <div className="clinical-panel flex justify-center py-6">
           <Loader2 size={18} className="animate-spin text-muted" />
         </div>

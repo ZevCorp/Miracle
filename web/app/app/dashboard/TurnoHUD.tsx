@@ -26,6 +26,7 @@ function fechaLarga(d: Date): string {
 
 export function TurnoHUD({
   ahora,
+  cifras,
   atendidasHoy,
   enAgenda,
   porFirmar,
@@ -34,6 +35,12 @@ export function TurnoHUD({
   /** null hasta el montaje: el reloj no puede renderizarse en el servidor sin
    *  desincronizar la hidratación. */
   ahora: Date | null;
+  /**
+   * Si los números ya son ciertos. El HUD se pinta antes de que lleguen las
+   * consultas y la agenda (la hora y el orbe no las necesitan), y mientras
+   * tanto decir "0 atendidas · nada por firmar" sería afirmar algo falso.
+   */
+  cifras: "cargando" | "fallo" | "listas";
   atendidasHoy: number;
   enAgenda: number;
   porFirmar: number;
@@ -51,6 +58,12 @@ export function TurnoHUD({
           esperaMaxIso ? ` · la más antigua ${etiquetaEspera(esperaMaxIso)}` : ""
         }`,
   );
+  const resumen =
+    cifras === "listas"
+      ? partes.join(" · ")
+      : cifras === "fallo"
+        ? "No se pudieron leer tus consultas de hoy."
+        : null;
 
   return (
     /* La hora ABRE la fila, no la cierra. La esquina de arriba a la derecha ya
@@ -69,9 +82,17 @@ export function TurnoHUD({
       <span aria-hidden className="h-9 w-px shrink-0 bg-line" />
       <div className="min-w-0">
         <p className="doc-label">{ahora ? fechaLarga(ahora) : " "}</p>
-        <p className="mt-1 text-[0.95rem] leading-relaxed text-muted">
-          {partes.join(" · ")}
-        </p>
+        {resumen ? (
+          <p className="mt-1 text-[0.95rem] leading-relaxed text-muted">{resumen}</p>
+        ) : (
+          <p className="mt-1 text-[0.95rem] leading-relaxed" aria-busy="true">
+            <span className="sr-only">Cargando tu jornada</span>
+            <span
+              aria-hidden
+              className="inline-block h-[0.95rem] w-56 max-w-full animate-pulse rounded bg-ice-soft align-middle"
+            />
+          </p>
+        )}
       </div>
     </header>
   );

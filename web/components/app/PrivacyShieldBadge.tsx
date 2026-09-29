@@ -1,8 +1,8 @@
 "use client";
 
-import { ShieldAlert, ShieldCheck } from "lucide-react";
 import type { PrivacyShieldSummary } from "@/lib/api/clinical";
 import { describePrivacySummary } from "@/lib/clinical/privacy-summary";
+import { PrivacyShieldIcon } from "./privacy-icon";
 
 /**
  * Insignia de privacidad. Solo afirma lo que el servidor certificó para esta
@@ -22,13 +22,12 @@ export function PrivacyShieldBadge({
       : tone === "warning"
         ? "bg-warning-soft text-warning"
         : "bg-ice-soft text-muted";
-  const Icon = tone === "warning" ? ShieldAlert : ShieldCheck;
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${styles} ${className}`}
       title={describePrivacySummary(privacy).detail}
     >
-      <Icon size={13} className="shrink-0" />
+      <PrivacyShieldIcon tone={tone} size={13} className="shrink-0" />
       {label}
     </span>
   );

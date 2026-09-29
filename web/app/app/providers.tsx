@@ -36,6 +36,7 @@ import {
   type OrgSettingsRow,
 } from "@/lib/hospital/org";
 import { signConsultationNote } from "@/app/app/consultas/actions";
+import { DEMO_AUDIT_ACCION } from "@/lib/demo";
 
 type ToastTone = "success" | "info" | "warning";
 interface Toast {
@@ -122,6 +123,15 @@ interface StoreValue {
   syncing: boolean;
   /** Carga bajo demanda la transcripción de una consulta (no viene en la carga inicial). */
   ensureTranscript: (id: string) => Promise<void>;
+  /**
+   * La línea de tiempo COMPLETA de una consulta, leída de la base. El campo
+   * `auditoria` de la foto NO lo es: la carga inicial solo trae las marcas de
+   * demostración, y el resto son eventos locales optimistas. Espera a que
+   * terminen las escrituras de auditoría que este navegador tiene en camino
+   * para esa consulta, así lo recién hecho sale en la lectura.
+   * `null` = no se pudo leer, que NO es lo mismo que "no tiene eventos".
+   */
+  loadAuditoria: (consultationId: string) => Promise<AuditEvent[] | null>;
   /** Consultas cuya transcripción falló al leerse (≠ "no tiene transcripción"). */
   transcriptFailed: Record<string, true>;
   /**
@@ -243,6 +253,12 @@ const CONSULTATION_COLUMNS =
 const PATIENT_COLUMNS =
   "id, nombre, documento, edad, sexo, eps, telefono, antecedentes, alergias, medicamentos";
 
+/** Lo que pinta la línea de tiempo de un evento de auditoría, y nada más. */
+const AUDIT_COLUMNS = "id, consultation_id, fecha, actor_name, accion, detalle";
+
+/** Lo más que loadAuditoria espera a las escrituras en camino antes de leer. */
+const ESPERA_MAX_ESCRITURAS_MS = 5_000;
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function rowToPatient(r: any): Patient {
   return {
@@ -327,6 +343,16 @@ function rowToConsultation(r: any, auditoria: AuditEvent[]): Consultation {
     // tengan que volver a buscar el nombre dentro del JSON de la nota.
     pacienteNombre: r.paciente_nombre ?? null,
     pacienteDocumento: r.paciente_documento ?? null,
+  };
+}
+
+function rowToAuditEvent(a: any): AuditEvent {
+  return {
+    id: a.id,
+    fecha: a.fecha,
+    actor: a.actor_name ?? "Sistema",
+    accion: a.accion,
+    detalle: a.detalle ?? undefined,
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -444,8 +470,18 @@ export function MiracleProvider({
   // ---- Carga inicial desde Supabase ----------------------------------------
   // Columnas explícitas: `transcript` (el campo más pesado) se carga bajo
   // demanda con ensureTranscript; los perfiles no exponen el email al cliente.
+  //
+  // UN solo viaje a la base: las cinco consultas salen a la vez y ninguna
+  // depende de otra. Antes la auditoría iba DESPUÉS, en serie, porque se pedía
+  // por los ids de las consultas ya cargadas; el Inicio no se pintaba hasta que
+  // volvían las dos tandas, y esa segunda era la más cara (la RLS de
+  // audit_events evalúa private.alcanza_consulta() fila por fila desde la
+  // migración de áreas) para traer algo que solo lee la pestaña de Auditoría.
+  // Además PostgREST la cortaba en max_rows (1000 por defecto en Supabase) y,
+  // con orden ascendente, lo que se perdía eran los eventos de las consultas
+  // MÁS RECIENTES.
   const load = useCallback(async () => {
-    const [patRes, conRes, profRes, orgRes] = await Promise.all([
+    const [patRes, conRes, profRes, orgRes, demoRes] = await Promise.all([
       supabase
         .from("patients")
         .select(PATIENT_COLUMNS)
@@ -464,6 +500,16 @@ export function MiracleProvider({
       // Ajustes de la institución. Por RLS ("members read own org") esta consulta
       // devuelve una sola fila: la organización del usuario.
       supabase.from("organizations").select(ORG_SETTINGS_COLUMNS).maybeSingle(),
+      // De la auditoría, las listas solo necesitan las marcas de demostración
+      // (isDemoConsultation): el Inicio, la campana y la firma en serie las
+      // usan para no contar ni firmar una nota de demostración. Son pocas —ya
+      // nada escribe esa marca— y no dependen de los ids de las consultas, así
+      // que viajan en paralelo. La línea de tiempo completa la lee el detalle
+      // al abrir su pestaña (loadAuditoria).
+      supabase
+        .from("audit_events")
+        .select(AUDIT_COLUMNS)
+        .eq("accion", DEMO_AUDIT_ACCION),
     ]);
 
     // supabase-js NO lanza: un fallo llega como `error` con `data` en null. Sin
@@ -494,31 +540,21 @@ export function MiracleProvider({
 
     setPatients((patRes.data ?? []).map(rowToPatient));
 
-    // Audit: dependiente de las consultas cargadas (por sus IDs), para conservar
-    // el timeline completo de cada una sin traer eventos huérfanos.
-    const consultRows = conRes.data ?? [];
-    const consultIds = consultRows.map((c) => c.id);
-    const auditByCons = new Map<string, AuditEvent[]>();
-    if (consultIds.length) {
-      const { data: audData } = await supabase
-        .from("audit_events")
-        .select("*")
-        .in("consultation_id", consultIds)
-        .order("fecha", { ascending: true });
-      for (const a of audData ?? []) {
-        const list = auditByCons.get(a.consultation_id) ?? [];
-        list.push({
-          id: a.id,
-          fecha: a.fecha,
-          actor: a.actor_name ?? "Sistema",
-          accion: a.accion,
-          detalle: a.detalle ?? undefined,
-        });
-        auditByCons.set(a.consultation_id, list);
-      }
+    // Sin las marcas no se tumba la carga: la heurística de isDemoConsultation
+    // (motivo y guion) sigue en pie, y firmar vuelve a comprobarlo en el
+    // servidor (signConsultationNote) antes de tocar nada.
+    if (demoRes.error) {
+      console.error("[store] marcas de demostración", demoRes.error.message);
+    }
+    const marcasDemo = new Map<string, AuditEvent[]>();
+    for (const a of demoRes.data ?? []) {
+      if (!a.consultation_id) continue;
+      const lista = marcasDemo.get(a.consultation_id) ?? [];
+      lista.push(rowToAuditEvent(a));
+      marcasDemo.set(a.consultation_id, lista);
     }
     setConsultations(
-      consultRows.map((c) => rowToConsultation(c, auditByCons.get(c.id) ?? [])),
+      (conRes.data ?? []).map((c) => rowToConsultation(c, marcasDemo.get(c.id) ?? [])),
     );
     setLoading(false);
   }, [supabase]);
@@ -665,21 +701,78 @@ export function MiracleProvider({
     [supabase],
   );
 
+  // ---- Auditoría: escrituras en camino y lectura bajo demanda ---------------
+  // La línea de tiempo del detalle se LEE de la base (loadAuditoria), no de la
+  // foto. Para que una acción recién hecha salga en esa lectura, la lectura
+  // espera a que terminen las escrituras de auditoría que este navegador tiene
+  // en camino para la consulta. Así no hay que adivinar cuáles de los eventos
+  // locales ya están en la base, y ninguno sale dos veces.
+  const auditoriaEnVuelo = useRef(new Map<string, Set<Promise<unknown>>>());
+
+  const registrarEscrituraAuditoria = useCallback(
+    <T,>(consultationId: string, escritura: PromiseLike<T>): Promise<T> => {
+      const promesa = Promise.resolve(escritura);
+      const mapa = auditoriaEnVuelo.current;
+      const enVuelo = mapa.get(consultationId) ?? new Set<Promise<unknown>>();
+      enVuelo.add(promesa);
+      mapa.set(consultationId, enVuelo);
+      const soltar = () => {
+        enVuelo.delete(promesa);
+        if (!enVuelo.size && mapa.get(consultationId) === enVuelo) {
+          mapa.delete(consultationId);
+        }
+      };
+      promesa.then(soltar, soltar);
+      return promesa;
+    },
+    [],
+  );
+
+  const loadAuditoria = useCallback(
+    async (consultationId: string): Promise<AuditEvent[] | null> => {
+      const enVuelo = auditoriaEnVuelo.current.get(consultationId);
+      if (enVuelo?.size) {
+        // Con tope: una escritura colgada (red caída a mitad) no puede dejar
+        // la pestaña esperando para siempre. Pasado el tope se lee igual; si
+        // esa escritura termina después, su evento sale en la siguiente
+        // lectura (la próxima acción o al volver a abrir la pestaña).
+        await Promise.race([
+          Promise.allSettled([...enVuelo]),
+          new Promise((r) => setTimeout(r, ESPERA_MAX_ESCRITURAS_MS)),
+        ]);
+      }
+      const { data, error } = await supabase
+        .from("audit_events")
+        .select(AUDIT_COLUMNS)
+        .eq("consultation_id", consultationId)
+        .order("fecha", { ascending: true });
+      if (error) {
+        console.error("[store] auditoría de la consulta", error.message);
+        return null;
+      }
+      return (data ?? []).map(rowToAuditEvent);
+    },
+    [supabase],
+  );
+
   const remoteAudit = useCallback(
     (consultationId: string, accion: string, detalle?: string) => {
-      supabase
-        .from("audit_events")
-        .insert({
-          consultation_id: consultationId,
-          actor_name: actor,
-          accion,
-          detalle: detalle ?? null,
-        })
-        .then(({ error }) => {
-          if (error) console.error("[store] audit", error.message);
-        });
+      void registrarEscrituraAuditoria(
+        consultationId,
+        supabase
+          .from("audit_events")
+          .insert({
+            consultation_id: consultationId,
+            actor_name: actor,
+            accion,
+            detalle: detalle ?? null,
+          })
+          .then(({ error }) => {
+            if (error) console.error("[store] audit", error.message);
+          }),
+      );
     },
-    [supabase, actor],
+    [supabase, actor, registrarEscrituraAuditoria],
   );
 
   // Aplica un cambio a una consulta: estado local + Supabase + auditoría.
@@ -920,16 +1013,10 @@ export function MiracleProvider({
       // pero su historia sale vacía. Que falle no invalida el rescate.
       const { data: audData } = await supabase
         .from("audit_events")
-        .select("*")
+        .select(AUDIT_COLUMNS)
         .eq("consultation_id", id)
         .order("fecha", { ascending: true });
-      const auditoria: AuditEvent[] = (audData ?? []).map((a) => ({
-        id: a.id,
-        fecha: a.fecha,
-        actor: a.actor_name ?? "Sistema",
-        accion: a.accion,
-        detalle: a.detalle ?? undefined,
-      }));
+      const auditoria = (audData ?? []).map(rowToAuditEvent);
       const rescatada = rowToConsultation(data, auditoria);
       setConsultations((list) =>
         list.some((c) => c.id === id)
@@ -957,7 +1044,9 @@ export function MiracleProvider({
   const addConsultation = useCallback(
     (c: Consultation) => {
       setConsultations((list) => [c, ...list]);
-      (async () => {
+      // Se registra la tanda entera (consulta + sus eventos): la línea de
+      // tiempo no debe leerse antes de que exista ninguno de los dos.
+      void registrarEscrituraAuditoria(c.id, (async () => {
         const { error } = await supabase.from("consultations").insert({
           id: c.id,
           patient_id: c.pacienteId || null,
@@ -990,9 +1079,9 @@ export function MiracleProvider({
             })),
           );
         }
-      })();
+      })());
     },
-    [supabase, showToast],
+    [supabase, showToast, registrarEscrituraAuditoria],
   );
 
   // Puente del backend clínico: espeja un encounter completado como consulta.
@@ -1059,43 +1148,47 @@ export function MiracleProvider({
       );
 
       if (isNew) {
-        const { error } = await supabase.from("consultations").upsert(
-          {
-            id: c.id,
-            patient_id: c.pacienteId || null,
-            servicio: c.servicio,
-            especialidad: c.especialidad,
-            tipo: c.tipo,
-            estado: c.estado,
-            motivo: c.motivo,
-            fecha: c.fecha,
-            duracion_min: c.duracionMin,
-            plantilla: c.plantilla,
-            resumen: c.resumen,
-            note: c.note,
-            codigos: c.codigos,
-            transcript: c.transcript,
-            firma: c.firma ?? null,
-          },
-          { onConflict: "id" },
-        );
-        if (error) {
-          console.error("[store] upsert consulta (puente)", error.message);
-          showToast(
-            "La nota se generó, pero no se pudo guardar en tu historial. Reintenta.",
-            "warning",
+        // Consulta y evento van como UNA escritura registrada: la línea de
+        // tiempo no se lee antes de que existan los dos.
+        return registrarEscrituraAuditoria(c.id, (async () => {
+          const { error } = await supabase.from("consultations").upsert(
+            {
+              id: c.id,
+              patient_id: c.pacienteId || null,
+              servicio: c.servicio,
+              especialidad: c.especialidad,
+              tipo: c.tipo,
+              estado: c.estado,
+              motivo: c.motivo,
+              fecha: c.fecha,
+              duracion_min: c.duracionMin,
+              plantilla: c.plantilla,
+              resumen: c.resumen,
+              note: c.note,
+              codigos: c.codigos,
+              transcript: c.transcript,
+              firma: c.firma ?? null,
+            },
+            { onConflict: "id" },
           );
-          return { ok: false };
-        }
-        if (audit) {
-          await supabase.from("audit_events").insert({
-            consultation_id: c.id,
-            actor_name: audit.actor,
-            accion: audit.accion,
-            detalle: audit.detalle,
-          });
-        }
-        return { ok: true };
+          if (error) {
+            console.error("[store] upsert consulta (puente)", error.message);
+            showToast(
+              "La nota se generó, pero no se pudo guardar en tu historial. Reintenta.",
+              "warning",
+            );
+            return { ok: false };
+          }
+          if (audit) {
+            await supabase.from("audit_events").insert({
+              consultation_id: c.id,
+              actor_name: audit.actor,
+              accion: audit.accion,
+              detalle: audit.detalle,
+            });
+          }
+          return { ok: true };
+        })());
       }
 
       const { data, error } = await supabase
@@ -1126,7 +1219,7 @@ export function MiracleProvider({
       }
       return { ok: true };
     },
-    [supabase, actor, showToast],
+    [supabase, actor, showToast, registrarEscrituraAuditoria],
   );
 
   const listAddenda = useCallback(
@@ -1412,6 +1505,7 @@ export function MiracleProvider({
       retryLoad,
       syncing: pendingWrites > 0,
       ensureTranscript,
+      loadAuditoria,
       transcriptFailed,
       getConsultation,
       fetchConsultation,
@@ -1453,6 +1547,7 @@ export function MiracleProvider({
       retryLoad,
       pendingWrites,
       ensureTranscript,
+      loadAuditoria,
       transcriptFailed,
       getConsultation,
       fetchConsultation,
