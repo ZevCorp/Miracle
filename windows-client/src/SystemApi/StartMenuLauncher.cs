@@ -47,18 +47,35 @@ public static class StartMenuLauncher
             }
             catch { continue; }
 
-            // Coincidencia exacta primero (evita que "Notepad++" gane sobre "Notepad"), luego contiene.
-            string? exact = null, loose = null;
-            foreach (string f in lnks)
-            {
-                string name = Norm(Path.GetFileNameWithoutExtension(f));
-                if (name == target) { exact = f; break; }
-                if (loose == null && (name.Contains(target) || target.Contains(name)) && name.Length > 0) loose = f;
-            }
-            if (exact != null) return exact;
-            if (loose != null) return loose;
+            var porNombre = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (string f in lnks) porNombre.TryAdd(Path.GetFileNameWithoutExtension(f), f);
+            if (Elegir(appName, porNombre.Keys.ToList()) is { } elegido) return porNombre[elegido];
         }
         return null;
+    }
+
+    /// <summary>Los accesos directos que son la propia Ü: abrir una app nunca la lanza a ella (promesa 521).</summary>
+    private static readonly HashSet<string> LosDeU = new(StringComparer.Ordinal) { "u", "ü", "miracle", "miracleconsulta" };
+
+    /// <summary>
+    /// QUÉ ACCESO CASA CON LO PEDIDO (promesa 521): el exacto primero —que «Notepad++» no gane a «Notepad»—; después uno
+    /// cuyo nombre CONTIENE lo pedido («chrome» → «Google Chrome»); y solo si su nombre tiene 4 letras o más, uno que está
+    /// DENTRO de lo pedido («sap logon 760» → «SAP Logon»). Nunca los de Ü.
+    /// </summary>
+    /// <remarks>
+    /// EL 2026-09-28 (22:54) «calculator» lanzó «U.lnk»: «calculator» contiene «u». La Ü nueva heredó el entorno de la
+    /// prueba y desplazó a la del dueño. Con esa regla «outlook», «youtube» o «cursor» abrían otra Ü.
+    /// </remarks>
+    public static string? Elegir(string pedido, IReadOnlyList<string> nombres)
+    {
+        string target = Norm(pedido);
+        if (target.Length == 0 || LosDeU.Contains(target)) return null;
+        var candidatos = nombres.Where(n => Norm(n).Length > 0 && !LosDeU.Contains(Norm(n))).ToList();
+        // Literal antes que normalizado: «Notepad++» y «Notepad» se normalizan igual (los símbolos se van).
+        return candidatos.FirstOrDefault(n => string.Equals(n.Trim(), (pedido ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
+            ?? candidatos.FirstOrDefault(n => Norm(n) == target)
+            ?? candidatos.FirstOrDefault(n => target.Length >= 3 && Norm(n).Contains(target))
+            ?? candidatos.FirstOrDefault(n => Norm(n).Length >= 4 && target.Contains(Norm(n)));
     }
 
     /// <summary>Dónde vive el menú Inicio. Público porque el carrusel de apps lo recorre entero, y

@@ -925,6 +925,7 @@ internal static class Contrato
         Prueba("517. la mano del plan no pulsa sobre una ventana de Ü: mira bajo el punto con la misma regla (510), y tras el clic avisa a la carita", LaManoDelPlanNoPulsaSobreU);
         Prueba("518. Luna piensa en modo rápido: la delegación le pide reasoning.effort = low, al abrir y al cambiar de modo", LunaPiensaEnModoRapido);
         Prueba("519. el plan trabaja sobre la misma ventana que el ciclo rápido: la de delante, y si delante está Ü o nada, la de trabajo; sin ninguna de las dos, dice que no hay ventana", ElPlanTrabajaDondeElCiclo);
+        Prueba("521. abrir una app nunca lanza a la propia Ü: el acceso directo «U» no casa con nada, y un acceso cuyo nombre está DENTRO de lo pedido solo cuenta si tiene al menos 4 letras; lo exacto gana y lo que no casa no lanza nada", AbrirNuncaLanzaAU);
         Prueba("520. quien planea es GPT-6 Sol a la máxima velocidad que la API acepta: delegado gpt-6-sol con reasoning.effort = low y service_tier = priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
@@ -14738,6 +14739,23 @@ internal static class Contrato
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"new U\.Ciclo\.Motor\(DondeDelPlan,"), "[cableado] el motor de Jev no pregunta dónde con la regla del ciclo");
         Debe(cara.Contains("new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero)"), "[cableado] las manos del plan no trabajan sobre la ventana del ciclo");
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"DondeDelPlan\(\)[\s\S]{0,300}Navigation\.ElPlanPorObjetivos\.Donde\("), "[cableado] DondeDelPlan no usa ElPlanPorObjetivos.Donde");
+    }
+
+    private static void AbrirNuncaLanzaAU()
+    {
+        // MEDIDO EL 2026-09-28 (22:54): map_open_app «calculator» lanzó %LOCALAPPDATA%\U\current\U.exe —el acceso «U.lnk»—
+        // porque «calculator» CONTIENE «u». La Ü nueva heredó el entorno de la prueba y desplazó a la del dueño. Con la
+        // misma regla, «outlook», «youtube» o «cursor» abrían otra Ü si su acceso no estaba en el menú del usuario.
+        var elegir = typeof(U.WindowsClient.SystemApi.StartMenuLauncher).GetMethod("Elegir", BindingFlags.Public | BindingFlags.Static);
+        if (elegir == null) { Pendiente("StartMenuLauncher.Elegir (qué acceso directo casa con lo pedido)", "521", "062"); return; }
+        var menu = new[] { "U", "Obsidian", "Google Chrome", "Notepad++", "Notepad", "SAP Logon", "Visual Studio Code" };
+        string? E(string pedido) => (string?)elegir.Invoke(null, new object[] { pedido, menu });
+        foreach (string p in new[] { "calculator", "outlook", "youtube", "cursor", "u", "U", "Ü" })
+            Debe(E(p) == null, $"pedir «{p}» casó con «{E(p)}»: abrir no puede lanzar a la propia Ü ni un acceso de una letra");
+        Debe(E("notepad") == "Notepad", $"lo exacto no ganó a lo que lo contiene («{E("notepad")}»)");
+        Debe(E("chrome") == "Google Chrome", $"lo pedido dentro del nombre del acceso dejó de casar («{E("chrome")}»)");
+        Debe(E("sap logon 760") == "SAP Logon", $"un acceso de 4 letras o más dentro de lo pedido dejó de casar («{E("sap logon 760")}»)");
+        Debe(E("paint") == null, $"lo que no casa lanzó algo («{E("paint")}»)");
     }
 
     private static void PlaneaGpt6SolAMaximaVelocidad()

@@ -52,6 +52,12 @@ plan viejo.
 | 519 | el plan trabaja sobre la misma ventana que el ciclo rápido: la de delante, y si delante está Ü o nada, la de trabajo; sin ninguna de las dos, dice que no hay ventana | 4 |
 | 520 | quien planea es GPT-6 Sol a la máxima velocidad que la API acepta: delegado `gpt-6-sol` con `reasoning.effort = low` y `service_tier = priority`, al abrir y al cambiar de modo | 5 |
 
+| 521 | abrir una app nunca lanza a la propia Ü: el acceso directo «U» no casa con nada, y un acceso cuyo nombre está DENTRO de lo pedido solo cuenta si tiene al menos 4 letras; lo exacto gana y lo que no casa no lanza nada | 5 |
+
+> **Por qué la 521 está en esta spec.** La encontró su primera tanda (2026-09-28, 22:54): `map_open_app «calculator»` lanzó
+> la Ü instalada —«calculator» contiene «u», y el acceso se llama «U»—, y esa Ü desplazó a la del dueño con el entorno de
+> la prueba. No es de planificación, pero no se puede seguir midiendo con una prueba que puede tumbar la Ü del dueño.
+
 > **Decisión del dueño (2026-09-29):** «prefiero GPT 6 Sol por su calidad de planning, eso sí a la máxima velocidad
 > posible». Cambia lo que comprueba la promesa 40 del contrato de la voz (el delegado por defecto era `gpt-5.6-luna`); su
 > enunciado no nombra el modelo y no cambia. Medido con `velocidad.py` (instrucciones y catálogo de la voz, primer plan,
