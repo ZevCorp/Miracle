@@ -933,6 +933,7 @@ internal static class Contrato
         Prueba("526. «carpeta: <ruta o nombre>» abre esa carpeta por el disco dentro del plan, sin Jev; si no se pudo, el paso falla diciendo cuál, y sin quien abra carpetas lo dice", CarpetaEnElPlan);
         Prueba("527. el notch se aparta como la carita: si bajo el punto de un clic de Ü está el notch, se vuelve transparente al ratón un momento, se mira otra vez y se pulsa lo de debajo; cualquier otra ventana de Ü sigue sin pulsarse y se dice cuál", ElNotchSeApartaComoLaCarita);
         Prueba("528. leer el diálogo de delante tiene plazo: si la app no contesta en 2 s, map_unblock no se congela —dice que no pudo leer el diálogo a tiempo, no que no hay ninguno— y no pulsa nada", LeerElDialogoTienePlazo);
+        Prueba("529. saber dónde estoy tampoco se congela leyendo un diálogo: map_where_am_i lee el diálogo por la misma puerta con plazo que map_unblock; las dos lecturas del diálogo son una", DondeEstoyNoSeCongelaConUnDialogo);
         Prueba("520. quien planea es GPT-6 Sol a la máxima velocidad que la API acepta: delegado gpt-6-sol con reasoning.effort = low y service_tier = priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
@@ -14747,6 +14748,34 @@ internal static class Contrato
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"new U\.Ciclo\.Motor\(DondeDelPlan,"), "[cableado] el motor de Jev no pregunta dónde con la regla del ciclo");
         Debe(cara.Contains("new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero)"), "[cableado] las manos del plan no trabajan sobre la ventana del ciclo");
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"DondeDelPlan\(\)[\s\S]{0,300}Navigation\.ElPlanPorObjetivos\.Donde\("), "[cableado] DondeDelPlan no usa ElPlanPorObjetivos.Donde");
+    }
+
+    private static void DondeEstoyNoSeCongelaConUnDialogo()
+    {
+        // MEDIDO EL 2026-09-29 (04:41): con «Editar colores» de Paint delante, map_where_am_i tardó 212 s. La 528 puso plazo a
+        // UNO de los DOS sitios que leen el diálogo (DialogoDelante) y el otro (LeerInterrupcion) seguía sin él: el aprendizaje
+        // nº11 otra vez, habiendo contado los dos.
+        var mapa = new SurfaceMapTools(() => null);
+        var pLeer = typeof(SurfaceMapTools).GetProperty("LeerDialogo");
+        var pPlazo = typeof(SurfaceMapTools).GetProperty("PlazoDelDialogoMs");
+        if (pLeer == null || pPlazo == null) { Pendiente("SurfaceMapTools.PlazoDelDialogoMs", "529", "062"); return; }
+        pPlazo.SetValue(mapa, 300);
+        int lecturas = 0;
+        pLeer.SetValue(mapa, new Func<U.WindowsClient.Navigation.Desbloqueo.Dialogo?>(() => { lecturas++; Thread.Sleep(3000); return null; }));
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        mapa.Call("map_where_am_i", new Dictionary<string, string>());
+        reloj.Stop();
+        Debe(lecturas >= 1, "map_where_am_i no leyó el diálogo por la puerta con plazo (DialogoDelante): lo lee por otra");
+        Debe(reloj.ElapsedMilliseconds < 2500, $"map_where_am_i esperó {reloj.ElapsedMilliseconds} ms a un diálogo que no contesta, con plazo de 300 ms");
+
+        // [cableado] Solo hay una puerta al diálogo.
+        if (FuenteDe("windows-client", "src", "Mcp", "SurfaceMapTools.cs") is not { } s) return;
+        string Cuerpo(string firma) => System.Text.RegularExpressions.Regex.Match(s, System.Text.RegularExpressions.Regex.Escape(firma) + @"[\s\S]*?\r?\n    }\r?\n").Value;
+        string dialogo = Cuerpo("private Navigation.Desbloqueo.Dialogo? DialogoDelante()"), describir = Cuerpo("private string DescribirInterrupcion()");
+        Debe(dialogo.Contains("Uia.Plazo.Con(") && describir.Contains("Uia.Plazo.Con("), "[cableado] una de las dos puertas al diálogo lee sin plazo");
+        string resto = s.Replace(dialogo, "").Replace(describir, "");
+        var otras = System.Text.RegularExpressions.Regex.Matches(resto, @"Interrupcion\.(LeerDialogo|Leer|Describir)\(").Count;
+        Debe(otras == 0, $"[cableado] el mapa lee el diálogo por {otras} sitio(s) más, fuera de las dos puertas con plazo");
     }
 
     private static void LeerElDialogoTienePlazo()
