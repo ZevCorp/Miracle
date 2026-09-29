@@ -8,7 +8,7 @@ description: Lleva una rama verificada a main de forma segura — comprobaciones
 `main` roto bloquea a los tres. Esta skill **no mergea nada por su cuenta**: prepara, comprueba y
 propone. El push, el PR y el merge los confirma el usuario.
 
-Reglas: [`ramas-y-commits.md`](../../rules/ramas-y-commits.md) y [`compuerta-a-main.md`](../../rules/compuerta-a-main.md).
+Reglas: [`ramas-y-commits.md`](../../../../../.claude/rules/ramas-y-commits.md) y [`compuerta-a-main.md`](../../rules/compuerta-a-main.md).
 
 ## 1. Preflight — todo esto antes de tocar la red
 
@@ -51,7 +51,7 @@ puede faltarle:
 4. **En cuántos sitios vivía la clase de error** y cuántos se corrigieron.
 5. **Lo que se dejó fuera**, y por qué.
 
-Ese `git push` ya publica commits, así que **deja su aviso**: [`/avisa`](../avisa/SKILL.md) a
+Ese `git push` ya publica commits, así que **deja su aviso**: [`/avisa`](../../../../../.claude/skills/avisa/SKILL.md) a
 `#miracle-updates` con la rama y el link al PR. No se espera al merge para contarlo — el sentido del
 aviso es que los otros dos se enteren *antes* de que llegue el conflicto.
 
@@ -76,9 +76,9 @@ graphify update .        # el grafo se queda al día, sin coste de API
 
 Y decir al usuario, en una línea: qué entró, con qué evidencia, y qué queda pendiente de la spec.
 
-El merge a `main` deja su aviso en Slack como cualquier otro push: correr [`/avisa`](../avisa/SKILL.md),
+El merge a `main` deja su aviso en Slack como cualquier otro push: correr [`/avisa`](../../../../../.claude/skills/avisa/SKILL.md),
 que publica en `#miracle-updates` con el título del PR, las promesas que pasaron a verde y el link
-([regla](../../rules/aviso-en-slack.md)).
+([regla](../../../../../.claude/rules/aviso-en-slack.md)).
 
 ## Lo que nunca se hace sin que lo pidan
 
