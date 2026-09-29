@@ -1,0 +1,101 @@
+"use server";
+
+import { computeSignatureHash } from "@/lib/clinical/signature-hash";
+import { getCurrentProfile } from "@/lib/auth/server";
+import { createClient } from "@/lib/supabase/server";
+import { DEMO_AUDIT_ACCION } from "@/lib/demo";
+
+export interface SignNoteResult {
+  ok: boolean;
+  error?: string;
+  firma?: { por: string; fecha: string; hash?: string };
+}
+
+/**
+ * Firma la nota en el servidor: valida la sesión y el estado, registra quién
+ * firma (id real del usuario) y deja en auditoría un hash SHA-256 del
+ * contenido firmado, para que la firma quede atada a una versión concreta
+ * de la nota y no dependa del cliente.
+ */
+export async function signConsultationNote(
+  consultationId: string,
+): Promise<SignNoteResult> {
+  const profile = await getCurrentProfile();
+  if (!profile) return { ok: false, error: "Tu sesión no es válida. Ingresa de nuevo." };
+
+  const supabase = await createClient();
+  const { data: consultation, error } = await supabase
+    .from("consultations")
+    .select("id, estado, note, resumen, codigos")
+    .eq("id", consultationId)
+    .maybeSingle();
+
+  if (error || !consultation) {
+    return { ok: false, error: "No se encontró la consulta." };
+  }
+  if (consultation.estado !== "borrador" && consultation.estado !== "revisada") {
+    return { ok: false, error: "Esta nota ya fue aprobada." };
+  }
+
+  // Re-verificación server-side: una nota de demostración nunca se firma como
+  // historia clínica real (el bloqueo en la UI no es suficiente por sí solo).
+  const { count: demoCount } = await supabase
+    .from("audit_events")
+    .select("id", { count: "exact", head: true })
+    .eq("consultation_id", consultationId)
+    .eq("accion", DEMO_AUDIT_ACCION);
+  if (demoCount && demoCount > 0) {
+    return {
+      ok: false,
+      error: "Esta es una consulta de demostración y no puede firmarse.",
+    };
+  }
+
+  const por = profile.fullName ?? profile.email;
+  const fecha = new Date().toISOString();
+  // Serialización canónica compartida con Graph (lib/clinical/signature-hash.ts):
+  // Graph re-verifica este mismo hash al exportar a la historia clínica.
+  //
+  // OJO: se hashea la fila TAL COMO LA DEVOLVIÓ EL SELECT de arriba, no un objeto
+  // construido en memoria antes de escribir. Postgres normaliza el orden de
+  // claves de `jsonb`, así que hashear el valor previo a la escritura produce un
+  // hash que Graph no puede reproducir y haría fallar TODAS las exportaciones con
+  // SIGNATURE_HASH_MISMATCH. Verificado contra Postgres real en Graph
+  // (scripts/verify-note-export-real-postgres.js).
+  const contentHash = computeSignatureHash({
+    note: consultation.note,
+    resumen: consultation.resumen,
+    codigos: consultation.codigos,
+  });
+  // El hash completo queda en la firma (atadura contenido↔firma), no solo un
+  // prefijo en auditoría.
+  const firma = { por, fecha, hash: contentHash };
+
+  // UPDATE condicional por estado: si otra sesión firmó/exportó entre el
+  // SELECT de arriba y este punto, afecta 0 filas y no se pisa esa firma.
+  const { data: updated, error: updateError } = await supabase
+    .from("consultations")
+    .update({ estado: "aprobada", firma })
+    .eq("id", consultationId)
+    .in("estado", ["borrador", "revisada"])
+    .select("id");
+
+  if (updateError) {
+    return { ok: false, error: "No se pudo guardar la firma. Intenta de nuevo." };
+  }
+  if (!updated?.length) {
+    return {
+      ok: false,
+      error: "La nota cambió de estado (posible firma simultánea). Recarga la página.",
+    };
+  }
+
+  await supabase.from("audit_events").insert({
+    consultation_id: consultationId,
+    actor_name: por,
+    accion: "Nota aprobada y firmada",
+    detalle: `Firmada por ${por} (usuario ${profile.id}) · SHA-256 ${contentHash.slice(0, 16)}…`,
+  });
+
+  return { ok: true, firma };
+}
