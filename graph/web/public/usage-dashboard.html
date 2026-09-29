@@ -1,0 +1,1082 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Uso de tokens y costos de IA | Miracle</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/provider-studio.css">
+  <style>
+    /* Paleta categórica sobre negro. Tonos de luminancia parecida entre sí y
+       contraste suficiente contra el panel, para que ninguna serie desaparezca
+       y para que el orden no sugiera jerarquía. El color nunca es el único
+       portador de significado: toda serie lleva etiqueta y todo valor, cifra. */
+    :root {
+      --cat-1: #8ab4f8;
+      --cat-2: #9df0ac;
+      --cat-3: #f7c66b;
+      --cat-4: #d7a3f5;
+      --cat-5: #7fd8d0;
+      --cat-6: #ff9a8b;
+      --usage-grid: rgba(255, 255, 255, 0.07);
+    }
+
+    .usage-shell { width: min(1320px, calc(100vw - 64px)); margin: 0 auto; padding-bottom: 72px; }
+    @media (max-width: 780px) { .usage-shell { width: calc(100vw - 32px); } }
+
+    .usage-topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap; padding: 28px 0 18px;
+    }
+    .usage-title { display: grid; gap: 4px; }
+    .usage-title h1 { margin: 0; font-size: 1.65rem; font-weight: 700; letter-spacing: -0.02em; }
+    .usage-title p { margin: 0; color: var(--dim); font-size: 0.84rem; }
+    .usage-back { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: var(--muted); font-size: 0.85rem; }
+    .usage-back:hover { color: var(--ink); }
+
+    .usage-card {
+      border: 1px solid var(--line-soft); border-radius: 18px;
+      background: var(--panel); padding: 20px; margin-bottom: 18px;
+    }
+    .usage-card h2 {
+      margin: 0 0 14px; font-size: 0.76rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.09em; color: var(--dim);
+    }
+
+    /* ---- Filtros ---- */
+    .usage-filters { display: grid; gap: 14px; }
+    .usage-range-pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .usage-pill {
+      height: 34px; padding: 0 15px; border: 1px solid var(--line-soft); border-radius: 999px;
+      color: var(--muted); background: var(--control); font-size: 0.8rem; font-weight: 600; cursor: pointer;
+      transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease;
+    }
+    .usage-pill:hover:not(:disabled) { color: var(--ink); border-color: rgba(255,255,255,0.34); }
+    .usage-pill:disabled { opacity: 0.4; cursor: default; }
+    .usage-pill.is-active { color: #050505; background: #f1f1ee; border-color: #f1f1ee; }
+    .usage-pill:focus-visible { outline: 2px solid var(--cat-1); outline-offset: 2px; }
+
+    .usage-filter-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .usage-field { display: grid; gap: 5px; min-width: 0; }
+    .usage-field label {
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--dim);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .usage-field select, .usage-field input {
+      height: 36px; padding: 0 10px; border-radius: 10px;
+      border: 1px solid var(--line-soft); background: var(--control); color: var(--ink);
+      font-size: 0.83rem; font-family: inherit; width: 100%; min-width: 0;
+      /* Sin esto el navegador pinta el icono del calendario en claro sobre el
+         panel negro, y el desplegable nativo sale blanco. */
+      color-scheme: dark;
+    }
+    /* Un `datetime-local` no cabe en la misma columna que un desplegable: el
+       texto «dd/mm/aaaa --:--» más el icono del calendario necesitan casi el
+       doble, y al no caber se montaban uno encima del otro. Ocupa dos huecos
+       de la rejilla; si solo hay uno, el navegador lo limita a ese. */
+    .usage-field--date { grid-column: span 2; }
+    .usage-field--date input { padding-right: 6px; }
+    .usage-field select:focus, .usage-field input:focus { outline: 2px solid var(--cat-1); outline-offset: 1px; }
+    .usage-filter-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    /* ---- KPIs ---- */
+    .usage-hero { display: grid; gap: 18px; grid-template-columns: minmax(200px, 0.9fr) 3fr; align-items: start; }
+    @media (max-width: 900px) { .usage-hero { grid-template-columns: 1fr; } }
+    .usage-hero-stat strong { display: block; font-size: clamp(2.6rem, 5.4vw, 3.9rem); font-weight: 700; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+    .usage-hero-stat span { display: block; margin-top: 8px; color: var(--dim); font-size: 0.84rem; }
+    .usage-delta { display: block; margin-top: 6px; font-size: 0.8rem; font-weight: 600; }
+    .usage-kpis { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); }
+    .usage-kpi { padding: 12px 14px; border: 1px solid rgba(255,255,255,0.07); border-radius: 13px; background: rgba(255,255,255,0.025); }
+    .usage-kpi span { display: block; color: var(--dim); font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    .usage-kpi strong { display: block; margin-top: 6px; font-size: 1.18rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .usage-kpi em { display: block; margin-top: 2px; font-style: normal; font-size: 0.7rem; color: var(--dim); min-height: 1em; }
+
+    /* ---- Gráficas ---- */
+    .usage-charts { display: grid; gap: 18px; grid-template-columns: 1fr 1fr; }
+    @media (max-width: 1000px) { .usage-charts { grid-template-columns: 1fr; } }
+    .usage-chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+    .usage-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 0.76rem; color: var(--muted); }
+    .usage-legend-swatch { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
+    .usage-svg { width: 100%; height: 190px; display: block; }
+    .usage-axis-labels { display: flex; justify-content: flex-start; margin-top: 4px; color: var(--dim); font-size: 0.68rem; font-variant-numeric: tabular-nums; }
+
+    /* ---- Barras de desglose ---- */
+    .usage-bars { display: grid; gap: 9px; }
+    .usage-bar-row { display: grid; grid-template-columns: minmax(110px, 32%) 1fr auto; gap: 10px; align-items: center; font-size: 0.8rem; }
+    .usage-bar-label { color: var(--ink); min-width: 0; }
+    .usage-bar-label, .usage-bar-value { display: grid; min-width: 0; }
+    .usage-bar-label > span, .usage-bar-label > em,
+    .usage-bar-value > strong, .usage-bar-value > em {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .usage-bar-value > strong { font-weight: 600; }
+    .usage-bar-label > em, .usage-bar-value > em {
+      font-style: normal; color: var(--dim); font-size: 0.68rem;
+    }
+    .usage-bar-track { height: 9px; border-radius: 999px; background: rgba(255,255,255,0.06); overflow: hidden; }
+    .usage-bar-fill { height: 100%; border-radius: 999px; }
+    .usage-bar-value { color: var(--ink); font-variant-numeric: tabular-nums; font-size: 0.78rem; min-width: 132px; text-align: right; }
+
+    /* ---- Tabla ---- */
+    .usage-table-wrap { overflow-x: auto; }
+    table.usage-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; min-width: 980px; }
+    .usage-table th {
+      text-align: left; padding: 8px 10px; color: var(--dim); font-weight: 600;
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--line-soft); white-space: nowrap;
+    }
+    .usage-table td { padding: 9px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--muted); white-space: nowrap; }
+    .usage-table td.num { font-variant-numeric: tabular-nums; text-align: right; color: var(--ink); }
+    .usage-table tbody tr:hover td { background: rgba(255,255,255,0.03); }
+
+    .usage-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 600; border: 1px solid var(--line-soft); }
+    .usage-tag.ok { color: var(--success); border-color: rgba(157,240,172,0.4); }
+    .usage-tag.error { color: var(--danger); border-color: rgba(255,154,139,0.45); }
+    .usage-tag.warn { color: var(--cat-3); border-color: rgba(247,198,107,0.45); }
+
+    .usage-pager { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 12px; font-size: 0.78rem; color: var(--dim); }
+
+    /* ---- Estados ---- */
+    .usage-state { padding: 30px 18px; text-align: center; color: var(--dim); font-size: 0.86rem; display: grid; gap: 8px; justify-items: center; }
+    .usage-state strong { color: var(--ink); font-size: 0.94rem; }
+    .usage-banner { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; font-size: 0.8rem; margin-bottom: 14px; border: 1px solid; line-height: 1.55; }
+    .usage-banner.warn { color: var(--cat-3); border-color: rgba(247,198,107,0.35); background: rgba(247,198,107,0.07); }
+    .usage-banner.error { color: var(--danger); border-color: rgba(255,154,139,0.4); background: rgba(255,154,139,0.07); }
+    .usage-banner code { color: inherit; font-size: 0.76rem; }
+    .is-hidden { display: none !important; }
+    .usage-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.05), rgba(255,255,255,0.1), rgba(255,255,255,0.05)); background-size: 200% 100%; animation: usage-shimmer 1.3s linear infinite; border-radius: 8px; color: transparent !important; }
+    @keyframes usage-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+    @media (prefers-reduced-motion: reduce) { .usage-skeleton { animation: none; } }
+    .usage-meta { display: flex; gap: 14px; flex-wrap: wrap; color: var(--dim); font-size: 0.74rem; padding-top: 6px; }
+  </style>
+</head>
+<body>
+  <main class="usage-shell">
+    <header class="usage-topbar">
+      <div class="usage-title">
+        <a class="usage-back" href="/provider-studio.html">&larr; Provider Studio</a>
+        <h1>Uso de tokens y costos de IA</h1>
+        <p>Consumo real de modelos por organización, usuario, aplicación y funcionalidad.</p>
+      </div>
+      <div class="usage-filter-actions">
+        <button class="usage-pill" id="btn-refresh" type="button">Recargar</button>
+        <button class="usage-pill" id="btn-export" type="button">Exportar CSV</button>
+      </div>
+    </header>
+
+    <div id="banner-error" class="usage-banner error is-hidden" role="alert"></div>
+    <div id="banner-rates" class="usage-banner warn is-hidden" role="status"></div>
+    <div id="banner-unattributed" class="usage-banner warn is-hidden" role="status"></div>
+
+    <section class="usage-card">
+      <h2>Filtros</h2>
+      <div class="usage-filters">
+        <div class="usage-range-pills" id="range-pills" role="group" aria-label="Periodo">
+          <button class="usage-pill" data-range="1h" type="button">1 h</button>
+          <button class="usage-pill" data-range="6h" type="button">6 h</button>
+          <button class="usage-pill is-active" data-range="24h" type="button">24 h</button>
+          <button class="usage-pill" data-range="72h" type="button">72 h</button>
+          <button class="usage-pill" data-range="7d" type="button">7 d</button>
+          <button class="usage-pill" data-range="30d" type="button">30 d</button>
+        </div>
+        <div class="usage-filter-grid">
+          <div class="usage-field usage-field--date"><label for="f-from">Desde</label><input id="f-from" type="datetime-local"></div>
+          <div class="usage-field usage-field--date"><label for="f-to">Hasta</label><input id="f-to" type="datetime-local"></div>
+          <div class="usage-field"><label for="f-user">Usuario</label><select id="f-user"></select></div>
+          <div class="usage-field"><label for="f-org">Organización</label><select id="f-org"></select></div>
+          <div class="usage-field"><label for="f-app">Aplicación</label><select id="f-app"></select></div>
+          <div class="usage-field"><label for="f-feature">Funcionalidad</label><select id="f-feature"></select></div>
+          <div class="usage-field"><label for="f-provider">Proveedor</label><select id="f-provider"></select></div>
+          <div class="usage-field"><label for="f-model">Modelo</label><select id="f-model"></select></div>
+          <div class="usage-field"><label for="f-status">Estado</label><select id="f-status"></select></div>
+          <div class="usage-field"><label for="f-environment">Entorno</label><select id="f-environment"></select></div>
+        </div>
+        <div class="usage-filter-actions">
+          <button class="usage-pill" id="btn-clear" type="button">Limpiar filtros</button>
+          <span class="usage-meta" id="filters-echo"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="usage-card">
+      <h2>Resumen</h2>
+      <div class="usage-hero">
+        <div class="usage-hero-stat">
+          <strong id="kpi-tokens">—</strong>
+          <span id="kpi-tokens-label">Tokens totales</span>
+          <span id="delta-tokens" class="usage-delta"></span>
+        </div>
+        <div class="usage-kpis">
+          <div class="usage-kpi"><span>Entrada</span><strong id="kpi-input">—</strong><em id="kpi-cached"></em></div>
+          <div class="usage-kpi"><span>Salida</span><strong id="kpi-output">—</strong><em></em></div>
+          <div class="usage-kpi"><span>Costo estimado</span><strong id="kpi-cost">—</strong><em id="kpi-cost-note"></em><em id="delta-cost"></em></div>
+          <div class="usage-kpi"><span>Solicitudes</span><strong id="kpi-events">—</strong><em id="kpi-events-note"></em><em id="delta-events"></em></div>
+          <div class="usage-kpi"><span>Usuarios activos</span><strong id="kpi-users">—</strong><em id="kpi-orgs"></em><em id="delta-users"></em></div>
+          <div class="usage-kpi"><span>Tokens / solicitud</span><strong id="kpi-avg">—</strong><em></em></div>
+          <div class="usage-kpi"><span>Latencia media</span><strong id="kpi-latency">—</strong><em id="delta-latency"></em></div>
+          <div class="usage-kpi"><span>Tasa de error</span><strong id="kpi-errors">—</strong><em id="kpi-errors-note"></em><em id="delta-errors"></em></div>
+        </div>
+      </div>
+      <div class="usage-meta" id="summary-meta"></div>
+    </section>
+
+    <section class="usage-card">
+      <h2>Ritmo de gasto y economía unitaria</h2>
+      <div class="usage-kpis">
+        <div class="usage-kpi"><span>Costo por hora</span><strong id="eco-hour">—</strong><em id="eco-basis"></em></div>
+        <div class="usage-kpi"><span>Proyección a 24 h</span><strong id="eco-daily">—</strong><em>a este ritmo</em></div>
+        <div class="usage-kpi"><span>Proyección a 30 d</span><strong id="eco-monthly">—</strong><em>a este ritmo</em></div>
+        <div class="usage-kpi"><span>Costo por solicitud</span><strong id="eco-per-req">—</strong><em id="eco-per-req-note"></em></div>
+        <div class="usage-kpi"><span>Costo por usuario</span><strong id="eco-per-user">—</strong><em></em></div>
+        <div class="usage-kpi"><span>Aciertos de caché</span><strong id="eco-cache-rate">—</strong><em id="eco-cache-note"></em></div>
+        <div class="usage-kpi"><span>Ahorro por caché</span><strong id="eco-cache-savings">—</strong><em id="eco-cache-gap"></em></div>
+        <div class="usage-kpi"><span>Tokens de razonamiento</span><strong id="eco-reasoning">—</strong><em></em></div>
+      </div>
+      <p class="usage-meta" id="eco-warning"></p>
+    </section>
+
+    <div class="usage-charts">
+      <section class="usage-card">
+        <h2>Tokens en el tiempo</h2>
+        <div class="usage-chart-legend">
+          <span class="usage-legend-item"><span class="usage-legend-swatch" style="background:var(--cat-1)"></span>Entrada</span>
+          <span class="usage-legend-item"><span class="usage-legend-swatch" style="background:var(--cat-2)"></span>Salida</span>
+        </div>
+        <svg class="usage-svg" id="chart-tokens" role="img" aria-label="Tokens de entrada y salida a lo largo del tiempo"></svg>
+        <div class="usage-axis-labels" id="axis-tokens"></div>
+      </section>
+      <section class="usage-card">
+        <h2>Costo en el tiempo</h2>
+        <div class="usage-chart-legend">
+          <span class="usage-legend-item"><span class="usage-legend-swatch" style="background:var(--cat-3)"></span>Costo estimado (USD)</span>
+        </div>
+        <svg class="usage-svg" id="chart-cost" role="img" aria-label="Costo estimado a lo largo del tiempo"></svg>
+        <div class="usage-axis-labels" id="axis-cost"></div>
+      </section>
+    </div>
+
+    <div class="usage-charts">
+      <section class="usage-card"><h2>Por aplicación</h2><div class="usage-bars" id="bars-app"></div></section>
+      <section class="usage-card"><h2>Por funcionalidad</h2><div class="usage-bars" id="bars-feature"></div></section>
+      <section class="usage-card"><h2>Modelos con mayor costo</h2><div class="usage-bars" id="bars-model"></div></section>
+      <section class="usage-card"><h2>Usuarios con mayor consumo</h2><div class="usage-bars" id="bars-user"></div></section>
+      <section class="usage-card"><h2>Por proveedor</h2><div class="usage-bars" id="bars-provider"></div></section>
+      <section class="usage-card"><h2>Por organización</h2><div class="usage-bars" id="bars-organization"></div></section>
+      <section class="usage-card">
+        <h2>Por tipo de actor</h2>
+        <div class="usage-bars" id="bars-actor"></div>
+        <p class="usage-meta">Distingue el consumo de personas del de procesos internos y del que llegó sin atribuir.</p>
+      </section>
+      <section class="usage-card">
+        <h2>Distribución de errores</h2>
+        <div class="usage-bars" id="bars-errors"></div>
+        <p class="usage-meta">Solo llamadas fallidas, ordenadas por frecuencia. Un error barato que pasa a todas horas cuesta más que uno caro y raro.</p>
+      </section>
+    </div>
+
+    <section class="usage-card">
+      <h2>Latencia por modelo</h2>
+      <div class="usage-table-wrap">
+        <table class="usage-table" id="table-latency">
+          <thead>
+            <tr>
+              <th scope="col">Modelo</th><th scope="col">Proveedor / app</th><th scope="col">Solicitudes</th>
+              <th scope="col">Mediana (p50)</th><th scope="col">p95</th><th scope="col">Media</th>
+              <th scope="col">Errores</th>
+            </tr>
+          </thead>
+          <tbody id="latency-body"></tbody>
+        </table>
+      </div>
+      <p class="usage-meta">El p95 es el que importa: la media de una decena de llamadas rápidas y una colgada parece razonable, y el médico que esperó no lo diría.</p>
+    </section>
+
+    <section class="usage-card">
+      <h2>Detalle de eventos</h2>
+      <div class="usage-table-wrap">
+        <table class="usage-table">
+          <thead>
+            <tr>
+              <th scope="col">Fecha</th><th scope="col">Usuario</th><th scope="col">Organización</th>
+              <th scope="col">App</th><th scope="col">Funcionalidad</th><th scope="col">Proveedor</th>
+              <th scope="col">Modelo</th><th scope="col">Entrada</th><th scope="col">Salida</th>
+              <th scope="col">Total</th><th scope="col">Costo</th><th scope="col">Estado</th><th scope="col">Latencia</th>
+            </tr>
+          </thead>
+          <tbody id="events-body"></tbody>
+        </table>
+      </div>
+      <div id="events-state" class="usage-state is-hidden"></div>
+      <div class="usage-pager">
+        <span id="events-count"></span>
+        <button class="usage-pill" id="btn-prev" type="button">Anterior</button>
+        <button class="usage-pill" id="btn-next" type="button">Siguiente</button>
+      </div>
+    </section>
+
+    <p class="usage-meta" id="footer-meta"></p>
+  </main>
+
+  <script src="/auth-gate.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    // La zona horaria se muestra siempre: un panel de costos que no dice en qué
+    // huso agrupa sus buckets invita a conclusiones erróneas al compararlo con
+    // la factura del proveedor, que viene en UTC.
+    var TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    var state = { range: '24h', offset: 0, limit: 50, total: 0 };
+    var RANGES = ['1h', '6h', '24h', '72h', '7d', '30d'];
+
+    function $(id) { return document.getElementById(id); }
+    function esc(value) {
+      return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function authHeaders() {
+      var headers = { Accept: 'application/json' };
+      try {
+        var token = (window.MiracleAuth && window.MiracleAuth.getAccessToken)
+          ? window.MiracleAuth.getAccessToken() : '';
+        if (token) headers.Authorization = 'Bearer ' + token;
+      } catch (error) { /* sin sesión de Supabase: sirve la cookie de admin */ }
+      return headers;
+    }
+
+    // ---- Formato -----------------------------------------------------------
+    var nfInt = new Intl.NumberFormat('es-CO');
+    function fmtInt(value) { return nfInt.format(Math.round(Number(value) || 0)); }
+    function fmtCompact(value) {
+      var n = Number(value) || 0;
+      if (n >= 1e9) return (n / 1e9).toFixed(2) + ' B';
+      if (n >= 1e6) return (n / 1e6).toFixed(2) + ' M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + ' k';
+      return fmtInt(n);
+    }
+    // Redondear el costo a dos decimales convertiría en «$0.00» todo el consumo
+    // de los modelos baratos y daría la impresión de que no cuestan nada.
+    function fmtCost(value) {
+      if (value === null || value === undefined) return 'sin tarifa';
+      var n = Number(value) || 0;
+      if (n === 0) return '$0';
+      if (n < 0.01) return '$' + n.toFixed(6);
+      if (n < 1) return '$' + n.toFixed(4);
+      return '$' + n.toFixed(2);
+    }
+    // Variante corta para el eje y para la cifra sobre la barra: ahí solo hay
+    // sitio para unos ocho caracteres, y una escala que se desborda tapa la
+    // gráfica que venía a explicar.
+    function fmtCostAxis(value) {
+      var n = Number(value) || 0;
+      if (n === 0) return '$0';
+      if (n >= 1) return '$' + n.toFixed(2);
+      if (n >= 0.01) return '$' + n.toFixed(3);
+      return '$' + n.toFixed(5);
+    }
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      var d = new Date(iso);
+      return isNaN(d.getTime()) ? '—' : d.toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'medium' });
+    }
+    function shortId(value) { return value ? String(value).slice(0, 8) + '…' : '—'; }
+    function fmtMs(value) {
+      var n = Number(value) || 0;
+      if (!n) return '—';
+      return n >= 1000 ? (n / 1000).toFixed(1) + ' s' : Math.round(n) + ' ms';
+    }
+
+    // Variación frente al periodo anterior. Para el costo y los tokens subir es
+    // malo; para nada más de lo que se compara aquí subir es bueno, así que el
+    // color se decide por dimensión, no por signo — pintar de verde un 40 % más
+    // de gasto sería exactamente el mensaje contrario.
+    function renderDelta(node, delta, options) {
+      if (!node) return;
+      if (!delta || delta.basis === 'both_zero') { node.textContent = ''; node.removeAttribute('style'); return; }
+      if (delta.basis === 'no_baseline') {
+        node.textContent = 'sin consumo antes';
+        node.style.color = 'var(--dim)';
+        return;
+      }
+      var pct = delta.percent;
+      var arrow = pct > 0.05 ? '▲' : pct < -0.05 ? '▼' : '=';
+      var worse = (options && options.upIsBad) ? pct > 0.05 : pct < -0.05;
+      var better = (options && options.upIsBad) ? pct < -0.05 : pct > 0.05;
+      node.textContent = arrow + ' ' + Math.abs(pct).toFixed(1) + ' % vs. periodo anterior';
+      node.style.color = worse ? 'var(--danger)' : better ? 'var(--success)' : 'var(--dim)';
+    }
+
+    // ---- Filtros -----------------------------------------------------------
+    var SELECTS = { 'f-app': 'app', 'f-feature': 'feature', 'f-provider': 'provider',
+                    'f-model': 'model', 'f-status': 'status', 'f-environment': 'environment' };
+
+    function currentQuery() {
+      var params = new URLSearchParams();
+      var from = $('f-from').value;
+      var to = $('f-to').value;
+      if (from && to) {
+        params.set('from', new Date(from).toISOString());
+        params.set('to', new Date(to).toISOString());
+      } else {
+        params.set('range', state.range);
+      }
+      Object.keys(SELECTS).forEach(function (id) {
+        if ($(id).value) params.set(SELECTS[id], $(id).value);
+      });
+      if ($('f-org').value.trim()) params.set('organizationId', $('f-org').value.trim());
+      if ($('f-user').value.trim()) params.set('userId', $('f-user').value.trim());
+      return params;
+    }
+
+    // `values` admite cadenas o {value, label, detail}. Si lo que había elegido
+    // ya no está en la lista nueva (pasa al cambiar de rango: esa persona no
+    // consumió nada en la ventana nueva), la opción se conserva marcada como
+    // «sin consumo en el rango». Borrarla en silencio dejaría el panel filtrado
+    // por alguien que el desplegable ya no muestra — un filtro invisible.
+    function fillSelect(select, values, label) {
+      var previous = select.value;
+      var previousText = select.selectedOptions && select.selectedOptions[0]
+        ? select.selectedOptions[0].dataset.plain || select.selectedOptions[0].textContent : '';
+      select.innerHTML = '';
+      var all = document.createElement('option');
+      all.value = ''; all.textContent = label;
+      select.appendChild(all);
+
+      var found = false;
+      (values || []).forEach(function (entry) {
+        var value = typeof entry === 'string' ? entry : entry.value;
+        var text = typeof entry === 'string' ? entry : entry.label;
+        var option = document.createElement('option');
+        option.value = value;
+        option.textContent = text;
+        option.dataset.plain = text;
+        if (entry && entry.detail) option.title = entry.detail;
+        select.appendChild(option);
+        if (value === previous) found = true;
+      });
+
+      if (previous && !found) {
+        var ghost = document.createElement('option');
+        ghost.value = previous;
+        ghost.textContent = (previousText || previous) + ' (sin consumo en el rango)';
+        ghost.dataset.plain = previousText || previous;
+        select.appendChild(ghost);
+      }
+      if (previous) select.value = previous;
+    }
+
+    // ---- Gráficas ----------------------------------------------------------
+    // SVG a mano, sin librerías: la página se sirve del mismo backend y no debe
+    // depender de un CDN. Son dos gráficas simples; no justifican el peso.
+    var SVG_NS = 'http://www.w3.org/2000/svg';
+
+    function svgEl(name, attrs) {
+      var node = document.createElementNS(SVG_NS, name);
+      Object.keys(attrs || {}).forEach(function (key) { node.setAttribute(key, attrs[key]); });
+      return node;
+    }
+
+    // Cuatro marcas «redondas» para el eje: 84 437 sube a 100 k, no a 84 437.
+    // Un eje con cifras arbitrarias se lee peor que uno sin cifras.
+    function niceCeil(value) {
+      if (value <= 0) return 1;
+      var exp = Math.pow(10, Math.floor(Math.log10(value)));
+      var norm = value / exp;
+      var step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
+      return step * exp;
+    }
+
+    // POR QUÉ SE DIBUJA EN PÍXELES REALES Y NO CON viewBox ESCALADO.
+    // La versión anterior usaba `preserveAspectRatio="none"`, que estira el
+    // lienzo hasta el ancho del panel. Con solo barras se nota poco; en cuanto
+    // entra texto, las cifras salen deformadas horizontalmente. Por eso ahora se
+    // mide el ancho disponible y se dibuja 1:1, y se redibuja al redimensionar.
+    function drawBars(svg, axisNode, points, series) {
+      svg.innerHTML = '';
+      axisNode.innerHTML = '';
+      if (!points.length) return;
+
+      var W = Math.max(Math.round(svg.getBoundingClientRect().width) || 0, 320);
+      var H = 190;
+      var PAD_L = 54;   // sitio para las cifras del eje
+      var PAD_R = 8;
+      var PAD_T = 14;   // sitio para la cifra encima de la barra más alta
+      var PAD_B = 20;   // sitio para las fechas
+      var plotW = Math.max(W - PAD_L - PAD_R, 40);
+      var plotH = Math.max(H - PAD_T - PAD_B, 40);
+
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+      var rawMax = 0;
+      points.forEach(function (point) {
+        series.forEach(function (serie) { rawMax = Math.max(rawMax, Number(point[serie.key]) || 0); });
+      });
+      var max = niceCeil(rawMax);
+      // El formato del tooltip puede permitirse seis decimales; el del eje no,
+      // porque «$0.027300» no cabe en el margen y se comería la gráfica.
+      var fmtAxis = series[0].axisFormat || series[0].format;
+
+      // Rejilla con su cifra. Es la mitad del pedido: sin escala, una barra alta
+      // no dice si son mil tokens o un millón.
+      for (var g = 0; g <= 4; g += 1) {
+        var y = PAD_T + plotH * (1 - g / 4);
+        svg.appendChild(svgEl('line', {
+          x1: PAD_L, x2: PAD_L + plotW, y1: y, y2: y,
+          stroke: g === 0 ? 'rgba(255,255,255,0.16)' : 'var(--usage-grid)', 'stroke-width': 1
+        }));
+        var tick = svgEl('text', {
+          x: PAD_L - 8, y: y + 3.5, 'text-anchor': 'end',
+          fill: 'var(--dim)', 'font-size': '10', 'font-family': 'inherit'
+        });
+        tick.textContent = fmtAxis(max * g / 4);
+        svg.appendChild(tick);
+      }
+
+      var slot = plotW / points.length;
+      var barW = Math.max(Math.min(slot / series.length - 1, 26), 1);
+      var groupW = series.length * barW + (series.length - 1);
+      // Solo se rotula si la cifra cabe en el hueco. Rotular siempre produce
+      // números encimados, que es peor que no tenerlos.
+      var labelEvery = Math.max(1, Math.ceil((points.length * 34) / plotW));
+
+      points.forEach(function (point, index) {
+        var slotX = PAD_L + index * slot;
+        var groupX = slotX + (slot - groupW) / 2;
+        var tallest = 0;
+
+        series.forEach(function (serie, sIndex) {
+          var value = Number(point[serie.key]) || 0;
+          tallest = Math.max(tallest, value);
+          if (value <= 0) return;
+          var h = Math.max((plotH * value) / max, 1.5);
+          var rect = svgEl('rect', {
+            x: groupX + sIndex * (barW + 1), y: PAD_T + plotH - h,
+            width: barW, height: h, fill: serie.color, rx: 1.5
+          });
+          var title = document.createElementNS(SVG_NS, 'title');
+          title.textContent = fmtDate(point.at) + ' · ' + serie.label + ': ' + serie.format(value);
+          rect.appendChild(title);
+          svg.appendChild(rect);
+        });
+
+        if (tallest > 0 && index % labelEvery === 0) {
+          var h2 = Math.max((plotH * tallest) / max, 1.5);
+          var label = svgEl('text', {
+            x: groupX + groupW / 2, y: PAD_T + plotH - h2 - 4, 'text-anchor': 'middle',
+            fill: 'var(--muted)', 'font-size': '9.5', 'font-family': 'inherit'
+          });
+          label.textContent = fmtAxis(tallest);
+          svg.appendChild(label);
+        }
+
+        // Franja invisible por bucket: da el detalle exacto de TODAS las series
+        // a la vez, que es lo que no se puede leer de la barra.
+        var hit = svgEl('rect', {
+          x: slotX, y: PAD_T, width: slot, height: plotH, fill: 'transparent'
+        });
+        var hitTitle = document.createElementNS(SVG_NS, 'title');
+        hitTitle.textContent = fmtDate(point.at) + '\n' + series.map(function (serie) {
+          return serie.label + ': ' + serie.format(Number(point[serie.key]) || 0);
+        }).join('\n') + '\n' + fmtInt(point.events || 0) + ' solicitud(es)';
+        hit.appendChild(hitTitle);
+        svg.appendChild(hit);
+      });
+
+      var stamps = [points[0], points[Math.floor(points.length / 2)], points[points.length - 1]];
+      stamps.forEach(function (point, index) {
+        var x = index === 0 ? PAD_L : index === 1 ? PAD_L + plotW / 2 : PAD_L + plotW;
+        var text = svgEl('text', {
+          x: x, y: H - 6,
+          'text-anchor': index === 0 ? 'start' : index === 1 ? 'middle' : 'end',
+          fill: 'var(--dim)', 'font-size': '10', 'font-family': 'inherit'
+        });
+        text.textContent = new Date(point.at).toLocaleString('es-CO',
+          { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        svg.appendChild(text);
+      });
+
+      axisNode.textContent = 'Máximo del eje: ' + fmtAxis(max) +
+        ' · ' + points.length + ' intervalos';
+    }
+
+    // El último dibujo se guarda para poder repetirlo al cambiar el ancho: sin
+    // esto, redimensionar dejaría las gráficas con la escala de antes.
+    var lastDraw = [];
+    function drawAndRemember(svg, axisNode, points, series) {
+      lastDraw = lastDraw.filter(function (entry) { return entry.svg !== svg; });
+      lastDraw.push({ svg: svg, axisNode: axisNode, points: points, series: series });
+      drawBars(svg, axisNode, points, series);
+    }
+    var redrawPending = false;
+    window.addEventListener('resize', function () {
+      if (redrawPending) return;
+      redrawPending = true;
+      window.requestAnimationFrame(function () {
+        redrawPending = false;
+        lastDraw.forEach(function (entry) {
+          drawBars(entry.svg, entry.axisNode, entry.points, entry.series);
+        });
+      });
+    });
+
+    var PALETTE = ['var(--cat-1)', 'var(--cat-2)', 'var(--cat-3)', 'var(--cat-4)', 'var(--cat-5)', 'var(--cat-6)'];
+
+    function renderBars(node, rows, options) {
+      node.innerHTML = '';
+      if (!rows || !rows.length) {
+        node.innerHTML = '<div class="usage-state">Sin datos en este rango.</div>';
+        return;
+      }
+      var metric = options.metric || 'totalTokens';
+      var max = rows.reduce(function (acc, row) { return Math.max(acc, Number(row[metric]) || 0); }, 0) || 1;
+      // El total de lo listado, para poder dar el peso de cada fila. Un «84,4 k»
+      // sin referencia no dice si es mucho o poco.
+      var sum = rows.reduce(function (acc, row) { return acc + (Number(row[metric]) || 0); }, 0);
+
+      rows.forEach(function (row, index) {
+        var wrap = document.createElement('div');
+        wrap.className = 'usage-bar-row';
+        // `label` lo resuelve la base: nombre de la persona o de la
+        // organización. Para el resto de dimensiones es la clave misma.
+        var text = options.label ? options.label(row) : (row.label || row.key);
+        var value = Number(row[metric]) || 0;
+        var share = sum > 0 ? (value / sum) * 100 : 0;
+        // En el desglose POR APLICACIÓN el detalle sería la app otra vez; en el
+        // de funcionalidad o modelo dice desde qué app se gastó, que es justo lo
+        // que hacía falta cruzar a ojo entre dos paneles.
+        var detail = row.detail && row.detail !== text ? row.detail : '';
+        var hint = [detail, fmtInt(row.events) + ' solicitud(es)', row.key]
+          .filter(Boolean).join(' · ');
+        wrap.innerHTML =
+          '<div class="usage-bar-label" title="' + esc(hint) + '">' +
+            '<span>' + esc(text) + '</span>' +
+            (detail ? '<em>' + esc(detail) + '</em>' : '') + '</div>' +
+          '<div class="usage-bar-track" title="' + esc(share.toFixed(1)) + ' % del total listado">' +
+            '<div class="usage-bar-fill" style="width:' +
+            Math.max(value / max * 100, 1) + '%;background:' +
+            PALETTE[index % PALETTE.length] + '"></div></div>' +
+          '<div class="usage-bar-value"><strong>' + esc(options.format(row)) + '</strong>' +
+            '<em>' + share.toFixed(1) + ' % · ' + fmtInt(row.events) + ' req</em></div>';
+        node.appendChild(wrap);
+      });
+    }
+
+    // ---- Estados -----------------------------------------------------------
+    var KPI_IDS = ['kpi-tokens', 'kpi-input', 'kpi-output', 'kpi-cost', 'kpi-events',
+                   'kpi-users', 'kpi-avg', 'kpi-latency', 'kpi-errors'];
+
+    function setLoading(loading) {
+      KPI_IDS.forEach(function (id) { $(id).classList.toggle('usage-skeleton', loading); });
+      $('btn-refresh').disabled = loading;
+      $('btn-refresh').textContent = loading ? 'Cargando…' : 'Recargar';
+    }
+    function showError(message, detail) {
+      var banner = $('banner-error');
+      banner.classList.remove('is-hidden');
+      banner.innerHTML = '<div><strong>' + esc(message) + '</strong>' +
+        (detail ? '<br><code>' + esc(detail) + '</code>' : '') + '</div>';
+    }
+
+    async function fetchJson(url) {
+      var response = await fetch(url, { headers: authHeaders(), credentials: 'same-origin' });
+      var payload = null;
+      try { payload = await response.json(); } catch (error) { payload = null; }
+      if (!response.ok) {
+        var error = new Error((payload && payload.error) || ('HTTP ' + response.status));
+        error.status = response.status;
+        error.code = payload && payload.code;
+        throw error;
+      }
+      return payload;
+    }
+
+    // ---- La URL es el estado ----------------------------------------------
+    // Sin esto, una vista filtrada no se puede pasar a nadie ni sobrevive a
+    // recargar: el filtro se pierde y quien recibe el enlace ve otra cosa que
+    // quien lo mandó — que en una discusión sobre costos es justo lo peor.
+    var URL_FIELDS = ['f-app', 'f-feature', 'f-provider', 'f-model', 'f-status',
+                      'f-environment', 'f-user', 'f-org', 'f-from', 'f-to'];
+
+    function syncUrlFromFilters() {
+      var params = new URLSearchParams();
+      if (!$('f-from').value || !$('f-to').value) params.set('range', state.range);
+      URL_FIELDS.forEach(function (id) {
+        if ($(id).value) params.set(id.replace('f-', ''), $(id).value);
+      });
+      var query = params.toString();
+      window.history.replaceState(null, '', query ? '?' + query : window.location.pathname);
+    }
+
+    function applyFiltersFromUrl() {
+      var params = new URLSearchParams(window.location.search);
+      if (!params.toString()) return;
+      var range = params.get('range');
+      if (range && RANGES.indexOf(range) >= 0) {
+        state.range = range;
+        Array.prototype.forEach.call($('range-pills').querySelectorAll('[data-range]'), function (node) {
+          node.classList.toggle('is-active', node.dataset.range === range);
+        });
+      }
+      URL_FIELDS.forEach(function (id) {
+        var value = params.get(id.replace('f-', ''));
+        if (!value) return;
+        var node = $(id);
+        // Los desplegables se llenan al recibir la respuesta, así que aquí
+        // todavía no tienen la opción: se inserta provisional para que el valor
+        // sobreviva a este primer render y `fillSelect` la reconcilie después.
+        if (node.tagName === 'SELECT' && !Array.prototype.some.call(
+          node.options, function (option) { return option.value === value; })) {
+          var placeholder = document.createElement('option');
+          placeholder.value = value;
+          placeholder.textContent = value;
+          node.appendChild(placeholder);
+        }
+        node.value = value;
+      });
+    }
+
+    async function loadOverview() {
+      setLoading(true);
+      syncUrlFromFilters();
+      $('banner-error').classList.add('is-hidden');
+      try {
+        var data = await fetchJson('/api/usage/overview?' + currentQuery().toString());
+        renderOverview(data);
+        state.offset = 0;
+        await loadEvents();
+      } catch (error) {
+        if (error.status === 401) {
+          showError('Sesión expirada.', 'Vuelve a iniciar sesión para consultar el consumo.');
+        } else if (error.code === 'SUPABASE_NOT_CONFIGURED') {
+          showError('La telemetría no está configurada en este entorno.',
+            'Faltan SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY en el servidor.');
+        } else {
+          showError('No fue posible cargar el consumo.', error.message);
+        }
+        renderEmpty();
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function renderEmpty() {
+      KPI_IDS.forEach(function (id) { $(id).textContent = '—'; });
+      ['bars-app', 'bars-feature', 'bars-model', 'bars-user', 'bars-provider',
+       'bars-organization', 'bars-actor', 'bars-errors'].forEach(function (id) {
+        $(id).innerHTML = '<div class="usage-state">Sin datos.</div>';
+      });
+      $('chart-tokens').innerHTML = '';
+      $('chart-cost').innerHTML = '';
+    }
+
+    function renderEconomics(data) {
+      var eco = data.economics || {};
+      var totals = data.totals || {};
+      $('eco-hour').textContent = fmtCost(eco.costPerHour);
+      $('eco-basis').textContent = eco.basisHours
+        ? 'medido sobre ' + eco.basisHours + ' h' : '';
+      $('eco-daily').textContent = fmtCost(eco.projectedDailyUsd);
+      $('eco-monthly').textContent = fmtCost(eco.projectedMonthlyUsd);
+      $('eco-per-req').textContent = eco.costPerPricedRequest === null
+        ? 'sin datos' : fmtCost(eco.costPerPricedRequest);
+      // Se aclara el denominador: si no, un rango con muchos 429 parecería
+      // barato solo porque los fallos no cuestan.
+      $('eco-per-req-note').textContent = fmtInt(totals.pricedEvents) + ' facturadas' +
+        (totals.totalEvents > totals.pricedEvents
+          ? ' de ' + fmtInt(totals.totalEvents) : '');
+      $('eco-per-user').textContent = eco.costPerActiveUser === null
+        ? 'sin datos' : fmtCost(eco.costPerActiveUser);
+      $('eco-cache-rate').textContent = (Number(eco.cacheHitRate) || 0).toFixed(1) + ' %';
+      $('eco-cache-note').textContent = totals.cachedInputTokens
+        ? fmtCompact(totals.cachedInputTokens) + ' tokens' : 'sin caché';
+      $('eco-cache-savings').textContent = fmtCost(eco.cacheSavingsUsd);
+      $('eco-cache-gap').textContent = eco.cachedTokensWithoutRate
+        ? fmtCompact(eco.cachedTokensWithoutRate) + ' sin tarifa' : '';
+      $('eco-reasoning').textContent = totals.reasoningTokens
+        ? fmtCompact(totals.reasoningTokens) : '0';
+
+      // La proyección es una regla de tres sobre lo observado, no un pronóstico.
+      // Decirlo evita que una noche tranquila se lea como «bajó el gasto».
+      $('eco-warning').textContent = 'Las proyecciones extrapolan el ritmo de la ventana elegida: ' +
+        'un rango corto o sin actividad las distorsiona. El ahorro por caché se calcula con la ' +
+        'tarifa real de cada modelo (versión ' + esc(data.pricingVersion || '—') + '), no con una estimación.';
+    }
+
+    function renderLatency(modelRows) {
+      var body = $('latency-body');
+      body.innerHTML = '';
+      if (!modelRows || !modelRows.length) {
+        body.innerHTML = '<tr><td colspan="7">Sin datos en este rango.</td></tr>';
+        return;
+      }
+      // Se ordena por p95 descendente: la tabla existe para encontrar al lento,
+      // no para repetir el orden de consumo que ya dan las barras.
+      modelRows.slice().sort(function (a, b) {
+        return (Number(b.p95LatencyMs) || 0) - (Number(a.p95LatencyMs) || 0);
+      }).forEach(function (row) {
+        var tr = document.createElement('tr');
+        var errorTag = row.errorEvents
+          ? '<span class="usage-tag error">' + fmtInt(row.errorEvents) + ' · ' +
+            (Number(row.errorRate) || 0).toFixed(0) + ' %</span>'
+          : '<span class="usage-tag ok">0</span>';
+        tr.innerHTML =
+          '<td>' + esc(row.label || row.key) + '</td>' +
+          '<td>' + esc(row.detail || '—') + '</td>' +
+          '<td class="num">' + fmtInt(row.events) + '</td>' +
+          '<td class="num">' + fmtMs(row.p50LatencyMs) + '</td>' +
+          '<td class="num">' + fmtMs(row.p95LatencyMs) + '</td>' +
+          '<td class="num">' + fmtMs(row.avgLatencyMs) + '</td>' +
+          '<td>' + errorTag + '</td>';
+        body.appendChild(tr);
+      });
+    }
+
+    function renderOverview(data) {
+      var totals = data.totals || {};
+      var breakdowns = data.breakdowns || {};
+
+      $('kpi-tokens').textContent = fmtCompact(totals.totalTokens);
+      $('kpi-tokens-label').textContent = 'Tokens totales · ' +
+        (data.filters ? fmtDate(data.filters.from) + ' → ' + fmtDate(data.filters.to) : '');
+      $('kpi-input').textContent = fmtCompact(totals.inputTokens);
+      $('kpi-cached').textContent = totals.cachedInputTokens ? fmtCompact(totals.cachedInputTokens) + ' en caché' : '';
+      $('kpi-output').textContent = fmtCompact(totals.outputTokens);
+      $('kpi-cost').textContent = fmtCost(totals.costUsd);
+      $('kpi-cost-note').textContent = totals.unpricedEvents ? fmtInt(totals.unpricedEvents) + ' sin tarifa' : '';
+      $('kpi-events').textContent = fmtInt(totals.totalEvents);
+      $('kpi-events-note').textContent = totals.audioSeconds ? Math.round(totals.audioSeconds / 60) + ' min de audio' : '';
+      $('kpi-users').textContent = fmtInt(totals.activeUsers);
+      $('kpi-orgs').textContent = fmtInt(totals.activeOrganizations) + ' organización(es)';
+      $('kpi-avg').textContent = fmtInt(totals.avgTokensPerEvent);
+      $('kpi-latency').textContent = totals.avgLatencyMs ? Math.round(totals.avgLatencyMs) + ' ms' : '—';
+      $('kpi-errors').textContent = (Number(totals.errorRate) || 0).toFixed(1) + ' %';
+      $('kpi-errors-note').textContent = totals.errorEvents ? fmtInt(totals.errorEvents) + ' con error' : '';
+
+      $('summary-meta').innerHTML =
+        '<span>Zona horaria: ' + esc(TZ) + '</span>' +
+        '<span>Versión de tarifas: ' + esc(data.pricingVersion || '—') + '</span>' +
+        '<span>Actualizado: ' + esc(fmtDate(data.generatedAt)) + '</span>' +
+        '<span>Alcance: ' + (data.viewer && data.viewer.kind === 'internal_operator'
+          ? 'operador interno (todas las organizaciones)' : 'limitado a tu sesión') + '</span>';
+
+      var points = (data.series && data.series.points) || [];
+      drawAndRemember($('chart-tokens'), $('axis-tokens'), points, [
+        { key: 'inputTokens', label: 'Entrada', color: 'var(--cat-1)', format: fmtCompact },
+        { key: 'outputTokens', label: 'Salida', color: 'var(--cat-2)', format: fmtCompact }
+      ]);
+      drawAndRemember($('chart-cost'), $('axis-cost'), points, [
+        { key: 'costUsd', label: 'Costo', color: 'var(--cat-3)', format: fmtCost, axisFormat: fmtCostAxis }
+      ]);
+
+      var tokensAndCost = function (row) { return fmtCompact(row.totalTokens) + ' · ' + fmtCost(row.costUsd); };
+      renderBars($('bars-app'), breakdowns.app, { format: tokensAndCost });
+      renderBars($('bars-feature'), breakdowns.feature, { format: tokensAndCost });
+      renderBars($('bars-model'), breakdowns.model, {
+        metric: 'costUsd',
+        format: function (row) { return fmtCost(row.costUsd); }
+      });
+      renderBars($('bars-user'), breakdowns.user, { format: tokensAndCost });
+      renderBars($('bars-provider'), breakdowns.provider, { format: tokensAndCost });
+      renderBars($('bars-organization'), breakdowns.organization, { format: tokensAndCost });
+      renderBars($('bars-actor'), breakdowns.actorType, { format: tokensAndCost });
+      renderBars($('bars-errors'), breakdowns.errorCode, {
+        metric: 'events',
+        format: function (row) { return fmtInt(row.events) + ' fallo(s)'; }
+      });
+
+      renderEconomics(data);
+      renderLatency(breakdowns.model);
+
+      // Variación contra el periodo anterior de igual duración.
+      var deltas = (data.previous && data.previous.deltas) || {};
+      renderDelta($('delta-tokens'), deltas.totalTokens, { upIsBad: true });
+      renderDelta($('delta-cost'), deltas.costUsd, { upIsBad: true });
+      renderDelta($('delta-events'), deltas.totalEvents, { upIsBad: false });
+      renderDelta($('delta-users'), deltas.activeUsers, { upIsBad: false });
+      renderDelta($('delta-errors'), deltas.errorRate, { upIsBad: true });
+      renderDelta($('delta-latency'), deltas.avgLatencyMs, { upIsBad: true });
+
+      var vocabulary = data.vocabulary || {};
+      var facets = data.facets || {};
+      fillSelect($('f-app'), vocabulary.apps || [], 'Todas');
+      fillSelect($('f-feature'), vocabulary.features || [], 'Todas');
+      fillSelect($('f-status'), vocabulary.statuses || [], 'Todos');
+      fillSelect($('f-environment'), vocabulary.environments || [], 'Todos');
+      fillSelect($('f-provider'), (breakdowns.provider || []).map(function (r) { return r.key; }), 'Todos');
+      fillSelect($('f-model'), (breakdowns.model || []).map(function (r) { return r.key; }), 'Todos');
+      // Personas y organizaciones por NOMBRE. Antes había que pegar un UUID a
+      // mano, con lo que el filtro existía pero no se podía usar.
+      fillSelect($('f-user'), (facets.users || []).map(function (row) {
+        return { value: row.id, label: row.label, detail: row.detail };
+      }), 'Todos');
+      fillSelect($('f-org'), (facets.organizations || []).map(function (row) {
+        return { value: row.id, label: row.label, detail: row.detail };
+      }), 'Todas');
+
+      // «Tarifa no configurada»: se nombra el proveedor/modelo concreto, porque
+      // un aviso genérico no dice qué hay que arreglar.
+      var missing = data.missingRates || [];
+      var ratesBanner = $('banner-rates');
+      if (missing.length) {
+        ratesBanner.classList.remove('is-hidden');
+        ratesBanner.innerHTML = '<div><strong>Hay consumo sin tarifa configurada.</strong> ' +
+          'Su costo NO está sumado en el total.<br>' +
+          missing.slice(0, 6).map(function (row) {
+            return '<code>' + esc(row.provider) + ' · ' + esc(row.model || '(sin modelo)') + '</code> — ' +
+              fmtInt(row.events) + ' evento(s), ' + fmtCompact(row.totalTokens) + ' tokens';
+          }).join('<br>') + '</div>';
+      } else {
+        ratesBanner.classList.add('is-hidden');
+      }
+
+      // «Usuario sin atribución»: puede ser trabajo interno legítimo o una ruta
+      // sin cablear. Se dice que hay que distinguirlo en vez de esconderlo.
+      var orphan = (breakdowns.user || []).filter(function (row) { return !row.id; })[0];
+      var attrBanner = $('banner-unattributed');
+      if (orphan && orphan.events) {
+        attrBanner.classList.remove('is-hidden');
+        attrBanner.innerHTML = '<div><strong>Hay consumo sin usuario atribuido:</strong> ' +
+          fmtInt(orphan.events) + ' evento(s), ' + fmtCost(orphan.costUsd) + '. ' +
+          'Puede ser trabajo interno del sistema (legítimo) o una ruta sin instrumentar (a revisar). ' +
+          'Míralo por actor en el desglose para distinguirlo.</div>';
+      } else {
+        attrBanner.classList.add('is-hidden');
+      }
+
+      var active = [];
+      ['apps', 'features', 'providers', 'models', 'statuses', 'environments'].forEach(function (key) {
+        if (data.filters && data.filters[key] && data.filters[key].length) {
+          active.push(key + ': ' + data.filters[key].join(', '));
+        }
+      });
+      // Con nombre, no con UUID: el eco existe para poder comprobar de un
+      // vistazo por qué el total bajó, y «0f380786…» no sirve para eso.
+      function nameOf(list, id) {
+        var hit = (list || []).filter(function (row) { return row.id === id; })[0];
+        return hit ? hit.label : shortId(id);
+      }
+      if (data.filters && data.filters.organizationId) {
+        active.push('organización: ' + nameOf(facets.organizations, data.filters.organizationId));
+      }
+      if (data.filters && data.filters.userId) {
+        active.push('usuario: ' + nameOf(facets.users, data.filters.userId));
+      }
+      $('filters-echo').textContent = active.length
+        ? 'Filtros activos → ' + active.join(' · ') : 'Sin filtros adicionales';
+    }
+
+    async function loadEvents() {
+      var body = $('events-body');
+      var stateNode = $('events-state');
+      try {
+        var params = currentQuery();
+        params.set('limit', String(state.limit));
+        params.set('offset', String(state.offset));
+        var data = await fetchJson('/api/usage/events?' + params.toString());
+        state.total = data.total || 0;
+        body.innerHTML = '';
+
+        if (!data.events.length) {
+          stateNode.classList.remove('is-hidden');
+          stateNode.innerHTML = '<strong>Sin consumo registrado en este rango.</strong>' +
+            '<span>La medición confiable empieza después de desplegar la instrumentación. ' +
+            'No se rellenan periodos anteriores con estimaciones.</span>';
+        } else {
+          stateNode.classList.add('is-hidden');
+          data.events.forEach(function (event) {
+            var tr = document.createElement('tr');
+            tr.innerHTML =
+              '<td>' + esc(fmtDate(event.occurredAt)) + '</td>' +
+              // El UUID no desaparece: se queda en el `title`, que es donde hace
+              // falta para cruzar con otros sistemas. Lo que se lee es el nombre.
+              '<td title="' + esc([event.userEmail, event.userId].filter(Boolean).join(' · ')) + '">' +
+                (event.userId
+                  ? esc(event.userName || shortId(event.userId))
+                  : '<span class="usage-tag warn">' + esc(event.actorType) + '</span>') + '</td>' +
+              '<td title="' + esc(event.organizationId || '') + '">' +
+                (event.organizationId
+                  ? esc(event.organizationName || shortId(event.organizationId))
+                  : '—') + '</td>' +
+              '<td>' + esc(event.app) + '</td>' +
+              '<td>' + esc(event.feature) + '</td>' +
+              '<td>' + esc(event.provider) + '</td>' +
+              '<td title="' + esc(event.servedModel || '') + '">' + esc(event.requestedModel || '—') + '</td>' +
+              '<td class="num">' + fmtInt(event.inputTokens) + '</td>' +
+              '<td class="num">' + fmtInt(event.outputTokens) + '</td>' +
+              '<td class="num">' + fmtInt(event.totalTokens) + '</td>' +
+              '<td class="num">' + (event.costStatus === 'unpriced_no_rate'
+                ? '<span class="usage-tag warn">sin tarifa</span>'
+                : esc(fmtCost(event.costUsd))) + '</td>' +
+              '<td><span class="usage-tag ' + (event.status === 'ok' ? 'ok' : 'error') + '">' +
+                esc(event.status) + (event.attempt > 1 ? ' · int ' + event.attempt : '') + '</span></td>' +
+              '<td class="num">' + (event.latencyMs === null ? '—' : fmtInt(event.latencyMs) + ' ms') + '</td>';
+            body.appendChild(tr);
+          });
+        }
+
+        var from = state.total ? state.offset + 1 : 0;
+        var to = Math.min(state.offset + state.limit, state.total);
+        $('events-count').textContent = from + '–' + to + ' de ' + fmtInt(state.total);
+        $('btn-prev').disabled = state.offset <= 0;
+        $('btn-next').disabled = state.offset + state.limit >= state.total;
+      } catch (error) {
+        body.innerHTML = '';
+        stateNode.classList.remove('is-hidden');
+        stateNode.innerHTML = '<strong>No fue posible cargar el detalle.</strong><span>' +
+          esc(error.message) + '</span>';
+      }
+    }
+
+    // ---- Interacción --------------------------------------------------------
+    $('range-pills').addEventListener('click', function (event) {
+      var button = event.target.closest('[data-range]');
+      if (!button) return;
+      state.range = button.dataset.range;
+      Array.prototype.forEach.call(this.querySelectorAll('[data-range]'), function (node) {
+        node.classList.toggle('is-active', node === button);
+      });
+      $('f-from').value = '';
+      $('f-to').value = '';
+      loadOverview();
+    });
+
+    Object.keys(SELECTS).concat(['f-org', 'f-user', 'f-from', 'f-to']).forEach(function (id) {
+      $(id).addEventListener('change', loadOverview);
+    });
+
+    $('btn-refresh').addEventListener('click', loadOverview);
+    $('btn-clear').addEventListener('click', function () {
+      Object.keys(SELECTS).forEach(function (id) { $(id).value = ''; });
+      $('f-org').value = ''; $('f-user').value = '';
+      $('f-from').value = ''; $('f-to').value = '';
+      // También se limpia la URL: si no, recargar resucitaría los filtros que
+      // el botón acaba de quitar.
+      window.history.replaceState(null, '', window.location.pathname);
+      loadOverview();
+    });
+    $('btn-prev').addEventListener('click', function () {
+      state.offset = Math.max(state.offset - state.limit, 0);
+      loadEvents();
+    });
+    $('btn-next').addEventListener('click', function () {
+      state.offset += state.limit;
+      loadEvents();
+    });
+    $('btn-export').addEventListener('click', function () {
+      var params = currentQuery();
+      params.set('offset', String(state.offset));
+      window.open('/api/usage/export.csv?' + params.toString(), '_blank', 'noopener');
+    });
+
+    $('footer-meta').textContent =
+      'Este panel no muestra prompts, respuestas ni contenido clínico: el ledger solo guarda ' +
+      'metadatos técnicos de cada llamada. Zona horaria del navegador: ' + TZ + '.';
+
+    applyFiltersFromUrl();
+    loadOverview();
+  })();
+  </script>
+</body>
+</html>
