@@ -916,6 +916,14 @@ internal static class Contrato
         Prueba("508. un clic que manda Ü lleva su firma, y ninguna ventana de Ü lo toma por un toque de la persona: el filtro del hilo de la interfaz lo tira antes que WPF, y el log lo dice", UnClicDeUNoEsUnToque);
         Prueba("510. un clic de Ü no cae sobre una ventana de Ü: antes de pulsar se mira qué hay bajo el punto; si es la carita, se aparta —fantasma— y se pulsa; si es otra ventana de Ü, no se pulsa y se dice cuál", UnClicDeUNoCaeSobreU);
         Prueba("511. el puerto del MCP se puede cambiar con U_MCP_PUERTO, para que una Ü de pruebas no le quite el 8790 a la Ü del dueño; sin la variable, o con un puerto que no vale, es el 8790", DosUEnElMismoPc);
+        // ── Spec 062: Luna planea por objetivos, Jeff ejecuta ──
+        Prueba("512. la medida del turno separa pensar de ejecutar: ejecutar es lo que tardaron las tandas de herramientas; pensar es el resto, desde la petición hasta lo primero que dice Ü tras la última herramienta; la línea voz-turno lleva pensar=, ejecutar= y luna= en porcentaje", PensarYEjecutarSeSeparan);
+        Prueba("513. una orden de prueba entra por el mismo camino que lo escrito en el chat —u_orden por el MCP—, u_colgar cierra la voz, y las dos solo existen con U_ORDENES_DE_PRUEBA=1; Luna no las ve", OrdenesDePruebaPorElMcp);
+        Prueba("514. Luna tiene map_hacer con pasos: el plan entero en una llamada; sin ejecutor conectado lo dice, y con él le pasa los pasos tal cual", LunaTieneMapHacer);
+        Prueba("515. un plan se lee de una lista JSON (o una línea por paso); vacío o ilegible no ejecuta nada y lo dice; y cada plan deja su cuenta sobre el plan entero: ⏱ plan: N objetivo(s) · K cumplido(s) · F fallido(s) · O omitido(s) · A acción(es) · X ms", UnPlanSeLeeYSeCuenta);
+        Prueba("516. «pulsa: <nombre>» va por el ciclo rápido, sin Jev; si no está a la vista, el paso pasa a Jev como objetivo; un paso sin prefijo es un objetivo para Jev", PulsaVaPorElCicloRapido);
+        Prueba("517. la mano del plan no pulsa sobre una ventana de Ü: mira bajo el punto con la misma regla (510), y tras el clic avisa a la carita", LaManoDelPlanNoPulsaSobreU);
+        Prueba("518. Luna piensa en modo rápido: la delegación le pide reasoning.effort = low, al abrir y al cambiar de modo", LunaPiensaEnModoRapido);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -14497,6 +14505,235 @@ internal static class Contrato
         }
         int carteles = app.IndexOf("Ui.SinCarteles.Aplicar()", StringComparison.Ordinal), filtro = app.IndexOf("Ui.ToquesDeU.Instalar()", StringComparison.Ordinal);
         Debe(carteles >= 0 && filtro > carteles, "[cableado] el filtro de toques no se instala al arrancar (después de SinCarteles, promesa 164)");
+    }
+
+    // ── Spec 062: Luna planea por objetivos, Jeff ejecuta ──
+
+    private static void PensarYEjecutarSeSeparan()
+    {
+        // LA SESIÓN DEL DUEÑO DEL 2026-09-28 (p33388): ~59 de 77 s eran Luna pensando, y eso se sacó a mano restando huecos
+        // de un log con resolución de un segundo. La meta del 20 % necesita la medida en cada pedido, no un script.
+        var t = Cap004("U.WindowsClient.Voice.CuentaDelTurno");
+        if (t?.GetMethod("Trabajo") == null || t.GetMethod("Hablo") == null) { Pendiente("CuentaDelTurno.Trabajo y CuentaDelTurno.Hablo (separar pensar de ejecutar)", "512", "062"); return; }
+        long ahora = 0;
+        var c = Activator.CreateInstance(t, new object[] { (Func<long>)(() => ahora) })!;
+        void M(string metodo, params object[] a) => t.GetMethod(metodo)!.Invoke(c, a);
+
+        M("Peticion");
+        ahora = 400; M("Hablo");   // lo que dice antes de la primera herramienta no es el final
+        ahora = 1000; M("Llamada", "map_hacer", "");
+        ahora = 4000; M("Resultado", "map_hacer", "", true); M("Trabajo", 3000L);
+        ahora = 5500; M("Llamada", "map_hacer", "");
+        ahora = 7500; M("Resultado", "map_hacer", "", true); M("Trabajo", 2000L);
+        ahora = 9000; M("Hablo");
+        ahora = 9500; M("Hablo");   // la voz sigue hablando: el final es lo PRIMERO que dice
+        string linea = (string?)t.GetMethod("Cerrar")!.Invoke(c, null) ?? "";
+        Debe(linea.Contains("ejecutar=5000 ms"), $"ejecutar no es la suma de lo que tardaron las dos tandas (5000 ms): «{linea}»");
+        Debe(linea.Contains("pensar=4000 ms"), $"pensar no es el resto desde la petición hasta lo primero que dijo Ü tras la última herramienta (4000 ms): «{linea}»");
+        Debe(linea.Contains("luna=44%"), $"luna no es pensar sobre el total (4000/9000 = 44 %): «{linea}»");
+        Debe(linea.Contains("llamadas=2"), $"la medida de siempre (205) se perdió: «{linea}»");
+
+        // Sin nada dicho después, el final es la última herramienta.
+        var c2 = Activator.CreateInstance(t, new object[] { (Func<long>)(() => ahora) })!;
+        void M2(string metodo, params object[] a) => t.GetMethod(metodo)!.Invoke(c2, a);
+        ahora = 0; M2("Peticion");
+        ahora = 500; M2("Llamada", "map_take", "Nueve");
+        ahora = 2500; M2("Resultado", "map_take", "Nueve", true); M2("Trabajo", 2000L);
+        string l2 = (string?)t.GetMethod("Cerrar")!.Invoke(c2, null) ?? "";
+        Debe(l2.Contains("pensar=500 ms") && l2.Contains("ejecutar=2000 ms") && l2.Contains("luna=20%"),
+            $"sin nada dicho después de la última herramienta, el final tiene que ser esa herramienta: «{l2}»");
+
+        // [cableado] La voz cuenta cada tanda y lo que dice.
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"private async Task EjecutarAsync\([\s\S]*?_cuenta\.Trabajo\("),
+            "[cableado] la voz no le cuenta a la medida lo que tardó cada tanda de herramientas");
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"case Hecho\.DiceU d:[\s\S]*?_cuenta\.Hablo\(\);[\s\S]*?break;"),
+            "[cableado] la voz no le cuenta a la medida cuándo habló Ü");
+    }
+
+    private static void OrdenesDePruebaPorElMcp()
+    {
+        // PROBAR COMO EL DUEÑO (2026-09-28): las pruebas tienen que entrar por el camino de su voz —la voz, Luna, las manos—
+        // y no por una sonda que llame a las herramientas directo. Lo escrito en el chat ya va por ahí.
+        var t = Capacidad("U.WindowsClient.Mcp.OrdenesDePrueba");
+        var con = t?.GetMethod("ConElMcp", BindingFlags.Public | BindingFlags.Static);
+        if (con == null) { Pendiente("OrdenesDePrueba.ConElMcp (u_orden y u_colgar por el MCP)", "513", "062"); return; }
+        var baseMcp = new List<Voz.Realtime.Utensilio> { new("map_take", "pulsa", Array.Empty<Voz.Realtime.Argumento>()) };
+        List<Voz.Realtime.Utensilio> Con(string? variable) =>
+            ((IEnumerable<Voz.Realtime.Utensilio>)con.Invoke(null, new object?[] { baseMcp, variable })!).ToList();
+        Debe(Con(null).Select(u => u.Nombre).SequenceEqual(new[] { "map_take" }) && Con("0").Count == 1 && Con("").Count == 1,
+            "sin U_ORDENES_DE_PRUEBA=1 el MCP ofrece órdenes de prueba: cualquier proceso del PC podría gastar la voz de pago");
+        var si = Con("1");
+        var orden = si.FirstOrDefault(u => u.Nombre == "u_orden");
+        Debe(si.Count == 3 && si[0].Nombre == "map_take" && orden != null && orden.Args.Any(a => a.Nombre == "texto") && si.Any(u => u.Nombre == "u_colgar"),
+            "con U_ORDENES_DE_PRUEBA=1 el MCP no ofrece u_orden (con «texto») y u_colgar detrás de lo de siempre");
+
+        foreach (string metodo in new[] { "Herramientas", "HerramientasDelPiloto" })
+        {
+            var todas = (System.Collections.IEnumerable)Cap004("U.WindowsClient.Voice.ConversacionEnVivo")!
+                .GetMethod(metodo, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)!.Invoke(null, null)!;
+            var nombres = todas.Cast<Voz.Realtime.Utensilio>().Select(u => u.Nombre).ToList();
+            Debe(!nombres.Contains("u_orden") && !nombres.Contains("u_colgar"), $"Luna ve las órdenes de prueba en {metodo}(): se podría mandar órdenes a sí misma");
+        }
+
+        // [cableado] El catálogo del MCP pasa por ahí, y la orden va por el mismo camino que el chat.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(cara.Contains("Mcp.OrdenesDePrueba.ConElMcp(") && cara.Contains("Environment.GetEnvironmentVariable(\"U_ORDENES_DE_PRUEBA\")"),
+            "[cableado] el catálogo del MCP no pasa por OrdenesDePrueba.ConElMcp con la variable");
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"""u_orden""[\s\S]{0,400}EnviarTextoDesdeElNotchAsync\("),
+            "[cableado] u_orden no entra por el mismo camino que lo escrito en el chat (EnviarTextoDesdeElNotchAsync)");
+    }
+
+    private static void LunaTieneMapHacer()
+    {
+        // 0 DE 46 RESPUESTAS DE LUNA TRAJERON MÁS DE UNA ACCIÓN (sesión del 2026-09-28): con una herramienta por gesto, cada
+        // gesto es una vuelta de ~2 s de Luna. El plan entero tiene que caber en UNA llamada.
+        var todas = (System.Collections.IEnumerable)Cap004("U.WindowsClient.Voice.ConversacionEnVivo")!
+            .GetMethod("Herramientas", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)!.Invoke(null, null)!;
+        var hacer = todas.Cast<Voz.Realtime.Utensilio>().FirstOrDefault(u => u.Nombre == "map_hacer");
+        var pHacer = typeof(SurfaceMapTools).GetProperty("Hacer");
+        if (hacer == null || pHacer == null) { Pendiente("map_hacer en el catálogo de Luna y SurfaceMapTools.Hacer", "514", "062"); return; }
+        Debe(hacer.Args.Select(a => a.Nombre).SequenceEqual(new[] { "pasos" }), "map_hacer no pide exactamente «pasos»");
+        Debe(SurfaceMapTools.IsMapTool("map_hacer"), "map_hacer no es una herramienta del mapa: la voz no la despacharía");
+
+        var mapa = new SurfaceMapTools(() => null);
+        string sinEjecutor = mapa.Call("map_hacer", new Dictionary<string, string> { ["pasos"] = "[\"abre: notepad\"]" });
+        Debe(!sinEjecutor.Contains("no soportada") && sinEjecutor.Contains("todavía"), $"sin ejecutor conectado no lo dijo: «{sinEjecutor}»");
+        string? recibido = null;
+        pHacer.SetValue(mapa, new Func<string, string>(p => { recibido = p; return "hecho"; }));
+        string conEjecutor = mapa.Call("map_hacer", new Dictionary<string, string> { ["pasos"] = "[\"abre: notepad\",\"escribe: hola\"]" });
+        Debe(conEjecutor == "hecho" && recibido == "[\"abre: notepad\",\"escribe: hola\"]", $"los pasos no llegaron tal cual al ejecutor («{recibido}»)");
+    }
+
+    private static Type? PlanT() => Capacidad("U.WindowsClient.Navigation.ElPlanPorObjetivos");
+
+    /// <summary>Un plan con manos de mentira: anota lo que hace cada mano, y Jev cumple todo menos lo que se le diga.</summary>
+    private static (object Plan, List<string> Hecho) PlanDeMentira(Func<string, bool> pulsarPorNombre, Func<string, bool> jevCumple)
+    {
+        var hecho = new List<string>();
+        long reloj = 0;
+        var jev = new Func<string, IReadOnlyList<string>, U.Ciclo.Recorrido>((objetivo, _) =>
+        {
+            hecho.Add("jev:" + objetivo); reloj += 700;
+            bool ok = jevCumple(objetivo);
+            var vueltas = new List<U.Ciclo.Vuelta> { new(1, new U.Ciclo.Tiempos(0, 0, 0, 0, 0), "p", 3, ok ? "1) X (Button)" : "", ok ? "cambió" : "no pulso") };
+            return new U.Ciclo.Recorrido(vueltas, ok ? "cumplido" : "no pulso: no veo cómo", ok);
+        });
+        var plan = Activator.CreateInstance(PlanT()!, new object[]
+        {
+            new Func<string, bool>(app => { hecho.Add("abre:" + app); reloj += 900; return true; }),
+            new Action<string>(texto => { hecho.Add("escribe:" + texto); reloj += 300; }),
+            new Func<string, bool>(tecla => { hecho.Add("tecla:" + tecla); reloj += 100; return true; }),
+            new Func<string, bool>(nombre => { hecho.Add("pulsa:" + nombre); reloj += 300; return pulsarPorNombre(nombre); }),
+            jev,
+            new Func<bool>(() => false),
+            new Func<string>(() => "EN PANTALLA AHORA, en «Prueba» (1 elemento(s)):\n  «Aceptar» (Button)"),
+            new Func<long>(() => reloj),
+        })!;
+        return (plan, hecho);
+    }
+
+    private static void UnPlanSeLeeYSeCuenta()
+    {
+        var t = PlanT();
+        var leer = t?.GetMethod("Leer", BindingFlags.Public | BindingFlags.Static);
+        var linea = t?.GetMethod("Linea", BindingFlags.Public | BindingFlags.Static);
+        if (leer == null || linea == null || t!.GetMethod("Hacer") == null) { Pendiente("ElPlanPorObjetivos.Leer, .Linea y .Hacer", "515", "062"); return; }
+        (IReadOnlyList<string>? Pasos, string Porque) L(string s)
+        {
+            var a = new object?[] { s, null };
+            var r = (IReadOnlyList<string>?)leer.Invoke(null, a);
+            return (r, (string?)a[1] ?? "");
+        }
+        Debe(L("[\"abre: calculadora\", \"pulsa: Nueve\"]").Pasos?.SequenceEqual(new[] { "abre: calculadora", "pulsa: Nueve" }) == true, "no leyó una lista JSON de pasos");
+        Debe(L("{\"pasos\": [\"a\", \"b\", \"c\"]}").Pasos?.Count == 3, "no leyó un objeto con «pasos»");
+        Debe(L("abre: notepad\nescribe: hola").Pasos?.SequenceEqual(new[] { "abre: notepad", "escribe: hola" }) == true, "no leyó una línea por paso");
+        Debe(L("1. abrir el menú Archivo\n- ir a Guardar como").Pasos?.SequenceEqual(new[] { "abrir el menú Archivo", "ir a Guardar como" }) == true,
+            "no quitó la numeración o la viñeta de cada línea");
+        foreach (string vacio in new[] { "", "   ", "[]", "{\"pasos\": []}" })
+        {
+            var (p, porque) = L(vacio);
+            Debe(p == null && porque.Length > 0, $"un plan vacío («{vacio}») no se rechazó diciendo por qué");
+        }
+        var (roto, porQueRoto) = L("[\"a\", ");
+        Debe(roto == null && porQueRoto.Contains("no entendí"), $"un JSON roto no se rechazó diciendo que no se entendió («{porQueRoto}»)");
+
+        var r = U.Ciclo.Plan.Resultado(new[] { "a", "b", "c", "d", "e" }, new[] { true, true, true, false });
+        string l = (string)linea.Invoke(null, new object[] { r, 12, 8400L })!;
+        Debe(l == "⏱ plan: 5 objetivo(s) · 3 cumplido(s) · 1 fallido(s) · 1 omitido(s) · 12 acción(es) · 8400 ms", $"la cuenta del plan no es la escrita: «{l}»");
+
+        // Punta a punta con manos de mentira: el paso 3 falla, el 4 queda Omitido, y la cuenta es sobre los 4.
+        var (plan, hecho) = PlanDeMentira(_ => true, objetivo => !objetivo.Contains("imposible"));
+        string res = (string)t.GetMethod("Hacer")!.Invoke(plan, new object[] { "[\"abre: calculadora\", \"pulsa: Nueve\", \"algo imposible\", \"tecla: Enter\"]" })!;
+        Debe(res.Contains("2 de 4") && res.Contains("EN PANTALLA AHORA"), $"el relato no cuenta sobre el plan o no trae lo que hay ahora: «{res}»");
+        Debe(!hecho.Contains("tecla:Enter"), "después del paso que falló se siguió ejecutando");
+        string cuenta = (string?)t.GetProperty("UltimaCuenta")?.GetValue(plan) ?? "";
+        Debe(cuenta.StartsWith("⏱ plan: 4 objetivo(s) · 2 cumplido(s) · 1 fallido(s) · 1 omitido(s) · 2 acción(es)"),
+            $"la cuenta del plan ejecutado no es la del plan entero (abrir y pulsar = 2 acciones; Jev no pulsó): «{cuenta}»");
+        var (plan2, hecho2) = PlanDeMentira(_ => true, _ => true);
+        string vacio2 = (string)t.GetMethod("Hacer")!.Invoke(plan2, new object[] { "" })!;
+        Debe(hecho2.Count == 0 && vacio2.Length > 0, "un plan vacío ejecutó algo, o no dijo nada");
+    }
+
+    private static void PulsaVaPorElCicloRapido()
+    {
+        var t = PlanT();
+        var objetivo = t?.GetMethod("Objetivo");
+        if (objetivo == null) { Pendiente("ElPlanPorObjetivos.Objetivo (a dónde va cada paso)", "516", "062"); return; }
+        var (plan, hecho) = PlanDeMentira(nombre => nombre == "Nueve", _ => true);
+        U.Ciclo.Recorrido O(string paso) => (U.Ciclo.Recorrido)objetivo.Invoke(plan, new object[] { paso, Array.Empty<string>() })!;
+
+        var r1 = O("pulsa: Nueve");
+        Debe(r1.Cumplido && hecho.SequenceEqual(new[] { "pulsa:Nueve" }), $"«pulsa: Nueve» a la vista no fue por el ciclo rápido solo ({string.Join(", ", hecho)})");
+        hecho.Clear();
+        var r2 = O("pulsa: Diez");
+        Debe(r2.Cumplido && hecho.Count == 2 && hecho[0] == "pulsa:Diez" && hecho[1].StartsWith("jev:") && hecho[1].Contains("Diez"),
+            $"«pulsa: Diez» que no está a la vista no pasó a Jev como objetivo ({string.Join(", ", hecho)})");
+        hecho.Clear();
+        var r3 = O("ir a Bluetooth y dispositivos");
+        Debe(r3.Cumplido && hecho.SequenceEqual(new[] { "jev:ir a Bluetooth y dispositivos" }), $"un objetivo sin prefijo no fue a Jev tal cual ({string.Join(", ", hecho)})");
+    }
+
+    private static void LaManoDelPlanNoPulsaSobreU()
+    {
+        var pulsar = PlanT()?.GetMethod("Pulsar", BindingFlags.Public | BindingFlags.Static);
+        if (pulsar == null) { Pendiente("ElPlanPorObjetivos.Pulsar (la mano del plan, con la guarda de la carita)", "517", "062"); return; }
+        var a = new U.Ciclo.Accionable(1, "Sistema", "ListItem", new U.Ciclo.Caja(200, 300, 100, 30));
+        var eventos = new List<string>();
+        string? P(Func<int, int, string?> librar) => (string?)pulsar.Invoke(null, new object?[]
+        {
+            a, librar, new Action<int, int>((x, y) => eventos.Add($"clic {x},{y}")), new Action<U.Ciclo.Caja>(c => eventos.Add($"carita {c.X},{c.Y}")),
+        });
+        string? libre = P((x, y) => { eventos.Add($"mira {x},{y}"); return null; });
+        Debe(libre == null && eventos.SequenceEqual(new[] { "mira 250,315", "clic 250,315", "carita 200,300" }),
+            $"con el punto libre no miró, pulsó el centro y avisó a la carita, en ese orden ({string.Join(" → ", eventos)})");
+        eventos.Clear();
+        string? tapado = P((_, _) => "lo tapa «Muelle», una ventana de Ü");
+        Debe(tapado != null && tapado.Contains("Muelle") && eventos.Count == 0, $"con una ventana de Ü encima pulsó igual o no dijo cuál («{tapado}», {eventos.Count} evento(s))");
+
+        // [cableado] La mano de Jev en el plan de la cara es esta, con la regla de la cara.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"Navigation\.ElPlanPorObjetivos\.Pulsar\([^;]*LibrarElPuntoDeUnClic[^;]*Navigation\.CicloRapido\.AvisarALaCarita"),
+            "[cableado] la mano del plan de la cara no mira bajo el punto con la regla de la cara, o no avisa a la carita");
+    }
+
+    private static void LunaPiensaEnModoRapido()
+    {
+        // MEDIDO EL 2026-09-28: el servidor acepta reasoning.effort en la delegación (session.started). Sin pedirlo, Luna piensa
+        // en su medio por defecto, ~2 s por respuesta; OpenAI recomienda low para herramientas y voz.
+        var p = new Voz.Realtime.ProtocoloGptLive();
+        string apertura = p.Apertura("reglas", Array.Empty<Voz.Realtime.Utensilio>(), "").Single();
+        string Esfuerzo(string json, string raiz)
+        {
+            using var d = System.Text.Json.JsonDocument.Parse(json);
+            var s = d.RootElement.GetProperty(raiz);
+            return s.TryGetProperty("delegation", out var del) && del.GetProperty("responses").TryGetProperty("reasoning", out var r)
+                   && r.TryGetProperty("effort", out var e) ? e.GetString() ?? "" : "";
+        }
+        if (Esfuerzo(apertura, "session") == "" ) { Pendiente("la delegación con reasoning.effort", "518", "062"); return; }
+        Debe(Esfuerzo(apertura, "session") == "low", "al abrir, la delegación no pide reasoning.effort = low");
+        string cambio = p.CambioDeModo("otras reglas", Array.Empty<Voz.Realtime.Utensilio>(), false).First();
+        Debe(Esfuerzo(cambio, "session") == "low", "al cambiar de modo, la delegación pierde el modo rápido");
     }
 
     private static void DosUEnElMismoPc()
