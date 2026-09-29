@@ -1,6 +1,8 @@
 # Plan de implementación: Luna planea por objetivos, Jeff ejecuta
 
-Estado: **implementado; medido en 5 tandas por el camino de la voz (2026-09-29)** · abierto: la meta del 20 % (ver *Resultados*) · Nace de la sesión de voz del dueño del 2026-09-28 (p33388) y de su hipótesis
+Estado: **implementado (2026-09-29)** · promesas 512-529 verdes · **31 de 31 sabotajes en rojo** · compuerta automática
+pasada (compila, contrato INTACTO, voz ÍNTEGRA) · nivel 4 en el PC real por el camino de la voz, 7 tandas, 5 apps (Calculadora,
+Configuración, Explorador, Paint y órdenes largas) · abierto: cómo medir la meta del 20 % (decisión del dueño, ver *Resultados*) · Nace de la sesión de voz del dueño del 2026-09-28 (p33388) y de su hipótesis
 del 20/80 · Rama: `jose/plan-por-objetivos`, apilada sobre `jose/u-pulsar-en-main`
 
 > **Apilada a propósito.** Esta rama sale de `jose/u-pulsar-en-main` y no de `main`: el plan por objetivos corre sobre el
@@ -135,9 +137,19 @@ con GPT-6 Sol `low` + `priority` y las promesas 519-527 (tandas `sol-4` y `sol-5
 5. **Traer una app al frente falla cuando la orden no nace de un toque a Ü** (map_open_app 13,9 s): con la voz sola pasa
    igual. Sin arreglar: el arnés trae la Ü al frente como lo haría la persona al tocarla.
 6. **Lo que el lector no ve:** los menús flotantes de Windows 11 («Ver» del Explorador, «Pinceles» de Paint) y el cuadro
-   modal «Editar colores» de Paint. Y `map_unblock` se colgó 187 s leyendo ese cuadro: `DialogoDelante` lee sin plazo, el
-   mismo agujero que la 490 cerró en otros sitios. Siguiente promesa.
+   modal «Editar colores» de Paint —sin arreglar—. Leerlos colgaba: `map_unblock` 187 s y `map_where_am_i` 212 s, porque las
+   dos puertas al diálogo leían sin plazo (el agujero de la 490). **Cerrado con la 528 y la 529**: medido en el PC real,
+   2 s y 6 s, diciendo «no sé si hay un diálogo» en vez de «no hay ninguno». La 528 cubrió una puerta de las dos que se habían
+   contado —el aprendizaje nº11, otra vez— y la 529 cerró la segunda y barre que no aparezca una tercera.
+8. **Sabotajes: 27 de 31 cazados a la primera.** Los 4 que no, eran promesas que no miraban lo que decían (512 aceptaba la
+   llamada comentada; 521 no tenía con qué juzgar la regla de las 4 letras, y su chequeo de «pedir U» sobraba; 523 encontraba
+   `Pintada(` fuera de `Abrir`). Reforzadas: 31 de 31.
 7. **El PC se durmió a mitad de una tanda**: la sesión pide ahora mantenerlo despierto (sin tocar su configuración).
+
+## Tanda de confirmación (`sol-7`, con 528 y 529)
+
+Paint largo sin llegar al techo (antes: 240 s cortados); Configuración en un plan, 7/7, **Luna 16 %**; Explorador en un plan,
+6/6, 4,5 s. Las cinco órdenes base salieron en UN plan y al 100 % en las tandas `sol-4`, `sol-5` y `sol-6`.
 
 ## Lo que queda fuera
 
