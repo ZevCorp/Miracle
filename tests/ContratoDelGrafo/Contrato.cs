@@ -929,6 +929,8 @@ internal static class Contrato
         Prueba("522. todo lo que Ü guarda de la persona vive donde dice U_DATA_DIR: la conversación se escribe bajo esa carpeta, y ningún archivo del cliente pide la carpeta de Windows por su cuenta", LoGuardadoVaDondeDiceUDataDir);
         Prueba("523. abrir una app en el plan espera a que pinte algo más que su marco: una lectura con solo los botones de la ventana (menú del sistema, minimizar, maximizar, restaurar, cerrar) no es una app lista, y no se da por quieta", AbrirEsperaAQuePinte);
         Prueba("524. «pulsa: <nombre>» que no encuentra el nombre espera UNA vez a que la pantalla se quede quieta y lo busca otra vez por el ciclo rápido antes de pasarlo a Jev; si aparece, Jev ni se entera", PulsaEsperaALaPaginaAntesDeJev);
+        Prueba("525. un «pulsa: X» que no está a la vista ni tras esperar pasa a Jev como «llegar a X»: con permiso para navegar hasta donde esté —la sección que lo contiene, o Atrás—, no para adivinar en esta pantalla", PulsaQueNoEstaEsLlegar);
+        Prueba("526. «carpeta: <ruta o nombre>» abre esa carpeta por el disco dentro del plan, sin Jev; si no se pudo, el paso falla diciendo cuál, y sin quien abra carpetas lo dice", CarpetaEnElPlan);
         Prueba("520. quien planea es GPT-6 Sol a la máxima velocidad que la API acepta: delegado gpt-6-sol con reasoning.effort = low y service_tier = priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
@@ -14742,6 +14744,44 @@ internal static class Contrato
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"new U\.Ciclo\.Motor\(DondeDelPlan,"), "[cableado] el motor de Jev no pregunta dónde con la regla del ciclo");
         Debe(cara.Contains("new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero)"), "[cableado] las manos del plan no trabajan sobre la ventana del ciclo");
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"DondeDelPlan\(\)[\s\S]{0,300}Navigation\.ElPlanPorObjetivos\.Donde\("), "[cableado] DondeDelPlan no usa ElPlanPorObjetivos.Donde");
+    }
+
+    private static void PulsaQueNoEstaEsLlegar()
+    {
+        // MEDIDO EL 2026-09-29 (03:04): dentro de Pantalla, «pulsa: Sonido» pasó a Jev como «pulsar «Sonido»», y Jev eligió
+        // «Mostrar más valores de configuración» con 0,31: Sonido cuelga de Sistema y no estaba en esa pantalla. Luna tuvo que
+        // replanear dos veces añadiendo «pulsa: Atrás». Jeff tiene libertad de navegar para cumplir un objetivo: se la da la frase.
+        var t = PlanT();
+        if (t?.GetMethod("Objetivo") == null) { Pendiente("ElPlanPorObjetivos.Objetivo", "525", "062"); return; }
+        var (plan, hecho) = PlanDeMentira(_ => false, _ => true);
+        t.GetMethod("Objetivo")!.Invoke(plan, new object[] { "pulsa: Sonido", Array.Empty<string>() });
+        string alJev = hecho.FirstOrDefault(h => h.StartsWith("jev:")) ?? "";
+        Debe(alJev.StartsWith("jev:llegar a «Sonido»", StringComparison.Ordinal) && alJev.Contains("Atrás"),
+            $"a Jev no le llegó «llegar a «Sonido»» con permiso para navegar (le llegó «{alJev}»)");
+    }
+
+    private static void CarpetaEnElPlan()
+    {
+        // MEDIDO EL 2026-09-29 (03:03): para «entra en Documentos, luego Descargas, luego Imágenes», Luna fue carpeta a carpeta
+        // con file_open: 0,17 s cada una, pero una vuelta de Luna por carpeta —20 s pensando para 1,2 s de trabajo—.
+        var t = PlanT();
+        var p = t?.GetProperty("AbrirCarpeta");
+        if (t?.GetMethod("Objetivo") == null || p == null) { Pendiente("ElPlanPorObjetivos.AbrirCarpeta («carpeta:» en el plan)", "526", "062"); return; }
+        U.Ciclo.Recorrido O(object plan, string paso) => (U.Ciclo.Recorrido)t.GetMethod("Objetivo")!.Invoke(plan, new object[] { paso, Array.Empty<string>() })!;
+        var (sin, hechoSin) = PlanDeMentira(_ => true, _ => true);
+        var rSin = O(sin, "carpeta: documentos");
+        Debe(!rSin.Cumplido && rSin.PorQueParo.Contains("carpeta") && hechoSin.Count == 0, $"sin quien abra carpetas no lo dijo, o se lo pasó a otro («{rSin.PorQueParo}»)");
+        var (plan, hecho) = PlanDeMentira(_ => true, _ => true);
+        var abiertas = new List<string>();
+        p.SetValue(plan, new Func<string, bool>(ruta => { abiertas.Add(ruta); return ruta != "no-existe"; }));
+        var r = O(plan, "carpeta: documentos");
+        Debe(r.Cumplido && abiertas.SequenceEqual(new[] { "documentos" }) && hecho.Count == 0, $"«carpeta: documentos» no abrió la carpeta sola, sin Jev ({string.Join(", ", abiertas)} · {string.Join(", ", hecho)})");
+        var r2 = O(plan, "carpeta: no-existe");
+        Debe(!r2.Cumplido && r2.PorQueParo.Contains("no-existe") && !hecho.Any(h => h.StartsWith("jev:")), $"una carpeta que no se abrió no falló diciendo cuál, o se la pasó a Jev («{r2.PorQueParo}»)");
+        // [cableado] La cara abre carpetas por el disco, con la misma regla que file_open.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(cara.Contains("AbrirCarpeta = ruta => SystemApi.Explorador.Navegar(SystemApi.Explorador.Expandir(ruta)).Length > 0"),
+            "[cableado] el plan de la cara no abre carpetas por el disco");
     }
 
     private static void PulsaEsperaALaPaginaAntesDeJev()
