@@ -168,6 +168,17 @@ public sealed class ElPlanPorObjetivos
     }
 
     /// <summary>
+    /// DÓNDE TRABAJA EL PLAN (promesa 519): la regla del ciclo rápido (491) — la ventana de delante, y si delante está Ü o
+    /// nada, la de trabajo. La de u/ (<c>Donde.Ahora</c>) devuelve la última ajena que vio ELLA, y en U.exe no había visto
+    /// ninguna: con Ü delante —la persona le acaba de escribir—, 2 de 4 órdenes dijeron «no hay ninguna ventana delante».
+    /// </summary>
+    public static Ubicacion? Donde(IntPtr delante, bool delanteEsU, IntPtr trabajo, Func<IntPtr, Ubicacion> describir)
+    {
+        IntPtr v = CicloRapido.ElegirVentana(delante, delanteEsU, trabajo);
+        return v == IntPtr.Zero ? null : describir(v);
+    }
+
+    /// <summary>
     /// LA MANO DE JEV EN EL PLAN (promesa 517): el mismo cuidado que las otras seis manos (510). Se mira qué hay bajo el
     /// punto; si es una ventana de Ü, no se pulsa y se dice cuál; si no, clic, y la carita se entera DESPUÉS (504).
     /// null = pulsó.

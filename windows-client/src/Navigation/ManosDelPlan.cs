@@ -13,10 +13,28 @@ namespace U.WindowsClient.Navigation;
 public sealed class ManosDelPlan
 {
     private readonly LectorUia _lector;
+    private readonly Func<IntPtr> _ventana;
 
-    public ManosDelPlan(LectorUia lector) => _lector = lector;
+    /// <param name="ventana">Dónde trabaja el plan: la misma ventana que el ciclo rápido (promesa 519).</param>
+    public ManosDelPlan(LectorUia lector, Func<IntPtr> ventana)
+    {
+        _lector = lector;
+        _ventana = ventana;
+    }
 
-    private static IntPtr Ventana() => Donde.Ahora()?.Ventana ?? IntPtr.Zero;
+    private IntPtr Ventana() => _ventana();
+
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+
+    /// <summary>Una ventana como la describe u/: su proceso sin «.exe» y su título.</summary>
+    public static Ubicacion Describir(IntPtr h)
+    {
+        GetWindowThreadProcessId(h, out uint pid);
+        string proceso = "";
+        try { using var p = System.Diagnostics.Process.GetProcessById((int)pid); proceso = p.ProcessName; }
+        catch (ArgumentException) { }   // el proceso ya no existe: se describe sin nombre
+        return new Ubicacion(h, (int)pid, proceso, U.Graph.Surfaces.UiaSurface.TituloDe(h));
+    }
 
     /// <summary>
     /// ABRIR INCLUYE QUE SE PUEDA LEER (u/, promesa 456): una app recién abierta da 4 de sus 59 botones a medio pintar.
@@ -24,8 +42,9 @@ public sealed class ManosDelPlan
     /// </summary>
     public bool Abrir(string app)
     {
-        var aqui = Donde.Ahora();
-        if (aqui != null && Apps.EnLaMismaPestana(app, aqui.Proceso))
+        // La de delante TAL CUAL: una dirección va a la pestaña de delante solo si delante hay un navegador.
+        var aqui = Donde.Leer();
+        if (Apps.EnLaMismaPestana(app, aqui.Proceso))
         {
             var rp = Stopwatch.StartNew();
             string antes = _lector.Leer(aqui.Ventana).Huella;

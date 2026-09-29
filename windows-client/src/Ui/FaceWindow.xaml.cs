@@ -898,7 +898,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 };
                 // JEFF CUMPLE EL PLAN DE LUNA (spec 062, promesas 514-517): map_hacer trae el plan entero en una llamada. Los
                 // gestos van por las manos de u/, «pulsa:» por este mismo ciclo, y los objetivos por el motor de u/ con Jev.
-                var manosDelPlan = new Navigation.ManosDelPlan(_lectorRapido);
+                var manosDelPlan = new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero);
                 var mapaDelPlan = mcp.Map;
                 var planDeLuna = new Navigation.ElPlanPorObjetivos(
                     manosDelPlan.Abrir, manosDelPlan.Escribir, manosDelPlan.Tecla,
@@ -2025,13 +2025,27 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         if (jev == null)
             return new U.Ciclo.Recorrido(Array.Empty<U.Ciclo.Vuelta>(),
                 "no pulso: no hay clave de Jev (TYPESAFE_API_KEY) para cumplir objetivos; usa «pulsa: <nombre exacto>»", false);
-        var motor = new U.Ciclo.Motor(U.Ciclo.Donde.Ahora,
-            () => _lectorRapido.Leer(U.Ciclo.Donde.Ahora()?.Ventana ?? IntPtr.Zero),
+        var motor = new U.Ciclo.Motor(DondeDelPlan,
+            () => _lectorRapido.Leer(DondeDelPlan()?.Ventana ?? IntPtr.Zero),
             c => jev.Decidir(c),
             a => { if (Navigation.ElPlanPorObjetivos.Pulsar(a, LibrarElPuntoDeUnClic, (x, y) => U.Ciclo.Raton.Clic(x, y), Navigation.CicloRapido.AvisarALaCarita) is { } no) LogBus.Log("plan", "   " + no); },
             () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true)
         { AlTerminarVuelta = v => LogBus.Log("plan", $"   ⏱ {v.Tiempos.Linea()} · {(v.Elegida.Length > 0 ? "pulsé " + v.Elegida : v.Resultado)}") };
         return motor.Objetivo(objetivo, U.Ciclo.Asistente.PasosDeSeguridad, hecho);
+    }
+
+    /// <summary>
+    /// DÓNDE TRABAJA EL PLAN (promesa 519): la regla del ciclo rápido. Si no es la de delante —delante está Ü—, se trae.
+    /// La de trabajo solo se busca cuando hace falta: VentanaObjetivo puede preguntar a UIA.
+    /// </summary>
+    private U.Ciclo.Ubicacion? DondeDelPlan()
+    {
+        var (delante, esU) = Navigation.CicloRapido.Delante();
+        var u = Navigation.ElPlanPorObjetivos.Donde(delante, esU, delante == IntPtr.Zero || esU ? VentanaObjetivo() : IntPtr.Zero,
+            Navigation.ManosDelPlan.Describir);
+        if (u != null && u.Ventana != delante && !U.Graph.Surfaces.UiaSurface.EstaDelante(u.Ventana))
+            U.Graph.Surfaces.UiaSurface.TraerAlFrente(u.Ventana);
+        return u;
     }
 
     private string? LibrarElPuntoDeUnClic(int x, int y) =>
