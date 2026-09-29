@@ -10,7 +10,10 @@ permissions:
   contents: read
 jobs:
   build:
-    runs-on: macos-14
+    # macos-15 y no 14: el Xcode por defecto de macos-14 (Swift 5.10) da error en «[weak self]» dentro
+    # de Task { @MainActor }, que los compiladores nuevos aceptan. Falló así en los tres últimos
+    # pushes de codex/mac-from-scratch (24, 25 y 27-sep).
+    runs-on: macos-15
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
