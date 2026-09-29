@@ -41,6 +41,11 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        # Por defecto instala «tools platform-tools», y «tools» ya no existe en las cmdline-tools 16.0
+        # del runner: el APK fallaba ahí, antes de compilar nada, en los 5 runs de ZevCorp/Android
+        # desde el 2026-09-15. Gradle baja la plataforma y las build-tools que le hagan falta.
+        with:
+          packages: platform-tools
 
       - name: Bake API keys (desde secrets, fuera de git)
         run: |
