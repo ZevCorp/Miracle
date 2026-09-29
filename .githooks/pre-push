@@ -28,6 +28,11 @@ cd "$raiz" || exit 1
 rama="$(git rev-parse --abbrev-ref HEAD)"
 fallos=0
 
+# Git pasa por stdin una línea por ref empujada. Esta mitad no la usa, pero el portero de android/
+# juzga justo eso —lo que se empuja, no el árbol de trabajo—, así que se lee aquí y se le pasa.
+refs=""
+[ -t 0 ] || refs="$(cat)"
+
 echo
 echo "  ── el portero ──────────────────────────────────"
 echo
@@ -43,62 +48,85 @@ if [ "$rama" = "main" ]; then
   exit 1
 fi
 
-# ── 1. compila ────────────────────────────────────────────────────────────────────────────────
-gris "  … compilando"
-if dotnet build windows-client/WindowsClient.csproj -c Release -v quiet --nologo > /tmp/u-build.log 2>&1; then
-  verde "  ✔  compila"
-else
-  rojo  "  ✘  NO compila"
-  grep -E "error [A-Z]+[0-9]+" /tmp/u-build.log | head -5 | sed 's/^/     /'
-  fallos=$((fallos+1))
-fi
+# ── ¿qué toca la rama? ────────────────────────────────────────────────────────────────────────
+# Desde el 2026-09-28 esto es un monorepo: graph/, android/ y web/ entraron con su historia. Las
+# comprobaciones 1-3 son de Windows —dotnet y el contrato del grafo— y exigírselas a una rama que
+# solo toca el portal bloquearía a quien empuja desde un Mac, donde WPF no compila. Se aplican si la
+# rama toca CUALQUIER cosa fuera de esas tres carpetas, o si no se sabe qué toca: exactamente lo
+# que se aplicaba antes del monorepo.
+base="$(git merge-base HEAD origin/main 2>/dev/null || echo main)"
+tocado="$(git diff --name-only "$base"...HEAD 2>/dev/null)"
+fuera="$(printf '%s\n' "$tocado" | grep -cvE '^(graph|android|web)/|^$')"
+toca_android="$(printf '%s\n' "$tocado" | grep -c '^android/')"
 
-# ── 2. los contratos ──────────────────────────────────────────────────────────────────────────
-# No son «tests» genéricos: son las promesas que el sistema dice cumplir. Rojo aquí significa que
-# algo que prometíamos dejó de ser cierto, y eso no entra en main aunque compile.
-contrato() {
-  local nombre="$1" script="$2"
-  [ -f "$script" ] || { gris "  ·  $nombre: no está $script, se salta"; return; }
-  gris "  … $nombre"
-  local salida
-  salida="$(powershell -NoProfile -ExecutionPolicy Bypass -File "$script" 2>&1)"
-  if printf '%s' "$salida" | grep -qE "INTACTO|ÍNTEGRA|ÍNTEGRO"; then
-    verde "  ✔  $nombre"
+if [ -n "$tocado" ] && [ "$fuera" -eq 0 ]; then
+  gris "  ·  la rama solo toca graph/, android/ o web/: compilar .NET y el contrato no aplican"
+else
+  # ── 1. compila ──────────────────────────────────────────────────────────────────────────────
+  gris "  … compilando"
+  if dotnet build windows-client/WindowsClient.csproj -c Release -v quiet --nologo > /tmp/u-build.log 2>&1; then
+    verde "  ✔  compila"
   else
-    rojo  "  ✘  $nombre ROTO"
-    printf '%s' "$salida" | grep -E "✘|ROTO|incumplid" | head -5 | sed 's/^/     /'
+    rojo  "  ✘  NO compila"
+    grep -E "error [A-Z]+[0-9]+" /tmp/u-build.log | head -5 | sed 's/^/     /'
     fallos=$((fallos+1))
   fi
-}
 
-contrato "contrato del grafo" "scripts/contrato-del-grafo.ps1"
-contrato "contrato de la voz" "scripts/contrato-de-la-voz.ps1"
-
-# ── 3. la funcionalidad trae su propio test ───────────────────────────────────────────────────
-# Es la promesa que hace crecer la carpeta de tests SOLA, en vez de por disciplina. Sin esto, cada
-# rama añade código sin cobertura y el 7% de hoy nunca sube.
-#
-# Se exime lo que por definición no añade comportamiento: chore/, docs/ y refactor/. Y se dice cuál
-# es la salida, para que nadie tenga que adivinarla ni buscar el --no-verify.
-case "$rama" in
-  chore/*|docs/*|refactor/*|hotfix/*)
-    gris "  ·  test propio: no se exige en «${rama%%/*}/»"
-    ;;
-  *)
-    base="$(git merge-base HEAD origin/main 2>/dev/null || echo main)"
-    tocado_codigo="$(git diff --name-only "$base"...HEAD -- 'windows-client/**/*.cs' 'nucleo/**/*.cs' 'mapeador/**/*.cs' | wc -l)"
-    tocado_test="$(git diff --name-only "$base"...HEAD -- '**/Contrato.cs' 'tests/**' | wc -l)"
-    if [ "$tocado_codigo" -gt 0 ] && [ "$tocado_test" -eq 0 ]; then
-      rojo "  ✘  esta rama cambia código y no añade ninguna promesa"
-      echo "     $tocado_codigo archivo(s) de código, 0 de contrato."
-      echo "     Añade lo que esta funcionalidad promete en tests/ContratoDelGrafo/Contrato.cs"
-      echo "     —o renómbrala a chore/ o refactor/ si de verdad no cambia comportamiento."
-      fallos=$((fallos+1))
+  # ── 2. los contratos ────────────────────────────────────────────────────────────────────────
+  # No son «tests» genéricos: son las promesas que el sistema dice cumplir. Rojo aquí significa que
+  # algo que prometíamos dejó de ser cierto, y eso no entra en main aunque compile.
+  contrato() {
+    local nombre="$1" script="$2"
+    [ -f "$script" ] || { gris "  ·  $nombre: no está $script, se salta"; return; }
+    gris "  … $nombre"
+    local salida
+    salida="$(powershell -NoProfile -ExecutionPolicy Bypass -File "$script" 2>&1)"
+    if printf '%s' "$salida" | grep -qE "INTACTO|ÍNTEGRA|ÍNTEGRO"; then
+      verde "  ✔  $nombre"
     else
-      verde "  ✔  trae su propio test"
+      rojo  "  ✘  $nombre ROTO"
+      printf '%s' "$salida" | grep -E "✘|ROTO|incumplid" | head -5 | sed 's/^/     /'
+      fallos=$((fallos+1))
     fi
-    ;;
-esac
+  }
+
+  contrato "contrato del grafo" "scripts/contrato-del-grafo.ps1"
+  contrato "contrato de la voz" "scripts/contrato-de-la-voz.ps1"
+
+  # ── 3. la funcionalidad trae su propio test ─────────────────────────────────────────────────
+  # Es la promesa que hace crecer la carpeta de tests SOLA, en vez de por disciplina. Sin esto, cada
+  # rama añade código sin cobertura y el 7% de hoy nunca sube.
+  #
+  # Se exime lo que por definición no añade comportamiento: chore/, docs/ y refactor/. Y se dice cuál
+  # es la salida, para que nadie tenga que adivinarla ni buscar el --no-verify.
+  case "$rama" in
+    chore/*|docs/*|refactor/*|hotfix/*)
+      gris "  ·  test propio: no se exige en «${rama%%/*}/»"
+      ;;
+    *)
+      tocado_codigo="$(git diff --name-only "$base"...HEAD -- 'windows-client/**/*.cs' 'nucleo/**/*.cs' 'mapeador/**/*.cs' | wc -l)"
+      tocado_test="$(git diff --name-only "$base"...HEAD -- '**/Contrato.cs' 'tests/**' | wc -l)"
+      if [ "$tocado_codigo" -gt 0 ] && [ "$tocado_test" -eq 0 ]; then
+        rojo "  ✘  esta rama cambia código y no añade ninguna promesa"
+        echo "     $tocado_codigo archivo(s) de código, 0 de contrato."
+        echo "     Añade lo que esta funcionalidad promete en tests/ContratoDelGrafo/Contrato.cs"
+        echo "     —o renómbrala a chore/ o refactor/ si de verdad no cambia comportamiento."
+        fallos=$((fallos+1))
+      else
+        verde "  ✔  trae su propio test"
+      fi
+      ;;
+  esac
+fi
+
+# ── 4. android/ trae su propio portero ────────────────────────────────────────────────────────
+# Gradle, su contrato y su «trae su propio test», tal como venían de ZevCorp/Android. Recibe las
+# mismas refs que este: juzga lo que se empuja, en un worktree temporal.
+if [ "$toca_android" -gt 0 ]; then
+  if ! printf '%s' "$refs" | bash android/.githooks/pre-push; then
+    fallos=$((fallos+1))
+  fi
+fi
 
 echo
 if [ "$fallos" -gt 0 ]; then

@@ -1,23 +1,35 @@
-name: Build APK
+name: Android APK
 
 # Compila el APK release (firmado con la clave compartida del repo) y lo publica como artefacto
-# descargable. Se dispara a mano (workflow_dispatch) o en cada push a main que toque código.
+# descargable. Se dispara a mano (workflow_dispatch), en cada push a main que toque android/, y en
+# cada PR que lo toque.
+#
+# Venía de ZevCorp/Android (.github/workflows/build-apk.yml) y entró al monorepo el 2026-09-28. Lo
+# único nuevo es el disparo en PR: en el repo propio el portero local ya compilaba antes de empujar,
+# pero en el monorepo quien toca android/ puede no tener el SDK, y un APK que no compila se tiene que
+# ver antes de main, no después.
 #
 # La OpenAI API key (y las demás) se hornean desde SECRETS del repo, nunca desde git. Configúralos en
 # Settings → Secrets and variables → Actions:  OPENAI_KEY, GEMINI_KEY, DEEPGRAM_KEY (todos opcionales;
 # lo que falte se puede escribir dentro de la app). Sin OPENAI_KEY, el switch a OpenAI sigue disponible
-# introduciendo la key en el panel de Desarrollador.
+# introduciendo la key en el panel de Desarrollador. OJO: el repo es público y los artefactos también;
+# un APK con claves horneadas las publica.
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
-    paths-ignore:
-      - '**.md'
+    branches: [main]
+    paths: ['android/**', '!android/**/*.md', '.github/workflows/android-apk.yml']
+  pull_request:
+    branches: [main]
+    paths: ['android/**', '!android/**/*.md', '.github/workflows/android-apk.yml']
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
     steps:
       - uses: actions/checkout@v4
 
@@ -41,9 +53,10 @@ jobs:
       - name: Build release APK
         run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
 
+      # upload-artifact no mira working-directory: la ruta es desde la raíz del repo.
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: miracle-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
