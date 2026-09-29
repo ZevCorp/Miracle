@@ -65,6 +65,8 @@ plan viejo.
 
 | 527 | el notch se aparta como la carita: si bajo el punto de un clic de Ü está el notch, se vuelve transparente al ratón un momento, se mira otra vez y se pulsa lo de debajo; cualquier otra ventana de Ü sigue sin pulsarse y se dice cuál | 5 |
 
+| 528 | leer el diálogo de delante tiene plazo: si la app no contesta en 2 s, `map_unblock` no se congela —dice que no pudo leer el diálogo a tiempo, no que no hay ninguno— y no pulsa nada | 5 |
+
 > **Por qué la 522 está en esta spec.** La encontró la tanda de GPT-6 Sol (2026-09-29, 02:41): la conversación se guardaba
 > en `%APPDATA%\U\conversacion-personal.json` aunque la Ü de pruebas tuviera su `U_DATA_DIR`, así que cada orden heredaba
 > las anteriores —Sol hizo la de Configuración dentro de la de la calculadora— y 26 turnos de prueba quedaron en el archivo

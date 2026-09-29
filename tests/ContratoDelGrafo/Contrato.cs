@@ -932,6 +932,7 @@ internal static class Contrato
         Prueba("525. un «pulsa: X» que no está a la vista ni tras esperar pasa a Jev como «llegar a X»: con permiso para navegar hasta donde esté —la sección que lo contiene, o Atrás—, no para adivinar en esta pantalla", PulsaQueNoEstaEsLlegar);
         Prueba("526. «carpeta: <ruta o nombre>» abre esa carpeta por el disco dentro del plan, sin Jev; si no se pudo, el paso falla diciendo cuál, y sin quien abra carpetas lo dice", CarpetaEnElPlan);
         Prueba("527. el notch se aparta como la carita: si bajo el punto de un clic de Ü está el notch, se vuelve transparente al ratón un momento, se mira otra vez y se pulsa lo de debajo; cualquier otra ventana de Ü sigue sin pulsarse y se dice cuál", ElNotchSeApartaComoLaCarita);
+        Prueba("528. leer el diálogo de delante tiene plazo: si la app no contesta en 2 s, map_unblock no se congela —dice que no pudo leer el diálogo a tiempo, no que no hay ninguno— y no pulsa nada", LeerElDialogoTienePlazo);
         Prueba("520. quien planea es GPT-6 Sol a la máxima velocidad que la API acepta: delegado gpt-6-sol con reasoning.effort = low y service_tier = priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
@@ -14746,6 +14747,28 @@ internal static class Contrato
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"new U\.Ciclo\.Motor\(DondeDelPlan,"), "[cableado] el motor de Jev no pregunta dónde con la regla del ciclo");
         Debe(cara.Contains("new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero)"), "[cableado] las manos del plan no trabajan sobre la ventana del ciclo");
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"DondeDelPlan\(\)[\s\S]{0,300}Navigation\.ElPlanPorObjetivos\.Donde\("), "[cableado] DondeDelPlan no usa ElPlanPorObjetivos.Donde");
+    }
+
+    private static void LeerElDialogoTienePlazo()
+    {
+        // MEDIDO EL 2026-09-29 (03:28): con el cuadro «Editar colores» de Paint delante, map_unblock tardó 187 s en contestar
+        // «no hay nada que desbloquear». DialogoDelante leía sin plazo: el mismo agujero que la 490 cerró en el lector y en el
+        // «dónde estoy», en el tercer sitio que lee la pantalla. Y la frase mentía: no es que no hubiera diálogo, es que no se leyó.
+        var mapa = new SurfaceMapTools(() => null);
+        var pLeer = typeof(SurfaceMapTools).GetProperty("LeerDialogo");
+        var pPlazo = typeof(SurfaceMapTools).GetProperty("PlazoDelDialogoMs");
+        if (pLeer == null || pPlazo == null) { Pendiente("SurfaceMapTools.PlazoDelDialogoMs (leer el diálogo con plazo)", "528", "062"); return; }
+        pPlazo.SetValue(mapa, 300);
+        int lecturas = 0;
+        pLeer.SetValue(mapa, new Func<U.WindowsClient.Navigation.Desbloqueo.Dialogo?>(() => { lecturas++; Thread.Sleep(3000); return null; }));
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        string r = mapa.Call("map_unblock", new Dictionary<string, string> { ["choose"] = "Aceptar" });
+        reloj.Stop();
+        Debe(reloj.ElapsedMilliseconds < 2000, $"map_unblock esperó {reloj.ElapsedMilliseconds} ms a un diálogo que no contesta, con plazo de 300 ms");
+        Debe(r.Contains("a tiempo") && !r.StartsWith("no hay nada que desbloquear", StringComparison.Ordinal),
+            $"con la app sin contestar dijo que no había diálogo, en vez de que no pudo leerlo a tiempo («{r}»)");
+        Debe(lecturas == 1, $"con la primera lectura sin contestar se siguió leyendo ({lecturas} lecturas)");
+        Debe((int)pPlazo.GetValue(new SurfaceMapTools(() => null))! == 2000, "el plazo por defecto no es de 2 s");
     }
 
     private static void ElNotchSeApartaComoLaCarita()
