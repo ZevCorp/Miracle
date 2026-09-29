@@ -678,6 +678,24 @@ public sealed class ConversacionEnVivo : IDisposable
         concreta. Que sea incómodo de deshacer no basta: tiene que ser imposible. Todo lo demás se
         hace, y si eliges mal, se arregla haciéndolo otra vez.
 
+        PARA ACTUAR, PLANEA: map_hacer. Es tu forma normal de hacer cosas en la pantalla. En UNA llamada le das
+        TODOS los pasos que ya puedes prever, y Jeff —tus manos rápidas— los hace seguidos sin volver a
+        preguntarte: cada vuelta tuya cuesta dos segundos, y un paso de Jeff, un tercio. Cada paso es UNO de estos:
+          · «abre: <app o dirección>» — calculadora, configuración, explorador, paint, edge, o una dirección
+            (https://…, ms-settings:bluetooth: el camino más corto a una sección de Configuración).
+          · «pulsa: <nombre exacto>» — cuando YA VES ese nombre en EN PANTALLA AHORA. Es lo más rápido.
+          · «escribe: <texto exacto>» — donde esté el foco. Para escribir en un campo, antes un paso que lo enfoque.
+          · «tecla: <tecla>» — Enter, Escape, Tab, Ctrl+S, Alt+F4.
+          · «desplaza: abajo|arriba [muescas]» — para ver lo que queda fuera de la pantalla.
+          · cualquier otra frase es un OBJETIVO en la pantalla («ir a Bluetooth y dispositivos», «abrir el menú
+            Archivo»): Jeff mira lo que hay y pulsa hasta cumplirlo, aunque necesite varios clics.
+        Un objetivo por pantalla y UNA intención por objetivo. Planea el pedido ENTERO de una vez, hasta donde
+        lo puedas prever —cinco o diez pasos no son muchos—, y no mires antes si el pedido ya dice qué hacer. Si
+        la app acepta teclado (números en la calculadora, texto en un buscador), prefiere «escribe:» a pulsar
+        botón por botón. map_hacer te devuelve cómo acabó cada paso y lo que hay en pantalla: si uno falló,
+        vuelve a planear DESDE AHÍ con lo que ves, sin repetir lo ya hecho. map_take, map_type y map_open_app
+        siguen ahí para un gesto suelto; para dos o más, map_hacer.
+
         Tienes manos: las herramientas map_* mueven y accionan aplicaciones de verdad. Úsalas en
         cuanto la petición sea clara, y ENCADÉNALAS sin pararte a comentar entre una y otra: se te
         mide por lo que dejas hecho en la pantalla, no por lo que cuentas. Más abajo está dicho
@@ -1049,6 +1067,14 @@ public sealed class ConversacionEnVivo : IDisposable
     /// </summary>
     private static Utensilio[] Catalogo(bool conCoreografia) => new[]
     {
+        // PRIMERA A PROPÓSITO (spec 062): es la forma normal de actuar; las de un gesto quedan para un gesto suelto.
+        Fn("map_hacer", "HACE UN PLAN ENTERO EN UNA LLAMADA: le das la lista de pasos, en orden, y Jeff —tus manos rápidas— "
+            + "los cumple seguidos en la pantalla real, sin volver a preguntarte entre uno y otro. Para dos o más acciones, "
+            + "esta y no una herramienta por gesto. Devuelve cómo acabó cada paso (✔/✘; al primer fallo para y los demás "
+            + "quedan omitidos) y lo que hay en pantalla ahora.",
+            ("pasos", "Lista JSON de pasos, en orden: [\"abre: calculadora\", \"escribe: 1234*5678=\", \"pulsa: Memoria\", "
+                    + "\"ir a Bluetooth y dispositivos\"]. Cada paso es «abre: …», «pulsa: <nombre exacto que ya ves>», "
+                    + "«escribe: <texto exacto>», «tecla: …», «desplaza: abajo|arriba», o un objetivo dicho con tus palabras.")),
         Fn("map_where_am_i", "Dice en qué pantalla estás ahora mismo y qué salidas conoce el mapa desde ahí. "
             + "Si hay un diálogo delante, lo describe en vez de fingir que es un lugar."),
         Fn("map_go_to", "Va a una pantalla, comprobando cada tramo. TAMBIÉN es la forma de ir a una "
@@ -1943,6 +1969,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 // son solo una llamada a herramienta, sin una palabra — que es justo el caso que
                 // hay que distinguir (ver Navigation.ElTurnoDeContar).
                 _mapa.TurnoDeContar.Hablo();
+                _cuenta.Hablo();   // lo primero que dice tras la última herramienta cierra el pedido (promesa 512)
                 break;
 
             case Hecho.CierraElTurno:
@@ -2154,6 +2181,8 @@ public sealed class ConversacionEnVivo : IDisposable
     /// </summary>
     private async Task EjecutarAsync(IReadOnlyList<Llamada> llamadas, CancellationToken ct)
     {
+        // LO QUE EJECUTA JEFF, de la petición a que el resultado sale hacia Luna (promesa 512): el resto del turno es pensar.
+        var relojDeLaTanda = System.Diagnostics.Stopwatch.StartNew();
         try { await EjecutarNucleoAsync(llamadas, ct); }
         catch (Exception e) { LogBus.Log("voz-viva", $"la ejecución de una llamada reventó: {e.Message}"); }
         // EL TRABAJO TERMINÓ, salga como salga (promesa 211): contestada, retirada o reventada. Mientras no se
@@ -2162,6 +2191,7 @@ public sealed class ConversacionEnVivo : IDisposable
         // Aunque reventara a medias: una llamada que ya no se va a contestar no retiene el turno de las demás (214).
         finally
         {
+            _cuenta.Trabajo(relojDeLaTanda.ElapsedMilliseconds);
             _turnosSinMarca?.Devuelta(llamadas);
             DarPorContestadas(llamadas);
         }

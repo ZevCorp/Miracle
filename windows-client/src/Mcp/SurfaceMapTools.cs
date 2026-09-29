@@ -1911,6 +1911,8 @@ public sealed class SurfaceMapTools
     public Func<string, string, string>? GuardarSkill { get; set; }
     /// <summary>Recorrer el plan del piloto: por cada paso, voz, recuerdo, el paso por el batch y el juez.</summary>
     public Func<string, string>? Plan { get; set; }
+    /// <summary>Cumplir el plan de Luna (map_hacer, spec 062): recibe «pasos» tal cual y devuelve el relato para Luna.</summary>
+    public Func<string, string>? Hacer { get; set; }
 
     /// <summary>
     /// Quién decide si ya se puede pasar al siguiente recuerdo. Lo alimenta la voz —es la única que
@@ -2077,7 +2079,7 @@ public sealed class SurfaceMapTools
     }
 
     public static bool IsMapTool(string tool) => tool is
-        "map_where_am_i" or "map_go_to" or "map_take" or "map_type" or "map_unblock" or "map_decidir"
+        "map_where_am_i" or "map_go_to" or "map_take" or "map_type" or "map_unblock" or "map_decidir" or "map_hacer"
         or "map_tramo" or "map_alto" or "map_tramo_estado"
         or "map_open_app" or "map_what_i_see" or "map_pointing_at" or "map_show"
         or "map_pointed_trail" or "map_exclude" or "map_shot" or "map_scroll"
@@ -2116,6 +2118,8 @@ public sealed class SurfaceMapTools
             "map_where_am_i" => WhereAmI(),
             "map_go_to" => GoTo(A("surface")),
             "map_take" => Take(A("exit"), A("which"), A("decir"), A("recuerdo")),
+            // EL PLAN ENTERO EN UNA LLAMADA (promesa 514, spec 062): Luna planea, Jeff lo cumple.
+            "map_hacer" => Hacer == null ? "todavía no sé cumplir un plan: nadie conectó a Jeff." : Hacer(A("pasos")),
             "map_decidir" => Decidir(A("objetivo")),
             "map_tramo" => Tramo(A("objetivo"), A("tope")),
             "map_alto" => Alto(),

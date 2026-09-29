@@ -238,6 +238,9 @@ public sealed class ProtocoloGptLive : IProtocolo
             instructions = instrucciones,
             tools = ProtocoloOpenAI.ComoFunciones(utensilios),
             tool_choice = "auto",
+            // MODO RÁPIDO (promesa 518, spec 062): sin pedirlo, Luna piensa en su medio por defecto, ~2 s por respuesta
+            // (sesión del 2026-09-28). El servidor lo acepta en la delegación: medido con session.started ese mismo día.
+            reasoning = new { effort = "low" },
         },
     };
 

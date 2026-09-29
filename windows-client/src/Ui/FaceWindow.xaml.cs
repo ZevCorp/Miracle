@@ -896,6 +896,20 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     }
                     return r == null ? null : (r, ciclo.Pulso ? ciclo.Cambio : null, ciclo.ClaveDelPulsado);
                 };
+                // JEFF CUMPLE EL PLAN DE LUNA (spec 062, promesas 514-517): map_hacer trae el plan entero en una llamada. Los
+                // gestos van por las manos de u/, «pulsa:» por este mismo ciclo, y los objetivos por el motor de u/ con Jev.
+                var manosDelPlan = new Navigation.ManosDelPlan(_lectorRapido);
+                var mapaDelPlan = mcp.Map;
+                var planDeLuna = new Navigation.ElPlanPorObjetivos(
+                    manosDelPlan.Abrir, manosDelPlan.Escribir, manosDelPlan.Tecla,
+                    nombre => mapaDelPlan.CicloRapido?.Invoke(nombre, 0, null) is { Cambio: not null },
+                    ObjetivoConJev,
+                    () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
+                    () => mapaDelPlan.LoQueVeoRapido?.Invoke() ?? "",
+                    () => Environment.TickCount64)
+                { Desplazar = manosDelPlan.Desplazar, EsperarQuieta = manosDelPlan.EsperarQuieta, AlTerminarPaso = l => LogBus.Log("plan", "   " + l) };
+                mapaDelPlan.Hacer = planDeLuna.Hacer;
+                _ = Task.Run(() => { if (JevDelPlan() is { } jev) LogBus.Log("plan", $"Jev caliente en {jev.Calentar()} ms"); });
             }
 
             // RECORRER EN BATCH: N pasos por llamada con la compuerta de vida antes de cada uno.
@@ -1293,7 +1307,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 }))
             .ToList();
         _nombresMcp = catalogoMcp.Select(u => u.Nombre).ToList();
-        _servidorMcp = new ServidorMcp(new ProtocoloMcp(catalogoMcp, (tool, args) => mcp.Call(tool, args)));
+        // LAS ÓRDENES DE PRUEBA (promesa 513) van solo en el cable, no en la caja del piloto: el piloto no se manda órdenes.
+        var catalogoDelCable = Mcp.OrdenesDePrueba.ConElMcp(catalogoMcp, Environment.GetEnvironmentVariable("U_ORDENES_DE_PRUEBA"));
+        _servidorMcp = new ServidorMcp(new ProtocoloMcp(catalogoDelCable,
+            (tool, args) => Mcp.OrdenesDePrueba.Es(tool) ? AtenderOrdenDePrueba(tool, args) : mcp.Call(tool, args)));
         _servidorMcp.Start();
         Closed += (_, __) => _servidorMcp?.Dispose();
         // El backend es Graph: la credencial (X-API-Key) sale del MISMO GraphConfig que usa la
@@ -1725,6 +1742,26 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
     private void OnNotchTextoEnviado(string texto) => _ = EnviarTextoDesdeElNotchAsync(texto);
 
+    /// <summary>
+    /// Las órdenes de prueba (promesa 513): u_orden entra por el mismo camino que lo escrito en el chat, y u_colgar cierra
+    /// la voz y deja la medida del último pedido.
+    /// </summary>
+    private string AtenderOrdenDePrueba(string tool, IReadOnlyDictionary<string, string> args)
+    {
+        if (tool == "u_orden")
+        {
+            string texto = args.TryGetValue("texto", out var t) ? t.Trim() : "";
+            if (texto.Length == 0) return "falta «texto»: la orden.";
+            LogBus.Log("prueba", $"orden de prueba: «{texto}»");
+            Dispatcher.BeginInvoke(() => _ = EnviarTextoDesdeElNotchAsync(texto));
+            return $"orden enviada: «{texto}»";
+        }
+        if (_vivo == null) return "no hay voz que cerrar.";
+        bool cerro = Dispatcher.Invoke(() => _vivo.TerminarAsync()).Wait(TimeSpan.FromSeconds(10));
+        LogBus.Log("prueba", cerro ? "voz cerrada por la prueba" : "la voz no terminó de cerrarse en 10 s");
+        return cerro ? "voz cerrada." : "la voz no terminó de cerrarse en 10 s.";
+    }
+
     private async Task EnviarTextoDesdeElNotchAsync(string texto)
     {
         if (_pendingAnswer is { Task.IsCompleted: false })
@@ -1967,6 +2004,36 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// ¿Está libre el punto de un clic de Ü? (promesa 510). Se llama desde el hilo que pulsa: solo Win32, y a la interfaz
     /// solo se le pide algo —con techo— si hay que apartar la carita.
     /// </summary>
+    /// <summary>Jev para los objetivos del plan (spec 062): uno por proceso. Sin clave, null — y el objetivo lo dice.</summary>
+    private U.Ciclo.ClienteJev? _jevDelPlan;
+
+    private U.Ciclo.ClienteJev? JevDelPlan()
+    {
+        if (_jevDelPlan != null) return _jevDelPlan;
+        string clave = Credenciales.ClavesDelBackend.DeLaApp(Credenciales.ClavesDelBackend.Jev);
+        if (clave.Length == 0) return null;
+        return _jevDelPlan = new U.Ciclo.ClienteJev(clave) { Umbral = U.Ciclo.Jev.UmbralPorDefecto };
+    }
+
+    /// <summary>
+    /// UN OBJETIVO DEL PLAN, CUMPLIDO POR JEV (spec 062): el motor de u/ —dónde, ver, Jev elige, pulsar, asentar— con una mano
+    /// que mira bajo el punto como las otras seis (510, 517) y avisa a la carita después (504).
+    /// </summary>
+    private U.Ciclo.Recorrido ObjetivoConJev(string objetivo, IReadOnlyList<string> hecho)
+    {
+        var jev = JevDelPlan();
+        if (jev == null)
+            return new U.Ciclo.Recorrido(Array.Empty<U.Ciclo.Vuelta>(),
+                "no pulso: no hay clave de Jev (TYPESAFE_API_KEY) para cumplir objetivos; usa «pulsa: <nombre exacto>»", false);
+        var motor = new U.Ciclo.Motor(U.Ciclo.Donde.Ahora,
+            () => _lectorRapido.Leer(U.Ciclo.Donde.Ahora()?.Ventana ?? IntPtr.Zero),
+            c => jev.Decidir(c),
+            a => { if (Navigation.ElPlanPorObjetivos.Pulsar(a, LibrarElPuntoDeUnClic, (x, y) => U.Ciclo.Raton.Clic(x, y), Navigation.CicloRapido.AvisarALaCarita) is { } no) LogBus.Log("plan", "   " + no); },
+            () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true)
+        { AlTerminarVuelta = v => LogBus.Log("plan", $"   ⏱ {v.Tiempos.Linea()} · {(v.Elegida.Length > 0 ? "pulsé " + v.Elegida : v.Resultado)}") };
+        return motor.Objetivo(objetivo, U.Ciclo.Asistente.PasosDeSeguridad, hecho);
+    }
+
     private string? LibrarElPuntoDeUnClic(int x, int y) =>
         ReglaDeLaVisita.LibrarElPunto(() => VentanasDeU.Bajo(x, y), VentanasDeU.EsDeU, _hwndCarita, ApartarLaCarita, VentanasDeU.Nombre,
             enLaCarita: () => VentanasDeU.Dentro(_hwndCarita, x, y),
