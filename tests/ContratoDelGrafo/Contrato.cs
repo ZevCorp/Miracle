@@ -925,6 +925,7 @@ internal static class Contrato
         Prueba("517. la mano del plan no pulsa sobre una ventana de Ü: mira bajo el punto con la misma regla (510), y tras el clic avisa a la carita", LaManoDelPlanNoPulsaSobreU);
         Prueba("518. Luna piensa en modo rápido: la delegación le pide reasoning.effort = low, al abrir y al cambiar de modo", LunaPiensaEnModoRapido);
         Prueba("519. el plan trabaja sobre la misma ventana que el ciclo rápido: la de delante, y si delante está Ü o nada, la de trabajo; sin ninguna de las dos, dice que no hay ventana", ElPlanTrabajaDondeElCiclo);
+        Prueba("520. quien planea es GPT-6 Sol a la máxima velocidad que la API acepta: delegado gpt-6-sol con reasoning.effort = low y service_tier = priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -14736,6 +14737,32 @@ internal static class Contrato
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"new U\.Ciclo\.Motor\(DondeDelPlan,"), "[cableado] el motor de Jev no pregunta dónde con la regla del ciclo");
         Debe(cara.Contains("new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero)"), "[cableado] las manos del plan no trabajan sobre la ventana del ciclo");
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"DondeDelPlan\(\)[\s\S]{0,300}Navigation\.ElPlanPorObjetivos\.Donde\("), "[cableado] DondeDelPlan no usa ElPlanPorObjetivos.Donde");
+    }
+
+    private static void PlaneaGpt6SolAMaximaVelocidad()
+    {
+        // DECISIÓN DEL DUEÑO (2026-09-29): GPT-6 Sol por su calidad de planificación, a la máxima velocidad. MEDIDO ESE DÍA con
+        // las instrucciones y el catálogo de la voz (velocidad.py): primer plan, mediana 1.874 ms con low + priority (el
+        // servidor contesta service_tier «fast»), 3.546 ms sin priority, 3.766 ms con gpt-5.6-luna low. «ultrafast» se
+        // acepta al abrir la sesión pero la Responses API lo rechaza («Invalid service_tier argument»); «minimal» no existe
+        // para gpt-6-sol; «none» no es más rápido (2.339 ms).
+        var p = new Voz.Realtime.ProtocoloGptLive();
+        string Campo(string json, params string[] camino)
+        {
+            using var d = System.Text.Json.JsonDocument.Parse(json);
+            var e = d.RootElement;
+            foreach (var c in camino) { if (e.ValueKind != System.Text.Json.JsonValueKind.Object || !e.TryGetProperty(c, out e)) return ""; }
+            return e.ValueKind == System.Text.Json.JsonValueKind.String ? e.GetString() ?? "" : e.GetRawText();
+        }
+        string apertura = p.Apertura("reglas", Array.Empty<Voz.Realtime.Utensilio>(), "").Single();
+        if (Campo(apertura, "session", "delegation", "responses", "service_tier") == "") { Pendiente("la delegación con service_tier", "520", "062"); return; }
+        Debe(p.Delegado == "gpt-6-sol" && Campo(apertura, "session", "delegation", "responses", "model") == "gpt-6-sol",
+            $"quien planea no es gpt-6-sol (es «{Campo(apertura, "session", "delegation", "responses", "model")}»)");
+        Debe(Campo(apertura, "session", "delegation", "responses", "service_tier") == "priority", "al abrir, la delegación no pide service_tier = priority");
+        string cambio = p.CambioDeModo("otras reglas", Array.Empty<Voz.Realtime.Utensilio>(), false).First();
+        Debe(Campo(cambio, "session", "delegation", "responses", "model") == "gpt-6-sol"
+             && Campo(cambio, "session", "delegation", "responses", "service_tier") == "priority",
+            "al cambiar de modo, la delegación pierde gpt-6-sol o la velocidad priority");
     }
 
     private static void LunaPiensaEnModoRapido()
