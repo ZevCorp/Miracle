@@ -52,7 +52,11 @@ plan viejo.
 | 517 | la mano del plan no pulsa sobre una ventana de Ü: mira bajo el punto con la misma regla (510), y tras el clic avisa a la carita | 2 |
 | 518 | Luna piensa en modo rápido: la delegación le pide `reasoning.effort = low` | 3 |
 | 519 | el plan trabaja sobre la misma ventana que el ciclo rápido: la de delante, y si delante está Ü o nada, la de trabajo; sin ninguna de las dos, dice que no hay ventana | 4 |
-| 520 | quien planea es GPT-6 Sol a la máxima velocidad que la API acepta: delegado `gpt-6-sol` con `reasoning.effort = low` y `service_tier = priority`, al abrir y al cambiar de modo | 5 |
+| 520 | quien planea es GPT-6 Sol con el pensamiento en bajo y sin pagar de más por velocidad: delegado `gpt-6-sol` con `reasoning.effort = low` y sin `service_tier` priority, al abrir y al cambiar de modo | 5 |
+
+> **Segunda decisión del dueño (2026-09-29, al cerrar):** sin `priority` —«el costo nos puede salir muy caro»—, con el
+> pensamiento en bajo. El enunciado de la 520 cambió con su número. Coste en tiempo, medido: el primer plan pasa de 1.874 a
+> 3.546 ms de mediana (`velocidad.py`).
 
 | 521 | abrir una app nunca lanza a la propia Ü: el acceso directo «U» no casa con nada, y un acceso cuyo nombre está DENTRO de lo pedido solo cuenta si tiene al menos 4 letras; lo exacto gana y lo que no casa no lanza nada | 5 |
 

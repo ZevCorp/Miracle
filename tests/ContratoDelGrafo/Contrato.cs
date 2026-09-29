@@ -934,7 +934,7 @@ internal static class Contrato
         Prueba("527. el notch se aparta como la carita: si bajo el punto de un clic de Ü está el notch, se vuelve transparente al ratón un momento, se mira otra vez y se pulsa lo de debajo; cualquier otra ventana de Ü sigue sin pulsarse y se dice cuál", ElNotchSeApartaComoLaCarita);
         Prueba("528. leer el diálogo de delante tiene plazo: si la app no contesta en 2 s, map_unblock no se congela —dice que no pudo leer el diálogo a tiempo, no que no hay ninguno— y no pulsa nada", LeerElDialogoTienePlazo);
         Prueba("529. saber dónde estoy tampoco se congela leyendo un diálogo: map_where_am_i lee el diálogo por la misma puerta con plazo que map_unblock; las dos lecturas del diálogo son una", DondeEstoyNoSeCongelaConUnDialogo);
-        Prueba("520. quien planea es GPT-6 Sol a la máxima velocidad que la API acepta: delegado gpt-6-sol con reasoning.effort = low y service_tier = priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
+        Prueba("520. quien planea es GPT-6 Sol con el pensamiento en bajo y sin pagar de más por velocidad: delegado gpt-6-sol con reasoning.effort = low y sin service_tier priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -14981,15 +14981,18 @@ internal static class Contrato
             foreach (var c in camino) { if (e.ValueKind != System.Text.Json.JsonValueKind.Object || !e.TryGetProperty(c, out e)) return ""; }
             return e.ValueKind == System.Text.Json.JsonValueKind.String ? e.GetString() ?? "" : e.GetRawText();
         }
+        // SEGUNDA DECISIÓN DEL DUEÑO (2026-09-29, al cerrar): «el costo de priority nos puede salir muy caro, así que no es
+        // necesario; desde que tenga la cadena de pensamiento en bajo». Sin priority el primer plan medía 3.546 ms de mediana.
         string apertura = p.Apertura("reglas", Array.Empty<Voz.Realtime.Utensilio>(), "").Single();
-        if (Campo(apertura, "session", "delegation", "responses", "service_tier") == "") { Pendiente("la delegación con service_tier", "520", "062"); return; }
         Debe(p.Delegado == "gpt-6-sol" && Campo(apertura, "session", "delegation", "responses", "model") == "gpt-6-sol",
             $"quien planea no es gpt-6-sol (es «{Campo(apertura, "session", "delegation", "responses", "model")}»)");
-        Debe(Campo(apertura, "session", "delegation", "responses", "service_tier") == "priority", "al abrir, la delegación no pide service_tier = priority");
+        Debe(Campo(apertura, "session", "delegation", "responses", "reasoning", "effort") == "low", "al abrir, el pensamiento no está en bajo");
+        Debe(Campo(apertura, "session", "delegation", "responses", "service_tier") is not ("priority" or "fast" or "ultrafast"),
+            "al abrir, la delegación paga de más por velocidad (service_tier de pago)");
         string cambio = p.CambioDeModo("otras reglas", Array.Empty<Voz.Realtime.Utensilio>(), false).First();
         Debe(Campo(cambio, "session", "delegation", "responses", "model") == "gpt-6-sol"
-             && Campo(cambio, "session", "delegation", "responses", "service_tier") == "priority",
-            "al cambiar de modo, la delegación pierde gpt-6-sol o la velocidad priority");
+             && Campo(cambio, "session", "delegation", "responses", "service_tier") is not ("priority" or "fast" or "ultrafast"),
+            "al cambiar de modo, la delegación pierde gpt-6-sol o paga de más por velocidad");
     }
 
     private static void LunaPiensaEnModoRapido()
