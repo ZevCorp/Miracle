@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- Apagado por gesto (spec 007): vibración corta al explotar la burbuja, sin sonido nuevo. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Auto-actualización: instalar el APK descargado (el sistema pide confirmación). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Modo usuario: tiempo real de pantalla para la gráfica "versus". Se concede en Ajustes → Acceso a uso. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <application
+        android:name=".GraphApp"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Asistente del sistema: seleccionable en Ajustes → App de asistente digital;
+             se invoca manteniendo oprimido el botón de encendido (o el gesto de assist). -->
+        <activity
+            android:name=".ui.AssistActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/AssistTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".platform.GraphAccessibilityService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_config" />
+        </service>
+
+        <service
+            android:name=".platform.MicService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!-- Aprendizaje ACTIVO: compartir pantalla (video) + audio del micrófono para que el
+             usuario le enseñe cómo usa sus apps; el video se estructura como conocimiento MCP. -->
+        <service
+            android:name=".platform.ScreenTeachService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection|microphone" />
+
+        <!-- Actividad transparente que pide el permiso de captura de pantalla (MediaProjection). -->
+        <activity
+            android:name=".ui.ScreenTeachActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:theme="@style/AssistTheme" />
+
+        <!-- Diagnóstico: muestra la traza de cualquier crash (en su propio proceso). -->
+        <activity
+            android:name=".ui.CrashActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:process=":crash"
+            android:launchMode="singleInstance" />
+
+        <receiver
+            android:name=".platform.StopReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.zevcorp.graph.STOP" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Estado de la instalación de actualizaciones (PackageInstaller). -->
+        <receiver
+            android:name=".platform.InstallReceiver"
+            android:exported="false" />
+    </application>
+</manifest>

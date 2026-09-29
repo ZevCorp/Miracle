@@ -21,6 +21,11 @@ si un cambio se puede verificar es qué compuerta puede correr esa máquina.
 
 Si el trabajo está fuera de la columna que toca, se dice y se para: no se toca y se avisa después.
 
+**`graph/`, `android/` y `web/`** —que entraron al monorepo el 2026-09-28— no están en ninguna de
+las dos columnas porque se escriben desde las dos máquinas: su compuerta es Node o Gradle, que corre
+en ambas, y su CI corre en la nube (`web.yml`, `android-apk.yml`). Esta regla trata de lo que una
+máquina no puede verificar, y esas tres carpetas no tienen ese problema.
+
 ## Por qué, y no es orden por gusto
 
 1. **Se toca lo que se puede verificar.** La compuerta de Windows —`verificar.ps1`,

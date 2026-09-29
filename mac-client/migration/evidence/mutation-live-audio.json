@@ -1,0 +1,5 @@
+{
+  "mutation": "discard duration of silent PCM",
+  "detected": true,
+  "returncode": 1
+}

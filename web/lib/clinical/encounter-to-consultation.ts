@@ -1,0 +1,145 @@
+// Puente entre el backend clínico (clinical_encounters + note_json) y el store
+// local de la app (tabla `consultations`, que alimenta lista/detalle/notas/
+// dashboard/firma/exportación).
+//
+// Por qué: el flujo de "consulta activa" completa la nota en el backend Miracle,
+// pero el resto de la app (historial, firma, PDF) lee de `consultations`. Sin
+// este mapeo, la consulta terminada no aparecería en ningún listado. Aquí se
+// convierte el encounter+nota a una fila `Consultation` que el store persiste.
+//
+// Regla de identidad: la consulta usa el MISMO id que el encounter, así el
+// puente es 1:1, idempotente (re-guardar actualiza, no duplica) y navegable
+// (/app/consultas/<encounter_id>).
+
+import { normalizeSpecialtyCode, type ClinicalEncounter, type ClinicalNoteJson } from "@/lib/api/clinical";
+import { clinicalSpecialties } from "@/lib/clinical/specialties";
+import { extractPatientIdentity } from "@/lib/clinical/patient-identity";
+import type {
+  Consultation,
+  ConsultationType,
+  NoteSection,
+  Patient,
+  SpeakerTurn,
+} from "@/lib/mock";
+
+/** Nombre legible de la especialidad a partir del code del backend (snake_case). */
+export function specialtyDisplayName(specialtyCode?: string): string {
+  if (!specialtyCode) return "";
+  const norm = normalizeSpecialtyCode(specialtyCode);
+  const match = clinicalSpecialties.find(
+    (s) => normalizeSpecialtyCode(s.code) === norm,
+  );
+  return match?.name ?? specialtyCode.replace(/_/g, " ");
+}
+
+/** Tipo de consulta del backend → tipo del store. */
+export function toStoreConsultationType(type?: string): ConsultationType {
+  if (type === "telemedicina") return "telemedicina";
+  if (type === "audio_upload") return "audio";
+  return "presencial";
+}
+
+/** note_json.sections → NoteSection[] del store (todas de tipo texto). */
+export function noteJsonToSections(note: ClinicalNoteJson): NoteSection[] {
+  return [...note.sections]
+    .map((section) => ({
+      id: section.key,
+      titulo: section.label,
+      kind: "texto" as const,
+      texto: section.content ?? "",
+    }));
+}
+
+/**
+ * Transcripción verbatim (texto plano, sin diarización) → SpeakerTurn[] del store.
+ * Se guarda tal cual como se dijo: un único turno sin hablante; el detalle lo muestra
+ * como bloque de texto (respeta saltos de línea). Vacío → [] (no fabrica una transcripción).
+ */
+export function transcriptTextToTurns(text?: string): SpeakerTurn[] {
+  const clean = (text ?? "").trim();
+  if (!clean) return [];
+  return [{ t: "", texto: clean }];
+}
+
+/** Motivo de consulta: de la sección "motivo…" si existe, si no del resumen. */
+export function deriveMotivo(note: ClinicalNoteJson): string {
+  const motivo = note.sections.find(
+    (s) => /motivo/i.test(s.key) || /motivo/i.test(s.label),
+  );
+  const text = (motivo?.content || note.summary || "").trim();
+  return text.length > 140 ? `${text.slice(0, 139)}…` : text;
+}
+
+export interface EncounterToConsultationInput {
+  encounter: Pick<
+    ClinicalEncounter,
+    "id" | "consultation_type" | "template_snapshot" | "created_at"
+  >;
+  note: ClinicalNoteJson;
+  patient?: Patient;
+  /** Transcripción verbatim (texto plano). Se espeja para verla en el detalle. */
+  transcript?: string;
+  /**
+   * Servicio de la institución con el que nace la consulta.
+   *
+   * Se pasa desde fuera (Configuración institucional) en vez de fijarlo aquí:
+   * cuando era la constante "Consulta externa" escrita en esta función, TODAS
+   * las consultas de la base quedaron con ese servicio, y los reportes por
+   * servicio mostraban una sola barra para cualquier institución.
+   */
+  servicio?: string;
+  /** ISO string; se pasa para mantener la función pura y testeable. */
+  now: string;
+  /**
+   * Minutos de grabación medidos por la telemetría de la consulta (redondeo
+   * de encounter_metrics.recording_ms). Opcional: una consulta escrita a mano
+   * no tiene grabación y se queda en 0, como siempre.
+   */
+  duracionMin?: number;
+}
+
+/**
+ * Construye la fila `Consultation` espejo de un encounter completado.
+ * estado "borrador" → entra al ciclo de revisión/firma. La transcripción verbatim se
+ * espeja tal cual (para verla en el detalle). Sin códigos CIE-10/CUPS (el backend aún no
+ * los genera); se rellenan cuando el backend los provea.
+ */
+export function encounterToConsultation(
+  input: EncounterToConsultationInput,
+): Consultation {
+  const { encounter, note, patient, transcript, servicio, now, duracionMin } = input;
+  const snapshot = encounter.template_snapshot;
+  return {
+    id: encounter.id,
+    pacienteId: patient?.id ?? "",
+    medicoId: "",
+    // Sin ajuste institucional se mantiene el valor histórico, para que nada
+    // cambie en una organización que no haya entrado a Configuración.
+    servicio: servicio?.trim() || "Consulta externa",
+    especialidad: specialtyDisplayName(snapshot?.specialty),
+    tipo: toStoreConsultationType(encounter.consultation_type),
+    estado: "borrador",
+    fecha: encounter.created_at ?? now,
+    duracionMin: Math.max(0, Math.round(duracionMin ?? 0)),
+    plantilla: snapshot?.name ?? "",
+    motivo: deriveMotivo(note),
+    note: noteJsonToSections(note),
+    transcript: transcriptTextToTurns(transcript),
+    resumen: note.summary ?? "",
+    codigos: [],
+    auditoria: [],
+    // Misma lectura que hará el trigger de la base al guardar esta fila. Se
+    // adelanta aquí para que la consulta recién terminada aparezca ya con el
+    // nombre en la lista, sin esperar a recargar; no es una segunda forma de
+    // averiguarlo, es la misma función.
+    ...identidadDeLaNota(note),
+  };
+}
+
+function identidadDeLaNota(note: ClinicalNoteJson) {
+  const identidad = extractPatientIdentity(note.sections);
+  return {
+    pacienteNombre: identidad.nombre ?? null,
+    pacienteDocumento: identidad.documento ?? null,
+  };
+}

@@ -48,13 +48,41 @@ pacientes, listar radicados, consultar órdenes clínicas. Se le enseña una vez
 No es un grabador de macros por coordenadas: aprende *qué elemento* se tocó para poder repetirlo aunque
 la ventana cambie de tamaño, posición o scroll.
 
+## El monorepo (desde el 2026-09-28)
+
+Este repo ya no es solo Windows. Lleva dentro, cada uno con su historia entera:
+
+| Carpeta | Qué es | Venía de | Su guía |
+|---|---|---|---|
+| raíz | Ü para Windows (y `mac-client/`) | aquí | este archivo |
+| `graph/` | el cerebro | `joseph1356k/Graph` | [`graph/CLAUDE.md`](graph/CLAUDE.md) |
+| `android/` | Ü para Android | `ZevCorp/Android` | [`android/README.md`](android/README.md) |
+| `web/` | el portal clínico (Miracle Notes) | `joseph1356k/Pagina-web-clientes-final` | [`web/CLAUDE.md`](web/CLAUDE.md), [`web/AGENTS.md`](web/AGENTS.md) |
+
+Lo que cambia para quien trabaja en Windows: **nada en las rutas.** Windows se quedó en la raíz
+porque el feed de actualizaciones de las Ü instaladas son las releases de este repo
+(`windows-client/src/Config.cs`), y el contrato, los scripts y el CI dan por hechas estas rutas.
+
+Lo que cambia para todos:
+
+- **Una feature que cruza carpetas es una rama.** Antes, «la nota de Windows piensa como la de la
+  web» eran dos ramas con el mismo nombre en dos repos, que había que mergear a la vez.
+- **El portero sabe qué toca tu rama** (`.githooks/pre-push`): lo de Windows solo si tocas algo
+  fuera de `graph/`, `android/` y `web/`; el portero de Android si tocas `android/`.
+- **El CI de cada parte corre cuando su carpeta cambia**: `web.yml`, `android-apk.yml`. El contrato
+  (`contrato.yml`) sigue corriendo en todos los PRs, como antes.
+- **`graphify-out/` no se versiona en ninguna carpeta**, tampoco en `graph/` ni `web/` (que sí lo
+  hacían): un `graphify update .` en la raíz cubre las cuatro partes.
+- Una regla de una carpeta importada **vale dentro de ella**: `web/AGENTS.md` avisa de que su
+  Next.js no es el que uno cree, y eso no le dice nada a `windows-client/`.
+
 ## Arquitectura: cliente tonto, cerebro remoto
 
 | Carpeta | Qué es | Dónde corre |
 |---|---|---|
 | `windows-client/` | Frontend C#/WPF (.NET 8) → `U.exe`. Lee la UI, captura pantalla, mueve ratón/teclado, habla. | PC del usuario |
 | `windows-graph/` | Grabar/reproducir workflows sobre SAP GUI y UIA. Compila dentro de `U.exe`. | PC del usuario |
-| **Graph** | El cerebro: LLM, memoria, catálogo de workflows. | `graph-eight-pied.vercel.app` |
+| **Graph** (`graph/`) | El cerebro: LLM, memoria, catálogo de workflows. | `graph-eight-pied.vercel.app` |
 
 El cliente no contiene prompts ni decisiones — todo va por HTTPS. Es anti-copia deliberado: descompilar
 el `.exe` no revela la inteligencia. Ver `WINDOWS.md`.
@@ -329,7 +357,7 @@ Cuando no encuentra la ruta, hoy improvisa. Le falta, en orden de impacto:
    `PrependAlignmentStepAsync` con la alineación. Eso cierra la premisa del producto — el hueco de
    `NV44` lo tapó un humano leyendo COM; con esto lo tapa el sistema la primera vez.
 
-## El puente con el portal clínico (repo `Pagina-web-clientes-final`)
+## El puente con el portal clínico (`web/`, antes repo `Pagina-web-clientes-final`)
 
 Mientras el médico dicta, el portal produce **conceptos canónicos** (`vital.talla`, `vital.peso`,
 `vital.presion.sistolica`…) y el agente los va escribiendo en los campos de SAP al llegar a la pantalla.
