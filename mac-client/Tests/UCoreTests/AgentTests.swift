@@ -81,6 +81,7 @@ final class AgentTests {
         let client = try GraphClient(baseURL: "https://example.com/", apiKey: "secret")
         let request = try client.request(path: "agent/turn", body: Data("{}".utf8))
         XCTAssertEqual(request.url?.absoluteString, "https://example.com/api/v1/agent/turn")
+        XCTAssertEqual(request.timeoutInterval, 20)
         XCTAssertEqual(request.value(forHTTPHeaderField: "X-API-Key"), "secret")
         XCTAssertEqual(request.value(forHTTPHeaderField: "X-Miracle-App"), "mac_app")
     }

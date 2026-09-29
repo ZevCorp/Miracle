@@ -1,4 +1,5 @@
 import SwiftUI
+import UMac
 
 /// One conversation model in both the main window and expanded notch.
 struct ConversationView: View {
@@ -21,20 +22,10 @@ struct ConversationView: View {
                         .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 14) {
-                            ForEach(model.messages) { message in
-                                HStack {
-                                    if message.user { Spacer(minLength: 35) }
-                                    Text(message.text).textSelection(.enabled).padding(12)
-                                        .background(message.user ? (monochrome ? Color.white.opacity(0.16) : Color.purple.opacity(0.12)) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
-                                    if !message.user { Spacer(minLength: 20) }
-                                }.id(message.id)
-                            }
-                        }.padding(20)
-                    }.onChange(of: model.messages.last?.text) { if let last = model.messages.last { proxy.scrollTo(last.id, anchor: .bottom) } }
-                }
+                ConversationTranscript(entries: model.messages.map {
+                    ChatTranscriptEntry(id: $0.id, text: $0.text, user: $0.user)
+                }, monochrome: monochrome)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             VStack(alignment: .leading, spacing: 10) {
                 if model.busy { HStack { ProgressView().controlSize(.small); Text(model.status).font(.caption).lineLimit(2) } }
@@ -48,5 +39,15 @@ struct ConversationView: View {
                     .font(.system(size: 10)).foregroundStyle(.secondary)
             }.padding(16)
         }
+    }
+}
+
+
+private struct ConversationTranscript: NSViewRepresentable {
+    let entries: [ChatTranscriptEntry]
+    let monochrome: Bool
+    func makeNSView(context: Context) -> ChatTranscriptView { ChatTranscriptView(frame: .zero) }
+    func updateNSView(_ view: ChatTranscriptView, context: Context) {
+        view.update(entries: entries, monochrome: monochrome)
     }
 }

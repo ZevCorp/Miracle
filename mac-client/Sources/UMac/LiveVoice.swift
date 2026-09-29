@@ -36,7 +36,7 @@ public final class LiveVoice {
         }
         audio.onSpeaking = { [weak self] speaking in self?.onSpeaking?(speaking) }
     }
-    public func start(key: String, model: String = "gpt-live-1") async throws {
+    public func start(key: String, model: String = "gpt-live-1", userContext: AssistantContext = .init()) async throws {
         stop()
         let id = UUID(); epoch = id
         guard await AVCaptureDevice.requestAccess(for: .audio) else { throw AgentError.permission("Micrófono") }
@@ -70,7 +70,7 @@ public final class LiveVoice {
             self.fail("El servicio de voz no confirmó la sesión.")
         }
         do {
-            try await send(LiveProtocol.start(model: model))
+            try await send(LiveProtocol.start(model: model, userContext: userContext))
         } catch {
             let status = (socket.response as? HTTPURLResponse)?.statusCode
             if epoch == id { stop() }
@@ -90,7 +90,8 @@ public final class LiveVoice {
             for await data in stream {
                 guard let self, self.epoch == id, !Task.isCancelled else { return }
                 do {
-                    self.inputLevel = try LiveAudioChunk(data).level
+                    let chunk = try LiveAudioChunk(data)
+                    self.inputLevel = chunk.level
                     self.onLevel?(max(self.inputLevel, self.outputLevel))
                     try await self.send(["type": "session.input_audio.append", "audio": data.base64EncodedString()])
                 }
@@ -121,7 +122,7 @@ public final class LiveVoice {
         try await send(["type": "response.create"])
     }
     public func notify(_ text: String) async throws {
-        try await send(["type": "session.commentary.append", "delegation_id": NSNull(), "content": String(text.prefix(1500))])
+        try await send(LiveProtocol.taskContext(text))
         // Wake the planner only after outstanding tool results have been returned.
         try await send(["type": "response.item.create", "item": ["type": "message", "role": "developer", "content": [["type": "input_text", "text": String(text.prefix(6000))]]]])
         continuationNeeded = true

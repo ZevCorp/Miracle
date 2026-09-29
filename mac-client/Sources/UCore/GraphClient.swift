@@ -2,6 +2,8 @@ import Foundation
 
 public final class GraphClient: @unchecked Sendable {
     public static let defaultURL = "https://graph-eight-pied.vercel.app"
+    /// A desktop interaction must fail visibly instead of leaving the assistant loading for minutes.
+    public static let requestTimeout: TimeInterval = 20
     private let base: URL
     private let apiKey: String
     private let transport: URLSession
@@ -17,7 +19,7 @@ public final class GraphClient: @unchecked Sendable {
         var request = URLRequest(url: base.appendingPathComponent("api/v1").appendingPathComponent(path))
         request.httpMethod = body == nil ? "GET" : "POST"
         request.httpBody = body
-        request.timeoutInterval = 120
+        request.timeoutInterval = Self.requestTimeout
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("mac_app", forHTTPHeaderField: "X-Miracle-App")
@@ -25,10 +27,24 @@ public final class GraphClient: @unchecked Sendable {
         return request
     }
     public func data(path: String, body: Data? = nil) async throws -> Data {
-        let (data, response) = try await transport.data(for: request(path: path, body: body))
+        let data: Data, response: URLResponse
+        do {
+            (data, response) = try await transport.data(for: request(path: path, body: body))
+        } catch let error as URLError where error.code == .timedOut {
+            throw AgentError.unavailable("Graph no respondió en 20 segundos. La tarea se detuvo; puedes volver a intentarlo.")
+        }
         try Task.checkCancellation()
         guard let http = response as? HTTPURLResponse else { throw AgentError.unavailable("Graph no entregó una respuesta HTTP.") }
-        guard (200..<300).contains(http.statusCode) else { throw AgentError.backend(http.statusCode) }
+        guard (200..<300).contains(http.statusCode) else {
+            // Graph emits a short public diagnostic on server failures. Never include arbitrary
+            // response data (which might contain a key or a screen fragment) in the UI.
+            let message = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? String
+            let safe = message?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if http.statusCode >= 500, let safe, !safe.isEmpty {
+                throw AgentError.unavailable("Graph respondió HTTP \(http.statusCode): \(String(safe.prefix(300)))")
+            }
+            throw AgentError.backend(http.statusCode)
+        }
         return data
     }
     public func turn(_ value: TurnRequest) async throws -> TurnResponse {

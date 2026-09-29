@@ -10,6 +10,7 @@ let package = Package(
         .target(name: "UMac", dependencies: ["UCore"]),
         .executableTarget(name: "UApp", dependencies: ["UCore", "UMac"]),
         .executableTarget(name: "UFixture"),
+        .executableTarget(name: "UCredentialStore"),
         .executableTarget(name: "NativeContract", dependencies: ["UCore", "UMac"], path: "Tests/UCoreTests")
     ]
 )

@@ -92,6 +92,8 @@ struct MainView: View {
                 if !model.configurationMessage.isEmpty { Text(model.configurationMessage).font(.caption).foregroundStyle(.secondary) }
                 Toggle("Usar dictado y voz de macOS como respaldo", isOn: $model.nativeDictation)
                     .onChange(of: model.nativeDictation) { UserDefaults.standard.set(model.nativeDictation, forKey: "nativeDictation") }
+                Toggle("Activar por voz: «You», «Hola You», «You, te necesito»", isOn: Binding(get: { model.wakeEnabled }, set: { model.setWakeEnabled($0) }))
+                Text(model.wakeStatus.isEmpty ? "El saludo se detecta en este Mac. Live recibe audio solo durante la conversación." : model.wakeStatus).font(.caption).foregroundStyle(.secondary)
                 Text("La voz en vivo permite conversar e interrumpir. El dictado nativo envía cada petición a Graph; tras 45 segundos, vuelve a llamarme «oye U».").font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Button(model.checkingVoice ? "Comprobando Live 1…" : "Comprobar Live 1") { model.checkVoice() }
@@ -103,6 +105,15 @@ struct MainView: View {
                 }
                 if !model.voiceCheckMessage.isEmpty { Text(model.voiceCheckMessage).font(.caption).textSelection(.enabled) }
                 Text("La comprobación abre una sesión breve con el proveedor; no usa el micrófono ni controla el Mac.").font(.caption).foregroundStyle(.secondary)
+                Divider()
+                Text("Cómo debe ayudarte Ü").font(.headline)
+                TextEditor(text: $model.assistantContext)
+                    .font(.callout)
+                    .frame(minHeight: 110)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+                    .accessibilityLabel("Contexto personal de Ü")
+                Button("Guardar contexto") { model.saveAssistantContext() }
+                Text("Se guarda solo en este Mac y se añade a la siguiente conversación con Live 1 y a las tareas enviadas a Graph.").font(.caption).foregroundStyle(.secondary)
                 Divider()
                 Text("Permisos del Mac").font(.headline)
                 permission("Accesibilidad", detail: "Leer controles y usar teclado y ratón.", state: model.permissionSnapshot.accessibility) { model.permissions.request(.accessibility) }

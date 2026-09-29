@@ -17,6 +17,8 @@ final class NotchPanel: NSPanel {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     lazy var model = AppModel()
+    var diagnosticMode = false
+    private var terminationSignal: DispatchSourceSignal?
     var face: NSPanel!
     var window: NSWindow!
     var statusItem: NSStatusItem!
@@ -27,7 +29,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var notch: NSPanel!
     var screenObservation: NSObjectProtocol?
     func applicationDidFinishLaunching(_ notification: Notification) {
-        terminateOlderCopies()
+        // Diagnostics run in a separate process and must never close the user's UI.
+        let diagnosticFlags = ["--social-voice-test", "--wake-mic-test", "--chat-scroll-test", "--wake-test", "--spoken-voice-test", "--configure-voice-key", "--voice-test", "--audio-test", "--execution-test", "--smoke-test", "--diagnose"]
+        diagnosticMode = CommandLine.arguments.contains(where: diagnosticFlags.contains)
+        if !diagnosticMode { terminateOlderCopies() }
+        if let index = CommandLine.arguments.firstIndex(of: "--social-voice-test"), CommandLine.arguments.count > index + 1 {
+            Task { await SocialVoiceProbe.run(directory: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
+            return
+        }
+        if let index = CommandLine.arguments.firstIndex(of: "--chat-scroll-test"), CommandLine.arguments.count > index + 1 {
+            Task { await ChatScrollProbe.run(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
+            return
+        }
+        if let index = CommandLine.arguments.firstIndex(of: "--wake-mic-test"), CommandLine.arguments.count > index + 2 {
+            Task { await WakeProbe.microphone(input: URL(fileURLWithPath: CommandLine.arguments[index + 1]), output: URL(fileURLWithPath: CommandLine.arguments[index + 2])) }
+            return
+        }
+        if let index = CommandLine.arguments.firstIndex(of: "--wake-test"), CommandLine.arguments.count > index + 2 {
+            Task { await WakeProbe.run(input: URL(fileURLWithPath: CommandLine.arguments[index + 1]), output: URL(fileURLWithPath: CommandLine.arguments[index + 2])) }
+            return
+        }
+        if let index = CommandLine.arguments.firstIndex(of: "--spoken-voice-test"), CommandLine.arguments.count > index + 2 {
+            Task { await SmokeTest.spokenVoice(input: URL(fileURLWithPath: CommandLine.arguments[index + 1]), output: URL(fileURLWithPath: CommandLine.arguments[index + 2])) }
+            return
+        }
+        if let index = CommandLine.arguments.firstIndex(of: "--configure-voice-key"), CommandLine.arguments.count > index + 1 {
+            Task { await SmokeTest.configureVoice(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
+            return
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--audio-test"), CommandLine.arguments.count > index + 1 {
             Task { await SmokeTest.audio(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
             return
@@ -56,6 +85,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             return
         }
+        // Route installer termination through AppKit so pending history is flushed.
+        signal(SIGTERM, SIG_IGN)
+        terminationSignal = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        terminationSignal?.setEventHandler { NSApp.terminate(nil) }
+        terminationSignal?.resume()
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 510, height: 630), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Ü para Mac"; window.isReleasedWhenClosed = false; window.delegate = self
         window.contentView = NSHostingView(rootView: MainView(model: model)); window.center()
@@ -108,7 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             Task { @MainActor in self?.model.lastExternalApp = app }
         }
         if let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() { model.lastExternalApp = app }
-        if !model.hasCredential || !model.permissions.snapshot.canControlComputer { model.selectedTab = 1; show() }
+        if !model.permissions.snapshot.canControlComputer { model.selectedTab = 1; show() }
+        model.startWakeListening()
     }
     private func terminateOlderCopies() {
         for app in NSWorkspace.shared.runningApplications {
@@ -132,6 +167,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func stop() { model.stop() }
     @objc func quit() { NSApp.terminate(nil) }
     func applicationWillTerminate(_ notification: Notification) {
+        guard !diagnosticMode else { return }
+        model.flushHistory()
         model.stop()
         if let globalKeys { NSEvent.removeMonitor(globalKeys) }
         if let localKeys { NSEvent.removeMonitor(localKeys) }

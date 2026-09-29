@@ -2,6 +2,69 @@ import Foundation
 import UCore
 
 extension AgentTests {
+    func testTaskUpdatesInformWithoutDemandingSpeech() {
+        let event = LiveProtocol.taskContext("Video abierto; reproducción no comprobada")
+        XCTAssertEqual(event["type"] as? String, "session.thinking.append")
+        XCTAssertEqual(event["content"] as? String, "Video abierto; reproducción no comprobada")
+        XCTAssertEqual(event["delegation_id"] is NSNull, true)
+        XCTAssertEqual(AssistantContext.principles.contains("conversación compartida"), true)
+    }
+
+    func testLiveUsesNativeConversationPolicy() {
+        let session = LiveProtocol.start()["session"] as! [String: Any]
+        let prompt = session["instructions"] as! String
+        for heading in ["Backchannel policy:", "Interruption policy:", "Delegation policy:"] {
+            XCTAssertEqual(prompt.contains(heading), true)
+        }
+        XCTAssertNil(session["turn_detection"])
+        XCTAssertEqual(session["model"] as? String, "gpt-live-1")
+        XCTAssertEqual(VoiceActivation.isGreeting("Hola me escuchas"), true)
+        XCTAssertEqual(VoiceActivation.isGreeting("Hola, ¿estás ahí?"), true)
+        XCTAssertEqual(VoiceActivation.isGreeting("hola me escuchas dijo Juan"), false)
+        XCTAssertEqual(VoiceActivation.isGreeting("hola"), false)
+        XCTAssertEqual(VoiceActivation.isGreeting("You, hola, ¿me escuchas?"), true)
+        XCTAssertEqual(VoiceActivation.isGreeting("Hola Ü, te necesito"), true)
+        XCTAssertEqual(VoiceActivation.isGreeting("Oye Yu, ayúdame"), true)
+        XCTAssertEqual(VoiceActivation.isGreeting("estaba viendo YouTube"), false)
+    }
+
+    func testConversationArchivePreservesHistoryAndRejectsCorruption() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ConversationArchive(url: root.appendingPathComponent("chat.json"))
+        XCTAssertEqual(try store.load().count, 0)
+        let messages = [ConversationMessage(text: "Recuerda mis cambios de voz", user: true), ConversationMessage(text: "Contexto conservado.", user: false)]
+        try store.save(messages)
+        XCTAssertEqual(try store.load(), messages)
+        var stream = messages
+        stream[1].text += " Más tokens."
+        try store.save(stream)
+        XCTAssertEqual(try store.load(), stream)
+        try Data("damaged".utf8).write(to: store.url)
+        XCTAssertThrowsError(try store.load())
+        XCTAssertEqual(try String(contentsOf: store.url), "damaged")
+    }
+
+    func testWakeGreetingRequiresDirectAddress() {
+        let segments: [(String, Double, Double)] = [("hablando", 0, 0.4), ("contigo", 0.5, 0.3), ("Hola", 2, 0.3), ("You", 2.4, 0.3)]
+        XCTAssertEqual(VoiceActivation.latestPhrase(segments), "Hola You")
+        XCTAssertEqual(VoiceActivation.latestPhrase([]), "")
+        XCTAssertEqual(VoiceActivation.latestPhrase([("le dije", 0, 0.5), ("hola You", 0.6, 0.8)]), "le dije hola You")
+        for text in ["Hola Yu", "¡Hola, You! ¿Me escuchas?", "Oye Ü, abre el navegador", "hola U", "buenos días Yu", "You", "You, te necesito", "Yu haz esto", "You ¿estás ahí?", "¿Me escuchas, You?"] {
+            XCTAssertEqual(VoiceActivation.isGreeting(text), true)
+        }
+        for text in ["hola", "hola YouTube", "hola ustedes", "le dije hola Yu ayer", "oye Juan", "yo te necesito", "hola hijo mío", "hablaba de You ayer"] {
+            XCTAssertEqual(VoiceActivation.isGreeting(text), false)
+        }
+        for text in ["You, guarda silencio", "no te estoy hablando", "estoy en una llamada"] {
+            XCTAssertEqual(VoiceActivation.requestsPrivacy(text), true)
+        }
+        XCTAssertEqual(VoiceActivation.requestsPrivacy("abre el archivo de llamadas"), false)
+        XCTAssertEqual(AssistantContext().graphContext.contains("Kaizen"), true)
+        let session = LiveProtocol.start()["session"] as! [String: Any]
+        XCTAssertEqual((session["instructions"] as! String).contains("colombiano"), true)
+        XCTAssertEqual((session["instructions"] as! String).contains("sin voseo"), true)
+    }
     func testNotchExpansionHasFixedSizesAndFitsSmallDisplays() throws {
         let compact = NotchLayout(expanded: false, availableWidth: 1440, availableHeight: 900)
         let chat = NotchLayout(expanded: true, availableWidth: 1440, availableHeight: 900)
@@ -28,6 +91,18 @@ extension AgentTests {
         XCTAssertEqual(LiveProtocol.connectionError(status: 429, code: -1011).contains("saldo"), false)
         XCTAssertEqual(LiveProtocol.connectionError(status: nil, code: -1001).contains("tiempo"), true)
         XCTAssertEqual(LiveProtocol.connectionError(status: 503, code: -1011).contains("503"), true)
+    }
+
+    func testAssistantContextReachesLiveAndGraphWithoutLosingTheUserPreference() throws {
+        let context = AssistantContext(text: "Explica con ejemplos simples; evita interrumpir conversaciones ajenas.")
+        XCTAssertEqual(context.liveInstructions(base: "Base").contains("ejemplos simples"), true)
+        XCTAssertEqual(context.liveInstructions(base: "Base").contains("interrumpir conversaciones ajenas"), true)
+        XCTAssertEqual(context.graphContext.contains(context.text), true)
+        let session = LiveProtocol.start(userContext: context)["session"] as! [String: Any]
+        XCTAssertEqual((session["instructions"] as? String)?.contains(context.text), true)
+        let delegation = session["delegation"] as! [String: Any]
+        let planner = delegation["responses"] as! [String: Any]
+        XCTAssertEqual((planner["instructions"] as? String)?.contains(context.text), true)
     }
 
     func testLiveAudioPreservesSilentTimeAndRejectsBrokenPCM() throws {

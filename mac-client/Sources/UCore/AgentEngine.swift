@@ -11,6 +11,7 @@ public final class AgentEngine {
     public var onStatus: ((String) -> Void)?
     public var onSpeech: ((String) -> Void)?
     public var userID: String?
+    public var userContext: String?
     public init(turn: @escaping Turn, observe: @escaping (Bool) async throws -> ScreenState,
                 execute: @escaping (AgentAction) async throws -> String,
                 ask: @escaping (String) async throws -> String, maxTurns: Int = 40) {
@@ -26,7 +27,7 @@ public final class AgentEngine {
             try Task.checkCancellation()
             onStatus?("Mirando la pantalla · \(index + 1)")
             let state = try await observe(screenshot)
-            let response = try await turn(TurnRequest(session: session, goal: index == 0 ? goal : nil, userId: userID, state: state, results: results, inform: inform))
+            let response = try await turn(TurnRequest(session: session, goal: index == 0 ? goal : nil, userId: userID, state: state, results: results, inform: inform, userContext: userContext))
             try Task.checkCancellation()
             if response.done {
                 guard response.actions.isEmpty, response.question == nil else { throw AgentError.invalid("Graph terminó el turno con acciones pendientes.") }

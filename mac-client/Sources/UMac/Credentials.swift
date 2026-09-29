@@ -1,42 +1,64 @@
 import Foundation
-import Security
 import UCore
 
+/// Coalesces reads and keeps successful credentials in process memory only.
+public actor CredentialReader {
+    private var values: [String: String] = [:]
+    private var pending: [String: Task<String?, Error>] = [:]
+    public init() {}
+    public func read(_ name: String, load: @escaping @Sendable () async throws -> String?) async throws -> String? {
+        if let value = values[name] { return value }
+        if let task = pending[name] { return try await task.value }
+        let task = Task.detached { try await load() }
+        pending[name] = task
+        defer { pending[name] = nil }
+        let result = try await task.value
+        if let result { values[name] = result }
+        return result
+    }
+    public func invalidate(_ name: String) async {
+        if let task = pending[name] { _ = try? await task.value }
+        values[name] = nil
+    }
+}
+
 public enum Credentials {
-    private static let service = "com.zevcorp.u.mac.native"
-    public static func read(_ name: String) async -> String? {
-        try? await readChecked(name)
-    }
-    public static func readChecked(_ name: String) async throws -> String? {
-        try await Task.detached { try readSynchronously(name) }.value
-    }
-    private static func readSynchronously(_ name: String) throws -> String? {
-        if let env = ProcessInfo.processInfo.environment[name], !env.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return env }
-        var result: CFTypeRef?
-        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-                                    kSecAttrAccount as String: name, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess else {
-            throw AgentError.unavailable("No pude acceder a la credencial en el Llavero (\(status)). Desbloquea el Llavero y autoriza a Ü si macOS lo solicita; después vuelve a conectar.")
+    private static let reader = CredentialReader()
+    public static func read(_ name: String) async -> String? { try? await readChecked(name) }
+    public static func readChecked(_ name: String, allowInteraction: Bool = false) async throws -> String? {
+        let result = try await reader.read(name) {
+            if let value = ProcessInfo.processInfo.environment[name], !value.isEmpty { return value }
+            return try runStore(name, operation: "read", interactive: allowInteraction)["value"] as? String
         }
-        guard let bytes = result as? Data else { throw AgentError.invalid("La credencial del Llavero no tiene un formato válido.") }
-        return String(data: bytes, encoding: .utf8)
+        try Task.checkCancellation()
+        return result
     }
     public static func save(_ name: String, value: String) async throws {
-        try await Task.detached { try saveSynchronously(name, value: value) }.value
-    }
-    private static func saveSynchronously(_ name: String, value: String) throws {
-        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: name]
         let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if clean.isEmpty { SecItemDelete(query as CFDictionary); return }
-        let attributes: [String: Any] = [kSecValueData as String: Data(clean.utf8)]
-        var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if status == errSecItemNotFound {
-            var create = query.merging(attributes) { _, new in new }
-            create[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            status = SecItemAdd(create as CFDictionary, nil)
+        _ = try await Task.detached { try runStore(name, operation: "save", interactive: true, input: Data(clean.utf8)) }.value
+        await reader.invalidate(name)
+    }
+    private static func runStore(_ name: String, operation: String, interactive: Bool, input: Data = Data()) throws -> [String: Any] {
+        guard ["OPENAI_API_KEY", "GRAPH_API_KEY"].contains(name),
+              let executable = Bundle.main.executableURL else { throw AgentError.invalid("Credencial no compatible.") }
+        let process = Process(), output = Pipe(), stdin = Pipe()
+        process.executableURL = executable.deletingLastPathComponent().appendingPathComponent("UCredentialStore")
+        process.arguments = [operation, name, interactive ? "authorize" : "silent"]
+        process.standardInput = stdin; process.standardOutput = output; process.standardError = FileHandle.nullDevice
+        try process.run()
+        try stdin.fileHandleForWriting.write(contentsOf: input)
+        try stdin.fileHandleForWriting.close()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0,
+              let result = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let status = result["status"] as? Int else {
+            throw AgentError.unavailable("No se pudo abrir el almacén seguro de Ü (\(process.terminationStatus)).")
         }
-        guard status == errSecSuccess else { throw AgentError.unavailable("No pude guardar la credencial en el Llavero (\(status)).") }
+        if status == -25300 { return [:] }
+        guard status == 0 else {
+            throw AgentError.unavailable("El Llavero no autorizó la credencial (\(status)). Usa Comprobar Live 1 en Configuración para autorizarla.")
+        }
+        return result
     }
 }

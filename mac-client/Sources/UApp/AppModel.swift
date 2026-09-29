@@ -3,7 +3,7 @@ import Combine
 import UCore
 import UMac
 
-struct ChatMessage: Identifiable { let id = UUID(); var text: String; let user: Bool }
+typealias ChatMessage = ConversationMessage
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -17,7 +17,11 @@ final class AppModel: ObservableObject {
     var status: String { get { presentation.detail } set { presentation.detail = newValue } }
     @Published var draft = ""
     @Published var partial = ""
-    @Published var messages: [ChatMessage] = []
+    @Published var messages: [ChatMessage] = [] { didSet { scheduleHistorySave() } }
+    private var historyEnabled = false
+    private var historySave: Task<Void, Never>?
+    private let historyQueue = DispatchQueue(label: "com.zevcorp.u.mac.history")
+    private let history = ConversationArchive(url: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("U Mac/conversation.json"))
     @Published var microphone = false
     @Published var busy = false
     @Published var liveConnected = false
@@ -26,10 +30,12 @@ final class AppModel: ObservableObject {
     private var voiceConnection: Task<Void, Never>?
     private var voiceID = UUID()
     @Published var graphURL = UserDefaults.standard.string(forKey: "graphURL") ?? GraphClient.defaultURL
+    @Published var assistantContext = UserDefaults.standard.string(forKey: "assistantContext") ?? ""
     @Published var credential = ""
     @Published var openAICredential = ""
     @Published var hasCredential = false
     private var credentialRefresh: Task<Void, Never>?
+    private var cachedGraphCredential: String?
     @Published var configurationMessage = ""
     @Published var checkingVoice = false
     @Published var voiceCheckMessage = ""
@@ -42,6 +48,13 @@ final class AppModel: ObservableObject {
     let permissions = PermissionCenter()
     let desktop = Desktop()
     let speech = Speech()
+    private let wakeSpeech = Speech()
+    private var wakeTask: Task<Void, Never>?
+    private var wakeID = UUID()
+    private var pendingWakeGreeting: String?
+    @Published var wakeListening = false
+    @Published var wakeStatus = ""
+    @Published var wakeEnabled = UserDefaults.standard.object(forKey: "wakeEnabled") as? Bool ?? true
     var showWindow: (() -> Void)?
     var hideWindow: (() -> Void)?
     var lastExternalApp: NSRunningApplication?
@@ -55,7 +68,30 @@ final class AppModel: ObservableObject {
         if let id = UserDefaults.standard.string(forKey: "userID") { return id }
         let id = UUID().uuidString; UserDefaults.standard.set(id, forKey: "userID"); return id
     }()
-    init() {
+    init(persistConversation: Bool = true) {
+        if persistConversation {
+            do {
+                messages = try history.load()
+                historyEnabled = true
+            } catch {
+                status = "No se pudo leer el historial guardado. El archivo se conserva sin sobrescribir."
+            }
+        }
+        wakeSpeech.onState = { [weak self] listening, _ in
+            self?.wakeListening = listening
+            if listening { self?.wakeStatus = "Esperando que llames a You para conversar." }
+        }
+        wakeSpeech.onError = { [weak self] message in
+            self?.wakeListening = false; self?.wakeStatus = message
+            self?.status = message
+        }
+        wakeSpeech.onText = { [weak self] text in
+            guard let self, self.wakeEnabled, !self.microphone, !self.busy,
+                  VoiceActivation.isGreeting(text) else { return }
+            self.pendingWakeGreeting = text
+            self.nativeDictation = false
+            self.toggleMicrophone()
+        }
         permissionObservation = permissions.$snapshot.sink { [weak self] snapshot in
             self?.permissionSnapshot = snapshot
         }
@@ -75,7 +111,13 @@ final class AppModel: ObservableObject {
             self.liveConnected = self.liveVoice.connected
             self.status = text
             self.mode = self.liveConnected ? .listening : .ready
-            if !self.liveConnected && text.contains("terminó") { self.microphone = false; self.desktop.stop() }
+            if self.liveConnected, let greeting = self.pendingWakeGreeting {
+                self.pendingWakeGreeting = nil
+                Task { do { try await self.liveVoice.text(greeting) } catch { self.fail(error.localizedDescription) } }
+            }
+            if !self.liveConnected && text.contains("terminó") {
+                self.microphone = false; self.desktop.stop(); self.startWakeListening()
+            }
         }
         liveVoice.onText = { [weak self] text, user in
             guard let self else { return }
@@ -98,14 +140,62 @@ final class AppModel: ObservableObject {
             self.work?.cancel(); self.work = nil; self.runID = UUID()
             self.desktop.stop(); self.busy = false; self.liveConnected = false; self.microphone = false
             self.fail(text)
+            self.pendingWakeGreeting = nil
+            self.startWakeListening()
         }
         liveVoice.onTool = { [weak self] name, args in
             guard let self else { throw CancellationError() }
             return try await self.liveTool(name, args: args)
         }
     }
+    private func scheduleHistorySave() {
+        guard historyEnabled else { return }
+        historySave?.cancel()
+        historySave = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
+            guard let self else { return }
+            let snapshot = self.messages
+            let store = self.history
+            self.historyQueue.async { [weak self] in
+                do { try store.save(snapshot) }
+                catch {
+                    Task { @MainActor [weak self] in self?.status = "No se pudo guardar el historial: " + error.localizedDescription }
+                }
+            }
+        }
+    }
+    func flushHistory() {
+        guard historyEnabled else { return }
+        historySave?.cancel()
+        let snapshot = messages
+        do { try historyQueue.sync { try history.save(snapshot) } }
+        catch { status = "No se pudo guardar el historial: " + error.localizedDescription }
+    }
+    func setWakeEnabled(_ enabled: Bool) {
+        wakeEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "wakeEnabled")
+        if enabled { startWakeListening() }
+        else { stopWakeListening(); wakeStatus = "Activación por saludo desactivada." }
+    }
+    func startWakeListening() {
+        guard wakeEnabled, !microphone, !busy, wakeTask == nil, !wakeListening else { return }
+        wakeStatus = "Preparando activación por voz…"
+        let id = UUID(); wakeID = id
+        wakeTask = Task { [weak self] in
+            guard let self else { return }
+            await self.wakeSpeech.start(localOnly: true)
+            if self.wakeID == id { self.wakeTask = nil }
+        }
+    }
+    private func stopWakeListening() {
+        wakeID = UUID()
+        wakeTask?.cancel(); wakeTask = nil
+        wakeSpeech.stop(); wakeListening = false
+    }
     func refreshPermissions() {
         permissions.refreshAndPoll()
+    }
+    func refreshCredentialPresence() {
         if credentialRefresh == nil {
             checkingCredential = true
             credentialRefresh = Task { [weak self] in
@@ -118,12 +208,21 @@ final class AppModel: ObservableObject {
     func saveConfiguration() async {
         do {
             _ = try GraphClient(baseURL: graphURL, apiKey: "validation")
-            if !credential.isEmpty { try await Credentials.save("GRAPH_API_KEY", value: credential); credential = "" }
+            if !credential.isEmpty {
+                try await Credentials.save("GRAPH_API_KEY", value: credential)
+                cachedGraphCredential = credential.trimmingCharacters(in: .whitespacesAndNewlines)
+                hasCredential = !cachedGraphCredential!.isEmpty
+                credential = ""
+            }
             if !openAICredential.isEmpty { try await Credentials.save("OPENAI_API_KEY", value: openAICredential); openAICredential = "" }
             UserDefaults.standard.set(graphURL, forKey: "graphURL")
-            hasCredential = await Credentials.read("GRAPH_API_KEY") != nil
-            configurationMessage = hasCredential ? "Guardado en el Llavero de macOS." : "Falta la credencial de Graph."
+            configurationMessage = hasCredential ? "Guardado en el Llavero de macOS." : "La conexión se guardará cuando añadas una credencial de Graph."
         } catch { configurationMessage = error.localizedDescription }
+    }
+    func saveAssistantContext() {
+        assistantContext = AssistantContext(text: assistantContext).text
+        UserDefaults.standard.set(assistantContext, forKey: "assistantContext")
+        configurationMessage = assistantContext.isEmpty ? "El contexto personal se eliminó de este Mac." : "El contexto personal se guardó y se aplicará a la próxima conversación."
     }
     func checkConnection() {
         Task {
@@ -136,9 +235,12 @@ final class AppModel: ObservableObject {
         }
     }
     func makeClient() async throws -> GraphClient {
-        await credentialRefresh?.value
         try Task.checkCancellation()
-        guard let key = try await Credentials.readChecked("GRAPH_API_KEY"), !key.isEmpty else {
+        let key: String
+        if let cachedGraphCredential, !cachedGraphCredential.isEmpty { key = cachedGraphCredential }
+        else if let stored = try await Credentials.readChecked("GRAPH_API_KEY"), !stored.isEmpty {
+            key = stored; cachedGraphCredential = stored
+        } else {
             throw AgentError.unavailable("Falta la credencial de Graph. Guárdala en Configuración para conectar Live 1.")
         }
         hasCredential = true
@@ -150,16 +252,16 @@ final class AppModel: ObservableObject {
         Task {
             defer { checkingVoice = false }
             do {
-                let local = try await Credentials.readChecked("OPENAI_API_KEY")
-                let graph = try? await makeClient().providerKeys()
-                let key = try await voiceCredential(graph: graph?.openai ?? local)
+                let local = try await Credentials.readChecked("OPENAI_API_KEY", allowInteraction: true)
+                let graph = local == nil ? try await makeClient().providerKeys() : nil
+                let key = try voiceCredential(local: local, graph: graph?.openai)
                 guard try await VoiceProbe.check(key: key) else { throw AgentError.unavailable("Live 1 no completó la prueba.") }
                 voiceCheckMessage = "Live 1 y Luna respondieron. Ahora pulsa Hablar con Live 1 para probar micrófono y altavoces."
             } catch { voiceCheckMessage = error.localizedDescription }
         }
     }
-    private func voiceCredential(graph: String?) async throws -> String {
-        if let local = try await Credentials.readChecked("OPENAI_API_KEY"), !local.isEmpty { return local }
+    private func voiceCredential(local: String?, graph: String?) throws -> String {
+        if let local, !local.isEmpty { return local }
         if let graph, !graph.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return graph }
         throw AgentError.unavailable("No hay una credencial de OpenAI para Live 1. Guárdala en el Llavero o configúrala en Graph.")
     }
@@ -174,6 +276,7 @@ final class AppModel: ObservableObject {
             voiceID = UUID(); voiceConnection?.cancel(); voiceConnection = nil
             microphone = false; liveConnected = false; liveVoice.stop(); speech.stop(); partial = ""
             if busy { stop() } else { mode = .ready }
+            pendingWakeGreeting = nil; startWakeListening()
             return
         }
         guard !busy else { status = "Detén la tarea antes de cambiar el modo de voz."; return }
@@ -185,6 +288,7 @@ final class AppModel: ObservableObject {
             return
         }
         guard !checkingVoice else { status = "Espera a que termine la comprobación de Live 1."; return }
+        stopWakeListening()
         microphone = true; awakeUntil = Date().addingTimeInterval(45)
         if nativeDictation { Task { await speech.start() }; return }
         let id = UUID(); voiceID = id
@@ -193,20 +297,32 @@ final class AppModel: ObservableObject {
         voiceConnection = Task { [weak self] in
             guard let self else { return }
             do {
-                self.status = "Accediendo a Graph para conectar Live 1…"
+                self.status = "Preparando la credencial de voz…"
                 let local = try await Credentials.readChecked("OPENAI_API_KEY")
-                let keys = try? await self.makeClient().providerKeys()
-                let key = try await self.voiceCredential(graph: keys?.openai ?? local)
+                // A local Live key is enough to start a conversation. Graph may be recovering and
+                // must not hold the microphone UI hostage while its optional Jev key is fetched.
+                let hasLocalVoiceKey = local?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                let keys = hasLocalVoiceKey ? nil : try? await self.makeClient().providerKeys()
+                let key = try self.voiceCredential(local: local, graph: keys?.openai)
                 let jevKey = keys?.typesafe
                 guard self.voiceID == id, !Task.isCancelled else { return }
                 self.jev = jevKey.flatMap { $0.isEmpty ? nil : JevClient(key: $0) }
                 self.jevStatus = self.jev == nil ? "Jev sin credencial · decide Luna" : "Jev · listo"
                 guard self.voiceID == id, !Task.isCancelled else { return }
-                try await self.liveVoice.start(key: key)
+                try await self.liveVoice.start(key: key, userContext: AssistantContext(text: self.assistantContext))
+                if hasLocalVoiceKey {
+                    Task { [weak self] in
+                        guard let self, let delayedKeys = try? await self.makeClient().providerKeys(),
+                              self.voiceID == id, !Task.isCancelled else { return }
+                        self.jev = delayedKeys.typesafe.flatMap { $0.isEmpty ? nil : JevClient(key: $0) }
+                        self.jevStatus = self.jev == nil ? "Jev sin credencial · decide Luna" : "Jev · listo"
+                    }
+                }
 
             } catch {
                 guard self.voiceID == id else { return }
                 self.microphone = false; self.liveConnected = false; self.fail(error.localizedDescription)
+                self.pendingWakeGreeting = nil; self.startWakeListening()
             }
         }
     }
@@ -302,9 +418,6 @@ final class AppModel: ObservableObject {
             return
         }
         guard !busy else { append("Hay una tarea en curso. Deténla antes de iniciar otra."); return }
-        guard hasCredential else {
-            selectedTab = 1; showWindow?(); fail("Conecta tu cuenta de Graph para comenzar."); return
-        }
         guard permissions.snapshot.canControlComputer else {
             selectedTab = 1; showWindow?(); fail("Falta el permiso de Accesibilidad."); return
         }
@@ -324,6 +437,7 @@ final class AppModel: ObservableObject {
                     execute: { try await self.desktop.execute($0) },
                     ask: { try await self.ask($0) })
                 engine.userID = self.userID
+                engine.userContext = AssistantContext(text: self.assistantContext).graphContext
                 engine.onStatus = { [weak self] text in self?.status = text; self?.mode = .working }
                 engine.onSpeech = { [weak self] text in self?.append(text); if self?.microphone == true { self?.speech.say(text) } }
                 let result = try await engine.run(goal: goal)
@@ -362,10 +476,10 @@ final class AppModel: ObservableObject {
         answer?.resume(throwing: CancellationError()); answer = nil
         busy = false; partial = ""; microphone = false
         speech.stop(); presentation.stop()
+        pendingWakeGreeting = nil; startWakeListening()
     }
     func fail(_ text: String) { mode = .error; status = text; append(text) }
     func append(_ text: String, user: Bool = false) {
         messages.append(ChatMessage(text: text, user: user))
-        if messages.count > 150 { messages.removeFirst(messages.count - 150) }
     }
 }

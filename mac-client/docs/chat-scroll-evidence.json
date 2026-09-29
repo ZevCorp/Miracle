@@ -1,0 +1,9 @@
+{
+  "checks" : 18,
+  "failures" : [
+
+  ],
+  "passed" : true,
+  "streaming100UpdatesMilliseconds" : 23.022055625915527,
+  "voiceTest" : "simulated active state; no microphone or network"
+}

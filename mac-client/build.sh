@@ -22,6 +22,7 @@ fi
 swift run -c "$configuration" NativeContract
 swift build -c "$configuration" --product U
 swift build -c "$configuration" --product UFixture
+swift build -c "$configuration" --product UCredentialStore
 binary_dir="$(swift build -c "$configuration" --show-bin-path)"
 output_dir="$PWD/.artifacts"
 mkdir -p "$output_dir"
@@ -30,6 +31,14 @@ make_bundle() {
   local bundle="$output_dir/$executable.app"
   mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
   cp "$binary_dir/$executable" "$bundle/Contents/MacOS/$executable"
+  if [[ "$executable" == U ]]; then
+    cp "$binary_dir/UCredentialStore" "$bundle/Contents/MacOS/UCredentialStore"
+    if [[ "$signing_mode" == "developer-id" ]]; then
+      /usr/bin/codesign --force --options runtime --timestamp --identifier com.zevcorp.u.mac.credential-store --sign "$CODE_SIGN_IDENTITY" "$bundle/Contents/MacOS/UCredentialStore"
+    else
+      /usr/bin/codesign --force --keychain "$signing_keychain" --identifier com.zevcorp.u.mac.credential-store --sign "$signing_identity" "$bundle/Contents/MacOS/UCredentialStore"
+    fi
+  fi
   cat > "$bundle/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

@@ -18,6 +18,11 @@ func XCTAssertThrowsError<T>(_ work: @autoclosure () throws -> T, file: StaticSt
 struct ContractRunner {
     @MainActor static func main() async throws {
         let tests = AgentTests()
+        try tests.testConversationArchivePreservesHistoryAndRejectsCorruption()
+        tests.testTaskUpdatesInformWithoutDemandingSpeech()
+        tests.testLiveUsesNativeConversationPolicy()
+        tests.testWakeGreetingRequiresDirectAddress()
+        try await tests.testCredentialReadsSharePendingWorkAndCacheSuccess()
         try await tests.testGraphWireContractAndQuestionContinuation()
         try await tests.testTurnLimitNeverReportsSuccess()
         try await tests.testCancellationPreventsActionsAfterNetworkReturns()
@@ -37,12 +42,13 @@ struct ContractRunner {
         try tests.testNotchExpansionHasFixedSizesAndFitsSmallDisplays()
         try tests.testConversationHaloIsBoundedAndOffWhenDisconnected()
         try tests.testLiveHandshakeErrorsDoNotMisreportPermissionsOrBalance()
+        try tests.testAssistantContextReachesLiveAndGraphWithoutLosingTheUserPreference()
         try tests.testLiveAudioPreservesSilentTimeAndRejectsBrokenPCM()
         try tests.testVoicePresentationAccumulatesReplyAndResetsAtNextTurn()
         try tests.testPresentationKeepsTaskAndDistinguishesStop()
         try tests.testMemoryNeverTurnsRememberedIntoLive()
         try tests.testMemoryRoutesOnlyThroughObservedEdges()
         try await tests.testMemoryPersistenceAndCorruptionAreExplicit()
-        print("PASS: 25 contracts, \(checks) assertions. No network, microphone or desktop access.")
+        print("PASS: 31 contracts, \(checks) assertions. No network, microphone or desktop access.")
     }
 }

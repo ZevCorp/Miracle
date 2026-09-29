@@ -39,8 +39,9 @@ public struct TurnRequest: Codable, Sendable {
     public var state: ScreenState
     public var results: [String]
     public var inform: String?
-    public init(session: String?, goal: String?, userId: String? = nil, state: ScreenState, results: [String] = [], inform: String? = nil) {
-        self.session = session; self.goal = goal; self.userId = userId; self.state = state; self.results = results; self.inform = inform
+    public var userContext: String?
+    public init(session: String?, goal: String?, userId: String? = nil, state: ScreenState, results: [String] = [], inform: String? = nil, userContext: String? = nil) {
+        self.session = session; self.goal = goal; self.userId = userId; self.state = state; self.results = results; self.inform = inform; self.userContext = userContext
     }
 }
 

@@ -35,6 +35,9 @@ extension AgentTests {
         }
         do { _ = try await client.turn(TurnRequest(session: nil, goal: "test", state: .empty)); XCTFail("401 was accepted") }
         catch { XCTAssertEqual(error as? AgentError, .backend(401)) }
+        MockGraphProtocol.respond = { _ in (502, Data(#"{"error":"El proveedor no está configurado"}"#.utf8)) }
+        do { _ = try await client.turn(TurnRequest(session: nil, goal: "test", state: .empty)); XCTFail("502 was accepted") }
+        catch { XCTAssertEqual(error.localizedDescription.contains("proveedor no está configurado"), true) }
         MockGraphProtocol.respond = { request in
             XCTAssertEqual(request.url?.path, "/api/v1/agent/claves")
             return (200, Data(#"{"openai":"mock-key"}"#.utf8))
