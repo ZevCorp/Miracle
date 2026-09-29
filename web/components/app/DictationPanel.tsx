@@ -1,0 +1,289 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Loader2, Mic, Pause, Play, Square, Wifi } from "lucide-react";
+import { Waveform } from "@/components/app/Waveform";
+import {
+  useDictation,
+  type DictationStatus,
+  type DictationUsageSnapshot,
+} from "@/lib/stt/useDictation";
+import { useOmiMicrophone } from "@/lib/omi/useOmiMicrophone";
+import { OmiStatusDot } from "@/components/app/OmiStatusDot";
+
+const STATUS_TEXT: Partial<Record<DictationStatus, string>> = {
+  requesting_mic: "Solicitando acceso al micrófono…",
+  connecting: "Conectando con el servicio de transcripción…",
+  recording: "Grabando…",
+  reconnecting: "Se interrumpió la conexión. Reintentando…",
+  pausing: "Pausando y asegurando la transcripción…",
+  paused: "Grabación pausada",
+  stopping: "Finalizando transcripción…",
+};
+
+function mmss(total: number) {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+/**
+ * Grabación de la consulta con transcripción en vivo (Soniox/Deepgram vía el
+ * backend Miracle). Los segmentos finales se appendean al textarea del padre
+ * (`onAppendFinal`); el parcial solo se muestra aquí, nunca entra al texto.
+ */
+export function DictationPanel({
+  disabled,
+  onAppendFinal,
+  onActiveChange,
+  autoStart = false,
+  onRecordingStopped,
+  finishLabel,
+  onCapturingChange,
+  onUsageSnapshotReady,
+  onAudioSourceChange,
+  onLiveState,
+  onCaptureControls,
+}: {
+  disabled: boolean;
+  onAppendFinal: (text: string) => void;
+  onActiveChange: (active: boolean) => void;
+  /** Se usa solo al llegar desde el acceso de grabación rápida. */
+  autoStart?: boolean;
+  /** Permite encadenar el cierre de captura con la generación de la nota. */
+  onRecordingStopped?: () => void;
+  /** Etiqueta para una detención que termina la cita. */
+  finishLabel?: string;
+  /**
+   * Captura ABIERTA (recording/reconnecting/pausing/stopping) — más estricto
+   * que `onActiveChange`, que incluye "paused". El reloj de uso de la consulta
+   * (lib/clinical/encounter-usage.ts) cuenta la captura aunque la pestaña esté
+   * oculta; una grabación pausada, no.
+   */
+  onCapturingChange?: (capturing: boolean) => void;
+  /** Entrega el lector de telemetría del dictado (recordingMs + timeline). */
+  onUsageSnapshotReady?: (getSnapshot: () => DictationUsageSnapshot) => void;
+  /**
+   * Con qué se está grabando, en el vocabulario del backend
+   * ("browser_microphone" | "omi"). El panel lo dice en vez de que la pantalla
+   * lo adivine: aquí es donde el médico lo elige.
+   */
+  onAudioSourceChange?: (source: string) => void;
+  /**
+   * Espejo de solo lectura del estado vivo (tiempo, última frase provisional).
+   * Lo consume el modo captura, que es una VISTA sobre esta grabación: el
+   * micrófono, el reloj y la telemetría siguen viviendo aquí.
+   */
+  onLiveState?: (state: { elapsedSec: number; partialText: string }) => void;
+  /** Controles delegables (pausar / finalizar) para el modo captura. */
+  onCaptureControls?: (controls: { pause: () => void; finish: () => void }) => void;
+}) {
+  const { status, partialText, error, elapsedSec, stalled, start, pause, stop, getUsageSnapshot } =
+    useDictation(onAppendFinal);
+  const autoStartHandled = useRef(false);
+  const [finishConfirm, setFinishConfirm] = useState(false);
+
+  useEffect(() => {
+    onUsageSnapshotReady?.(getUsageSnapshot);
+  }, [getUsageSnapshot, onUsageSnapshotReady]);
+
+  useEffect(() => {
+    onLiveState?.({ elapsedSec, partialText: partialText ?? "" });
+  }, [elapsedSec, partialText, onLiveState]);
+
+  // Sin lista de dependencias a propósito: registra en cada render los
+  // closures más frescos de pause/finishRecording. El receptor los guarda en
+  // un ref, así que esto no re-renderiza nada.
+  useEffect(() => {
+    onCaptureControls?.({
+      pause: () => {
+        void pause();
+      },
+      finish: () => {
+        void finishRecording();
+      },
+    });
+  });
+
+  // Fuente de audio: "mic" usa getUserMedia normal; "omi" aprovecha el shim
+  // que instaló la conexión global (widget flotante junto a "Grabar
+  // consulta", ver lib/omi/useOmiMicrophone.tsx) para que el audio del Omi
+  // entre como si fuera el micrófono (lib/stt/microphone-source.ts). La
+  // conexión BLE vive fuera de este panel a propósito: si el médico ya
+  // conectó el Omi desde el panel principal, el acceso rápido (que arranca
+  // grabando solo) ya lo usa sin pausar para elegirlo. Piloto: Chrome/Edge de
+  // escritorio solamente.
+  const omi = useOmiMicrophone();
+  const [source, setSource] = useState<"mic" | "omi">(() => (omi.isConnected ? "omi" : "mic"));
+
+  // "Activo" = cualquier estado que implique micrófono/conexión en curso.
+  const active = status !== "idle" && status !== "error";
+  useEffect(() => {
+    onActiveChange(active);
+  }, [active, onActiveChange]);
+
+  useEffect(() => {
+    onAudioSourceChange?.(source === "omi" ? "omi" : "browser_microphone");
+  }, [source, onAudioSourceChange]);
+
+  const captureOpen =
+    status === "recording" ||
+    status === "reconnecting" ||
+    status === "pausing" ||
+    status === "stopping";
+  useEffect(() => {
+    onCapturingChange?.(captureOpen);
+  }, [captureOpen, onCapturingChange]);
+
+  // El encounter ya se creó desde una acción explícita del médico. Arrancar
+  // aquí elimina un segundo clic sin tocar el flujo normal de la consulta.
+  useEffect(() => {
+    if (!autoStart || disabled || autoStartHandled.current) return;
+    autoStartHandled.current = true;
+    void start();
+  }, [autoStart, disabled, start]);
+
+  const inFlight =
+    status === "requesting_mic" ||
+    status === "connecting" ||
+    status === "pausing" ||
+    status === "stopping";
+  const capturing = status === "recording" || status === "reconnecting";
+  const paused = status === "paused";
+
+  async function startOrContinue() {
+    await start();
+  }
+
+  async function finishRecording() {
+    setFinishConfirm(false);
+    await stop();
+    onRecordingStopped?.();
+  }
+
+  return (
+    <div className="overflow-hidden rounded-[16px] border border-line bg-pearl shadow-[var(--elev-1)]">
+      <div className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${capturing ? "bg-danger-soft text-danger" : paused ? "bg-warning-soft text-warning" : "bg-ice text-accent"}`}>
+            {capturing ? <Mic size={17} className="animate-pulse" /> : paused ? <Pause size={17} /> : <Mic size={17} />}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-deep">
+              {capturing ? "Micrófono activo" : paused ? "Grabación pausada" : inFlight ? "Preparando micrófono" : "Micrófono listo"}
+            </p>
+            <p className="flex items-center gap-1.5 text-xs text-muted">
+              <Wifi size={13} /> {status === "reconnecting" ? "Reconectando" : active ? "Conexión protegida" : "Sin transmisión activa"}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* Solo cuando el Omi es la fuente: grabando con el micrófono normal
+              no hay collar que vigilar y el punto sería ruido. */}
+          {source === "omi" || omi.isConnected ? <OmiStatusDot /> : null}
+          <span className="font-mono text-lg font-semibold tabular-nums text-deep">{mmss(elapsedSec)}</span>
+        </div>
+      </div>
+
+      <div className="p-4">
+        {!capturing && !inFlight && omi.supported ? (
+          <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2.5">
+            <span className="text-xs font-semibold text-muted">Fuente de audio:</span>
+            <div className="seg" role="group" aria-label="Fuente de audio">
+              <button
+                type="button"
+                onClick={() => setSource("mic")}
+                aria-pressed={source === "mic"}
+                className="seg-item min-h-8 px-3 py-1 text-xs"
+              >
+                Micrófono del navegador
+              </button>
+              <button
+                type="button"
+                onClick={() => setSource("omi")}
+                aria-pressed={source === "omi"}
+                className="seg-item min-h-8 px-3 py-1 text-xs"
+              >
+                Omi
+              </button>
+            </div>
+            {/* Se ofrece conectar AQUÍ mismo. Antes este texto mandaba al
+                botón flotante que ya no existe, y sin esto elegir "Omi" sin
+                tenerlo conectado dejaba el botón de iniciar deshabilitado sin
+                salida a la vista. */}
+            {source === "omi" && !omi.isConnected ? (
+              <button
+                type="button"
+                onClick={() => void omi.connect().catch(() => {})}
+                disabled={omi.connecting}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent-soft px-2.5 py-1.5 text-xs font-semibold text-accent-ink disabled:opacity-60"
+              >
+                {omi.connecting ? <Loader2 size={12} className="animate-spin" /> : null}
+                {omi.connecting ? "Conectando…" : "Conectar Omi"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {capturing ? (
+          <div className="mb-4 rounded-lg border border-danger/15 bg-surface px-3 py-3">
+            <Waveform active={status === "recording"} />
+            <p className="mt-2 flex items-start gap-2 text-sm italic text-muted">
+              <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-danger" />
+              {partialText || "Escuchando…"}
+            </p>
+          </div>
+        ) : null}
+
+        <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+          {capturing ? (
+            <button type="button" onClick={() => void pause()} disabled={disabled || inFlight} className="clinical-secondary min-h-12 border-warning/35 bg-warning-soft px-5 text-warning-ink disabled:opacity-60">
+              <Pause size={17} /> Pausar
+            </button>
+          ) : (
+            <button type="button" onClick={() => void startOrContinue()} disabled={disabled || inFlight || (source === "omi" && !omi.isConnected)} className="clinical-primary min-h-12 px-5 disabled:opacity-60">
+              {inFlight ? <Loader2 size={17} className="animate-spin" /> : paused ? <Play size={17} /> : <Mic size={17} />}
+              {paused ? "Continuar grabación" : status === "error" ? "Intentar de nuevo" : "Iniciar grabación"}
+            </button>
+          )}
+
+          {capturing || paused ? (
+            <button type="button" onClick={() => setFinishConfirm(true)} disabled={disabled || inFlight} className="clinical-secondary min-h-12 border-danger/35 px-5 text-danger hover:bg-danger-soft disabled:opacity-60">
+              <Square size={16} /> {finishLabel ?? "Finalizar"}
+            </button>
+          ) : null}
+        </div>
+
+        <span role="status" aria-live="polite" className="mt-3 block text-xs font-medium text-muted">
+          {STATUS_TEXT[status] ?? ""}
+        </span>
+
+        {stalled ? (
+          <p role="alert" className="mt-3 flex items-start gap-2 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            Grabando, pero no llega transcripción hace 45 s. Verifica el
+            micrófono o tu conexión.
+          </p>
+        ) : null}
+
+        {finishConfirm ? (
+          <div role="alertdialog" aria-label="Confirmar finalización" className="mt-4 rounded-xl border border-danger/25 bg-danger-soft p-4">
+            <p className="text-sm font-semibold text-deep">¿Finalizar la consulta y generar la nota?</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted">Se cerrará el micrófono y se procesará la transcripción acumulada. Esta acción no descarta el texto.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setFinishConfirm(false)} className="clinical-secondary px-3">Seguir grabando</button>
+              <button type="button" onClick={() => void finishRecording()} className="clinical-danger px-3">Sí, finalizar</button>
+            </div>
+          </div>
+        ) : null}
+
+        {status === "error" && error ? (
+          <p role="alert" className="mt-3 flex items-start gap-2 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            {error}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
