@@ -1,0 +1,36 @@
+name: Graph · CI
+
+# Graph es el servicio del que dependen los cuatro clientes, y hasta el 2026-09-28 no tenía ninguna
+# compuerta automática: sus intentos de CI (best-practices, frontend-build-step, chore/portero) se
+# quedaron en ramas sin mergear. Este workflow no inventa nada: corre el `npm test` que Graph ya tenía
+# (33 verificaciones offline con dobles de Supabase y del LLM), que pasó en local tal cual el día que
+# entró al monorepo.
+#
+# Node 24, la versión del proyecto en Vercel. Los tests SQL (test:sql) necesitan una base real y no
+# corren aquí.
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['services/graph/**', '.github/workflows/graph-ci.yml']
+  push:
+    branches: [main]
+    paths: ['services/graph/**', '.github/workflows/graph-ci.yml']
+
+defaults:
+  run:
+    working-directory: services/graph
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: services/graph/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
