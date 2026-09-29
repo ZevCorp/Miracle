@@ -39,7 +39,10 @@ todas ellas. El porqué de cada decisión está en `docs/monorepo/arquitectura.m
    bloquea el push a `main` y llama al portero de cada proyecto que la rama toca (hoy Windows y
    Android; los demás los juzga su CI).
 7. **Un CI por proyecto:** `.github/workflows/<proyecto>-*.yml`, que corre solo si cambia su
-   carpeta. `monorepo.yml` comprueba la raíz en todos los PRs.
+   carpeta. `monorepo.yml` comprueba la raíz en todos los PRs. **Graph y el portal se despliegan
+   solos** al mergear a `main`, después de sus tests (`vercel-desplegar.yml`, con prueba de humo y
+   rollback). La producción de hoy (`graph-eight-pied`, `itsmiracleai.com.co`) sigue saliendo de los
+   repos viejos hasta el corte: `docs/monorepo/despliegue.md`.
 8. **Cada máquina toca lo que puede verificar.** Desde un Mac no se toca `apps/windows/`, y desde
    Windows no se toca `apps/mac/`. Graph, web y Android se tocan desde cualquiera. El detalle está
    en `.claude/rules/solo-mac.md`.
