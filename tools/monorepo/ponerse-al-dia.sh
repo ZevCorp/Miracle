@@ -8,16 +8,19 @@
 #     bash <(git show origin/main:tools/monorepo/ponerse-al-dia.sh)
 #
 # Qué hace:
-#  1. Mezcla origin/main con merge.directoryRenames=true. Lo que tu rama CAMBIÓ sigue al movimiento
-#     solo, y lo que AÑADIÓ dentro de una carpeta que se movió se va con ella; con el valor por
-#     defecto de git eso último sale como «CONFLICT (file location)». Antes de mover nada se ensayó
-#     contra las 76 ramas abiertas: el movimiento no le sumó un conflicto a ninguna.
-#  2. Lista lo que tu rama AÑADIÓ en la raíz y no es de la raíz (u/, medidor/, un .ps1 en scripts/,
-#     un .md suelto en docs/…), con el git mv que lo pone en su sitio. No lo mueve solo: de qué
-#     proyecto es algo lo sabe quien lo escribió. git no puede adivinarlo porque esas carpetas no
-#     existían en main.
-#  3. Lista las carpetas viejas que quedaron en tu disco solo con archivos ignorados (bin/, obj/,
-#     node_modules, un .env…): git no mueve lo que no versiona.
+#  1. Mezcla origin/main con merge.directoryRenames=true y un umbral de renombre del 40 %. Lo que tu
+#     rama CAMBIÓ sigue al movimiento solo, y lo que AÑADIÓ en una carpeta que ya existía se va con
+#     ella. Si tu rama BORRÓ un archivo que main solo movió, sin cambiarle un byte, gana tu borrado.
+#     Lo demás que choque ya chocaba antes del movimiento: es tu rama contra main.
+#  2. Lleva a su carpeta lo que tu rama añadió y git no supo reubicar: los archivos de subcarpetas
+#     NUEVAS dentro de una carpeta movida (git solo mira la carpeta inmediata) y los proyectos nuevos
+#     de Windows en la raíz (u/, medidor/). Su destino no es opinable, así que lo mueve y lo
+#     commitea. Lo que no sabe ubicar, lo propone y no lo toca.
+#  3. Lista las carpetas viejas que quedaron en tu disco solo con archivos que git no versiona
+#     (bin/, obj/, node_modules, un .env…): git no mueve lo que no versiona.
+#
+# Ensayado el 2026-09-28 contra las 75 ramas abiertas. Con este script, ninguna rama viva quedó con
+# un conflicto que no tuviera ya antes del movimiento.
 set -u
 
 rojo()  { printf '\033[31m%s\033[0m\n' "$*"; }
@@ -50,84 +53,103 @@ fi
 
 echo
 echo "── 1. mezclando origin/main en $rama"
-if ! git -c merge.directoryRenames=true merge --no-edit origin/main; then
-  echo
-  rojo "Quedan conflictos. Casi siempre ya estaban antes del movimiento: son de tu rama contra main."
-  git diff --name-only --diff-filter=U | sed 's/^/    /'
-  echo "Resuélvelos, git add, git commit, y vuelve a correr este script para los pasos 2 y 3."
-  exit 1
+# -X find-renames=40%: un archivo que main cambió mucho desde que nació tu rama se parece menos de un
+# 50 % (el umbral de git) a su versión vieja, y git deja de reconocerlo como movido; tu cambio se
+# volvía un conflicto «modificado/borrado». En el ensayo, con 40 % volvieron a sus conflictos de
+# antes las 4 ramas donde pasaba, y bajarlo más no ganó ninguna.
+if ! git -c merge.directoryRenames=true merge --no-edit -X find-renames=40% origin/main; then
+  # El único conflicto que añade el movimiento y que tiene una sola respuesta: tu rama BORRÓ un
+  # archivo que main solo MOVIÓ, sin cambiarle un byte (la etapa 1, la base, y la 3, main, son el
+  # mismo blob; la 2, tu rama, no existe). Gana tu borrado.
+  while IFS= read -r f; do
+    base="$(git rev-parse -q --verify ":1:$f" 2>/dev/null)"
+    tuyo="$(git rev-parse -q --verify ":2:$f" 2>/dev/null)"
+    de_main="$(git rev-parse -q --verify ":3:$f" 2>/dev/null)"
+    if [ -z "$tuyo" ] && [ -n "$base" ] && [ "$base" = "$de_main" ]; then
+      git rm -q -- "$f" && gris "   resuelto solo: tu rama borró $f, y main solo lo movió"
+    fi
+  done < <(git -c core.quotepath=false diff --name-only --diff-filter=U)
+  if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+    echo
+    rojo "Quedan conflictos. Ya estaban antes del movimiento: son de tu rama contra main."
+    git -c core.quotepath=false diff --name-only --diff-filter=U | sed 's/^/    /'
+    echo "Resuélvelos, git add, git commit, y vuelve a correr este script para los pasos 2 y 3."
+    exit 1
+  fi
+  git commit -q --no-edit
 fi
 verde "   hecho"
 
 echo
-echo "── 2. lo que tu rama añadió en la raíz y no es de la raíz"
-RAIZ=" .claude .githooks .github .gitignore AGENTS.md README.md apps docs services tools "
+echo "── 2. lo que tu rama añadió y git no supo llevar a su carpeta"
+# Adónde fue cada cosa de la raíz vieja. Todo lo que no era de otro proyecto era de Windows, así que
+# un docs/, un scripts/ o una regla nueva que traiga una rama vieja también lo es. u/ y medidor/ son
+# proyectos de Windows que viven en ramas (#125 y claude/miracle-impact-measurement-h1n3k8).
 COMPARTIDAS=" monorepo.md ramas-y-commits.md aviso-en-slack.md solo-mac.md "
-# Adónde fue cada carpeta de la raíz vieja. u/ y medidor/ son proyectos de Windows que aún viven en
-# ramas (#125 y claude/miracle-impact-measurement-h1n3k8).
-destino_de() {
-  case "$1" in
-    u|medidor|windows-client|windows-graph|nucleo|mapeador|voz|tests|sondas|scripts|backend|laboratorio|piloto|agente-piloto|puente-omi)
-      echo "apps/windows/$1" ;;
-    mac-client) echo "apps/mac" ;;
-    android)    echo "apps/android" ;;
-    web)        echo "apps/web" ;;
-    graph)      echo "services/graph" ;;
-  esac
-}
-propuestas=""
-proponer() { propuestas="$propuestas
-$1"; }
-while IFS= read -r f; do
-  arriba="${f%%/*}"
-  resto="${f#*/}"
+destino() {
+  local f="$1" arriba="${1%%/*}" resto="${1#*/}"
   case "$arriba" in
+    u|medidor|windows-client|windows-graph|nucleo|mapeador|voz|tests|sondas|scripts|backend|laboratorio|piloto|agente-piloto|puente-omi)
+      echo "apps/windows/$f" ;;
+    mac-client) echo "apps/mac/$resto" ;;
+    android)    echo "apps/android/$resto" ;;
+    web)        echo "apps/web/$resto" ;;
+    graph)      echo "services/graph/$resto" ;;
     docs)
-      case "$f" in
-        docs/monorepo/*|docs/herramientas/*) ;;
-        */*) proponer "mkdir -p apps/windows/${f%/*} && git mv $f apps/windows/$f" ;;
-      esac
-      continue ;;
+      case "$f" in docs/monorepo/*|docs/herramientas/*) ;; *) echo "apps/windows/$f" ;; esac ;;
     .claude)
       case "$f" in
-        .claude/rules/*)
-          case "$COMPARTIDAS" in *" ${f##*/} "*) ;; *) proponer "git mv $f apps/windows/.claude/rules/" ;; esac ;;
-      esac
-      continue ;;
+        .claude/rules/*) case "$COMPARTIDAS" in *" ${f##*/} "*) ;; *) echo "apps/windows/$f" ;; esac ;;
+        .claude/skills/avisa/*|.claude/CLAUDE.md) ;;
+        .claude/skills/*) echo "apps/windows/$f" ;;
+      esac ;;
   esac
-  case "$RAIZ" in *" $arriba "*) continue ;; esac
-  d="$(destino_de "$arriba")"
-  if [ -z "$d" ]; then
-    proponer "git mv $arriba apps/<proyecto>/$arriba   # ¿de qué proyecto es?"
-  elif [ ! -e "$d" ]; then
-    proponer "git mv $arriba $d"                       # carpeta nueva entera: u/, medidor/
+}
+RAIZ=" .claude .githooks .github .gitignore AGENTS.md README.md apps docs services tools "
+movidos=0
+propuestas=""
+while IFS= read -r f; do
+  d="$(destino "$f")"
+  if [ -n "$d" ]; then
+    mkdir -p "$(dirname "$d")" && git mv -- "$f" "$d" && movidos=$((movidos+1))
   else
-    proponer "mkdir -p $(dirname "$d/$resto") && git mv $f $d/$resto"
+    arriba="${f%%/*}"
+    case "$RAIZ" in *" $arriba "*) ;; *) propuestas="$propuestas
+git mv $arriba apps/<proyecto>/$arriba   # ¿de qué proyecto es?" ;; esac
   fi
 done < <(git -c core.quotepath=false diff --name-only --diff-filter=A origin/main HEAD)
 
-propuestas="$(printf '%s
-' "$propuestas" | grep . | sort -u)"
-if [ -z "$propuestas" ]; then
-  verde "   nada: todo lo que añadiste ya está en su carpeta"
+if [ "$movidos" -gt 0 ]; then
+  # Las carpetas viejas quedan vacías en el disco: git mueve archivos, no carpetas.
+  for v in u medidor windows-client windows-graph nucleo mapeador voz tests sondas scripts backend \
+           laboratorio piloto agente-piloto puente-omi mac-client android web graph; do
+    [ -d "$v" ] && find "$v" -depth -type d -empty -delete 2>/dev/null
+  done
+  git commit -q -m "chore(monorepo): lo que la rama añadió va a su carpeta del monorepo
+
+Lo movió tools/monorepo/ponerse-al-dia.sh: archivos en subcarpetas nuevas de carpetas movidas, que
+git no reubica solo, y proyectos de Windows nacidos en la raíz."
+  verde "   $movidos archivo(s) movido(s) a su carpeta y commiteado(s)"
 else
-  echo "   Propuesta (revísala: de qué proyecto es algo lo sabes tú):"
-  printf '%s
-' "$propuestas" | sed 's/^/     /'
-  echo "   Después:  git commit -m \"chore: lo nuevo de la rama, a su carpeta del monorepo\""
+  verde "   nada: todo lo que añadiste ya estaba en su carpeta"
+fi
+propuestas="$(printf '%s\n' "$propuestas" | grep . | sort -u)"
+if [ -n "$propuestas" ]; then
+  echo "   Y esto no sé de qué proyecto es. Revísalo tú:"
+  printf '%s\n' "$propuestas" | sed 's/^/     /'
 fi
 
 echo
 echo "── 3. carpetas viejas que quedaron en tu disco con archivos que git no versiona"
 viejas=0
-for d in windows-client windows-graph nucleo mapeador voz tests sondas scripts backend laboratorio \
+for v in windows-client windows-graph nucleo mapeador voz tests sondas scripts backend laboratorio \
          piloto agente-piloto agente-arquitecto puente-omi mac-client android web graph u medidor; do
-  [ -d "$d" ] || continue
-  [ -z "$(git ls-files -- "$d" | head -1)" ] || continue
+  [ -d "$v" ] || continue
+  [ -z "$(git ls-files -- "$v" | head -1)" ] || continue
   viejas=$((viejas+1))
-  echo "   $d/  ($(du -sh "$d" 2>/dev/null | cut -f1))"
-  find "$d" -maxdepth 3 \( -name '.env*' -o -name '*.local' -o -name 'settings.local.json' -o -name '.vercel' \) 2>/dev/null \
-    | sed "s|^|       ojo, configuración local: muévela a $(destino_de "$d")/…  → |"
+  echo "   $v/  ($(du -sh "$v" 2>/dev/null | cut -f1))"
+  find "$v" -maxdepth 3 \( -name '.env*' -o -name '*.local' -o -name 'settings.local.json' -o -name '.vercel' \) 2>/dev/null \
+    | sed "s|^|       ojo, configuración local: muévela a su carpeta nueva → |"
 done
 if [ "$viejas" -eq 0 ]; then
   verde "   ninguna"
