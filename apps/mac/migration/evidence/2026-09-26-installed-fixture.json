@@ -1,0 +1,25 @@
+{
+  "app": "Ü Prueba local · Ü · Prueba local de Accessibility",
+  "axPress": true,
+  "axValueUnicode": true,
+  "date": "2026-09-27T00:44:16Z",
+  "localHarness": {
+    "fixtureOnly": true,
+    "memory": {
+      "p50ms": 0.017833197489380836,
+      "p95ms": 0.019625062122941017
+    },
+    "readAX": {
+      "p50ms": 11.533250100910664,
+      "p95ms": 11.834250064566731
+    },
+    "samples": 20
+  },
+  "memoryForgotten": true,
+  "memoryPersistedAndReobserved": true,
+  "passed": true,
+  "screenshotCoordinates": true,
+  "stopGate": true,
+  "scope": "Local installed fixture only; not voice, remote providers, or full capability parity.",
+  "binary_sha256": "a69f871ed4523860d56acde6cf447edef424d903f5b0b521c0e26d91e58d90a5"
+}

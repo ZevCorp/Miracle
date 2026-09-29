@@ -1,0 +1,244 @@
+"use client";
+
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { Zap } from "lucide-react";
+import { filterSnippets, type Snippet } from "@/lib/clinical/snippets";
+import { caretPosition, decidirLado } from "@/lib/clinical/caret-position";
+import { useSnippets } from "@/components/app/SnippetsProvider";
+
+/** Tope de resultados. Mismo criterio que CommandPalette con TOPE_POR_GRUPO. */
+const TOPE = 8;
+/** Alto aproximado de la lista con el pie, para decidir si cabe debajo. */
+const ALTO_ESTIMADO = 250;
+
+/**
+ * La lista de atajos que sale al escribir "/" dentro de una sección.
+ *
+ * QUÉ SE QUITÓ Y POR QUÉ. Este componente tenía dos modos. El de "panel" —el que
+ * abría el botón— traía su propio buscador con autoFocus (que le robaba el foco
+ * al textarea), una fila de chips de categoría sin límite y un bloque para leer
+ * un archivo del computador con su párrafo explicativo. Eran unos 190 px de
+ * cromo contra 288 px de lista, y con ítems de dos líneas solo cabían cinco
+ * atajos. Todo eso se fue:
+ *
+ * - El buscador sobra: lo que se teclea tras la "/" ya es la búsqueda.
+ * - Los chips sobran: sin término de búsqueda todos los atajos empatan en el
+ *   ranking y decide la sección donde se está escribiendo, así que los de esa
+ *   sección ya salen primero solos (categoryMatchesSection).
+ * - Leer un archivo a mitad de una consulta es un caso raro que costaba 90 px en
+ *   el camino que se recorre cuarenta veces al día. Vive en /app/plantillas.
+ *
+ * Queda una lista de una línea por atajo, con tope de 8, y un pie que muestra el
+ * principio del atajo resaltado: se ve lo que se va a insertar sin gastar una
+ * segunda línea en cada fila.
+ */
+export function SnippetPopup({
+  sectionTitle,
+  query,
+  textareaRef,
+  caretIndex,
+  onPick,
+  onClose,
+}: {
+  /** Sección donde se va a insertar: sus atajos salen primero. */
+  sectionTitle: string;
+  /** Lo que el médico lleva escrito tras la "/". */
+  query: string;
+  /** Para medir dónde está el cursor y no aparecer 500 px más abajo. */
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  /** Posición de la "/" en el texto. */
+  caretIndex: number;
+  onPick: (snippet: Snippet) => void;
+  onClose: () => void;
+}) {
+  const { snippets, loading, error, ensureLoaded } = useSnippets();
+  const [active, setActive] = useState(0);
+  const [anchor, setAnchor] = useState<{ top: number; lado: "arriba" | "abajo" } | null>(
+    null,
+  );
+  const listRef = useRef<HTMLUListElement>(null);
+
+  useEffect(() => {
+    ensureLoaded();
+  }, [ensureLoaded]);
+
+  const visible = useMemo(
+    () => filterSnippets(snippets, { query, sectionTitle }).slice(0, TOPE),
+    [snippets, query, sectionTitle],
+  );
+
+  // Al cambiar la búsqueda el resaltado vuelve al primero: si se quedara donde
+  // estaba, Enter insertaría un atajo que ya no es el que se ve arriba. Estado
+  // derivado durante el render, no en un efecto, para no encadenar renders.
+  const [lastQuery, setLastQuery] = useState(query);
+  if (query !== lastQuery) {
+    setLastQuery(query);
+    setActive(0);
+  }
+
+  // Se mide DESPUÉS del commit: al insertar, el campo crece (rowsForText) y una
+  // medida tomada antes del render queda vieja.
+  useLayoutEffect(() => {
+    const node = textareaRef.current;
+    if (!node) return;
+    const pos = caretPosition(node, caretIndex);
+    if (!pos) {
+      setAnchor(null); // Sin medida: se cae al anclaje de debajo del campo.
+      return;
+    }
+    const lado = decidirLado({
+      caretTop: pos.top,
+      lineHeight: pos.lineHeight,
+      altoLista: ALTO_ESTIMADO,
+      altoCampo: node.clientHeight,
+    });
+    setAnchor({ top: pos.top + (lado === "abajo" ? pos.lineHeight + 4 : -4), lado });
+    // Se mide al ABRIR, no con cada tecla: medir el espejo fuerza un layout
+    // síncrono, y hacerlo mientras el médico teclea es pagarlo en el camino más
+    // caliente que hay. Además, remedir haría saltar la lista línea arriba y
+    // línea abajo cuando el texto reenvuelve. La "/" no se mueve mientras la
+    // lista está abierta, así que una medida basta.
+  }, [textareaRef, caretIndex]);
+
+  // Mientras la lista está abierta la "/" no se mueve, así que no hay que
+  // re-medir: si el médico hace scroll o cambia el tamaño del campo, se cierra.
+  // Es lo que evita la fragilidad que hacía descartar seguir el caret.
+  useEffect(() => {
+    const node = textareaRef.current;
+    if (!node) return;
+    const cerrar = () => onClose();
+    node.addEventListener("scroll", cerrar);
+    window.addEventListener("resize", cerrar);
+    const observer =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(cerrar) : null;
+    // El textarea es resize-y: el médico puede arrastrarlo.
+    observer?.observe(node);
+    return () => {
+      node.removeEventListener("scroll", cerrar);
+      window.removeEventListener("resize", cerrar);
+      observer?.disconnect();
+    };
+  }, [textareaRef, onClose]);
+
+  useEffect(() => {
+    const node = listRef.current?.children[active] as HTMLElement | undefined;
+    node?.scrollIntoView({ block: "nearest" });
+  }, [active]);
+
+  // El foco sigue en el textarea, así que las teclas se interceptan aquí antes
+  // de que lleguen al campo. Con la lista vacía solo se atiende Escape: el
+  // médico está escribiendo texto normal.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+      if (!visible.length) return;
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        setActive((index) => {
+          const next = index + (event.key === "ArrowDown" ? 1 : -1);
+          return (next + visible.length) % visible.length;
+        });
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        event.stopPropagation();
+        const chosen = visible[active];
+        if (chosen) onPick(chosen);
+      }
+    }
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [visible, active, onPick, onClose]);
+
+  // Sin resultados no se pinta NADA. Antes salía una caja flotante que tapaba el
+  // texto para decir "ningún atajo coincide": al escribir "/día" en una frase
+  // normal, eso es ruido puro.
+  const sinBiblioteca = !loading && !error && snippets.length === 0;
+  if (!loading && !error && !visible.length && !sinBiblioteca) return null;
+
+  const posicion =
+    anchor === null
+      ? { top: "100%" as const }
+      : anchor.lado === "abajo"
+        ? { top: anchor.top }
+        : { bottom: `calc(100% - ${anchor.top}px)` };
+
+  return (
+    <div
+      style={posicion}
+      className="absolute left-0 right-0 z-50 overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-lg)]"
+    >
+      {loading ? (
+        <p className="px-3 py-3 text-sm text-muted">Cargando tus atajos…</p>
+      ) : error ? (
+        <p role="alert" className="px-3 py-3 text-sm text-danger">
+          {error}
+        </p>
+      ) : sinBiblioteca ? (
+        <p className="px-3 py-3 text-sm text-muted">
+          Aún no tienes atajos.{" "}
+          <Link
+            href="/app/plantillas?tab=atajos"
+            className="font-semibold text-accent hover:underline"
+          >
+            Ver la biblioteca de Miracle
+          </Link>
+        </p>
+      ) : (
+        <>
+          <ul ref={listRef} role="listbox" aria-label="Atajos" className="max-h-52 overflow-y-auto">
+            {visible.map((snippet, index) => (
+              <li key={snippet.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={index === active}
+                  onMouseEnter={() => setActive(index)}
+                  // El clic no puede robarle el foco al textarea.
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => onPick(snippet)}
+                  className={`flex w-full items-baseline justify-between gap-3 px-3 py-1.5 text-left transition-colors ${
+                    index === active ? "bg-ice-soft" : "hover:bg-ice-soft"
+                  }`}
+                >
+                  <span className="truncate text-sm font-medium text-deep">
+                    {snippet.title}
+                  </span>
+                  {snippet.category ? (
+                    <span className="shrink-0 text-[11px] text-muted">
+                      {snippet.category}
+                    </span>
+                  ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {/* Una sola línea con el principio del atajo resaltado, en vez de una
+              segunda línea en cada fila: se ve lo que se va a insertar y caben
+              seis atajos en el mismo alto en que antes cabían tres. */}
+          {visible[active] ? (
+            <p className="truncate border-t border-line px-3 py-1 text-[11px] text-muted">
+              {visible[active].content.replace(/\s+/g, " ")}
+            </p>
+          ) : null}
+          <p className="border-t border-line px-3 py-1 text-[11px] text-muted">
+            ↑↓ para elegir · Enter inserta · Esc cancela
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Botón que abre la lista, con la pista del atajo de teclado. */
+export function SnippetTriggerIcon() {
+  return <Zap size={14} />;
+}

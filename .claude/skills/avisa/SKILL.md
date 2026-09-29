@@ -39,10 +39,12 @@ La **zona** sale del `--stat`, y es lo que decide si al lector le importa:
 
 | Rutas tocadas | Zona a nombrar |
 |---|---|
-| `windows-graph/` | SAP — riesgo de choque bajo |
-| `windows-client/src/...` de UI (carita, paneles, inspector) | **UI — riesgo alto: es lo que todos tocan** |
-| `windows-client/` servicios (voz, logging, release) | servicios — bajo |
-| `tests/ContratoDelGrafo/`, `SurfaceMap.cs` | **núcleo** — decirlo siempre |
+| `apps/windows/windows-graph/` | Windows · SAP — riesgo de choque bajo |
+| `apps/windows/windows-client/src/...` de UI (carita, paneles, inspector) | **Windows · UI — riesgo alto: es lo que todos tocan** |
+| `apps/windows/windows-client/` servicios (voz, logging, release) | Windows · servicios — bajo |
+| `apps/windows/tests/ContratoDelGrafo/`, `SurfaceMap.cs` | **Windows · núcleo** — decirlo siempre |
+| `apps/mac/` · `apps/android/` · `apps/web/` · `services/graph/` | el proyecto por su nombre: Mac, Android, portal, Graph |
+| `AGENTS.md`, `.github/`, `.githooks/`, `tools/` | **la raíz** — afecta a todos los proyectos |
 
 ## 3. Redactar
 
@@ -52,7 +54,7 @@ de Slack, sobra la mitad.
 ```
 🔀 push a *<rama>*
 *Qué entró:* <una frase en la voz de los commits: «el mobiliario derivado abre rutas, y se acaba el segundo cálculo»>
-*Zona:* <windows-graph · UI de windows-client · servicios · núcleo>
+*Zona:* <Windows (SAP · UI · servicios · núcleo) · Mac · Android · portal · Graph · la raíz>
 *Estado:* <contrato 19/19 · o «contrato rojo: 3 pendientes, fase 2 en curso» · o «sin verificar»>
 <link al PR, si existe>
 ```

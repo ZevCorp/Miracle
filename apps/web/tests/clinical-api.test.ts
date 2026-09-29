@@ -1,0 +1,550 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// El API client importa el cliente de Supabase para leer la sesión; aquí se
+// reemplaza por un stub controlable para probar el flujo completo sin red.
+const getSessionMock = vi.fn();
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({ auth: { getSession: getSessionMock } }),
+}));
+
+import {
+  buildClinicalRequest,
+  buildGenerateNoteBody,
+  CLINICAL_ERROR_MESSAGES,
+  ClinicalApiError,
+  createClinicalEncounter,
+  DEFAULT_TIMEOUT_MS,
+  generateClinicalNote,
+  GENERATE_NOTE_TIMEOUT_MS,
+  createClinicalTemplateDraftFromExample,
+  emptyClinicalDischarge,
+  ensureClinicalDischarge,
+  friendlyClinicalMessage,
+  getClinicalTemplates,
+  normalizeSpecialtyCode,
+  parseClinicalErrorPayload,
+  parseTemplateSectionsInput,
+  saveEditedClinicalNote,
+  savePrivateEncounterNotes,
+  regenerateClinicalEncounterWithTemplate,
+  updateClinicalEncounterPatient,
+  sortedTemplateSections,
+  splitTemplatesBySpecialty,
+  toBackendConsultationType,
+  type ClinicalTemplate,
+  updateNoteSectionContent,
+  type ClinicalNoteJson,
+} from "@/lib/api/clinical";
+
+/* ------------------------------------------------------------------ */
+/* Helpers puros                                                       */
+/* ------------------------------------------------------------------ */
+
+describe("parseTemplateSectionsInput", () => {
+  it("convierte el textarea (una sección por línea) en un array limpio", () => {
+    const raw = [
+      "Identificación",
+      "Motivo de consulta",
+      "  Enfermedad actual  ",
+      "",
+      "Antecedentes relevantes",
+      "Examen físico dirigido",
+      "Impresión diagnóstica",
+      "Plan y recomendaciones",
+    ].join("\n");
+
+    expect(parseTemplateSectionsInput(raw)).toEqual([
+      "Identificación",
+      "Motivo de consulta",
+      "Enfermedad actual",
+      "Antecedentes relevantes",
+      "Examen físico dirigido",
+      "Impresión diagnóstica",
+      "Plan y recomendaciones",
+    ]);
+  });
+
+  it("soporta saltos de línea de Windows y entradas vacías", () => {
+    expect(parseTemplateSectionsInput("Uno\r\nDos\r\n\r\n")).toEqual(["Uno", "Dos"]);
+    expect(parseTemplateSectionsInput("   \n  \n")).toEqual([]);
+  });
+});
+
+describe("normalizeSpecialtyCode", () => {
+  it("normaliza guiones y acentos al snake_case del backend", () => {
+    expect(normalizeSpecialtyCode("medicina-general")).toBe("medicina_general");
+    expect(normalizeSpecialtyCode("Ginecología y obstetricia")).toBe(
+      "ginecologia_y_obstetricia",
+    );
+    expect(normalizeSpecialtyCode("medicina_general")).toBe("medicina_general");
+  });
+});
+
+describe("toBackendConsultationType", () => {
+  it("mapea el tipo de la UI al contrato del backend", () => {
+    expect(toBackendConsultationType("presencial")).toBe("presencial");
+    expect(toBackendConsultationType("telemedicina")).toBe("telemedicina");
+    expect(toBackendConsultationType("audio")).toBe("audio_upload");
+    expect(toBackendConsultationType("audio_upload")).toBe("audio_upload");
+    expect(toBackendConsultationType("desconocido")).toBe("presencial");
+  });
+});
+
+describe("sortedTemplateSections", () => {
+  it("ordena por `order` sin mutar el arreglo original", () => {
+    const sections = [
+      { key: "b", label: "B", order: 2 },
+      { key: "a", label: "A", order: 1 },
+    ];
+    const sorted = sortedTemplateSections(sections);
+    expect(sorted.map((s) => s.key)).toEqual(["a", "b"]);
+    expect(sections[0].key).toBe("b");
+  });
+});
+
+describe("splitTemplatesBySpecialty", () => {
+  function template(
+    id: string,
+    specialty: string,
+    scope: "institutional" | "personal" = "institutional",
+  ): ClinicalTemplate {
+    return { id, name: id, specialty, scope, sections: [] };
+  }
+
+  const catalogo = [
+    template("mg-1", "medicina_general"),
+    template("ped-1", "pediatria"),
+    template("ped-2", "pediatria"),
+    template("mia", "medicina_general", "personal"),
+  ];
+
+  it("pone las del médico primero y deja el resto en `others`", () => {
+    const { primary, others } = splitTemplatesBySpecialty(catalogo, "pediatria");
+    expect(primary.map((t) => t.id)).toEqual(["mia", "ped-1", "ped-2"]);
+    expect(others.map((t) => t.id)).toEqual(["mg-1"]);
+  });
+
+  it("acepta el código con guiones igual que con guion_bajo", () => {
+    const conGuion = [template("gineco-1", "ginecologia_obstetricia"), ...catalogo];
+    const { primary } = splitTemplatesBySpecialty(conGuion, "ginecologia-obstetricia");
+    expect(primary.map((t) => t.id)).toEqual(["mia", "gineco-1"]);
+  });
+
+  it("nunca esconde una plantilla: primary + others es todo el catálogo", () => {
+    for (const especialidad of ["pediatria", "medicina_general", "cardiologia", null]) {
+      const { primary, others } = splitTemplatesBySpecialty(catalogo, especialidad);
+      expect([...primary, ...others].map((t) => t.id).sort()).toEqual(
+        catalogo.map((t) => t.id).sort(),
+      );
+    }
+  });
+
+  it("no agrupa si el médico no tiene institucionales de su especialidad", () => {
+    // Un médico de una especialidad sin catálogo propio ve una sola lista, no un
+    // grupo vacío con todo escondido detrás de "otras especialidades".
+    const { primary, others } = splitTemplatesBySpecialty(catalogo, "cardiologia");
+    expect(primary).toHaveLength(catalogo.length);
+    expect(others).toEqual([]);
+  });
+});
+
+describe("buildGenerateNoteBody", () => {
+  it("estandar es el comportamiento por defecto: no viaja", () => {
+    expect(buildGenerateNoteBody("estandar")).toEqual({});
+    expect(buildGenerateNoteBody(undefined)).toEqual({});
+    expect(buildGenerateNoteBody(null)).toEqual({});
+  });
+
+  it("concisa y detallada viajan como note_detail", () => {
+    expect(buildGenerateNoteBody("concisa")).toEqual({ note_detail: "concisa" });
+    expect(buildGenerateNoteBody("detallada")).toEqual({ note_detail: "detallada" });
+  });
+});
+
+describe("updateNoteSectionContent", () => {
+  const note: ClinicalNoteJson = {
+    summary: "Resumen",
+    sections: [
+      {
+        key: "motivo_consulta",
+        label: "Motivo de consulta",
+        content: "Cefalea de 3 días.",
+        confidence: 0.92,
+        evidence: "cefalea de tres días",
+      },
+      { key: "plan", label: "Plan", content: "Reposo.", confidence: 0.8 },
+    ],
+    warnings: ["aviso"],
+    missing_required_sections: [],
+  };
+
+  it("actualiza solo content y preserva key/label/confidence/evidence", () => {
+    const next = updateNoteSectionContent(note, "motivo_consulta", "Cefalea intensa.");
+    const edited = next.sections[0];
+    expect(edited.content).toBe("Cefalea intensa.");
+    expect(edited.key).toBe("motivo_consulta");
+    expect(edited.label).toBe("Motivo de consulta");
+    expect(edited.confidence).toBe(0.92);
+    expect(edited.evidence).toBe("cefalea de tres días");
+    // Las demás secciones y metadatos quedan intactos; la original no se muta.
+    expect(next.sections[1]).toEqual(note.sections[1]);
+    expect(next.warnings).toEqual(["aviso"]);
+    expect(note.sections[0].content).toBe("Cefalea de 3 días.");
+  });
+});
+
+describe("cierre clínico universal", () => {
+  it("normaliza notas históricas sin cierre a una estructura editable", () => {
+    expect(ensureClinicalDischarge(undefined)).toEqual(emptyClinicalDischarge());
+  });
+
+  it("preserva el cierre estructurado que entrega el backend", () => {
+    const discharge = {
+      plan: { medications: [{ name: "Acetaminofén", dose: "500 mg" }], non_pharmacological: [], follow_up: [] },
+      recommendations: [{ text: "Hidratación" }],
+      alarm_signs: [{ text: "Dolor súbito", urgency: "emergency" as const }],
+    };
+    expect(ensureClinicalDischarge(discharge)).toEqual(discharge);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Construcción de requests y errores                                  */
+/* ------------------------------------------------------------------ */
+
+describe("buildClinicalRequest", () => {
+  it("agrega Authorization Bearer y arma la URL con query", () => {
+    const { url, init } = buildClinicalRequest(
+      "https://backend.example.com/",
+      "/api/clinical/templates",
+      "token-123",
+      { query: { specialty: "medicina-general" } },
+    );
+    expect(url).toBe(
+      "https://backend.example.com/api/clinical/templates?specialty=medicina-general",
+    );
+    expect(init.method).toBe("GET");
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      "Bearer token-123",
+    );
+    expect(init.body).toBeUndefined();
+  });
+
+  it("serializa el body como JSON con Content-Type", () => {
+    const { url, init } = buildClinicalRequest(
+      "http://localhost:3000",
+      "/api/clinical/encounters",
+      "tok",
+      { method: "POST", body: { template_id: "tpl-1" } },
+    );
+    expect(url).toBe("http://localhost:3000/api/clinical/encounters");
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBe(
+      "application/json",
+    );
+    expect(init.body).toBe(JSON.stringify({ template_id: "tpl-1" }));
+  });
+
+  it("omite query params vacíos", () => {
+    const { url } = buildClinicalRequest("http://x", "/api/clinical/templates", "t", {
+      query: { specialty: undefined },
+    });
+    expect(url).toBe("http://x/api/clinical/templates");
+  });
+});
+
+describe("parseClinicalErrorPayload", () => {
+  it("lee el envelope estable { error: { code, message } }", () => {
+    expect(
+      parseClinicalErrorPayload(400, {
+        error: { code: "ENCOUNTER_INVALID", message: "Datos inválidos." },
+      }),
+    ).toEqual({ code: "ENCOUNTER_INVALID", message: "Datos inválidos." });
+  });
+
+  it("mapea el formato legacy del middleware de auth a UNAUTHORIZED", () => {
+    expect(parseClinicalErrorPayload(401, { error: "Missing token" })).toEqual({
+      code: "UNAUTHORIZED",
+      message: "Missing token",
+    });
+  });
+
+  it("usa códigos por defecto según el status cuando no hay envelope", () => {
+    expect(parseClinicalErrorPayload(429, null).code).toBe("RATE_LIMITED");
+    expect(parseClinicalErrorPayload(500, "boom").code).toBe("INTERNAL_ERROR");
+  });
+});
+
+describe("ClinicalApiError / friendlyClinicalMessage", () => {
+  it("expone el mensaje amigable del código", () => {
+    const error = new ClinicalApiError("TRANSCRIPT_REQUIRED", 400);
+    expect(error.friendlyMessage).toBe(CLINICAL_ERROR_MESSAGES.TRANSCRIPT_REQUIRED);
+    expect(friendlyClinicalMessage(error)).toBe(
+      CLINICAL_ERROR_MESSAGES.TRANSCRIPT_REQUIRED,
+    );
+  });
+
+  it("cae a INTERNAL_ERROR para códigos desconocidos y errores ajenos", () => {
+    expect(new ClinicalApiError("ALGO_RARO", 500).friendlyMessage).toBe(
+      CLINICAL_ERROR_MESSAGES.INTERNAL_ERROR,
+    );
+    expect(friendlyClinicalMessage(new Error("x"))).toBe(
+      CLINICAL_ERROR_MESSAGES.INTERNAL_ERROR,
+    );
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Funciones del API client (fetch + sesión simulados)                 */
+/* ------------------------------------------------------------------ */
+
+const fetchMock = vi.fn();
+
+function jsonResponse(status: number, payload: unknown) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => payload,
+  } as Response;
+}
+
+describe("API client (requests reales al contrato)", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://backend.test");
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockReset();
+    getSessionMock.mockResolvedValue({
+      data: { session: { access_token: "jwt-abc" } },
+      error: null,
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("getClinicalTemplates llama la ruta del contrato con Bearer y desanida templates", () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { templates: [{ id: "t1", name: "X", specialty: "s", sections: [] }] }),
+    );
+    return getClinicalTemplates({ specialty: "medicina-general" }).then((templates) => {
+      expect(templates).toHaveLength(1);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe(
+        "https://backend.test/api/clinical/templates?specialty=medicina-general",
+      );
+      expect((init.headers as Record<string, string>).Authorization).toBe(
+        "Bearer jwt-abc",
+      );
+    });
+  });
+
+  it("createClinicalEncounter envía template_id real sin una casilla de consentimiento", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(201, { encounter_id: "enc_1", status: "created", template: {} }),
+    );
+    const result = await createClinicalEncounter({
+      patient_id: null,
+      consultation_type: "presencial",
+      template_id: "tpl-uuid-real",
+    });
+    expect(result.encounter_id).toBe("enc_1");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://backend.test/api/clinical/encounters");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({
+      patient_id: null,
+      consultation_type: "presencial",
+      template_id: "tpl-uuid-real",
+    });
+  });
+
+  it("asocia un paciente a un encounter existente sin reemplazar la nota", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { encounter: { id: "enc_1", patient_id: "patient_7", status: "recording" } }),
+    );
+    await expect(updateClinicalEncounterPatient("enc_1", "patient_7")).resolves.toMatchObject({ patient_id: "patient_7" });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://backend.test/api/clinical/encounters/enc_1/patient");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ patient_id: "patient_7" });
+  });
+
+  it("solicita un borrador temporal desde ejemplo sin guardar una plantilla", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, {
+      template: { name: "Seguimiento", specialty: "medicina_general", sections: [{ label: "Evolución" }, { label: "Impresión" }] },
+      requires_physician_review: true,
+      source_persisted: false,
+    }));
+    const result = await createClinicalTemplateDraftFromExample({ specialty: "medicina-general", example_text: "Nota anonimizada" });
+    expect(result.source_persisted).toBe(false);
+    expect(result.requires_physician_review).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://backend.test/api/clinical/templates/draft-from-example");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ specialty: "medicina-general", example_text: "Nota anonimizada" });
+  });
+
+  it("saveEditedClinicalNote manda el note_json completo por PUT", async () => {
+    const note: ClinicalNoteJson = {
+      summary: "Resumen",
+      sections: [
+        { key: "plan", label: "Plan", content: "Reposo.", confidence: 1 },
+      ],
+      warnings: [],
+      missing_required_sections: [],
+    };
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { encounter_id: "enc_1", status: "completed", note_json: note }),
+    );
+    const result = await saveEditedClinicalNote("enc_1", note);
+    expect(result.status).toBe("completed");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://backend.test/api/clinical/encounters/enc_1/note");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({ note_json: note });
+  });
+
+  it("guarda notas privadas y crea una revisión al cambiar plantilla", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, { encounter_id: "enc_1", private_notes: "Dato sensible" }))
+      .mockResolvedValueOnce(jsonResponse(201, { source_encounter_id: "enc_1", encounter: { id: "enc_2", supersedes_encounter_id: "enc_1" } }));
+    await expect(savePrivateEncounterNotes("enc_1", "Dato sensible")).resolves.toMatchObject({ private_notes: "Dato sensible" });
+    await expect(regenerateClinicalEncounterWithTemplate("enc_1", "tpl_2")).resolves.toMatchObject({ encounter: { id: "enc_2" } });
+    expect(fetchMock.mock.calls[0][0]).toBe("https://backend.test/api/clinical/encounters/enc_1/private-notes");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({ content: "Dato sensible" });
+    expect(fetchMock.mock.calls[1][0]).toBe("https://backend.test/api/clinical/encounters/enc_1/regenerate-with-template");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toEqual({ template_id: "tpl_2" });
+  });
+
+  it("convierte errores del backend en ClinicalApiError con mensaje amigable", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(400, {
+        error: { code: "ENCOUNTER_INVALID", message: "datos inválidos" },
+      }),
+    );
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const promise = createClinicalEncounter({
+        patient_id: null,
+        consultation_type: "presencial",
+        template_id: "tpl",
+      });
+      await expect(promise).rejects.toMatchObject({
+        code: "ENCOUNTER_INVALID",
+        friendlyMessage: CLINICAL_ERROR_MESSAGES.ENCOUNTER_INVALID,
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("marca ENCOUNTER_COMPLETED cuando el backend responde 409", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(409, {
+        error: { code: "ENCOUNTER_INVALID", message: "encounter completado" },
+      }),
+    );
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(
+        saveEditedClinicalNote("enc_1", {
+          summary: "",
+          sections: [],
+          warnings: [],
+          missing_required_sections: [],
+        }),
+      ).rejects.toMatchObject({ code: "ENCOUNTER_COMPLETED", status: 409 });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("sin sesión lanza UNAUTHORIZED sin llamar al backend", async () => {
+    getSessionMock.mockResolvedValue({ data: { session: null }, error: null });
+    await expect(getClinicalTemplates()).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sin NEXT_PUBLIC_API_BASE_URL lanza API_NOT_CONFIGURED", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "");
+    await expect(getClinicalTemplates()).rejects.toMatchObject({
+      code: "API_NOT_CONFIGURED",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("respuestas sin JSON no rompen la UI: error normalizado", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new Error("not json");
+      },
+    } as unknown as Response);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(getClinicalTemplates()).rejects.toMatchObject({
+        code: "INTERNAL_ERROR",
+        status: 502,
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("errores de red se reportan como NETWORK_ERROR amigable", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(getClinicalTemplates()).rejects.toMatchObject({
+      code: "NETWORK_ERROR",
+      friendlyMessage: CLINICAL_ERROR_MESSAGES.NETWORK_ERROR,
+    });
+  });
+
+  it("agotar el tiempo es TIMEOUT, no NETWORK_ERROR", async () => {
+    // Lo que lanza AbortSignal.timeout al vencer: un error con name
+    // "TimeoutError". El consejo al médico es distinto (reintentar, no revisar
+    // la conexión), así que el código tiene que distinguirlos.
+    const timeout = new Error("The operation was aborted due to timeout");
+    timeout.name = "TimeoutError";
+    fetchMock.mockRejectedValue(timeout);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(getClinicalTemplates()).rejects.toMatchObject({
+        code: "TIMEOUT",
+        friendlyMessage: CLINICAL_ERROR_MESSAGES.TIMEOUT,
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("toda petición sale con señal de tiempo límite", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { templates: [] }));
+    await getClinicalTemplates();
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("generar la nota espera más que una petición corriente", async () => {
+    // Generar corre un modelo sobre la transcripción entera: cortarla con los
+    // 30 s de una petición normal convertiría un caso lento en un error.
+    expect(GENERATE_NOTE_TIMEOUT_MS).toBeGreaterThan(DEFAULT_TIMEOUT_MS);
+
+    const lento = new Error("The operation was aborted due to timeout");
+    lento.name = "TimeoutError";
+    fetchMock.mockRejectedValue(lento);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(generateClinicalNote("enc_1")).rejects.toMatchObject({ code: "TIMEOUT" });
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.stringContaining(`TIMEOUT tras ${GENERATE_NOTE_TIMEOUT_MS} ms`),
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+});

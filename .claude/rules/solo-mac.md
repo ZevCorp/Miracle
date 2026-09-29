@@ -1,13 +1,14 @@
 # Cada máquina toca su lado
 
 > El archivo sigue llamándose `solo-mac.md` por su nombre de nacimiento, y se deja así a propósito:
-> lo citan `CLAUDE.md` y `mac-client/TRASPASO.md`, y renombrarlo obligaría a editar documentos del
-> lado Mac desde una sesión de Windows — justo lo que esta regla dice que no se hace.
+> lo citan documentos viejos del lado Mac, y renombrarlo obligaría a editarlos desde una sesión de
+> Windows — justo lo que esta regla dice que no se hace.
 
-> Regla del proyecto desde el 2026-08-18, **acotada el 2026-09-01**. Nació como «aquí solo se toca
-> Mac» y se escribió durante la mudanza de la carita a `mac-client/`, en una sesión que corría
-> sobre un Mac. Redactada así, se leía como una prohibición del repo entero — y bloqueaba trabajo
-> de Windows hecho **desde Windows**, que es donde esa prohibición no tiene ningún sentido.
+> Regla del proyecto desde el 2026-08-18, **acotada el 2026-09-01**, y **común a todo el monorepo
+> desde el 2026-09-28** (antes vivía entre las reglas de Windows). Nació como «aquí solo se toca Mac»
+> y se escribió durante la mudanza de la carita a `mac-client/`, en una sesión que corría sobre un
+> Mac. Redactada así, se leía como una prohibición del repo entero — y bloqueaba trabajo de Windows
+> hecho **desde Windows**, que es donde esa prohibición no tiene ningún sentido.
 
 ## La regla, con su condición delante
 
@@ -16,30 +17,36 @@ si un cambio se puede verificar es qué compuerta puede correr esa máquina.
 
 | Sesión corriendo en | Escribe en | No toca sin que el dueño lo pida por su nombre |
 |---|---|---|
-| **macOS** | `mac-client/**` · `docs/specs/**` · `.claude/**` | `windows-client/**` · `windows-graph/**` · `nucleo/**` · `mapeador/**` · `voz/**` · `tests/**` · `scripts/*.ps1` · `versiones/**` · `backend/**` · `agente-arquitecto/**` |
-| **Windows** | todo el lado Windows, con **la compuerta de cuatro niveles** (`.claude/rules/compuerta-a-main.md`) | `mac-client/**` — no compila aquí, y vale el mismo argumento al revés |
+| **macOS** | `apps/mac/**` · la raíz (`docs/`, `tools/`, `.claude/`, `AGENTS.md`) | `apps/windows/**` |
+| **Windows** | `apps/windows/**`, con **la compuerta de cuatro niveles** (`apps/windows/.claude/rules/compuerta-a-main.md`) · la raíz | `apps/mac/**` — no compila aquí, y vale el mismo argumento al revés |
 
 Si el trabajo está fuera de la columna que toca, se dice y se para: no se toca y se avisa después.
+
+**`services/graph/`, `apps/android/` y `apps/web/`** no están en ninguna de las dos columnas porque
+se escriben desde las dos máquinas: su compuerta es Node o Gradle, que corre en ambas, y su CI corre
+en la nube (`web-ci.yml`, `android-apk.yml`). Esta regla trata de lo que una máquina no puede
+verificar, y esas tres carpetas no tienen ese problema.
 
 ## Por qué, y no es orden por gusto
 
 1. **Se toca lo que se puede verificar.** La compuerta de Windows —`verificar.ps1`,
    `contrato-del-grafo.ps1`, `ci-terreno.ps1`— es PowerShell + .NET sobre un escritorio con SAP
    GUI. **En un Mac no corre ninguno de los cuatro niveles**, así que un cambio en
-   `windows-client/` hecho desde allí entra a ciegas — y eso es justo lo que la compuerta existe
+   `apps/windows/` hecho desde allí entra a ciegas — y eso es justo lo que la compuerta existe
    para impedir. **En Windows sí corren los cuatro**, y entonces el argumento desaparece: no queda
    ninguna razón para no tocar el lado Windows desde Windows.
-2. **La zona de choque sigue siendo la misma.** `CLAUDE.md` lo dice: la UI de `windows-client` es
-   riesgo **alto** — es lo que tocan los tres. Eso no lo arregla ninguna regla de plataforma; lo
-   arregla no tener dos features abiertas en la UI a la vez y que ninguna rama pase de un día.
-3. **El contrato es .NET.** `tests/ContratoDelGrafo/` es el juez del núcleo de Windows. En un Mac
-   no compila; tocarlo desde allí sería cambiar lo que promete un sistema que esa máquina no puede
-   juzgar. Desde Windows es exactamente al revés: **tocarlo es obligatorio**, porque ninguna línea
-   de producción entra antes que la promesa que la juzga.
+2. **La zona de choque sigue siendo la misma.** La guía de Windows lo dice: la UI de
+   `apps/windows/windows-client` es riesgo **alto** — es lo que tocan todos. Eso no lo arregla
+   ninguna regla de plataforma; lo arregla no tener dos features abiertas en la UI a la vez y que
+   ninguna rama pase de un día.
+3. **El contrato es .NET.** `apps/windows/tests/ContratoDelGrafo/` es el juez del núcleo de Windows.
+   En un Mac no compila; tocarlo desde allí sería cambiar lo que promete un sistema que esa máquina
+   no puede juzgar. Desde Windows es exactamente al revés: **tocarlo es obligatorio**, porque
+   ninguna línea de producción entra antes que la promesa que la juzga.
 
 ## Qué se hace en vez de cruzar
 
-- Si Mac necesita algo que hoy vive en Windows: **se reescribe en Swift dentro de `mac-client/`**.
+- Si Mac necesita algo que hoy vive en Windows: **se reescribe en Swift dentro de `apps/mac/`**.
   Se copia el *comportamiento* y el *porqué* documentado, no el archivo.
 - Si de verdad hay que cambiar el otro lado: se anota en la spec bajo «lo que queda fuera», con el
   archivo y el motivo, y lo abre una rama propia de quien tenga esa zona.

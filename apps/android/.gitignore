@@ -1,0 +1,18 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+apikey.properties
+*.apk
+
+# .NET (windows-client, windows-graph)
+bin/
+obj/
+# Salida de `dotnet publish` que documenta PRODUCTION.md: U.exe self-contained pesa ~150 MB.
+out/
+
+# Android Studio deja aquí los APK firmados («Generate Signed Bundle»). Hasta el 2026-09-28 lo
+# cubría el release/ del .gitignore de la raíz del monorepo; ahora es de este proyecto.
+release/
