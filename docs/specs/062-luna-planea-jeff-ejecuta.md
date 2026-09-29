@@ -49,6 +49,7 @@ plan viejo.
 | 516 | «pulsa: <nombre>» va por el ciclo rápido, sin Jev; si no está a la vista, el paso pasa a Jev como objetivo; un paso sin prefijo es un objetivo para Jev | 2 |
 | 517 | la mano del plan no pulsa sobre una ventana de Ü: mira bajo el punto con la misma regla (510), y tras el clic avisa a la carita | 2 |
 | 518 | Luna piensa en modo rápido: la delegación le pide `reasoning.effort = low` | 3 |
+| 519 | el plan trabaja sobre la misma ventana que el ciclo rápido: la de delante, y si delante está Ü o nada, la de trabajo; sin ninguna de las dos, dice que no hay ventana | 4 |
 
 ## Fases
 

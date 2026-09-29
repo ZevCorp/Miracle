@@ -924,6 +924,7 @@ internal static class Contrato
         Prueba("516. «pulsa: <nombre>» va por el ciclo rápido, sin Jev; si no está a la vista, el paso pasa a Jev como objetivo; un paso sin prefijo es un objetivo para Jev", PulsaVaPorElCicloRapido);
         Prueba("517. la mano del plan no pulsa sobre una ventana de Ü: mira bajo el punto con la misma regla (510), y tras el clic avisa a la carita", LaManoDelPlanNoPulsaSobreU);
         Prueba("518. Luna piensa en modo rápido: la delegación le pide reasoning.effort = low, al abrir y al cambiar de modo", LunaPiensaEnModoRapido);
+        Prueba("519. el plan trabaja sobre la misma ventana que el ciclo rápido: la de delante, y si delante está Ü o nada, la de trabajo; sin ninguna de las dos, dice que no hay ventana", ElPlanTrabajaDondeElCiclo);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -14715,6 +14716,26 @@ internal static class Contrato
         if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"Navigation\.ElPlanPorObjetivos\.Pulsar\([^;]*LibrarElPuntoDeUnClic[^;]*Navigation\.CicloRapido\.AvisarALaCarita"),
             "[cableado] la mano del plan de la cara no mira bajo el punto con la regla de la cara, o no avisa a la carita");
+    }
+
+    private static void ElPlanTrabajaDondeElCiclo()
+    {
+        // MEDIDO EL 2026-09-28 (23:37): con Ü delante —la persona le acaba de escribir—, el plan decía «no hay ninguna ventana
+        // delante» en 2 de 4 órdenes, mientras el ciclo rápido sí pulsaba sobre la ventana de trabajo (491).
+        var donde = PlanT()?.GetMethod("Donde", BindingFlags.Public | BindingFlags.Static);
+        if (donde == null) { Pendiente("ElPlanPorObjetivos.Donde (la ventana del plan, con la regla del ciclo)", "519", "062"); return; }
+        U.Ciclo.Ubicacion? D(IntPtr delante, bool esU, IntPtr trabajo) => (U.Ciclo.Ubicacion?)donde.Invoke(null, new object[]
+            { delante, esU, trabajo, new Func<IntPtr, U.Ciclo.Ubicacion>(h => new U.Ciclo.Ubicacion(h, 7, "app" + h, "t" + h)) });
+        Debe(D((IntPtr)5, false, (IntPtr)9)?.Ventana == (IntPtr)5, "con otra app delante, el plan no trabajó sobre ella");
+        Debe(D((IntPtr)5, true, (IntPtr)9)?.Ventana == (IntPtr)9, "con Ü delante, el plan no trabajó sobre la ventana de trabajo");
+        Debe(D(IntPtr.Zero, false, (IntPtr)9)?.Ventana == (IntPtr)9, "sin nada delante, el plan no trabajó sobre la ventana de trabajo");
+        Debe(D((IntPtr)5, true, IntPtr.Zero) == null && D(IntPtr.Zero, false, IntPtr.Zero) == null, "sin ventana ajena ni de trabajo, el plan se inventó una");
+
+        // [cableado] El motor de Jev y las manos del plan preguntan dónde por esa regla, no por la de u/ (que se lee a sí misma).
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"new U\.Ciclo\.Motor\(DondeDelPlan,"), "[cableado] el motor de Jev no pregunta dónde con la regla del ciclo");
+        Debe(cara.Contains("new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero)"), "[cableado] las manos del plan no trabajan sobre la ventana del ciclo");
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"DondeDelPlan\(\)[\s\S]{0,300}Navigation\.ElPlanPorObjetivos\.Donde\("), "[cableado] DondeDelPlan no usa ElPlanPorObjetivos.Donde");
     }
 
     private static void LunaPiensaEnModoRapido()
