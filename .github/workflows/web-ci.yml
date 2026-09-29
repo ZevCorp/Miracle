@@ -1,0 +1,43 @@
+name: Web · CI
+
+# Venía de joseph1356k/Pagina-web-clientes-final (.github/workflows/ci.yml) y entró al monorepo el
+# 2026-09-28. GitHub solo lee los workflows de la raíz, así que vive aquí: corre dentro de apps/web/ y
+# solo cuando apps/web/ cambia — un PR de Windows no tiene por qué esperar un build de Next.js, ni uno
+# del portal un contrato de .NET que no le aplica.
+
+on:
+  push:
+    branches: [main]
+    paths: ['apps/web/**', '.github/workflows/web-ci.yml']
+  pull_request:
+    branches: [main]
+    paths: ['apps/web/**', '.github/workflows/web-ci.yml']
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      # Valores dummy: el build no llama a Supabase en páginas estáticas y las
+      # dinámicas se renderizan en runtime; solo se necesita que las variables
+      # existan para el paso de build.
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_dummy
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      # Se usa `npm install` (no `npm ci`) porque el lock se genera en Windows y
+      # el runner es Linux: `npm ci` exige coincidencia exacta por plataforma y
+      # falla por deps opcionales nativas (@emnapi/* del fallback wasm).
+      - run: npm install --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build

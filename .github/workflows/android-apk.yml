@@ -1,12 +1,12 @@
-name: Android APK
+name: Android · APK
 
 # Compila el APK release (firmado con la clave compartida del repo) y lo publica como artefacto
-# descargable. Se dispara a mano (workflow_dispatch), en cada push a main que toque android/, y en
+# descargable. Se dispara a mano (workflow_dispatch), en cada push a main que toque apps/android/, y en
 # cada PR que lo toque.
 #
 # Venía de ZevCorp/Android (.github/workflows/build-apk.yml) y entró al monorepo el 2026-09-28. Lo
 # único nuevo es el disparo en PR: en el repo propio el portero local ya compilaba antes de empujar,
-# pero en el monorepo quien toca android/ puede no tener el SDK, y un APK que no compila se tiene que
+# pero en el monorepo quien toca apps/android/ puede no tener el SDK, y un APK que no compila se tiene que
 # ver antes de main, no después.
 #
 # La OpenAI API key (y las demás) se hornean desde SECRETS del repo, nunca desde git. Configúralos en
@@ -19,17 +19,17 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['android/**', '!android/**/*.md', '.github/workflows/android-apk.yml']
+    paths: ['apps/android/**', '!apps/android/**/*.md', '.github/workflows/android-apk.yml']
   pull_request:
     branches: [main]
-    paths: ['android/**', '!android/**/*.md', '.github/workflows/android-apk.yml']
+    paths: ['apps/android/**', '!apps/android/**/*.md', '.github/workflows/android-apk.yml']
 
 jobs:
   build:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: android
+        working-directory: apps/android
     steps:
       - uses: actions/checkout@v4
 
@@ -63,5 +63,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: miracle-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: apps/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error

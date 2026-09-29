@@ -1,46 +1,20 @@
-# Secretos: nunca commitear claves
+# Lo que ignora todo el monorepo. Lo propio de cada proyecto (sus bin/, build/, .next/…) vive en el
+# .gitignore de su carpeta, para que el proyecto se entienda solo y pueda separarse sin perder nada.
+
+# Secretos: nunca commitear claves. El repo es PÚBLICO.
 .env
 .env.*
 *.local
 
-# El candado del nucleo: cada maquina/desarrollador crea SU PROPIA contraseña. El script viaja
-# con el repo; el hash, nunca — es personal de quien la tecleo (ver .claude/hooks/guardia-nucleo.ps1).
-.claude/hooks/nucleo-clave.hash
-
-# .NET
-bin/
-obj/
-*.user
-
-# Node (backend legacy)
+# Dependencias y enlaces de Vercel, en cualquier proyecto
 node_modules/
 .vercel/
 
-# Artefactos
-out/
-release/
 *.log
+.DS_Store
 
-# graphify: respaldos automaticos del grafo (no se comparten)
-graphify-out/20*/
-
-# Temporales que deja el compilador de WPF al construir
-*_wpftmp.csproj
-
-# puente-omi: entorno virtual de Python (85 MB) y drivers de terceros (VB-Cable).
-# El codigo propio del puente (puente.py, arrancar.bat) SI se versiona; lo demas se
-# reinstala con pip y con el instalador de VB-Cable, y no tiene por que viajar en el repo.
-puente-omi/.venv/
-puente-omi/vbcable-installer/
-
-# Swift (cliente de Mac). `.build/` son 378 MB que regenera `swift build`, y `U.app` lo arma
-# `hacer-app.sh` desde el binario. Ninguno es fuente: el repo entero pesa menos que ese .build.
-mac-client/.build/
-mac-client/U.app/
 # graphify: TODO lo de graphify-out se genera con `graphify update .` y NO se commitea.
 # Estuvo dentro hasta el 2026-08-21 y el problema no era el peso (11 MB de los 15 que
 # seguia git): era que cada commit que tocaba codigo arrastraba un diff de 138.000 lineas
 # en graph.json, y con eso ningun PR se puede revisar. Tras clonar: `graphify update .`
 graphify-out/
-
-.DS_Store
