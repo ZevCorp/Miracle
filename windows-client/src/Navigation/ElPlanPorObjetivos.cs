@@ -49,6 +49,11 @@ public sealed class ElPlanPorObjetivos
     /// <summary>Esperar a que la pantalla se quede quieta, sin pulsar nada.</summary>
     public Func<bool>? EsperarQuieta { get; set; }
 
+    /// <summary>
+    /// Abrir una carpeta por el disco, como file_open (promesa 526): true si llegó. Sin ella, «carpeta:» falla y lo dice.
+    /// </summary>
+    public Func<string, bool>? AbrirCarpeta { get; set; }
+
     /// <summary>Cada paso en cuanto termina, para el log.</summary>
     public Action<string>? AlTerminarPaso { get; set; }
 
@@ -147,6 +152,19 @@ public sealed class ElPlanPorObjetivos
     public Recorrido Objetivo(string paso, IReadOnlyList<string> hecho)
     {
         string p = (paso ?? "").Trim();
+        // UNA CARPETA POR EL DISCO (promesa 526): 0,17 s y sin Jev. Luna iba carpeta a carpeta con file_open, una vuelta suya
+        // por carpeta —20 s pensando para 1,2 s de trabajo (2026-09-29, 03:03)—.
+        if (p.StartsWith("carpeta:", StringComparison.OrdinalIgnoreCase))
+        {
+            string ruta = p[8..].Trim().Trim('«', '»', '"', '\'').Trim();
+            if (AbrirCarpeta == null) return new Recorrido(Array.Empty<Vuelta>(), "no sé abrir carpetas aquí: nadie conectó quien las abra", false);
+            if (ruta.Length > 0 && AbrirCarpeta(ruta))
+            {
+                _acciones++;
+                return new Recorrido(Array.Empty<Vuelta>(), $"cumplido: abrí la carpeta «{ruta}»", true);
+            }
+            return new Recorrido(Array.Empty<Vuelta>(), $"no pude abrir la carpeta «{ruta}»: no existe o no se dejó abrir", false);
+        }
         foreach (string prefijo in new[] { "pulsa:", "pulsar:" })
         {
             if (!p.StartsWith(prefijo, StringComparison.OrdinalIgnoreCase)) continue;
@@ -158,7 +176,10 @@ public sealed class ElPlanPorObjetivos
                 _acciones++;
                 return new Recorrido(Array.Empty<Vuelta>(), $"cumplido: pulsé «{nombre}» por el ciclo rápido", true);
             }
-            return Contar(_conJev($"pulsar «{nombre}»", hecho));
+            // LLEGAR, NO ADIVINAR (promesa 525): si no está en esta pantalla, Jev puede navegar hasta donde esté. Con «pulsar
+            // «Sonido»» dentro de Pantalla, Jev eligió «Mostrar más valores» con 0,31 (2026-09-29, 03:04): Sonido cuelga de Sistema.
+            return Contar(_conJev($"llegar a «{nombre}» y pulsarlo: si no está en esta pantalla, ve primero a donde esté "
+                                + "(la sección que lo contiene, o Atrás)", hecho));
         }
         return Contar(_conJev(p, hecho));
     }

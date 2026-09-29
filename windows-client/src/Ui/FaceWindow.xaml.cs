@@ -907,7 +907,11 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
                     () => mapaDelPlan.LoQueVeoRapido?.Invoke() ?? "",
                     () => Environment.TickCount64)
-                { Desplazar = manosDelPlan.Desplazar, EsperarQuieta = manosDelPlan.EsperarQuieta, AlTerminarPaso = l => LogBus.Log("plan", "   " + l) };
+                {
+                    Desplazar = manosDelPlan.Desplazar, EsperarQuieta = manosDelPlan.EsperarQuieta, AlTerminarPaso = l => LogBus.Log("plan", "   " + l),
+                    // «carpeta:» por el disco, con la misma regla que file_open (promesa 526).
+                    AbrirCarpeta = ruta => SystemApi.Explorador.Navegar(SystemApi.Explorador.Expandir(ruta)).Length > 0,
+                };
                 mapaDelPlan.Hacer = planDeLuna.Hacer;
                 _ = Task.Run(() => { if (JevDelPlan() is { } jev) LogBus.Log("plan", $"Jev caliente en {jev.Calentar()} ms"); });
             }

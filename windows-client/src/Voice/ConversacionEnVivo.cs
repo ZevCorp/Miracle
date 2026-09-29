@@ -686,6 +686,8 @@ public sealed class ConversacionEnVivo : IDisposable
           · «pulsa: <nombre exacto>» — cuando ves ese nombre en EN PANTALLA AHORA, o cuando sabes cómo se llama
             aunque aún no lo veas (las secciones de Configuración, los menús de siempre). Es lo más rápido, y si no
             está a la vista Jeff lo busca por su cuenta: nunca pierdes nada por usarlo.
+          · «carpeta: <ruta o nombre>» — abre esa carpeta en el Explorador por el disco (documentos, descargas,
+            imágenes, C:\…): varias carpetas seguidas van en un solo plan, no una llamada por carpeta.
           · «escribe: <texto exacto>» — donde esté el foco. Para escribir en un campo, antes un paso que lo enfoque.
           · «tecla: <tecla>» — Enter, Escape, Tab, Ctrl+S, Alt+F4.
           · «desplaza: abajo|arriba [muescas]» — para ver lo que queda fuera de la pantalla.
