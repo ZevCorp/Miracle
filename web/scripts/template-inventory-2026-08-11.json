@@ -1,0 +1,464 @@
+{
+  "_comment": "Inventario de plantillas institucionales vivas (2026-08-11, SELECT a produccion) + asignacion de ids para la renovacion del catalogo. Fuente para scripts/validate-template-migrations.mjs. Respaldo completo server-side en backups.clinical_templates_20260811.",
+  "generated_at": "2026-08-11",
+  "protected_ids": {
+    "_comment": "Plantillas reales que NINGUNA migracion de contenido puede pisar (solo se permite ajustar description de b2...0001 en la migracion de materno-infantil).",
+    "patologia": [
+      "b1000000-0000-4000-8000-000000000001",
+      "b1000000-0000-4000-8000-000000000010",
+      "b1000000-0000-4000-8000-000000000011",
+      "b1000000-0000-4000-8000-000000000012",
+      "b1000000-0000-4000-8000-000000000013",
+      "c0ca5d00-87f2-40c4-b47c-1a70c4f46da6"
+    ],
+    "pediatria": ["b2000000-0000-4000-8000-000000000001"]
+  },
+  "current_defaults": {
+    "medicina_general": "1244d47f-e098-531b-8cfb-8a3b61c810bd",
+    "patologia": "b1000000-0000-4000-8000-000000000010",
+    "pediatria": "b2000000-0000-4000-8000-000000000001"
+  },
+  "specialties": {
+    "medicina_general": {
+      "area": 1,
+      "factory": {
+        "inicial": "1244d47f-e098-531b-8cfb-8a3b61c810bd",
+        "control": "83c4ee80-e292-5a84-be52-4327b7a87b30",
+        "procedimiento": "e93cf4fb-9eb6-5a6e-8938-0869cc742390"
+      },
+      "new_id": "c1000000-0000-4000-8000-000000000001"
+    },
+    "medicina_familiar": {
+      "area": 1,
+      "factory": {
+        "inicial": "a8fe32cb-fc32-5344-bbdd-2445c5a97aeb",
+        "control": "f45e5169-077b-5293-b104-ce5026db6d9a",
+        "procedimiento": "2d36a119-b642-5b88-b299-c07b073a2bb1"
+      },
+      "new_id": "c1000000-0000-4000-8000-000000000002"
+    },
+    "medicina_interna": {
+      "area": 1,
+      "factory": {
+        "inicial": "17f82cd8-a56f-5a07-93c6-09228083d4a2",
+        "control": "87017098-497b-52f8-aff5-18a32650e0eb",
+        "procedimiento": "56a7b7cb-573b-50bf-9c69-e2731d57b84c"
+      },
+      "new_id": "c1000000-0000-4000-8000-000000000003"
+    },
+    "geriatria": {
+      "area": 1,
+      "factory": {
+        "inicial": "a297917d-cd61-5a47-b8b4-a1c6b39945e7",
+        "control": "ffac2dba-13ae-56e5-83ae-9521db8e1635",
+        "procedimiento": "a2b47864-7887-5400-8283-25c370c69f72"
+      },
+      "new_id": "c1000000-0000-4000-8000-000000000004"
+    },
+    "cardiologia": {
+      "area": 1,
+      "factory": {
+        "inicial": "47b32491-7693-5375-8cf1-11dfcc04aa7a",
+        "control": "99a3a25b-bcbf-5f80-a0b3-7ce16741b58e",
+        "procedimiento": "91396c9c-0f0a-5dcf-ac77-e43b4211ce2e"
+      },
+      "new_id": "c1000000-0000-4000-8000-000000000005"
+    },
+    "dermatologia": {
+      "area": 1,
+      "factory": {
+        "inicial": "d0e165ae-8446-59c2-8091-9d3568e5c225",
+        "control": "b4d4d12c-49b8-5421-964b-0f66806a9a90",
+        "procedimiento": "1ab8522a-4e8a-5e53-bd92-0998bee674c9"
+      },
+      "new_id": "c1000000-0000-4000-8000-000000000006"
+    },
+    "endocrinologia": {
+      "area": 1,
+      "factory": {
+        "inicial": "0225b072-88d8-5ca4-a8a6-32a17de3dc86",
+        "control": "6c78da61-eeaf-5368-8d59-e5752a963659",
+        "procedimiento": "8fbdf80e-397f-5ad6-8f5a-9b674ec43653"
+      },
+      "new_id": "c1000000-0000-4000-8000-000000000007"
+    },
+    "gastroenterologia": {
+      "area": 1,
+      "factory": {
+        "inicial": "70d97323-42a7-5373-92c1-a9833760d14e",
+        "control": "196322d6-0d07-5451-82d4-876559f6aed0",
+        "procedimiento": "55d8e1a8-136f-5300-9182-5781d1a8016a"
+      },
+      "new_id": "c1000000-0000-4000-8000-000000000008"
+    },
+    "hematologia": {
+      "area": 1,
+      "factory": {
+        "inicial": "f82feb7d-b70c-5915-b25d-0e26199dfcd6",
+        "control": "404d849b-fb11-5b60-b6dd-86a68b25cd78",
+        "procedimiento": "37016e6a-c90a-5ae0-bdb0-5d15d015680a"
+      },
+      "new_id": "c1000000-0000-4000-8000-000000000009"
+    },
+    "infectologia": {
+      "area": 1,
+      "factory": {
+        "inicial": "4c2e7f2d-e7a4-5a89-90bb-24804bbadeda",
+        "control": "3327445a-1886-512d-b5b1-f2d24c9e1dc6",
+        "procedimiento": "f649b41b-27de-5525-b612-c9963fb2e196"
+      },
+      "new_id": "c1000000-0000-4000-8000-00000000000a"
+    },
+    "nefrologia": {
+      "area": 1,
+      "factory": {
+        "inicial": "c5bf805a-8999-545c-b688-c07d2fb84d6a",
+        "control": "261972ee-da32-5a7a-8cec-d763b5b8ad46",
+        "procedimiento": "06b0cb56-b687-5f89-9b64-d9724087e012"
+      },
+      "new_id": "c1000000-0000-4000-8000-00000000000b"
+    },
+    "neumologia": {
+      "area": 1,
+      "factory": {
+        "inicial": "b0a0ce7d-262d-53ee-a712-978d547bcb2f",
+        "control": "f8b75654-6e80-5812-8eb4-424526cf5af1",
+        "procedimiento": "72282a30-721e-5355-8f9b-49c9c20a499c"
+      },
+      "new_id": "c1000000-0000-4000-8000-00000000000c"
+    },
+    "neurologia": {
+      "area": 1,
+      "factory": {
+        "inicial": "bf081b39-3243-52f3-a1ab-42cea72e6723",
+        "control": "30b1fd02-2572-509f-b0e8-6ce5be7041bc",
+        "procedimiento": "183c2ac4-7216-5940-a7e2-caa46ea461e4"
+      },
+      "new_id": "c1000000-0000-4000-8000-00000000000d"
+    },
+    "oncologia": {
+      "area": 1,
+      "factory": {
+        "inicial": "8b066117-ed2d-5edd-80a5-ba6ec8a20c5b",
+        "control": "da944254-9a2d-5e99-8683-8c80476a38b4",
+        "procedimiento": "e1ebe51e-446d-5a90-81f7-86779396c5ba"
+      },
+      "new_id": "c1000000-0000-4000-8000-00000000000e"
+    },
+    "reumatologia": {
+      "area": 1,
+      "factory": {
+        "inicial": "e1b3edec-0a09-5c12-95d0-6ffe9a818d57",
+        "control": "50118889-4f6e-5ea3-a337-955e95ca5580",
+        "procedimiento": "2a5ac62a-b3e6-5fc1-9cf9-e57a1552055c"
+      },
+      "new_id": "c1000000-0000-4000-8000-00000000000f"
+    },
+    "alergologia": {
+      "area": 1,
+      "factory": {
+        "inicial": "6ffb3e24-d730-5bf6-bf20-f66e87f5e826",
+        "control": "5b375c82-e284-5150-b268-b716c4d94a4f",
+        "procedimiento": "7bd1d155-20fe-5ae4-bd28-f82aab55d198"
+      },
+      "new_id": "c1000000-0000-4000-8000-000000000010"
+    },
+    "pediatria": {
+      "area": 2,
+      "factory": {
+        "inicial": "a6bbcf53-4a5b-52de-821f-c558a823ebee",
+        "control": "2052a426-003e-5f56-8e51-129404638119",
+        "procedimiento": "20327160-e1ff-57e2-8836-1da6bd3aa38e"
+      },
+      "new_id": "c2000000-0000-4000-8000-000000000001"
+    },
+    "neonatologia": {
+      "area": 2,
+      "factory": {
+        "inicial": "c541ff75-7cf2-5cec-8438-ba509fd0f82d",
+        "control": "0323efcc-3b02-5d6d-9b3c-9f899d4d890b",
+        "procedimiento": "81ef3923-f30c-5322-8a55-38528b1f7856"
+      },
+      "new_id": "c2000000-0000-4000-8000-000000000002"
+    },
+    "ginecologia_obstetricia": {
+      "area": 2,
+      "factory": {
+        "inicial": "50deb254-2444-5388-8d9e-1f812a86380e",
+        "control": "824f8bdd-cd7c-5797-8331-4fa75c67ada0",
+        "procedimiento": "32d0f259-8cdb-5427-9020-07b0481481d0"
+      },
+      "new_id": "c2000000-0000-4000-8000-000000000003"
+    },
+    "cirugia_pediatrica": {
+      "area": 2,
+      "factory": {
+        "inicial": "a20d8531-ebf9-5402-928d-210ef1857264",
+        "control": "c94276f0-8dad-58b4-b3de-db80895e1ab1",
+        "procedimiento": "c9423ab9-aafe-50d2-b6e8-e2cf189d2a58"
+      },
+      "new_id": "c2000000-0000-4000-8000-000000000004"
+    },
+    "urgencias": {
+      "area": 3,
+      "factory": {
+        "inicial": "09f54dd3-eaf6-50c2-af9e-e8473f45cc3a",
+        "control": "3789cbf5-771f-512c-a60c-725d6acc72aa",
+        "procedimiento": "872fbc85-6a96-5ae0-8804-32efc99d1ad7"
+      },
+      "new_id": "c3000000-0000-4000-8000-000000000001"
+    },
+    "anestesiologia": {
+      "area": 3,
+      "factory": {
+        "inicial": "6fcc37b6-feab-5b49-95e8-1214cb8810eb",
+        "control": "b2bf40da-9021-59ae-9257-1c3a42736c93",
+        "procedimiento": "fcb51c7a-ecb0-5e6f-bdd7-463a6c6792f2"
+      },
+      "new_id": "c3000000-0000-4000-8000-000000000002"
+    },
+    "cirugia_general": {
+      "area": 4,
+      "factory": {
+        "inicial": "e24483e9-7377-59d1-86fd-c18ce6ed3a0a",
+        "control": "74310c72-2c5e-5739-8a69-bee0712a8de5",
+        "procedimiento": "b67f2634-7e56-5f6b-bd7f-a12b5f8eadc4"
+      },
+      "new_id": "c4000000-0000-4000-8000-000000000001"
+    },
+    "cirugia_cardiovascular": {
+      "area": 4,
+      "factory": {
+        "inicial": "697b28c6-f91d-58da-a92a-97d2c44a9ec1",
+        "control": "454efaa9-0996-5582-9546-c54af3785745",
+        "procedimiento": "ae2516d0-59db-5480-a827-010a1ea146dd"
+      },
+      "new_id": "c4000000-0000-4000-8000-000000000002"
+    },
+    "cirugia_torax": {
+      "area": 4,
+      "factory": {
+        "inicial": "570acda8-d9ae-5fbe-9d1d-43f543d04b23",
+        "control": "c0d41d9f-a99e-5b17-8e36-223b60c19140",
+        "procedimiento": "4ff9257f-7100-54b4-95dd-1d5d3e64b539"
+      },
+      "new_id": "c4000000-0000-4000-8000-000000000003"
+    },
+    "cirugia_vascular": {
+      "area": 4,
+      "factory": {
+        "inicial": "9bcad863-4072-5722-b21f-92a45bfcd15d",
+        "control": "9cc91c55-8883-52ad-be0a-df581b07639e",
+        "procedimiento": "f1a72c0d-1b33-597f-9db9-a9fe51109712"
+      },
+      "new_id": "c4000000-0000-4000-8000-000000000004"
+    },
+    "neurocirugia": {
+      "area": 4,
+      "factory": {
+        "inicial": "816f5cbf-a135-5fdb-8190-2a4d04736660",
+        "control": "1c73a8ca-78b4-5e5e-9d47-402b4524f526",
+        "procedimiento": "077fef55-083a-54c2-86cf-84dcd1d66778"
+      },
+      "new_id": "c4000000-0000-4000-8000-000000000005"
+    },
+    "cirugia_plastica": {
+      "area": 4,
+      "factory": {
+        "inicial": "06c030d7-11a9-51dc-818b-be9f0971c130",
+        "control": "f8d69bc8-938f-5256-9a32-10ac69478799",
+        "procedimiento": "162b2eb4-6782-5239-a1ea-9fe624c4b633"
+      },
+      "new_id": "c4000000-0000-4000-8000-000000000006"
+    },
+    "coloproctologia": {
+      "area": 4,
+      "factory": {
+        "inicial": "ff031514-b83d-5475-bc96-01b721496870",
+        "control": "2ba7dee0-98c2-5a05-9b1e-86f1c46de457",
+        "procedimiento": "56322f4c-9545-51b2-900d-671bd7062af5"
+      },
+      "new_id": "c4000000-0000-4000-8000-000000000007"
+    },
+    "ortopedia": {
+      "area": 4,
+      "factory": {
+        "inicial": "8bf98df9-8a7b-52f4-b420-85768a7affa8",
+        "control": "780e3c7d-599a-5081-9b10-9f36ad7ad135",
+        "procedimiento": "fe80b014-9745-56e7-990e-54dded6ae42d"
+      },
+      "new_id": "c4000000-0000-4000-8000-000000000008"
+    },
+    "oftalmologia": {
+      "area": 4,
+      "factory": {
+        "inicial": "62b8356f-2a07-5032-8ff6-3070e612c7f6",
+        "control": "e00bbf8c-df5a-50ad-a6b4-46d56b4486ea",
+        "procedimiento": "dd9b5550-4990-5d3a-a1e6-4c4623802935"
+      },
+      "new_id": "c4000000-0000-4000-8000-000000000009"
+    },
+    "otorrinolaringologia": {
+      "area": 4,
+      "factory": {
+        "inicial": "113755f7-5901-5bc1-8fb4-7ed29a830197",
+        "control": "32f9e9a0-0e96-5449-a110-baa5da9e76a1",
+        "procedimiento": "a8f91694-df36-5f5d-a035-f84e77022d3e"
+      },
+      "new_id": "c4000000-0000-4000-8000-00000000000a"
+    },
+    "urologia": {
+      "area": 4,
+      "factory": {
+        "inicial": "d52ad5c3-27ae-5334-8d16-ad34189ab0f8",
+        "control": "8e4e6053-7cb5-5ea8-aed2-16bb14f94014",
+        "procedimiento": "2718d45c-79ad-5bcf-9a22-7a57f3cd58dd"
+      },
+      "new_id": "c4000000-0000-4000-8000-00000000000b"
+    },
+    "cirugia_maxilofacial": {
+      "area": 4,
+      "factory": {
+        "inicial": "ddd07f69-2e93-5cba-aced-909abe929a79",
+        "control": "74de144e-d45a-57c0-a8f4-22ff043e41ec",
+        "procedimiento": "3cb12fde-eba3-5eda-ace8-395f871ef4a3"
+      },
+      "new_id": "c4000000-0000-4000-8000-00000000000c"
+    },
+    "psiquiatria": {
+      "area": 5,
+      "factory": {
+        "inicial": "63a961ff-aad8-5422-b1a8-406b18d00793",
+        "control": "34d36e1f-fbf1-58e9-814f-c2f0ce23f0ab",
+        "procedimiento": "e4086bdf-27ec-5fe0-8c74-49eae824ea81"
+      },
+      "new_id": "c5000000-0000-4000-8000-000000000001"
+    },
+    "psicologia": {
+      "area": 5,
+      "factory": {
+        "inicial": "2037baa1-d738-5bdc-a378-114dc1991d95",
+        "control": "eda731a7-4cc5-599b-be91-7bd5cf4a737d",
+        "procedimiento": "100d53d3-2057-5618-a27f-b8bac1a985ce"
+      },
+      "new_id": "c5000000-0000-4000-8000-000000000002"
+    },
+    "radiologia": {
+      "area": 6,
+      "factory": {
+        "inicial": "82711515-4960-53f0-a53a-f6be6fbf3c9d",
+        "control": "e882c8dc-b61c-515f-8ac1-77fcc7d11871",
+        "procedimiento": "6a98ff16-2079-5f87-9b13-ba27146c1aa4"
+      },
+      "new_id": "c6000000-0000-4000-8000-000000000001"
+    },
+    "patologia": {
+      "area": 6,
+      "factory": {
+        "inicial": "52ec7f0b-3ff2-584a-8dcd-9e430b4e1817",
+        "control": "9a743bbf-fb87-5625-8dc5-e03682b2c5bd",
+        "procedimiento": "ab84e266-c9f0-5a71-9ace-ee896ac3028c"
+      },
+      "new_id": null
+    },
+    "medicina_nuclear": {
+      "area": 6,
+      "factory": {
+        "inicial": "13820da3-dcf5-543d-8415-a79fb06177cf",
+        "control": "04abc1e8-b015-5dbe-b38a-58b4d84eb343",
+        "procedimiento": "ee44b924-c1bc-59fa-af9f-d5530a49562b"
+      },
+      "new_id": "c6000000-0000-4000-8000-000000000003"
+    },
+    "genetica": {
+      "area": 6,
+      "factory": {
+        "inicial": "64630657-f299-5c74-a970-534f08d4ec61",
+        "control": "2ee8d279-1672-5f73-b006-d06202b0dbf5",
+        "procedimiento": "13973185-0880-5521-a565-f96fea98b9ad"
+      },
+      "new_id": "c6000000-0000-4000-8000-000000000004"
+    },
+    "rehabilitacion": {
+      "area": 7,
+      "factory": {
+        "inicial": "22d41178-6556-5838-92cb-bbb5396f046e",
+        "control": "a93152f7-3a78-5a21-a051-05af418339b4",
+        "procedimiento": "05e3630a-8b63-54b0-84fd-d4908c653c50"
+      },
+      "new_id": "c7000000-0000-4000-8000-000000000001"
+    },
+    "dolor_paliativos": {
+      "area": 7,
+      "factory": {
+        "inicial": "8dda35a4-8256-53ef-9216-ee9b198488ec",
+        "control": "806ea616-b522-5231-aa18-541410d664e2",
+        "procedimiento": "cc18e22d-2015-5ad5-bd78-0b6e352efcce"
+      },
+      "new_id": "c7000000-0000-4000-8000-000000000002"
+    },
+    "odontologia_general": {
+      "area": 8,
+      "factory": {
+        "inicial": "fca06d0b-b3c7-5f81-aea5-956c18626f1b",
+        "control": "d3ee19ab-0934-553c-8804-ab2441553036",
+        "procedimiento": "f8e342ed-b858-56d8-868e-7e159b884f7b"
+      },
+      "new_id": "c8000000-0000-4000-8000-000000000001"
+    },
+    "endodoncia": {
+      "area": 8,
+      "factory": {
+        "inicial": "21b79587-1b2e-56ff-92af-01e6c2564c10",
+        "control": "78e577cb-8eb1-53e1-9f9f-1f66602ae6af",
+        "procedimiento": "3dd1d9cc-8edb-5b30-b082-fb203120c5eb"
+      },
+      "new_id": "c8000000-0000-4000-8000-000000000002"
+    },
+    "periodoncia": {
+      "area": 8,
+      "factory": {
+        "inicial": "fc9ead78-007c-5c46-9d68-1961b2c7b0be",
+        "control": "f1bf6c87-8fe7-5bc2-8c98-8f4f3356cda0",
+        "procedimiento": "a5544d01-a3c5-5480-9cbf-50306f9852c3"
+      },
+      "new_id": "c8000000-0000-4000-8000-000000000003"
+    },
+    "ortodoncia": {
+      "area": 8,
+      "factory": {
+        "inicial": "cd4aedad-f35d-5be1-856a-8d40428cd94f",
+        "control": "dd5e3e7c-74bc-5639-afde-a094d7f6c59d",
+        "procedimiento": "6a6a0fd2-43ef-5f9d-952b-9ecc1428c77f"
+      },
+      "new_id": "c8000000-0000-4000-8000-000000000004"
+    },
+    "rehabilitacion_oral": {
+      "area": 8,
+      "factory": {
+        "inicial": "e60e4f84-af79-5414-9859-4e3a6710d80a",
+        "control": "98fe1002-57f3-5d47-ae81-07daf836a6c9",
+        "procedimiento": "df9d7646-98aa-5f01-ab0b-dc8c9f7974e2"
+      },
+      "new_id": "c8000000-0000-4000-8000-000000000005"
+    },
+    "medicina_laboral": {
+      "area": 9,
+      "factory": {
+        "inicial": "11c95e6f-69c8-5cf5-bbc8-003933b9e41d",
+        "control": "1d4d90ff-021d-5e40-ab8f-f63f28783c2b",
+        "procedimiento": "1c86dfab-968e-54bb-bf60-9bee994def0d"
+      },
+      "new_id": "c9000000-0000-4000-8000-000000000001"
+    },
+    "medicina_legal": {
+      "area": 9,
+      "factory": {
+        "inicial": "a53b2002-8afe-58bc-ab1c-9eacb672ed87",
+        "control": "35ccdbae-e394-5229-814a-d6ac7fccfe06",
+        "procedimiento": "6584d60b-2ad6-5c8c-9c48-3ac10ed138fa"
+      },
+      "new_id": "c9000000-0000-4000-8000-000000000002"
+    }
+  }
+}
