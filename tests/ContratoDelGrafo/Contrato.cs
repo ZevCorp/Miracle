@@ -926,6 +926,7 @@ internal static class Contrato
         Prueba("518. Luna piensa en modo rápido: la delegación le pide reasoning.effort = low, al abrir y al cambiar de modo", LunaPiensaEnModoRapido);
         Prueba("519. el plan trabaja sobre la misma ventana que el ciclo rápido: la de delante, y si delante está Ü o nada, la de trabajo; sin ninguna de las dos, dice que no hay ventana", ElPlanTrabajaDondeElCiclo);
         Prueba("521. abrir una app nunca lanza a la propia Ü: el acceso directo «U» no casa con nada, y un acceso cuyo nombre está DENTRO de lo pedido solo cuenta si tiene al menos 4 letras; lo exacto gana y lo que no casa no lanza nada", AbrirNuncaLanzaAU);
+        Prueba("522. todo lo que Ü guarda de la persona vive donde dice U_DATA_DIR: la conversación se escribe bajo esa carpeta, y ningún archivo del cliente pide la carpeta de Windows por su cuenta", LoGuardadoVaDondeDiceUDataDir);
         Prueba("520. quien planea es GPT-6 Sol a la máxima velocidad que la API acepta: delegado gpt-6-sol con reasoning.effort = low y service_tier = priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
@@ -14739,6 +14740,38 @@ internal static class Contrato
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"new U\.Ciclo\.Motor\(DondeDelPlan,"), "[cableado] el motor de Jev no pregunta dónde con la regla del ciclo");
         Debe(cara.Contains("new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero)"), "[cableado] las manos del plan no trabajan sobre la ventana del ciclo");
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"DondeDelPlan\(\)[\s\S]{0,300}Navigation\.ElPlanPorObjetivos\.Donde\("), "[cableado] DondeDelPlan no usa ElPlanPorObjetivos.Donde");
+    }
+
+    private static void LoGuardadoVaDondeDiceUDataDir()
+    {
+        // MEDIDO EL 2026-09-29: 26 turnos de las órdenes de prueba estaban en %APPDATA%\U\conversacion-personal.json, el
+        // archivo del dueño, y la prueba siguiente los heredaba: GPT-6 Sol hizo la orden de Configuración dentro de la de
+        // la calculadora. Environment.GetFolderPath no lee U_DATA_DIR (UserPaths lo explica); había 6 sitios que lo usaban.
+        string? antes = Environment.GetEnvironmentVariable("U_DATA_DIR");
+        string tmp = Path.Combine(Path.GetTempPath(), "u-contrato-522-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Environment.SetEnvironmentVariable("U_DATA_DIR", tmp);
+            var c = new U.WindowsClient.Voice.ConversacionPersonal("contrato@u.test");
+            c.Agregar("usuario", "hola desde el contrato");
+            string esperado = Path.Combine(tmp, "roaming", "U", "conversacion-personal.json");
+            Debe(File.Exists(esperado) && File.ReadAllText(esperado).Contains("hola desde el contrato"),
+                "con U_DATA_DIR puesta, la conversación no se escribió bajo esa carpeta: se habría escrito en la del dueño");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("U_DATA_DIR", antes);
+            try { Directory.Delete(tmp, true); } catch { }
+        }
+
+        // [cableado] Ningún archivo del cliente pide la carpeta de Windows por su cuenta: UserPaths es el único sitio.
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string src = Path.Combine(repo, "windows-client", "src");
+        if (!Directory.Exists(src)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO no hay fuentes que mirar."); return; }
+        var quienes = Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories)
+            .Where(f => System.Text.RegularExpressions.Regex.IsMatch(File.ReadAllText(f), @"SpecialFolder\.(Local)?ApplicationData"))
+            .Select(f => Path.GetRelativePath(src, f)).ToList();
+        Debe(quienes.Count == 0, $"[cableado] {quienes.Count} archivo(s) del cliente piden la carpeta de Windows sin UserPaths: {string.Join(", ", quienes)}");
     }
 
     private static void AbrirNuncaLanzaAU()

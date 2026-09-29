@@ -182,7 +182,7 @@ public sealed record SkillEnsenada(
 
     /// <summary>La carpeta por defecto donde viven las skills de esta máquina.</summary>
     public static string CarpetaPorDefecto => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "U", "skills");
+        U.Graph.UserPaths.Local, "U", "skills");
 
     /// <summary>
     /// De la sesión a la skill. Devuelve null si no hay nada que empaquetar: una skill sin pasos

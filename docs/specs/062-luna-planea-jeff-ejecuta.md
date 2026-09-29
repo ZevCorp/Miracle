@@ -54,6 +54,14 @@ plan viejo.
 
 | 521 | abrir una app nunca lanza a la propia Ü: el acceso directo «U» no casa con nada, y un acceso cuyo nombre está DENTRO de lo pedido solo cuenta si tiene al menos 4 letras; lo exacto gana y lo que no casa no lanza nada | 5 |
 
+| 522 | todo lo que Ü guarda de la persona vive donde dice `U_DATA_DIR`: la conversación se escribe bajo esa carpeta, y ningún archivo del cliente pide la carpeta de Windows por su cuenta | 5 |
+
+> **Por qué la 522 está en esta spec.** La encontró la tanda de GPT-6 Sol (2026-09-29, 02:41): la conversación se guardaba
+> en `%APPDATA%\U\conversacion-personal.json` aunque la Ü de pruebas tuviera su `U_DATA_DIR`, así que cada orden heredaba
+> las anteriores —Sol hizo la de Configuración dentro de la de la calculadora— y 26 turnos de prueba quedaron en el archivo
+> del dueño (marcados con el usuario de prueba, así que su Ü no los cargaba; se quitaron con copia). Sitios con la clase de
+> error: 6 (conversación, memoria personal, fotos de recuerdos, álbum de miradas, skills, collar).
+
 > **Por qué la 521 está en esta spec.** La encontró su primera tanda (2026-09-28, 22:54): `map_open_app «calculator»` lanzó
 > la Ü instalada —«calculator» contiene «u», y el acceso se llama «U»—, y esa Ü desplazó a la del dueño con el entorno de
 > la prueba. No es de planificación, pero no se puede seguir midiendo con una prueba que puede tumbar la Ü del dueño.

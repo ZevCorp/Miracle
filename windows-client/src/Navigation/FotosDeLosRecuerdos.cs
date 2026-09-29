@@ -26,7 +26,7 @@ namespace U.WindowsClient.Navigation;
 public static class FotosDeLosRecuerdos
 {
     public static string Carpeta { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "U", "recuerdos", "fotos");
+        U.Graph.UserPaths.Local, "U", "recuerdos", "fotos");
 
     /// <summary>Guarda la foto en JPEG y devuelve su ruta, o vacío si no se pudo.</summary>
     /// <remarks>

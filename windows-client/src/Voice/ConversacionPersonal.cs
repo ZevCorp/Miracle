@@ -19,7 +19,7 @@ public sealed class ConversacionPersonal
     {
         _userId = string.IsNullOrWhiteSpace(userId) ? "anon" : userId.Trim();
         _archivo = archivo ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            U.Graph.UserPaths.Roaming,
             "U", "conversacion-personal.json");
     }
 
