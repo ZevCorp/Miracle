@@ -2561,61 +2561,20 @@ public sealed class SurfaceMapTools
     /// </summary>
     private string DescribirInterrupcion()
     {
-        string d = Interrupcion.Describir(VentanaDeTrabajo?.Invoke() ?? IntPtr.Zero);
-        if (d.Length > 0) LogBus.Log("mapa-mcp", "INTERRUPCIÓN detectada");
-        return d;
-    }
-
-    /// <summary>
-    /// Lee el diálogo que haya delante: título, lo que dice y entre qué se puede elegir.
-    /// Opciones vacías = no hay diálogo.
-    ///
-    /// Se reconoce por su FORMA —pocos botones de respuesta más texto que explica— y no por el
-    /// título, que cambia con el idioma y con cada versión de Windows. El explorador normal, con
-    /// 18 botones, no se confunde (comprobado el 2026-08-03).
-    /// </summary>
-    private (string Titulo, List<string> Textos, List<string> Opciones) LeerInterrupcion()
-        => Interrupcion.Leer(VentanaDeTrabajo?.Invoke() ?? IntPtr.Zero);
-
-    private (string Titulo, List<string> Textos, List<string> Opciones) LeerInterrupcionVieja()
-    {
-        var textos = new List<string>();
-        var opciones = new List<string>();
-        string titulo = "";
-        try
+        // CON PLAZO (promesa 529): con «Editar colores» de Paint delante, map_where_am_i tardó 212 s leyendo aquí (2026-09-29).
+        // La 528 había puesto plazo solo a la otra puerta. Sin contestar no es sin diálogo: se dice que no se sabe.
+        IntPtr v = VentanaDeTrabajo?.Invoke() ?? IntPtr.Zero;
+        Func<string> describir = LeerDialogo != null
+            ? () => LeerDialogo() is { Opciones.Count: > 0 } d ? Interrupcion.Describir(d) : ""
+            : () => Interrupcion.Describir(v);
+        if (!Uia.Plazo.Con(describir, PlazoDelDialogoMs, out var texto))
         {
-            IntPtr fg = GetForegroundWindow();
-            if (fg == IntPtr.Zero) return (titulo, textos, opciones);
-            var v = System.Windows.Automation.AutomationElement.FromHandle(fg);
-            if (v == null) return (titulo, textos, opciones);
-
-            foreach (System.Windows.Automation.AutomationElement b in v.FindAll(
-                System.Windows.Automation.TreeScope.Descendants,
-                new System.Windows.Automation.PropertyCondition(
-                    System.Windows.Automation.AutomationElement.ControlTypeProperty,
-                    System.Windows.Automation.ControlType.Button)))
-            {
-                try { string n = b.Current.Name?.Trim() ?? ""; if (n.Length > 0 && !opciones.Contains(n)) opciones.Add(n); }
-                catch { }
-            }
-            // Muchos botones = es una app, no un diálogo. Ninguno = no hay nada que responder.
-            if (opciones.Count == 0 || opciones.Count > 8) { opciones.Clear(); return (titulo, textos, opciones); }
-
-            foreach (System.Windows.Automation.AutomationElement t in v.FindAll(
-                System.Windows.Automation.TreeScope.Descendants,
-                new System.Windows.Automation.PropertyCondition(
-                    System.Windows.Automation.AutomationElement.ControlTypeProperty,
-                    System.Windows.Automation.ControlType.Text)))
-            {
-                try { string n = t.Current.Name?.Trim() ?? ""; if (n.Length > 12 && !textos.Contains(n)) textos.Add(n); }
-                catch { }
-            }
-            if (textos.Count == 0) { opciones.Clear(); return (titulo, textos, opciones); }
-
-            try { titulo = v.Current.Name?.Trim() ?? ""; } catch { }
+            LogBus.Log("mapa-mcp", $"la ventana de delante no se dejó leer en {PlazoDelDialogoMs} ms: no sé si hay un diálogo");
+            return $"NO SÉ SI HAY UN DIÁLOGO DELANTE: la app no contestó en {PlazoDelDialogoMs} ms al leerla. "
+                 + "Si hay uno abierto, hay que cerrarlo o esperar a que la app vuelva a contestar.";
         }
-        catch { opciones.Clear(); }
-        return (titulo, textos, opciones);
+        if (!string.IsNullOrEmpty(texto)) LogBus.Log("mapa-mcp", "INTERRUPCIÓN detectada");
+        return texto ?? "";
     }
 
     private string Foto()

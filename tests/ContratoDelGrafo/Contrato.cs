@@ -14754,8 +14754,8 @@ internal static class Contrato
     {
         // MEDIDO EL 2026-09-29 (04:41): con «Editar colores» de Paint delante, map_where_am_i tardó 212 s. La 528 puso plazo a
         // UNO de los DOS sitios que leen el diálogo (DialogoDelante) y el otro (LeerInterrupcion) seguía sin él: el aprendizaje
-        // nº11 otra vez, habiendo contado los dos.
-        var mapa = new SurfaceMapTools(() => null);
+        // nº11 otra vez, habiendo contado los dos. Con una ubicación: sin ella, map_where_am_i sale antes de mirar diálogos.
+        var mapa = new SurfaceMapTools(() => new U.WindowsClient.Uia.SurfaceLocator.SurfaceLocation("uia://mspaint.exe/sin-título", "uia", ""));
         var pLeer = typeof(SurfaceMapTools).GetProperty("LeerDialogo");
         var pPlazo = typeof(SurfaceMapTools).GetProperty("PlazoDelDialogoMs");
         if (pLeer == null || pPlazo == null) { Pendiente("SurfaceMapTools.PlazoDelDialogoMs", "529", "062"); return; }
