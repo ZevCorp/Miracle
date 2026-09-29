@@ -74,6 +74,29 @@ class PrivacyShieldService {
     return normalizeModeValue(this.env.PRIVACY_SHIELD_MODE) || DEFAULT_MODE;
   }
 
+  /**
+   * Variables PRIVACY_SHIELD_MODE* con un valor que no es un modo. Un valor
+   * así cae EN SILENCIO al default (shadow): «enforced» u «on» dejaban el
+   * escudo sin tapar nada mientras quien lo configuró creía haberlo encendido.
+   * Se devuelven nombres, nunca se lanza: el arranque no debe caerse por esto.
+   */
+  invalidModeSettings() {
+    return Object.keys(this.env || {})
+      .filter((name) => name === 'PRIVACY_SHIELD_MODE' || name.startsWith('PRIVACY_SHIELD_MODE_'))
+      .filter((name) => `${this.env[name] ?? ''}`.trim() !== '' && !normalizeModeValue(this.env[name]))
+      .sort();
+  }
+
+  /** Modo efectivo por funcionalidad, para una línea de log al arrancar. */
+  describeModes(features = []) {
+    const base = normalizeModeValue(this.env.PRIVACY_SHIELD_MODE) || DEFAULT_MODE;
+    const overrides = [...new Set(features)]
+      .map((feature) => [feature, this.modeFor(feature)])
+      .filter(([, mode]) => mode !== base)
+      .map(([feature, mode]) => `${feature}=${mode}`);
+    return `por defecto ${base}${overrides.length ? ` · ${overrides.join(' · ')}` : ''}`;
+  }
+
   /* ---------------------------------------------------------------- */
   /* Semillas                                                           */
   /* ---------------------------------------------------------------- */
@@ -184,6 +207,13 @@ class PrivacyShieldService {
         }
       }
 
+      // Lo que sale del encounter es de una consulta que el servicio ya cargó
+      // y verificó como PROPIA del que llama (getOwnedEncounter, o el rescate
+      // en nombre de su médico): sus semillas son restaurables aunque la
+      // llamada no las envíe (regla 2 de ProtectionMap). Lo que llega por
+      // consultation_id —rutas con API key— no lo es.
+      const trusted = (list) => list.map((seed) => ({ ...seed, trusted: true }));
+
       if (encounter) {
         const patientId = `${encounter.patient_id ?? ''}`.trim();
         if (patientId) {
@@ -191,7 +221,7 @@ class PrivacyShieldService {
             const patient = await repo.patientById(patientId);
             if (patient && (!doctorOrganizationId || !patient.organization_id || patient.organization_id === doctorOrganizationId)) {
               const fromPatient = PrivacyShieldService.seedsFromPatient(patient);
-              seeds.push(...fromPatient);
+              seeds.push(...trusted(fromPatient));
               if (fromPatient.length) sources.push('paciente_registrado');
             } else if (patient) {
               this.logger.warn?.(`[Privacidad] paciente ${patientId} de otra organización: no se usa como semilla.`);
@@ -200,7 +230,7 @@ class PrivacyShieldService {
             // Un patient_id que no es uuid puede ser un nombre tecleado a mano.
             const typed = PrivacyShieldService.seedsFromText(`Nombre: ${patientId}`);
             if (typed.length) {
-              seeds.push(...typed);
+              seeds.push(...trusted(typed));
               sources.push('patient_id_texto');
             }
           }
@@ -208,12 +238,12 @@ class PrivacyShieldService {
         const transcript = `${encounter.transcript ?? ''}`;
         if (transcript.trim()) {
           const fromTranscript = PrivacyShieldService.seedsFromText(transcript);
-          seeds.push(...fromTranscript);
+          seeds.push(...trusted(fromTranscript));
           if (fromTranscript.length) sources.push('transcripcion');
         }
         if (encounter.note_json) {
           const fromNote = PrivacyShieldService.seedsFromNote(encounter.note_json);
-          seeds.push(...fromNote);
+          seeds.push(...trusted(fromNote));
           if (fromNote.length) sources.push('nota');
         }
       }
@@ -426,6 +456,21 @@ class PrivacyShieldService {
     if (!protection || protection.mode !== MODES.ENFORCE || !protection.map || typeof text !== 'string') return text;
     const before = protection.map.stats.unknownTokens;
     const restored = protection.map.restoreText(text);
+    protection.rehydration = protection.map.stats.unknownTokens > before ? 'incomplete' : 'complete';
+    return restored;
+  }
+
+  /**
+   * Como restoreText, pero sobre TODA una respuesta (objeto, array o texto).
+   * El runtime Python devuelve la nota organizada y además note_updates,
+   * agent_tasks y llm_debug; restaurar solo el campo que pinta la pantalla
+   * dejaba los demás con marcadores. La rehidratación se juzga una vez, sobre
+   * el conjunto.
+   */
+  restoreDeep(value, protection) {
+    if (!protection || protection.mode !== MODES.ENFORCE || !protection.map) return value;
+    const before = protection.map.stats.unknownTokens;
+    const restored = walkStrings(value, (text) => protection.map.restoreText(text), { skipKeys: new Set() });
     protection.rehydration = protection.map.stats.unknownTokens > before ? 'incomplete' : 'complete';
     return restored;
   }
