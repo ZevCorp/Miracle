@@ -241,9 +241,8 @@ public sealed class ProtocoloGptLive : IProtocolo
             // MODO RÁPIDO (promesa 518, spec 062): sin pedirlo, Luna piensa en su medio por defecto, ~2 s por respuesta
             // (sesión del 2026-09-28). El servidor lo acepta en la delegación: medido con session.started ese mismo día.
             reasoning = new { effort = "low" },
-            // GPT-6 SOL A LA MÁXIMA VELOCIDAD (promesa 520, decisión del dueño del 2026-09-29): priority —el servidor contesta
-            // «fast»— bajó el primer plan de 3.546 a 1.874 ms de mediana. «ultrafast» lo rechaza la Responses API.
-            service_tier = "priority",
+            // SIN PRIORITY (promesa 520, segunda decisión del dueño del 2026-09-29): priority bajaba el primer plan de 3.546 a
+            // 1.874 ms de mediana, pero «el costo nos puede salir muy caro». Se queda el pensamiento en bajo.
         },
     };
 
