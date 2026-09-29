@@ -1,0 +1,5 @@
+{
+  "mutation": "replace accumulated assistant transcript with last delta",
+  "detected": true,
+  "returncode": 1
+}
