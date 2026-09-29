@@ -1,0 +1,116 @@
+name: Vercel · desplegar
+
+# El despliegue a producción de los proyectos web del monorepo (Graph y el portal), en un solo sitio.
+# Lo llaman graph-ci.yml y web-ci.yml DESPUÉS de sus tests, solo en main: lo que llega a producción es
+# lo que pasó el CI, y nada más.
+#
+# Por qué desde el CI y no con la integración Git de Vercel (2026-09-29): la integración despliega en
+# paralelo al CI, sin esperar a los tests, y necesita instalar la GitHub App con el OAuth del dueño.
+# Así, además, ningún dev necesita asiento en Vercel: se despliega mergeando.
+#
+# Tres pasos, y el tercero es el que importa:
+#   1. vercel deploy --prod desde la carpeta del proyecto (cada proyecto se basta solo).
+#   2. Prueba de humo contra el dominio de producción: el servidor responde, y en Graph además la
+#      autenticación NO está desactivada (TEMPORARY_DISABLE_AUTH se respeta en cualquier entorno).
+#   3. Si la prueba falla, vercel rollback a la versión anterior, y el job falla. Una versión rota
+#      sirve como mucho lo que tarda la prueba (~1 min), no hasta que alguien se dé cuenta.
+#
+# Configuración del repo (Settings → Secrets and variables → Actions):
+#   secret   VERCEL_TOKEN                token de la cuenta de Vercel, solo para desplegar
+#   variable VERCEL_ORG_ID               el equipo de Vercel
+#   variable VERCEL_PROJECT_ID_GRAPH     el proyecto de Graph
+#   variable VERCEL_PROJECT_ID_WEB       el proyecto del portal
+# Sin VERCEL_TOKEN el job lo dice y no despliega: el CI sigue verde.
+
+on:
+  workflow_call:
+    inputs:
+      proyecto:
+        description: "graph o web"
+        required: true
+        type: string
+      carpeta:
+        description: "la carpeta del proyecto en el monorepo"
+        required: true
+        type: string
+      humo:
+        description: "URL de producción que tiene que responder tras desplegar"
+        required: true
+        type: string
+    secrets:
+      VERCEL_TOKEN:
+        required: false
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: vercel-produccion
+      url: ${{ inputs.humo }}
+    # Nunca dos despliegues del mismo proyecto a la vez: el segundo espera, no cancela al primero.
+    concurrency:
+      group: vercel-${{ inputs.proyecto }}
+      cancel-in-progress: false
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ inputs.proyecto == 'graph' && vars.VERCEL_PROJECT_ID_GRAPH || vars.VERCEL_PROJECT_ID_WEB }}
+      VERCEL_TELEMETRY_DISABLED: 1
+    defaults:
+      run:
+        working-directory: ${{ inputs.carpeta }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ¿Hay con qué desplegar?
+        id: config
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::notice::Falta VERCEL_TOKEN o las variables del proyecto: no se despliega ${{ inputs.proyecto }}."
+            echo "listo=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "listo=si" >> "$GITHUB_OUTPUT"
+          fi
+
+      # vercel rollback necesita a QUÉ versión volver: se anota la que está en producción antes de
+      # desplegar. En el primer despliegue no hay ninguna, y entonces no hay rollback posible.
+      - name: Anotar la versión que está en producción
+        if: steps.config.outputs.listo == 'si'
+        id: anterior
+        run: |
+          url=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN"             "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&target=production&state=READY&limit=1"             | python3 -c "import sys,json; d=json.load(sys.stdin).get('deployments',[]); print(d[0]['url'] if d else '')")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "en producción antes de desplegar: ${url:-ninguna}"
+
+      - name: Desplegar a producción
+        if: steps.config.outputs.listo == 'si'
+        run: npx --yes vercel@61 deploy --prod --yes --token "$VERCEL_TOKEN"
+
+      - name: Prueba de humo, y rollback si falla
+        if: steps.config.outputs.listo == 'si'
+        env:
+          PROYECTO: ${{ inputs.proyecto }}
+          HUMO: ${{ inputs.humo }}
+          ANTERIOR: ${{ steps.anterior.outputs.url }}
+        run: |
+          sano() {
+            if [ "$PROYECTO" = "graph" ]; then
+              # /api/health responde 503 si una dependencia (Neo4j) no está: eso no es un despliegue
+              # roto. Roto es que el servidor no conteste, o que la autenticación esté apagada.
+              curl -sS --max-time 20 "$HUMO" | python3 -c "import sys,json; s=json.load(sys.stdin)['services']; sys.exit(0 if s['server']['status']=='ok' and s['auth']['status']=='enabled' else 1)"
+            else
+              curl -fsS --max-time 20 -o /dev/null "$HUMO"
+            fi
+          }
+          for intento in 1 2 3 4 5 6; do
+            if sano; then echo "sano en el intento $intento"; exit 0; fi
+            sleep 10
+          done
+          if [ -n "$ANTERIOR" ]; then
+            echo "::error::La prueba de humo falló: se vuelve a $ANTERIOR."
+            npx --yes vercel@61 rollback "$ANTERIOR" --yes --token "$VERCEL_TOKEN"               || echo "::error::El rollback también falló: revisar en Vercel."
+          else
+            echo "::error::La prueba de humo falló, y no había versión anterior a la que volver."
+          fi
+          exit 1

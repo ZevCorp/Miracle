@@ -107,6 +107,7 @@ falta un contrato; antes lo saltaba, y tras el movimiento lo habría saltado sin
 | `web-ci.yml` | web | lint, typecheck, tests y build |
 | `graph-ci.yml` | Graph | sus 33 verificaciones offline (`npm test`) |
 | `monorepo.yml` | la raíz | la raíz en orden, las reglas sin deriva, los porteros parsean |
+| `vercel-desplegar.yml` | Graph y web | el despliegue a Vercel tras los tests, con prueba de humo y rollback (ver `despliegue.md`) |
 
 Si algún día se protege `main` con checks obligatorios, hay una trampa: un workflow con filtro de
 rutas que no llega a correr deja su check «pendiente» para siempre y bloquea el merge. La solución
