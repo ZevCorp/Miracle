@@ -16,6 +16,7 @@ import type {
   ClinicalDischargeItem,
   ClinicalMedicationPlanItem,
 } from "@/lib/api/clinical";
+import { MEDICATION_FIELDS, updateMedicationField } from "@/lib/clinical/discharge-edit";
 
 type ListKind =
   "recommendations" | "alarm_signs" | "non_pharmacological" | "follow_up";
@@ -222,13 +223,6 @@ function MedicationEditor({
   editable: boolean;
   onChange: (items: ClinicalMedicationPlanItem[]) => void;
 }) {
-  function update(index: number, patch: Partial<ClinicalMedicationPlanItem>) {
-    onChange(
-      medications.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, ...patch } : item,
-      ),
-    );
-  }
   return (
     <div>
       {medications.length ? (
@@ -236,34 +230,27 @@ function MedicationEditor({
             {medications.map((medication, index) => (
               <div
                 key={`${medication.name}-${index}`}
-                className="relative grid gap-3 rounded-xl border border-line bg-pearl p-4 pr-12 text-sm sm:grid-cols-[1.2fr_1fr_1fr_auto] sm:rounded-none sm:border-0 sm:bg-transparent sm:px-3 sm:py-3 sm:pr-3"
+                className="relative grid gap-3 rounded-xl border border-line bg-pearl p-4 pr-12 text-sm sm:grid-cols-[1fr_auto] sm:rounded-none sm:border-0 sm:bg-transparent sm:px-3 sm:py-3 sm:pr-3"
               >
-                <Field
-                  label="Medicamento"
-                  value={medication.name}
-                  editable={editable}
-                  onChange={(name) => update(index, { name })}
-                />
-                <Field
-                  label="Dosis y vía"
-                  value={[medication.dose, medication.route]
-                    .filter(Boolean)
-                    .join(" · ")}
-                  editable={editable}
-                  onChange={(value) =>
-                    update(index, { dose: value, route: "" })
-                  }
-                />
-                <Field
-                  label="Frecuencia y duración"
-                  value={[medication.frequency, medication.duration]
-                    .filter(Boolean)
-                    .join(" · ")}
-                  editable={editable}
-                  onChange={(value) =>
-                    update(index, { frequency: value, duration: "" })
-                  }
-                />
+                {/* UN CAMPO POR DATO. Antes «Dosis y vía» y «Frecuencia y duración» eran
+                    un solo campo que, al guardarse, borraba la vía y la duración. */}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {MEDICATION_FIELDS.map(({ field, label }) => (
+                    <div
+                      key={field}
+                      className={field === "name" ? "sm:col-span-2" : field === "instructions" ? "sm:col-span-3" : ""}
+                    >
+                      <Field
+                        label={label}
+                        value={medication[field]}
+                        editable={editable}
+                        onChange={(value) =>
+                          onChange(updateMedicationField(medications, index, field, value))
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
                 {editable ? (
                   <button
                     type="button"
@@ -481,10 +468,12 @@ function UrgencyDot({ urgency }: { urgency?: ClinicalAlarmSign["urgency"] }) {
 function medicationLine(medication: ClinicalMedicationPlanItem) {
   return [
     medication.name,
+    medication.concentration,
     medication.dose,
     medication.route,
     medication.frequency,
     medication.duration,
+    medication.quantity,
     medication.instructions,
   ]
     .filter(Boolean)

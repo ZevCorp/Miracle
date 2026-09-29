@@ -36,13 +36,17 @@ export interface UserPreferences {
 /**
  * Lo que ve un médico que nunca ha entrado a Configuración.
  *
- * `templateStartMode: "last"` y `assistantDetail: "equilibrado"` reproducen el
- * comportamiento que la app ya tenía, así que estrenar la pantalla no le cambia
- * nada a nadie por debajo. (A quien ya tenía un pin de plantilla la migración lo
- * dejó en "fixed" por el mismo motivo.)
+ * `templateStartMode: "fixed"` DESDE EL 2026-09-26, y antes era "last". El
+ * dueño lo pidió así para la web y para Miracle en Windows: «que funcione con la
+ * lógica de que el médico escoge la plantilla predeterminada». Con "last" por
+ * defecto la estrella de «mi predeterminada» no hacía nada para quien nunca
+ * había abierto Configuración — elegía una y seguía arrancando con la última
+ * usada. Sin predeterminada elegida, "fixed" cae a la sugerida de su
+ * especialidad (ver pickPreselectedTemplate), así que nadie se queda sin
+ * plantilla. `assistantDetail: "equilibrado"` sigue reproduciendo lo de siempre.
  */
 export const PREFERENCIAS_POR_DEFECTO: UserPreferences = {
-  templateStartMode: "last",
+  templateStartMode: "fixed",
   defaultServicio: null,
   assistantAddress: "usted",
   assistantDetail: "equilibrado",

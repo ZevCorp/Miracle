@@ -50,6 +50,13 @@ describe("rowToPreferences", () => {
     expect(rowToPreferences(base).noteDetail).toBe("estandar");
   });
 
+  it("sin fila, la consulta arranca con la plantilla predeterminada del médico", () => {
+    // 2026-09-26: el médico escoge su predeterminada y con ella empieza, en la
+    // web y en Miracle para Windows. Con "last" por defecto la estrella no hacía
+    // nada para quien nunca había entrado a Configuración.
+    expect(rowToPreferences(null).templateStartMode).toBe("fixed");
+  });
+
   it("un valor que no reconoce cae al por defecto en vez de propagarse", () => {
     // Los CHECK de la tabla ya acotan esto, pero un valor raro NUNCA debe
     // llegar al prompt del asistente ni tumbar la pantalla.
@@ -60,7 +67,7 @@ describe("rowToPreferences", () => {
       assistant_detail: "",
       assistant_use_name: null,
     });
-    expect(salida.templateStartMode).toBe("last");
+    expect(salida.templateStartMode).toBe("fixed");
     expect(salida.assistantAddress).toBe("usted");
     expect(salida.assistantDetail).toBe("equilibrado");
     expect(salida.assistantUseName).toBe(true);

@@ -16,6 +16,8 @@ import {
   Mic,
   Plus,
   Printer,
+  Pill,
+  ListChecks,
   Send,
   Sparkles,
 } from "lucide-react";
@@ -48,7 +50,8 @@ import {
   type NoteSection,
 } from "@/lib/mock";
 import { formatFechaRelativa } from "@/lib/dates";
-import { abrirImpresionNota } from "@/lib/pdf/note-print";
+import { imprimirDeLaConsulta } from "@/lib/pdf/consultation-documents";
+import type { TipoDeDocumento } from "@/lib/pdf/patient-documents";
 import { searchCodes } from "@/lib/clinical/codes";
 import { auditConsultation } from "@/lib/clinical/note-audit";
 import { resolveConsultationIdentity } from "@/lib/clinical/patient-identity";
@@ -327,22 +330,14 @@ export default function ConsultaDetallePage() {
     }
   }
 
-  function descargarPDF() {
-    // El documento se construye en lib/pdf/note-print.ts, compartido con el
-    // panel rápido: una sola plantilla imprimible para las dos superficies.
-    abrirImpresionNota(
-      {
-        consultation: c!,
-        patient,
-        identidad,
-        medicoNombre,
-        medicoIdentidad,
-        org,
-        demo,
-        addenda,
-      },
-      () =>
-        showToast("Permita las ventanas emergentes para generar el PDF.", "warning"),
+  // LOS PAPELES DE LA CONSULTA: nota, fórmula e indicaciones, del mismo modelo
+  // que imprime U en Windows (lib/pdf/patient-documents.ts).
+  function imprimir(tipo: TipoDeDocumento) {
+    if (!c) return;
+    void imprimirDeLaConsulta(
+      tipo,
+      { consultation: c, patient, identidad, medicoNombre, medicoIdentidad, org, demo, addenda },
+      (mensaje) => showToast(mensaje, "warning"),
     );
   }
 
@@ -429,8 +424,14 @@ export default function ConsultaDetallePage() {
                   <ClipboardCopy size={15} /> Copiar nota
                 </button>
               </HoverHint>
-              <button type="button" onClick={descargarPDF} className="doc-tool">
-                <Printer size={15} /> PDF
+              <button type="button" onClick={() => imprimir("nota")} className="doc-tool">
+                <Printer size={15} /> Nota
+              </button>
+              <button type="button" onClick={() => imprimir("formula")} className="doc-tool">
+                <Pill size={15} /> Fórmula
+              </button>
+              <button type="button" onClick={() => imprimir("indicaciones")} className="doc-tool">
+                <ListChecks size={15} /> Indicaciones
               </button>
               {/* Regrabar arranca una nueva captura: es una acción exclusiva del
                   médico (la secretaría no tiene acceso a /app/consultas/nueva). */}

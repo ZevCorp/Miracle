@@ -33,7 +33,7 @@ export function ClinicalTemplatePicker({
    * alcanza a todo el catálogo.
    */
   specialtyCode?: string | null;
-  /** Ids fijados por el médico como "Tu sugerida" (lib/clinical/template-preferences). */
+  /** Ids fijados por el médico como "Tu predeterminada" (lib/clinical/template-preferences). */
   pinnedTemplateIds?: ReadonlySet<string>;
 }) {
   const [open, setOpen] = useState(false);
@@ -106,7 +106,7 @@ export function ClinicalTemplatePicker({
             </span>
             {pinnedTemplateIds.has(selected.id) ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-ink">
-                <Star size={11} /> Tu sugerida
+                <Star size={11} /> Tu predeterminada
               </span>
             ) : null}
             {selected.scope === "personal" ? (
@@ -305,7 +305,7 @@ function TemplateOption({
           <span className="font-semibold text-deep">{template.name}</span>
           {pinned ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-ink">
-              <Star size={11} /> Tu sugerida
+              <Star size={11} /> Tu predeterminada
             </span>
           ) : template.is_default ? (
             <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
