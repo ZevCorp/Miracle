@@ -46,7 +46,7 @@ public sealed class BackendClient
 
         // La detección por host es deliberadamente tonta: el modo legacy existe SOLO para volver al
         // backend viejo en emergencia, y ese backend tiene un único dominio conocido.
-        _legacy = _baseUrl.Contains("u-windows-backend", StringComparison.OrdinalIgnoreCase);
+        _legacy = EsBackendWindows(_baseUrl);
         _apiPrefix = _legacy ? "/api" : "/api/v1";
 
         if (_legacy)
@@ -68,6 +68,20 @@ public sealed class BackendClient
         _http.DefaultRequestHeaders.Add("X-Miracle-Feature", "conscious_bridge");
         if (!string.IsNullOrWhiteSpace(config.Email))
             _http.DefaultRequestHeaders.Add("X-Miracle-User-Email", config.Email);
+    }
+
+    /// <summary>
+    /// El backend Windows local conserva el contrato /api del servidor de memoria. Se reconoce por
+    /// localhost para que una sesión de desarrollo pueda probar los cambios reales sin tocar Graph
+    /// remoto; las URLs públicas de Graph siguen usando /api/v1.
+    /// </summary>
+    private static bool EsBackendWindows(string url)
+    {
+        if (url.Contains("u-windows-backend", StringComparison.OrdinalIgnoreCase)) return true;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
+        return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Equals("::1", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<TurnResponse> TurnAsync(TurnRequest req, CancellationToken ct)
@@ -96,6 +110,17 @@ public sealed class BackendClient
         var body = JsonSerializer.Serialize(req, Json);
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
         using var res = await Send($"{_apiPrefix}{path}", content, ct);
+        var text = await res.Content.ReadAsStringAsync(ct);
+        if (IsAuthFailure(res.StatusCode))
+            throw new InvalidOperationException(AuthErrorMessage(res.StatusCode));
+        if (!res.IsSuccessStatusCode)
+            throw new InvalidOperationException($"backend HTTP {(int)res.StatusCode}: {text}");
+        return JsonSerializer.Deserialize<T>(text, Json);
+    }
+
+    public async Task<T?> GetAsync<T>(string path, CancellationToken ct) where T : class
+    {
+        using var res = await SendGet($"{_apiPrefix}{path}", ct);
         var text = await res.Content.ReadAsStringAsync(ct);
         if (IsAuthFailure(res.StatusCode))
             throw new InvalidOperationException(AuthErrorMessage(res.StatusCode));
@@ -134,6 +159,32 @@ public sealed class BackendClient
             throw;
         }
         catch (OperationCanceledException) { throw; }  // la pidió quien llama: no dice nada del backend
+        catch (Exception e)
+        {
+            GraphHealth.Report(GraphLink.SinContacto, host, 0, e.Message);
+            throw;
+        }
+    }
+
+    private async Task<HttpResponseMessage> SendGet(string path, CancellationToken ct)
+    {
+        if (_legacy) return await _http.GetAsync($"{_baseUrl}{path}", ct);
+        string host = GraphHealth.HostOf(_baseUrl);
+        try
+        {
+            var res = await _http.GetAsync($"{_baseUrl}{path}", ct);
+            GraphHealth.Report(
+                res.IsSuccessStatusCode ? GraphLink.Ok
+                : (int)res.StatusCode is 401 or 403 ? GraphLink.KeyRechazada : GraphLink.ErrorDelServidor,
+                host, (int)res.StatusCode);
+            return res;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            GraphHealth.Report(GraphLink.SinRespuesta, host, 0, $"sin respuesta en {_http.Timeout.TotalMinutes:0} min");
+            throw;
+        }
+        catch (OperationCanceledException) { throw; }
         catch (Exception e)
         {
             GraphHealth.Report(GraphLink.SinContacto, host, 0, e.Message);

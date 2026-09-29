@@ -1,7 +1,7 @@
 name: Native Mac
 on:
   push:
-    branches: ['codex/mac-from-scratch']
+    branches: ['main']
     paths: ['mac-client/**', '.github/workflows/mac-native.yml']
   pull_request:
     paths: ['mac-client/**', '.github/workflows/mac-native.yml']

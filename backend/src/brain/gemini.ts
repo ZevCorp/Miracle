@@ -8,12 +8,12 @@
 //    pedir ver la pantalla; el modelo pasa coordenadas en píxeles del screenshot (a resolución real).
 //  - Las herramientas MCP, ask_user, speak y list_apps se declaran igual que en OpenAI.
 
-import { Action, BrainTurn } from '../domain/actions';
-import { GeminiPending, SessionState } from '../domain/session';
-import { McpTool } from '../domain/mcp';
-import { goalPrompt } from './prompt';
-import { ensureProxy } from '../net';
-import { TurnInput, TurnOutput } from './types';
+import { Action, BrainTurn } from '../domain/actions.js';
+import { GeminiPending, SessionState } from '../domain/session.js';
+import { McpTool } from '../domain/mcp.js';
+import { goalPrompt } from './prompt.js';
+import { ensureProxy } from '../net.js';
+import { TurnInput, TurnOutput } from './types.js';
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -87,8 +87,8 @@ function builtinFns(): unknown[] {
   ];
 }
 
-function systemPrompt(goal: string, tools: McpTool[], memory: string, width: number, height: number): string {
-  const base = goalPrompt({ goal, tools, memory, stateBlock: '' }).trim();
+function systemPrompt(goal: string, tools: McpTool[], memory: string, width: number, height: number, timeContext: string): string {
+  const base = goalPrompt({ goal, tools, memory, stateBlock: '', timeContext }).trim();
   const addendum = `
         COMPUTER-USE EN GEMINI: para tocar algo visual, primero llama a look() para ver la pantalla; luego
         usa computer_tap / computer_type / computer_scroll / computer_swipe / computer_key con coordenadas
@@ -115,7 +115,7 @@ export async function runGeminiTurn(inp: TurnInput): Promise<TurnOutput> {
   const s: SessionState = JSON.parse(JSON.stringify(inp.session));
   if (!s.gemini) s.gemini = { history: [], pending: [] };
   const g = s.gemini;
-  const { tools, mcpNames, memory, apps, state, results, apiKey } = inp;
+  const { tools, mcpNames, memory, apps, state, results, apiKey, timeContext } = inp;
 
   const stateBlock = `Pantalla actual: ${state.screen}\nDónde estás (árbol de UI de Windows):\n${state.uiContext}`;
 
@@ -137,7 +137,7 @@ export async function runGeminiTurn(inp: TurnInput): Promise<TurnOutput> {
 
   // 2) Llama a Gemini.
   const body = {
-    system_instruction: { parts: [{ text: systemPrompt(s.goal, tools, memory, state.width, state.height) }] },
+    system_instruction: { parts: [{ text: systemPrompt(s.goal, tools, memory, state.width, state.height, timeContext) }] },
     contents: g.history,
     tools: [{ function_declarations: [...tools.map(mcpFn), ...builtinFns()] }],
     tool_config: { function_calling_config: { mode: 'AUTO' } },

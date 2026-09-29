@@ -39,6 +39,10 @@ public sealed class TurnRequest
     [JsonPropertyName("results")] public string[] Results { get; set; } = Array.Empty<string>();
     /// <summary>Respuesta del usuario a una pregunta (ask_user) del turno anterior. Null si no hubo.</summary>
     [JsonPropertyName("inform")] public string? Inform { get; set; }
+    /// <summary>Zona IANA del computador, para resolver días relativos y recordatorios.</summary>
+    [JsonPropertyName("timezone")] public string? Timezone { get; set; }
+    [JsonPropertyName("locale")] public string? Locale { get; set; }
+    [JsonPropertyName("clientNowUtc")] public string? ClientNowUtc { get; set; }
 }
 
 /// <summary>
@@ -73,6 +77,8 @@ public sealed class TurnResponse
     [JsonPropertyName("needsScreenshot")] public bool NeedsScreenshot { get; set; }
     [JsonPropertyName("narration")] public string Narration { get; set; } = "";
     [JsonPropertyName("speech")] public string? Speech { get; set; }
+    [JsonPropertyName("memory")] public string? Memory { get; set; }
+    [JsonPropertyName("memoryId")] public string? MemoryId { get; set; }
     [JsonPropertyName("intents")] public List<string> Intents { get; set; } = new();
     [JsonPropertyName("error")] public string? Error { get; set; }
 }

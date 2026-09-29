@@ -14,6 +14,7 @@ using U.Graph;
 using U.WindowsClient.Actions;
 using U.WindowsClient.Mcp;
 using U.WindowsClient.Navigation;
+using U.WindowsClient.Voice;
 
 namespace ContratoDelGrafo;
 
@@ -683,7 +684,8 @@ internal static class Contrato
         // EL NOTCH ESTABA EN UNA ESQUINA (spec 028, 2026-09-16). El dueño lo quiere arriba al centro, con la
         // macro tarea de título y debajo lo que pasa —el paso de Ü, o su propia voz mientras habla—.
         Prueba("251. el notch vive arriba y al centro del área libre: se centra en el hueco que deja el sistema, cuelga a una distancia fija del borde de arriba, y nunca se sale del cristal aunque no quepa", ElNotchViveArribaAlCentro);
-        Prueba("252. el notch dice dos cosas y siempre las mismas dos: arriba LA TAREA —lo último que pidió la persona, que se queda hasta que pida otra— y abajo LO QUE PASA AHORA, que es el paso de Ü, su desenlace, o lo que la persona está diciendo mientras lo dice", ElNotchDiceLaTareaYLoQuePasa);
+        Prueba("252. el notch enseña un solo texto con una jerarquía clara: mientras hay actividad muestra lo que está pasando, y cuando no la hay muestra la última tarea; la tarea y el paso siguen conservándose por separado para no perder contexto", ElNotchDiceUnSoloTexto);
+        Prueba("336. cerrar el turno de la persona no pisa una respuesta que ya llegó de U: la tarea se guarda, pero la frase visible sigue siendo lo último que sucedió, sea quien sea", ElUltimoQueHabloSigueVisible);
         Prueba("253. cada estado tiene su icono y todos salen del mismo juego: la misma caja, el mismo grosor de trazo y la forma dibujada como vector; no hay dos estados con el mismo dibujo, y ninguno es una letra ni un emoji", CadaEstadoTieneSuIcono);
 
         // LA FOTO SE BORRABA ANTES DE QUE LUNA LA LEYERA (spec 027, fase 2, 2026-09-16). MandarFotoAsync mandaba la
@@ -751,6 +753,28 @@ internal static class Contrato
         // zona del notch… que aparezca el notch con su transición», sin importar si Ü está hablando o no. Pura y sin
         // pantalla, como el resto de <see cref="ReglaDeLaBandeja"/>: el contrato juzga geometría, no un hook de ratón.
         Prueba("260. acercar el cursor al borde de arriba, centrado donde vive el notch, cae dentro de la franja que lo asoma; lejos de esa franja —al lado, o más abajo— no cae dentro, así que el gesto no dispara con cualquier paso del ratón por arriba", AcercarseAlBordeAsomaElNotch);
+        Prueba("335. la zona de intención del notch no se rompe al cruzar desde el borde hasta la pieza: la franja lo asoma, la caja visible lo mantiene y al entrar en ella se puede iniciar escritura sin activar la voz", LaZonaDelNotchMantieneLaIntencion);
+        Prueba("337. al apagar la voz, el cambio a Viva=false retira el notch en ese mismo cambio y no espera la caducidad", ElNotchSeRetiraAlApagarLaVoz);
+        Prueba("338. el botón de mensajes convierte el propio notch en chat y no activa la ventana vieja", ElBotonDelNotchAbreSuChat);
+        Prueba("339. el chat viejo desaparece: no quedan TalkPanel, Bubble ni Input en la ventana de la carita", ElChatViejoDesaparece);
+        Prueba("340. escribir en el chat nunca llama al sintetizador de Windows", ElChatNoUsaSintetizador);
+        Prueba("341. una entrada de texto puede abrir la misma conversación sin abrir el micrófono y su respuesta no reproduce audio", ElChatEsTextoSinVoz);
+        Prueba("342. el historial del notch no pinta emojis ni prefijos de interlocutor", ElHistorialDelNotchLimpiaElLenguaje);
+        Prueba("343. el estado interno de Jev no se derrama a la línea visible para la persona", ElEstadoInternoNoSaleAlNotch);
+        Prueba("344. la frase corta del notch se centra en su zona, y solo la larga activa marquesina", LaFraseDelNotchSeCentra);
+        Prueba("345. el chat abierto mantiene su superficie mientras el cursor baja al campo y no se cierra por el detector del borde", ElChatAbiertoMantieneSuSuperficie);
+        Prueba("347. el resultado textual del delegado entra al historial aunque la respuesta haya llegado por el canal de voz", ElTextoDelDelegadoLlegaAlHistorial);
+        Prueba("348. el chat convierte Markdown técnico en texto conversacional sin perder contenido", ElChatEntregaTextoLegibleYCompleto);
+        Prueba("349. U toca el borde izquierdo, la persona el derecho y el último texto queda visible", CadaVozTocaSuBorde);
+        // ESCRIBIR NUNCA DEJA EL TEXTO DOS VECES (spec 049, 2026-09-23). Un correo de Gmail quedó con el
+        // cuerpo repetido: el campo se comió los saltos, el juez lo leyó como «no cuajó», y el respaldo
+        // tecleó encima de lo que ya estaba. 410 y no 350: hasta la 407 están tomadas en ramas abiertas.
+        Prueba("410. escribir nunca deja el texto dos veces: un campo de una línea que se come los saltos SÍ tiene el texto; el respaldo por teclado no teclea si el campo ya lo tiene, reemplaza lo que haya en un campo que se lee y solo teclea encima de un campo vacío o mudo; y un campo que enseña el texto dos veces seguidas donde antes no estaba es «Doble», que no se da por escrito", EscribirNuncaDejaElTextoDosVeces);
+        // SIN BLUETOOTH, EL COLLAR LO DICE Y ESPERA (spec 050, 2026-09-23). Una usuaria sin radio vio el
+        // collar fallar 12 veces en 42 s con «0x800710DF: sin mensaje», y el estado le decía «no se
+        // encontró el collar». 411 y no 350: hasta la 410 están tomadas en ramas abiertas.
+        Prueba("411. sin Bluetooth el collar lo dice una vez y deja de buscar: una radio apagada —o el fallo 0x800710DF, que es lo que Windows contesta cuando lo está— espera a que se encienda sin reintentar cada 6 s; un equipo sin adaptador no reintenta; el estado nombra cuál de las dos es y qué hacer; y el mismo estado repetido no vuelve al log", SinBluetoothElCollarLoDiceYEspera);
+        Prueba("412. con el collar elegido y sin conectar, el menú del micrófono enseña por qué —el estado del collar— aunque no haya ningún collar enlazado; conectado, sin elegirlo, o con su tarjeta de enlazado a la vista, no se añade nada", ElMenuDicePorQueNoConectaElCollar);
         // UN ASISTENTE POR ESCRITORIO (spec 031, 2026-09-17). El dueño: «quiero dejar un asistente en cada
         // escritorio virtual; incrustar la carita en el centro de la consulta, con las dimensiones del pantallazo;
         // y un botón debajo para llevarla a otro escritorio, con la aplicación quedándose enfrente mío». Todo lo
@@ -762,6 +786,7 @@ internal static class Contrato
         Prueba("272. la carita se guarda en la consulta igual que en el muelle: soltarla dentro la sienta en el centro, la flotante desaparece, y hay UNA silla ocupada a la vez —muelle o consulta, nunca las dos—; el anfitrión lo decide la caja donde se soltó, con el mismo margen de agarre, y tirar de ella la saca bajo el cursor como hoy", LaCaritaSeGuardaEnLaConsultaComoEnElMuelle);
         Prueba("273. debajo de la carita sentada en la consulta hay un botón para llevarla a otro escritorio, que ofrece los escritorios por su nombre —«Escritorio N» los que no lo tienen— menos el actual, y «Uno nuevo»; sin carita sentada el botón no está", ElBotonOfreceLosEscritoriosPorSuNombre);
         Prueba("274. llevar a otro escritorio deja al asistente trabajando allí: las ventanas del centro de operaciones acaban en el destino, el destino queda a la vista, su escritorio pasa a ser ese, y la carita se suelta de la consulta y se posa con su animación; durante el viaje la consulta se queda delante si el sistema deja fijarla, y si no, el log dice que faltó un instante; llegar lo dice el sistema, no el botón, y si no se llega en el plazo se dice, las ventanas vuelven y nada queda a medias", ElViajeLlegaCuandoElSistemaLoDice);
+        Prueba("346. abrir dos veces el mismo worktree en el mismo escritorio no crea otra carita, pero el mismo worktree sí puede vivir en dos escritorios", UnaCaritaPorWorktreeYEscritorio);
 
         // ── Spec 035: el decisor se puede cambiar ────────────────────────────────────────────────
         Prueba("275. el decisor por defecto es Luna: sin configuración se decide como hoy, y a TypeSafe no se le llama NUNCA — el transporte no se toca ni una vez", PorDefectoDecideLuna);
@@ -810,6 +835,38 @@ internal static class Contrato
 
         // ── Spec 043: un campo de texto no navega ───────────────────────────────────────────────
         Prueba("334. un campo de texto no navega: al pulsar un Edit o un ComboBox no se espera el presupuesto de un cambio de pantalla —solo una espera corta, por si acaso—, no se consulta el terreno ni se repite el clic, y la respuesta dice que es un campo y que tiene el foco; si aun así la pantalla cambió se cuenta como cualquier navegación; y lo que no es un campo espera como siempre", UnCampoDeTextoNoNavega);
+
+        // ── Spec 044: memoria personal de voz ──────────────────────────────────────────────────
+        Prueba("335. la memoria personal de voz se guarda localmente y sobrevive a cerrar y volver a abrir la voz, sin depender de un backend legacy", MemoriaPersonalDeVozSobreviveALaSesion);
+        Prueba("336. el hilo conversacional sobrevive a apagar y volver a encender la voz", HiloConversacionalSobreviveALaSesion);
+        Prueba("337. un compromiso con hora produce un recordatorio pendiente sin depender de la voz abierta", RecordatorioLocalSeVuelvePendiente);
+        Prueba("338. el reloj local entrega un recordatorio aunque la voz esté apagada y lo marca una sola vez", RelojLocalEntregaRecordatorio);
+        Prueba("339. las cantidades escritas en español también crean recordatorios", NumeroEscritoCreaRecordatorio);
+        Prueba("340. ninguna respuesta hablada vuelve al sintetizador de Windows", LaSalidaHabladaUsaSoloVozViva);
+        Prueba("341. dos recordatorios vencidos despiertan una sola sesión de voz", LosAvisosCompartenUnaSesionViva);
+        Prueba("342. una petición personal explícita se puede guardar aunque el modelo no llame la herramienta", PeticionPersonalExplícitaSeGuarda);
+        Prueba("343. cada proceso de Ü escribe en su propio archivo de log identificable", CadaInstanciaTieneSuLog);
+        Prueba("344. los detalles cotidianos de una preferencia pueden convertirse en recuerdo", DetalleCotidianoPuedeGuardarse);
+        Prueba("345. GPT-Live recibe el hilo anterior como historial inicial y no como un mensaje que dispare una respuesta", HistorialInicialDeGptLiveEsPasivo);
+
+        // ── Spec 046: fotos de estudios de cardiología → resumen y preguntas ────────────────────
+        Prueba("350. la respuesta del modelo da UN resultado por foto: el JSON se encuentra aunque venga envuelto en ``` o con texto alrededor, se empareja por id y, si el id no casa, por orden; y una foto de la que no volvió nada queda «sin leer», ni cardiológica ni omitida", UnResultadoPorFoto);
+        Prueba("351. de una foto no cardiológica solo se conserva el motivo: aunque el modelo devuelva tipo, hallazgos o valores, se descartan en código y no llegan ni al resumen ni a las preguntas", LoNoCardiologicoSeDescartaEnCodigo);
+        Prueba("352. las fotos viajan al modelo en lotes de 3, cada imagen precedida de «Imagen n — id: X» y con store:false; el resumen y las preguntas no llevan ninguna imagen, y una pregunta lleva solo las extracciones cardiológicas, el resumen, las últimas 10 vueltas y la pregunta", LasFotosViajanEnLotesYLasPreguntasSinFotos);
+        Prueba("353. una foto se prepara a lado mayor 1600 px sin agrandar nunca, en JPEG sobre fondo blanco; y una que no se puede leer se nombra («No se pudo leer X. Expórtala como JPG») sin tumbar a las demás", UnaFotoSePreparaYUnaIlegibleSeNombra);
+        Prueba("354. la sesión caduca 24 h después de la PRIMERA foto, no de la última: al cargarla caducada se borra entera —fotos, lecturas, resumen y chat— y no queda nada en disco; y lo guardado no se lee como texto claro", LaSesionCaducaDesdeLaPrimeraFoto);
+        Prueba("355. el resumen se pinta sin ejecutar marcado: títulos, viñetas y negritas se reconocen y todo lo demás es texto literal", ElResumenSePintaSinEjecutarMarcado);
+        Prueba("356. el botón dice lo que va a hacer —«Generar resumen (N)», «Actualizar resumen» cuando las fotos cambiaron— y el progreso cuenta sobre el plan: «Leyendo fotos 4–6 de 12…»", ElBotonYElProgresoDicenLaVerdad);
+        Prueba("357. si el modelo falla a mitad, lo leído se conserva, el error se dice, y reintentar lee SOLO lo que faltó", SiElModeloFallaLoLeidoSeConserva);
+
+        // ── Spec 051: «¿por qué vino a cardiología?», al soltar la historia en la Nota ────────
+        // El motivo casi nunca está en un estudio cardiológico —está en la remisión, en urgencias, en la
+        // interconsulta—, así que aquí se lee TODA la historia; la 351 sigue intacta para su panel.
+        // 420-439 reservadas el 2026-09-24 con la sesión del collar, que usa 410-419.
+        Prueba("420. lo soltado se reparte por su tipo: una foto (jpg, jpeg, png, bmp, gif, tif, tiff, webp, heic, heif) se lee como imagen, un PDF como archivo, y cualquier otra cosa se nombra como no admitida —con su nombre y qué hacer— sin tumbar a las demás; la extensión se mira sin distinguir mayúsculas", LoSoltadoSeRepartePorSuTipo);
+        Prueba("421. leer la historia la TRANSCRIBE literal, por páginas y párrafos: cada documento viaja precedido de «Documento n — id: Dn», la foto como imagen con detalle alto y el PDF como archivo con su nombre, todo con store:false; las fotos van de 3 en 3 y cada PDF solo; lo que vuelve se convierte en párrafos con id estable «Dn-pP-k»; y un documento del que no volvió nada queda sin leer, diciendo por qué", LaHistoriaSeTranscribeLiteral);
+        Prueba("422. «¿por qué vino a cardiología?» se pregunta con los párrafos de TODA la historia —de cardiología o no— y sin ninguna imagen ni archivo; la respuesta es UNA frase de como mucho 220 caracteres, y los párrafos que la sostienen se copian en código de la transcripción por su id: un id que no existe se descarta, y sin ninguna cita válida el titular es «Los documentos no dicen por qué vino a cardiología», aunque el modelo haya escrito una frase", ElMotivoSeCitaCopiandoDelDocumento);
+        Prueba("423. soltar más documentos no vuelve a leer los ya leídos y rehace el motivo con todos; si la lectura falla a mitad, lo leído se conserva, el error nombra el documento que faltó, y reintentar lee solo lo que faltó", SoltarMasNoVuelveALeerLoLeido);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -818,6 +875,162 @@ internal static class Contrato
     }
 
     // ── Las promesas ─────────────────────────────────────────────────────────
+
+    private static void MemoriaPersonalDeVozSobreviveALaSesion()
+    {
+        string archivo = Path.Combine(_raiz, "memoria-personal.json");
+        var primeraSesion = new MemoriaPersonal("contrato-memoria", archivo);
+        var guardado = primeraSesion.EjecutarAsync("recuerda que soy desarrollador de 24 años", CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        var segundaSesion = new MemoriaPersonal("contrato-memoria", archivo);
+        string contexto = segundaSesion.ContextoAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+        Debe(guardado.Ok, "guardar un dato personal confirma éxito sin red");
+        Debe(contexto.Contains("desarrollador de 24 años", StringComparison.OrdinalIgnoreCase),
+            "una sesión nueva recupera el dato personal desde el archivo persistente");
+    }
+
+    private static void HiloConversacionalSobreviveALaSesion()
+    {
+        string archivo = Path.Combine(_raiz, "conversacion.json");
+        var primeraSesion = new ConversacionPersonal("contrato-conversacion", archivo);
+        primeraSesion.Agregar("usuario", "Estamos diseñando la memoria de Ü.");
+        primeraSesion.Agregar("asistente", "Voy a conservar este hilo cuando cierres la voz.");
+
+        var segundaSesion = new ConversacionPersonal("contrato-conversacion", archivo);
+        string contexto = segundaSesion.Contexto();
+
+        Debe(contexto.Contains("diseñando la memoria", StringComparison.OrdinalIgnoreCase),
+            "la nueva sesión recupera lo dicho por el usuario");
+        Debe(contexto.Contains("conservar este hilo", StringComparison.OrdinalIgnoreCase),
+            "la nueva sesión recupera la respuesta del asistente");
+    }
+
+    private static void RecordatorioLocalSeVuelvePendiente()
+    {
+        string archivo = Path.Combine(_raiz, "memoria-recordatorio.json");
+        var memoria = new MemoriaPersonal("contrato-recordatorio", archivo);
+        var guardado = memoria.EjecutarAsync("recuérdame en 2 minutos preparar la demo", CancellationToken.None)
+            .GetAwaiter().GetResult();
+
+        Debe(guardado.Ok && guardado.ReminderDueAt.HasValue,
+            "un compromiso temporal confirma una hora local calculada");
+        var pendientes = memoria.Pendientes(guardado.ReminderDueAt!.Value.AddSeconds(1));
+        Debe(pendientes.Count == 1 && pendientes[0].Text.Contains("preparar la demo", StringComparison.OrdinalIgnoreCase),
+            "el recordatorio aparece pendiente aunque no haya voz abierta");
+    }
+
+    private static void RelojLocalEntregaRecordatorio()
+    {
+        string archivo = Path.Combine(_raiz, "memoria-reloj.json");
+        var memoria = new MemoriaPersonal("contrato-reloj", archivo);
+        memoria.EjecutarAsync("recuérdame en 0 minutos revisar la demo", CancellationToken.None)
+            .GetAwaiter().GetResult();
+        using var recibido = new ManualResetEventSlim();
+        string mensaje = "";
+        using var reloj = new RecordatoriosEnVivo(memoria, texto => { mensaje = texto; recibido.Set(); });
+
+        Debe(recibido.Wait(TimeSpan.FromSeconds(3)), "el reloj entrega el recordatorio sin sesión de voz");
+        Debe(mensaje.Contains("revisar la demo", StringComparison.OrdinalIgnoreCase),
+            "la entrega conserva el compromiso completo");
+        Debe(memoria.Pendientes(DateTimeOffset.Now).Count == 0, "un recordatorio entregado no vuelve a sonar");
+    }
+
+    private static void NumeroEscritoCreaRecordatorio()
+    {
+        string archivo = Path.Combine(_raiz, "memoria-dos-minutos.json");
+        var memoria = new MemoriaPersonal("contrato-dos", archivo);
+        var guardado = memoria.EjecutarAsync("recuérdame en dos minutos revisar la demo", CancellationToken.None)
+            .GetAwaiter().GetResult();
+        Debe(guardado.Ok && guardado.ReminderDueAt.HasValue,
+            "«en dos minutos» se entiende aunque el usuario lo diga con palabras");
+    }
+
+    private static void LaSalidaHabladaUsaSoloVozViva()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string archivo = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(archivo))
+        {
+            Console.WriteLine("   ⚠ NO PUDE JUZGARLA: falta U_REPO para leer FaceWindow.xaml.cs");
+            return;
+        }
+        string fuente = File.ReadAllText(archivo);
+        Debe(!fuente.Contains("_voice.Speak(", StringComparison.Ordinal),
+            "la interfaz no usa System.Speech para responder ni para recordatorios");
+    }
+
+    private static void LosAvisosCompartenUnaSesionViva()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string archivo = Path.Combine(repo, "windows-client", "src", "Voice", "ConversacionEnVivo.cs");
+        if (!File.Exists(archivo))
+        {
+            Console.WriteLine("   ⚠ NO PUDE JUZGARLA: falta U_REPO para leer ConversacionEnVivo.cs");
+            return;
+        }
+        string fuente = File.ReadAllText(archivo);
+        Debe(fuente.Contains("private readonly SemaphoreSlim _apertura", StringComparison.Ordinal)
+              && fuente.Contains("await _apertura.WaitAsync", StringComparison.Ordinal)
+              && fuente.Contains("_apertura.Release()", StringComparison.Ordinal),
+            "la apertura de la voz viva está serializada para avisos simultáneos");
+    }
+
+    private static void PeticionPersonalExplícitaSeGuarda()
+    {
+        string archivo = Path.Combine(_raiz, "memoria-peticion-explicita.json");
+        var memoria = new MemoriaPersonal("contrato-peticion", archivo);
+        var guardado = memoria.EjecutarAsync(
+            "Quiero que recuerdes que tengo dos empresas y un equipo de desarrolladores",
+            CancellationToken.None).GetAwaiter().GetResult();
+        string contexto = memoria.ContextoAsync(CancellationToken.None).GetAwaiter().GetResult();
+        Debe(guardado.Ok && contexto.Contains("tengo dos empresas", StringComparison.OrdinalIgnoreCase),
+            "la frase cotidiana queda persistida aunque el modelo haya omitido memory_remember");
+    }
+
+    private static void CadaInstanciaTieneSuLog()
+    {
+        string instancia = U.WindowsClient.Diagnostics.LogBus.InstanceId;
+        string archivo = U.WindowsClient.Diagnostics.LogBus.TodayFile();
+        Debe(instancia.Contains($"p{Environment.ProcessId}", StringComparison.Ordinal)
+              && Path.GetFileName(archivo).Contains(instancia, StringComparison.Ordinal),
+            "el nombre del log contiene el origen, el PID y la hora de arranque de esta instancia");
+    }
+
+    private static void DetalleCotidianoPuedeGuardarse()
+    {
+        string archivo = Path.Combine(_raiz, "memoria-detalle-cotidiano.json");
+        var memoria = new MemoriaPersonal("contrato-detalle", archivo);
+        var guardado = memoria.EjecutarAsync("Me encantan los relojes Cartier y prefiero el Santos",
+            CancellationToken.None).GetAwaiter().GetResult();
+        string contexto = memoria.ContextoAsync(CancellationToken.None).GetAwaiter().GetResult();
+        Debe(guardado.Ok && contexto.Contains("Cartier", StringComparison.OrdinalIgnoreCase)
+              && contexto.Contains("Santos", StringComparison.OrdinalIgnoreCase),
+            "una preferencia cotidiana queda disponible como recuerdo personal");
+    }
+
+    private static void HistorialInicialDeGptLiveEsPasivo()
+    {
+        var protocolo = new Voz.Realtime.ProtocoloGptLive();
+        var historial = new (string Role, string Text)[]
+        {
+            ("usuario", "Estamos hablando del edificio de veintisiete pisos."),
+            ("asistente", "Sí, ese es tu sueño.")
+        };
+        string json = protocolo.Apertura("reglas", Array.Empty<Voz.Realtime.Utensilio>(), "", historial, false).Single();
+        using var documento = System.Text.Json.JsonDocument.Parse(json);
+        var input = documento.RootElement.GetProperty("session").GetProperty("input");
+        Debe(input.GetArrayLength() == 2, "la sesión arranca con los dos turnos previos");
+        Debe(input[0].GetProperty("role").GetString() == "user"
+            && input[1].GetProperty("role").GetString() == "assistant",
+            "el historial conserva los roles usuario y asistente");
+        Debe(input[0].GetProperty("content")[0].GetProperty("type").GetString() == "input_text"
+            && input[1].GetProperty("content")[0].GetProperty("type").GetString() == "output_text",
+            "el historial usa texto de entrada para el usuario y salida para el asistente");
+        Debe(!json.Contains("response.create", StringComparison.Ordinal),
+            "cargar el historial no pide una respuesta automática");
+    }
 
     private static void CadaMundoSeObservaPorSuPuerta()
     {
@@ -9904,6 +10117,68 @@ internal static class Contrato
             "y se puede olvidar a mano: cuando una acción acaba de cambiar la pantalla, lo recordado ya no vale");
     }
 
+    private static void SinBluetoothElCollarLoDiceYEspera()
+    {
+        // EL LOG DE LA USUARIA (2026-09-23, SALA-DE-JUNTAS): «no se pudo abrir el collar · COMException
+        // (0x800710DF): sin mensaje», cada 6 s, doce veces. 0x800710DF es ERROR_DEVICE_NOT_AVAILABLE: la
+        // radio no está. Reintentar no la enciende, y «no se encontró el collar» no le dice qué hacer.
+        var t = Cap004("U.WindowsClient.Voice.ElBluetooth");
+        var delFallo = t?.GetMethod("DelFallo");
+        var queHacer = t?.GetMethod("QueHacer");
+        var queDecir = t?.GetMethod("QueDecir");
+        var seDice = t?.GetMethod("SeDice");
+        Debe(t != null && delFallo != null && queHacer != null && queDecir != null && seDice != null,
+            "todavía no existe «Voice.ElBluetooth» con DelFallo, QueHacer, QueDecir y SeDice (spec 050, promesa 411). "
+            + "La promesa está escrita y en rojo, que es donde tiene que estar");
+        if (t == null || delFallo == null || queHacer == null || queDecir == null || seDice == null) return;
+        var tRadio = t.GetNestedType("Radio")!;
+        object Radio(string n) => Enum.Parse(tRadio, n);
+        string? Fallo(int hr) => delFallo.Invoke(null, new object[] { hr })?.ToString();
+        string Hacer(string radio) => queHacer.Invoke(null, new[] { Radio(radio) })!.ToString()!;
+        string Decir(string radio) => (string)queDecir.Invoke(null, new[] { Radio(radio) })!;
+        bool Se(string? antes, string ahora) => (bool)seDice.Invoke(null, new object?[] { antes, ahora })!;
+
+        Debe(Fallo(unchecked((int)0x800710DF)) == "Apagada",
+            "0x800710DF es lo que contesta Windows con la radio apagada: se lee como radio apagada, no como «no hay collar»");
+        Debe(Fallo(unchecked((int)0x80004005)) == null,
+            "un fallo cualquiera NO concluye nada sobre la radio: decir «apagada» por un error genérico es inventar la causa");
+
+        Debe(Hacer("Apagada") == "EsperarAQueSeEncienda",
+            "con la radio apagada NO se reintenta cada 6 s: se espera a que la persona la encienda");
+        Debe(Hacer("SinAdaptador") == "NoReintentar", "sin adaptador no hay nada que esperar");
+        Debe(Hacer("Encendida") == "Reintentar", "con la radio encendida, lo de siempre: el collar puede aparecer en cualquier momento");
+
+        string apagada = Decir("Apagada"), sinAdaptador = Decir("SinAdaptador");
+        Debe(apagada.Contains("Bluetooth") && apagada.Contains("enc", StringComparison.OrdinalIgnoreCase),
+            $"el estado con la radio apagada dice qué hacer —encender el Bluetooth—: «{apagada}»");
+        Debe(sinAdaptador.Contains("Bluetooth") && sinAdaptador != apagada,
+            $"y sin adaptador dice OTRA cosa: son dos causas y se arreglan distinto («{sinAdaptador}»)");
+
+        Debe(Se(null, apagada) && !Se(apagada, apagada) && Se(apagada, sinAdaptador),
+            "el mismo estado repetido no vuelve al log: doce líneas iguales en 42 s no dicen más que una");
+    }
+
+    private static void ElMenuDicePorQueNoConectaElCollar()
+    {
+        // 2026-09-24, el dueño con su propia Ü: «hago clic en el collar Omi y no veo los dispositivos». El
+        // Bluetooth estaba apagado, el collar fallaba cada 6 s, y el menú no decía nada: la tarjeta de
+        // «Dispositivos enlazados» solo aparece tras una primera conexión, y el estado vivía allí dentro.
+        var linea = Cap004("U.WindowsClient.Voice.ElBluetooth")?.GetMethod("LineaDelMenu");
+        Debe(linea != null, "todavía no existe «ElBluetooth.LineaDelMenu» (spec 050, promesa 412). "
+            + "La promesa está escrita y en rojo, que es donde tiene que estar");
+        if (linea == null) return;
+        string? L(bool elegido, bool conectado, bool enlazado, string estado)
+            => (string?)linea.Invoke(null, new object[] { elegido, conectado, enlazado, estado });
+
+        const string apagado = "el Bluetooth de este equipo está apagado: enciéndelo y el collar se conecta solo";
+        Debe(L(true, false, false, apagado) == apagado,
+            "elegido, sin conectar y sin collar enlazado: el menú dice POR QUÉ, que es lo que faltaba");
+        Debe(L(true, true, false, "enlazado") == null, "conectado no hay nada que explicar");
+        Debe(L(false, false, false, apagado) == null, "si el collar no es lo elegido, su estado es ruido en un menú de tres");
+        Debe(L(true, false, true, apagado) == null, "con la tarjeta de enlazado a la vista, el estado ya sale en ella: no se repite");
+        Debe(L(true, false, false, "") == null && L(true, false, false, "   ") == null, "un estado vacío no es una línea");
+    }
+
     private static void TrasEscribirHayTresRespuestas()
     {
         var t = Grafico("U.Graph.Surfaces.ComoSeEscribe");
@@ -9937,6 +10212,62 @@ internal static class Contrato
 
         Debe(Escrito("Cuajo") && Escrito("MudoNoSeSabe") && !Escrito("NoCuajo"),
             "solo el «no cuajó» se cuenta como fallo: reescribir un informe entero es peor daño que no poder confirmarlo");
+    }
+
+    private static void EscribirNuncaDejaElTextoDosVeces()
+    {
+        // EL CASO DEL LOG, LITERAL (2026-09-23, u-20260923-windows-app-p2684). SetValue dejó el texto sin
+        // saltos en un campo de una línea; la comparación colapsaba los espacios en vez de quitarlos, así
+        // que «David: La» no casó con «David:La», se dio por no escrito, y el respaldo lo tecleó DETRÁS.
+        var t = Grafico("U.Graph.Surfaces.ComoSeEscribe");
+        var tras = t?.GetMethod("TrasEscribir");
+        var seDa = t?.GetMethod("SeDaPorEscrito");
+        var antesDeTeclear = t?.GetMethod("AntesDeTeclear");
+        Debe(tras != null && seDa != null && antesDeTeclear != null,
+            "todavía no existe «ComoSeEscribe.AntesDeTeclear» (spec 049, promesa 410). "
+            + "La promesa está escrita y en rojo, que es donde tiene que estar");
+        if (tras == null || seDa == null || antesDeTeclear == null) return;
+        string V(string pedido, string? antes, string? despues)
+            => tras.Invoke(null, new object?[] { pedido, antes, despues })!.ToString()!;
+        string A(string pedido, string? loQueHay)
+            => antesDeTeclear.Invoke(null, new object?[] { pedido, loQueHay })!.ToString()!;
+        bool Escrito(string veredicto)
+        {
+            if (!Enum.GetNames(tras.ReturnType).Contains(veredicto)) return true;   // sin ese veredicto, lo daría por escrito
+            return (bool)seDa.Invoke(null, new[] { Enum.Parse(tras.ReturnType, veredicto) })!;
+        }
+
+        const string cuerpo = "Hola, José David:\n\nLa reunión quedó configurada el viernes a las dos de la tarde.\n\nSaludos.";
+        const string sinSaltos = "Hola, José David:La reunión quedó configurada el viernes a las dos de la tarde.Saludos.";
+
+        // 1. El campo que se come los saltos SÍ tiene el texto.
+        Debe(V(cuerpo, "", sinSaltos) == "Cuajo",
+            "un campo de una línea BORRA los saltos, no los cambia por espacios: «David:La» es el texto, y leerlo como "
+            + "«no cuajó» es lo que mandó a teclearlo otra vez");
+
+        // 2. El respaldo por teclado nunca añade encima.
+        Debe(A(cuerpo, sinSaltos) == "YaLoTiene", "si el campo ya tiene el texto, no se teclea: teclear ahí es escribirlo dos veces");
+        Debe(A("hola", " hola\n") == "YaLoTiene", "con los espacios y el salto que añade el editor, también lo tiene");
+        Debe(A("hola mundo", "hola") == "Reemplazando",
+            "si el campo se lee y tiene OTRA cosa —un resto a medias, lo de antes—, se reemplaza: SetValue reemplaza, y su respaldo también");
+        Debe(A("hola", "adiós") == "Reemplazando", "lo que había antes no se conserva delante de lo pedido");
+        Debe(A("hola", "holahola") == "Reemplazando", "un campo que ya lo tiene REPETIDO no «lo tiene»: se deja con una sola vez");
+        Debe(A("hola", "") == "Encima" && A("hola", "\n") == "Encima",
+            "un campo vacío —o el salto de línea que es el vacío de un editor web— se teclea sin más");
+        Debe(A("hola", null) == "Encima",
+            "UN CAMPO MUDO NO SE REEMPLAZA: no se ve qué tiene, y Ctrl+A en Google Docs selecciona el documento entero");
+
+        // 3. El juez ve el doble, y el doble no es escrito.
+        Debe(V(cuerpo, "", sinSaltos + sinSaltos) == "Doble",
+            "el campo del log —el texto dos veces seguidas— no es «cuajó»: contenerlo no es tenerlo UNA vez");
+        Debe(V("hola", "hola", "hola hola") == "Doble", "escribir «hola» sobre «hola» y acabar con dos es un doble");
+        Debe(V("hola", "holahola", "holahola") == "Cuajo", "si ya estaba repetido antes, no lo repitió esta escritura");
+        Debe(V("a", "", "casa blanca") != "Doble", "una letra que aparece varias veces no es un doble: el doble va seguido");
+        Debe(!Escrito("Doble"), "un doble no se da por escrito: decir «escribí» sobre un campo repetido es lo que dejó el correo así");
+
+        // Lo que ya prometía la 247 sigue en pie.
+        Debe(V("hola", "", "adiós") == "NoCuajo" && V("hola", null, null) == "MudoNoSeSabe",
+            "y lo de la 247 sigue igual: otra cosa no cuajó, lo ilegible no se sabe");
     }
 
     private static void ElClicQueNoMovioNadaSeRepiteUnaVez()
@@ -9978,8 +10309,6 @@ internal static class Contrato
         // una línea nueva la estiraba. Con diez líneas llegaba a 252 de alto. «Que el tamaño no cambie y no
         // tenga un tamaño muy grande en un momento y pequeño en otro» (el dueño, 2026-09-16).
         //
-        // Se escribió con tres líneas (spec 027) y se ajustó a dos líneas y un icono (spec 028) cuando el
-        // dueño cambió el diseño: lo que se promete —que el tamaño no dependa del contenido— es lo mismo.
         var t = Capacidad("U.WindowsClient.Ui.MedidaDelNotch");
         var alto = t?.GetMethod("AltoDe");
         Debe(t != null && alto != null,
@@ -10033,12 +10362,8 @@ internal static class Contrato
             $"una pieza más ancha que el hueco se queda pegada al borde y no se sale ({apretado})");
     }
 
-    private static void ElNotchDiceLaTareaYLoQuePasa()
+    private static void ElNotchDiceUnSoloTexto()
     {
-        // «Si le pedí crear un anuncio, que ahí esté crear un anuncio hasta que se complete o hasta que
-        // cambie la tarea. Y donde dice paso en ejecución, lo que el modelo va haciendo, y mi texto cuando
-        // yo hable» (el dueño, 2026-09-16). La tarea es, literalmente, lo que se pidió: no hay que
-        // preguntárselo al modelo, basta con quedarse con lo último que dijo la persona.
         var t = Capacidad("U.WindowsClient.Ui.LoQueDiceElNotch");
         Debe(t != null, "todavía no existe «Ui.LoQueDiceElNotch» (spec 028, promesa 252). "
             + "La promesa está escrita y en rojo, que es donde tiene que estar");
@@ -10047,37 +10372,45 @@ internal static class Contrato
         string Tarea() => (string)t.GetProperty("Tarea")!.GetValue(d)!;
         string Paso() => (string)t.GetProperty("Paso")!.GetValue(d)!;
         string Estado() => t.GetProperty("Estado")!.GetValue(d)!.ToString()!;
+        string Texto() => (string)t.GetProperty("Texto")!.GetValue(d)!;
         void PersonaDice(string x) => t.GetMethod("PersonaDice")!.Invoke(d, new object[] { x });
         void CierraTurno() => t.GetMethod("CierraTurno")!.Invoke(d, null);
         void UDice(string x) => t.GetMethod("UDice")!.Invoke(d, new object[] { x });
         void Empieza(string x) => t.GetMethod("Empieza")!.Invoke(d, new object[] { x });
         void Termina(string x, bool ok) => t.GetMethod("Termina")!.Invoke(d, new object[] { x, ok });
 
-        Debe(Tarea().Length > 0 && Paso().Length == 0,
-            "recién abierto hay un título y no hay paso: la pieza no nace vacía ni a medias");
+        Debe(Tarea().Length > 0 && Paso().Length == 0 && Texto() == Tarea(),
+            "recién abierto el único texto visible es la tarea por defecto: la pieza no nace vacía ni a medias");
 
         PersonaDice("créame un anuncio para Instagram");
         Debe(Paso() == "créame un anuncio para Instagram",
-            "mientras la persona habla, su frase va ABAJO y en vivo: es lo que está pasando ahora");
+            "mientras la persona habla, su frase es el texto vivo: es lo que está pasando ahora");
         Debe(Tarea() != "créame un anuncio para Instagram",
             "y todavía no es la tarea: lo será cuando termine de decirla");
+        Debe(Texto() == "créame un anuncio para Instagram",
+            "pero el notch enseña UNA sola frase, la actividad viva, con el peso visual principal");
 
         CierraTurno();
         Debe(Tarea() == "créame un anuncio para Instagram",
             "al cerrar el turno, lo dicho SUBE a ser la tarea. La tarea es literalmente lo que se pidió");
+        Debe(Texto() == "créame un anuncio para Instagram",
+            "cuando ya no hay actividad, la única frase visible pasa a ser la tarea");
 
         Empieza("abriendo Chrome");
-        Debe(Paso() == "abriendo Chrome" && Estado() == "EnCurso", "lo que Ü hace va abajo, y el icono dice que está en ello");
+        Debe(Paso() == "abriendo Chrome" && Estado() == "EnCurso", "lo que Ü hace es el texto vivo, y el icono dice que está en ello");
         Debe(Tarea() == "créame un anuncio para Instagram", "y la tarea NO se mueve: se queda hasta que se pida otra");
+        Debe(Texto() == "abriendo Chrome", "durante una acción solo se muestra lo que está pasando ahora");
 
         Termina("abrí Chrome", ok: true);
-        Debe(Paso() == "abrí Chrome" && Estado() == "Hecho", "el desenlace también va abajo");
+        Debe(Paso() == "abrí Chrome" && Estado() == "Hecho", "el desenlace también reemplaza la frase viva");
+        Debe(Texto() == "abrí Chrome", "el desenlace sigue siendo una única frase, no una segunda línea");
         Termina("no pude pulsar «Publicar»", ok: false);
         Debe(Estado() == "Fallo", "y si salió mal, el icono lo dice");
 
         UDice("ya está publicado");
         Debe(Paso() == "ya está publicado" && Estado() == "Voz", "lo que dice Ü también es lo que pasa ahora");
         Debe(Tarea() == "créame un anuncio para Instagram", "y sigue sin mover la tarea");
+        Debe(Texto() == "ya está publicado", "la voz de Ü sustituye la frase visible sin duplicarla");
 
         PersonaDice("ahora mándalo por correo"); CierraTurno();
         Debe(Tarea() == "ahora mándalo por correo", "otra petición, otra tarea: eso es «hasta que cambie la tarea»");
@@ -10085,6 +10418,28 @@ internal static class Contrato
         string antes = Tarea();
         PersonaDice("   "); CierraTurno();
         Debe(Tarea() == antes, "una frase en blanco no cambia la tarea: la transcripción a veces entrega vacío");
+    }
+
+    private static void ElUltimoQueHabloSigueVisible()
+    {
+        var t = Capacidad("U.WindowsClient.Ui.LoQueDiceElNotch");
+        Debe(t != null, "el estado del texto del notch tiene que existir para conservar la última voz");
+        if (t == null) return;
+        var d = Activator.CreateInstance(t)!;
+        string Tarea() => (string)t.GetProperty("Tarea")!.GetValue(d)!;
+        string Texto() => (string)t.GetProperty("Texto")!.GetValue(d)!;
+        void PersonaDice(string x) => t.GetMethod("PersonaDice")!.Invoke(d, new object[] { x });
+        void UDice(string x) => t.GetMethod("UDice")!.Invoke(d, new object[] { x });
+        void CierraTurno() => t.GetMethod("CierraTurno")!.Invoke(d, null);
+
+        PersonaDice("prepara el informe");
+        UDice("ya estoy trabajando en eso");
+        CierraTurno();
+
+        Debe(Tarea() == "prepara el informe",
+            "cerrar el turno guarda la petición aunque la respuesta de U ya haya llegado");
+        Debe(Texto() == "ya estoy trabajando en eso",
+            "el cierre administrativo no puede pisar la última frase real que llegó al notch");
     }
 
     private static void ElNotchDiceQueLoPararon()
@@ -10142,6 +10497,219 @@ internal static class Contrato
             "en el borde de arriba pero lejos del centro —la esquina—: fuera de la franja");
         Debe(!Asoma(libre, pieza, new System.Windows.Point(768, 400)),
             "a media pantalla, aunque esté centrado: fuera de la franja, o cualquier paso del cursor la dispararía");
+    }
+
+    private static void LaZonaDelNotchMantieneLaIntencion()
+    {
+        var t = Capacidad("U.WindowsClient.Ui.ReglaDeLaBandeja");
+        var mantiene = t?.GetMethod("MantieneLaIntencion");
+        var activa = t?.GetMethod("ActivaEscritura");
+        Debe(t != null && mantiene != null && activa != null,
+            "la regla de interacción del notch tiene que existir fuera de WPF: el borde y la pieza deben compartir una zona de intención comprobable");
+        if (mantiene == null || activa == null) return;
+
+        var libre = new System.Windows.Rect(0, 0, 1536, 816);
+        var pieza = new System.Windows.Size(340, 62);
+        bool Mantiene(System.Windows.Point p) => (bool)mantiene.Invoke(null, new object[] { libre, pieza, p, true })!;
+        bool Activa(System.Windows.Point p) => (bool)activa.Invoke(null, new object[] { libre, pieza, p })!;
+
+        Debe(Mantiene(new System.Windows.Point(768, 0)),
+            "la franja superior mantiene la intención mientras el notch empieza a asomar");
+        Debe(Mantiene(new System.Windows.Point(768, 35)),
+            "la caja visible mantiene la intención al cruzar desde el borde hasta el centro de la pieza");
+        Debe(Activa(new System.Windows.Point(768, 35)),
+            "entrar en la caja visible activa el camino de escritura, no el micrófono");
+        Debe(!Mantiene(new System.Windows.Point(10, 35)),
+            "fuera de la franja y de la pieza la intención termina, sin dejar una ventana pegada para siempre");
+        Debe(!Activa(new System.Windows.Point(768, 0)),
+            "rozar el borde solo asoma la pieza: escribir se activa al entrar en ella, no al pasar de largo");
+    }
+
+    private static void ElNotchSeRetiraAlApagarLaVoz()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string fuente = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        string fuenteVoz = Path.Combine(repo, "windows-client", "src", "Voice", "ConversacionEnVivo.cs");
+        if (!File.Exists(fuente) || !File.Exists(fuenteVoz))
+        {
+            _fallos++;
+            Console.WriteLine("   ⚠ NO PUDE JUZGARLA: faltan las fuentes del cambio de voz para comprobar el apagado inmediato del notch.");
+            return;
+        }
+
+        string codigo = File.ReadAllText(fuente);
+        Debe(codigo.Contains("if (!viva) _acciones?.Limpiar();", StringComparison.Ordinal),
+            "cuando Cambio informa Viva=false, el notch se limpia en ese mismo cambio y no espera la caducidad");
+
+        string codigoVoz = File.ReadAllText(fuenteVoz);
+        int vozApagada = codigoVoz.IndexOf("Viva = false;", StringComparison.Ordinal);
+        int avisaApagada = vozApagada >= 0
+            ? codigoVoz.IndexOf("Cambio?.Invoke(false);", vozApagada, StringComparison.Ordinal)
+            : -1;
+        int cierraSocket = vozApagada >= 0
+            ? codigoVoz.IndexOf("CloseAsync", vozApagada, StringComparison.Ordinal)
+            : -1;
+        Debe(vozApagada >= 0 && avisaApagada > vozApagada && cierraSocket > avisaApagada,
+            "el evento que retira el notch ocurre después de apagar Viva y antes de esperar el cierre del socket");
+    }
+
+    private static void ElBotonDelNotchAbreSuChat()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string panel = Path.Combine(repo, "windows-client", "src", "Ui", "PanelDeAcciones.cs");
+        string face = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        Debe(File.Exists(panel) && File.Exists(face), "el notch y su puente de entrada tienen que existir");
+        if (!File.Exists(panel) || !File.Exists(face)) return;
+
+        string codigoPanel = File.ReadAllText(panel);
+        string codigoFace = File.ReadAllText(face);
+        Debe(codigoPanel.Contains("AbrirChat", StringComparison.Ordinal)
+             && codigoPanel.Contains("TextoEnviado", StringComparison.Ordinal)
+             && codigoPanel.Contains("IsHitTestVisible = true", StringComparison.Ordinal),
+            "el botón vive dentro del notch, abre su vista de chat y deja enviar texto desde allí");
+        Debe(codigoFace.Contains("TextoEnviado +=", StringComparison.Ordinal)
+             && !codigoFace.Contains("ShowTalk(MotivoDelGlobo.LoPidioAlguien", StringComparison.Ordinal),
+            "la entrada del notch se conecta al flujo de voz sin volver a abrir el chat antiguo");
+    }
+
+    private static void ElChatViejoDesaparece()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string xaml = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml");
+        string codigo = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        Debe(File.Exists(xaml) && File.Exists(codigo), "la ventana de la carita debe poder comprobarse");
+        if (!File.Exists(xaml) || !File.Exists(codigo)) return;
+
+        string vista = File.ReadAllText(xaml);
+        string logica = File.ReadAllText(codigo);
+        Debe(!vista.Contains("TalkPanel", StringComparison.Ordinal)
+             && !vista.Contains("TalkCloseBtn", StringComparison.Ordinal)
+             && !vista.Contains("x:Name=\"Input\"", StringComparison.Ordinal),
+            "la ventana vieja ya no pinta una segunda conversación");
+        Debe(!logica.Contains("private bool _talkOpen", StringComparison.Ordinal)
+             && !logica.Contains("private void ShowTalk", StringComparison.Ordinal)
+             && !logica.Contains("private void HideTalk", StringComparison.Ordinal),
+            "la lógica vieja de abrir y cerrar el chat no queda escondida detrás de otro nombre");
+    }
+
+    private static void ElChatNoUsaSintetizador()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string fuente = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        Debe(File.Exists(fuente), "la carita tiene que poder comprobarse");
+        if (!File.Exists(fuente)) return;
+        string codigo = File.ReadAllText(fuente);
+        Debe(!codigo.Contains("_voice.Speak(", StringComparison.Ordinal),
+            "la respuesta visible no puede volver a salir por el sintetizador de Windows");
+    }
+
+    private static void ElChatEsTextoSinVoz()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string fuente = Path.Combine(repo, "windows-client", "src", "Voice", "ConversacionEnVivo.cs");
+        Debe(File.Exists(fuente), "la conversación en vivo tiene que poder comprobarse");
+        if (!File.Exists(fuente)) return;
+        string codigo = File.ReadAllText(fuente);
+        Debe(codigo.Contains("ArrancarSoloTextoAsync", StringComparison.Ordinal)
+             && codigo.Contains("_respuestaDeTexto", StringComparison.Ordinal)
+             && codigo.Contains("if (_respuestaDeTexto) break;", StringComparison.Ordinal),
+            "el chat escrito conserva el contexto sin abrir micrófono y descarta el audio de la respuesta");
+    }
+
+    private static void ElHistorialDelNotchLimpiaElLenguaje()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string fuente = Path.Combine(repo, "windows-client", "src", "Ui", "PanelDeAcciones.cs");
+        Debe(File.Exists(fuente), "el panel del notch tiene que poder comprobarse");
+        if (!File.Exists(fuente)) return;
+        string codigo = File.ReadAllText(fuente);
+        Debe(codigo.Contains("TextoSinEmojis", StringComparison.Ordinal)
+             && codigo.Contains("HorizontalAlignment = esDeU ? HorizontalAlignment.Left : HorizontalAlignment.Right", StringComparison.Ordinal),
+            "el historial limpia emojis y separa visualmente las dos voces por alineación");
+    }
+
+    private static void ElEstadoInternoNoSaleAlNotch()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string fuente = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        Debe(File.Exists(fuente), "la carita tiene que poder comprobarse");
+        if (!File.Exists(fuente)) return;
+        string codigo = File.ReadAllText(fuente);
+        Debe(!codigo.Contains("SetStatus(\"Jev \"", StringComparison.Ordinal),
+            "el estado de implementación de Jev no se muestra como texto al usuario");
+    }
+
+    private static void LaFraseDelNotchSeCentra()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string fuente = Path.Combine(repo, "windows-client", "src", "Ui", "PanelDeAcciones.cs");
+        Debe(File.Exists(fuente), "el panel del notch tiene que poder comprobarse");
+        if (!File.Exists(fuente)) return;
+        string codigo = File.ReadAllText(fuente);
+        Debe(codigo.Contains("HorizontalAlignment = HorizontalAlignment.Center", StringComparison.Ordinal)
+             && codigo.Contains("_texto.HorizontalAlignment = _excesoDeTexto > 1 ? HorizontalAlignment.Left : HorizontalAlignment.Center", StringComparison.Ordinal),
+            "el texto corto queda centrado y el largo solo se alinea a la izquierda al desplazarse");
+    }
+
+    private static void ElChatAbiertoMantieneSuSuperficie()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string fuente = Path.Combine(repo, "windows-client", "src", "Ui", "PanelDeAcciones.cs");
+        Debe(File.Exists(fuente), "el panel del notch tiene que poder comprobarse");
+        if (!File.Exists(fuente)) return;
+        string codigo = File.ReadAllText(fuente);
+        Debe(codigo.Contains("if (ChatAbierto)", StringComparison.Ordinal)
+             && codigo.Contains("_dentroDeLaZona = true;", StringComparison.Ordinal)
+             && codigo.Contains("_cursorSobreLaPieza = true;", StringComparison.Ordinal),
+            "al abrir el chat, el detector de hover no puede retirarlo mientras se cruza hasta la entrada");
+    }
+
+    private static void ElTextoDelDelegadoLlegaAlHistorial()
+    {
+        const string json = "{\"type\":\"response.event\",\"event\":{\"type\":\"response.output_text.done\",\"text\":\"La investigación quedó hecha.\"}}";
+        var hechos = new Voz.Realtime.ProtocoloGptLive().Leer(JsonDocument.Parse(json).RootElement);
+        var texto = hechos.OfType<Voz.Realtime.Hecho.DiceU>().SingleOrDefault()?.Trozo;
+        Debe(texto == "La investigación quedó hecha.",
+            $"el resumen del delegado se traduce a texto de U para el notch (salió: «{texto ?? "nada"}»)");
+    }
+
+    private static void ElChatEntregaTextoLegibleYCompleto()
+    {
+        var panel = Cap004("U.WindowsClient.Ui.PanelDeAcciones");
+        var formatea = panel?.GetMethod("TextoParaChat", BindingFlags.NonPublic | BindingFlags.Static);
+        Debe(formatea != null, "el formato del chat debe vivir en una función pura que pueda comprobarse");
+        if (formatea == null) return;
+
+        const string entrada = "Investigué a **Eladio Carrión**.\n\n### Perfil\n- **Nacimiento:** 14 de noviembre.\n- [Spotify](https://spotify.com).";
+        string salida = (string)formatea.Invoke(null, new object[] { entrada })!;
+        const string esperada = "Investigué a Eladio Carrión.\n\nPerfil\n• Nacimiento: 14 de noviembre.\n• Spotify.";
+        Debe(salida == esperada,
+            $"el chat conserva todo el contenido y elimina la sintaxis de Markdown (salió: «{salida}»)");
+    }
+
+    private static void CadaVozTocaSuBorde()
+    {
+        var panel = Cap004("U.WindowsClient.Ui.PanelDeAcciones");
+        var margen = panel?.GetMethod("MargenDelMensaje", BindingFlags.NonPublic | BindingFlags.Static);
+        Debe(margen != null, "la alineación de cada interlocutor debe poder comprobarse sin abrir una ventana");
+        if (margen != null)
+        {
+            var deU = (System.Windows.Thickness)margen.Invoke(null, new object[] { true })!;
+            var deLaPersona = (System.Windows.Thickness)margen.Invoke(null, new object[] { false })!;
+            Debe(deU.Left == 0 && deU.Right > 0,
+                $"U queda pegado a la izquierda y deja aire a la derecha ({deU})");
+            Debe(deLaPersona.Right == 0 && deLaPersona.Left > 0,
+                $"la persona queda pegada a la derecha y deja aire a la izquierda ({deLaPersona})");
+        }
+
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string fuente = Path.Combine(repo, "windows-client", "src", "Ui", "PanelDeAcciones.cs");
+        Debe(File.Exists(fuente), "el panel del notch tiene que poder comprobarse");
+        if (!File.Exists(fuente)) return;
+        string codigo = File.ReadAllText(fuente);
+        Debe(codigo.Contains("_scrollChat.UpdateLayout();", StringComparison.Ordinal)
+             && codigo.Contains("CanContentScroll = false", StringComparison.Ordinal),
+            "el scroll mide el mensaje ya maquetado y se desplaza por píxeles hasta el final");
     }
 
     private static void CadaEstadoTieneSuIcono()
@@ -11376,6 +11944,34 @@ internal static class Contrato
         var atras = (string[])deshacer.Invoke(null, new object[] { ids[1], ids[3], ids })!;
         Debe(atras.SequenceEqual(new[] { "mover", "cambiar:-2", "esperar" }),
             $"si no se llega, se deshace: las ventanas vuelven al origen y se vuelve a él, sin fijar nada; salió [{string.Join(" · ", atras)}]");
+    }
+
+    private static void UnaCaritaPorWorktreeYEscritorio()
+    {
+        var t = Capacidad("U.WindowsClient.Ui.GuardiaDeInstancia");
+        var iniciar = t?.GetMethod("IntentarIniciar");
+        var liberar = t?.GetMethod("Dispose");
+        if (t == null || iniciar == null || liberar == null)
+        {
+            Pendiente("GuardiaDeInstancia.IntentarIniciar/Dispose", "346", "036");
+            return;
+        }
+
+        string worktree = Path.Combine(Path.GetTempPath(), "u-worktree-" + Guid.NewGuid().ToString("N"), "U.exe");
+        Guid escritorioA = Guid.NewGuid(), escritorioB = Guid.NewGuid();
+        object?[] primeroArgs = { worktree, escritorioA, null };
+        Debe((bool)iniciar.Invoke(null, primeroArgs)!, "la primera carita adquiere su escritorio");
+        var primero = primeroArgs[2];
+        try
+        {
+            object?[] segundoArgs = { worktree, escritorioA, null };
+            Debe(!(bool)iniciar.Invoke(null, segundoArgs)!, "la segunda apertura del mismo worktree y escritorio se rechaza");
+
+            object?[] otroEscritorio = { worktree, escritorioB, null };
+            Debe((bool)iniciar.Invoke(null, otroEscritorio)!, "el mismo worktree sí puede abrirse en otro escritorio");
+            liberar.Invoke(otroEscritorio[2], null);
+        }
+        finally { liberar.Invoke(primero, null); }
     }
 
     // ── Spec 035: el decisor se puede cambiar ────────────────────────────────────────────────────
@@ -12876,6 +13472,672 @@ internal static class Contrato
         var (r4, ms4, _) = Pulsa(Mundo(), "uia:name=Guardar;ct=Button", "Guardar");
         Debe(r4.SePudo && ms4 >= Presupuesto - 100, $"un botón sigue esperando el presupuesto entero: {ms4} ms de {Presupuesto}");
         Debe(!r4.Cuenta.Contains("campo"), $"y no se le llama campo a lo que no lo es: «{r4.Cuenta}»");
+    }
+
+    // ── Spec 046: fotos de estudios de cardiología → resumen y preguntas ─────────────────────────
+    //
+    // Todo se pide por NOMBRE (flujo-sdd.md): el contrato tiene que compilar contra un núcleo que aún
+    // no tiene U.WindowsClient.Cardio, y ahí cada promesa dice PENDIENTE, que cuenta como incumplida.
+    // El modelo es de mentira y ANOTA lo que recibe: sin red, sin clave y sin pantalla.
+
+    private static Type? Cardio(string nombre) => Capacidad("U.WindowsClient.Cardio." + nombre);
+
+    private static MethodInfo? MetodoCardio(Type? t, string nombre, int aridad) =>
+        t?.GetMethods().FirstOrDefault(m => m.Name == nombre && m.GetParameters().Length == aridad);
+
+    /// <summary>Una respuesta con la forma de la Responses API: el texto va en output[].content[].text.</summary>
+    private static string RespuestaDeOpenAI(string texto) =>
+        JsonSerializer.Serialize(new
+        {
+            output = new object[]
+            {
+                new { type = "reasoning", summary = Array.Empty<object>() },
+                new { type = "message", content = new object[] { new { type = "output_text", text = texto } } },
+            },
+        });
+
+    /// <summary>Cuántas imágenes lleva un cuerpo de petición, y los ids que anuncian sus etiquetas.</summary>
+    private static (int Imagenes, List<string> Ids) LoQueLleva(string cuerpo)
+    {
+        int imagenes = 0;
+        var ids = new List<string>();
+        using var doc = JsonDocument.Parse(cuerpo);
+        if (!doc.RootElement.TryGetProperty("input", out var entrada)) return (0, ids);
+        foreach (var mensaje in entrada.EnumerateArray())
+        {
+            if (!mensaje.TryGetProperty("content", out var contenido) || contenido.ValueKind != JsonValueKind.Array) continue;
+            foreach (var parte in contenido.EnumerateArray())
+            {
+                string tipo = parte.TryGetProperty("type", out var ti) ? ti.GetString() ?? "" : "";
+                if (tipo == "input_image") imagenes++;
+                if (tipo == "input_text")
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(parte.GetProperty("text").GetString() ?? "", @"^Imagen \d+ — id: (\S+)$");
+                    if (m.Success) ids.Add(m.Groups[1].Value);
+                }
+            }
+        }
+        return (imagenes, ids);
+    }
+
+    /// <summary>
+    /// Una sesión con <paramref name="n"/> fotos f1..fn. La foto «f2» es una selfie: el modelo de
+    /// mentira la marca no cardiológica y AUN ASÍ le devuelve contenido, que es lo que la 351 juzga.
+    /// </summary>
+    private static dynamic? SesionConFotos(int n, DateTime primera)
+    {
+        var tSesion = Cardio("SesionCardio");
+        var tFoto = Cardio("FotoCardio");
+        if (tSesion == null || tFoto == null) return null;
+        dynamic s = Activator.CreateInstance(tSesion)!;
+        for (int i = 1; i <= n; i++)
+        {
+            dynamic f = Activator.CreateInstance(tFoto)!;
+            f.Id = "f" + i;
+            f.Nombre = $"foto{i}.jpg";
+            f.Jpeg = new byte[] { 0xFF, 0xD8, (byte)i, 0xFF, 0xD9 };
+            s.Agregar(f, primera.AddMinutes(i));
+        }
+        return s;
+    }
+
+    /// <summary>El modelo de mentira. Anota cada cuerpo; <paramref name="fallaEn"/> hace fallar esa llamada (1-based).</summary>
+    private static Func<string, CancellationToken, Task<string>> ModeloDeMentira(List<string> cuerpos, Func<int, bool>? fallaEn = null)
+    {
+        return (cuerpo, _) =>
+        {
+            cuerpos.Add(cuerpo);
+            if (fallaEn != null && fallaEn(cuerpos.Count)) throw new HttpRequestException("503 Service Unavailable (de mentira)");
+            var (imagenes, ids) = LoQueLleva(cuerpo);
+            if (imagenes == 0)
+                return Task.FromResult(RespuestaDeOpenAI("## Estudios revisados\n- ECG de 12 derivaciones (2026-09-10)\n\n## Hallazgos clave\n- **Ritmo sinusal**"));
+            var resultados = ids.Select(id => id == "f2"
+                ? (object)new { id, cardiologia = false, motivo_omision = "foto personal", tipo = "Selfie en Cartagena", hallazgos = new[] { "Juan Pérez sonriendo" }, valores = new[] { new { nombre = "edad", valor = "45", unidad = "años" } }, alertas = new[] { "PLAYA" } }
+                : new { id, cardiologia = true, tipo = "ECG de 12 derivaciones", fecha = "2026-09-10", hallazgos = new[] { "Ritmo sinusal" }, valores = new[] { new { nombre = "FC", valor = "72", unidad = "lpm" } }, alertas = Array.Empty<string>(), confianza = "alta" });
+            return Task.FromResult(RespuestaDeOpenAI("```json\n" + JsonSerializer.Serialize(new { resultados }) + "\n```"));
+        };
+    }
+
+    private static void UnResultadoPorFoto()
+    {
+        var t = Cardio("LecturaCardio");
+        var emparejar = MetodoCardio(t, "Emparejar", 2);
+        if (emparejar == null) { Pendiente("Cardio.LecturaCardio.Emparejar(respuesta, ids)", "350", "046"); return; }
+        List<dynamic> Emparejar(string respuesta, params string[] ids) =>
+            ((System.Collections.IEnumerable)emparejar.Invoke(null, new object[] { respuesta, ids })!).Cast<dynamic>().ToList();
+
+        // 1. ENVUELTO EN ``` Y CON TEXTO ALREDEDOR, fuera de orden y con una foto de la que no volvió nada.
+        var r = Emparejar("Aquí tienes:\n```json\n{\"resultados\":[{\"id\":\"c\",\"cardiologia\":true,\"tipo\":\"ECG\"},"
+                          + "{\"id\":\"a\",\"cardiologia\":false,\"motivo_omision\":\"selfie\"}]}\n```\nListo.", "a", "b", "c");
+        Debe((bool)(r.Count == 3), $"un resultado por foto, ni más ni menos: salieron {r.Count} de 3");
+        if (r.Count != 3) return;
+        Debe((bool)((string)r[0].Id == "a" && (string)r[1].Id == "b" && (string)r[2].Id == "c"),
+            $"en el orden de las fotos, no en el del modelo: [{string.Join(", ", r.Select(x => (string)x.Id))}]");
+        Debe((bool)(r[2].Estado.ToString() == "Cardiologia" && (string)r[2].Tipo == "ECG"), $"«c» se empareja por su id: {r[2].Estado} «{r[2].Tipo}»");
+        Debe((bool)(r[0].Estado.ToString() == "Omitida"), $"«a» es la omitida: {r[0].Estado}");
+        Debe((bool)(r[1].Estado.ToString() == "SinLeer"),
+            $"de «b» no volvió nada, y eso es «sin leer» —ni cardiológica ni omitida—: {r[1].Estado}");
+
+        // 2. SI LOS IDS NO CASAN, POR ORDEN. El modelo a veces devuelve «imagen 1» en vez del id.
+        var p = Emparejar("{\"resultados\":[{\"id\":\"imagen 1\",\"cardiologia\":true,\"tipo\":\"Eco\"},{\"id\":\"imagen 2\",\"cardiologia\":false}]}", "x", "y");
+        Debe((bool)(p.Count == 2 && p[0].Estado.ToString() == "Cardiologia" && (string)p[0].Tipo == "Eco" && p[1].Estado.ToString() == "Omitida"),
+            $"con ids que no casan se empareja por orden: [{string.Join(", ", p.Select(x => $"{x.Id}={x.Estado}"))}]");
+
+        // 3. BASURA NO TUMBA NADA: todas quedan sin leer y se pueden reintentar.
+        var b = Emparejar("Lo siento, no puedo ayudar con eso.", "m", "n");
+        Debe((bool)(b.Count == 2 && b.All(x => x.Estado.ToString() == "SinLeer")),
+            $"una respuesta sin JSON deja las fotos sin leer, sin excepción: [{string.Join(", ", b.Select(x => (string)x.Estado.ToString()))}]");
+    }
+
+    private static void LoNoCardiologicoSeDescartaEnCodigo()
+    {
+        var t = Cardio("LecturaCardio");
+        var emparejar = MetodoCardio(t, "Emparejar", 2);
+        var resumir = MetodoCardio(t, "CuerpoResumir", 2);
+        var preguntar = MetodoCardio(t, "CuerpoPreguntar", 5);
+        var tVuelta = Cardio("VueltaDeChat");
+        if (emparejar == null || resumir == null || preguntar == null || tVuelta == null)
+        {
+            Pendiente("Cardio.LecturaCardio.Emparejar + CuerpoResumir + CuerpoPreguntar + VueltaDeChat", "351", "046");
+            return;
+        }
+
+        const string respuesta = "{\"resultados\":["
+            + "{\"id\":\"a\",\"cardiologia\":false,\"motivo_omision\":\"foto personal\",\"tipo\":\"Selfie en Cartagena\","
+            + "\"hallazgos\":[\"Juan Pérez sonriendo\"],\"valores\":[{\"nombre\":\"edad\",\"valor\":\"45\",\"unidad\":\"años\"}],\"alertas\":[\"PLAYA\"]},"
+            + "{\"id\":\"b\",\"cardiologia\":false,\"tipo\":\"Rx de rodilla\",\"hallazgos\":[\"Gonartrosis\"]},"
+            + "{\"id\":\"c\",\"cardiologia\":true,\"tipo\":\"Ecocardiograma\",\"fecha\":\"2026-09-10\",\"valores\":[{\"nombre\":\"FEVI\",\"valor\":\"45\",\"unidad\":\"%\"}]}]}";
+        var lista = emparejar.Invoke(null, new object[] { respuesta, new[] { "a", "b", "c" } })!;
+        var r = ((System.Collections.IEnumerable)lista).Cast<dynamic>().ToList();
+
+        // 1. DE LA OMITIDA SOLO QUEDA EL MOTIVO, aunque el modelo haya devuelto su contenido.
+        var a = r[0];
+        Debe((bool)((string)a.Tipo == "" && ((System.Collections.ICollection)a.Hallazgos).Count == 0
+             && ((System.Collections.ICollection)a.Valores).Count == 0 && ((System.Collections.ICollection)a.Alertas).Count == 0),
+            $"de una no cardiológica no se guarda tipo, hallazgos, valores ni alertas (tipo «{a.Tipo}», {((System.Collections.ICollection)a.Hallazgos).Count} hallazgo(s))");
+        Debe((bool)((string)a.Motivo == "foto personal"), $"y sí su motivo: «{a.Motivo}»");
+        Debe((bool)(!string.IsNullOrWhiteSpace((string)r[1].Motivo)), $"sin motivo del modelo, se pone uno: «{r[1].Motivo}»");
+
+        // 2. Y AUNQUE ALGUIEN LLENE A MANO UNA OMITIDA, no viaja ni al resumen ni a la pregunta.
+        a.Tipo = "Selfie en Cartagena";
+        a.Hallazgos.Add("Juan Pérez sonriendo");
+        a.Motivo = "Juan Pérez en la playa";
+        string cuerpoResumen = (string)resumir.Invoke(null, new object[] { "modelo-x", lista })!;
+        var historial = (System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(tVuelta))!;
+        string cuerpoPregunta = (string)preguntar.Invoke(null, new object[] { "modelo-x", lista, "## Resumen", historial, "¿Qué FEVI tiene?" })!;
+        foreach (var (nombre, cuerpo) in new[] { ("el resumen", cuerpoResumen), ("la pregunta", cuerpoPregunta) })
+        {
+            var fuga = new[] { "Cartagena", "Juan", "PLAYA", "rodilla", "Gonartrosis" }.Where(x => cuerpo.Contains(x)).ToList();
+            Debe((bool)(fuga.Count == 0), $"nada de las omitidas llega a {nombre}; se coló: [{string.Join(", ", fuga)}]");
+            Debe((bool)(cuerpo.Contains("FEVI") && cuerpo.Contains("Ecocardiograma")), $"y lo cardiológico sí llega a {nombre}");
+        }
+    }
+
+    private static void LasFotosViajanEnLotesYLasPreguntasSinFotos()
+    {
+        var tCliente = Cardio("ClienteCardio");
+        var tVuelta = Cardio("VueltaDeChat");
+        var ctor = tCliente?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 2);
+        var generar = MetodoCardio(tCliente, "GenerarAsync", 3);
+        var preguntar = MetodoCardio(tCliente, "PreguntarAsync", 3);
+        dynamic? s = SesionConFotos(7, new DateTime(2026, 9, 23, 8, 0, 0, DateTimeKind.Utc));
+        if (ctor == null || generar == null || preguntar == null || tVuelta == null || s == null)
+        {
+            Pendiente("Cardio.ClienteCardio(enviar, modelo) + GenerarAsync + PreguntarAsync + SesionCardio", "352", "046");
+            return;
+        }
+
+        var cuerpos = new List<string>();
+        var cliente = ctor.Invoke(new object[] { ModeloDeMentira(cuerpos), "modelo-x" });
+        ((Task)generar.Invoke(cliente, new object[] { s, (Action<string>)(_ => { }), CancellationToken.None })!).GetAwaiter().GetResult();
+
+        // 1. LOTES DE 3, con cada imagen anunciada por su id.
+        var conFotos = cuerpos.Select(LoQueLleva).Where(x => x.Imagenes > 0).ToList();
+        Debe((bool)(conFotos.Select(x => x.Imagenes).SequenceEqual(new[] { 3, 3, 1 })),
+            $"7 fotos viajan en lotes de 3: [{string.Join(", ", conFotos.Select(x => x.Imagenes))}]");
+        Debe((bool)(conFotos.All(x => x.Ids.Count == x.Imagenes)
+             && conFotos.SelectMany(x => x.Ids).SequenceEqual(Enumerable.Range(1, 7).Select(i => "f" + i))),
+            $"cada imagen va precedida de «Imagen n — id: X»: [{string.Join(", ", conFotos.SelectMany(x => x.Ids))}]");
+        Debe((bool)(cuerpos.All(c => JsonDocument.Parse(c).RootElement.TryGetProperty("store", out var st) && st.ValueKind == JsonValueKind.False)),
+            "todas las peticiones piden store:false");
+        Debe((bool)(cuerpos.Count == 4 && LoQueLleva(cuerpos[3]).Imagenes == 0),
+            $"el resumen es una llamada más y SIN imágenes: {cuerpos.Count} llamada(s)");
+
+        // 2. LA PREGUNTA NO REENVÍA IMÁGENES y lleva solo las últimas 10 vueltas.
+        for (int i = 1; i <= 12; i++)
+        {
+            dynamic v = Activator.CreateInstance(tVuelta)!;
+            v.Pregunta = $"turno-{i:00}";
+            v.Respuesta = $"respuesta-{i:00}";
+            s.Chat.Add(v);
+        }
+        cuerpos.Clear();
+        string respuesta = ((Task<string>)preguntar.Invoke(cliente, new object[] { s, "¿Qué frecuencia cardiaca tiene?", CancellationToken.None })!).GetAwaiter().GetResult();
+        Debe((bool)(cuerpos.Count == 1 && LoQueLleva(cuerpos[0]).Imagenes == 0), "una pregunta es UNA llamada y no lleva ninguna imagen");
+        string cp = cuerpos.FirstOrDefault() ?? "";
+        Debe((bool)(cp.Contains("frecuencia cardiaca") && cp.Contains("Ritmo sinusal") && cp.Contains("Estudios revisados")),
+            "lleva la pregunta, las extracciones y el resumen");
+        Debe((bool)(!cp.Contains("turno-01") && !cp.Contains("turno-02") && cp.Contains("turno-03") && cp.Contains("turno-12")),
+            "del chat viajan solo las últimas 10 vueltas");
+        Debe((bool)(!cp.Contains("data:image")), "ni rastro de una imagen en la pregunta");
+        Debe((bool)(!string.IsNullOrWhiteSpace(respuesta) && s.Chat.Count == 13), $"la vuelta queda en el historial: {s.Chat.Count} de 13");
+    }
+
+    // ── Spec 051: la historia clínica soltada en la Nota ──────────────────────────────────────────
+
+    /// <summary>Qué lleva un cuerpo: imágenes, archivos y los ids que anuncian «Documento n — id: X».</summary>
+    private static (int Imagenes, int Archivos, List<string> Ids, string Texto) LoQueLlevaLaHistoria(string cuerpo)
+    {
+        int imagenes = 0, archivos = 0;
+        var ids = new List<string>();
+        var texto = new System.Text.StringBuilder();
+        using var doc = JsonDocument.Parse(cuerpo);
+        if (doc.RootElement.TryGetProperty("instructions", out var ins)) texto.Append(ins.GetString()).Append('\n');
+        if (!doc.RootElement.TryGetProperty("input", out var entrada)) return (0, 0, ids, texto.ToString());
+        foreach (var mensaje in entrada.EnumerateArray())
+        {
+            if (!mensaje.TryGetProperty("content", out var contenido) || contenido.ValueKind != JsonValueKind.Array) continue;
+            foreach (var parte in contenido.EnumerateArray())
+            {
+                string tipo = parte.TryGetProperty("type", out var ti) ? ti.GetString() ?? "" : "";
+                if (tipo == "input_image") imagenes++;
+                if (tipo == "input_file") archivos++;
+                if (tipo == "input_text")
+                {
+                    string t = parte.GetProperty("text").GetString() ?? "";
+                    texto.Append(t).Append('\n');
+                    var m = System.Text.RegularExpressions.Regex.Match(t, @"^Documento \d+ — id: (\S+)");
+                    if (m.Success) ids.Add(m.Groups[1].Value);
+                }
+            }
+        }
+        return (imagenes, archivos, ids, texto.ToString());
+    }
+
+    /// <summary>
+    /// La historia de mentira: D2 es la remisión de MEDICINA GENERAL —no es cardiología— y es la que dice
+    /// por qué vino. El motivo cita un id bueno y uno que no existe, para que se vea cuál sobrevive.
+    /// </summary>
+    private static Func<string, CancellationToken, Task<string>> ModeloDeLaHistoria(
+        List<string> cuerpos, ISet<string>? callar = null, Func<int, bool>? fallaEn = null)
+    {
+        return (cuerpo, _) =>
+        {
+            cuerpos.Add(cuerpo);
+            if (fallaEn != null && fallaEn(cuerpos.Count)) throw new HttpRequestException("503 Service Unavailable (de mentira)");
+            var (imagenes, archivos, ids, _) = LoQueLlevaLaHistoria(cuerpo);
+            if (imagenes == 0 && archivos == 0)
+                return Task.FromResult(RespuestaDeOpenAI("```json\n" + JsonSerializer.Serialize(new
+                {
+                    motivo = "Viene remitido por dolor torácico opresivo de esfuerzo con FEVI reducida.",
+                    citas = new[] { "D2-p1-2", "D9-p9-9" },
+                }) + "\n```"));
+            object Paginas(string id) => id switch
+            {
+                "D1" => new object[] { new { pagina = 1, parrafos = new[] { "ECOCARDIOGRAMA TRANSTORÁCICO", "FEVI 35 %." } } },
+                "D2" => new object[] { new { pagina = 1, parrafos = new[] { "Nota de medicina general.", "Se remite a cardiología por dolor torácico opresivo de esfuerzo." } } },
+                "D3" => new object[]
+                {
+                    new { pagina = 1, parrafos = new[] { "Laboratorio clínico." } },
+                    new { pagina = 2, parrafos = new[] { "Troponina I 0,02 ng/mL." } },
+                },
+                _ => new object[] { new { pagina = 1, parrafos = new[] { $"Texto de {id}." } } },
+            };
+            var documentos = ids.Where(id => callar == null || !callar.Contains(id)).Select(id => new { id, paginas = Paginas(id) }).ToArray();
+            return Task.FromResult(RespuestaDeOpenAI(JsonSerializer.Serialize(new { documentos })));
+        };
+    }
+
+    /// <summary>Una historia con documentos de mentira: (nombre, esPdf) en ese orden.</summary>
+    private static dynamic? HistoriaCon(params (string Nombre, bool Pdf)[] docs)
+    {
+        var tHistoria = Cardio("HistoriaDeLaConsulta");
+        var tTipo = Cardio("TipoDeDocumento");
+        var agregar = MetodoCardio(tHistoria, "Agregar", 3);
+        if (tHistoria == null || tTipo == null || agregar == null) return null;
+        var h = Activator.CreateInstance(tHistoria)!;
+        foreach (var (nombre, pdf) in docs)
+            agregar.Invoke(h, new object[] { nombre, Enum.Parse(tTipo, pdf ? "Pdf" : "Foto"), new byte[] { 1, 2, 3 } });
+        return h;
+    }
+
+    private static void LoSoltadoSeRepartePorSuTipo()
+    {
+        var t = Cardio("HistoriaClinica");
+        var tipoDe = MetodoCardio(t, "TipoDe", 1);
+        var repartir = MetodoCardio(t, "Repartir", 1);
+        if (tipoDe == null || repartir == null) { Pendiente("Cardio.HistoriaClinica.TipoDe(ruta) + Repartir(rutas)", "420", "051"); return; }
+        string Tipo(string ruta) => tipoDe.Invoke(null, new object[] { ruta })!.ToString()!;
+
+        Debe(new[] { "a.jpg", "b.JPEG", "c.png", "d.bmp", "e.gif", "f.tif", "g.TIFF", "h.webp", "i.heic", "j.HEIF" }.All(r => Tipo(r) == "Foto"),
+            "las diez extensiones de foto se leen como imagen, con mayúsculas o sin ellas");
+        Debe(Tipo("historia.pdf") == "Pdf" && Tipo(@"C:\x\REMISION.PDF") == "Pdf", "un PDF es un archivo, se llame como se llame");
+        Debe(Tipo("informe.docx") == "NoAdmitido" && Tipo("sin-extension") == "NoAdmitido" && Tipo("x.pdf.exe") == "NoAdmitido",
+            "lo demás no se admite: ni Word, ni sin extensión, ni un .exe disfrazado");
+
+        dynamic r = repartir.Invoke(null, new object[] { new[] { @"C:\h\eco.jpg", @"C:\h\informe.docx", @"C:\h\remision.pdf", @"C:\h\ecg.PNG" } })!;
+        var fotos = ((IEnumerable<string>)r.Fotos).ToList();
+        var pdfs = ((IEnumerable<string>)r.Pdfs).ToList();
+        var avisos = ((IEnumerable<string>)r.Avisos).ToList();
+        Debe(fotos.Count == 2 && pdfs.Count == 1, $"lo admitido sigue adelante aunque haya uno que no: {fotos.Count} foto(s), {pdfs.Count} PDF");
+        Debe(avisos.Count == 1 && avisos[0].Contains("informe.docx") && avisos[0].Contains("PDF"),
+            $"el que no se admite se nombra y se dice qué hacer: «{string.Join(" | ", avisos)}»");
+    }
+
+    private static void LaHistoriaSeTranscribeLiteral()
+    {
+        var tLector = Cardio("LectorDeLaHistoria");
+        var ctor = tLector?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 2);
+        var leer = MetodoCardio(tLector, "LeerAsync", 3);
+        dynamic? h = HistoriaCon(("eco.jpg", false), ("remision.jpg", false), ("laboratorio.pdf", true),
+                                 ("ecg.jpg", false), ("nota.jpg", false), ("epicrisis.pdf", true));
+        if (ctor == null || leer == null || h == null)
+        {
+            Pendiente("Cardio.LectorDeLaHistoria(enviar, modelo).LeerAsync + HistoriaDeLaConsulta.Agregar", "421", "051");
+            return;
+        }
+
+        var cuerpos = new List<string>();
+        var lector = ctor.Invoke(new object[] { ModeloDeLaHistoria(cuerpos, callar: new HashSet<string> { "D5" }), "modelo-x" });
+        ((Task)leer.Invoke(lector, new object[] { h, (Action<string>)(_ => { }), CancellationToken.None })!).GetAwaiter().GetResult();
+
+        var conDocs = cuerpos.Select(LoQueLlevaLaHistoria).Where(x => x.Imagenes + x.Archivos > 0).ToList();
+        Debe(conDocs.Where(x => x.Imagenes > 0).All(x => x.Imagenes <= 3 && x.Archivos == 0)
+             && conDocs.Where(x => x.Imagenes > 0).Sum(x => x.Imagenes) == 4,
+            $"las 4 fotos van de 3 en 3 y sin PDFs mezclados: [{string.Join(", ", conDocs.Select(x => $"{x.Imagenes}i+{x.Archivos}a"))}]");
+        Debe(conDocs.Count(x => x.Archivos > 0) == 2 && conDocs.Where(x => x.Archivos > 0).All(x => x.Archivos == 1 && x.Imagenes == 0),
+            "cada PDF viaja solo");
+        Debe(conDocs.SelectMany(x => x.Ids).OrderBy(x => x).SequenceEqual(new[] { "D1", "D2", "D3", "D4", "D5", "D6" })
+             && conDocs.All(x => x.Ids.Count == x.Imagenes + x.Archivos),
+            $"cada documento va precedido de «Documento n — id: Dn»: [{string.Join(", ", conDocs.SelectMany(x => x.Ids))}]");
+        Debe(cuerpos.All(c => JsonDocument.Parse(c).RootElement.TryGetProperty("store", out var st) && st.ValueKind == JsonValueKind.False),
+            "todas las peticiones piden store:false");
+        Debe(conDocs.All(x => x.Texto.Contains("literal", StringComparison.OrdinalIgnoreCase)), "se pide transcribir LITERAL, no resumir");
+
+        // FirstOrDefault y no First: sin ningún PDF enviado, la promesa tiene que decir «incumplida», no
+        // reventar con «Sequence contains no matching element» (aprendizaje nº17).
+        string conPdf = cuerpos.FirstOrDefault(c => LoQueLlevaLaHistoria(c).Archivos > 0) ?? "";
+        Debe(conPdf.Contains("\"filename\":\"laboratorio.pdf\"") && conPdf.Contains("data:application/pdf;base64,"),
+            "el PDF viaja como archivo con su nombre");
+        string conFoto = cuerpos.FirstOrDefault(c => LoQueLlevaLaHistoria(c).Imagenes > 0) ?? "";
+        Debe(conFoto.Contains("\"detail\":\"high\""), "la foto de un documento viaja con detalle alto: letra pequeña");
+
+        var docs = ((System.Collections.IEnumerable)h.Documentos).Cast<dynamic>().ToList();
+        var d2 = ((System.Collections.IEnumerable)docs[1].Parrafos).Cast<dynamic>().Select(p => (string)p.Id).ToList();
+        var d3 = ((System.Collections.IEnumerable)docs[2].Parrafos).Cast<dynamic>().ToList();
+        Debe(d2.SequenceEqual(new[] { "D2-p1-1", "D2-p1-2" }), $"los párrafos tienen id estable «Dn-pP-k»: [{string.Join(", ", d2)}]");
+        Debe(d3.Count == 2 && (string)d3[1].Id == "D3-p2-1" && (int)d3[1].Pagina == 2 && (string)d3[1].Texto == "Troponina I 0,02 ng/mL.",
+            "la página se conserva, y el texto es el transcrito, tal cual");
+        Debe((bool)docs[1].Leido && !(bool)docs[4].Leido && !string.IsNullOrWhiteSpace((string)docs[4].Motivo),
+            $"del que no volvió nada queda sin leer, diciendo por qué: «{(string)docs[4].Motivo}»");
+    }
+
+    private static void ElMotivoSeCitaCopiandoDelDocumento()
+    {
+        var t = Cardio("LecturaDeLaHistoria");
+        var cuerpoMotivo = MetodoCardio(t, "CuerpoMotivo", 2);
+        var interpretar = MetodoCardio(t, "InterpretarMotivo", 2);
+        var tLector = Cardio("LectorDeLaHistoria");
+        var ctor = tLector?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 2);
+        var leer = MetodoCardio(tLector, "LeerAsync", 3);
+        dynamic? h = HistoriaCon(("eco.jpg", false), ("remision.jpg", false), ("laboratorio.pdf", true));
+        if (cuerpoMotivo == null || interpretar == null || ctor == null || leer == null || h == null)
+        {
+            Pendiente("Cardio.LecturaDeLaHistoria.CuerpoMotivo + InterpretarMotivo", "422", "051");
+            return;
+        }
+
+        var cuerpos = new List<string>();
+        var lector = ctor.Invoke(new object[] { ModeloDeLaHistoria(cuerpos), "modelo-x" });
+        ((Task)leer.Invoke(lector, new object[] { h, (Action<string>)(_ => { }), CancellationToken.None })!).GetAwaiter().GetResult();
+
+        // 1. LA PREGUNTA LLEVA TODA LA HISTORIA, Y NINGUNA IMAGEN.
+        var delMotivo = cuerpos.Select(LoQueLlevaLaHistoria).LastOrDefault();
+        Debe(delMotivo.Imagenes == 0 && delMotivo.Archivos == 0, "el motivo se pregunta sin ninguna imagen ni archivo: solo lo transcrito");
+        Debe(delMotivo.Texto != null && delMotivo.Texto.Contains("[D2-p1-2]") && delMotivo.Texto.Contains("Se remite a cardiología")
+             && delMotivo.Texto.Contains("[D3-p2-1]") && delMotivo.Texto.Contains("por qué vino a cardiología", StringComparison.OrdinalIgnoreCase),
+            "lleva los párrafos de TODA la historia con su id —también la remisión de medicina general— y la pregunta");
+
+        // 2. LA CITA LA COPIA EL CÓDIGO; UN ID QUE NO EXISTE SE TIRA.
+        dynamic m = h.Motivo;
+        var citas = m == null ? new List<dynamic>() : ((System.Collections.IEnumerable)m.Citas).Cast<dynamic>().ToList();
+        Debe(m != null && (string)m.Titular == "Viene remitido por dolor torácico opresivo de esfuerzo con FEVI reducida.",
+            $"el titular es la frase del modelo cuando la sostiene una cita: «{(m == null ? "(sin motivo)" : (string)m.Titular)}»");
+        Debe(citas.Count == 1 && (string)citas[0].Id == "D2-p1-2" && (string)citas[0].Texto == "Se remite a cardiología por dolor torácico opresivo de esfuerzo."
+             && (string)citas[0].Documento == "remision.jpg" && (int)citas[0].Pagina == 1,
+            $"la cita es el párrafo DEL DOCUMENTO, con su nombre y su página, y el id inventado (D9-p9-9) se descarta: {citas.Count} cita(s)");
+
+        // 3. SIN CITA VÁLIDA NO HAY FRASE; Y LA FRASE ES UNA.
+        var parrafos = ((System.Collections.IEnumerable)h.Documentos).Cast<dynamic>()
+            .SelectMany(d => ((System.Collections.IEnumerable)d.Parrafos).Cast<object>()).ToList();
+        var lista = (System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(Cardio("Parrafo")!))!;
+        foreach (var p in parrafos) lista.Add(p);
+        dynamic Interpretar(string json) => interpretar.Invoke(null, new object[] { RespuestaDeOpenAI(json), lista })!;
+        string Titular(dynamic x) => (string)x.Titular;
+        const string sinMotivo = "Los documentos no dicen por qué vino a cardiología";
+
+        dynamic inventado = Interpretar("{\"motivo\":\"Viene por una arritmia.\",\"citas\":[\"D7-p1-1\"]}");
+        Debe(Titular(inventado) == sinMotivo && ((System.Collections.ICollection)inventado.Citas).Count == 0,
+            $"sin ninguna cita válida, NO se enseña la frase del modelo: «{Titular(inventado)}»");
+        Debe(Titular(Interpretar("{\"motivo\":\"\",\"citas\":[\"D2-p1-2\"]}")) == sinMotivo, "una cita sin frase tampoco es un motivo");
+        Debe(Titular(Interpretar("no hay JSON aquí")) == sinMotivo, "una respuesta que no se entiende no se convierte en titular");
+
+        string larga = "Viene por dolor torácico de esfuerzo. Además tiene hipertensión, diabetes y " + new string('x', 300);
+        string t2 = Titular(Interpretar(JsonSerializer.Serialize(new { motivo = larga, citas = new[] { "D2-p1-2" } })));
+        Debe(t2 == "Viene por dolor torácico de esfuerzo.", $"el titular es UNA frase: «{t2}»");
+        string sinPunto = new string('a', 400);
+        string t3 = Titular(Interpretar(JsonSerializer.Serialize(new { motivo = sinPunto, citas = new[] { "D2-p1-2" } })));
+        Debe(t3.Length <= 220, $"y de como mucho 220 caracteres: {t3.Length}");
+    }
+
+    private static void SoltarMasNoVuelveALeerLoLeido()
+    {
+        var tLector = Cardio("LectorDeLaHistoria");
+        var ctor = tLector?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 2);
+        var leer = MetodoCardio(tLector, "LeerAsync", 3);
+        var agregar = MetodoCardio(Cardio("HistoriaDeLaConsulta"), "Agregar", 3);
+        var tTipo = Cardio("TipoDeDocumento");
+        dynamic? h = HistoriaCon(("eco.jpg", false), ("remision.jpg", false), ("laboratorio.pdf", true));
+        if (ctor == null || leer == null || agregar == null || tTipo == null || h == null)
+        {
+            Pendiente("Cardio.LectorDeLaHistoria.LeerAsync incremental", "423", "051");
+            return;
+        }
+        void Agregar(string nombre) => agregar.Invoke(h, new object[] { nombre, Enum.Parse(tTipo, "Foto"), new byte[] { 9 } });
+
+        var cuerpos = new List<string>();
+        int fallarEn = -1;
+        var lector = ctor.Invoke(new object[] { ModeloDeLaHistoria(cuerpos, fallaEn: n => n == fallarEn), "modelo-x" });
+        void Leer() => ((Task)leer.Invoke(lector, new object[] { h, (Action<string>)(_ => { }), CancellationToken.None })!).GetAwaiter().GetResult();
+        Leer();
+
+        // 1. UNO MÁS NO RELEE A LOS DEMÁS, PERO EL MOTIVO LOS MIRA A TODOS.
+        cuerpos.Clear();
+        Agregar("ecg.jpg");
+        Leer();
+        var leidos = cuerpos.Select(LoQueLlevaLaHistoria).Where(x => x.Imagenes + x.Archivos > 0).SelectMany(x => x.Ids).ToList();
+        Debe(leidos.SequenceEqual(new[] { "D4" }), $"al soltar uno más, solo ese viaja: [{string.Join(", ", leidos)}]");
+        var motivo = cuerpos.Select(LoQueLlevaLaHistoria).LastOrDefault();
+        Debe(motivo.Texto != null && motivo.Texto.Contains("[D2-p1-2]") && motivo.Texto.Contains("[D4-p1-1]"),
+            "y el motivo se rehace con TODOS los párrafos, los viejos y el nuevo");
+
+        // 2. SI FALLA A MITAD, LO LEÍDO SE QUEDA Y SE NOMBRA LO QUE FALTÓ.
+        cuerpos.Clear();
+        Agregar("uno.jpg"); Agregar("dos.jpg"); Agregar("tres.jpg"); Agregar("epicrisis.pdf");
+        // 1.ª llamada: las tres fotos. 2.ª: el PDF → falla.
+        fallarEn = 2;
+        string error = "";
+        try { Leer(); } catch (Exception e) { error = e.Message; }
+        var docs = ((System.Collections.IEnumerable)h.Documentos).Cast<dynamic>().ToList();
+        Debe(error.Contains("epicrisis.pdf"), $"el error nombra el documento que faltó: «{error}»");
+        Debe(docs.Take(7).All(d => (bool)d.Leido) && !(bool)docs[7].Leido, "lo leído antes del fallo se conserva");
+
+        cuerpos.Clear();
+        fallarEn = -1;
+        Leer();
+        var releidos = cuerpos.Select(LoQueLlevaLaHistoria).Where(x => x.Imagenes + x.Archivos > 0).SelectMany(x => x.Ids).ToList();
+        Debe(releidos.SequenceEqual(new[] { "D8" }), $"reintentar lee solo lo que faltó: [{string.Join(", ", releidos)}]");
+    }
+
+    private static void UnaFotoSePreparaYUnaIlegibleSeNombra()
+    {
+        var t = Cardio("PreparadorDeFotos");
+        var preparar = t?.GetMethods().FirstOrDefault(m => m.Name == "Preparar" && m.GetParameters().Length == 2
+                                                           && m.GetParameters()[1].ParameterType == typeof(byte[]));
+        if (preparar == null) { Pendiente("Cardio.PreparadorDeFotos.Preparar(nombre, bytes)", "353", "046"); return; }
+        dynamic Preparar(string nombre, byte[] bytes) => preparar.Invoke(null, new object[] { nombre, bytes })!;
+
+        byte[] Png(int ancho, int alto)
+        {
+            // TRANSPARENTE ENTERA: si el fondo no se pinta blanco, el JPEG sale negro.
+            var px = new byte[ancho * alto * 4];
+            var bmp = System.Windows.Media.Imaging.BitmapSource.Create(ancho, alto, 96, 96,
+                System.Windows.Media.PixelFormats.Bgra32, null, px, ancho * 4);
+            var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+            using var ms = new MemoryStream();
+            enc.Save(ms);
+            return ms.ToArray();
+        }
+
+        // 1. GRANDE → LADO MAYOR 1600, JPEG, FONDO BLANCO.
+        var g = Preparar("captura.png", Png(3200, 800));
+        Debe((bool)((bool)g.Ok), $"una captura grande se prepara: «{g.Error}»");
+        if (!(bool)g.Ok) return;
+        Debe((bool)((int)g.Ancho == 1600 && (int)g.Alto == 400), $"a lado mayor 1600 px, con su proporción: {g.Ancho}×{g.Alto}");
+        byte[] jpeg = g.Jpeg;
+        Debe((bool)(jpeg.Length > 3 && jpeg[0] == 0xFF && jpeg[1] == 0xD8), "y sale en JPEG");
+        var decod = System.Windows.Media.Imaging.BitmapDecoder.Create(new MemoryStream(jpeg),
+            System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad).Frames[0];
+        var bgr = new System.Windows.Media.Imaging.FormatConvertedBitmap(decod, System.Windows.Media.PixelFormats.Bgr32, null, 0);
+        var pixel = new byte[4];
+        bgr.CopyPixels(new System.Windows.Int32Rect(10, 10, 1, 1), pixel, 4, 0);
+        Debe((bool)(pixel[0] > 240 && pixel[1] > 240 && pixel[2] > 240), $"lo transparente queda BLANCO, no negro: ({pixel[2]},{pixel[1]},{pixel[0]})");
+
+        // 2. PEQUEÑA → NO SE AGRANDA.
+        var c = Preparar("chica.png", Png(800, 600));
+        Debe((bool)((bool)c.Ok && (int)c.Ancho == 800 && (int)c.Alto == 600), $"una foto pequeña no se agranda: {c.Ancho}×{c.Alto}");
+
+        // 3. ILEGIBLE → SE NOMBRA Y NO LANZA.
+        var h = Preparar("IMG_0001.HEIC", new byte[] { 0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63 });
+        Debe((bool)(!(bool)h.Ok && (string)h.Error == "No se pudo leer IMG_0001.HEIC. Expórtala como JPG"),
+            $"una ilegible se nombra y se dice qué hacer: «{h.Error}»");
+    }
+
+    private static void LaSesionCaducaDesdeLaPrimeraFoto()
+    {
+        var t = Cardio("AlmacenCardio");
+        var ctor = t?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 2);
+        var guardar = t?.GetMethod("Guardar");
+        var cargar = t?.GetMethod("Cargar");
+        var tVuelta = Cardio("VueltaDeChat");
+        var t0 = new DateTime(2026, 9, 23, 8, 0, 0, DateTimeKind.Utc);
+        dynamic? s = SesionConFotos(1, t0.AddMinutes(-1));
+        if (ctor == null || guardar == null || cargar == null || tVuelta == null || s == null)
+        {
+            Pendiente("Cardio.AlmacenCardio(carpeta, reloj) + Guardar + Cargar", "354", "046");
+            return;
+        }
+
+        // 1. LA PRIMERA FOTO MANDA. Una foto 20 h después no alarga la vida de la sesión.
+        dynamic tarde = Activator.CreateInstance(Cardio("FotoCardio")!)!;
+        tarde.Id = "tarde";
+        tarde.Nombre = "tarde.jpg";
+        tarde.Jpeg = Encoding.UTF8.GetBytes("JPEG-MARCADOR-DE-LA-FOTO");
+        s.Agregar(tarde, t0.AddHours(20));
+        Debe((bool)((DateTime)s.PrimeraFotoUtc == t0), $"la caducidad cuenta desde la PRIMERA foto: {s.PrimeraFotoUtc:o}");
+        s.Resumen = "RESUMEN-SECRETO FEVI 45 %";
+        dynamic v = Activator.CreateInstance(tVuelta)!;
+        v.Pregunta = "PREGUNTA-SECRETA";
+        v.Respuesta = "RESPUESTA-SECRETA";
+        s.Chat.Add(v);
+
+        string carpeta = Path.Combine(_raiz, "cardio-354");
+        DateTime ahora = t0.AddHours(20);
+        var almacen = ctor.Invoke(new object[] { carpeta, (Func<DateTime>)(() => ahora) });
+        guardar.Invoke(almacen, new object[] { s });
+
+        // 2. EN DISCO NO SE LEE COMO TEXTO CLARO.
+        var archivos = Directory.Exists(carpeta) ? Directory.GetFiles(carpeta, "*", SearchOption.AllDirectories) : Array.Empty<string>();
+        Debe((bool)(archivos.Length > 0), "la sesión se guarda en disco para sobrevivir a un reinicio");
+        var claros = archivos.Where(f =>
+        {
+            string txt = Encoding.UTF8.GetString(File.ReadAllBytes(f));
+            return txt.Contains("RESUMEN-SECRETO") || txt.Contains("PREGUNTA-SECRETA") || txt.Contains("JPEG-MARCADOR");
+        }).ToList();
+        Debe((bool)(claros.Count == 0), $"nada de lo guardado se lee como texto claro: [{string.Join(", ", claros.Select(Path.GetFileName))}]");
+
+        // 3. ANTES DE LAS 24 H VUELVE ENTERA.
+        ahora = t0.AddHours(23).AddMinutes(59);
+        dynamic? leida = cargar.Invoke(almacen, Array.Empty<object>());
+        Debe((bool)(leida != null && leida!.Fotos.Count == 2 && (string)leida.Resumen == "RESUMEN-SECRETO FEVI 45 %" && leida.Chat.Count == 1),
+            "a las 23 h 59 min la sesión vuelve entera: fotos, resumen y chat");
+        if (leida != null)
+        {
+            byte[] j = ((IEnumerable<dynamic>)leida.Fotos).Cast<dynamic>().First(f => (string)f.Id == "tarde").Jpeg;
+            Debe((bool)(Encoding.UTF8.GetString(j) == "JPEG-MARCADOR-DE-LA-FOTO"), "con los bytes de cada foto intactos");
+        }
+
+        // 4. PASADAS LAS 24 H DESDE LA PRIMERA, SE BORRA ENTERA.
+        ahora = t0.AddHours(24).AddMinutes(1);
+        dynamic? caducada = cargar.Invoke(almacen, Array.Empty<object>());
+        Debe((bool)(caducada == null), "a las 24 h desde la primera foto la sesión ya no se devuelve");
+        int quedan = Directory.Exists(carpeta) ? Directory.GetFiles(carpeta, "*", SearchOption.AllDirectories).Length : 0;
+        Debe((bool)(quedan == 0), $"y no queda NADA en disco: {quedan} archivo(s)");
+    }
+
+    private static void ElResumenSePintaSinEjecutarMarcado()
+    {
+        var bloques = MetodoCardio(Cardio("MarkdownSimple"), "Bloques", 1);
+        if (bloques == null) { Pendiente("Cardio.MarkdownSimple.Bloques(texto)", "355", "046"); return; }
+
+        const string md = "## Hallazgos clave\n- **FEVI** 45 %\n<script>alert(1)</script> y <b>x</b>\n* otra **sin cerrar\n\n";
+        var b = ((System.Collections.IEnumerable)bloques.Invoke(null, new object[] { md })!).Cast<dynamic>().ToList();
+        string Texto(dynamic bloque) => string.Concat(((System.Collections.IEnumerable)bloque.Trozos).Cast<dynamic>().Select(x => (string)x.Texto));
+        Debe((bool)(b.Count == 4), $"cuatro bloques, las líneas vacías no cuentan: salieron {b.Count}");
+        if (b.Count != 4) return;
+        Debe((bool)(b[0].Tipo.ToString() == "Titulo" && Texto(b[0]) == "Hallazgos clave"), $"«## …» es un título: {b[0].Tipo} «{Texto(b[0])}»");
+        var trozos = ((System.Collections.IEnumerable)b[1].Trozos).Cast<dynamic>().ToList();
+        Debe((bool)(b[1].Tipo.ToString() == "Vineta" && trozos.Count == 2 && (string)trozos[0].Texto == "FEVI" && (bool)trozos[0].Negrita
+             && (string)trozos[1].Texto == " 45 %" && !(bool)trozos[1].Negrita),
+            $"«- **FEVI** 45 %» es una viñeta con «FEVI» en negrita: {b[1].Tipo} [{string.Join("|", trozos.Select(x => $"{x.Texto}:{x.Negrita}"))}]");
+        Debe((bool)(b[2].Tipo.ToString() == "Parrafo" && Texto(b[2]) == "<script>alert(1)</script> y <b>x</b>"
+             && ((System.Collections.IEnumerable)b[2].Trozos).Cast<dynamic>().All(x => !(bool)x.Negrita)),
+            $"el marcado ajeno es texto literal, no se interpreta: «{Texto(b[2])}»");
+        Debe((bool)(b[3].Tipo.ToString() == "Vineta" && Texto(b[3]) == "otra **sin cerrar"),
+            $"un ** sin cerrar se queda como está: «{Texto(b[3])}»");
+    }
+
+    private static void ElBotonYElProgresoDicenLaVerdad()
+    {
+        var t = Cardio("ReglaCardio");
+        var etiqueta = MetodoCardio(t, "EtiquetaDelBoton", 3);
+        var progreso = MetodoCardio(t, "Progreso", 3);
+        var hayCambios = MetodoCardio(t, "HayCambios", 1);
+        var tCliente = Cardio("ClienteCardio");
+        var ctor = tCliente?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 2);
+        var generar = MetodoCardio(tCliente, "GenerarAsync", 3);
+        dynamic? s = SesionConFotos(7, new DateTime(2026, 9, 23, 8, 0, 0, DateTimeKind.Utc));
+        if (etiqueta == null || progreso == null || hayCambios == null || ctor == null || generar == null || s == null)
+        {
+            Pendiente("Cardio.ReglaCardio.EtiquetaDelBoton + Progreso + HayCambios", "356", "046");
+            return;
+        }
+        string Etiqueta(int n, bool resumen, bool cambios) => (string)etiqueta.Invoke(null, new object[] { n, resumen, cambios })!;
+        string Progreso(int a, int b, int total) => (string)progreso.Invoke(null, new object[] { a, b, total })!;
+        bool Cambios() => (bool)hayCambios.Invoke(null, new object[] { s })!;
+
+        Debe((bool)(Etiqueta(12, false, true) == "Generar resumen (12)"), $"sin resumen: «{Etiqueta(12, false, true)}»");
+        Debe((bool)(Etiqueta(12, true, true) == "Actualizar resumen"), $"con resumen y fotos cambiadas: «{Etiqueta(12, true, true)}»");
+        Debe((bool)(Etiqueta(12, true, false) == "Resumen al día"), $"con resumen y nada nuevo: «{Etiqueta(12, true, false)}»");
+        Debe((bool)(Progreso(4, 6, 12) == "Leyendo fotos 4–6 de 12…"), $"«{Progreso(4, 6, 12)}»");
+        Debe((bool)(Progreso(7, 7, 7) == "Leyendo foto 7 de 7…"), $"una sola foto se dice en singular: «{Progreso(7, 7, 7)}»");
+
+        // EL PROGRESO REAL CUENTA SOBRE EL PLAN (patrón nº10): 7 fotos son «de 7» en cada lote.
+        var lineas = new List<string>();
+        var cliente = ctor.Invoke(new object[] { ModeloDeMentira(new List<string>()), "modelo-x" });
+        Debe((bool)(Cambios()), "antes de generar, hay cambios");
+        ((Task)generar.Invoke(cliente, new object[] { s, (Action<string>)(l => lineas.Add(l)), CancellationToken.None })!).GetAwaiter().GetResult();
+        Debe((bool)(lineas.SequenceEqual(new[] { "Leyendo fotos 1–3 de 7…", "Leyendo fotos 4–6 de 7…", "Leyendo foto 7 de 7…", "Generando resumen…" })),
+            $"el progreso dice lo que pasa, sobre el plan: [{string.Join(" ¦ ", lineas)}]");
+        Debe((bool)(!Cambios()), "recién generado, no hay cambios");
+        s.Quitar("f3");
+        Debe((bool)(Cambios()), "quitar una foto cuenta como cambio: el resumen ya no describe lo que hay");
+    }
+
+    private static void SiElModeloFallaLoLeidoSeConserva()
+    {
+        var tCliente = Cardio("ClienteCardio");
+        var ctor = tCliente?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 2);
+        var generar = MetodoCardio(tCliente, "GenerarAsync", 3);
+        dynamic? s = SesionConFotos(7, new DateTime(2026, 9, 23, 8, 0, 0, DateTimeKind.Utc));
+        if (ctor == null || generar == null || s == null)
+        {
+            Pendiente("Cardio.ClienteCardio.GenerarAsync", "357", "046");
+            return;
+        }
+
+        // 1. FALLA EL SEGUNDO LOTE.
+        var cuerpos = new List<string>();
+        var roto = ctor.Invoke(new object[] { ModeloDeMentira(cuerpos, n => n == 2), "modelo-x" });
+        string error = "";
+        try { ((Task)generar.Invoke(roto, new object[] { s, (Action<string>)(_ => { }), CancellationToken.None })!).GetAwaiter().GetResult(); }
+        catch (Exception e) { error = e.Message; }
+        Debe((bool)(error.Contains("4–6") && error.Contains("503")),
+            $"el error dice QUÉ lote falló y por qué, no «algo falló»: «{error}»");
+        var fotos = ((IEnumerable<dynamic>)s.Fotos).Cast<dynamic>().ToList();
+        bool Leida(dynamic f) => f.Resultado != null && f.Resultado.Estado.ToString() != "SinLeer";
+        Debe((bool)(fotos.Take(3).All(Leida)), "lo leído antes del fallo se conserva");
+        Debe((bool)(fotos.Skip(3).All(f => !Leida(f))), "lo que no se leyó queda por leer, no omitido");
+        Debe((bool)(string.IsNullOrEmpty((string)s.Resumen)), "y sin todas las fotos leídas no se inventa un resumen a medias");
+
+        // 2. REINTENTAR LEE SOLO LO QUE FALTÓ.
+        cuerpos.Clear();
+        var sano = ctor.Invoke(new object[] { ModeloDeMentira(cuerpos), "modelo-x" });
+        ((Task)generar.Invoke(sano, new object[] { s, (Action<string>)(_ => { }), CancellationToken.None })!).GetAwaiter().GetResult();
+        var releidas = cuerpos.Select(LoQueLleva).SelectMany(x => x.Ids).ToList();
+        Debe((bool)(releidas.SequenceEqual(new[] { "f4", "f5", "f6", "f7" })), $"el reintento lee solo lo que faltó: [{string.Join(", ", releidas)}]");
+        Debe((bool)(!string.IsNullOrEmpty((string)s.Resumen)), "y ahora sí hay resumen");
     }
 
     private static void Debe(bool condicion, string promesa)

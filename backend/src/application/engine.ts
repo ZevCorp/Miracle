@@ -6,19 +6,20 @@
 // decisión (brain.next) vive en el servidor; la ejecución (phone/mcp) vive en el cliente. El
 // contrato `Action[]`/`BrainTurn` es la costura.
 
-import { BrainTurn, ScreenState } from '../domain/actions';
-import { baseCatalog, catalogNames, McpTool } from '../domain/mcp';
-import { SessionState } from '../domain/session';
-import { runProviderTurn } from '../brain/provider';
-import { MemoryStore } from '../memory/store';
-import { LearningStore, learnedToMcp, workflowToMcp } from '../learning/workflows';
-import { activeKey } from '../config';
+import { BrainTurn, ScreenState } from '../domain/actions.js';
+import { baseCatalog, catalogNames, McpTool } from '../domain/mcp.js';
+import { SessionState } from '../domain/session.js';
+import { runProviderTurn } from '../brain/provider.js';
+import { MemoryStore } from '../memory/store.js';
+import { LearningStore, learnedToMcp, workflowToMcp } from '../learning/workflows.js';
+import { activeKey } from '../config.js';
 
 export interface TurnRequest {
   userId: string;
   session: SessionState;
   state: ScreenState;
   results: string[];
+  timeContext: string;
 }
 
 export interface TurnResult {
@@ -43,7 +44,8 @@ export async function resolveTurn(
 ): Promise<TurnResult> {
   const apps = req.state.apps ?? [];
   const tools = await assembleTools(req.userId, apps, deps.learning);
-  const memory = await deps.memory.forPrompt(req.userId);
+  // Recuperación dirigida por el objetivo: el prompt no recibe una lista infinita de notas.
+  const memory = await deps.memory.forPrompt(req.userId, req.session.goal);
 
   const { session, turn } = await runProviderTurn({
     session: req.session,
@@ -54,6 +56,7 @@ export async function resolveTurn(
     state: req.state,
     results: req.results,
     apiKey: activeKey(),
+    timeContext: req.timeContext,
   });
 
   return { session, turn };

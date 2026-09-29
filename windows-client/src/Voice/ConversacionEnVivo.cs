@@ -36,9 +36,14 @@ public sealed class ConversacionEnVivo : IDisposable
     private readonly SurfaceMapTools _mapa;
     private readonly IProtocolo _protocolo;
     private readonly LiveAudio _audio;
+    /// <summary>Se conecta después de construir la ventana, porque el backend se inicializa más tarde.</summary>
+    public MemoriaPersonal? Memoria { get; set; }
+    /// <summary>Hilo durable que une sesiones de voz sucesivas del mismo usuario.</summary>
+    public ConversacionPersonal? Conversacion { get; set; }
     private ClientWebSocket? _ws;
     private CancellationTokenSource? _cts;
     private readonly SemaphoreSlim _envio = new(1, 1);
+    private readonly SemaphoreSlim _apertura = new(1, 1);
 
     public ConversacionEnVivo(SurfaceMapTools mapa, IProtocolo? protocolo = null)
     {
@@ -358,12 +363,15 @@ public sealed class ConversacionEnVivo : IDisposable
     /// </remarks>
     private bool _confirmada;
     private string _fallaAntesDeAbrir = "";
+    private TaskCompletionSource<bool>? _aperturaConfirmada;
 
     /// <summary>Lo que se dirá cuando el servidor confirme: «Te escucho.» al arrancar, «Sigo…» al volver.</summary>
     private string _alConfirmar = "";
 
     private readonly StringBuilder _fraseU = new();
     private readonly StringBuilder _fraseUsuario = new();
+    private bool _respuestaDeTexto;
+    private int _parandoPorOrden;
 
     private string _sesionId = "";
     private DateTime _inicioSesion = DateTime.UtcNow;
@@ -372,6 +380,35 @@ public sealed class ConversacionEnVivo : IDisposable
     {
         if (Viva) { await TerminarAsync(); return; }
         await ArrancarAsync();
+    }
+
+    /// <summary>Abre la sesión viva si hace falta y habla por el mismo canal GPT-Live de Ü.</summary>
+    public async Task<bool> HablarConVozVivaAsync(string texto, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return false;
+        await _apertura.WaitAsync(ct);
+        try
+        {
+            if (!Viva) await ArrancarAsync();
+            if (!Viva) return false;
+
+            if (!_confirmada && _aperturaConfirmada != null)
+            {
+                try { await _aperturaConfirmada.Task.WaitAsync(TimeSpan.FromSeconds(15), ct); }
+                catch (TimeoutException) { LogBus.Log("voz-viva", "la sesión no confirmó a tiempo una frase pendiente"); return false; }
+                catch (OperationCanceledException) { return false; }
+            }
+
+            await DiEstoAsync(texto);
+            return true;
+        }
+        finally { _apertura.Release(); }
+    }
+
+    public async Task ArrancarSoloTextoAsync()
+    {
+        _respuestaDeTexto = true;
+        await ArrancarAsync(0, conMicrofono: false);
     }
 
     /// <summary>
@@ -399,9 +436,10 @@ public sealed class ConversacionEnVivo : IDisposable
     /// para que un corte de red pasajero no se le note al usuario, y para que tampoco se convierta
     /// en un bucle si la red no vuelve.
     /// </param>
-    public async Task ArrancarAsync(int intento = 0)
+    public async Task ArrancarAsync(int intento = 0, bool conMicrofono = true)
     {
         if (Viva) return;
+        Interlocked.Exchange(ref _parandoPorOrden, 0);
         string clave = Clave();
         if (clave.Length == 0)
         {
@@ -420,7 +458,9 @@ public sealed class ConversacionEnVivo : IDisposable
             _ws.Options.CollectHttpResponseDetails = true;
             foreach (var (k, v) in _protocolo.Cabeceras(clave)) _ws.Options.SetRequestHeader(k, v);
             await _ws.ConnectAsync(_protocolo.Direccion(), _cts.Token);
-            foreach (string msg in _protocolo.Apertura(InstruccionesNormales, Herramientas(), ""))
+            string instrucciones = await InstruccionesConMemoriaAsync(_cts.Token);
+            var historial = Conversacion?.Historial() ?? Array.Empty<(string Role, string Text)>();
+            foreach (string msg in _protocolo.Apertura(instrucciones, Herramientas(), "", historial, false))
                 await EnviarAsync(msg, _cts.Token);
 
             // Sesión nueva, cuentas nuevas: ni llamadas retiradas de antes, ni el pase de la
@@ -440,16 +480,16 @@ public sealed class ConversacionEnVivo : IDisposable
             // «SESIÓN ABIERTA» YA NO SE ESCRIBE AQUÍ: aquí solo se sabe que el socket conectó (promesa 220).
             EmpiezaUnaConexion("Te escucho.");   // cuando el servidor lo confirme (49 con GPT-Live, 50 con GPT Realtime)
 
-            _audio.Capturado += MandarTrozo;
-            _audio.AbrirMicrofono();
-            // DE DONDE LO ELIGIÓ LA APP, no del micrófono del portátil por defecto (promesa 146).
-            // Si el médico eligió el collar en la ventana de la consulta, hablar con Ü y ENSEÑARLE
-            // entran por ahí — que es lo que se pidió: un aparato, una elección.
-            ObedecerAlMicrofonoDeLaApp();
-            if (_oyendoElCambioDeMicrofono == null)
+            if (conMicrofono)
             {
-                _oyendoElCambioDeMicrofono = () => { try { ObedecerAlMicrofonoDeLaApp(); } catch { } };
-                ElMicrofonoDeLaApp.Cambio += _oyendoElCambioDeMicrofono;
+                _audio.Capturado += MandarTrozo;
+                _audio.AbrirMicrofono();
+                ObedecerAlMicrofonoDeLaApp();
+                if (_oyendoElCambioDeMicrofono == null)
+                {
+                    _oyendoElCambioDeMicrofono = () => { try { ObedecerAlMicrofonoDeLaApp(); } catch { } };
+                    ElMicrofonoDeLaApp.Cambio += _oyendoElCambioDeMicrofono;
+                }
             }
 
             // NO HAY VÍDEO EN DIRECTO. Ver es ahora un GESTO, no un caño abierto: una foto sale al
@@ -470,7 +510,7 @@ public sealed class ConversacionEnVivo : IDisposable
             {
                 await Task.Delay(TimeSpan.FromSeconds(1 + intento));
                 LogBus.Log("voz-viva", $"reintentando abrir la voz ({intento + 2}/3)…");
-                await ArrancarAsync(intento + 1);
+                await ArrancarAsync(intento + 1, conMicrofono);
                 return;
             }
 
@@ -578,8 +618,17 @@ public sealed class ConversacionEnVivo : IDisposable
             _oyendoElCambioDeMicrofono = null;
         }
         if (!Viva && _ws == null) return;
+        // Apagar la voz a mitad de un turno no debe cortar el hilo narrativo. El cierre normal ya
+        // guarda estas frases en CierraElTurno; aquí solo quedan las que aún no alcanzaron ese evento.
+        Conversacion?.Agregar("usuario", _fraseUsuario.ToString());
+        Conversacion?.Agregar("asistente", _fraseU.ToString());
+        _fraseUsuario.Clear();
+        _fraseU.Clear();
         ReportarConsumo();
         Viva = false;
+        _aperturaConfirmada?.TrySetResult(false);
+        _aperturaConfirmada = null;
+        Cambio?.Invoke(false);
         _audio.Capturado -= MandarTrozo;
         _audio.CerrarMicrofono();
         _audio.Callar();
@@ -592,7 +641,6 @@ public sealed class ConversacionEnVivo : IDisposable
         catch { }
         try { _ws?.Dispose(); } catch { }
         _ws = null;
-        Cambio?.Invoke(false);
         string? ultimaMedida = _cuenta.Cerrar();   // el último turno también deja su línea (spec 017)
         if (ultimaMedida != null) LogBus.Log("voz-turno", ultimaMedida);
         LogBus.Log("voz-viva", "sesión cerrada");
@@ -644,8 +692,11 @@ public sealed class ConversacionEnVivo : IDisposable
         a ver qué había en la carpeta, ¿seguimos?» es honesto; quedarte callado no lo es.
 
         Y tienes self_mute/self_hide/self_close, que son sobre TI y no sobre lo que hay en pantalla.
-        «Cállate»/«silencio» → self_mute. «Ocúltate»/«desaparece» → self_hide (sigues escuchando, solo
-        desapareces de la vista). «Ciérrate»/«apágate»/«sal de mi computador» → self_close, y solo
+        Si la INTENCIÓN de la persona es que dejes de hablar, de escucharla o que apagues la voz,
+        usa self_mute INMEDIATAMENTE, aunque lo diga con otras palabras, con rodeos, con una pregunta
+        o con una expresión que no aparezca literalmente en estos ejemplos. No respondas primero:
+        la llamada a self_mute es la respuesta y cierra micrófono, audio y sesión. «Ocúltate»/«desaparece»
+        → self_hide (sigues escuchando, solo desapareces de la vista). «Ciérrate»/«apágate»/«sal de mi computador» → self_close, y solo
         cuando lo pidan sin ambigüedad: es apagarte del todo, no ocultarte. Antes de self_close di una
         despedida CORTA en la misma frase de siempre, no después — no hay después.
 
@@ -703,21 +754,33 @@ public sealed class ConversacionEnVivo : IDisposable
             seguidos sin que se encendiera nada (2026-08-24)—. Es la misma razón por la que «sí, lo
             veo» no vale sin map_show: quien pregunta qué sabes está comprobando que lo que
             aprendiste es lo que él tiene delante, y eso solo se comprueba VIÉNDOLO marcado.
-          · «TOMO NOTA» NO ES TOMAR NOTA. Lo único que hace que algo se te quede es LLAMAR a
-            map_esto_es. Decir «lo tengo en mente», «tomo nota», «lo recordaré» sin haberla llamado
-            es la peor respuesta posible: quien te enseña se queda tranquilo creyendo que aprendiste
-            y no hay nada guardado. Pasó de verdad — dos lecciones seguidas contestadas con «lo
-            tengo en mente» y cero recuerdos creados (2026-08-24). Si vas a decir que lo recuerdas,
-            GUÁRDALO PRIMERO y luego dilo.
+          · «TOMO NOTA» NO ES TOMAR NOTA. Si es un dato PERSONAL, una preferencia o un compromiso del
+            usuario, llama a memory_remember y espera su resultado antes de decir que lo guardaste.
+            Si incluye «mañana», «hoy», una hora o «en X minutos» (también «en dos minutos» o «dentro de dos minutos»), usa memory_remember y conserva el
+            compromiso completo, incluyendo la referencia temporal. No afirmes que sonará una alarma
+            a menos que exista una alarma confirmada. Si vas a decir que lo recuerdas, GUÁRDALO PRIMERO
+            y luego dilo.
+          · LA MEMORIA PERSONAL ES PARTE DE LA CONVERSACIÓN, no una caja que el usuario tenga que abrir.
+            El hilo reciente y los recuerdos disponibles vienen en este contexto. Úsalos naturalmente
+            cuando una pregunta dependa de lo que ya hablamos, de quién es el usuario, de sus preferencias
+            o de un compromiso anterior. Los recordatorios pendientes que aparecen en la memoria son contexto activo: si preguntan qué estábamos haciendo, inclúyelos sin decir que no constan. Si falta un dato pertinente, llama tú mismo a memory_recall:
+            el usuario no tiene que pedírtelo de forma explícita.
+          · PREGUNTAS DE MEMORIA: ante «qué sabes de mí», «qué recuerdas», «¿te acuerdas de…?»,
+            «¿de qué hablábamos?» o una pregunta equivalente, tu PRIMERA ACCIÓN es consultar
+            memory_recall o usar el hilo durable que ya está cargado. No emitas una respuesta provisional
+            como «no recuerdo», «solo sé lo de este chat» o «no me consta» antes de recibir el resultado.
+            Espera la herramienta y responde una sola vez con lo que sí encontraste; si no hay nada,
+            dilo después de haber comprobado la memoria.
           · CUANDO TE EXPLIQUEN QUÉ ES ALGO O PARA QUÉ SIRVE —«esto es el número de factura», «aquí
             se radican los pacientes», «este botón sirve para X cuando Y»— eso es una lección, no
             una orden de acción: crea un RECUERDO con map_esto_es. No la resumas: «aquí va el
             número de factura, nunca el nombre» enseña más que «número de factura». Y AQUÍ SÍ TE
             LLEGA UNA FOTO —del instante en que se creó el recuerdo, no de cuando señalaste— así que
             además VES lo que rodeaba el elemento.
-          · LOS IMPERATIVOS DE MEMORIA TAMBIÉN SON LECCIONES, y son los que más se escapan porque no
-            tienen la forma «esto es X»: «recuerda que…», «recuérdalo», «toma nota», «no olvides»,
-            «siempre que… hay que…», «de ahora en adelante…». Todos ésos → map_esto_es, sin excepción.
+          · LOS IMPERATIVOS SE DIVIDEN EN DOS. «Recuerda que soy desarrollador», una preferencia,
+            una fecha o un compromiso personal → memory_remember. «Recuerda que en este botón se hace
+            clic para…» → map_esto_es porque enseña una pantalla. Nunca uses map_esto_es para guardar
+            datos personales: necesita un elemento visible y los rechazará sin uno.
           · SI TE ENSEÑAN ALGO QUE NO ESTÁN SEÑALANDO —«recuerda que para iniciar sesión se hace
             clic en Acceder al sistema»— pásale a map_esto_es el argumento `sobre` con el nombre del
             elemento tal como se lee. No hace falta que tengan la mano encima para que puedas
@@ -1062,12 +1125,11 @@ public sealed class ConversacionEnVivo : IDisposable
             + "toda tu tarea aquí—. Y sigue HASTA EL ÚLTIMO: quedarse en el primero deja la pregunta "
             + "a medias.",
             ("cual", "Cuál contar, empezando en 1. Vacío = el primero.")),
-        Fn("map_esto_es", "CREA UN RECUERDO con lo que el usuario te está ENSEÑANDO. Es la ÚNICA "
-            + "forma de que algo se te quede: si no la llamas, no aprendiste nada por mucho que "
-            + "digas que lo tienes en mente. Úsala en cuanto oigas «esto es X», «aquí va X cuando "
-            + "Y», «este botón sirve para…», y TAMBIÉN con los imperativos de memoria: «recuerda "
-            + "que…», «recuérdalo», «toma nota», «no olvides», «siempre que…», «de ahora en "
-            + "adelante…». QUEDA GUARDADO PARA SIEMPRE, pegado a ese elemento en esa pantalla, CON "
+        Fn("map_esto_es", "CREA UN RECUERDO DE PANTALLA con lo que el usuario te está ENSEÑANDO. "
+            + "Úsala solo cuando explique qué es un elemento visible o para qué sirve: «esto es X», "
+            + "«aquí va X cuando Y», «este botón sirve para…». Los datos personales, preferencias y "
+            + "compromisos van SIEMPRE a memory_remember, aunque la frase empiece por «recuerda que». "
+            + "QUEDA GUARDADO PARA SIEMPRE, pegado a ese elemento en esa pantalla, CON "
             + "UNA FOTO del instante: map_where_am_i te lo recordará solo la próxima vez que "
             + "vuelvas, sin que nadie tenga que volver a explicarlo.",
             ("significado", "Lo que ha dicho que es, con sus palabras. No lo resumas: «aquí va el número "
@@ -1130,25 +1192,43 @@ public sealed class ConversacionEnVivo : IDisposable
             + "Úsala cuando el usuario diga «encuéntrame X» o «¿dónde está X?» y no sepas dónde está. "
             + "Es del disco: no toca la caja de búsqueda del explorador ni deja la ventana en un estado raro.",
             ("query", "Parte del nombre que buscas."),
-            ("path", "Dónde buscar. Vacío = la carpeta abierta ahora.")),
+             ("path", "Dónde buscar. Vacío = la carpeta abierta ahora.")),
+
+        Fn("memory_remember", "GUARDA UN DATO PERSONAL, una preferencia o un compromiso del usuario. Úsala "
+            + "para «recuerda que soy…», «no olvides…», «toma nota de…» y cualquier cosa que deba sobrevivir "
+            + "al cierre de la voz. Si lleva «mañana», «hoy», una hora o «en X minutos» (incluidos números escritos como «dos»), conserva el "
+            + "compromiso completo con esa referencia temporal. No anuncies una alarma programada sin una "
+            + "confirmación explícita del sistema. ESPERA el resultado antes de afirmar que quedó guardado.",
+            ("text", "El dato o compromiso completo, sin resumirlo.")),
+        Fn("memory_recall", "CONSULTA LA MEMORIA PERSONAL que ya tienes del usuario. Úsala de forma natural cuando "
+            + "una respuesta dependa de algo que hablaron antes, una preferencia, un dato personal o un compromiso, "
+            + "aunque el usuario no diga «ve a tu memoria». Al volver a abrir la voz, el hilo reciente ya viene "
+            + "cargado: continúa desde él y trata los recordatorios pendientes como contexto inmediato. Ante "
+            + "«qué sabes de mí», «qué recuerdas» o «de qué hablábamos», LLÁMALA ANTES DE HABLAR y espera "
+            + "el resultado: nunca digas que no recuerdas como respuesta provisional. No la uses para recuerdos "
+            + "ligados a una pantalla: para esos está map_recuerdos.",
+            ("query", "Qué quieres recordar. Vacío = contexto personal disponible.")),
 
         // SOBRE Ü MISMO, no sobre lo que hay en pantalla. Van aparte de las map_*/file_* —esas
         // accionan OTRAS aplicaciones; estas te accionan a TI— y por eso las ejecuta quien tiene la
         // ventana, no SurfaceMapTools (2026-08-15, pedido por el usuario: poder callarte, ocultarte
         // y cerrarte con la voz).
-        Fn("self_mute", "SOLO si te lo piden con TODAS LAS LETRAS («cállate», «silencio», «no hables "
-            + "más»). Si lo que oíste es confuso, corto o no lo entendiste, NO la llames: preguntá "
-            + "en voz qué necesitan. Silenciarte por una transcripción dudosa deja al usuario sin "
-            + "asistente y sin saber por qué (2026-08-31: pasó con una frase mal transcrita). "
-            + "Te callas AHORA MISMO: cortas lo que estés diciendo y dejas de hablar hasta "
-            + "que alguien te reactive a mano. Úsala en cuanto oigas «cállate», «silencio», «no "
-            + "hables más» — no seguir hablando DESPUÉS de la orden, cortar EN ESE INSTANTE."),
+        Fn("self_mute", "ORDEN DE EMERGENCIA. Si la intención de la persona es que dejes de hablar, de escucharla "
+            + "o que apagues la voz, LLAMA esta herramienta antes de decir cualquier palabra. Entiende el "
+            + "significado, no una lista cerrada de frases: incluye «cállate», «silencio», «silénciate», "
+            + "«deja de escucharme», «apaga la voz» y cualquier otra forma equivalente. No contestes "
+            + "«me callo» ni confirmes verbalmente antes de llamarla. Esta herramienta corta ahora mismo "
+            + "el micrófono, vacía el audio y cierra la sesión; para volver, la persona debe activar la voz "
+            + "manualmente."),
         Fn("self_hide", "Te ocultas de la pantalla. Sigues escuchando y con la conversación viva; solo "
             + "desapareces de la vista. Vuelves con DOBLE CTRL. Úsala con «ocúltate», «desaparece», "
             + "«quítate de en medio»."),
         Fn("self_close", "Te cierras del todo: termina el proceso. Después de esto no hay vuelta sin "
             + "volver a abrirte a mano — no es ocultarte, es apagarte. Solo cuando lo pida sin "
             + "ambigüedad: «ciérrate», «apágate», «sal de mi computador»."),
+        Fn("self_update", "ACTUALIZA Ü cuando el usuario diga «actualízate», «ponte al día» o «instala la nueva versión». "
+            + "La ventana busca la release, muestra un halo morado y narra el mensaje humano que dejó el desarrollador. "
+            + "No inventes funciones: cuenta exactamente lo que Ü te diga que trae la actualización."),
 
         Fn("scan_computer", "Miras qué aplicaciones hay instaladas y cuáles están abiertas, y te "
             + "devuelve cuáles de ellas sabes conducir. Sirve para contarle a esta persona qué "
@@ -1160,7 +1240,7 @@ public sealed class ConversacionEnVivo : IDisposable
     /// <summary>Los nombres «self_mute», «self_hide», «self_close», para distinguirlos de las
     /// herramientas del mapa en el despacho — esas van a <see cref="_mapa"/>, estas a <see cref="Autocontrol"/>.</summary>
     private static readonly HashSet<string> HerramientasDeAutocontrol =
-        new(StringComparer.Ordinal) { "self_mute", "self_hide", "self_close", "scan_computer" };
+        new(StringComparer.Ordinal) { "self_mute", "self_hide", "self_close", "self_update", "scan_computer" };
 
     /// <summary>
     /// Quien atiende «self_mute»/«self_hide»/«self_close». Se inyecta desde la ventana, porque
@@ -1396,10 +1476,18 @@ public sealed class ConversacionEnVivo : IDisposable
             + $"instrucciones de {instrucciones.Length} car." + (esperara ? " · solo habla cuando se le pide" : ""));
     }
 
-    public async Task EnviarTextoAsync(string texto)
+    public Task EnviarTextoAsync(string texto)
+        => EnviarTextoInternoAsync(texto, soloTexto: false);
+
+    public Task EnviarTextoSoloTextoAsync(string texto)
+        => EnviarTextoInternoAsync(texto, soloTexto: true);
+
+    private async Task EnviarTextoInternoAsync(string texto, bool soloTexto)
     {
         if (!SalidaAbierta || string.IsNullOrWhiteSpace(texto)) return;
+        if (soloTexto) _respuestaDeTexto = true;
         EmpiezaUnTurnoDelUsuario("texto");   // escribir también es pedir algo nuevo (spec 017)
+        Conversacion?.Agregar("usuario", texto);
         Dice?.Invoke($"Tú: {texto}");
         var ct = _cts?.Token ?? CancellationToken.None;
         foreach (string msg in MensajesDeTexto(_protocolo, texto))   // promesa 208: lo escrito pide respuesta
@@ -1681,7 +1769,9 @@ public sealed class ConversacionEnVivo : IDisposable
             _ws.Options.CollectHttpResponseDetails = true;   // sin esto un 401 llega como estado 0 (ver ArrancarAsync)
             foreach (var (k, v) in _protocolo.Cabeceras(clave)) _ws.Options.SetRequestHeader(k, v);
             await _ws.ConnectAsync(_protocolo.Direccion(), _cts.Token);
-            foreach (string msg in _protocolo.Apertura(InstruccionesNormales, Herramientas(), _pase))
+            string instrucciones = await InstruccionesConMemoriaAsync(_cts.Token);
+            var historial = Conversacion?.Historial() ?? Array.Empty<(string Role, string Text)>();
+            foreach (string msg in _protocolo.Apertura(instrucciones, Herramientas(), _pase, historial, false))
                 await EnviarAsync(msg, _cts.Token);
 
             if (_protocolo.SabeVolver && _pase.Length > 0)
@@ -1724,6 +1814,10 @@ public sealed class ConversacionEnVivo : IDisposable
         _segundosDeConexionesAnteriores += _segundosDeLaConexion;
         _segundosDeLaConexion = 0;
         _confirmada = !_protocolo.ConfirmaQueAbrio;
+        _aperturaConfirmada = _confirmada
+            ? new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)
+            : new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (_confirmada) _aperturaConfirmada.TrySetResult(true);
         _fallaAntesDeAbrir = "";
         _porQueNoSeReintenta = _loQueDijoAlNoPoder = "";   // la causa era de la conexión anterior (224)
         _alConfirmar = _confirmada ? "" : alConfirmar;
@@ -1810,6 +1904,7 @@ public sealed class ConversacionEnVivo : IDisposable
         switch (hecho)
         {
             case Hecho.Suena s:
+                if (_respuestaDeTexto) break;
                 // Tras una interrupción manual, el resto de la frase que ya venía en vuelo
                 // no debe resucitar la voz: se tira hasta que pase la ventana o hables tú.
                 if (Environment.TickCount64 < _silencioHastaMs) break;
@@ -1842,6 +1937,10 @@ public sealed class ConversacionEnVivo : IDisposable
                 TurnoCerrado?.Invoke();
                 if (_fraseU.Length > 0) LogBus.Log("voz-viva", $"Ü dijo: {_fraseU}");
                 if (_fraseUsuario.Length > 0) LogBus.Log("voz-viva", $"usuario dijo: {_fraseUsuario}");
+                GuardarPeticionPersonalSiLaPidio(_fraseUsuario.ToString());
+                GuardarDetallePersonalSiEsRelevante(_fraseUsuario.ToString());
+                Conversacion?.Agregar("usuario", _fraseUsuario.ToString());
+                Conversacion?.Agregar("asistente", _fraseU.ToString());
                 // LO QUE EL HUMANO DIJO, PARA QUIEN ESTÉ APRENDIENDO. Mientras se enseña con 🎓,
                 // cada frase completa del operador es candidata a explicar el paso que estaba
                 // dando: la frase se entrega al oyente y él la ancla por tiempo (promesa 105). Se
@@ -1854,6 +1953,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 bool hablo = _fraseU.Length > 0;
                 _fraseU.Clear();
                 _fraseUsuario.Clear();
+                _respuestaDeTexto = false;
                 _reintentos = 0;   // hay conversación de verdad: el contador de caídas seguidas vuelve a cero
                 Cerro?.Invoke();
                 if (hablo) SeguirContandoSiQuedan();
@@ -1925,10 +2025,111 @@ public sealed class ConversacionEnVivo : IDisposable
             // LA SESIÓN ABRIÓ DE VERDAD (promesa 49): lo que se iba a decir al arrancar o al volver, se dice ahora.
             case Hecho.Abierta:
                 _confirmada = true;
+                _aperturaConfirmada?.TrySetResult(true);
                 LogBus.Log("voz-viva", $"sesión abierta con {QuienAbre}: el servidor la confirmó");   // la única que lo afirma (220)
                 if (_alConfirmar.Length > 0) { Dice?.Invoke(_alConfirmar); _alConfirmar = ""; }
                 break;
         }
+    }
+
+    /// <summary>
+    /// El usuario no debería depender de que el modelo recuerde llamar una herramienta para una
+    /// petición explícita de memoria personal. La voz ya cerró la frase completa, así que esta
+    /// compuerta guarda localmente expresiones inequívocas como «quiero que recuerdes que…» antes
+    /// de que el turno se pierda. Las instrucciones sobre botones o pantallas siguen siendo lecciones.
+    /// </summary>
+    private void GuardarPeticionPersonalSiLaPidio(string texto)
+    {
+        if (Memoria == null || string.IsNullOrWhiteSpace(texto)) return;
+        string bajo = texto.ToLowerInvariant();
+        bool pideMemoria = bajo.Contains("recuerda que", StringComparison.Ordinal)
+            || bajo.Contains("recuérdame", StringComparison.Ordinal)
+            || bajo.Contains("acuérdate", StringComparison.Ordinal)
+            || bajo.Contains("no olvides", StringComparison.Ordinal)
+            || bajo.Contains("quiero que recuerdes", StringComparison.Ordinal)
+            || bajo.Contains("ten presente", StringComparison.Ordinal);
+        bool esLeccionVisual = bajo.Contains("botón", StringComparison.Ordinal)
+            || bajo.Contains("pantalla", StringComparison.Ordinal)
+            || bajo.Contains("campo", StringComparison.Ordinal)
+            || bajo.Contains("haz clic", StringComparison.Ordinal);
+        if (!pideMemoria || esLeccionVisual) return;
+
+        try
+        {
+            var resultado = Memoria.EjecutarAsync(texto, CancellationToken.None).GetAwaiter().GetResult();
+            LogBus.Log("memoria", $"voz: {(resultado.Ok ? "guardado automático" : "no guardado")} · {resultado.Kind} · {resultado.Response}");
+        }
+        catch (Exception e)
+        {
+            LogBus.Log("memoria", $"voz: no pude guardar la petición personal automática: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Guarda detalles personales de alta confianza aunque no lleven el verbo «recordar»: gustos,
+    /// preferencias, sueños, relaciones de trabajo y datos que el usuario cuenta espontáneamente.
+    /// El modelo puede enriquecerlos después, pero la captura inicial no depende de que decida llamar
+    /// una herramienta a tiempo.
+    /// </summary>
+    private void GuardarDetallePersonalSiEsRelevante(string texto)
+    {
+        if (Memoria == null || string.IsNullOrWhiteSpace(texto)) return;
+        string bajo = texto.Trim().ToLowerInvariant();
+        if (bajo.Length < 12 || bajo.Length > 900) return;
+        if (bajo.Contains("recuerda", StringComparison.Ordinal)
+            || bajo.Contains("recuérd", StringComparison.Ordinal)
+            || bajo.Contains("busca en memoria", StringComparison.Ordinal)
+            || bajo.Contains("¿", StringComparison.Ordinal)
+            || bajo.StartsWith("qué ", StringComparison.Ordinal)
+            || bajo.StartsWith("como ", StringComparison.Ordinal)
+            || bajo.StartsWith("cómo ", StringComparison.Ordinal)) return;
+
+        bool datoPersonal = bajo.Contains("me gusta", StringComparison.Ordinal)
+            || bajo.Contains("me encant", StringComparison.Ordinal)
+            || bajo.Contains("prefiero", StringComparison.Ordinal)
+            || bajo.Contains("mi sueño", StringComparison.Ordinal)
+            || bajo.Contains("quisiera comprar", StringComparison.Ordinal)
+            || bajo.Contains("quiero comprar", StringComparison.Ordinal)
+            || bajo.Contains("tengo un ", StringComparison.Ordinal)
+            || bajo.Contains("tengo una ", StringComparison.Ordinal)
+            || bajo.Contains("tengo dos ", StringComparison.Ordinal)
+            || bajo.Contains("soy ", StringComparison.Ordinal)
+            || bajo.Contains("vivo en ", StringComparison.Ordinal)
+            || bajo.Contains("trabajo en ", StringComparison.Ordinal)
+            || bajo.Contains("mi equipo", StringComparison.Ordinal)
+            || bajo.Contains("mi empresa", StringComparison.Ordinal)
+            || bajo.Contains("mi agencia", StringComparison.Ordinal);
+        if (!datoPersonal) return;
+
+        try
+        {
+            var resultado = Memoria.EjecutarAsync(texto.Trim(), CancellationToken.None).GetAwaiter().GetResult();
+            LogBus.Log("memoria", $"voz: {(resultado.Ok ? "detalle automático guardado" : "detalle no guardado")} · {resultado.Kind} · {resultado.Response}");
+        }
+        catch (Exception e)
+        {
+            LogBus.Log("memoria", $"voz: no pude guardar el detalle personal automático: {e.Message}");
+        }
+    }
+
+    /// Corta la entrada local cuando el modelo entiende una orden inequívoca de apagar la voz.
+    /// Deja un respiro breve para que la confirmación mínima del modelo («Mmm.») pueda sonar;
+    /// después termina la sesión y la salida que quedara encolada.
+    /// </summary>
+    public void PararPorOrdenDeVoz()
+    {
+        if (Interlocked.Exchange(ref _parandoPorOrden, 1) != 0) return;
+        LogBus.Log("voz-viva", "orden de autocontrol: cierro micrófono y dejo una confirmación breve");
+        _audio.CerrarMicrofono();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2));
+                await TerminarAsync();
+            }
+            catch (Exception e) { LogBus.Log("voz-viva", $"no pude cerrar la voz tras la orden: {e.Message}"); }
+        });
     }
 
     /// <summary>
@@ -2034,6 +2235,9 @@ public sealed class ConversacionEnVivo : IDisposable
     /// <summary>Crear un recuerdo. Se vigila desde fuera porque el modelo se la saltaba.</summary>
     private const string HerramientaRecordar = "map_esto_es";
 
+    private const string HerramientaMemoriaGuardar = "memory_remember";
+    private const string HerramientaMemoriaConsultar = "memory_recall";
+
     /// <summary>
     /// Contar lo que ya se sabe. Llamarla PRUEBA que la frase era una pregunta, no una lección.
     /// </summary>
@@ -2041,6 +2245,33 @@ public sealed class ConversacionEnVivo : IDisposable
 
     /// <summary>Cuánto se espera a que guarde antes de dar la lección por perdida.</summary>
     private static readonly TimeSpan MargenParaGuardar = TimeSpan.FromSeconds(9);
+
+    private async Task<string> EjecutarMemoriaPersonalAsync(Llamada llamada, CancellationToken ct)
+    {
+        if (Memoria == null) return "la memoria personal todavía no está conectada.";
+        try
+        {
+            using var limite = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            limite.CancelAfter(TimeSpan.FromSeconds(15));
+            if (llamada.Nombre == HerramientaMemoriaConsultar)
+            {
+                string query = llamada.Args.TryGetValue("query", out var q) ? q : "";
+                string contexto = await Memoria.ContextoAsync(limite.Token, query);
+                if (string.IsNullOrWhiteSpace(contexto)) return "no tengo recuerdos personales guardados todavía.";
+                return string.IsNullOrWhiteSpace(query) ? contexto : contexto;
+            }
+
+            string texto = llamada.Args.TryGetValue("text", out var t) ? t : "";
+            var resultado = await Memoria.EjecutarAsync(texto, limite.Token);
+            LogBus.Log("memoria", $"voz: {(resultado.Ok ? "guardado" : "no guardado")} · {resultado.Kind} · {resultado.Response}");
+            return resultado.Response;
+        }
+        catch (Exception e)
+        {
+            LogBus.Log("memoria", $"voz: no pude conectar con la memoria personal: {e.Message}");
+            return $"no pude guardar ese recuerdo porque el backend respondió con un error: {e.Message}";
+        }
+    }
 
     private readonly object _candadoLeccion = new();
     private string _leccionPendiente = "";
@@ -2195,9 +2426,9 @@ public sealed class ConversacionEnVivo : IDisposable
             {
                 await EnviarTextoAlModeloAsync(
                     "[aviso del sistema] Lo último que te dijeron sonaba a una lección y no llamaste "
-                    + "a map_esto_es, así que no se guardó nada. Si de verdad era algo que debes "
-                    + "recordar, guárdalo AHORA con map_esto_es (usa `sobre` con el nombre del "
-                    + "elemento si no te lo señalaron). Si no lo era, sigue sin decir nada de esto.");
+                    + "a map_esto_es, así que no se guardó nada. Si de verdad era un dato personal, "
+                    + "guárdalo AHORA con memory_remember. Si era una explicación de algo visible, "
+                    + "usa map_esto_es con `sobre` si no te lo señalaron. Si no lo era, sigue sin decir nada de esto.");
             }
             catch (Exception e) { LogBus.Log("recuerdo", $"no pude avisar al modelo: {e.Message}"); }
         });
@@ -2213,6 +2444,33 @@ public sealed class ConversacionEnVivo : IDisposable
         var ct = _cts?.Token ?? CancellationToken.None;
         foreach (string msg in MensajesDeTexto(_protocolo, texto))   // el mismo camino que lo escrito (208)
             await EnviarAsync(msg, ct);
+    }
+
+    private async Task<string> InstruccionesConMemoriaAsync(CancellationToken ct)
+    {
+        var memoria = Memoria;
+        var conversacion = Conversacion;
+        if (memoria == null && conversacion == null) return Instrucciones;
+        try
+        {
+            using var limite = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            // La primera consulta puede necesitar un reintento DNS al despertar Windows; dejar
+            // que termine evita abrir una sesión de voz sin la memoria personal disponible.
+            limite.CancelAfter(TimeSpan.FromSeconds(10));
+            string contexto = memoria == null ? "" : await memoria.ContextoAsync(limite.Token);
+            string hilo = conversacion?.Contexto() ?? "";
+            string instrucciones = Instrucciones;
+            if (!string.IsNullOrWhiteSpace(contexto))
+                instrucciones += "\n\nMEMORIA PERSONAL DISPONIBLE (úsala solo si es pertinente; no inventes). Los [recordatorio ...] pendientes son compromisos activos y debes reconocerlos si el usuario pregunta por el hilo: \n" + contexto;
+            if (!string.IsNullOrWhiteSpace(hilo))
+                instrucciones += "\n\nHILO CONVERSACIONAL DURABLE (continúa naturalmente desde aquí, incluso después de apagar y volver a encender el micrófono; no pidas al usuario que te repita esto):\n" + hilo;
+            return instrucciones;
+        }
+        catch (Exception e)
+        {
+            LogBus.Log("memoria", $"no pude cargar la memoria personal al abrir la voz: {e.Message}");
+            return Instrucciones;
+        }
     }
 
     private async Task EjecutarNucleoAsync(IReadOnlyList<Llamada> llamadas, CancellationToken ct)
@@ -2266,6 +2524,14 @@ public sealed class ConversacionEnVivo : IDisposable
                 }
                 relojMirar.Stop();
                 Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, relojMirar.ElapsedMilliseconds), true);
+            }
+            else if (f.Nombre is HerramientaMemoriaGuardar or HerramientaMemoriaConsultar)
+            {
+                Accion?.Invoke(EnCurso(f.Nombre, f.Args), false);
+                var relojPersonal = System.Diagnostics.Stopwatch.StartNew();
+                resultado = await EjecutarMemoriaPersonalAsync(f, ct);
+                relojPersonal.Stop();
+                Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, relojPersonal.ElapsedMilliseconds), true);
             }
             else if (HerramientasDeAutocontrol.Contains(f.Nombre))
             {
