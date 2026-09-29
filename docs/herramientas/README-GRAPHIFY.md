@@ -4,7 +4,31 @@ Este repo tiene un **grafo de conocimiento** generado con [graphify](https://git
 un mapa del código y la documentación que permite preguntar cosas como *"¿dónde se maneja el audio?"*
 y obtener archivos y líneas exactas, sin que la IA tenga que leer el proyecto entero.
 
-El grafo vive en `graphify-out/graph.json` y **viaja con el repo**. Al hacer `git pull` ya lo tienes.
+El grafo vive en `graphify-out/graph.json` y **no se versiona** desde el 2026-08-21: cada commit que
+tocaba código arrastraba un diff de 138.000 líneas en `graph.json`, y con eso ningún PR se podía
+revisar. Tras clonar, o cuando quieras el grafo al día:
+
+```bash
+graphify update .        # en la raíz, cubre todo el monorepo; dentro de apps/<proyecto>, solo ese
+```
+
+### El hook de graphify, en tu máquina y no en el repo
+
+Hasta el 2026-09-28 los `settings.json` versionados llamaban a
+`C:/Users/Jose David Jaramillo/.local/bin/graphify.EXE`, una ruta que solo existe en un PC: en los
+demás el hook fallaba sin avisar. Si lo quieres, ponlo en tu `.claude/settings.local.json` (no se
+versiona) con la ruta de TU graphify, en la carpeta donde abres Claude:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash|Grep", "hooks": [{ "type": "command", "command": "graphify hook-guard search" }] },
+      { "matcher": "Read|Glob", "hooks": [{ "type": "command", "command": "graphify hook-guard read" }] }
+    ]
+  }
+}
+```
 
 ---
 

@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# EL PORTERO DEL MONOREPO: un despachador. No juzga nada propio salvo una cosa —a main no se empuja
+# directo—; lo demás lo decide el portero de cada proyecto que la rama toca, con sus reglas tal como
+# venían de su repo (<proyecto>/.githooks/pre-push).
+#
+# Se activa una vez por clon, en la raíz:
+#     git config core.hooksPath .githooks
+#
+# Por qué un despachador y no un portero único (2026-09-28): cada proyecto se verifica con su propia
+# herramienta —Windows con dotnet y su contrato, Android con Gradle y el suyo— y exigirle a una rama
+# que solo toca el portal que compile WPF bloqueaba a quien empuja desde un Mac. Un proyecto sin
+# portero local (hoy web, graph y mac) lo juzga su CI en el PR; aquí se dice, no se calla.
+#
+# Qué toca cada push sale de LO QUE SE EMPUJA (las refs que git pasa por stdin), no del árbol de
+# trabajo. Sin stdin (corrido a mano) se mira HEAD.
+
+set -u
+
+rojo()  { printf '\033[31m%s\033[0m\n' "$*"; }
+verde() { printf '\033[32m%s\033[0m\n' "$*"; }
+gris()  { printf '\033[90m%s\033[0m\n' "$*"; }
+
+raiz="$(git rev-parse --show-toplevel)"
+cd "$raiz" || exit 1
+
+# Los proyectos del monorepo. Uno nuevo se añade aquí Y en tools/monorepo/comprobar-raiz.sh.
+PROYECTOS="apps/windows apps/mac apps/android apps/web services/graph"
+
+refs=""
+[ -t 0 ] || refs="$(cat)"
+
+a_main() {
+  rojo "  ✘  a main no se empuja directo"
+  echo "     Haz tu rama, empújala, y abre el PR:"
+  echo "         git switch -c <persona>/<que-hace>"
+  echo
+  exit 1
+}
+
+echo
+echo "  ── el portero del monorepo ─────────────────────"
+
+# ── 0. a main no se empuja directo — mirando la ref REMOTA, que es lo que de verdad se empuja ──
+if [ -n "$refs" ]; then
+  while read -r _ _ remote_ref _; do
+    [ "$remote_ref" = "refs/heads/main" ] && a_main
+  done <<< "$refs"
+else
+  [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ] && a_main
+fi
+
+# ── qué tocan los commits que se empujan, contra main ─────────────────────────────────────────
+shas=""
+if [ -n "$refs" ]; then
+  while read -r _ local_sha _ _; do
+    [ -n "${local_sha:-}" ] && ! [[ "$local_sha" =~ ^0+$ ]] && shas="$shas $local_sha"
+  done <<< "$refs"
+else
+  shas="$(git rev-parse HEAD)"
+fi
+
+tocado=""
+todo=0
+for sha in $shas; do
+  if base="$(git merge-base origin/main "$sha" 2>/dev/null)"; then
+    tocado="$tocado
+$(git diff --name-only "$base" "$sha")"
+  else
+    todo=1   # sin origin/main no se sabe qué toca: se llama a todos los porteros
+  fi
+done
+
+fallos=0
+for p in $PROYECTOS; do
+  if [ "$todo" -eq 0 ] && ! printf '%s\n' "$tocado" | grep -q "^$p/"; then
+    continue
+  fi
+  portero="$p/.githooks/pre-push"
+  if [ -f "$portero" ]; then
+    if ! printf '%s' "$refs" | bash "$portero"; then
+      fallos=$((fallos+1))
+    fi
+  else
+    echo
+    gris "  ·  $p: no tiene portero local; lo juzga su CI en el PR (.github/workflows/)"
+  fi
+done
+
+# ── la raíz: si la rama toca algo fuera de los proyectos, la estructura sigue en orden ─────────
+if [ "$todo" -eq 1 ] || printf '%s\n' "$tocado" | grep -vE '^(apps|services)/' | grep -q .; then
+  echo
+  if bash tools/monorepo/comprobar-raiz.sh; then
+    verde "  ✔  la raíz sigue en orden"
+  else
+    fallos=$((fallos+1))
+  fi
+fi
+
+echo
+if [ "$fallos" -gt 0 ]; then
+  rojo "  no entra: $fallos portero(s) en rojo"
+  echo
+  gris "  Si crees que un portero se equivoca, la conversación es sobre su regla,"
+  gris "  no sobre saltarse el hook."
+  echo
+  exit 1
+fi
+
+verde "  todo en verde — adelante"
+echo
+exit 0

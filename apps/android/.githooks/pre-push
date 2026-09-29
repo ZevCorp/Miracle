@@ -3,16 +3,16 @@
 # Gradle: mismas cuatro comprobaciones, mismo espíritu — lo que TIENE que pasar va aquí; los .md
 # explican el porqué.
 #
-# Desde el 2026-09-28 Android vive en android/ dentro del monorepo, y este portero ya no se activa
-# solo: lo llama el de la raíz (.githooks/pre-push) cuando la rama toca android/, pasándole las
-# mismas refs. El proyecto Gradle está en $pro, no en la raíz del repo.
+# Desde el 2026-09-28 Android vive en apps/android/ dentro del monorepo, y este portero ya no se
+# activa solo: lo llama el despachador de la raíz (.githooks/pre-push) cuando la rama toca
+# apps/android/, pasándole las mismas refs.
 #
 # Juzga LO QUE SE EMPUJA, no el árbol de trabajo. Git le pasa por stdin una línea por ref:
 #     <local_ref> <local_sha> <remote_ref> <remote_sha>
 # y cada local_sha se compila y se juzga en un worktree desacoplado temporal sobre ese sha: un
 # cambio sin commitear no puede dar verde a un commit que no lo trae. Se prueba sin empujar:
 #     printf 'refs/heads/<rama> %s refs/heads/<rama> 0000000000000000000000000000000000000000\n' \
-#         "$(git rev-parse HEAD)" | bash android/.githooks/pre-push
+#         "$(git rev-parse HEAD)" | bash apps/android/.githooks/pre-push
 # Sin stdin (corrido a mano, sin la tubería) juzga HEAD y el árbol de trabajo, y lo avisa.
 #
 # Tarda ~1-2 min con el daemon de Gradle caliente: el worktree compila en limpio. Si algún día tarda
@@ -25,14 +25,19 @@ rojo()  { printf '\033[31m%s\033[0m\n' "$*"; }
 verde() { printf '\033[32m%s\033[0m\n' "$*"; }
 gris()  { printf '\033[90m%s\033[0m\n' "$*"; }
 
-raiz="$(git rev-parse --show-toplevel)"
+# Se ubica por su propia ruta, no por la raíz del repo: dentro del monorepo el proyecto está en
+# apps/android/, y si algún día vuelve a estar solo, en la raíz. $pro es esa carpeta relativa a la
+# raíz («apps/android», o vacía), y $p la misma con la barra para armar rutas («apps/android/»).
+dir_propio="$(cd "$(dirname "$0")/.." && pwd)"
+raiz="$(git -C "$dir_propio" rev-parse --show-toplevel)"
+pro="$(git -C "$dir_propio" rev-parse --show-prefix)"; pro="${pro%/}"
+p="${pro:+$pro/}"
 cd "$raiz" || exit 1
-pro="android"
 
 # El SDK: la variable si existe; si no, local.properties; si no, el default de Android Studio.
 if [ -z "${ANDROID_HOME:-}" ]; then
-  if [ -f "$pro/local.properties" ]; then
-    ANDROID_HOME="$(sed -n 's/^sdk.dir=//p' "$pro/local.properties" | head -1)"
+  if [ -f "${p}local.properties" ]; then
+    ANDROID_HOME="$(sed -n 's/^sdk.dir=//p' "${p}local.properties" | head -1)"
   fi
   [ -n "${ANDROID_HOME:-}" ] || ANDROID_HOME="$HOME/Android/Sdk"
   export ANDROID_HOME
@@ -125,8 +130,8 @@ trae_test() {
     fallos=$((fallos+1))
     return
   fi
-  if ! codigo_tocado="$(git diff --name-only "$base...$rev" -- "$pro/core/src/*Main/**/*.kt" "$pro/app/src/main/**/*.kt" 2>&1)" \
-     || ! test_tocado="$(git diff --name-only "$base...$rev" -- "$pro/core/src/*Test/**/*.kt" "$pro/app/src/test/**/*.kt" "$pro/app/src/androidTest/**/*.kt" 2>&1)"; then
+  if ! codigo_tocado="$(git diff --name-only "$base...$rev" -- "${p}core/src/*Main/**/*.kt" "${p}app/src/main/**/*.kt" 2>&1)" \
+     || ! test_tocado="$(git diff --name-only "$base...$rev" -- "${p}core/src/*Test/**/*.kt" "${p}app/src/test/**/*.kt" "${p}app/src/androidTest/**/*.kt" 2>&1)"; then
     rojo "  ✘  no se pudo comparar $base...${rev:0:9}: no se sabe si trae su propio test"
     printf '%s\n' "$codigo_tocado" | head -2 | sed 's/^/     /'
     fallos=$((fallos+1))
@@ -142,7 +147,7 @@ trae_test() {
     else
       rojo "  ✘  esta rama cambia código y no añade ninguna promesa"
       echo "     $codigo_tocado archivo(s) de código, 0 de contrato (contra $base)."
-      echo "     Añade lo que esta funcionalidad promete en $pro/core/src/commonTest/kotlin/graph/core/contrato/"
+      echo "     Añade lo que esta funcionalidad promete en ${p}core/src/commonTest/kotlin/graph/core/contrato/"
       echo "     —o renómbrala a chore/ o refactor/ si de verdad no cambia comportamiento."
     fi
     fallos=$((fallos+1))

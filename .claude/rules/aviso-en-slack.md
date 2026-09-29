@@ -37,7 +37,9 @@ Lo mínimo para que el que lo lea decida en un vistazo si le importa:
 
 1. **A qué rama se subió** — y si es `main`, se ve de un golpe.
 2. **Qué se subió**, en la voz de los commits: el cambio de comportamiento, no los archivos.
-3. **Qué zona toca** — `windows-graph`, UI de `windows-client` (riesgo alto de choque), servicios.
+3. **Qué zona toca** — el proyecto (`apps/windows`, `apps/mac`, `apps/android`, `apps/web`,
+   `services/graph`, o la raíz) y, dentro de Windows, `windows-graph`, UI de `windows-client`
+   (riesgo alto de choque) o servicios.
 4. **En qué estado quedó**: contrato verde/rojo, o «sin verificar» si no se corrió. Nunca se
    supone: un aviso que dice verde sin haberlo medido es peor que no avisar.
 

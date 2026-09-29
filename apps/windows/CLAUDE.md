@@ -1,4 +1,10 @@
-# Ü Windows — guía para trabajar en este repo
+# Ü Windows — guía para trabajar en `apps/windows`
+
+> Esta es la guía de **Windows**, que desde el 2026-09-28 vive en `apps/windows/` del monorepo.
+> Todos los comandos de aquí se corren **desde esta carpeta** (`cd apps/windows`), y abrir Claude
+> aquí carga estas reglas, sus skills y sus hooks: Claude Code no hereda hooks ni skills entre
+> carpetas. Lo común a todo el monorepo (ramas, commits, el aviso de cada push, qué toca cada
+> máquina) vive en el [`AGENTS.md`](../../AGENTS.md) de la raíz y se carga igual desde aquí.
 
 ## EL CICLO — léelo antes que nada
 
@@ -15,9 +21,10 @@ Esto es lo único que hay que recordar. Todo lo demás de este archivo explica e
 8.  PR con la evidencia → squash merge → borra la rama
 ```
 
-**El portero** (`.githooks/pre-push`) no se puede olvidar: bloquea el empujón directo a `main`, exige
-que compile, que los contratos estén intactos, y que la rama traiga su propia promesa. Se activa una
-vez por clon:
+**El portero** (`.githooks/pre-push` de esta carpeta, al que llama el despachador de la raíz cuando
+la rama toca `apps/windows/`) no se puede olvidar: bloquea el empujón directo a `main`, exige que
+compile, que los contratos estén intactos, y que la rama traiga su propia promesa. Se activa una vez
+por clon:
 
 ```powershell
 git config core.hooksPath .githooks
@@ -47,34 +54,6 @@ pacientes, listar radicados, consultar órdenes clínicas. Se le enseña una vez
 
 No es un grabador de macros por coordenadas: aprende *qué elemento* se tocó para poder repetirlo aunque
 la ventana cambie de tamaño, posición o scroll.
-
-## El monorepo (desde el 2026-09-28)
-
-Este repo ya no es solo Windows. Lleva dentro, cada uno con su historia entera:
-
-| Carpeta | Qué es | Venía de | Su guía |
-|---|---|---|---|
-| raíz | Ü para Windows (y `mac-client/`) | aquí | este archivo |
-| `graph/` | el cerebro | `joseph1356k/Graph` | [`graph/CLAUDE.md`](graph/CLAUDE.md) |
-| `android/` | Ü para Android | `ZevCorp/Android` | [`android/README.md`](android/README.md) |
-| `web/` | el portal clínico (Miracle Notes) | `joseph1356k/Pagina-web-clientes-final` | [`web/CLAUDE.md`](web/CLAUDE.md), [`web/AGENTS.md`](web/AGENTS.md) |
-
-Lo que cambia para quien trabaja en Windows: **nada en las rutas.** Windows se quedó en la raíz
-porque el feed de actualizaciones de las Ü instaladas son las releases de este repo
-(`windows-client/src/Config.cs`), y el contrato, los scripts y el CI dan por hechas estas rutas.
-
-Lo que cambia para todos:
-
-- **Una feature que cruza carpetas es una rama.** Antes, «la nota de Windows piensa como la de la
-  web» eran dos ramas con el mismo nombre en dos repos, que había que mergear a la vez.
-- **El portero sabe qué toca tu rama** (`.githooks/pre-push`): lo de Windows solo si tocas algo
-  fuera de `graph/`, `android/` y `web/`; el portero de Android si tocas `android/`.
-- **El CI de cada parte corre cuando su carpeta cambia**: `web.yml`, `android-apk.yml`. El contrato
-  (`contrato.yml`) sigue corriendo en todos los PRs, como antes.
-- **`graphify-out/` no se versiona en ninguna carpeta**, tampoco en `graph/` ni `web/` (que sí lo
-  hacían): un `graphify update .` en la raíz cubre las cuatro partes.
-- Una regla de una carpeta importada **vale dentro de ella**: `web/AGENTS.md` avisa de que su
-  Next.js no es el que uno cree, y eso no le dice nada a `windows-client/`.
 
 ## Arquitectura: cliente tonto, cerebro remoto
 
@@ -122,14 +101,13 @@ Y atravesándolo todo: **cada `git push` que publique commits deja un aviso en `
 con `/avisa` — qué entró, a qué rama y qué zona toca. Somos tres, y enterarse de un push cuando
 llega el conflicto es enterarse tarde.
 
-Las reglas completas viven en `.claude/rules/` y se cargan con el proyecto:
+Las reglas de Windows viven en `.claude/rules/` de esta carpeta, y las comunes a todo el monorepo
+(ramas y commits, el aviso de cada push, qué toca cada máquina) en `.claude/rules/` de la raíz.
+Las dos se cargan solas:
 
 @.claude/rules/flujo-sdd.md
 @.claude/rules/patrones-de-desarrollo.md
-@.claude/rules/ramas-y-commits.md
 @.claude/rules/compuerta-a-main.md
-@.claude/rules/aviso-en-slack.md
-@.claude/rules/solo-mac.md
 
 Lo que separa una rama de `main` —los cuatro niveles, en orden de coste:
 
@@ -137,7 +115,7 @@ Lo que separa una rama de `main` —los cuatro niveles, en orden de coste:
 .\scripts\verificar.ps1        # 1 compila · 2 el contrato · 3 escenarios (-Escenarios) · 4 a mano
 ```
 
-Y en la nube, en cada PR: [`.github/workflows/contrato.yml`](.github/workflows/contrato.yml). Los
+Y en la nube, en cada PR que toque Windows: [`.github/workflows/windows-contrato.yml`](../../.github/workflows/windows-contrato.yml). Los
 escenarios NO corren allí y no es un olvido: abren apps de verdad sobre un escritorio real.
 
 ### El portero: lo único que no se puede olvidar
@@ -357,7 +335,7 @@ Cuando no encuentra la ruta, hoy improvisa. Le falta, en orden de impacto:
    `PrependAlignmentStepAsync` con la alineación. Eso cierra la premisa del producto — el hueco de
    `NV44` lo tapó un humano leyendo COM; con esto lo tapa el sistema la primera vez.
 
-## El puente con el portal clínico (`web/`, antes repo `Pagina-web-clientes-final`)
+## El puente con el portal clínico (`apps/web/`, antes repo `Pagina-web-clientes-final`)
 
 Mientras el médico dicta, el portal produce **conceptos canónicos** (`vital.talla`, `vital.peso`,
 `vital.presion.sistolica`…) y el agente los va escribiendo en los campos de SAP al llegar a la pantalla.

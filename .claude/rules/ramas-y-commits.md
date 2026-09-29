@@ -1,6 +1,6 @@
 # Ramas, commits y el tamaño del trabajo
 
-Resumen operativo de [`CLAUDE.md`](../../CLAUDE.md) §*Ramas*. Lo que un agente tiene que respetar
+Resumen operativo de la guía de Windows ([`apps/windows/CLAUDE.md`](../../apps/windows/CLAUDE.md) §*Ramas*), que desde el 2026-09-28 vale para todo el monorepo. Lo que un agente tiene que respetar
 sin preguntar.
 
 ## La rama
@@ -72,9 +72,11 @@ Una rama por persona evita pisarse la rama, no el archivo.
 
 | Zona | Riesgo |
 |---|---|
-| `windows-graph/` | bajo — específico de SAP |
-| `windows-client/` UI (carita, paneles, inspector) | **alto** — es lo que todos tocan |
-| `windows-client/` servicios (voz, logging, release) | bajo |
+| `apps/windows/windows-graph/` | bajo — específico de SAP |
+| `apps/windows/windows-client/` UI (carita, paneles, inspector) | **alto** — es lo que todos tocan |
+| `apps/windows/windows-client/` servicios (voz, logging, release) | bajo |
+| `apps/mac/`, `apps/android/`, `apps/web/`, `services/graph/` | cada uno el suyo: se toca de uno en uno y con el CI de su carpeta |
+| la raíz (`AGENTS.md`, `.github/`, `.githooks/`, `tools/`) | **alto** — la usan todos los proyectos a la vez |
 
 **Que dos personas no tengan features abiertas en la UI a la vez.** Si es inevitable: pantallas
 distintas y ninguna rama de más de un día.
