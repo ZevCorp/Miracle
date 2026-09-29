@@ -683,7 +683,9 @@ public sealed class ConversacionEnVivo : IDisposable
         preguntarte: cada vuelta tuya cuesta dos segundos, y un paso de Jeff, un tercio. Cada paso es UNO de estos:
           · «abre: <app o dirección>» — calculadora, configuración, explorador, paint, edge, o una dirección
             (https://…, ms-settings:bluetooth: el camino más corto a una sección de Configuración).
-          · «pulsa: <nombre exacto>» — cuando YA VES ese nombre en EN PANTALLA AHORA. Es lo más rápido.
+          · «pulsa: <nombre exacto>» — cuando ves ese nombre en EN PANTALLA AHORA, o cuando sabes cómo se llama
+            aunque aún no lo veas (las secciones de Configuración, los menús de siempre). Es lo más rápido, y si no
+            está a la vista Jeff lo busca por su cuenta: nunca pierdes nada por usarlo.
           · «escribe: <texto exacto>» — donde esté el foco. Para escribir en un campo, antes un paso que lo enfoque.
           · «tecla: <tecla>» — Enter, Escape, Tab, Ctrl+S, Alt+F4.
           · «desplaza: abajo|arriba [muescas]» — para ver lo que queda fuera de la pantalla.

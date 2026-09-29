@@ -60,10 +60,25 @@ public sealed class ManosDelPlan
         if (!llego) { LogBus.Log("plan", $"   abrir «{app}»: no llegó delante en {ms} ms"); return false; }
         var r = Stopwatch.StartNew();
         int n = 0;
-        var q = Asentado.Quieta(() => { var l = _lector.Leer(Ventana()); n = l.Accionables.Count; return l; }, 3000, () => r.ElapsedMilliseconds);
+        // QUIETA Y PINTADA (promesa 523): una lectura con solo el marco de la ventana cuenta como vacía, y Quieta sigue esperando.
+        var q = Asentado.Quieta(() => { var l = _lector.Leer(Ventana()); n = l.Accionables.Count; return Pintada(l) ? l : Lectura.Vacia; },
+            3000, () => r.ElapsedMilliseconds);
         LogBus.Log("plan", $"   abrir «{app}»: delante en {ms} ms, {(q.Cambio ? "quieta" : "todavía moviéndose")} en {q.Ms} ms más ({n} accionables)");
         return true;
     }
+
+    private static readonly string[] DelMarco = { "system", "sistema", "minimizar", "maximizar", "restaurar", "cerrar", "minimize", "maximize", "restore", "close" };
+
+    /// <summary>
+    /// ¿LA APP YA PINTÓ ALGO SUYO? (promesa 523): algún accionable que no sea el marco de la ventana. El 2026-09-29 (02:52)
+    /// «abre: calculadora» se dio por quieta con solo «System» (MenuItem) —una app de la tienda que aún no pintaba— y lo que
+    /// se tecleó después cayó en el vacío: Luna rehízo la cuenta en cinco planes.
+    /// </summary>
+    public static bool Pintada(Lectura l) => l.Accionables.Any(a =>
+    {
+        string n = (a.Nombre ?? "").Trim().ToLowerInvariant();
+        return !DelMarco.Any(m => n == m || n.StartsWith(m + " ", StringComparison.Ordinal));
+    });
 
     /// <summary>Teclear y esperar a que la app termine de consumirlo (u/, promesa 459).</summary>
     public void Escribir(string texto)

@@ -151,7 +151,9 @@ public sealed class ElPlanPorObjetivos
         {
             if (!p.StartsWith(prefijo, StringComparison.OrdinalIgnoreCase)) continue;
             string nombre = p[prefijo.Length..].Trim().Trim('«', '»', '"', '\'', '“', '”').Trim();
-            if (nombre.Length > 0 && _pulsarPorNombre(nombre))
+            // SI NO ESTÁ, PUEDE QUE LA PÁGINA AÚN CARGUE (promesa 524): una espera a que se quede quieta y otra búsqueda,
+            // antes de pedirle a Jev que adivine sobre una pantalla a medias.
+            if (nombre.Length > 0 && (_pulsarPorNombre(nombre) || (EsperarQuieta?.Invoke() == true && _pulsarPorNombre(nombre))))
             {
                 _acciones++;
                 return new Recorrido(Array.Empty<Vuelta>(), $"cumplido: pulsé «{nombre}» por el ciclo rápido", true);
