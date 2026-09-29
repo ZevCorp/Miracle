@@ -1839,8 +1839,26 @@ public sealed class SurfaceMapTools
     /// </summary>
     public Func<Navigation.Desbloqueo.Dialogo?>? LeerDialogo { get; set; }
 
+    /// <summary>Cuánto se espera a que la app conteste al leer el diálogo (promesa 528). Es una propiedad para juzgarlo sin esperar.</summary>
+    public int PlazoDelDialogoMs { get; set; } = 2000;
+
+    /// <summary>La última lectura del diálogo no contestó a tiempo: no se sabe si hay diálogo (≠ no lo hay).</summary>
+    private bool _dialogoSinContestar;
+
+    /// <summary>
+    /// EL DIÁLOGO DE DELANTE, CON PLAZO (promesa 528). Con el cuadro «Editar colores» de Paint delante, esta lectura tardó
+    /// 187 s y map_unblock contestó «no hay nada que desbloquear» (2026-09-29): el tercer sitio que lee la pantalla sin el
+    /// plazo que la 490 puso a los otros dos. Si no contesta, null y <see cref="_dialogoSinContestar"/> lo distingue.
+    /// </summary>
     private Navigation.Desbloqueo.Dialogo? DialogoDelante()
-        => LeerDialogo != null ? LeerDialogo() : Interrupcion.LeerDialogo(VentanaDeTrabajo?.Invoke() ?? IntPtr.Zero);
+    {
+        _dialogoSinContestar = false;
+        Func<Navigation.Desbloqueo.Dialogo?> leer = LeerDialogo ?? (() => Interrupcion.LeerDialogo(VentanaDeTrabajo?.Invoke() ?? IntPtr.Zero));
+        if (Uia.Plazo.Con(leer, PlazoDelDialogoMs, out var dialogo)) return dialogo;
+        _dialogoSinContestar = true;
+        LogBus.Log("mapa-mcp", $"el diálogo no se dejó leer en {PlazoDelDialogoMs} ms: sigo sin él");
+        return null;
+    }
 
     /// <summary>
     /// SEÑALAR, contestado por el núcleo. Recibe lo que UIA ya resolvió bajo el cursor y devuelve la
@@ -2341,6 +2359,9 @@ public sealed class SurfaceMapTools
     {
         // EL DIÁLOGO CON SUS BOTONES (promesa 236): lo que se pulsa es el botón que se leyó, no un nombre.
         var dialogo = DialogoDelante();
+        // NO LEÍDO NO ES NO HABER (aprendizaje nº2): dos causas, dos frases.
+        if (_dialogoSinContestar)
+            return $"no pude leer el diálogo a tiempo: la app no contestó en {PlazoDelDialogoMs} ms. No pulsé nada.";
         if (dialogo == null || dialogo.Opciones.Count == 0)
             return "no hay nada que desbloquear: no veo ningún diálogo delante.";
         string titulo = dialogo.Titulo;
@@ -2387,9 +2408,12 @@ public sealed class SurfaceMapTools
         {
             System.Threading.Thread.Sleep(120);
             var sigue = DialogoDelante();
+            if (_dialogoSinContestar) break;   // la app dejó de contestar: no se sabe si se fue, y no se espera más
             if (sigue == null || sigue.Opciones.Count == 0) { libre = true; break; }
         }
         LogBus.Log("mapa-mcp", $"DESBLOQUEO: «{titulo}» → pulsado «{elegida}» · {(libre ? "resuelto" : "sigue ahí")}");
+        if (!libre && _dialogoSinContestar)
+            return $"pulsé «{elegida}» del diálogo «{titulo}», pero la app dejó de contestar y no sé si se fue.";
         if (!libre)
             return $"pulsé «{elegida}» y el diálogo «{titulo}» sigue delante. No insisto sola: dime qué hacer.";
 
