@@ -9066,7 +9066,8 @@ internal static class Contrato
         // salieron ✔ 210 y CONTRATO INTACTO, exit 0 (sabotaje G2 de la revisión, repetido en esta rama), y
         // en U.exe cada session.start pediría ese modelo y la voz no abriría. La 40 no lo ve: juzga una
         // instancia que construye ella. Se juzga lo que manda la apertura: modelo, delegado y dirección.
-        const string gptLive = "ProtocoloGptLive · modelo gpt-live-1 · delegado gpt-5.6-luna · wss://api.openai.com/v1/live/sessions";
+        // El delegado es GPT-6 Sol desde el 2026-09-29 (decisión del dueño, spec 062, promesa 520).
+        const string gptLive = "ProtocoloGptLive · modelo gpt-live-1 · delegado gpt-6-sol · wss://api.openai.com/v1/live/sessions";
         const string realtime = "ProtocoloOpenAI · modelo gpt-realtime-2.1-mini · wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1-mini";
         static string Abre(object? p)
         {
