@@ -1,0 +1,211 @@
+import { NextResponse } from "next/server";
+import { reportError } from "@/lib/observability";
+import { normalizeHora, type ParsedCita } from "@/lib/agenda";
+import { rateLimit, requireEntitledApiUser } from "@/lib/api/guard";
+import { anthropicUsage, reportAiUsage } from "@/lib/ai-usage";
+
+export const runtime = "nodejs";
+// La visión sobre una agenda densa puede tardar: sin esto la función se corta
+// con el timeout por defecto de Vercel.
+export const maxDuration = 60;
+
+// Formatos que acepta la API de visión de Anthropic.
+const MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+// Alineado con el límite de body de Vercel (~4.5 MB): 5.8M chars base64.
+const MAX_BASE64_CHARS = 5_800_000;
+
+const SYSTEM = `Extraes citas médicas de la foto o captura de pantalla de un horario o agenda (sistemas hospitalarios, planillas impresas, cuadernos).
+
+Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después, con esta forma exacta:
+{"citas": [{"hora": "HH:MM", "paciente": string, "motivo": string | null, "documento": string | null}]}
+
+Reglas:
+- "hora" en formato 24 horas (ej. "08:30", "14:00"). Omite filas sin hora legible.
+- "paciente": el nombre tal como aparece. Omite filas sin paciente (descansos, bloqueos, "DISPONIBLE", totales).
+- "motivo": motivo, servicio o procedimiento si aparece; si no, null. No lo inventes.
+- "documento": número de documento o identificación si aparece; si no, null.
+- Ordena por hora ascendente. Si la imagen no contiene un horario de citas, devuelve {"citas": []}.`;
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function sanitizeCitas(value: unknown): ParsedCita[] {
+  const list = (value as any)?.citas;
+  if (!Array.isArray(list)) return [];
+  const out: ParsedCita[] = [];
+  for (const c of list) {
+    if (!c || typeof c !== "object") continue;
+    const hora = normalizeHora(String((c as any).hora ?? ""));
+    const paciente = String((c as any).paciente ?? "").trim();
+    if (!hora || !paciente) continue;
+    out.push({
+      hora,
+      paciente: paciente.slice(0, 120),
+      motivo:
+        typeof (c as any).motivo === "string" && (c as any).motivo.trim()
+          ? (c as any).motivo.trim().slice(0, 200)
+          : null,
+      documento:
+        typeof (c as any).documento === "string" && (c as any).documento.trim()
+          ? (c as any).documento.trim().slice(0, 60)
+          : null,
+    });
+    if (out.length >= 60) break;
+  }
+  return out.sort((a, b) => a.hora.localeCompare(b.hora));
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+function extractJsonObject(raw: string): string | null {
+  const clean = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const start = clean.indexOf("{");
+  const end = clean.lastIndexOf("}");
+  return start >= 0 && end > start ? clean.slice(start, end + 1) : null;
+}
+
+export async function POST(req: Request) {
+  // Sesión + derecho comercial: cada llamada a visión cuesta dinero.
+  const gate = await requireEntitledApiUser();
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
+  const userId = gate.userId;
+  if (!(await rateLimit(`parse-schedule:${userId}`, 6))) {
+    return NextResponse.json(
+      { error: "Demasiadas solicitudes. Espera un momento e intenta de nuevo." },
+      { status: 429 },
+    );
+  }
+
+  let body: { image?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
+  }
+
+  const match = (body.image ?? "").match(/^data:([a-z0-9/+.-]+);base64,([A-Za-z0-9+/=\s]+)$/i);
+  const mediaType = match?.[1]?.toLowerCase() ?? "";
+  if (!match || !MEDIA_TYPES.has(mediaType)) {
+    return NextResponse.json(
+      { error: "Formato de imagen no soportado. Usa JPG, PNG o WebP." },
+      { status: 400 },
+    );
+  }
+  const b64 = match[2].replace(/\s/g, "");
+  if (b64.length > MAX_BASE64_CHARS) {
+    return NextResponse.json(
+      { error: "La imagen supera 5 MB. Usa una captura más liviana." },
+      { status: 413 },
+    );
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Sin clave: el cliente ofrece el alta manual como alternativa.
+  if (!apiKey) return NextResponse.json({ connected: false });
+
+  // Única llamada del portal a un modelo que NO pasa por Graph: se mide aquí
+  // o no se mide en ningún lado.
+  const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
+  const startedAt = Date.now();
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 3000,
+        system: SYSTEM,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: { type: "base64", media_type: mediaType, data: b64 },
+              },
+              { type: "text", text: "Extrae las citas de este horario." },
+            ],
+          },
+        ],
+      }),
+      // Corta la llamada dentro del presupuesto de maxDuration en vez de dejar
+      // que la mate la plataforma con un 504 en HTML.
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    if (!res.ok) {
+      // Un error del proveedor puede haber consumido tokens igual (p. ej. si
+      // falló después de procesar la imagen). Se registra sin cifras, que es
+      // exactamente lo que sabemos, en vez de omitirlo.
+      void reportAiUsage({
+        userId,
+        feature: "schedule_parsing",
+        provider: "anthropic",
+        requestedModel: model,
+        inputTokens: 0,
+        outputTokens: 0,
+        status: "error",
+        errorCode: `http_${res.status}`,
+        latencyMs: Date.now() - startedAt,
+      });
+      reportError(new Error("anthropic parse-schedule error"), {
+        route: "parse-schedule",
+        status: res.status,
+      });
+      return NextResponse.json({ connected: true, error: "anthropic" }, { status: 502 });
+    }
+
+    const data = (await res.json()) as {
+      id?: string;
+      model?: string;
+      content?: { type: string; text?: string }[];
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        cache_read_input_tokens?: number;
+        cache_creation_input_tokens?: number;
+      };
+    };
+
+    // Se reporta el consumo aunque el parseo de abajo falle: los tokens ya se
+    // gastaron. Nunca se envía el texto extraído (lleva nombres de pacientes).
+    void reportAiUsage({
+      userId,
+      feature: "schedule_parsing",
+      provider: "anthropic",
+      requestedModel: model,
+      servedModel: data.model ?? model,
+      status: "ok",
+      latencyMs: Date.now() - startedAt,
+      providerRequestId: data.id ?? "",
+      ...anthropicUsage(data.usage),
+    });
+    const raw = data.content
+      ?.filter((b) => b.type === "text")
+      .map((b) => b.text ?? "")
+      .join("") ?? "";
+    const json = extractJsonObject(raw);
+
+    let parsed: unknown;
+    try {
+      if (!json) throw new Error("JSON object missing");
+      parsed = JSON.parse(json);
+    } catch {
+      // No se registra `raw` (puede contener nombres de pacientes).
+      reportError(new Error("parse-schedule JSON parse failed"), {
+        route: "parse-schedule",
+        stage: "parse",
+      });
+      return NextResponse.json({ connected: true, error: "parse" }, { status: 502 });
+    }
+
+    return NextResponse.json({ connected: true, citas: sanitizeCitas(parsed) });
+  } catch (e) {
+    reportError(e, { route: "parse-schedule" });
+    return NextResponse.json({ connected: true, error: "network" }, { status: 500 });
+  }
+}

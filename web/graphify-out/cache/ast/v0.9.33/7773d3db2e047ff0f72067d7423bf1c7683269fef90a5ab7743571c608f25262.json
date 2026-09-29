@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_supabase_migrations_20260804181547_seed_pediatria_template_sql", "label": "20260804181547_seed_pediatria_template.sql", "file_type": "code", "source_file": "supabase/migrations/20260804181547_seed_pediatria_template.sql", "source_location": null}], "edges": []}
