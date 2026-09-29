@@ -1,0 +1,114 @@
+{
+  "note": "Índice de la documentación viva del sistema, mostrada en Provider Studio. Para añadir un doc: crea el .md en esta carpeta y agrégalo aquí bajo su tema.",
+  "topics": [
+    {
+      "topic": "Cómo trabajamos",
+      "docs": [
+        {
+          "id": "como-probamos",
+          "title": "Cómo probamos: el banco de pruebas del laboratorio",
+          "summary": "El marcador automático (derivado de la telemetría) y la bitácora de avances, el contrato de instrumentación que todo desarrollador debe cumplir, y el estado honesto de qué llega hoy y qué no.",
+          "file": "como-probamos.md"
+        }
+      ]
+    },
+    {
+      "topic": "Workflows y superficies",
+      "docs": [
+        {
+          "id": "coincidencia-superficie-estado",
+          "title": "Coincidencia de superficie y estado: los 3 escenarios",
+          "summary": "Cuándo un workflow exige la misma pantalla/estado exacto y cuándo generaliza — decidido por el LLM.",
+          "file": "coincidencia-superficie-estado.md"
+        }
+      ]
+    },
+    {
+      "topic": "Motores del cliente Windows",
+      "docs": [
+        {
+          "id": "motor-inspector-elementos",
+          "title": "Inspector de elementos: por qué un botón se marca en rojo",
+          "summary": "Uno de los dos motores centrales. Compara el elemento que tocaste con el que el asistente resolvería por etiqueta: amarillo coincide, rojo no. Es un detector de ambigüedad de etiquetas, no de botones rotos.",
+          "file": "motor-inspector-elementos.md"
+        },
+        {
+          "id": "motor-escaneo-sapgui",
+          "title": "Escaneo SAP GUI: cómo leemos una pantalla de SAP",
+          "summary": "El otro motor central. Enganche por COM a SAP GUI Scripting, los tres recorridos de la pantalla, el formato de los IDs findById y su normalización a sap:, y la regla de hilos STA.",
+          "file": "motor-escaneo-sapgui.md"
+        },
+        {
+          "id": "motor-localizador-superficie",
+          "title": "SurfaceLocator: el mapa generado por URL",
+          "summary": "La geolocalización dentro del SO: dónde está parado el usuario, como URL. Sondeo, reglas de normalización, los DOS sintetizadores que divergen, y cómo se comparan dos ubicaciones.",
+          "file": "motor-localizador-superficie.md"
+        },
+        {
+          "id": "motor-superficies-uisurface",
+          "title": "Superficies (IUiSurface): el CÓMO de cada mundo",
+          "summary": "La abstracción que separa hablar con Graph de tocar Windows: UiaSurface y SapGuiSurface, selectores re-resolubles y modo flexible.",
+          "file": "motor-superficies-uisurface.md"
+        },
+        {
+          "id": "motor-ensenanza-workflow",
+          "title": "Enseñanza: cómo un workflow entra al sistema",
+          "summary": "🎓 Enseñar: pasos estructurados (UIA/SAP) + video de contexto en paralelo, el orden crítico al detener y el título automático.",
+          "file": "motor-ensenanza-workflow.md"
+        },
+        {
+          "id": "motor-ejecucion-workflowplayer",
+          "title": "WorkflowPlayer: el motor de ejecución subconsciente",
+          "summary": "Graph decide QUÉ, la máquina decide CÓMO: pide el plan, verifica superficie, alinea, ejecuta paso a paso y para al primer fallo.",
+          "file": "motor-ejecucion-workflowplayer.md"
+        },
+        {
+          "id": "motor-navegacion-superficie",
+          "title": "SurfaceNavigator: el motor que alcanza el punto de arranque",
+          "summary": "En vez de fallar cuando la pantalla no coincide, navega el SO hasta el punto de arranque del workflow — escalera de estrategias (enfocar → acceso directo → shell).",
+          "file": "motor-navegacion-superficie.md"
+        },
+        {
+          "id": "motor-carga-ui",
+          "title": "SurfaceReadiness: el motor de carga de UI",
+          "summary": "La \"barra de carga\" interna: al grabar guarda cuántos elementos hay listos en la ruta; al ejecutar espera a que la pantalla cargue (≥80%) antes de actuar. Evita el fallo por UI sin cargar.",
+          "file": "motor-carga-ui.md"
+        },
+        {
+          "id": "motor-medicion-tiempos",
+          "title": "RunTimings: medición de tiempos de respuesta",
+          "summary": "Cronometra cada fase de la ejecución (espera-carga, acción, alineación, total) por paso y emite un resumen milimétrico al terminar. Para ver dónde se va el tiempo.",
+          "file": "motor-medicion-tiempos.md"
+        }
+      ]
+    },
+    {
+      "topic": "Distribución y seguridad",
+      "docs": [
+        {
+          "id": "distribucion-app-conectada",
+          "title": "Distribución: el .exe llega conectado, sin config del usuario",
+          "summary": "Cómo el Setup.exe distribuido funciona de fábrica: la API key de Graph se hornea en el build vía CI, sin secretos en el repo.",
+          "file": "distribucion-app-conectada.md"
+        },
+        {
+          "id": "autenticacion-interna-plan",
+          "title": "Autenticación interna: enrolamiento por instalación (PLAN)",
+          "summary": "La siguiente mejora: identidad por instalación (enroll + token en DB) manteniendo el cero-config. Analizada y decidida.",
+          "file": "autenticacion-interna-plan.md"
+        }
+      ]
+    },
+    {
+      "topic": "Hipótesis por validar",
+      "docs": [
+        {
+          "id": "hipotesis-grafo-ubicaciones",
+          "title": "HIPÓTESIS: nodos = ubicaciones, aristas = transiciones",
+          "summary": "Propuesta SIN validar de emitir surface_change y construir un grafo de navegación. Incluye las dos objeciones abiertas, el riesgo de calidad de datos y el precedente medido del intento por eventos de Windows.",
+          "file": "hipotesis-grafo-ubicaciones.md"
+        }
+      ]
+    }
+  ]
+}

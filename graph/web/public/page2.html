@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EMR Diagnosis and Prescription</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <style>
+        :root {
+            --surface: #ffffff;
+            --surface-2: #f7fafc;
+            --line: #d7e0e8;
+            --line-2: #c8d3dd;
+            --ink: #1d2a33;
+            --muted: #637381;
+            --primary: #0f5f8c;
+            --primary-soft: #e8f1f7;
+            --danger: #a33b3b;
+            --shadow: 0 20px 48px rgba(16, 31, 44, 0.08);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Inter", "Segoe UI", sans-serif;
+            color: var(--ink);
+            background: linear-gradient(180deg, #f4f7fa 0%, #ebf1f6 100%);
+        }
+        .shell {
+            max-width: 1320px;
+            margin: 0 auto;
+            padding: 24px 24px 190px;
+        }
+        .topbar, .card, .console {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+        }
+        .topbar {
+            border-radius: 18px;
+            padding: 16px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+        .topbar h1 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .topbar p {
+            margin: 2px 0 0;
+            font-size: 13px;
+            color: var(--muted);
+        }
+        .nav {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+        .nav a, .nav button {
+            text-decoration: none;
+            color: var(--primary);
+            font-weight: 600;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 10px 14px;
+        }
+        .nav button {
+            font: inherit;
+            cursor: pointer;
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 18px;
+        }
+        .card {
+            border-radius: 22px;
+            padding: 22px;
+        }
+        .section-label {
+            display: inline-flex;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 14px;
+        }
+        .field-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .field-span { grid-column: 1 / -1; }
+        label {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        input, textarea, select {
+            width: 100%;
+            border: 1px solid var(--line-2);
+            border-radius: 12px;
+            padding: 12px 13px;
+            font: inherit;
+            color: var(--ink);
+            background: #fff;
+        }
+        textarea { resize: vertical; min-height: 98px; }
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+        button {
+            border: none;
+            border-radius: 12px;
+            padding: 11px 16px;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-secondary {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+        .feedback {
+            min-height: 24px;
+            margin-top: 12px;
+            color: #1b6b4b;
+            font-weight: 600;
+        }
+        .activity ol {
+            margin: 0;
+            padding-left: 20px;
+            color: var(--muted);
+        }
+        .console {
+            position: fixed;
+            left: 50%;
+            bottom: 18px;
+            transform: translateX(-50%);
+            width: auto;
+            min-width: 124px;
+            padding: 10px 12px;
+            z-index: 50;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(18px);
+            display: grid;
+            gap: 10px;
+            justify-items: center;
+            border-radius: 999px;
+            transition: width 180ms ease, border-radius 180ms ease, padding 180ms ease;
+        }
+        .console.compact-open {
+            border-radius: 24px;
+            width: min(560px, calc(100vw - 24px));
+        }
+        .console-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .console button.icon-btn {
+            width: 46px;
+            height: 46px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            flex: 0 0 auto;
+        }
+        .console button.icon-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+        #btn-record-toggle[data-recording="true"] {
+            background: #1b6b4b;
+            color: white;
+        }
+        #btn-record-toggle[data-recording="false"] {
+            background: var(--primary);
+            color: white;
+        }
+        #agent-send {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+        #btn-stethoscope {
+            background: #f1f5f8;
+            color: var(--muted);
+        }
+        .console-chat {
+            display: none;
+            width: 100%;
+        }
+        .console-chat.open {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 240px;
+        }
+        .console-chat-log {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            padding: 4px 2px 2px;
+            max-height: 172px;
+        }
+        .chat-bubble {
+            max-width: min(100%, 460px);
+            padding: 10px 12px;
+            border-radius: 16px;
+            font-size: 0.94rem;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .chat-bubble.user {
+            align-self: flex-end;
+            background: var(--primary);
+            color: #fff;
+            border-bottom-right-radius: 6px;
+        }
+        .chat-bubble.assistant {
+            align-self: flex-start;
+            background: #f1f5f8;
+            color: var(--text);
+            border-bottom-left-radius: 6px;
+        }
+        .chat-bubble .chat-meta {
+            display: block;
+            margin-top: 6px;
+            font-size: 0.78rem;
+            color: rgba(0, 0, 0, 0.55);
+        }
+        .chat-bubble.user .chat-meta {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        .console-chat textarea {
+            min-height: 52px;
+            height: 52px;
+            resize: none;
+            border-radius: 16px;
+            padding: 12px 14px;
+            width: min(520px, calc(100vw - 52px));
+        }
+        .actions-strip {
+            margin-top: 18px;
+        }
+        .actions-strip .card {
+            padding: 16px 18px;
+        }
+        .actions-strip ol {
+            display: flex;
+            gap: 18px;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 0 0 4px 18px;
+        }
+        .actions-strip li {
+            min-width: max-content;
+        }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        @media (max-width: 1040px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+        @media (max-width: 760px) {
+            .field-grid {
+                grid-template-columns: 1fr;
+            }
+            .topbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <section class="topbar">
+            <div>
+                <h1>Graph EMR Workspace</h1>
+                <p>Clinical documentation module: assessment, prescription and follow-up</p>
+            </div>
+            <div style="color:#637381;font-size:13px;">Module status: medical decision and disposition</div>
+        </section>
+
+        <nav class="nav">
+            <a href="index.html">Patient Intake</a>
+            <a href="page1.html">Anamnesis</a>
+            <a href="page2.html">Diagnosis & Rx</a>
+            <a href="visualize.html">Workflow Graph</a>
+            <button id="clear-emr" type="button">Clear EMR</button>
+        </nav>
+
+        <section class="layout">
+            <article class="card">
+                <div class="section-label">Module 3</div>
+                <h2 style="margin:0 0 8px;">Assessment, Formula and Follow-up</h2>
+                <p style="margin:0 0 18px;color:#637381;">Finalize the physician workflow with diagnosis, reasoning, medication orders and disposition.</p>
+
+                <div class="field-grid">
+                    <div>
+                        <label for="assessment-primary-diagnosis">Primary diagnosis</label>
+                        <input data-testid="assessment-primary-diagnosis" id="assessment-primary-diagnosis" placeholder="Acute viral pharyngitis">
+                    </div>
+                    <div>
+                        <label for="assessment-icd10">ICD-10 code</label>
+                        <input data-testid="assessment-icd10" id="assessment-icd10" placeholder="J02.9">
+                    </div>
+                    <div class="field-span">
+                        <label for="assessment-clinical-impression">Clinical impression</label>
+                        <textarea data-testid="assessment-clinical-impression" id="assessment-clinical-impression" rows="4" placeholder="Findings are compatible with uncomplicated upper respiratory infection without alarm signs."></textarea>
+                    </div>
+                    <div>
+                        <label for="rx-medication-name">Medication</label>
+                        <input data-testid="rx-medication-name" id="rx-medication-name" placeholder="Acetaminophen">
+                    </div>
+                    <div>
+                        <label for="rx-medication-dose">Dose</label>
+                        <input data-testid="rx-medication-dose" id="rx-medication-dose" placeholder="500 mg tablet">
+                    </div>
+                    <div>
+                        <label for="rx-medication-frequency">Frequency</label>
+                        <input data-testid="rx-medication-frequency" id="rx-medication-frequency" placeholder="Every 8 hours">
+                    </div>
+                    <div>
+                        <label for="rx-medication-duration">Duration</label>
+                        <input data-testid="rx-medication-duration" id="rx-medication-duration" placeholder="3 days">
+                    </div>
+                    <div class="field-span">
+                        <label for="rx-instructions">Patient instructions</label>
+                        <textarea data-testid="rx-instructions" id="rx-instructions" rows="4" placeholder="Take with water. Return if persistent fever or respiratory distress."></textarea>
+                    </div>
+                    <div>
+                        <label for="plan-orders">Additional orders</label>
+                        <textarea data-testid="plan-orders" id="plan-orders" rows="4" placeholder="Rest, oral hydration, no antibiotics for now."></textarea>
+                    </div>
+                    <div>
+                        <label for="plan-follow-up">Follow-up plan</label>
+                        <textarea data-testid="plan-follow-up" id="plan-follow-up" rows="4" placeholder="Reassessment in 48 to 72 hours if symptoms worsen."></textarea>
+                    </div>
+                    <div class="field-span">
+                        <label for="disposition-status">Disposition</label>
+                        <select data-testid="disposition-status" id="disposition-status">
+                            <option value="">Select</option>
+                            <option value="discharge">Discharge home</option>
+                            <option value="observation">Observation</option>
+                            <option value="referral">Specialist referral</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button class="btn-primary" data-testid="assessment-sign-note" id="assessment-sign-note" type="button">Sign Clinical Note</button>
+                    <button class="btn-secondary" data-testid="assessment-generate-rx" id="assessment-generate-rx" type="button">Generate Prescription</button>
+                </div>
+                <div class="feedback" data-testid="assessment-feedback" id="assessment-feedback"></div>
+            </article>
+
+            <aside class="card">
+                <div class="section-label">Clinical focus</div>
+                <h3 style="margin:0 0 8px;">Closure of encounter</h3>
+                <p style="margin:0;color:#637381;">Finalize diagnostic coding, treatment plan, patient instructions and disposition in a way that mirrors physician sign-off.</p>
+            </aside>
+        </section>
+
+        <section class="actions-strip">
+            <div class="card activity">
+                <div class="section-label">Recent actions</div>
+                <ol id="activity-log"></ol>
+            </div>
+        </section>
+    </div>
+
+    <script src="page-state.js"></script>
+    <script src="demo-auth.js"></script>
+    <script src="recorder.js"></script>
+    <script src="assistant-runtime.js"></script>
+    <script src="plugin/plugin-events.js"></script>
+    <script src="plugin/plugin-host.js"></script>
+    <script src="plugin/plugin-adapters.js"></script>
+    <script src="plugin/plugin-context.js"></script>
+    <script src="plugin/plugin-api.js"></script>
+    <script src="plugin/plugin-learning-bridge.js"></script>
+    <script src="plugin/plugin-learning-client.js"></script>
+    <script src="plugin/plugin-trainer-shell.js"></script>
+    <script src="plugin/plugin-surface-profile-client.js"></script>
+    <script src="plugin/plugin-execution-client.js"></script>
+    <script src="plugin/plugin-workflow-overlay-bridge.js"></script>
+    <script src="/shared/deepgram-dictation.js"></script>
+    <script src="trainer-plugin.js"></script>
+    <script src="admin-workspace.js"></script>
+    <script>
+        function hasValue(id) {
+            return document.getElementById(id).value.trim() !== '';
+        }
+
+        function syncAssessmentActions() {
+            const assessmentReady = [
+                'assessment-primary-diagnosis',
+                'assessment-icd10',
+                'assessment-clinical-impression',
+                'rx-medication-name',
+                'rx-medication-dose',
+                'rx-medication-frequency',
+                'rx-medication-duration',
+                'rx-instructions',
+                'plan-orders',
+                'plan-follow-up',
+                'disposition-status'
+            ].every(hasValue);
+
+            document.getElementById('assessment-sign-note').disabled = !assessmentReady;
+            document.getElementById('assessment-generate-rx').disabled = !assessmentReady;
+        }
+
+        [
+            'assessment-primary-diagnosis',
+            'assessment-icd10',
+            'assessment-clinical-impression',
+            'rx-medication-name',
+            'rx-medication-dose',
+            'rx-medication-frequency',
+            'rx-medication-duration',
+            'rx-instructions',
+            'plan-orders',
+            'plan-follow-up',
+            'disposition-status'
+        ].forEach((id) => {
+            document.getElementById(id).addEventListener('input', syncAssessmentActions);
+            document.getElementById(id).addEventListener('change', syncAssessmentActions);
+        });
+
+        document.getElementById('assessment-sign-note').addEventListener('click', () => {
+            const diagnosis = document.getElementById('assessment-primary-diagnosis').value.trim();
+            document.getElementById('assessment-feedback').innerText = diagnosis
+                ? 'Clinical note signed and ready for discharge planning.'
+                : 'Add a primary diagnosis before signing the note.';
+        });
+
+        document.getElementById('assessment-generate-rx').addEventListener('click', () => {
+            const med = document.getElementById('rx-medication-name').value.trim();
+            document.getElementById('assessment-feedback').innerText = med
+                ? `Prescription generated for ${med}.`
+                : 'Add a medication before generating the formula.';
+        });
+
+        document.getElementById('clear-emr').addEventListener('click', () => {
+            window.PageState.clearAll();
+            document.getElementById('assessment-feedback').innerText = '';
+        });
+
+        window.onload = () => {
+            window.PageState.init({ storageKey: 'graph-emr-form-state-v1' });
+            window.TrainerPlugin.mount({
+                appId: 'medical-demo'
+            });
+            syncAssessmentActions();
+        };
+    </script>
+</body>
+</html>

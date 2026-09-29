@@ -1,0 +1,72 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "public",
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "{chrome-extension-src,web/public}/**",
+      "maxDuration": 60
+    },
+    "api/miracle_runtime.py": {
+      "includeFiles": "bounded/miracle-ai/**"
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/internal/maintenance/daily",
+      "schedule": "0 12 * * *"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/miracle-runtime/:path*",
+      "destination": "/api/miracle_runtime?__miracle_target=:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/api?path=:path*"
+    },
+    {
+      "source": "/examples/medical-demo",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/miracle",
+      "destination": "/miracle/index.html"
+    },
+    {
+      "source": "/miracle/voice-lab",
+      "destination": "/miracle/voice.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/service-worker.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), geolocation=(), microphone=(self)"
+        }
+      ]
+    }
+  ]
+}

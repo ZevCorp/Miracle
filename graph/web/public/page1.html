@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EMR Anamnesis</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <style>
+        :root {
+            --surface: #ffffff;
+            --surface-2: #f7fafc;
+            --line: #d7e0e8;
+            --line-2: #c8d3dd;
+            --ink: #1d2a33;
+            --muted: #637381;
+            --primary: #0f5f8c;
+            --primary-soft: #e8f1f7;
+            --danger: #a33b3b;
+            --shadow: 0 20px 48px rgba(16, 31, 44, 0.08);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Inter", "Segoe UI", sans-serif;
+            color: var(--ink);
+            background: linear-gradient(180deg, #f4f7fa 0%, #ebf1f6 100%);
+        }
+        .shell {
+            max-width: 1320px;
+            margin: 0 auto;
+            padding: 24px 24px 190px;
+        }
+        .topbar, .card, .console {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+        }
+        .topbar {
+            border-radius: 18px;
+            padding: 16px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+        .topbar h1 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .topbar p {
+            margin: 2px 0 0;
+            font-size: 13px;
+            color: var(--muted);
+        }
+        .nav {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+        .nav a, .nav button {
+            text-decoration: none;
+            color: var(--primary);
+            font-weight: 600;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 10px 14px;
+        }
+        .nav button {
+            font: inherit;
+            cursor: pointer;
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 18px;
+        }
+        .card {
+            border-radius: 22px;
+            padding: 22px;
+        }
+        .section-label {
+            display: inline-flex;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 14px;
+        }
+        .field-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .field-span { grid-column: 1 / -1; }
+        label {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        input, textarea, select {
+            width: 100%;
+            border: 1px solid var(--line-2);
+            border-radius: 12px;
+            padding: 12px 13px;
+            font: inherit;
+            color: var(--ink);
+            background: #fff;
+        }
+        textarea { resize: vertical; min-height: 98px; }
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+        button {
+            border: none;
+            border-radius: 12px;
+            padding: 11px 16px;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-secondary {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+        .feedback {
+            min-height: 24px;
+            margin-top: 12px;
+            color: #1b6b4b;
+            font-weight: 600;
+        }
+        .activity ol {
+            margin: 0;
+            padding-left: 20px;
+            color: var(--muted);
+        }
+        .console {
+            position: fixed;
+            left: 50%;
+            bottom: 18px;
+            transform: translateX(-50%);
+            width: auto;
+            min-width: 124px;
+            padding: 10px 12px;
+            z-index: 50;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(18px);
+            display: grid;
+            gap: 10px;
+            justify-items: center;
+            border-radius: 999px;
+            transition: width 180ms ease, border-radius 180ms ease, padding 180ms ease;
+        }
+        .console.compact-open {
+            border-radius: 24px;
+            width: min(560px, calc(100vw - 24px));
+        }
+        .console-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .console button.icon-btn {
+            width: 46px;
+            height: 46px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            flex: 0 0 auto;
+        }
+        .console button.icon-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+        #btn-record-toggle[data-recording="true"] {
+            background: #1b6b4b;
+            color: white;
+        }
+        #btn-record-toggle[data-recording="false"] {
+            background: var(--primary);
+            color: white;
+        }
+        #agent-send {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+        #btn-stethoscope {
+            background: #f1f5f8;
+            color: var(--muted);
+        }
+        .console-chat {
+            display: none;
+            width: 100%;
+        }
+        .console-chat.open {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 240px;
+        }
+        .console-chat-log {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            padding: 4px 2px 2px;
+            max-height: 172px;
+        }
+        .chat-bubble {
+            max-width: min(100%, 460px);
+            padding: 10px 12px;
+            border-radius: 16px;
+            font-size: 0.94rem;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .chat-bubble.user {
+            align-self: flex-end;
+            background: var(--primary);
+            color: #fff;
+            border-bottom-right-radius: 6px;
+        }
+        .chat-bubble.assistant {
+            align-self: flex-start;
+            background: #f1f5f8;
+            color: var(--text);
+            border-bottom-left-radius: 6px;
+        }
+        .chat-bubble .chat-meta {
+            display: block;
+            margin-top: 6px;
+            font-size: 0.78rem;
+            color: rgba(0, 0, 0, 0.55);
+        }
+        .chat-bubble.user .chat-meta {
+            color: rgba(255, 255, 255, 0.8);
+        }
+        .console-chat textarea {
+            min-height: 52px;
+            height: 52px;
+            resize: none;
+            border-radius: 16px;
+            padding: 12px 14px;
+            width: min(520px, calc(100vw - 52px));
+        }
+        .actions-strip {
+            margin-top: 18px;
+        }
+        .actions-strip .card {
+            padding: 16px 18px;
+        }
+        .actions-strip ol {
+            display: flex;
+            gap: 18px;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding: 0 0 4px 18px;
+        }
+        .actions-strip li {
+            min-width: max-content;
+        }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        @media (max-width: 1040px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+        @media (max-width: 760px) {
+            .field-grid {
+                grid-template-columns: 1fr;
+            }
+            .topbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <section class="topbar">
+            <div>
+                <h1>Graph EMR Workspace</h1>
+                <p>Clinical documentation module: anamnesis and physical exam</p>
+            </div>
+            <div style="color:#637381;font-size:13px;">Module status: physician charting</div>
+        </section>
+
+        <nav class="nav">
+            <a href="index.html">Patient Intake</a>
+            <a href="page1.html">Anamnesis</a>
+            <a href="page2.html">Diagnosis & Rx</a>
+            <a href="visualize.html">Workflow Graph</a>
+            <button id="clear-emr" type="button">Clear EMR</button>
+        </nav>
+
+        <section class="layout">
+            <article class="card">
+                <div class="section-label">Module 2</div>
+                <h2 style="margin:0 0 8px;">Anamnesis and Physical Exam</h2>
+                <p style="margin:0 0 18px;color:#637381;">Document the clinical narrative with enough structure to feel like a real physician workflow.</p>
+
+                <div class="field-grid">
+                    <div>
+                        <label for="anamnesis-visit-type">Visit type</label>
+                        <select data-testid="anamnesis-visit-type" id="anamnesis-visit-type">
+                            <option value="">Select</option>
+                            <option value="first-time">First time</option>
+                            <option value="follow-up">Follow-up</option>
+                            <option value="urgent">Urgent care</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="anamnesis-symptom-days">Days with symptoms</label>
+                        <input data-testid="anamnesis-symptom-days" id="anamnesis-symptom-days" placeholder="3">
+                    </div>
+                    <div class="field-span">
+                        <label for="anamnesis-history-illness">History of present illness</label>
+                        <textarea data-testid="anamnesis-history-illness" id="anamnesis-history-illness" rows="4" placeholder="Patient with 3 days of fever, odynophagia and malaise without dyspnea."></textarea>
+                    </div>
+                    <div>
+                        <label for="anamnesis-medical-history">Relevant medical history</label>
+                        <textarea data-testid="anamnesis-medical-history" id="anamnesis-medical-history" rows="4" placeholder="Hypertension controlled with losartan."></textarea>
+                    </div>
+                    <div>
+                        <label for="anamnesis-allergies">Allergies</label>
+                        <textarea data-testid="anamnesis-allergies" id="anamnesis-allergies" rows="4" placeholder="No known drug allergies."></textarea>
+                    </div>
+                    <div class="field-span">
+                        <label for="anamnesis-review-systems">Review of systems</label>
+                        <textarea data-testid="anamnesis-review-systems" id="anamnesis-review-systems" rows="5" placeholder="Positive for fever and sore throat. Negative for chest pain, dyspnea and vomiting."></textarea>
+                    </div>
+                    <div>
+                        <label for="exam-general-appearance">General appearance</label>
+                        <textarea data-testid="exam-general-appearance" id="exam-general-appearance" rows="4" placeholder="Alert, hydrated, no respiratory distress."></textarea>
+                    </div>
+                    <div>
+                        <label for="exam-findings">Physical exam findings</label>
+                        <textarea data-testid="exam-findings" id="exam-findings" rows="4" placeholder="Erythematous pharynx without exudate, lungs clear."></textarea>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button class="btn-primary" data-testid="anamnesis-save-note" id="anamnesis-save-note" type="button">Save Note</button>
+                    <button class="btn-secondary" data-testid="anamnesis-request-labs" id="anamnesis-request-labs" type="button">Request Labs</button>
+                </div>
+                <div class="feedback" data-testid="anamnesis-feedback" id="anamnesis-feedback"></div>
+            </article>
+
+            <aside class="card">
+                <div class="section-label">Clinical focus</div>
+                <h3 style="margin:0 0 8px;">Encounter narrative</h3>
+                <p style="margin:0;color:#637381;">Document illness chronology, relevant history, allergies, review of systems and exam findings before moving into assessment.</p>
+            </aside>
+        </section>
+
+        <section class="actions-strip">
+            <div class="card activity">
+                <div class="section-label">Recent actions</div>
+                <ol id="activity-log"></ol>
+            </div>
+        </section>
+    </div>
+
+    <script src="page-state.js"></script>
+    <script src="demo-auth.js"></script>
+    <script src="recorder.js"></script>
+    <script src="assistant-runtime.js"></script>
+    <script src="plugin/plugin-events.js"></script>
+    <script src="plugin/plugin-host.js"></script>
+    <script src="plugin/plugin-adapters.js"></script>
+    <script src="plugin/plugin-context.js"></script>
+    <script src="plugin/plugin-api.js"></script>
+    <script src="plugin/plugin-learning-bridge.js"></script>
+    <script src="plugin/plugin-learning-client.js"></script>
+    <script src="plugin/plugin-trainer-shell.js"></script>
+    <script src="plugin/plugin-surface-profile-client.js"></script>
+    <script src="plugin/plugin-execution-client.js"></script>
+    <script src="plugin/plugin-workflow-overlay-bridge.js"></script>
+    <script src="/shared/deepgram-dictation.js"></script>
+    <script src="trainer-plugin.js"></script>
+    <script src="admin-workspace.js"></script>
+    <script>
+        function hasValue(id) {
+            return document.getElementById(id).value.trim() !== '';
+        }
+
+        function syncAnamnesisActions() {
+            const noteReady = [
+                'anamnesis-visit-type',
+                'anamnesis-symptom-days',
+                'anamnesis-history-illness',
+                'anamnesis-medical-history',
+                'anamnesis-allergies',
+                'anamnesis-review-systems',
+                'exam-general-appearance',
+                'exam-findings'
+            ].every(hasValue);
+
+            document.getElementById('anamnesis-save-note').disabled = !noteReady;
+            document.getElementById('anamnesis-request-labs').disabled = !noteReady;
+        }
+
+        [
+            'anamnesis-visit-type',
+            'anamnesis-symptom-days',
+            'anamnesis-history-illness',
+            'anamnesis-medical-history',
+            'anamnesis-allergies',
+            'anamnesis-review-systems',
+            'exam-general-appearance',
+            'exam-findings'
+        ].forEach((id) => {
+            document.getElementById(id).addEventListener('input', syncAnamnesisActions);
+            document.getElementById(id).addEventListener('change', syncAnamnesisActions);
+        });
+
+        document.getElementById('anamnesis-save-note').addEventListener('click', () => {
+            const history = document.getElementById('anamnesis-history-illness').value.trim();
+            document.getElementById('anamnesis-feedback').innerText = history
+                ? 'Anamnesis saved to the chart.'
+                : 'Document the history of present illness before saving.';
+        });
+
+        document.getElementById('anamnesis-request-labs').addEventListener('click', () => {
+            const review = document.getElementById('anamnesis-review-systems').value.trim();
+            document.getElementById('anamnesis-feedback').innerText = review
+                ? 'Labs suggested. Continue to diagnostic assessment.'
+                : 'Complete the review of systems before requesting labs.';
+        });
+
+        document.getElementById('clear-emr').addEventListener('click', () => {
+            window.PageState.clearAll();
+            document.getElementById('anamnesis-feedback').innerText = '';
+        });
+
+        window.onload = () => {
+            window.PageState.init({ storageKey: 'graph-emr-form-state-v1' });
+            window.TrainerPlugin.mount({
+                appId: 'medical-demo'
+            });
+            syncAnamnesisActions();
+        };
+    </script>
+</body>
+</html>

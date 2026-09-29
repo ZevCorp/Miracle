@@ -1,0 +1,14 @@
+# Keep secrets and local/generated artifacts out of the Vercel upload.
+.env
+.env.local
+.env.*.local
+node_modules
+.git
+*.log
+.codex-*
+debug.log
+generated
+.agents
+.claude
+scratch
+/public
