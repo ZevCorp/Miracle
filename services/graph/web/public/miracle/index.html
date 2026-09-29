@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Miracle Notes</title>
+    <link rel="stylesheet" href="/miracle/styles.css?v=5" />
+  </head>
+  <body>
+    <div class="window">
+      <header class="titlebar">Miracle Notes</header>
+
+      <div class="menubar">
+        <button id="newNoteButton" type="button">Nuevo</button>
+        <button id="openNoteButton" type="button">Abrir</button>
+        <button id="saveButton" type="button">Guardar</button>
+        <select id="notePicker" aria-label="Notas guardadas">
+          <option value="">Sin notas guardadas</option>
+        </select>
+        <button id="refreshButton" type="button">Actualizar</button>
+        <button id="productLlmConfigButton" type="button">Product LLM</button>
+        <button id="voiceLabButton" type="button">Voz</button>
+      </div>
+
+      <main class="workspace">
+        <section class="notepad">
+          <section id="tabs" class="tabs"></section>
+          <section class="editor-shell">
+            <div id="editorPreview" class="editor-preview" tabindex="0"></div>
+            <textarea id="editor" spellcheck="false" placeholder="Empieza a escribir..."></textarea>
+
+            <div id="voiceDock" class="voice-dock" aria-label="Grabacion de voz">
+              <div class="voice-dock-panel">
+                <textarea
+                  id="voiceDockTranscriptOutput"
+                  class="voice-dock-transcript"
+                  rows="5"
+                  spellcheck="false"
+                  readonly
+                ></textarea>
+                <div id="voiceDockMeta" class="voice-dock-meta is-hidden" aria-live="polite">
+                  <div class="voice-dock-meta-row">
+                    <span id="voiceDockBackendStatus">Motor: sin estado</span>
+                    <span id="voiceDockTaskCount">Tareas: 0</span>
+                  </div>
+                  <div id="voiceDockTaskList" class="voice-dock-task-list"></div>
+                  <div class="voice-dock-debug">
+                    <button id="voiceDockDebugToggle" class="voice-dock-debug-toggle" type="button" aria-expanded="false">
+                      Abrir diagnostico
+                    </button>
+                    <div id="voiceDockDebugFilters" class="voice-dock-debug-filters is-hidden" role="group" aria-label="Filtros de diagnostico">
+                      <button type="button" class="voice-dock-debug-filter is-active" data-debug-filter="all">Todos</button>
+                      <button type="button" class="voice-dock-debug-filter" data-debug-filter="llm">LLM</button>
+                      <button type="button" class="voice-dock-debug-filter" data-debug-filter="deepgram">Deepgram</button>
+                    </div>
+                    <pre id="voiceDockDebugOutput" class="voice-dock-debug-output is-hidden"></pre>
+                  </div>
+                </div>
+                <button id="voiceDockRecordToggleButton" class="voice-dock-toggle" type="button">
+                  Grabar
+                </button>
+              </div>
+            </div>
+          </section>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <span id="statusPath">Sin guardar</span>
+        <span id="statusBlock">Sin bloque activo</span>
+        <span id="statusMessage">Listo</span>
+      </footer>
+    </div>
+
+    <div id="productLlmOverlay" class="setup-overlay is-hidden" aria-hidden="true">
+      <section class="setup-card" aria-label="Configuracion del product LLM">
+        <div class="setup-header">
+          <h1>Configurar Product LLM</h1>
+          <button id="productLlmCloseButton" class="setup-close" type="button">Cerrar</button>
+        </div>
+        <p class="setup-copy">
+          Esta configuracion es para la capa de LLM propia de Miracle y no cambia la transcripcion STT.
+        </p>
+        <p id="productLlmCurrentConfig" class="setup-meta"></p>
+
+        <form id="productLlmForm" class="setup-form">
+          <label class="setup-field">
+            <span>Provider</span>
+            <select id="productLlmProvider"></select>
+          </label>
+
+          <label id="productLlmApiKeyField" class="setup-field">
+            <span>API key</span>
+            <input id="productLlmApiKey" type="password" autocomplete="off" />
+          </label>
+
+          <label id="productLlmBaseUrlField" class="setup-field is-hidden">
+            <span>Base URL</span>
+            <input id="productLlmBaseUrl" type="url" placeholder="https://api.openai.com" />
+          </label>
+
+          <label id="productLlmModelField" class="setup-field">
+            <span>Model ID</span>
+            <input id="productLlmModel" type="text" placeholder="gpt-4.1-mini" />
+          </label>
+
+          <div class="setup-actions">
+            <button id="productLlmSubmitButton" type="submit">Guardar Product LLM</button>
+            <button id="productLlmRefreshButton" type="button">Revisar estado</button>
+          </div>
+        </form>
+
+        <div id="productLlmStatus" class="setup-status"></div>
+      </section>
+    </div>
+
+    <script src="/auth-gate.js"></script>
+    <script src="/dev-logs.js"></script>
+    <script src="/shared/deepgram-dictation.js"></script>
+    <script src="/miracle/app.js?v=8" type="module"></script>
+  </body>
+</html>

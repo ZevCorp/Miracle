@@ -1,0 +1,31 @@
+name: Monorepo · la raíz
+
+# Lo que es de todos: que la raíz solo tenga lo que le toca, que las reglas comunes digan lo mismo
+# para Codex (AGENTS.md) y para Claude (.claude/rules/monorepo.md), y que los porteros y los scripts
+# del repo al menos parseen. Corre en todos los PRs, sin filtro de rutas, y tarda segundos.
+#
+# Si algún día se protege main con checks obligatorios, este es el sitio para la compuerta única:
+# un workflow con filtro de rutas que no llega a correr deja su check «pendiente» para siempre y
+# bloquea el merge (lo documenta GitHub). Uno que corre siempre y mira qué cambió, no.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  raiz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: La raíz sigue en orden
+        run: bash tools/monorepo/comprobar-raiz.sh
+
+      - name: Los porteros y los scripts del repo parsean
+        run: |
+          for f in .githooks/pre-push apps/*/.githooks/pre-push tools/monorepo/*.sh; do
+            bash -n "$f" || { echo "::error file=$f::no parsea"; exit 1; }
+          done

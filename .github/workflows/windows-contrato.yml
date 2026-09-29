@@ -1,0 +1,167 @@
+name: Windows · contrato
+
+# La mitad que SI puede correr en la nube. El contrato juzga las PROMESAS del nucleo
+# (tests/ContratoDelGrafo/Contrato.cs) y no toca la pantalla, asi que un runner sin escritorio ni
+# apps instaladas lo puede correr entero. Lo que no puede correr aqui son los escenarios
+# (scripts/ci-local.ps1): esos abren apps de verdad y miden el resultado sobre el terreno, y por
+# eso viven en la maquina del desarrollador.
+#
+# Corre en cada PR a main que toque Windows, porque main roto bloquea a todos. Una rama con promesas
+# PENDIENTES da rojo aqui, y esta bien que asi sea: las fases intermedias son commits de la rama, no
+# merges.
+#
+# Desde el 2026-09-28 Windows vive en apps/windows/ dentro del monorepo: todo corre desde esa carpeta
+# (defaults.run.working-directory), y solo cuando algo de ella cambia. Un PR del portal no tiene por
+# que esperar al runner de Windows, ni uno de Windows al build de Next.js.
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['apps/windows/**', '.github/workflows/windows-contrato.yml']
+  push:
+    branches: [main]
+    paths: ['apps/windows/**', '.github/workflows/windows-contrato.yml']
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: apps/windows
+
+concurrency:
+  group: contrato-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contrato:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # El script compila el nucleo en RELEASE y despues el contrato contra esos binarios recien
+      # hechos, para que lo aprobado sea exactamente lo que se va a ejecutar. Su codigo de salida
+      # es el numero de promesas incumplidas: 0 = CONTRATO INTACTO. EXCEPCION: 99 significa "el
+      # juez no llego a emitir veredicto" (desde 2026-08-31, cuando Smart App Control enseño que
+      # un juez que no corre no puede leerse como recuento) — se rotula aparte, porque presentar
+      # un "no se" como "99 incumplidas" manda la investigacion al sitio equivocado.
+      - name: Juzgar el contrato
+        id: contrato
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'contrato.txt'
+          try {
+            & ./scripts/contrato-del-grafo.ps1 *>&1 | Tee-Object -FilePath $log
+            $codigo = $LASTEXITCODE
+          } catch {
+            # Nunca un catch mudo: si el arnes se cae, el motivo entero va al log y al resumen.
+            "ARNES CAIDO: $_" | Tee-Object -FilePath $log -Append
+            $codigo = 99
+          }
+
+          $total = @(Select-String -Path tests/ContratoDelGrafo/Contrato.cs -Pattern '^\s*Prueba\("').Count
+          # CON LOS DOS PUNTOS: sin ellos tambien engancha la linea resumen "(N de ellas
+          # PENDIENTES: ...)" y el recuento se pasa por uno, dejando el numero de incumplidas en
+          # negativo. Un recuento que puede mentir es el aprendizaje n.10 (2026-08-13).
+          $pend  = @(Select-String -Path $log -SimpleMatch 'PENDIENTE:').Count
+          # Con el arnes caido el codigo no es un recuento de promesas: el verde se cuenta desde 0
+          # en vez de dar un negativo que parezca un dato. Y con 99 ("no emitio veredicto") no hay
+          # NINGUN numero que dar: la tabla dice "?" en vez de inventarse 99 incumplidas.
+          $sinVeredicto = ($codigo -eq 99)
+          $verdes = if ($sinVeredicto) { '?' } else { [Math]::Max(0, $total - $codigo) }
+          $incumplidas = if ($sinVeredicto) { 'NO SE PUDO JUZGAR' } else { [Math]::Max(0, $codigo - $pend) }
+
+          # El resumen del run dice el veredicto sin que nadie abra los logs, y distingue sus causas
+          # (una promesa sin codigo todavia no es lo mismo que una regresion).
+          $resumen = @(
+            '## Contrato del grafo'
+            ''
+            "| Promesas | Verdes | Incumplidas | Pendientes (sin codigo aun) |"
+            "|---|---|---|---|"
+            "| $total | $verdes | $incumplidas | $pend |"
+            ''
+            '```'
+            (Get-Content $log -Raw)
+            '```'
+          )
+          $resumen -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+          if ($codigo -eq 99) {
+            Write-Host "::error::NO SE PUDO JUZGAR: el contrato no emitio veredicto. No es un rojo ni un verde: no se sabe nada de las promesas. Mira el log del summary."
+            exit 1
+          }
+          if ($codigo -ne 0) {
+            Write-Host "::error::CONTRATO ROTO: $codigo promesa(s) incumplida(s) ($pend de ellas sin codigo todavia). Esto no puede entrar a main."
+            exit 1
+          }
+          Write-Host "CONTRATO INTACTO: $total/$total promesas."
+
+  # EL CONTRATO DE LA VOZ (spec 001): lo que promete la parte que convierte tramas del collar Omi en
+  # muestras. Job aparte y no un paso mas, por dos razones:
+  #
+  #   1. Es independiente. voz/Omi es net8.0 puro: no necesita U.dll, ni WPF, ni que windows-client
+  #      compile. Si el contrato del grafo se cae, este sigue dando su veredicto — y al reves.
+  #   2. Se lee de un vistazo cual se rompio. Mezclar los dos en un job obliga a abrir el log para
+  #      saber de cual estamos hablando, que es justo lo que separa a los contratos hermanos.
+  #
+  # Lo que NO cubre: el transporte BLE. No hay Bluetooth ni collar en un runner, y eso se verifica a
+  # mano (nivel 4). Que este job este verde no dice que el collar funcione; dice que la logica que
+  # convierte sus tramas en muestras cumple lo que promete.
+  voz:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Juzgar el contrato de la voz
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'contrato-voz.txt'
+          try {
+            & ./scripts/contrato-de-la-voz.ps1 *>&1 | Tee-Object -FilePath $log
+            $codigo = $LASTEXITCODE
+          } catch {
+            # Nunca un catch mudo: si el arnes se cae, el motivo entero va al log y al resumen.
+            "ARNES CAIDO: $_" | Tee-Object -FilePath $log -Append
+            $codigo = 99
+          }
+
+          $total = @(Select-String -Path voz/Contrato/Contrato.cs -Pattern '^\s*Prueba\("').Count
+          # CON LOS DOS PUNTOS: sin ellos tambien engancha la linea resumen "(N de ellas
+          # PENDIENTES: ...)" y el recuento se pasa por uno, dejando el numero de incumplidas en
+          # negativo. Un recuento que puede mentir es el aprendizaje n.10 (2026-08-13).
+          $pend  = @(Select-String -Path $log -SimpleMatch 'PENDIENTE:').Count
+          # 99 = sin veredicto: "?" en vez de inventarse un recuento (igual que el job del grafo).
+          $sinVeredicto = ($codigo -eq 99)
+          $verdes = if ($sinVeredicto) { '?' } else { [Math]::Max(0, $total - $codigo) }
+          $incumplidas = if ($sinVeredicto) { 'NO SE PUDO JUZGAR' } else { [Math]::Max(0, $codigo - $pend) }
+
+          $resumen = @(
+            '## Contrato de la voz'
+            ''
+            "| Promesas | Verdes | Incumplidas | Pendientes (sin codigo aun) |"
+            "|---|---|---|---|"
+            "| $total | $verdes | $incumplidas | $pend |"
+            ''
+            '```'
+            (Get-Content $log -Raw)
+            '```'
+          )
+          $resumen -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+          if ($codigo -eq 99) {
+            Write-Host "::error::NO SE PUDO JUZGAR: el contrato de la voz no emitio veredicto. No es un rojo ni un verde: no se sabe nada de sus promesas. Mira el log del summary."
+            exit 1
+          }
+          if ($codigo -ne 0) {
+            Write-Host "::error::VOZ ROTA: $codigo promesa(s) incumplida(s) ($pend de ellas sin codigo todavia). Esto no puede entrar a main."
+            exit 1
+          }
+          Write-Host "VOZ INTEGRA: $total/$total promesas."

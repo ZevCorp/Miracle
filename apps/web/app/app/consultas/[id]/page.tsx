@@ -1,0 +1,1213 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  ClipboardCopy,
+  Copy,
+  FileCheck2,
+  FilePlus2,
+  Info,
+  Loader2,
+  Mic,
+  Plus,
+  Printer,
+  Send,
+  Sparkles,
+} from "lucide-react";
+import { isDemoConsultation } from "@/lib/demo";
+import {
+  adjustNoteWithAssistant,
+  saveEditedClinicalNote,
+  friendlyClinicalMessage,
+  ClinicalApiError,
+} from "@/lib/api/clinical";
+import { noteJsonToSections } from "@/lib/clinical/encounter-to-consultation";
+import { buildDoctorContext } from "@/lib/preferences/assistant";
+import { useUserPreferences } from "@/lib/preferences/client";
+import { useNoteExport } from "@/lib/hooks/useNoteExport";
+import { NoteExportButton, NoteExportStatus } from "@/components/app/NoteExportStatus";
+import {
+  buildConsultationHtml,
+  buildConsultationPlainText,
+  copyRichTextWithFallback,
+  copyTextWithFallback,
+} from "@/lib/clinical/consultation-text";
+import {
+  completitud,
+  ripsChecklist,
+  ripsListo,
+  suggestedCodes,
+  TYPE_LABEL,
+  type ClinicalCode,
+  type Consultation,
+  type NoteSection,
+} from "@/lib/mock";
+import { formatFechaRelativa } from "@/lib/dates";
+import { abrirImpresionNota } from "@/lib/pdf/note-print";
+import { searchCodes } from "@/lib/clinical/codes";
+import { auditConsultation } from "@/lib/clinical/note-audit";
+import { resolveConsultationIdentity } from "@/lib/clinical/patient-identity";
+import { useStore, type ConsultationAddendum } from "@/app/app/providers";
+import { Tabs } from "@/components/app/Tabs";
+import { StatusBadge } from "@/components/app/StatusBadge";
+import { NoteSectionView } from "@/components/app/NoteSectionView";
+import { AuditFindingList } from "@/components/app/AuditFindings";
+import { CodeSuggestion } from "@/components/app/CodeSuggestion";
+import { Timeline } from "@/components/app/Timeline";
+import { EmptyState } from "@/components/app/EmptyState";
+import { Button } from "@/components/ui/Button";
+import { HoverHint } from "@/components/ui/HoverHint";
+
+export default function ConsultaDetallePage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = String(params.id);
+  const {
+    getConsultation,
+    getPatient,
+    getMedicoName,
+    getMedicoIdentity,
+    approveNote,
+    markExportedManually,
+    applyServerConsultationEstado,
+    markReviewed,
+    setCodeStatus,
+    addCode,
+    updateNote,
+    upsertConsultation,
+    listAddenda,
+    addAddendum,
+    showToast,
+    loading,
+    ensureConsultation,
+    ensureTranscript,
+    transcriptFailed,
+    role,
+    org,
+  } = useStore();
+  const { preferences: userPreferences, firstName } = useUserPreferences();
+  const [tab, setTab] = useState("historia");
+  const [aiEditing, setAiEditing] = useState(false);
+  const [addenda, setAddenda] = useState<ConsultationAddendum[]>([]);
+  // Distinto de "no tiene": aquí guardamos que no se PUDO leer.
+  const [addendaError, setAddendaError] = useState(false);
+  const [focusAddenda, setFocusAddenda] = useState(false);
+
+  const c = getConsultation(id);
+  const signed = !!c && (c.estado === "aprobada" || c.estado === "exportada");
+
+  // Rescate: el store es una foto tomada al abrir la app y con tope de 300
+  // consultas. La que el médico acaba de terminar nace DESPUÉS de esa foto —y
+  // la escribe el backend, no el navegador—, así que abrir su detalle sin
+  // recargar la página entera mostraba "Consulta no encontrada" sobre una nota
+  // que sí existe. Aquí se pide por id antes de afirmar nada.
+  // Se guarda junto al id que lo produjo: al pasar de una consulta a otra el
+  // desenlace anterior no puede darse por bueno para la nueva.
+  const [rescate, setRescate] = useState<{
+    id: string;
+    estado: "missing" | "error";
+  } | null>(null);
+  const [reintento, setReintento] = useState(0);
+  const rescateFallido = rescate?.id === id ? rescate.estado : null;
+  useEffect(() => {
+    if (c || loading) return;
+    let vigente = true;
+    void ensureConsultation(id).then((estado) => {
+      // "ok" no se guarda: la consulta ya entró al store y `c` deja de ser
+      // undefined en el siguiente render.
+      if (vigente && estado !== "ok") setRescate({ id, estado });
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [c, loading, id, reintento, ensureConsultation]);
+
+  // Las adendas viven en su propia tabla y se cargan solo cuando la nota está
+  // firmada (antes de la firma no existen por diseño).
+  useEffect(() => {
+    if (!signed) return;
+    let ignore = false;
+    listAddenda(id).then((rows) => {
+      if (ignore) return;
+      setAddendaError(rows === null);
+      setAddenda(rows ?? []);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [signed, id, listAddenda]);
+
+  // `?adenda=1` (desde la consulta en vivo) lleva directo al formulario de
+  // adenda. Se lee de window para no exigir un Suspense por useSearchParams.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("adenda") === "1") setFocusAddenda(true);
+  }, []);
+
+  // Estado REAL de la exportación a historia clínica, leído del servidor (Graph).
+  // Se consulta solo para notas firmadas y no-demo: antes de la firma no hay nada
+  // que exportar. Va antes de cualquier return para no romper el orden de hooks.
+  const exportState = useNoteExport(id, {
+    enabled: signed && !!c && !isDemoConsultation(c),
+  });
+
+  // La transición aprobada→exportada la hace la base de datos cuando el ejecutor
+  // confirma el éxito. Aquí solo se refleja en el store para que la lista y los
+  // badges dejen de decir "aprobada".
+  const serverEstado = exportState.consultationEstado;
+  useEffect(() => {
+    if (serverEstado) applyServerConsultationEstado(id, serverEstado);
+  }, [serverEstado, id, applyServerConsultationEstado]);
+
+  if (!c) {
+    // Mientras el store carga —o mientras se pide la consulta suelta— aún no
+    // se sabe si existe.
+    if (loading || !rescateFallido) {
+      return (
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Loader2 size={28} className="animate-spin text-accent" />
+        </div>
+      );
+    }
+    // No se pudo preguntar ≠ no existe. Decirle "eliminada" a un médico por un
+    // fallo de red es afirmar algo falso sobre una historia clínica.
+    if (rescateFallido === "error") {
+      return (
+        <EmptyState
+          title="No se pudo abrir la consulta"
+          description="No hubo respuesta del servidor. La nota sigue guardada; revisa tu conexión y vuelve a intentarlo."
+          action={
+            <Button
+              onClick={() => {
+                setRescate(null);
+                setReintento((n) => n + 1);
+              }}
+            >
+              Reintentar
+            </Button>
+          }
+        />
+      );
+    }
+    return (
+      <EmptyState
+        title="Consulta no encontrada"
+        description="Es posible que la consulta haya sido eliminada."
+        action={
+          <Button href="/app/consultas" variant="secondary">
+            Ver consultas
+          </Button>
+        }
+      />
+    );
+  }
+
+  const patient = getPatient(c.pacienteId);
+  // Quién es el paciente de esta consulta, con la misma regla que usan las
+  // listas: el paciente registrado si el médico lo asoció; si no, la
+  // identificación que quedó en la nota. Sin esto, el detalle y el PDF decían
+  // "Paciente sin identificar" en consultas cuyo nombre sí se dijo.
+  const identidad = resolveConsultationIdentity(patient, c);
+  const medicoNombre = getMedicoName(c.medicoId);
+
+  /**
+   * Cabecera del documento (el texto copiado y el PDF salen de la misma lista
+   * de bloques). Edad y sexo solo existen en la ficha del paciente registrado:
+   * si la identidad viene de la nota se omiten, no se inventan.
+   */
+  function identidadParaDocumento() {
+    if (!identidad.nombre && !identidad.documento) return null;
+    return {
+      nombre: identidad.nombre ?? "",
+      edad: patient?.edad ?? 0,
+      sexo: patient?.sexo ?? null,
+      documento: identidad.documento ?? "",
+    };
+  }
+
+  const medicoIdentidad = getMedicoIdentity(c.medicoId);
+  const sugeridos = suggestedCodes(c);
+  const demo = isDemoConsultation(c);
+  // Único punto que decide qué puede modificarse. Admin y supervisor
+  // conservan la capacidad que ya tenían (aprobar/exportar/editar cualquier
+  // consulta de su organización, respaldada por la política UPDATE de
+  // consultations); la única exclusión real es "secretaria" (solo lectura),
+  // y nunca sobre una consulta de demostración.
+  const canEdit = role !== "secretaria" && !demo;
+  // Marcar "Exportada a HC" es distinto de canEdit: es justamente la tarea
+  // de la secretaria (avisar que ya subió la nota aprobada al sistema del
+  // hospital), así que se abre a cualquier rol una vez el médico ya firmó.
+  const canExport = !demo && c.estado === "aprobada";
+  // La exportación automática la pide quien puede firmar/editar (médico, admin,
+  // supervisor). La secretaria no habla con Graph: su vía es el registro manual,
+  // que es lo que su rol realmente hace (copiar la nota a mano y dejar constancia).
+  const canUseAutomaticExport = role !== "secretaria";
+
+  async function copyResumen() {
+    const ok = await copyTextWithFallback(c!.resumen);
+    showToast(
+      ok ? "Resumen copiado al portapapeles." : "No se pudo copiar el resumen.",
+      ok ? "success" : "warning",
+    );
+  }
+
+  async function copiarNota() {
+    if (!c) return;
+    const datos = {
+      especialidad: c.especialidad,
+      servicio: c.servicio,
+      fecha: c.fecha,
+      note: c.note,
+      codigos: c.codigos,
+      patient: identidadParaDocumento(),
+      medicoNombre,
+      medicoIdentificacion: medicoIdentidad?.identificationNumber,
+      medicoRegistro: medicoIdentidad?.professionalRegistration,
+      addenda,
+    };
+    // Se copian las dos versiones a la vez: con negrilla donde el destino
+    // acepte formato, y en texto plano (títulos en mayúscula) donde no.
+    const ok = await copyRichTextWithFallback(
+      buildConsultationHtml(datos),
+      buildConsultationPlainText(datos),
+    );
+    showToast(
+      ok ? "Nota copiada al portapapeles." : "No se pudo copiar la nota.",
+      ok ? "success" : "warning",
+    );
+  }
+
+  // Edición asistida real: el backend calcula el ajuste sobre el encounter
+  // (mismo id que esta consulta, por el puente), lo persiste allí y aquí se
+  // refleja en el historial local.
+  async function aiEdit(instruction: string) {
+    const texto = instruction.trim();
+    if (!texto || aiEditing || !c) return;
+    setAiEditing(true);
+    showToast("Miracle está ajustando la nota…", "info");
+    try {
+      // La instrucción y la nota viajan con los datos reales; el servidor tapa
+      // los identificadores del paciente antes de llamar a la IA y devuelve la
+      // propuesta ya rehidratada (docs/privacidad-frontera-ia.md).
+      const proposal = await adjustNoteWithAssistant({
+        encounter_id: c.id,
+        instruction: texto,
+        doctor: buildDoctorContext(userPreferences, firstName),
+      });
+      const saved = await saveEditedClinicalNote(c.id, proposal.proposed_note_json);
+      const rehydrated = saved.note_json;
+      const mirror = await upsertConsultation({
+        ...c,
+        note: noteJsonToSections(rehydrated),
+        resumen: rehydrated.summary || c.resumen,
+      });
+      // Si el espejo no se pudo guardar, el store ya mostró la advertencia.
+      if (mirror.ok) {
+        showToast("Nota ajustada por Miracle. Revisa los cambios.", "success");
+      }
+    } catch (error) {
+      if (
+        error instanceof ClinicalApiError &&
+        error.code === "ENCOUNTER_NOT_FOUND"
+      ) {
+        showToast(
+          "La edición asistida está disponible solo para consultas creadas con el flujo nuevo.",
+          "info",
+        );
+      } else {
+        showToast(friendlyClinicalMessage(error), "warning");
+      }
+    } finally {
+      setAiEditing(false);
+    }
+  }
+
+  function descargarPDF() {
+    // El documento se construye en lib/pdf/note-print.ts, compartido con el
+    // panel rápido: una sola plantilla imprimible para las dos superficies.
+    abrirImpresionNota(
+      {
+        consultation: c!,
+        patient,
+        identidad,
+        medicoNombre,
+        medicoIdentidad,
+        org,
+        demo,
+        addenda,
+      },
+      () =>
+        showToast("Permita las ventanas emergentes para generar el PDF.", "warning"),
+    );
+  }
+
+  return (
+    <div className="app-page max-w-4xl pb-24 sm:pb-0">
+      <Link
+        href="/app/consultas"
+        className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-deep"
+      >
+        <ArrowLeft size={15} /> Consultas
+      </Link>
+
+      {/* Header. Identidad y acciones se ponen lado a lado desde `lg`, no desde
+          `sm`: con el menú lateral ocupando 260 px, en un portátil de 800 el
+          contenido real son ~510 px, y ahí las dos columnas estrujaban el
+          nombre del paciente hasta partirlo en dos líneas. */}
+      <div className="mt-3 flex flex-col gap-4 border-b border-line pb-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-night text-sm font-semibold text-white">
+            {identidad.nombre
+              ? identidad.nombre.split(" ").map((p) => p[0]).slice(0, 2).join("")
+              : "?"}
+          </span>
+          <div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-deep">
+                {identidad.nombre ?? "Paciente sin identificar"}
+              </h1>
+              <StatusBadge estado={c.estado} />
+            </div>
+            <p className="mt-0.5 text-sm text-muted">
+              {patient && patient.edad > 0 ? `${patient.edad} años · ` : ""}
+              {c.especialidad} · {TYPE_LABEL[c.tipo]} ·{" "}
+              {formatFechaRelativa(c.fecha)}
+            </p>
+            <p className="mt-0.5 text-sm text-muted">
+              {c.servicio} · {medicoNombre ?? "—"} · {c.duracionMin} min
+            </p>
+            {medicoIdentidad?.identificationNumber || medicoIdentidad?.professionalRegistration ? (
+              <p className="mt-0.5 text-xs text-muted">
+                {[
+                  medicoIdentidad.identificationNumber
+                    ? `CC ${medicoIdentidad.identificationNumber}`
+                    : null,
+                  medicoIdentidad.professionalRegistration
+                    ? `Reg. Med. ${medicoIdentidad.professionalRegistration}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            ) : null}
+            {c.firma ? (
+              <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-mint-soft px-2.5 py-1 text-xs font-semibold text-success">
+                <CheckCircle2 size={13} /> Firmada por {c.firma.por} ·{" "}
+                {new Date(c.firma.fecha).toLocaleDateString("es-CO")}
+              </p>
+            ) : null}
+
+            {/* LA CAJA DE HERRAMIENTAS DEL DOCUMENTO.
+                Copiar, imprimir y regrabar son cosas que se le hacen a la nota;
+                aprobarla es una decisión sobre ella. Antes iban en la misma
+                fila y con el mismo peso, así que el ojo veía seis botones
+                iguales. Ahora bajan aquí, agrupadas y en voz baja, y arriba a
+                la derecha queda solo lo que hace avanzar la consulta.
+                De paso, las dos que eran solo un icono ganan su rótulo: nadie
+                tenía que adivinar qué hacía el micrófono. */}
+            <div className="clinical-panel-muted mt-3.5 inline-flex flex-wrap items-center gap-0.5 p-1">
+              <HoverHint label="Copiar el resumen clínico">
+                <button
+                  type="button"
+                  onClick={() => void copyResumen()}
+                  className="doc-tool"
+                >
+                  <Copy size={15} /> Copiar resumen
+                </button>
+              </HoverHint>
+              <HoverHint label="Copiar la nota completa, igual que el PDF">
+                <button
+                  type="button"
+                  onClick={() => void copiarNota()}
+                  className="doc-tool"
+                >
+                  <ClipboardCopy size={15} /> Copiar nota
+                </button>
+              </HoverHint>
+              <button type="button" onClick={descargarPDF} className="doc-tool">
+                <Printer size={15} /> PDF
+              </button>
+              {/* Regrabar arranca una nueva captura: es una acción exclusiva del
+                  médico (la secretaría no tiene acceso a /app/consultas/nueva). */}
+              {role === "medico" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // La consulta activa exige un encounter del backend, así que
+                    // una nueva captura siempre arranca desde "Nueva consulta".
+                    // Se pasa el id del paciente (UUID opaco), nunca su nombre:
+                    // la URL queda en el historial del navegador y en logs.
+                    const sp = new URLSearchParams();
+                    if (patient?.id) sp.set("paciente", patient.id);
+                    const qs = sp.toString();
+                    router.push(`/app/consultas/nueva${qs ? `?${qs}` : ""}`);
+                  }}
+                  className="doc-tool"
+                  title="Iniciar una nueva grabación para este paciente"
+                >
+                  <Mic size={15} /> Regrabar
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {/* LAS DECISIONES: lo que mueve la consulta de estado. Es lo único que
+            queda con peso de botón, y una sola es primaria. */}
+        <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+          {/* Las consultas de demostración no se firman ni se exportan.
+              Marcar revisada/aprobar siguen siendo del médico (canEdit);
+              exportar es justamente la tarea de la secretaria, así que se
+              abre a cualquier rol una vez la nota ya está aprobada. */}
+          {canEdit && c.estado === "borrador" ? (
+            <button
+              type="button"
+              onClick={() => markReviewed(c.id)}
+              className="clinical-secondary hidden px-4 sm:inline-flex"
+            >
+              <FileCheck2 size={16} /> Marcar revisada
+            </button>
+          ) : null}
+          {canEdit && (c.estado === "borrador" || c.estado === "revisada") ? (
+            <button
+              type="button"
+              onClick={() => approveNote(c.id)}
+              className="clinical-primary hidden px-5 sm:inline-flex"
+            >
+              <CheckCircle2 size={16} /> Aprobar y firmar
+            </button>
+          ) : null}
+          {/* Exportación AUTOMÁTICA: pide el trabajo a Graph. El botón se
+              deshabilita solo mientras hay uno en vuelo o en curso. */}
+          {canExport && canUseAutomaticExport ? (
+            <NoteExportButton
+              state={exportState}
+              label="Exportar a HC"
+              className="clinical-primary hidden min-h-11 px-4 sm:inline-flex"
+            />
+          ) : null}
+          {/* Registro MANUAL de la secretaria: ella ya copió la nota al sistema
+              del hospital y aquí deja constancia. No envía nada al HIS. */}
+          {canExport && !canUseAutomaticExport ? (
+            <button
+              type="button"
+              onClick={() => markExportedManually(c.id)}
+              className="clinical-primary hidden px-5 sm:inline-flex"
+            >
+              <FileCheck2 size={16} /> Marcar como exportada
+            </button>
+          ) : null}
+          {!demo && c.estado === "exportada" ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-2 text-sm font-semibold text-success">
+              <CheckCircle2 size={16} /> Exportada a HC
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      {demo ? (
+        <div
+          role="alert"
+          className="mt-5 flex items-start gap-3 rounded-[16px] border border-warning/50 bg-warning-soft px-4 py-3.5"
+        >
+          <AlertTriangle size={20} className="mt-0.5 shrink-0 text-warning" />
+          <div>
+            <p className="text-sm font-bold text-warning">
+              Consulta de demostración
+            </p>
+            <p className="mt-0.5 text-sm text-warning">
+              Esta nota proviene de una conversación simulada y no corresponde a
+              una atención real, por eso no puede firmarse ni exportarse.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Estado real de la exportación a historia clínica. Solo aparece cuando
+          existe un trabajo: pintar un panel vacío no informa de nada. */}
+      {signed && !demo && canUseAutomaticExport && exportState.job ? (
+        <NoteExportStatus state={exportState} className="mt-5" />
+      ) : null}
+
+      {/* Tabs */}
+      <div className="mt-5">
+        <Tabs
+          tabs={[
+            { id: "historia", label: "Historia clínica" },
+            { id: "codificacion", label: "Codificación", count: sugeridos.length || undefined },
+            { id: "resumen", label: "Resumen" },
+            { id: "transcripcion", label: "Transcripción" },
+            { id: "auditoria", label: "Auditoría" },
+          ]}
+          active={tab}
+          onChange={setTab}
+        />
+      </div>
+
+      <div className="mt-6">
+        {tab === "historia" ? (
+          <HistoriaTab
+            consultation={c}
+            editable={canEdit && c.estado !== "aprobada" && c.estado !== "exportada"}
+            onSectionChange={(sectionId, next) => updateNote(c.id, sectionId, next)}
+            onAiEdit={(instruction) => void aiEdit(instruction)}
+            aiBusy={aiEditing}
+          />
+        ) : null}
+        {tab === "codificacion" ? (
+          <CodificacionTab
+            consultation={c}
+            canEdit={canEdit}
+            onAccept={(codeId) => setCodeStatus(c.id, codeId, "aceptado")}
+            onDiscard={(codeId) => setCodeStatus(c.id, codeId, "descartado")}
+            onAddCode={(code) => addCode(c.id, code)}
+          />
+        ) : null}
+        {tab === "resumen" ? (
+          <ResumenTab texto={c.resumen} onCopy={() => void copyResumen()} />
+        ) : null}
+        {tab === "transcripcion" ? (
+          <TranscripcionTab
+            consultation={c}
+            ensureTranscript={ensureTranscript}
+            fallo={Boolean(transcriptFailed[c.id])}
+          />
+        ) : null}
+        {tab === "auditoria" ? <AuditoriaTab consultation={c} /> : null}
+      </div>
+
+      {signed ? (
+        <AddendaSection
+          addenda={addenda}
+          addendaError={addendaError}
+          onRetryAddenda={() => {
+            void listAddenda(id).then((rows) => {
+              setAddendaError(rows === null);
+              setAddenda(rows ?? []);
+            });
+          }}
+          autoFocus={focusAddenda}
+          // Redactar una adenda queda para quien ya podía hacerlo antes de
+          // esta cuenta (médico, admin, supervisor); la secretaria (solo
+          // lectura) solo puede leer las que ya existen.
+          canAdd={role !== "secretaria"}
+          onAdd={async (texto) => {
+            const res = await addAddendum(c.id, texto);
+            if (res.ok && res.addendum) {
+              const nueva = res.addendum;
+              setAddenda((list) => [...list, nueva]);
+            }
+            return res.ok;
+          }}
+        />
+      ) : null}
+
+      {(canEdit || canExport) && c.estado !== "exportada" ? (
+        <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-30 grid gap-2 rounded-[16px] border border-line bg-surface p-2.5 shadow-[var(--elev-3)] sm:hidden">
+          {canEdit && c.estado === "borrador" ? (
+            <button type="button" onClick={() => markReviewed(c.id)} className="clinical-secondary">Marcar revisada</button>
+          ) : null}
+          {canEdit && (c.estado === "borrador" || c.estado === "revisada") ? (
+            <button type="button" onClick={() => approveNote(c.id)} className="clinical-primary min-h-12"><CheckCircle2 size={17} /> Aprobar y firmar nota</button>
+          ) : null}
+          {canExport && canUseAutomaticExport ? (
+            <NoteExportButton state={exportState} className="clinical-primary min-h-12" />
+          ) : null}
+          {canExport && !canUseAutomaticExport ? (
+            <button type="button" onClick={() => markExportedManually(c.id)} className="clinical-primary min-h-12"><FileCheck2 size={17} /> Marcar como exportada</button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/* ---------- Adendas ---------- */
+
+// Una nota firmada es inmutable: las correcciones y ampliaciones se registran
+// como adendas append-only con autor y fecha automáticos, sin tocar el original.
+function AddendaSection({
+  addenda,
+  addendaError,
+  onRetryAddenda,
+  autoFocus,
+  canAdd,
+  onAdd,
+}: {
+  addenda: ConsultationAddendum[];
+  addendaError: boolean;
+  onRetryAddenda: () => void;
+  autoFocus: boolean;
+  canAdd: boolean;
+  onAdd: (contenido: string) => Promise<boolean>;
+}) {
+  const [texto, setTexto] = useState("");
+  const [saving, setSaving] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!autoFocus) return;
+    sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    textareaRef.current?.focus();
+  }, [autoFocus]);
+
+  async function submit() {
+    if (!texto.trim() || saving) return;
+    setSaving(true);
+    const ok = await onAdd(texto);
+    if (ok) setTexto("");
+    setSaving(false);
+  }
+
+  return (
+    <section
+      ref={sectionRef}
+      className="clinical-panel mt-8 scroll-mt-24 p-5"
+    >
+      <div className="flex items-center gap-2">
+        <FilePlus2 size={17} className="text-accent" />
+        <h2 className="clinical-section-title">
+          Adendas
+        </h2>
+      </div>
+      <p className="mt-1 text-sm text-muted">
+        La nota firmada no se modifica. Las correcciones o ampliaciones quedan
+        aquí, con autor y fecha, y se registran en la auditoría.
+      </p>
+
+      {addenda.length ? (
+        <ol className="mt-4 space-y-3">
+          {addenda.map((a) => (
+            <li key={a.id} className="clinical-panel-muted p-3.5">
+              <p className="text-xs font-semibold text-muted">
+                {a.autor} · {new Date(a.fecha).toLocaleString("es-CO")}
+              </p>
+              <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-ink">
+                {a.contenido}
+              </p>
+            </li>
+          ))}
+        </ol>
+      ) : addendaError ? (
+        /* Afirmar "no tiene adendas" sobre una nota firmada cuando la consulta
+           falló sería un error de contenido en un documento clínico-legal. */
+        <p className="mt-4 rounded-[12px] border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning">
+          No se pudieron cargar las adendas de esta nota.{" "}
+          <button
+            type="button"
+            onClick={onRetryAddenda}
+            className="font-semibold underline underline-offset-2"
+          >
+            Reintentar
+          </button>
+        </p>
+      ) : (
+        <p className="mt-4 rounded-[12px] border border-dashed border-line px-4 py-3 text-sm text-muted">
+          Esta nota aún no tiene adendas.
+        </p>
+      )}
+
+      {canAdd ? (
+        <div className="mt-4">
+          <label htmlFor="nueva-adenda" className="text-sm font-medium text-deep">
+            Nueva adenda
+          </label>
+          <textarea
+            id="nueva-adenda"
+            ref={textareaRef}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            rows={3}
+            maxLength={4000}
+            placeholder="Describe la corrección o ampliación de la nota firmada…"
+            className="clinical-control mt-1.5 w-full resize-y px-3.5 py-2.5 text-sm leading-relaxed outline-none"
+          />
+          <div className="mt-2 flex justify-end">
+            <Button onClick={() => void submit()} disabled={!texto.trim() || saving}>
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <FilePlus2 size={15} />}
+              Agregar adenda
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/* ---------- Tabs ---------- */
+
+function AiDisclaimer() {
+  return (
+    <div className="mb-4 flex items-start gap-2 rounded-[12px] border border-accent/20 bg-accent-soft/50 px-3.5 py-2.5 text-sm text-accent-ink">
+      <Info size={16} className="mt-0.5 shrink-0" />
+      <span>
+        Contenido generado con IA. Verifique la información; la nota requiere
+        revisión y aprobación médica.
+      </span>
+    </div>
+  );
+}
+
+function HistoriaTab({
+  consultation,
+  editable,
+  onSectionChange,
+  onAiEdit,
+  aiBusy,
+}: {
+  consultation: Consultation;
+  editable: boolean;
+  onSectionChange: (sectionId: string, next: Partial<NoteSection>) => void;
+  onAiEdit: (instruction: string) => void;
+  aiBusy: boolean;
+}) {
+  return (
+    <div>
+      <AiDisclaimer />
+      <div className="doc px-4 py-3 sm:px-7 sm:py-5">
+        {consultation.note.map((s) => (
+          <NoteSectionView
+            key={s.id}
+            section={s}
+            editable={editable}
+            onChange={(next) => onSectionChange(s.id, next)}
+          />
+        ))}
+      </div>
+
+      {/* Solo mientras la nota sigue editable (no aprobada/exportada). */}
+      {editable ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const input = e.currentTarget.elements.namedItem("ai") as HTMLInputElement;
+            const value = input.value.trim();
+            if (!value) return;
+            onAiEdit(value);
+            input.value = "";
+          }}
+          className="mt-3 flex items-center gap-2 rounded-[16px] border border-line bg-surface px-3 py-2 shadow-[var(--elev-1)] sm:rounded-full sm:px-4"
+        >
+          <Sparkles size={16} className="text-accent" />
+          <input
+            name="ai"
+            placeholder="Pídale a Miracle un ajuste de la nota…"
+            disabled={aiBusy}
+            maxLength={2000}
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted disabled:opacity-60"
+          />
+          <button
+            type="submit"
+            disabled={aiBusy}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-accent text-white hover:bg-accent-hover disabled:opacity-50"
+            aria-label="Enviar"
+          >
+            {aiBusy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+          </button>
+        </form>
+      ) : null}
+    </div>
+  );
+}
+
+function CodificacionTab({
+  consultation,
+  canEdit,
+  onAccept,
+  onDiscard,
+  onAddCode,
+}: {
+  consultation: Consultation;
+  canEdit: boolean;
+  onAccept: (codeId: string) => void;
+  onDiscard: (codeId: string) => void;
+  onAddCode: (code: Omit<ClinicalCode, "id" | "estado">) => void;
+}) {
+  const sugeridos = suggestedCodes(consultation);
+  const aceptados = consultation.codigos.filter((k) => k.estado === "aceptado");
+  const descartados = consultation.codigos.filter((k) => k.estado === "descartado");
+  const rips = ripsChecklist(consultation);
+  const listo = ripsListo(consultation);
+
+  const [showForm, setShowForm] = useState(false);
+  const [sistema, setSistema] = useState<ClinicalCode["sistema"]>("CIE-10");
+  const [codigo, setCodigo] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+
+  function submitCode() {
+    const cod = codigo.trim().toUpperCase();
+    const desc = descripcion.trim();
+    if (!cod || !desc) return;
+    onAddCode({ sistema, codigo: cod, descripcion: desc, confianza: 100 });
+    setCodigo("");
+    setDescripcion("");
+    setSistema("CIE-10");
+    setShowForm(false);
+  }
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+      <div className="space-y-5">
+        <section>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="clinical-section-title">
+              Códigos sugeridos
+            </h2>
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => setShowForm((v) => !v)}
+                className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+              >
+                <Plus size={15} /> Agregar
+              </button>
+            ) : null}
+          </div>
+
+          {canEdit && showForm ? (
+            <div className="clinical-panel-muted mb-3 p-3">
+              <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+                <select
+                  value={sistema}
+                  onChange={(e) =>
+                    setSistema(e.target.value as ClinicalCode["sistema"])
+                  }
+                  aria-label="Sistema de codificación"
+                  className="clinical-control px-3 text-sm outline-none"
+                >
+                  <option value="CIE-10">CIE-10</option>
+                  <option value="CUPS">CUPS</option>
+                </select>
+                <input
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value)}
+                  placeholder="Código (ej. I10)"
+                  className="clinical-control w-full px-3 text-sm uppercase outline-none sm:w-32"
+                />
+                <input
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  placeholder="Descripción del diagnóstico o procedimiento"
+                  className="clinical-control min-w-0 flex-1 px-3 text-sm outline-none"
+                />
+              </div>
+
+              {(codigo.trim() || descripcion.trim()) &&
+              searchCodes(sistema, codigo || descripcion).length ? (
+                <div className="clinical-panel-muted mt-2 max-h-44 overflow-auto">
+                  {searchCodes(sistema, codigo || descripcion).map((s) => (
+                    <button
+                      key={s.codigo}
+                      type="button"
+                      onClick={() => {
+                        setCodigo(s.codigo);
+                        setDescripcion(s.descripcion);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-ice-soft"
+                    >
+                      <span className="shrink-0 font-mono font-semibold text-deep">
+                        {s.codigo}
+                      </span>
+                      <span className="truncate text-muted">{s.descripcion}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="mt-2.5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={submitCode}
+                  disabled={!codigo.trim() || !descripcion.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
+                >
+                  <Plus size={15} /> Agregar código
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="clinical-secondary px-4"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {sugeridos.length ? (
+            <div className="space-y-2.5">
+              {sugeridos.map((k) => (
+                <CodeSuggestion
+                  key={k.id}
+                  code={k}
+                  onAccept={canEdit ? () => onAccept(k.id) : undefined}
+                  onDiscard={canEdit ? () => onDiscard(k.id) : undefined}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="clinical-panel-muted px-4 py-3 text-sm text-muted">
+              No hay códigos sugeridos pendientes. Revise los aceptados.
+            </p>
+          )}
+        </section>
+
+        {aceptados.length ? (
+          <section>
+            <h2 className="clinical-section-title mb-2">
+              Aceptados
+            </h2>
+            <div className="space-y-2.5">
+              {aceptados.map((k) => (
+                <CodeSuggestion key={k.id} code={k} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {descartados.length ? (
+          <section>
+            <h2 className="mb-2 font-display text-base font-semibold text-muted">
+              Descartados
+            </h2>
+            <div className="space-y-2.5">
+              {descartados.map((k) => (
+                <CodeSuggestion
+                  key={k.id}
+                  code={k}
+                  onAccept={canEdit ? () => onAccept(k.id) : undefined}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
+
+      {/* RIPS */}
+      <aside className="clinical-panel h-fit p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="clinical-section-title">
+            Preparación para RIPS
+          </h2>
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+              listo ? "bg-success-soft text-success" : "bg-warning-soft text-warning"
+            }`}
+          >
+            {listo ? "Listo" : "Incompleto"}
+          </span>
+        </div>
+        <ul className="mt-4 space-y-2.5">
+          {rips.map((item) => (
+            <li key={item.label} className="flex items-center gap-2.5 text-sm">
+              <span
+                className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${
+                  item.done ? "bg-success text-white" : "bg-ice text-muted"
+                }`}
+              >
+                {item.done ? <CheckCircle2 size={13} /> : null}
+              </span>
+              <span className={item.done ? "text-ink" : "text-muted"}>
+                {item.label}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4 text-xs text-muted">
+          Miracle prepara la información; el reporte RIPS se valida en la
+          versión conectada al sistema de la institución.
+        </p>
+      </aside>
+    </div>
+  );
+}
+
+function ResumenTab({ texto, onCopy }: { texto: string; onCopy: () => void }) {
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="clinical-section-title">
+          Resumen clínico
+        </h2>
+        <button
+          type="button"
+          onClick={onCopy}
+          className="clinical-secondary px-4"
+        >
+          <Copy size={14} /> Copiar
+        </button>
+      </div>
+      <div className="clinical-panel p-6 text-[0.97rem] leading-relaxed text-ink">
+        {texto}
+      </div>
+    </div>
+  );
+}
+
+function TranscripcionTab({
+  consultation,
+  ensureTranscript,
+  fallo,
+}: {
+  consultation: Consultation;
+  ensureTranscript: (id: string) => Promise<void>;
+  fallo: boolean;
+}) {
+  // La transcripción no viene en la carga inicial (es el campo más pesado);
+  // se trae al abrir esta pestaña.
+  const [fetching, setFetching] = useState(consultation.transcript.length === 0);
+
+  useEffect(() => {
+    if (consultation.transcript.length !== 0) return;
+    let ignore = false;
+    ensureTranscript(consultation.id).finally(() => {
+      if (!ignore) setFetching(false);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [consultation.id, consultation.transcript.length, ensureTranscript]);
+
+  if (fetching && consultation.transcript.length === 0) {
+    return (
+      <div className="clinical-panel flex justify-center p-10">
+        <Loader2 size={22} className="animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  if (!consultation.transcript.length) {
+    // "No se pudo leer" y "no existe" son respuestas distintas: la
+    // transcripción es la evidencia de la que se derivó la nota.
+    if (fallo) {
+      return (
+        <p className="rounded-[16px] border border-warning/40 bg-warning-soft p-6 text-sm text-warning">
+          No se pudo cargar la transcripción de esta consulta.{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setFetching(true);
+              void ensureTranscript(consultation.id).finally(() => setFetching(false));
+            }}
+            className="font-semibold underline underline-offset-2"
+          >
+            Reintentar
+          </button>
+        </p>
+      );
+    }
+    return (
+      <p className="clinical-panel p-6 text-sm text-muted">
+        Esta consulta no tiene transcripción registrada.
+      </p>
+    );
+  }
+
+  return (
+    <div className="clinical-panel p-6">
+      <div className="space-y-4">
+        {consultation.transcript.map((turn, i) =>
+          turn.hablante ? (
+            // Transcripción con diarización (Médico/Paciente).
+            <div key={i} className="flex gap-3">
+              <span className="w-12 shrink-0 pt-0.5 font-mono text-xs text-muted">
+                {turn.t}
+              </span>
+              <div>
+                <span
+                  className={`mr-2 text-xs font-semibold ${
+                    turn.hablante === "Médico" ? "text-accent" : "text-success"
+                  }`}
+                >
+                  {turn.hablante}
+                </span>
+                <span className="text-[0.95rem] text-ink">{turn.texto}</span>
+              </div>
+            </div>
+          ) : (
+            // Transcripción verbatim (tal cual como se dijo): bloque de texto plano.
+            <p
+              key={i}
+              className="whitespace-pre-wrap text-[0.95rem] leading-relaxed text-ink"
+            >
+              {turn.texto}
+            </p>
+          ),
+        )}
+      </div>
+      <p className="mt-5 border-t border-line pt-4 text-xs text-muted">
+        El audio no se conserva tras generar la nota. La transcripción queda
+        disponible para trazabilidad.
+      </p>
+    </div>
+  );
+}
+
+function AuditoriaTab({ consultation }: { consultation: Consultation }) {
+  const report = auditConsultation(consultation);
+  const pct = completitud(consultation);
+  const scoreColor =
+    report.puntaje >= 85
+      ? "text-success"
+      : report.puntaje >= 60
+        ? "text-warning"
+        : "text-danger";
+  const barColor =
+    report.puntaje >= 85
+      ? "bg-success"
+      : report.puntaje >= 60
+        ? "bg-warning"
+        : "bg-danger";
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div className="space-y-5">
+        {/* Calidad documental + completitud RIPS */}
+        <div className="clinical-panel p-5">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <div className="text-sm text-muted">Calidad documental</div>
+              <div className={`font-display text-4xl font-bold ${scoreColor}`}>
+                {report.puntaje}%
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-muted">Completitud RIPS</div>
+              <div className="text-lg font-semibold text-deep">{pct}%</div>
+            </div>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-ice">
+            <div
+              className={`h-full rounded-full ${barColor}`}
+              style={{ width: `${report.puntaje}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Qué se puede mejorar */}
+        <div className="clinical-panel p-5">
+          <h2 className="mb-4 font-display text-base font-semibold text-deep">
+            Qué se puede mejorar
+          </h2>
+          <AuditFindingList
+            hallazgos={report.hallazgos}
+            emptyLabel="Sin observaciones — la nota está completa y lista para firmar."
+          />
+        </div>
+      </div>
+
+      <div className="clinical-panel h-fit p-5">
+        <h2 className="mb-4 font-display text-base font-semibold text-deep">
+          Trazabilidad
+        </h2>
+        <Timeline events={consultation.auditoria} />
+      </div>
+    </div>
+  );
+}

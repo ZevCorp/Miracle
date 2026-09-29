@@ -1,42 +1,42 @@
-# Ü — Windows App
+# Ü — el monorepo
 
-Repositorio de la aplicación de escritorio Windows de Ü, separado del repo Android
-como parte de la organización multirepo de la empresa.
+Todo Miracle en un repo: los clientes de Ü para Windows, Mac y Android, el cerebro (Graph) y el
+portal clínico (Miracle Notes). Una feature que cruza el portal y Windows es **una rama y un PR**.
 
-## Estructura
+| Carpeta | Qué es | Venía de |
+|---|---|---|
+| [`apps/windows/`](apps/windows) | Ü para Windows (C# · .NET 8), con SAP GUI | este repo |
+| [`apps/mac/`](apps/mac) | Ü para Mac (Swift) | este repo |
+| [`apps/android/`](apps/android) | Ü para Android (Kotlin) | [`ZevCorp/Android`](https://github.com/ZevCorp/Android) |
+| [`apps/web/`](apps/web) | Miracle Notes, el portal clínico (Next.js) | [`joseph1356k/Pagina-web-clientes-final`](https://github.com/joseph1356k/Pagina-web-clientes-final) |
+| [`services/graph/`](services/graph) | Graph, el cerebro: API, LLM, memoria, Provider Studio | [`joseph1356k/Graph`](https://github.com/joseph1356k/Graph) |
 
-- `windows-client/` — frontend C#/WPF (.NET 8) → `U.exe`. Cliente "tonto": lee el
-  árbol de UI (UIA), captura pantalla, ejecuta ratón/teclado y voz. Toda la
-  inteligencia vive en el backend central **Graph**.
-- `windows-graph/` — módulo C# de workflows sobre SAP GUI Scripting / UIA
-  (grabar y reproducir), compilado dentro de `U.exe`. Habla con Graph.
-- `backend/` — **LEGACY**: el cerebro TypeScript original (`u-windows-backend` en
-  Vercel). Sus funcionalidades fueron absorbidas por el backend central Graph
-  (`/api/v1/agent/turn`, `/api/v1/teach/*`). Se conserva solo como vía de
-  emergencia (`U_BACKEND_URL`) mientras se verifica el corte; después se elimina.
+Cada proyecto entró con su historia entera (`git log` y `git blame` funcionan como en su repo de
+origen), y guarda su README, sus reglas y su manera de construirse.
 
-## Backend
+## Empezar
 
-El cliente consume el backend central Graph: `https://graph-eight-pied.vercel.app`
-con API key (`miracle_...`) en `%APPDATA%\U\graph.json` o env `GRAPH_API_KEY`.
-Las keys se generan en el Provider Studio de Graph (sección API keys).
-
-## Build
-
-```powershell
-dotnet build windows-client/WindowsClient.csproj -c Debug
+```bash
+git config core.hooksPath .githooks     # una vez por clon: activa el portero
+cd apps/<proyecto>                      # y trabaja desde ahí: ahí están sus reglas y sus comandos
 ```
 
-Release e instalador: ver `RELEASING-WINDOWS.md`. Runbook de producción: `PRODUCTION.md`.
-Arquitectura y decisiones: `WINDOWS.md`.
+- Las reglas comunes, para personas y agentes: [`AGENTS.md`](AGENTS.md).
+- Por qué el repo está organizado así: [`docs/monorepo/arquitectura.md`](docs/monorepo/arquitectura.md).
+- Lo que viene después (prácticas comunes, contratos compartidos, despliegues):
+  [`docs/monorepo/fase-2.md`](docs/monorepo/fase-2.md).
 
-## Flujo con Codex y Claude Code
+## Si tu rama nació antes del 2026-09-28
 
-El repo incluye pstack portable para ambos agentes. Usa `$pstack ...` en Codex o
-`/pstack ...` en Claude Code. La instalación, actualización y la relación con las
-skills SDD existentes están documentadas en [`docs/pstack.md`](docs/pstack.md).
+Ese día cada proyecto pasó a su carpeta. Para poner tu rama al día:
+
+```bash
+git fetch origin
+bash <(git show origin/main:tools/monorepo/ponerse-al-dia.sh)
+```
 
 ## Historial
 
-Este repo nace de la separación del monorepo `ZevCorp/Android` (2026-07). El
-historial completo previo a la separación vive allí.
+Este repo nació en 2026-07 de la separación del monorepo `ZevCorp/Android`, y el 2026-09-28 volvió a
+ser monorepo, esta vez con Graph y el portal dentro (#126). La historia previa a la separación está
+en `apps/android/`.
