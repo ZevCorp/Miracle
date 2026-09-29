@@ -69,7 +69,7 @@ public static class StartMenuLauncher
     public static string? Elegir(string pedido, IReadOnlyList<string> nombres)
     {
         string target = Norm(pedido);
-        if (target.Length == 0 || LosDeU.Contains(target)) return null;
+        if (target.Length == 0) return null;
         var candidatos = nombres.Where(n => Norm(n).Length > 0 && !LosDeU.Contains(Norm(n))).ToList();
         // Literal antes que normalizado: «Notepad++» y «Notepad» se normalizan igual (los símbolos se van).
         return candidatos.FirstOrDefault(n => string.Equals(n.Trim(), (pedido ?? "").Trim(), StringComparison.OrdinalIgnoreCase))

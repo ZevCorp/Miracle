@@ -14557,7 +14557,8 @@ internal static class Contrato
         if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
         Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"private async Task EjecutarAsync\([\s\S]*?_cuenta\.Trabajo\("),
             "[cableado] la voz no le cuenta a la medida lo que tardó cada tanda de herramientas");
-        Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"case Hecho\.DiceU d:[\s\S]*?_cuenta\.Hablo\(\);[\s\S]*?break;"),
+        var diceU = System.Text.RegularExpressions.Regex.Match(v, @"case Hecho\.DiceU d:[\s\S]*?break;");
+        Debe(diceU.Success && System.Text.RegularExpressions.Regex.IsMatch(diceU.Value, @"(?m)^\s*_cuenta\.Hablo\(\);"),
             "[cableado] la voz no le cuenta a la medida cuándo habló Ü");
     }
 
@@ -14857,7 +14858,8 @@ internal static class Contrato
 
         // [cableado] Abrir espera con esa regla.
         if (FuenteDe("windows-client", "src", "Navigation", "ManosDelPlan.cs") is not { } manos) return;
-        Debe(System.Text.RegularExpressions.Regex.IsMatch(manos, @"public bool Abrir\(string app\)[\s\S]*?Pintada\("), "[cableado] abrir no espera a que la app pinte");
+        var abrir = System.Text.RegularExpressions.Regex.Match(manos, @"public bool Abrir\(string app\)[\s\S]*?\r?\n    }\r?\n");
+        Debe(abrir.Success && abrir.Value.Contains("Pintada(l) ? l : Lectura.Vacia"), "[cableado] abrir no espera a que la app pinte");
     }
 
     private static void LoGuardadoVaDondeDiceUDataDir()
@@ -14899,10 +14901,13 @@ internal static class Contrato
         // misma regla, «outlook», «youtube» o «cursor» abrían otra Ü si su acceso no estaba en el menú del usuario.
         var elegir = typeof(U.WindowsClient.SystemApi.StartMenuLauncher).GetMethod("Elegir", BindingFlags.Public | BindingFlags.Static);
         if (elegir == null) { Pendiente("StartMenuLauncher.Elegir (qué acceso directo casa con lo pedido)", "521", "062"); return; }
-        var menu = new[] { "U", "Obsidian", "Google Chrome", "Notepad++", "Notepad", "SAP Logon", "Visual Studio Code" };
+        var menu = new[] { "U", "Out", "Obsidian", "Google Chrome", "Notepad++", "Notepad", "SAP Logon", "Visual Studio Code" };
         string? E(string pedido) => (string?)elegir.Invoke(null, new object[] { pedido, menu });
         foreach (string p in new[] { "calculator", "outlook", "youtube", "cursor", "u", "U", "Ü" })
-            Debe(E(p) == null, $"pedir «{p}» casó con «{E(p)}»: abrir no puede lanzar a la propia Ü ni un acceso de una letra");
+            Debe(E(p) == null, $"pedir «{p}» casó con «{E(p)}»: abrir no puede lanzar a la propia Ü ni un acceso de menos de 4 letras dentro de lo pedido");
+        // La propia Ü tampoco se puede pedir por su nombre, ni aunque no se filtraran los accesos: se mira lo pedido.
+        var soloU = new[] { "Ü" };
+        Debe(elegir.Invoke(null, new object[] { "ü", soloU }) == null, "pedir «ü» con un acceso «Ü» en el menú lo lanzó");
         Debe(E("notepad") == "Notepad", $"lo exacto no ganó a lo que lo contiene («{E("notepad")}»)");
         Debe(E("chrome") == "Google Chrome", $"lo pedido dentro del nombre del acceso dejó de casar («{E("chrome")}»)");
         Debe(E("sap logon 760") == "SAP Logon", $"un acceso de 4 letras o más dentro de lo pedido dejó de casar («{E("sap logon 760")}»)");
