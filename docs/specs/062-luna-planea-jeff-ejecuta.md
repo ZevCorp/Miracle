@@ -63,6 +63,8 @@ plan viejo.
 | 525 | un «pulsa: X» que no está a la vista ni tras esperar pasa a Jev como «llegar a X»: con permiso para navegar hasta donde esté —la sección que lo contiene, o Atrás—, no para adivinar en esta pantalla | 5 |
 | 526 | «carpeta: <ruta o nombre>» abre esa carpeta por el disco dentro del plan, sin Jev; si no se pudo, el paso falla diciendo cuál, y sin quien abra carpetas lo dice | 5 |
 
+| 527 | el notch se aparta como la carita: si bajo el punto de un clic de Ü está el notch, se vuelve transparente al ratón un momento, se mira otra vez y se pulsa lo de debajo; cualquier otra ventana de Ü sigue sin pulsarse y se dice cuál | 5 |
+
 > **Por qué la 522 está en esta spec.** La encontró la tanda de GPT-6 Sol (2026-09-29, 02:41): la conversación se guardaba
 > en `%APPDATA%\U\conversacion-personal.json` aunque la Ü de pruebas tuviera su `U_DATA_DIR`, así que cada orden heredaba
 > las anteriores —Sol hizo la de Configuración dentro de la de la calculadora— y 26 turnos de prueba quedaron en el archivo

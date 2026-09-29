@@ -57,6 +57,19 @@ public static class ReglaDeLaVisita
     /// —pulsando o arrastrando la carita— no se pulsa: la captura se llevaría el clic de Ü a la carita, estuviera donde
     /// estuviera, y el arrastre la dejaría encima de lo que Ü iba a pulsar.
     /// </remarks>
+    /// <summary>
+    /// EL NOTCH SE APARTA COMO LA CARITA (promesa 527): si lo que hay bajo el punto es el notch, se vuelve transparente al
+    /// ratón y se deja decidir al resto (la regla de la carita, que vuelve a mirar). Cualquier otra ventana de Ü sigue en manos
+    /// del resto, que no la pulsa y dice cuál. En Paint maximizado, «Rojo» quedaba bajo el notch y Ü no podía pulsarlo
+    /// (2026-09-29): toda la franja de arriba al centro de una app maximizada era suya.
+    /// </summary>
+    public static string? LibrarElPuntoConElNotch(Func<IntPtr> bajo, Func<IntPtr, bool> esElNotch, Action<IntPtr> apartarElNotch, Func<string?> resto)
+    {
+        IntPtr h = bajo();
+        if (h != IntPtr.Zero && esElNotch(h)) apartarElNotch(h);
+        return resto();
+    }
+
     public static string? LibrarElPunto(Func<IntPtr> bajo, Func<IntPtr, bool> esDeU, IntPtr carita, Action apartar,
                                         Func<IntPtr, string> nombre, Func<bool> enLaCarita, Func<string?> ocupado)
     {

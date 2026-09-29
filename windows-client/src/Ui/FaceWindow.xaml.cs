@@ -2053,9 +2053,11 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     }
 
     private string? LibrarElPuntoDeUnClic(int x, int y) =>
-        ReglaDeLaVisita.LibrarElPunto(() => VentanasDeU.Bajo(x, y), VentanasDeU.EsDeU, _hwndCarita, ApartarLaCarita, VentanasDeU.Nombre,
-            enLaCarita: () => VentanasDeU.Dentro(_hwndCarita, x, y),
-            ocupado: () => VentanasDeU.LaPersonaTieneElRaton(_hwndCarita) ? "la persona tiene el ratón (está pulsando o arrastrando)" : null);
+        ReglaDeLaVisita.LibrarElPuntoConElNotch(() => VentanasDeU.Bajo(x, y), h => VentanasDeU.Nombre(h) == PanelDeAcciones.Titulo, PanelDeAcciones.ApartarUnMomento,
+            () => ReglaDeLaVisita.LibrarElPunto(() => VentanasDeU.Bajo(x, y), VentanasDeU.EsDeU, _hwndCarita, ApartarLaCarita, VentanasDeU.Nombre,
+                enLaCarita: () => VentanasDeU.Dentro(_hwndCarita, x, y),
+                ocupado: () => VentanasDeU.LaPersonaTieneElRaton(_hwndCarita) ? "la persona tiene el ratón (está pulsando o arrastrando)" : null));
+
 
     /// <summary>
     /// Aparta la carita —fantasma, y su rato fuera empieza otra vez— antes de un clic que caería en ella. Con techo: 100 ms a

@@ -931,6 +931,7 @@ internal static class Contrato
         Prueba("524. «pulsa: <nombre>» que no encuentra el nombre espera UNA vez a que la pantalla se quede quieta y lo busca otra vez por el ciclo rápido antes de pasarlo a Jev; si aparece, Jev ni se entera", PulsaEsperaALaPaginaAntesDeJev);
         Prueba("525. un «pulsa: X» que no está a la vista ni tras esperar pasa a Jev como «llegar a X»: con permiso para navegar hasta donde esté —la sección que lo contiene, o Atrás—, no para adivinar en esta pantalla", PulsaQueNoEstaEsLlegar);
         Prueba("526. «carpeta: <ruta o nombre>» abre esa carpeta por el disco dentro del plan, sin Jev; si no se pudo, el paso falla diciendo cuál, y sin quien abra carpetas lo dice", CarpetaEnElPlan);
+        Prueba("527. el notch se aparta como la carita: si bajo el punto de un clic de Ü está el notch, se vuelve transparente al ratón un momento, se mira otra vez y se pulsa lo de debajo; cualquier otra ventana de Ü sigue sin pulsarse y se dice cuál", ElNotchSeApartaComoLaCarita);
         Prueba("520. quien planea es GPT-6 Sol a la máxima velocidad que la API acepta: delegado gpt-6-sol con reasoning.effort = low y service_tier = priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
@@ -14744,6 +14745,38 @@ internal static class Contrato
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"new U\.Ciclo\.Motor\(DondeDelPlan,"), "[cableado] el motor de Jev no pregunta dónde con la regla del ciclo");
         Debe(cara.Contains("new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero)"), "[cableado] las manos del plan no trabajan sobre la ventana del ciclo");
         Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"DondeDelPlan\(\)[\s\S]{0,300}Navigation\.ElPlanPorObjetivos\.Donde\("), "[cableado] DondeDelPlan no usa ElPlanPorObjetivos.Donde");
+    }
+
+    private static void ElNotchSeApartaComoLaCarita()
+    {
+        // MEDIDO EL 2026-09-29: en Paint maximizado, «Rojo» quedaba bajo el notch («Ü Acciones») y la guarda (510) no pulsaba:
+        // 4 veces en una orden, y en cada tanda. Cualquier botón de arriba al centro de una app maximizada —la cinta de
+        // Paint, Word, Excel— era impulsable por Ü, que se tapaba a sí misma.
+        var m = Capacidad("U.WindowsClient.Ui.ReglaDeLaVisita")?.GetMethod("LibrarElPuntoConElNotch", BindingFlags.Public | BindingFlags.Static);
+        if (m == null) { Pendiente("ReglaDeLaVisita.LibrarElPuntoConElNotch (apartar el notch antes de un clic)", "527", "062"); return; }
+        IntPtr notch = new(40), app = new(30), muelle = new(20);
+        IntPtr bajo = notch;
+        int apartados = 0; IntPtr apartado = IntPtr.Zero;
+        string? L(Func<string?> resto) => (string?)m.Invoke(null, new object[]
+        {
+            new Func<IntPtr>(() => bajo), new Func<IntPtr, bool>(h => h == notch),
+            new Action<IntPtr>(h => { apartados++; apartado = h; bajo = app; }), resto,
+        });
+        string? r = L(() => bajo == app ? null : "lo tapa «Ü Acciones», una ventana de Ü");
+        Debe(r == null && apartados == 1 && apartado == notch, $"con el notch bajo el punto no se apartó una vez y se pulsó lo de debajo («{r}», {apartados} apartado(s))");
+        bajo = muelle; apartados = 0;
+        string? r2 = L(() => bajo == muelle ? "lo tapa «Muelle», una ventana de Ü" : null);
+        Debe(r2 != null && r2.Contains("Muelle") && apartados == 0, $"otra ventana de Ü bajo el punto se apartó, o se pulsó sin decir cuál («{r2}»)");
+
+        // [cableado] Los clics de la cara pasan por esa regla antes de la de la carita, y apartar el notch vuelve solo.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"private string\? LibrarElPuntoDeUnClic\(int x, int y\) =>\s*ReglaDeLaVisita\.LibrarElPuntoConElNotch\("),
+            "[cableado] los clics de la cara no apartan el notch antes de mirar bajo el punto");
+        // Apartar el notch vive en el notch, no en la cara: la cara solo toca el estilo de la carita (505).
+        Debe(cara.Contains("PanelDeAcciones.ApartarUnMomento"), "[cableado] los clics de la cara no apartan el notch con su propia regla");
+        if (FuenteDe("windows-client", "src", "Ui", "PanelDeAcciones.cs") is not { } notchSrc) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(notchSrc, @"public static void ApartarUnMomento\(IntPtr notch\)[\s\S]*?Fantasma\.Poner\(notch, true\)[\s\S]*?Fantasma\.Poner\(notch, false\)"),
+            "[cableado] apartar el notch no lo vuelve fantasma, o no lo devuelve a dejarse tocar");
     }
 
     private static void PulsaQueNoEstaEsLlegar()
