@@ -1383,7 +1383,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// Asegura la identidad del usuario: genera el InstallId (una vez) y, si aún no hay correo, muestra
     /// el popup de bienvenida para capturar nombre+correo. El correo es la clave canónica en el backend.
     /// Si el usuario cierra el popup sin completarlo, se seguirá sin telemetría y se re-preguntará en el
-    /// próximo arranque — nunca bloquea el uso del asistente.
+    /// próximo arranque.
+    ///
+    /// «Nunca bloquea» lo decía este comentario desde antes y era falso hasta el 2026-09-30: el popup era
+    /// un ShowDialog y el arranque entero —MCP, núcleo, log— esperaba a que alguien contestara (spec 053).
     /// </summary>
     private void EnsureOnboarded()
     {
@@ -1427,14 +1430,22 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 return;
             }
 
+            // SIN ShowDialog (spec 053, promesa 450): el modal retenía el resto del arranque —MCP,
+            // núcleo, log— hasta que alguien contestara. Ahora se pregunta y se sigue; la respuesta,
+            // cuando llegue, guarda la identidad y enciende la telemetría, que al arrancar no pudo.
+            LogBus.Log("onboarding", "pregunto quién eres sin detener el arranque");
             var win = new OnboardingWindow { Owner = this };
-            if (win.ShowDialog() == true && !string.IsNullOrWhiteSpace(win.EnteredEmail))
-            {
-                _config.DisplayName = win.EnteredName;
-                _config.Email = win.EnteredEmail;
-                _config.UserId = win.EnteredEmail; // el scoping de workflows y la telemetría hablan del mismo usuario
-                _config.Save();
-            }
+            PreguntaDeIdentidad.Abrir(win,
+                () => (win.EnteredName, win.EnteredEmail),
+                (nombre, correo) =>
+                {
+                    _config.DisplayName = nombre;
+                    _config.Email = correo;
+                    _config.UserId = correo; // el scoping de workflows y la telemetría hablan del mismo usuario
+                    _config.Save();
+                    LogBus.Log("onboarding", "identidad guardada al contestar la bienvenida");
+                    InitTelemetry();
+                });
         }
         catch (Exception ex) { LogBus.Log("onboarding", ex.Message); }
     }

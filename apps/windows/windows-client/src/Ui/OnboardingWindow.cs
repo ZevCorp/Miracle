@@ -134,7 +134,9 @@ public sealed class OnboardingWindow : Window
         if (!(!string.IsNullOrWhiteSpace(_name.Text) && EmailRe.IsMatch(_email.Text.Trim()))) return;
         EnteredName = _name.Text.Trim();
         EnteredEmail = _email.Text.Trim().ToLowerInvariant();
-        DialogResult = true;
+        // SIN DialogResult desde el 2026-09-30: la ventana ya no se abre con ShowDialog (spec 053), y
+        // asignarlo en una ventana no modal LANZA. La respuesta es EnteredEmail, y quien pregunta la lee
+        // al cerrarse (PreguntaDeIdentidad).
         Close();
     }
 

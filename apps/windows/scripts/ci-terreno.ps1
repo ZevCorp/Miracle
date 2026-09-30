@@ -27,6 +27,25 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $fallos = 0
 
+Add-Type -TypeDefinition @'
+using System; using System.Text; using System.Collections.Generic; using System.Runtime.InteropServices;
+public static class VentanasDeUnProceso {
+  delegate bool Cada(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(Cada c, IntPtr l);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  public static List<string> Visibles(int pid) {
+    var o = new List<string>();
+    EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p);
+      if (p == pid && IsWindowVisible(h)) { var s = new StringBuilder(256); GetWindowText(h, s, 256); o.Add("'" + s + "'"); }
+      return true; }, IntPtr.Zero);
+    return o;
+  }
+}
+'@
+function VentanasVisibles($processId) { [VentanasDeUnProceso]::Visibles($processId) }
+
 function Juzgar($nombre, $ok, $detalle) {
   $color = if ($ok) { "Green" } else { "Red" }
   Write-Host ("  {0}  {1} - {2}" -f ($(if ($ok) { "OK " } else { "FALLO" })), $nombre, $detalle) -ForegroundColor $color
@@ -75,7 +94,26 @@ try {
     Start-Sleep -Milliseconds 500
     try { Mcp '{"jsonrpc":"2.0","id":0,"method":"initialize","params":{}}' 3 | Out-Null; $listo = $true } catch {}
   }
-  if (-not $listo) { Juzgar "arranque" $false "la app no levanto el MCP en 30 s"; exit 1 }
+  # "NO LEVANTO EL MCP" CUBRIA TRES COSAS (patron n.2), y la que de verdad pasaba -la app viva, parada
+  # delante de la bienvenida de un ShowDialog- se leia igual que "se murio" (spec 053, 2026-09-30).
+  # Ahora se dice cual, con lo que haga falta para seguir: el codigo de salida, o las ventanas que
+  # tiene abiertas y donde esta su log.
+  if (-not $listo) {
+    $logs = Join-Path $datos "local\U\logs"
+    $log = Get-ChildItem $logs -Filter *.log -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $dondeLog = if ($log) { "su log: $($log.FullName)" } else { "no escribio ni una linea de log (en $logs)" }
+    if ($app.HasExited) {
+      Juzgar "arranque" $false ("la app MURIO sin levantar el MCP (codigo {0}); {1}" -f $app.ExitCode, $dondeLog)
+    } else {
+      $ventanas = @(VentanasVisibles $app.Id)
+      if ($ventanas.Count -gt 0) {
+        Juzgar "arranque" $false ("la app VIVE pero no levanto el MCP en 30 s; tiene abierta(s): {0}. Si es un dialogo, esta esperando a alguien; {1}" -f ($ventanas -join " | "), $dondeLog)
+      } else {
+        Juzgar "arranque" $false ("la app VIVE, sin ninguna ventana visible, y no levanto el MCP en 30 s; {0}" -f $dondeLog)
+      }
+    }
+    exit 1
+  }
   Write-Host "la app contesta; juzgando el terreno:" -ForegroundColor Cyan
 
   # 1. el catalogo: lo del terreno esta, lo retirado no
@@ -107,7 +145,20 @@ try {
   } catch { Juzgar "8792/terreno" $false "$_" }
 }
 finally {
-  try { [void]$app.CloseMainWindow(); if (-not $app.WaitForExit(8000)) { $app.Kill() } } catch {}
+  # LO QUE SE ARRANCA SE MATA, Y SE COMPRUEBA. Hasta el 2026-09-30 esto era un try con `catch {}` mudo
+  # (patron n.3), y una corrida dejo su U.exe vivo sin que nadie se enterara: la siguiente encontraba
+  # el 8790 ocupado y se negaba a juzgar. Por PID y con su arbol -nunca por nombre: entre las U esta la
+  # que el usuario tiene abierta trabajando-, y si aun asi sigue viva, se dice y cuenta como fallo.
+  if (-not $app.HasExited) {
+    try { [void]$app.CloseMainWindow() } catch { Write-Host "  (cerrar la ventana principal fallo: $($_.Exception.Message))" -ForegroundColor DarkGray }
+    if (-not $app.WaitForExit(8000)) {
+      & taskkill.exe /PID $app.Id /T /F 2>&1 | Out-Null
+      [void]$app.WaitForExit(5000)
+    }
+  }
+  if (-not $app.HasExited) {
+    Juzgar "limpieza" $false ("la instancia de prueba (pid {0}) SIGUE VIVA: cierrala a mano por su pid antes de repetir" -f $app.Id)
+  }
 }
 
 if ($fallos -gt 0) { Write-Host "`nEL TERRENO NO CONTESTA COMO PROMETE ($fallos fallo(s))." -ForegroundColor Red; exit 1 }

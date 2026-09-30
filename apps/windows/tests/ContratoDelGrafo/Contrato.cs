@@ -867,6 +867,13 @@ internal static class Contrato
         Prueba("421. leer la historia la TRANSCRIBE literal, por páginas y párrafos: cada documento viaja precedido de «Documento n — id: Dn», la foto como imagen con detalle alto y el PDF como archivo con su nombre, todo con store:false; las fotos van de 3 en 3 y cada PDF solo; lo que vuelve se convierte en párrafos con id estable «Dn-pP-k»; y un documento del que no volvió nada queda sin leer, diciendo por qué", LaHistoriaSeTranscribeLiteral);
         Prueba("422. «¿por qué vino a cardiología?» se pregunta con los párrafos de TODA la historia —de cardiología o no— y sin ninguna imagen ni archivo; la respuesta es UNA frase de como mucho 220 caracteres, y los párrafos que la sostienen se copian en código de la transcripción por su id: un id que no existe se descarta, y sin ninguna cita válida el titular es «Los documentos no dicen por qué vino a cardiología», aunque el modelo haya escrito una frase", ElMotivoSeCitaCopiandoDelDocumento);
         Prueba("423. soltar más documentos no vuelve a leer los ya leídos y rehace el motivo con todos; si la lectura falla a mitad, lo leído se conserva, el error nombra el documento que faltó, y reintentar lee solo lo que faltó", SoltarMasNoVuelveALeerLoLeido);
+
+        // ── Spec 053: el arranque no espera a que nadie diga quién es ──────────────────────────
+        // 450-459 reservadas el 2026-09-30. Sin sesión, la bienvenida era un ShowDialog dentro de
+        // Loaded: ni MCP, ni núcleo, ni log hasta que alguien contestara. El CI del terreno no
+        // contesta nunca, y un equipo nuevo tampoco si no ve el popup.
+        Console.WriteLine();
+        Prueba("450. preguntar quién eres no detiene el arranque: la ventana de identidad se abre y quien la abrió sigue en el mismo instante, sin esperar respuesta; lo contestado se guarda al cerrarla, cerrarla sin contestar no guarda nada, y el arranque de la carita no usa ShowDialog para preguntarlo", PreguntarQuienEresNoDetieneElArranque);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -14138,6 +14145,81 @@ internal static class Contrato
         var releidas = cuerpos.Select(LoQueLleva).SelectMany(x => x.Ids).ToList();
         Debe((bool)(releidas.SequenceEqual(new[] { "f4", "f5", "f6", "f7" })), $"el reintento lee solo lo que faltó: [{string.Join(", ", releidas)}]");
         Debe((bool)(!string.IsNullOrEmpty((string)s.Resumen)), "y ahora sí hay resumen");
+    }
+
+    // ── El arranque no espera (spec 053) ─────────────────────────────────────
+
+    private static void PreguntarQuienEresNoDetieneElArranque()
+    {
+        var t = Capacidad("U.WindowsClient.Ui.PreguntaDeIdentidad");
+        var abrir = t?.GetMethod("Abrir");
+        if (abrir == null) { Pendiente("Ui.PreguntaDeIdentidad.Abrir", "450", "053"); return; }
+
+        // UNA VENTANA DE VERDAD, fuera de la pantalla: lo que se juzga es si quien la abre se queda
+        // esperando, y eso solo lo dice el bucle de mensajes de WPF, no un doble.
+        (bool VolvioAbierta, bool Cerrada, List<string> Guardado) Probar(bool contesta)
+        {
+            var ventana = new System.Windows.Window
+            {
+                Width = 120, Height = 80, Left = -20000, Top = -20000,
+                ShowInTaskbar = false, ShowActivated = false, WindowStyle = System.Windows.WindowStyle.None,
+            };
+            var guardado = new List<string>();
+            bool cerrada = false;
+            ventana.Closed += (_, _) => cerrada = true;
+
+            // EL JUEZ NO SE CUELGA NI CON EL BUG PUESTO: un ShowDialog tiene su propio bucle de
+            // mensajes, que también atiende este temporizador. Así que con el bug, Abrir vuelve
+            // DESPUÉS de que la ventana se cierre — y eso es exactamente lo que se mide.
+            var cierre = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            cierre.Tick += (_, _) => { cierre.Stop(); ventana.Close(); };
+            cierre.Start();
+
+            Func<(string Nombre, string Correo)?> respuesta = () => contesta ? ("Ana Ruiz", "ana@clinica.co") : null;
+            Action<string, string> guardar = (n, c) => guardado.Add(n + "|" + c);
+            abrir.Invoke(null, new object[] { ventana, respuesta, guardar });
+            bool volvioAbierta = !cerrada;
+
+            // Y ahora sí se deja correr el bucle hasta que la ventana se cierre, para ver qué se guardó.
+            var hecho = new System.Windows.Threading.DispatcherFrame();
+            var tope = DateTime.UtcNow.AddSeconds(5);
+            var mirar = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(20) };
+            mirar.Tick += (_, _) => { if (cerrada || DateTime.UtcNow > tope) { mirar.Stop(); hecho.Continue = false; } };
+            mirar.Start();
+            System.Windows.Threading.Dispatcher.PushFrame(hecho);
+            return (volvioAbierta, cerrada, guardado);
+        }
+
+        var si = Probar(contesta: true);
+        Debe(si.VolvioAbierta, "quien abre la pregunta sigue en el acto: Abrir volvió con la ventana todavía ABIERTA (con ShowDialog vuelve cuando se cierra, y el arranque espera a alguien)");
+        Debe(si.Cerrada, "la ventana de prueba llegó a cerrarse: si no, lo de abajo no dice nada");
+        Debe(si.Guardado.SequenceEqual(new[] { "Ana Ruiz|ana@clinica.co" }),
+            $"lo contestado se guarda al cerrarla, una vez ({string.Join(", ", si.Guardado)})");
+
+        var no = Probar(contesta: false);
+        Debe(no.VolvioAbierta, "también sin contestar vuelve en el acto");
+        Debe(no.Guardado.Count == 0, $"cerrarla sin contestar no guarda nada ({no.Guardado.Count} guardado(s))");
+
+        // EL CÓDIGO DEL ARRANQUE: que exista PreguntaDeIdentidad no sirve si EnsureOnboarded sigue con
+        // su ShowDialog. Si no se puede leer la fuente, se dice que NO SE PUDO juzgar — y cuenta como
+        // incumplida, porque un juez que no pudo mirar no puede dar el verde (aprendizaje nº17).
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string archivo = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(archivo))
+        {
+            Debe(false, "NO PUDE JUZGAR el arranque: falta U_REPO para leer FaceWindow.xaml.cs");
+            return;
+        }
+        string fuente = File.ReadAllText(archivo);
+        int ini = fuente.IndexOf("private void EnsureOnboarded()", StringComparison.Ordinal);
+        int fin = ini < 0 ? -1 : fuente.IndexOf("private void InitTelemetry()", ini, StringComparison.Ordinal);
+        Debe(ini >= 0 && fin > ini, "encuentro EnsureOnboarded en FaceWindow.xaml.cs, que es donde la carita pregunta quién eres");
+        if (ini < 0 || fin <= ini) return;
+        string cuerpo = fuente.Substring(ini, fin - ini);
+        Debe(!cuerpo.Contains("ShowDialog(", StringComparison.Ordinal),
+            "el arranque de la carita no usa ShowDialog para preguntar quién eres");
+        Debe(cuerpo.Contains("PreguntaDeIdentidad.Abrir(", StringComparison.Ordinal),
+            "y pregunta por PreguntaDeIdentidad.Abrir, la pieza que se juzga arriba");
     }
 
     private static void Debe(bool condicion, string promesa)
