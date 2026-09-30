@@ -79,6 +79,8 @@ public sealed partial class ConsultaWindow : Window
     private bool _mostrando;
     private readonly StackPanel _panelNota;
     private readonly TextBlock _vivo;
+    // Lo mismo que _vivo, por voces, cuando Soniox las separa (spec 070). Se pinta por PintarLoOido.
+    private readonly VocesEnVivo _voces = new();
     private readonly StackPanel _nota;
     private readonly Border _vacioNota;
     /// <summary>«¿Por qué vino a cardiología?», arriba de la Nota, al soltar la historia clínica (spec 051).</summary>
@@ -421,6 +423,7 @@ public sealed partial class ConsultaWindow : Window
         // ARRIBA DE TODO: es lo primero que el médico tiene que leer (spec 051).
         _panelNota.Children.Add(_motivo.Vista);
         _panelNota.Children.Add(_vivo);
+        _panelNota.Children.Add(_voces.Vista);
         _panelNota.Children.Add(Estudio.Elevar(_vacioNota));
         _panelNota.Children.Add(_nota);
         _panelNota.Children.Add(HuecoDeLaCarita());   // promesa 272: aquí se sienta la carita
@@ -518,7 +521,7 @@ public sealed partial class ConsultaWindow : Window
         _cronometro.Tick += (_, __) => PintarCronometro();
         _dictado.Parcial += t => Dispatcher.BeginInvoke(() =>
         {
-            _vivo.Text = t;
+            PintarLoOido(t);
             _vacioNota.Visibility = t.Length > 0 ? Visibility.Collapsed : Visibility.Visible;
             if (_enNota) _superficie.ScrollToEnd();
         });
@@ -1406,7 +1409,7 @@ public sealed partial class ConsultaWindow : Window
         _plantillaId = "";
         _plantillaNombre = "";
         _nota.Children.Clear();
-        _vivo.Text = "";
+        PintarLoOido("");
         _vacioNota.Visibility = Visibility.Visible;
         _listaConsultas.Children.Clear();
         Mostrar(nota: true);
@@ -1936,7 +1939,7 @@ public sealed partial class ConsultaWindow : Window
 
             Mostrar(nota: true);
             _nota.Children.Clear();
-            _vivo.Text = "";
+            PintarLoOido("");
             _vacioNota.Visibility = Visibility.Visible;
             // SE GRABA CON LO QUE HAY, PERO SE DICE CUÁL ES. El 2026-09-01 el dueño eligió
             // «Teléfono», pulsó grabar, y la consulta se grabó con el micrófono del computador sin
@@ -1986,11 +1989,22 @@ public sealed partial class ConsultaWindow : Window
         Estado($"Escuchando · {va:mm\\:ss}");
     }
 
+    /// <summary>
+    /// Lo oído, en el único sitio que lo pinta: por voces si las trae, en texto corrido si no. Los
+    /// cuatro sitios que tocaban _vivo pasan por aquí, para que ninguno deje la otra vista a medias.
+    /// </summary>
+    private void PintarLoOido(string texto)
+    {
+        _voces.Pintar(texto);
+        _vivo.Text = _voces.HayVoces ? "" : texto;
+        _vivo.Visibility = _voces.HayVoces ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     private void PintarNota()
     {
         var nota = _consulta.Nota;
         _nota.Children.Clear();
-        _vivo.Text = "";
+        PintarLoOido("");
         _vacioNota.Visibility = Visibility.Collapsed;
         if (nota == null) { Estado("La nota volvió vacía."); return; }
 
