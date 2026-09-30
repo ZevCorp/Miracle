@@ -13,7 +13,7 @@ public enum LiveTools {
         function("set_value", "Reemplaza el contenido de un campo AX de la observación actual.", ["label": "id o etiqueta exacta del campo", "text": "Contenido completo"]),
         function("key", "Pulsa una tecla o atajo Mac: enter, tab, cmd+l, cmd+a, cmd+c, cmd+v, alt+left. Usa Command, no Control, para atajos de apps.", ["key": "Tecla o combinación"]),
         function("scroll", "Desplaza la app observada.", ["direction": "up o down"]),
-        function("launch_app", "Abre o enfoca una app por nombre o bundle id. Después lee la pantalla.", ["app": "Nombre o bundle id"]),
+        function("launch_app", "Abre una app o la trae al frente, aunque ya esté abierta, por nombre o bundle id. Es la forma de cambiar de app; no uses Jev para eso. Después lee la pantalla.", ["app": "Nombre o bundle id"]),
         function("open_url", "Abre una dirección web en el navegador predeterminado. Después lee la pantalla.", ["url": "Dirección http o https"]),
         function("list_apps", "Lista las aplicaciones instaladas en este Mac.", [:]),
         function("stop_task", "Detiene la tarea en curso cuando lo pide el usuario.", [:])

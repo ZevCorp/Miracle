@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import OSLog
 import UCore
 import UMac
 
@@ -296,6 +297,7 @@ final class AppModel: ObservableObject {
     }
     func toggleMicrophone() {
         if microphone {
+            Logger(subsystem: "com.zevcorp.u.mac", category: "Session").info("microphone off: toggle")
             voiceID = UUID(); voiceConnection?.cancel(); voiceConnection = nil
             microphone = false; liveConnected = false; liveVoice.stop(); speech.stop(); partial = ""
             if busy { stop() } else { mode = .ready }
@@ -410,7 +412,7 @@ final class AppModel: ObservableObject {
         partial = ""
         let trimmed = phrase.trimmingCharacters(in: .whitespacesAndNewlines)
         let folded = trimmed.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "es"))
-        if ["detente", "para", "cancela", "cancelar", "alto"].contains(folded) { stop(); return }
+        if ["detente", "para", "cancela", "cancelar", "alto"].contains(folded) { stop(reason: "orden de voz"); return }
         if answer != nil { submit(trimmed); return }
         let prefixes = ["oye u", "hola u", "oye ü", "hola ü", "u ", "ü "]
         if let prefix = prefixes.first(where: { trimmed.lowercased().hasPrefix($0) }) {
@@ -493,7 +495,8 @@ final class AppModel: ObservableObject {
             }
         }
     }
-    func stop() {
+    func stop(reason: String = "interfaz") {
+        Logger(subsystem: "com.zevcorp.u.mac", category: "Session").info("stop: \(reason, privacy: .public)")
         voiceID = UUID(); voiceConnection?.cancel(); voiceConnection = nil
         liveVoice.stop(); liveConnected = false
         desktop.stop(); work?.cancel(); work = nil; runID = UUID()
