@@ -35,6 +35,7 @@ import { useUnsavedChangesGuard } from "@/components/app/UnsavedChangesProvider"
 import { PatientHeader } from "@/components/app/PatientHeader";
 import { EncounterNote, type VoiceTarget } from "@/components/app/EncounterNote";
 import { DictationPanel } from "@/components/app/DictationPanel";
+import { SpeakerConversation } from "@/components/app/SpeakerConversation";
 import { MedicalChat } from "@/components/app/MedicalChat";
 import { AgentPairPanel } from "@/components/app/AgentPairPanel";
 import { EncounterAuditPanel } from "@/components/app/EncounterAuditPanel";
@@ -1328,6 +1329,8 @@ function ConsultaActivaInner() {
                   className="mt-2 w-full resize-y rounded-md border border-line bg-field px-3.5 py-2.5 text-sm font-normal normal-case tracking-normal leading-relaxed text-ink outline-none transition-colors focus:border-accent disabled:cursor-not-allowed"
                 />
               </label>
+              {/* Solo aparece si la transcripción trae voces (Soniox con diarización). */}
+              <SpeakerConversation transcript={transcriptDraft} live={dictando} />
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[13px] text-muted">
                 <span>
                   {completed ? (

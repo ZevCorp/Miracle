@@ -57,6 +57,64 @@ export function createSpeakerLabeler() {
   };
 }
 
+/** Un turno de la transcripción ya etiquetada. `speaker` es null antes de la primera voz. */
+export interface LabeledTurn {
+  speaker: number | null;
+  text: string;
+}
+
+const LABEL_LINE = /^\[Hablante (\d+)\][ \t]*(.*)$/;
+
+/**
+ * Parte la transcripción en turnos para la vista de voces. Una línea sin
+ * etiqueta es de la voz que venía hablando (el médico puede haber partido una
+ * frase al corregir); lo de antes de la primera voz no se le atribuye a nadie.
+ */
+export function parseSpeakerTurns(transcript: string): LabeledTurn[] {
+  const turns: LabeledTurn[] = [];
+  for (const line of transcript.split(/\r?\n/)) {
+    const labeled = LABEL_LINE.exec(line);
+    if (labeled) {
+      turns.push({ speaker: Number(labeled[1]), text: labeled[2].trim() });
+    } else if (line.trim()) {
+      const last = turns[turns.length - 1];
+      if (last) last.text = last.text ? `${last.text}\n${line.trim()}` : line.trim();
+      else turns.push({ speaker: null, text: line.trim() });
+    }
+  }
+  return turns.filter((turn) => turn.text);
+}
+
+/**
+ * Qué parte de lo transcrito dijo cada voz, en caracteres (no en tiempo: el
+ * tiempo por voz vive en encounter_metrics). Ordenado por número de voz y
+ * redondeado por mayor resto para que siempre sume 100.
+ */
+export function speakerShare(turns: LabeledTurn[]): { speaker: number; percent: number }[] {
+  const chars = new Map<number, number>();
+  for (const turn of turns) {
+    if (turn.speaker === null) continue;
+    chars.set(turn.speaker, (chars.get(turn.speaker) ?? 0) + turn.text.length);
+  }
+  const total = [...chars.values()].reduce((a, b) => a + b, 0);
+  if (total === 0) return [];
+  const rows = [...chars.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([speaker, n]) => ({ speaker, exact: (n * 100) / total }));
+  const floors = rows.map((row) => Math.floor(row.exact));
+  let left = 100 - floors.reduce((a, b) => a + b, 0);
+  rows
+    .map((row, i) => ({ i, rest: row.exact - floors[i] }))
+    .sort((a, b) => b.rest - a.rest)
+    .forEach(({ i }) => {
+      if (left > 0) {
+        floors[i] += 1;
+        left -= 1;
+      }
+    });
+  return rows.map((row, i) => ({ speaker: row.speaker, percent: floors[i] }));
+}
+
 /**
  * Pega una frase nueva al texto acumulado. Una frase que abre voz nueva empieza
  * con salto de línea y se pega tal cual; las demás, con un espacio.
