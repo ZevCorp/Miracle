@@ -91,16 +91,6 @@ public sealed class GraphConfig
         return cfg;
     }
 
-    public void Save()
-    {
-        try
-        {
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
-            File.WriteAllText(Path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
-        }
-        catch { /* si %APPDATA% no es escribible, se sigue con lo que haya en memoria */ }
-    }
-
     public bool IsConfigured => !string.IsNullOrWhiteSpace(BaseUrl) && !string.IsNullOrWhiteSpace(ApiKey);
 
     /// <summary>Key embebida en el build de distribución (AssemblyMetadata). Vacía en los builds del repo.</summary>

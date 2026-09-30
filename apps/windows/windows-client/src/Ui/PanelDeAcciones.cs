@@ -371,11 +371,6 @@ public sealed class PanelDeAcciones : Window
         Pintar();
     }
 
-    public void Mensaje(string texto, bool esDeU)
-    {
-        ActualizaMensaje(TextoSinEmojis(texto), esDeU);
-    }
-
     public void Avisar(string texto)
     {
         string limpio = TextoSinEmojis(texto);
