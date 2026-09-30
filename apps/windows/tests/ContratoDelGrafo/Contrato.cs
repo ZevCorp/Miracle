@@ -1015,6 +1015,16 @@ internal static class Contrato
         Prueba("665. el micrófono preparado entrega lo que pide el protocolo, venga como venga de Windows: de 48 kHz estéreo en coma flotante o de 16 kHz mono sale PCM16 mono al ritmo pedido, con la misma duración y el mismo tono, igual a trozos de 10 ms que de una vez", ElMicrofonoPreparadoEntregaLoQuePideElProtocolo);
         Prueba("666. cada encendido y cada apagado dejan una línea voz-clic con los milisegundos de cada tramo desde el gesto, y el tramo que no llegó lo dice en vez de faltar", CadaGestoDejaSuLineaDeTiempos);
         Prueba("667. la historia que se manda al abrir cabe siempre en lo que el servidor acepta: se queda con los turnos más recientes que entren en el presupuesto, enteros y en orden", LaHistoriaCabeSiempre);
+        // ── Spec 052: la carita gira la cabeza, saca las manos y nunca cambia de color ──────────
+        // 440-449 reservadas el 2026-09-30. Se juzga LO PINTADO: cada promesa pinta un FaceControl
+        // de verdad en un bitmap y mira los píxeles, porque una paleta en grises que nadie usara
+        // pasaría una prueba de paleta.
+        Console.WriteLine();
+        Prueba("440. la carita es siempre blanca o negra: en todos sus estados —también grabando, esperando, detenida, en fallo y hablando con la boca abierta—, en los dos temas y con las manos fuera, todo lo que pinta es gris (rojo, verde y azul valen lo mismo); el estado se dice con el gesto, no con el tono", LaCaritaEsBlancaONegra);
+        Prueba("441. girar la cabeza no es correr los ojos: los rasgos se proyectan sobre una cara curva, así que al girar todos se van hacia donde mira, el ojo que se acerca al borde se estrecha más que el otro y los dos quedan más juntos; ningún rasgo se sale de la cara; sin giro todo queda donde siempre estuvo; y lo pintado se mueve de verdad hacia ese lado", GirarLaCabezaNoEsCorrerLosOjos);
+        Prueba("442. las manos asoman y se esconden: en reposo no se ven; al saludar salen por detrás de la cara —lo que la cara tapa no cambia—, una saluda mientras la otra se queda, y al terminar vuelven a esconderse solas en menos de dos segundos y medio", LasManosAsomanYSeEsconden);
+        Prueba("443. la carita tiene volumen: con luz arriba, el cuerpo es más claro arriba que abajo y más oscuro en el borde que hacia dentro, en los dos temas", LaCaritaTieneVolumen);
+        Prueba("444. la carita está viva sin estar ansiosa: parpadea sola cada 3 a 7 segundos —cerrar es más rápido que abrir y el parpadeo entero dura menos de un cuarto de segundo—; los gestos grandes (girar la cabeza, sacar las manos, un pulso) siguen espaciados 8 segundos o más y los tres salen; y quieta no pide cuadros", LaCaritaEstaVivaSinAnsiedad);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -17938,6 +17948,284 @@ internal static class Contrato
             $"si ni el turno más reciente cabe, se manda su final y no una historia vacía ({uno.Count} turno(s), {(uno.Count > 0 ? uno[0].Text.Length : 0)} caracteres)");
         var pocos = Pide(3, presupuesto);
         Debe(pocos.Count == 3 && pocos[^1].Text == turnos[59].text, $"y el tope de turnos sigue mandando cuando es el más estrecho de los dos ({pocos.Count} turno(s))");
+    }
+
+    // ── La carita (spec 052) ─────────────────────────────────────────────────
+
+    /// <summary>Lado del FaceControl al pintarlo: 150 = el viewBox del dibujo, un píxel por unidad.</summary>
+    private const int LadoCara = 150;
+
+    /// <summary>
+    /// Aire alrededor al pintar: las manos se salen del control a propósito (la ventana flotante le deja
+    /// 28 de margen), y un bitmap del tamaño justo las recortaría — y con ellas la promesa 442.
+    /// </summary>
+    private const int AireCara = 45;
+
+    private static Type? Cara => Capacidad("U.WindowsClient.Ui.FaceControl");
+
+    private static object NuevaCara(Action<object>? ajustar = null)
+    {
+        var cara = Activator.CreateInstance(Cara!)!;
+        var fe = (System.Windows.FrameworkElement)cara;
+        fe.Width = LadoCara;
+        fe.Height = LadoCara;
+        ajustar?.Invoke(cara);
+        return cara;
+    }
+
+    private static void Poner(object o, string prop, object valor)
+    {
+        var p = o.GetType().GetProperty(prop) ?? throw new MissingMemberException(o.GetType().Name, prop);
+        p.SetValue(o, valor is string s && p.PropertyType.IsEnum ? Enum.Parse(p.PropertyType, s) : valor);
+    }
+
+    /// <summary>Pinta la carita y devuelve sus píxeles BGRA premultiplicados, con el aire alrededor.</summary>
+    private static byte[] Pintar(object cara)
+    {
+        int lado = LadoCara + 2 * AireCara;
+        var marco = new System.Windows.Controls.Border
+        {
+            Padding = new System.Windows.Thickness(AireCara),
+            Child = (System.Windows.UIElement)cara,
+        };
+        marco.Measure(new System.Windows.Size(lado, lado));
+        marco.Arrange(new System.Windows.Rect(0, 0, lado, lado));
+        marco.UpdateLayout();
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(lado, lado, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(marco);
+        var px = new byte[lado * lado * 4];
+        rtb.CopyPixels(px, lado * 4, 0);
+        return px;
+    }
+
+    private static int LadoPintado => LadoCara + 2 * AireCara;
+
+    /// <summary>Luminancia media (0-255) de un cuadrado de 5×5 alrededor de (x, y) en unidades del viewBox (0 = centro).</summary>
+    private static double Luz(byte[] px, double ux, double uy)
+    {
+        int cx = AireCara + LadoCara / 2 + (int)Math.Round(ux), cy = AireCara + LadoCara / 2 + (int)Math.Round(uy);
+        double suma = 0; int n = 0;
+        for (int y = cy - 2; y <= cy + 2; y++)
+            for (int x = cx - 2; x <= cx + 2; x++)
+            {
+                int i = (y * LadoPintado + x) * 4;
+                suma += 0.114 * px[i] + 0.587 * px[i + 1] + 0.299 * px[i + 2];
+                n++;
+            }
+        return suma / n;
+    }
+
+    private static void LaCaritaEsBlancaONegra()
+    {
+        // QUITAR EL COLOR SE DESHACE SOLO, y aquí ya pasó una vez: la spec 023 limpió el notch y la
+        // carita siguió tiñéndose de rojo al grabar y de ámbar al esperar. Por eso se mira lo PINTADO
+        // en cada estado, y con las manos y la lengua fuera — lo que más fácil se colaría con tono.
+        var t = Cara;
+        Debe(t != null, "no existe «Ui.FaceControl»: la carita no se puede pintar");
+        if (t == null) return;
+        bool hayManos = t.GetProperty("Manos") != null;
+        Debe(hayManos, "todavía no existe «FaceControl.Manos» (spec 052, promesa 440): sin manos fuera, "
+            + "la promesa no puede juzgar su color. Está escrita y en rojo, que es donde tiene que estar");
+
+        var estados = t.GetProperty("Mood")!.PropertyType;
+        foreach (var tema in new[] { "Light", "Dark" })
+            foreach (var estado in Enum.GetNames(estados))
+            {
+                var cara = NuevaCara(c =>
+                {
+                    Poner(c, "Theme", tema);
+                    Poner(c, "Mood", estado);
+                    Poner(c, "MouthOpen", 1.0);     // boca abierta en todos: la lengua es lo que tenía tono
+                    Poner(c, "MouthRound", 0.3);
+                    if (hayManos) Poner(c, "Manos", 1.0);
+                });
+                var px = Pintar(cara);
+                int conTono = 0; string? primero = null;
+                for (int i = 0; i < px.Length; i += 4)
+                {
+                    if (px[i] == px[i + 1] && px[i + 1] == px[i + 2]) continue;
+                    conTono++;
+                    primero ??= $"#{px[i + 2]:X2}{px[i + 1]:X2}{px[i]:X2}";
+                }
+                Debe(conTono == 0,
+                    $"{estado} en tema {tema}: {conTono} píxel(es) con tono (el primero, {primero}); la carita es blanca o negra y el estado lo dice el gesto");
+            }
+    }
+
+    private static void GirarLaCabezaNoEsCorrerLosOjos()
+    {
+        // HOY LOS OJOS SE CORREN 3,5 UNIDADES Y NADA MÁS (EyeShift). La referencia (Coucou) no corre
+        // nada: proyecta cada rasgo sobre una superficie curva — seno para dónde cae, coseno para
+        // cuánto se estrecha. Esa es toda la diferencia entre «mira con los ojos» y «gira la cabeza».
+        var cabeza = Capacidad("U.WindowsClient.Ui.CabezaDeLaCarita");
+        var proyectar = cabeza?.GetMethod("Proyectar");
+        bool hayGiro = Cara?.GetProperty("Giro") != null;
+        if (proyectar == null || !hayGiro) { Pendiente("Ui.CabezaDeLaCarita.Proyectar y FaceControl.Giro", "441", "052"); return; }
+
+        (double X, double Escala) P(double x, double giro)
+        {
+            var r = proyectar.Invoke(null, new object[] { x, giro })!;
+            return ((double)r.GetType().GetField("Item1")!.GetValue(r)!, (double)r.GetType().GetField("Item2")!.GetValue(r)!);
+        }
+
+        var rasgos = new[] { -40.0, -30, -20, -19, 0, 19, 20, 30, 40 };   // cejas, ojos, comisuras y el centro
+        foreach (var x in rasgos)
+        {
+            var (X, e) = P(x, 0);
+            Debe(Math.Abs(X - x) < 1e-9 && Math.Abs(e - 1) < 1e-9, $"sin giro el rasgo de {x} queda donde estuvo siempre (cae en {X:0.###}, escala {e:0.###})");
+        }
+        foreach (var giro in new[] { 0.3, 0.6, 1.0 })
+        {
+            foreach (var x in rasgos)
+            {
+                Debe(P(x, giro).X > x, $"girando a la derecha ({giro}), el rasgo de {x} se va a la derecha (cae en {P(x, giro).X:0.#})");
+                Debe(P(x, -giro).X < x, $"y girando a la izquierda, a la izquierda ({P(x, -giro).X:0.#})");
+                Debe(Math.Abs(P(-x, -giro).X + P(x, giro).X) < 1e-9, $"girar a un lado es el espejo de girar al otro ({x}, {giro})");
+            }
+            Debe(P(30, giro).Escala < P(-30, giro).Escala,
+                $"el ojo que se acerca al borde se estrecha más que el otro ({P(30, giro).Escala:0.##} contra {P(-30, giro).Escala:0.##})");
+            Debe(P(30, giro).X - P(-30, giro).X < 60, $"y los ojos quedan más juntos: se ven de lado ({P(30, giro).X - P(-30, giro).X:0.#} < 60)");
+        }
+        for (double g = -1; g <= 1.0001; g += 0.1)
+            foreach (var x in rasgos)
+                Debe(Math.Abs(P(x, g).X) <= 66, $"ningún rasgo se sale de la cara: {x} con giro {g:0.#} cae en {P(x, g).X:0.#} (la cara llega a ±74)");
+
+        // Y LO PINTADO SE MUEVE: una proyección que OnRender no usara pasaría todo lo de arriba.
+        double CentroDeLaTinta(double giro)
+        {
+            var px = Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); Poner(c, "Giro", giro); }));
+            double suma = 0; int n = 0;
+            for (int y = 0; y < LadoPintado; y++)
+                for (int x = 0; x < LadoPintado; x++)
+                {
+                    int i = (y * LadoPintado + x) * 4;
+                    if (px[i + 3] > 200 && px[i] < 90) { suma += x; n++; }   // tinta: oscuro y opaco
+                }
+            return n == 0 ? double.NaN : suma / n;
+        }
+        double c0 = CentroDeLaTinta(0), cd = CentroDeLaTinta(0.8), ci = CentroDeLaTinta(-0.8);
+        Debe(cd - c0 > 6, $"girada a la derecha, la tinta se desplaza a la derecha más de 6 px ({cd - c0:0.#})");
+        Debe(c0 - ci > 6, $"y girada a la izquierda, a la izquierda ({c0 - ci:0.#})");
+    }
+
+    private static void LasManosAsomanYSeEsconden()
+    {
+        var manos = Capacidad("U.WindowsClient.Ui.ManosDeLaCarita");
+        var asomo = manos?.GetMethod("Asomo");
+        var mano = manos?.GetMethod("Mano");
+        var duracion = manos?.GetField("Duracion");
+        bool hayControl = Cara?.GetProperty("Manos") != null && Cara?.GetMethod("Saludar") != null;
+        if (asomo == null || mano == null || duracion == null || !hayControl)
+        {
+            Pendiente("Ui.ManosDeLaCarita (Asomo, Mano, Duracion) y FaceControl.Manos/Saludar", "442", "052");
+            return;
+        }
+        double D = (double)duracion.GetValue(null)!;
+        double A(double t) => (double)asomo.Invoke(null, new object[] { t })!;
+        (double X, double Y, double Angulo) M(double t, int lado)
+        {
+            var r = mano.Invoke(null, new object[] { t, lado })!;
+            double F(string n) => (double)r.GetType().GetField(n)!.GetValue(r)!;
+            return (F("Item1"), F("Item2"), F("Item3"));
+        }
+
+        Debe(D > 0.6 && D <= 2.5, $"el saludo termina solo en menos de dos segundos y medio ({D:0.##} s)");
+        Debe(A(0) == 0, $"antes de saludar no se ven ({A(0):0.##})");
+        Debe(A(D / 2) > 0.99, $"a mitad del saludo están fuera del todo ({A(D / 2):0.##})");
+        Debe(A(D) == 0 && A(D + 1) == 0 && A(D + 60) == 0, $"y al terminar vuelven a esconderse solas ({A(D):0.##}, {A(D + 1):0.##})");
+
+        // UNA SALUDA, LA OTRA SE QUEDA: la derecha oscila (su ángulo cambia de signo varias veces) y
+        // sube por encima de donde reposa la izquierda; la izquierda apenas se mece.
+        int cambios = 0; double? antes = null;
+        double yDerMin = double.MaxValue, yIzqMin = double.MaxValue, yIzqMax = double.MinValue;
+        for (double t = D * 0.3; t <= D * 0.7; t += D / 200)
+        {
+            var d = M(t, 1); var i = M(t, -1);
+            if (antes is double a && Math.Sign(a) != Math.Sign(d.Angulo) && d.Angulo != 0) cambios++;
+            antes = d.Angulo;
+            yDerMin = Math.Min(yDerMin, d.Y);
+            yIzqMin = Math.Min(yIzqMin, i.Y); yIzqMax = Math.Max(yIzqMax, i.Y);
+        }
+        Debe(cambios >= 2, $"la derecha saluda: su ángulo va y viene ({cambios} cambios de sentido)");
+        Debe(yDerMin < yIzqMin - 0.2, $"y sube por encima de la otra ({yDerMin:0.##} contra {yIzqMin:0.##}, en radios de la cara)");
+        Debe(yIzqMax - yIzqMin < 0.12, $"la izquierda se queda: apenas se mece ({yIzqMax - yIzqMin:0.##})");
+
+        // SALEN POR DETRÁS: lo que la cara cubre (opaco sin manos) no cambia con ellas, y aparece
+        // tinta fuera del cuerpo. Una mano pintada encima pasaría el resto de esta promesa.
+        var sin = Pintar(NuevaCara(c => Poner(c, "Manos", 0.0)));
+        var con = Pintar(NuevaCara(c => Poner(c, "Manos", 1.0)));
+        int tapadoCambia = 0, fuera = 0, sinFuera = 0;
+        int x0 = LadoPintado, x1 = 0;
+        for (int i = 0; i < sin.Length; i += 4)
+            if (sin[i + 3] == 255) { int x = (i / 4) % LadoPintado; x0 = Math.Min(x0, x); x1 = Math.Max(x1, x); }
+        for (int i = 0; i < sin.Length; i += 4)
+        {
+            int x = (i / 4) % LadoPintado;
+            if (sin[i + 3] == 255 && (sin[i] != con[i] || sin[i + 3] != con[i + 3])) tapadoCambia++;
+            if ((x < x0 - 2 || x > x1 + 2) && con[i + 3] > 128) fuera++;
+            if ((x < x0 - 2 || x > x1 + 2) && sin[i + 3] > 0) sinFuera++;
+        }
+        Debe(sinFuera == 0, $"en reposo no se ven: nada pintado fuera del cuerpo ({sinFuera} px)");
+        Debe(fuera > 40, $"con las manos fuera, asoman a los lados del cuerpo ({fuera} px fuera)");
+        Debe(tapadoCambia == 0, $"y por DETRÁS: lo que la cara tapa no cambia ({tapadoCambia} px cambiaron)");
+
+        var cara = NuevaCara();
+        Cara!.GetMethod("Saludar")!.Invoke(cara, null);
+        Debe((bool)(Cara.GetProperty("Animando")?.GetValue(cara) ?? false), "saludar pone la carita en movimiento");
+    }
+
+    private static void LaCaritaTieneVolumen()
+    {
+        // TRES CAPAS HACEN UN OBJETO DE UN SQUIRCLE (Coucou, engine.ts): luz de arriba, borde en sombra y
+        // un brillo. Hoy el tema claro es blanco sobre blanco: plano por construcción.
+        if (Cara == null) { Pendiente("Ui.FaceControl", "443", "052"); return; }
+        foreach (var tema in new[] { "Light", "Dark" })
+        {
+            var px = Pintar(NuevaCara(c => Poner(c, "Theme", tema)));
+            double arriba = Luz(px, 0, -60), abajo = Luz(px, 0, 60);
+            double dentro = Luz(px, 48, 0), borde = Luz(px, 68, 0);
+            double dentroI = Luz(px, -48, 0), bordeI = Luz(px, -68, 0);
+            Debe(arriba > abajo + 6, $"tema {tema}: más claro arriba que abajo ({arriba:0} contra {abajo:0})");
+            Debe(borde < dentro - 4 && bordeI < dentroI - 4,
+                $"tema {tema}: el borde, más oscuro que hacia dentro, a los dos lados ({borde:0}<{dentro:0}, {bordeI:0}<{dentroI:0})");
+        }
+    }
+
+    private static void LaCaritaEstaVivaSinAnsiedad()
+    {
+        var g = Capacidad("U.WindowsClient.Ui.GestosDeLaCarita");
+        var parpadeo = g?.GetMethod("ProximoParpadeo");
+        var gesto = g?.GetMethod("ProximoGesto");
+        var elegir = g?.GetMethod("Elegir");
+        var doble = g?.GetMethod("EsDoble");
+        var cierra = g?.GetField("CierraMs");
+        var abre = g?.GetField("AbreMs");
+        var animando = Cara?.GetProperty("Animando");
+        if (parpadeo == null || gesto == null || elegir == null || doble == null || cierra == null || abre == null || animando == null)
+        {
+            Pendiente("Ui.GestosDeLaCarita (ProximoParpadeo, ProximoGesto, Elegir, EsDoble, CierraMs, AbreMs) y FaceControl.Animando", "444", "052");
+            return;
+        }
+        double Pp(double d) => (double)parpadeo.Invoke(null, new object[] { d })!;
+        double Pg(double d) => (double)gesto.Invoke(null, new object[] { d })!;
+
+        var dados = Enumerable.Range(0, 1000).Select(i => i / 1000.0).ToList();
+        Debe(dados.All(d => Pp(d) >= 3 && Pp(d) <= 7), $"parpadea cada 3 a 7 s ({dados.Min(Pp):0.#}-{dados.Max(Pp):0.#})");
+        Debe(dados.All(d => Pg(d) >= 8), $"los gestos grandes, espaciados 8 s o más ({dados.Min(Pg):0.#} s el más corto)");
+
+        int c = Convert.ToInt32(cierra.GetValue(null)), a = Convert.ToInt32(abre.GetValue(null));
+        Debe(c < a, $"cerrar es más rápido que abrir ({c} ms contra {a} ms): así parpadea una cara, no un semáforo");
+        Debe(c + a < 250, $"y el parpadeo entero dura menos de un cuarto de segundo ({c + a} ms)");
+
+        double dobles = dados.Count(d => (bool)doble.Invoke(null, new object[] { d })!) / (double)dados.Count;
+        Debe(dobles > 0.1 && dobles < 0.35, $"a veces parpadea dos veces, no siempre ({dobles:P0})");
+
+        var salen = dados.Select(d => elegir.Invoke(null, new object[] { d })!.ToString()).ToHashSet();
+        foreach (var n in new[] { "Mirar", "Manos", "Pulso" })
+            Debe(salen.Contains(n), $"entre los gestos grandes sale «{n}» (salen: {string.Join(", ", salen)})");
+
+        var quieta = NuevaCara(x => Poner(x, "Mood", "Reposo"));
+        Debe(!(bool)animando.GetValue(quieta)!, "quieta no pide cuadros: nada animado en una carita en reposo");
     }
 
     private static void Debe(bool condicion, string promesa)
