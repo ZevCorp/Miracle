@@ -44,6 +44,7 @@ import { PatientFormDialog } from "@/components/app/PatientFormDialog";
 import { encounterToConsultation } from "@/lib/clinical/encounter-to-consultation";
 import { useEncounterUsage } from "@/lib/clinical/encounter-usage";
 import type { DictationUsageSnapshot } from "@/lib/stt/useDictation";
+import { joinDictation } from "@/lib/stt/speaker-turns";
 import {
   aplicarDictadoLiteral,
   parseVoiceInstruction,
@@ -738,7 +739,8 @@ function ConsultaActivaInner() {
       // corrigiendo atras, moverle la vista es peor que no moverla.
       seguirAlFinal.current = shouldFollowDictation(el, caretPendiente.current !== null);
     }
-    setTranscriptDraft((prev) => (prev.trim() ? `${prev.replace(/\s+$/, "")} ${text}` : text));
+    // Una frase que abre voz nueva trae su salto de línea y su «[Hablante N]».
+    setTranscriptDraft((prev) => joinDictation(prev, text));
   };
 
   // Devolver el cursor ANTES de pintar (useLayoutEffect, no useEffect): con

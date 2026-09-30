@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createDictation, type DictationHandle, type VoiceStreamSession } from "./index";
 import { dictationErrorMessage, DICTATION_MESSAGES } from "./messages";
 import { assertMicrophoneDelivers, watchMicrophoneDrop } from "./mic-health";
+import { createSpeakerLabeler } from "./speaker-turns";
 import {
   appendTokenSegments,
   hasDiarization,
@@ -118,6 +119,9 @@ export function useDictation(onFinal: (text: string) => void): {
   // el offset que traduce los ms relativos del proveedor al eje acumulado.
   const streamIndexRef = useRef(-1);
   const streamOffsetRef = useRef(0);
+  // Quién habló la última vez y qué número lleva cada voz. Vive lo que el
+  // montaje, igual que la telemetría: pausar y seguir es la misma consulta.
+  const labelSpeakersRef = useRef(createSpeakerLabeler());
   const sessionInfoRef = useRef<{ provider: string | null; model: string | null }>({
     provider: null,
     model: null,
@@ -264,7 +268,7 @@ export function useDictation(onFinal: (text: string) => void): {
         markActivity();
         setPartialText(text);
       },
-      onFinalTranscript: ({ transcript, tokens }) => {
+      onFinalTranscript: ({ transcript, tokens, turns }) => {
         markActivity();
         // Telemetría: el timing se ancla al eje acumulado ANTES de filtrar el
         // texto — números sin PHI, ver lib/stt/usage-segments.ts.
@@ -279,7 +283,8 @@ export function useDictation(onFinal: (text: string) => void): {
         // Texto llegó: la conexión sirve → resetea el presupuesto de reintentos.
         reconnectAttemptsRef.current = 0;
         setPartialText("");
-        onFinalRef.current(clean);
+        // Con diarización, la frase sale con «[Hablante N]» donde cambia la voz.
+        onFinalRef.current(labelSpeakersRef.current(turns, Math.max(streamIndexRef.current, 0), clean));
       },
       onError: (message) => {
         // No pintar aún: si hay reintento en curso el error es transitorio.
