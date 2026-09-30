@@ -1,0 +1,216 @@
+using System.Diagnostics;
+using System.Globalization;
+
+namespace U.Ciclo;
+
+/// <summary>Lo que dejó la espera tras un clic.</summary>
+public sealed record Asentamiento(bool Cambio, long Ms, int Lecturas);
+
+/// <summary>
+/// TRAS EL CLIC NO SE ESPERA A CIEGAS (promesa 436). Main sondeaba «dónde estoy» cada 120 ms con techo de
+/// 1.800 y, como la ventana no cambia al navegar dentro de una app, se comía el techo entero en cada clic
+/// (medido el 2026-09-24: 1.814 ms, 12 sondeos, «no cambió» aunque cambió). Aquí se relee lo que de verdad
+/// cambia —los accionables— y se sale a la primera diferencia. Techo 150 ms: si no cambió en eso, el ciclo
+/// siguiente lo verá igual, y Jev decide sobre lo que hay.
+/// </summary>
+public static class Asentado
+{
+    public const int TechoMs = 150;
+
+    /// <summary>
+    /// CUÁNTO SE MIRA TRAS UN CLIC, según lo pulsado (promesa 465). Un enlace carga una página y tarda: con 150 ms,
+    /// el enlace de un PDF se pulsó tres veces (ronda 1 de la batería de topes, 2026-09-26, 19:57). Es un techo,
+    /// no una espera: se sale en cuanto la pantalla cambia. Lo demás responde en el acto y sigue en 150 ms.
+    /// </summary>
+    public static int TechoTras(string tipo) => tipo == "Hyperlink" ? 1500 : TechoMs;
+
+    public static Asentamiento Esperar(Func<string> huellaAhora, string huellaAntes, int techoMs, Func<long> relojMs)
+    {
+        long inicio = relojMs();
+        int lecturas = 0;
+        while (true)
+        {
+            string h = huellaAhora();
+            lecturas++;
+            long pasado = relojMs() - inicio;
+            if (!string.Equals(h, huellaAntes, StringComparison.Ordinal)) return new Asentamiento(true, pasado, lecturas);
+            if (pasado >= techoMs) return new Asentamiento(false, pasado, lecturas);
+        }
+    }
+
+    /// <summary>
+    /// ¿LA APP YA ESTÁ QUIETA? (promesa 456). Dos lecturas seguidas con la misma huella y con accionables. «Abrir»
+    /// paraba con el primer botón que aparecía: el Explorador daba 4 de sus 59 a medio pintar, y su primer ciclo
+    /// pagaba ver 203-404 ms + asentar ~320 ms dentro del presupuesto (rondas del 2026-09-25, 00:46 y 01:17).
+    /// </summary>
+    public static Asentamiento Quieta(Func<Lectura> leer, int techoMs, Func<long> relojMs)
+    {
+        long inicio = relojMs();
+        int lecturas = 0;
+        string? anterior = null;
+        while (true)
+        {
+            var l = leer();
+            lecturas++;
+            long pasado = relojMs() - inicio;
+            string h = l.Huella;
+            if (l.Accionables.Count > 0 && h == anterior) return new Asentamiento(true, pasado, lecturas);
+            if (pasado >= techoMs) return new Asentamiento(false, pasado, lecturas);
+            anterior = h;
+        }
+    }
+}
+
+/// <summary>Los cinco tiempos de un ciclo, en ms (promesa 437).</summary>
+public sealed record Tiempos(double Donde, double Ver, double Decidir, double Pulsar, double Asentar)
+{
+    public double Total => Donde + Ver + Decidir + Pulsar + Asentar;
+    public bool FueraDePresupuesto => Total > Ciclo.Presupuesto;
+
+    public string Linea()
+    {
+        string F(double v) => v.ToString(v < 10 ? "0.0" : "0", CultureInfo.InvariantCulture);
+        return $"dónde {F(Donde)} · ver {F(Ver)} · decidir {F(Decidir)} · pulsar {F(Pulsar)} · asentar {F(Asentar)} · total {F(Total)} ms"
+             + (FueraDePresupuesto ? " · FUERA DE PRESUPUESTO" : "");
+    }
+}
+
+/// <summary>Una vuelta del ciclo, con todo lo que hace falta para leerla después en el log.</summary>
+public sealed record Vuelta(int Paso, Tiempos Tiempos, string Pantalla, int Accionables, string Elegida, string Resultado);
+
+/// <summary>Lo que hizo el motor con un objetivo, y por qué paró.</summary>
+public sealed record Recorrido(IReadOnlyList<Vuelta> Vueltas, string PorQueParo, bool Cumplido);
+
+public static class Ciclo
+{
+    /// <summary>El techo de la v1. La meta es 200; por encima de 500 el ciclo se marca (promesa 437).</summary>
+    public const double Presupuesto = 500;
+}
+
+/// <summary>
+/// EL CICLO: dónde estoy → qué hay → Jev elige → ratón → se asienta → otra vez. Todo inyectado, para que
+/// el contrato lo juzgue sin pantalla y la app lo corra sobre la de verdad.
+/// </summary>
+public sealed class Motor
+{
+    private readonly Func<Ubicacion?> _donde;
+    private readonly Func<Lectura> _leer;
+    private readonly Func<Contexto, Eleccion> _decidir;
+    private readonly Action<Accionable> _pulsar;
+    private readonly Func<bool> _hayQueParar;
+
+    /// <summary>Cada vuelta, en cuanto termina: el log y la burbuja la ven en vivo.</summary>
+    public Action<Vuelta>? AlTerminarVuelta { get; set; }
+
+    /// <summary>Cuánto se relee una pantalla sin accionables antes de rendirse (promesa 449).</summary>
+    public const int EsperaSiVacia = 1000;
+
+    /// <summary>El motor completo: lee accionables Y textos, y Jev decide con lo ya hecho (promesas 442-443).</summary>
+    public Motor(Func<Ubicacion?> donde, Func<Lectura> leer, Func<Contexto, Eleccion> decidir, Action<Accionable> pulsar, Func<bool> hayQueParar)
+    {
+        _donde = donde; _leer = leer; _decidir = decidir; _pulsar = pulsar; _hayQueParar = hayQueParar;
+    }
+
+    /// <summary>La forma mínima: solo accionables, y un decisor que no mira la historia.</summary>
+    public Motor(Func<Ubicacion?> donde, Func<IReadOnlyList<Accionable>> ver,
+        Func<string, string, IReadOnlyList<Accionable>, Eleccion> decidir, Action<Accionable> pulsar, Func<bool> hayQueParar)
+        : this(donde, () => new Lectura(ver(), Array.Empty<string>()), c => decidir(c.Pantalla, c.Objetivo, c.Accionables), pulsar, hayQueParar) { }
+
+    public Recorrido Objetivo(string objetivo, int maxPasos) => Objetivo(objetivo, maxPasos, Array.Empty<string>());
+
+    /// <param name="yaHecho">Lo que se hizo antes de este objetivo (los pasos anteriores del plan), para que Jev lo sepa.</param>
+    public Recorrido Objetivo(string objetivo, int maxPasos, IReadOnlyList<string> yaHecho)
+    {
+        var vueltas = new List<Vuelta>();
+        var hecho = new List<string>(yaHecho ?? Array.Empty<string>());
+        var reloj = Stopwatch.StartNew();
+        // Cuántas veces se eligió cada cosa en cada pantalla (promesa 464). La pantalla es la huella de ANTES del clic.
+        var elegidas = new Dictionary<string, int>();
+        string? pantallaPrevia = null;
+        Lectura? yaLeida = null;   // lo que leyó el asentado: el ciclo siguiente no lo relee
+
+        for (int paso = 1; paso <= maxPasos; paso++)
+        {
+            if (_hayQueParar()) return new Recorrido(vueltas, "Escape: paré sin pulsar nada más", false);
+
+            var r = Stopwatch.StartNew();
+            var aqui = _donde();
+            double tDonde = r.Elapsed.TotalMilliseconds;
+            if (aqui == null) return new Recorrido(vueltas, "no sé dónde estoy: no hay ninguna ventana delante", false);
+
+            r.Restart();
+            var lectura = yaLeida ?? _leer();
+            yaLeida = null;
+            // UNA PANTALLA VACÍA TODAVÍA NO PINTÓ (promesa 449). La Calculadora, recién abierta, dio 0
+            // accionables a los 120 ms y 34 un segundo después (voz-prueba del 2026-09-24, 23:02): rendirse
+            // a la primera lectura convertía «abre y calcula» en un fallo que Luna tenía que replanear.
+            var esperaVacia = Stopwatch.StartNew();
+            while (lectura.Accionables.Count == 0 && esperaVacia.ElapsedMilliseconds < EsperaSiVacia && !_hayQueParar())
+            {
+                Thread.Sleep(30);
+                lectura = _leer();
+            }
+            var lista = lectura.Accionables;
+            double tVer = r.Elapsed.TotalMilliseconds;
+
+            r.Restart();
+            var e = _decidir(new Contexto(aqui.Pantalla, objetivo, lista, lectura.Textos, hecho.ToArray()) { Foco = lectura.Foco });
+            double tDecidir = r.Elapsed.TotalMilliseconds;
+
+            if (e.Cumplido >= Jev.CumplidoMinimo)
+            {
+                Anota(vueltas, new Vuelta(paso, new Tiempos(tDonde, tVer, tDecidir, 0, 0), aqui.Pantalla, lista.Count, "", "cumplido"));
+                return new Recorrido(vueltas, "cumplido: " + e.Porque, true);
+            }
+            if (!e.Pulsar)
+            {
+                Anota(vueltas, new Vuelta(paso, new Tiempos(tDonde, tVer, tDecidir, 0, 0), aqui.Pantalla, lista.Count, "", e.Porque));
+                return new Recorrido(vueltas, "no pulso: " + e.Porque, false);
+            }
+            var a = lista.FirstOrDefault(x => x.Numero == e.Numero);
+            if (a == null) return new Recorrido(vueltas, $"el {e.Numero} no está en la lista de este ciclo", false);
+
+            // El freno se mira OTRA VEZ justo antes de tocar nada: Jev tarda 200 ms y Escape pudo llegar entretanto.
+            if (_hayQueParar()) return new Recorrido(vueltas, "Escape: paré sin pulsar nada más", false);
+
+            string antes = lectura.Huella;
+            r.Restart();
+            _pulsar(a);
+            double tPulsar = r.Elapsed.TotalMilliseconds;
+
+            r.Restart();
+            Lectura? ultima = null;
+            var asentado = Asentado.Esperar(() => (ultima = _leer()).Huella, antes, Asentado.TechoTras(a.Tipo), () => reloj.ElapsedMilliseconds);
+            double tAsentar = r.Elapsed.TotalMilliseconds;
+            yaLeida = ultima;
+
+            hecho.Add($"pulsé «{a.Id}»" + (asentado.Cambio ? "" : " y la pantalla no cambió"));
+            Anota(vueltas, new Vuelta(paso, new Tiempos(tDonde, tVer, tDecidir, tPulsar, tAsentar), aqui.Pantalla, lista.Count,
+                a.Id, asentado.Cambio ? "cambió" : "no cambió"));
+
+            // CUMPLIDO SIN PREGUNTAR OTRA VEZ (promesa 451): Jev dijo que esta era la última, y la pantalla cambió.
+            // Sin cambio no se da por hecho: el clic pudo no agarrar, y se vuelve a preguntar.
+            if (asentado.Cambio && e.CumpleAlPulsar >= Jev.CumplidoMinimo)
+                return new Recorrido(vueltas, $"cumplido: Jev dijo que pulsar «{a.Nombre}» lo cumplía ({e.CumpleAlPulsar:0.00}) y la pantalla cambió", true);
+
+            // LA TERCERA VEZ LO MISMO EN LA MISMA PANTALLA ES UN BUCLE (promesa 464), haya cambiado o no entre medias.
+            // Sustituye al «8 pasos» fijo, que cortaba igual un objetivo largo que avanzaba (123456 por 789 con los
+            // botones) que uno atascado (la barra de direcciones pulsada 8 veces, almejas del 2026-09-26). Pulsar lo
+            // mismo en pantallas distintas —el «0» de la calculadora— no cuenta: la huella lleva lo que la pantalla dice.
+            string clave = antes + "\n→ " + a.Tipo + "|" + a.Nombre + "|" + a.Caja.X + "," + a.Caja.Y;
+            int veces = elegidas[clave] = elegidas.GetValueOrDefault(clave) + 1;
+            if (veces >= 3)
+                return new Recorrido(vueltas, antes == pantallaPrevia || !asentado.Cambio
+                    ? $"Jev repite «{a.Nombre}» tres veces y la pantalla no cambia: paro"
+                    : $"Jev repite «{a.Nombre}» por tercera vez en la misma pantalla: es un bucle, paro", false);
+            pantallaPrevia = antes;
+        }
+        return new Recorrido(vueltas, $"tope de {maxPasos} pasos sin «cumplido»", false);
+    }
+
+    private void Anota(List<Vuelta> vueltas, Vuelta v)
+    {
+        vueltas.Add(v);
+        try { AlTerminarVuelta?.Invoke(v); } catch { /* quien mira no frena el ciclo */ }
+    }
+}
