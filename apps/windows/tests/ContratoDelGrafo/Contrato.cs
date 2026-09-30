@@ -943,6 +943,9 @@ internal static class Contrato
         // CUÁNDO, y asomaba en el primer sondeo: subir a una pestaña del navegador lo hacía caer encima
         // de ella. «Que solo aparezca al mantener el mouse allá arriba por 0,5 segs o algo así».
         Prueba("530. el notch se hace esperar: medio segundo con el cursor quieto en la franja de arriba lo asoma, y una sola vez por visita; pasar por ella, recorrerla de lado como quien busca una pestaña o hacer clic dentro no lo asoman, y tras un clic no vuelve hasta salir de la franja", ElNotchSeHaceEsperar);
+        // 600-609 reservadas el 2026-09-29 para la spec 070 (quién dijo qué), por encima de lo que
+        // ya ocupan otras ramas abiertas (hasta la 529). La 600-606 las juzgan Graph y la web.
+        Prueba("607. de Soniox, el hablante viaja con el texto hasta el verbatim: una línea «[Hablante N]» cada vez que cambia la voz, numerada por orden de aparición y sin repetirse mientras habla la misma, también en la frase que quedó sin cerrar; sin hablante, el texto de siempre", ElHablanteViajaConElTexto);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -5039,6 +5042,67 @@ internal static class Contrato
         Debe(((string)todo.GetValue(vDg)!).Contains("hola doctor"),
             "y de Deepgram, channel.alternatives[0].transcript — la misma frase por dos caminos que "
             + "no se parecen en nada");
+    }
+
+    /// <remarks>
+    /// Spec 070. Graph le pide a Soniox la diarización desde hace semanas y el lector de Windows la
+    /// tiraba: leía <c>text</c> e <c>is_final</c> y nada más, así que la nota recibía un solo bloque
+    /// y el modelo adivinaba quién era el médico. La etiqueta viaja DENTRO del texto —la misma forma
+    /// que escribe la web (apps/web/lib/stt/speaker-turns.ts) y que Graph lee
+    /// (services/graph/src/domain/clinical/speakerLabels.js)—, así que el backend no cambia de
+    /// contrato: sigue recibiendo una cadena.
+    /// </remarks>
+    private static void ElHablanteViajaConElTexto()
+    {
+        var t = Capacidad("U.WindowsClient.Clinical.Transcripcion.SesionDeStream");
+        var tVerbatim = Capacidad("U.WindowsClient.Clinical.Transcripcion.Verbatim");
+        if (t == null || tVerbatim == null)
+        {
+            Pendiente("Clinical.Transcripcion.SesionDeStream", "607");
+            return;
+        }
+
+        var sesion = t.GetMethod("Leer", BindingFlags.Public | BindingFlags.Static)!.Invoke(null, new object?[]
+        {
+            "{\"provider\":\"soniox\",\"auth_scheme\":\"message\",\"access_token\":\"tok\","
+            + "\"websocket_url\":\"wss://stt.soniox.test/transcribe\","
+            + "\"start_message\":{\"api_key\":\"tok\",\"enable_speaker_diarization\":true}}",
+        })!;
+        var lector = t.GetProperty("Lector")!.GetValue(sesion)!;
+        var digerir = lector.GetType().GetMethod("Digerir")!;
+        var todo = tVerbatim.GetProperty("Todo")!;
+        var nada = (Action<string>)(_ => { });
+
+        // Soniox numera como quiere: aquí la primera voz es la «2». La nota ve «Hablante 1».
+        var v = Activator.CreateInstance(tVerbatim)!;
+        foreach (var mensaje in new[]
+        {
+            "{\"tokens\":[{\"text\":\"¿Qué \",\"speaker\":\"2\",\"is_final\":true},"
+            + "{\"text\":\"le pasa?\",\"speaker\":\"2\",\"is_final\":true},"
+            + "{\"text\":\" Me duele\",\"speaker\":\"1\",\"is_final\":true},"
+            + "{\"text\":\"<end>\",\"is_final\":true}]}",
+            // La misma voz sigue en la frase siguiente: no se vuelve a etiquetar.
+            "{\"tokens\":[{\"text\":\" la cabeza.\",\"speaker\":\"1\",\"is_final\":true},"
+            + "{\"text\":\"<end>\",\"is_final\":true}]}",
+            // Y la última queda sin cerrar al parar: también cuenta (promesa 88), con su etiqueta.
+            "{\"tokens\":[{\"text\":\" Tome esto.\",\"speaker\":\"2\",\"is_final\":true},"
+            + "{\"text\":\" y\",\"speaker\":\"2\",\"is_final\":false}]}",
+        })
+            digerir.Invoke(lector, new object?[] { mensaje, v, nada, nada, nada });
+
+        string dicho = (string)todo.GetValue(v)!;
+        Debe(dicho == "[Hablante 1] ¿Qué le pasa?\n[Hablante 2] Me duele la cabeza.\n[Hablante 1] Tome esto.",
+            $"el verbatim lleva quién dijo qué, una voz por línea; salió «{dicho.Replace("\n", "⏎")}»");
+
+        // Sin diarización (o un Soniox que no manda «speaker»): el texto de siempre, sin etiquetas.
+        var sinVoz = Activator.CreateInstance(tVerbatim)!;
+        digerir.Invoke(lector, new object?[]
+        {
+            "{\"tokens\":[{\"text\":\"hola \",\"is_final\":true},{\"text\":\"doctor\",\"is_final\":true}]}",
+            sinVoz, nada, nada, nada,
+        });
+        Debe((string)todo.GetValue(sinVoz)! == "hola doctor",
+            "sin hablante no se inventa ninguna etiqueta");
     }
 
     /// <remarks>
