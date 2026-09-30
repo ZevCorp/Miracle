@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDictation, type VoiceStreamSession } from "@/lib/stt";
-import { createSpeakerLabeler, joinDictation } from "@/lib/stt/speaker-turns";
+import {
+  createSpeakerLabeler,
+  joinDictation,
+  parseSpeakerTurns,
+  speakerShare,
+} from "@/lib/stt/speaker-turns";
 import { transcribeAudioFile } from "@/lib/stt/transcribe-audio-file";
 
 // Spec 070 — quién dijo qué. Soniox marca cada token con su hablante; hasta
@@ -134,6 +139,33 @@ describe("605. el etiquetador marca solo los cambios de voz", () => {
     expect(etiquetar(undefined, 0, "texto plano")).toBe("texto plano");
     expect(etiquetar([{ speaker: "", text: "texto plano" }], 0, "texto plano")).toBe("texto plano");
     expect(joinDictation("uno", "dos")).toBe("uno dos");
+  });
+});
+
+describe("608. la vista de voces parte la transcripción en turnos", () => {
+  it("cada línea [Hablante N] abre un turno de esa voz, y lo que sigue sin etiqueta es de la misma", () => {
+    const turnos = parseSpeakerTurns(
+      "[Hablante 1] ¿Qué le pasa?\n[Hablante 2] Me duele la cabeza.\ny también el cuello\n[Hablante 1] Tome esto.",
+    );
+    expect(turnos).toEqual([
+      { speaker: 1, text: "¿Qué le pasa?" },
+      { speaker: 2, text: "Me duele la cabeza.\ny también el cuello" },
+      { speaker: 1, text: "Tome esto." },
+    ]);
+  });
+
+  it("lo escrito antes de la primera voz no se le atribuye a nadie", () => {
+    expect(parseSpeakerTurns("Nota del médico.\n[Hablante 1] Hola.")).toEqual([
+      { speaker: null, text: "Nota del médico." },
+      { speaker: 1, text: "Hola." },
+    ]);
+    expect(parseSpeakerTurns("texto sin voces")).toEqual([{ speaker: null, text: "texto sin voces" }]);
+  });
+
+  it("cuenta qué parte de lo transcrito dijo cada voz, en orden de número, y suma 100", () => {
+    const partes = speakerShare(parseSpeakerTurns("[Hablante 2] abcdef\n[Hablante 1] ab\n[Hablante 2] ab"));
+    expect(partes.map((p) => p.speaker)).toEqual([1, 2]);
+    expect(partes.map((p) => p.percent)).toEqual([20, 80]);
   });
 });
 

@@ -946,6 +946,7 @@ internal static class Contrato
         // 600-609 reservadas el 2026-09-29 para la spec 070 (quién dijo qué), por encima de lo que
         // ya ocupan otras ramas abiertas (hasta la 529). La 600-606 las juzgan Graph y la web.
         Prueba("607. de Soniox, el hablante viaja con el texto hasta el verbatim: una línea «[Hablante N]» cada vez que cambia la voz, numerada por orden de aparición y sin repetirse mientras habla la misma, también en la frase que quedó sin cerrar; sin hablante, el texto de siempre", ElHablanteViajaConElTexto);
+        Prueba("609. la vista de voces parte lo oído en turnos: cada línea «[Hablante N]» abre un turno de esa voz, lo que sigue sin etiqueta es de la misma, lo de antes de la primera voz no es de nadie, y la parte de lo dicho de cada voz suma 100", LaVistaDeVocesParteLoOido);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -5103,6 +5104,37 @@ internal static class Contrato
         });
         Debe((string)todo.GetValue(sinVoz)! == "hola doctor",
             "sin hablante no se inventa ninguna etiqueta");
+    }
+
+    /// <remarks>
+    /// Spec 070, la vista: la ventana de consulta pinta lo oído por voces, «Hablante 1», «Hablante 2»,
+    /// cada una con su color. Lo que se juzga es el corte, que es lo único que puede mentir: una
+    /// línea sin etiqueta pegada a la voz equivocada le atribuye a alguien lo que no dijo.
+    /// </remarks>
+    private static void LaVistaDeVocesParteLoOido()
+    {
+        var t = Capacidad("U.WindowsClient.Clinical.Transcripcion.TurnosDeVoz");
+        if (t == null) { Pendiente("Clinical.Transcripcion.TurnosDeVoz", "609"); return; }
+        var partir = t.GetMethod("Partir", BindingFlags.Public | BindingFlags.Static)!;
+        var partes = t.GetMethod("Partes", BindingFlags.Public | BindingFlags.Static)!;
+
+        string Dibujo(string texto) => string.Join(" | ",
+            ((System.Collections.IEnumerable)partir.Invoke(null, new object?[] { texto })!).Cast<object>()
+                .Select(x => $"{x.GetType().GetProperty("Voz")!.GetValue(x)?.ToString() ?? "-"}:"
+                    + ((string)x.GetType().GetProperty("Texto")!.GetValue(x)!).Replace("\n", "⏎")));
+
+        string d = Dibujo("[Hablante 1] ¿Qué le pasa?\n[Hablante 2] Me duele la cabeza.\ny el cuello\n[Hablante 1] Tome esto.");
+        Debe(d == "1:¿Qué le pasa? | 2:Me duele la cabeza.⏎y el cuello | 1:Tome esto.",
+            $"cada etiqueta abre un turno y lo que sigue sin etiqueta es de esa voz; salió «{d}»");
+
+        d = Dibujo("Nota del médico.\n[Hablante 1] Hola.");
+        Debe(d == "-:Nota del médico. | 1:Hola.",
+            $"lo escrito antes de la primera voz no se le atribuye a nadie; salió «{d}»");
+
+        var turnos = partir.Invoke(null, new object?[] { "[Hablante 2] abcdef\n[Hablante 1] ab\n[Hablante 2] ab" });
+        string p = string.Join(" ", ((System.Collections.IEnumerable)partes.Invoke(null, new[] { turnos })!).Cast<object>()
+            .Select(x => $"{x.GetType().GetProperty("Voz")!.GetValue(x)}={x.GetType().GetProperty("Porcentaje")!.GetValue(x)}"));
+        Debe(p == "1=20 2=80", $"cada voz con su parte de lo dicho, en orden de número y sumando 100; salió «{p}»");
     }
 
     /// <remarks>

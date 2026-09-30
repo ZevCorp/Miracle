@@ -38,6 +38,14 @@ unido.
 | 605 | El etiquetador pone `[Hablante N]` solo al cambiar de voz, numera por aparición, y un socket nuevo no se funde con el anterior. | ídem |
 | 606 | La transcripción de un archivo subido también lleva sus hablantes. | ídem |
 | 607 | En Windows, el hablante de Soniox viaja con el texto al verbatim que va al backend. | `apps/windows/tests/ContratoDelGrafo/Contrato.cs` |
+| 608 | La vista de voces de la web parte la transcripción en turnos: cada `[Hablante N]` abre uno, lo que sigue sin etiqueta es de la misma voz, lo de antes de la primera voz no es de nadie, y la parte de lo dicho de cada voz suma 100. | `apps/web/tests/speaker-turns.test.ts` |
+| 609 | Lo mismo en la ventana de consulta de Windows. | `Contrato.cs` |
+
+La vista (pedida el 2026-09-29, a mitad de la rama): en la web, bajo la transcripción, un panel
+«Quién habla» con una fila por turno —avatar y nombre de la voz en su color— y una pastilla por voz
+con su parte de lo dicho; en Windows, lo mismo en lugar del texto corrido mientras se graba. La
+parte se mide en **caracteres transcritos**, no en tiempo, y la vista lo dice: el tiempo por voz
+vive en `encounter_metrics` y no llega a la pantalla.
 
 ## Fases
 
@@ -46,6 +54,7 @@ unido.
 | 1 | 600-603 | `services/graph/src/domain/clinical/speakerLabels.js`, `ClinicalNotePromptBuilder.js` |
 | 2 | 604-606 | `deepgram-dictation.js` (los dos), `lib/stt/speaker-turns.ts`, `useDictation.ts`, `en-vivo/page.tsx`, `transcribe-audio-file.ts` |
 | 3 | 607 | `Verbatim.cs`, `LectorSoniox.cs` |
+| 4 | 608-609 | `speaker-turns.ts` + `components/app/SpeakerConversation.tsx`; `TurnosDeVoz.cs` + `Ui/VocesEnVivo.cs` |
 
 ## Lo que queda fuera
 
