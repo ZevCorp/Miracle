@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 
 namespace U.WindowsClient.Clinical.Transcripcion;
 
@@ -27,12 +27,42 @@ public sealed class Verbatim
     private readonly StringBuilder _cerrado = new();
     private readonly StringBuilder _enCurso = new();
 
+    // QUIÉN DIJO QUÉ (spec 070). Soniox marca cada token con su voz, y la voz viaja DENTRO del
+    // texto: una línea «[Hablante N] …» cada vez que cambia. Es la misma forma que escribe la web
+    // (apps/web/lib/stt/speaker-turns.ts) y que Graph lee al armar la nota
+    // (services/graph/src/domain/clinical/speakerLabels.js); si cambia aquí, cambia allí.
+    // Se numera por orden de aparición: el número de Soniox no significa nada fuera de su socket.
+    private const string Etiqueta = "[Hablante ";
+    private readonly Dictionary<string, int> _numeroDeVoz = new();
+    private string? _ultimaVoz;
+
     /// <summary>Texto confirmado por el proveedor. Lo provisional NO entra aquí.</summary>
-    public void Confirmar(string texto)
+    public void Confirmar(string texto) => ConfirmarConVoz(texto, null);
+
+    /// <summary>
+    /// Texto confirmado, con la voz que lo dijo. Sin voz (Deepgram, diarización apagada) es el
+    /// texto de siempre; con voz, se etiqueta solo cuando cambia.
+    /// </summary>
+    public void ConfirmarConVoz(string texto, string? hablante)
     {
         if (string.IsNullOrEmpty(texto)) return;
+        if (!string.IsNullOrWhiteSpace(hablante) && hablante != _ultimaVoz)
+        {
+            if (!_numeroDeVoz.TryGetValue(hablante, out int n))
+                _numeroDeVoz[hablante] = n = _numeroDeVoz.Count + 1;
+            _ultimaVoz = hablante;
+
+            // La voz nueva empieza en su propia línea, sin el espacio que traía el token anterior.
+            while (_enCurso.Length > 0 && _enCurso[_enCurso.Length - 1] == ' ') _enCurso.Length--;
+            if (_enCurso.Length > 0) _enCurso.Append('\n');
+            _enCurso.Append(Etiqueta).Append(n).Append("] ");
+            texto = texto.TrimStart();
+        }
         _enCurso.Append(texto);
     }
+
+    /// <summary>Una frase que abre voz va en su línea; una que sigue la misma voz, tras un espacio.</summary>
+    private static string Separador(string frase) => frase.StartsWith(Etiqueta, StringComparison.Ordinal) ? "\n" : " ";
 
     /// <summary>
     /// El proveedor cerró la frase. Devuelve la frase cerrada (vacía si no había nada), que es lo
@@ -44,7 +74,7 @@ public sealed class Verbatim
         _enCurso.Clear();
         if (frase.Length == 0) return "";
 
-        if (_cerrado.Length > 0) _cerrado.Append(' ');
+        if (_cerrado.Length > 0) _cerrado.Append(Separador(frase));
         _cerrado.Append(frase);
         return frase;
     }
@@ -56,7 +86,7 @@ public sealed class Verbatim
         {
             string cola = _enCurso.ToString().Trim();
             if (cola.Length == 0) return _cerrado.ToString();
-            return _cerrado.Length == 0 ? cola : _cerrado + " " + cola;
+            return _cerrado.Length == 0 ? cola : _cerrado + Separador(cola) + cola;
         }
     }
 
@@ -74,5 +104,7 @@ public sealed class Verbatim
     {
         _cerrado.Clear();
         _enCurso.Clear();
+        _numeroDeVoz.Clear();
+        _ultimaVoz = null;
     }
 }
