@@ -828,29 +828,6 @@ public sealed class SapGuiSurface : IUiSurface
     }
 
     /// <summary>
-    /// QUÉ COMPONENTE CLICÓ EL HUMANO, con nombre: Id, tipo, subtipo y etiqueta. Es
-    /// <see cref="HitTest"/> más lo que la atribución necesita para nombrar el clic (promesa 77) —
-    /// dentro de SAP, UIA ve un Pane sin etiquetas y el vigilante de clics se quedaba mudo.
-    /// </summary>
-    public (string Id, string Tipo, string SubTipo, string Etiqueta)? ComponenteEn(int screenX, int screenY)
-    {
-        dynamic? session;
-        try { session = Session(); } catch { return null; }
-        if (session == null) return null;
-
-        try
-        {
-            dynamic comp = session.FindByPosition(screenX, screenY, false);
-            if (comp == null) return null;
-            string id = Str(comp.Id);
-            if (id.Length == 0) return null;
-            string tipo = ""; try { tipo = Str(comp.Type); } catch { }
-            return (id, tipo, SubTypeOf(comp), LabelOf(comp));
-        }
-        catch { return null; }
-    }
-
-    /// <summary>
     /// LA FILA DE REJILLA BAJO UN PUNTO, o la seleccionada si la hay: su clave <c>#row=</c> y su
     /// texto. Reusa <see cref="RowKeyAt"/>, la MISMA lectura que hace el grabador. Promesa 182.
     /// </summary>

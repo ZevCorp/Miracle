@@ -169,17 +169,4 @@ public static class EdgeSnap
         return new MuelleEase { InitialSlope = pendiente, Stiffness = Rigidez, Damping = 1.0 };
     }
 
-    /// <summary>Un rebote corto. Ver <see cref="MuelleEase.Damping"/>.</summary>
-    private const double Amortiguamiento = 0.62;
-
-    /// <summary>
-    /// La rigidez del muelle QUE REBOTA, que no puede ser la misma que la del que no rebota.
-    ///
-    /// <see cref="Rigidez"/> se bajó a 4,5 para repartir el recorrido de una curva que llega y para.
-    /// A un muelle que rebota, 4,5 le deja el rebote a medias cuando la animación se acaba —tarda
-    /// ≈4/ζω en asentarse, o sea 1,4 veces la duración— y la normalización final se lo come. Con 6,5
-    /// el muelle está quieto justo al terminar y el rebote se ve entero.
-    /// </summary>
-    private const double RigidezConRebote = 6.5;
-
 }

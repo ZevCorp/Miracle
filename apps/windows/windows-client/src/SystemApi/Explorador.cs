@@ -77,9 +77,6 @@ public static class Explorador
         return "";
     }
 
-    /// <summary>¿Hay una ventana de carpeta del explorador en primer plano?</summary>
-    public static bool EnElExplorador() => RutaEnPrimerPlano().Length > 0;
-
     /// <summary>
     /// Lo que hay dentro de una carpeta, del disco. Carpetas primero y luego archivos, cada grupo
     /// por nombre, que es el orden en que el explorador las enseña por defecto y así lo que lee el

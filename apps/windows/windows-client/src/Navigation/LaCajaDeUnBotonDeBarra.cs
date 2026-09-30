@@ -68,7 +68,4 @@ public static class LaCajaDeUnBotonDeBarra
         return null;   // nadie lo encontró: no se dibuja, y no se estima
     }
 
-    /// <summary>¿Este selector nombra un botón de la barra de un shell?</summary>
-    public static bool EsDeBarra(string selector) =>
-        (selector ?? "").IndexOf(Marca, StringComparison.OrdinalIgnoreCase) >= 0;
 }

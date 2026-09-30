@@ -61,23 +61,6 @@ public static class SafeToClick
     };
 
     /// <summary>
-    /// ¿Esta puerta NAVEGA (te lleva a otra pantalla) o EJECUTA (hace algo aquí)?
-    ///
-    /// El grafo registra las dos —los botones de acción son la mitad del valor: sin «Nuevo»,
-    /// «Cortar» o «Pegar» el asistente puede llegar a cualquier sitio y no hacer nada al llegar—
-    /// pero se comportan distinto: durante el MAPEO solo se cruzan las de navegación (pulsar
-    /// «Eliminar» para ver a dónde lleva no es explorar, es romper), y durante la EJECUCIÓN las
-    /// de acción se pulsan a propósito vía map_take.
-    ///
-    /// v1 determinista por tipo de control: árbol/lista/pestaña/enlace navegan, el resto ejecuta.
-    /// La etiqueta viaja en la firma porque el refinamiento fino —«Guardar como…» abre un diálogo,
-    /// ¿eso navega o ejecuta?— es CRITERIO, no sintaxis, y ahí entrará el LLM de capa 2 leyendo
-    /// las puertas ya registradas. La clasificación es dato del mapa, no del clasificador.
-    /// </summary>
-    public static string Clasificar(string label, string controlType) =>
-        TiposNavegables.Contains(controlType ?? "") ? "navegacion" : "accion";
-
-    /// <summary>
     /// Sitios donde NO se entra al mapear. No es seguridad, es alcance: mapear el disco del sistema
     /// son decenas de miles de carpetas que no enseñan nada sobre CÓMO se navega la app —solo sobre
     /// qué archivos hay, que es otra pregunta y se responde leyendo el sistema de archivos en
@@ -95,32 +78,6 @@ public static class SafeToClick
         "node_modules", ".git", ".next", ".venv", "__pycache__", "obj", "bin",
         "dist", "build", "packages", "vendor", ".vs", ".idea", "target",
     };
-
-    /// <summary>
-    /// ¿Este elemento de lista es un CONTENEDOR en el que se puede entrar, o un documento que al
-    /// abrirse lanzaría otra aplicación?
-    ///
-    /// Abrir un archivo no explora la app: la abandona. En la corrida del 2026-07-31 el recorrido
-    /// hizo doble clic en «Screenshot_…_WhatsApp» y se encontró dentro de Photos.exe, mapeando una
-    /// app que nadie había pedido. Los archivos SÍ se registran como puertas —saber que están ahí
-    /// es parte del mapa— pero no se cruzan.
-    ///
-    /// La app dice lo que es cada cosa en <c>ItemType</c> («Carpeta de archivos», «Imagen PNG»), y
-    /// esa es la fuente buena. Cuando no lo dice, se cae al nombre: una extensión al final delata
-    /// un archivo. Ojo, ese respaldo es débil —Windows oculta las extensiones conocidas— y por eso
-    /// existe además la red de seguridad del recorrido: si tras pulsar aparece OTRA aplicación en
-    /// primer plano, se vuelve y no se aprende nada.
-    /// </summary>
-    public static bool EsContenedor(string label, string itemType)
-    {
-        string t = Normalizar(itemType);
-        if (t.Length > 0)
-            return t.Contains("carpeta") || t.Contains("folder") || t.Contains("directorio")
-                || t.Contains("unidad") || t.Contains("drive") || t.Contains("biblioteca");
-
-        return !System.Text.RegularExpressions.Regex.IsMatch(
-            label ?? "", @"\.[A-Za-z0-9]{1,6}$");
-    }
 
     /// <summary>
     /// LO QUE NO SE DESHACE. Es la lista de responder diálogos, y es DISTINTA de <see cref="Prohibido"/>
