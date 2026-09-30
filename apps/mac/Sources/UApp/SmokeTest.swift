@@ -146,7 +146,11 @@ struct SmokeTest {
             evidence["graphJevKey"] = keys.typesafe?.isEmpty == false
             // Voice and Jev are independent paths: a rejected voice key must not hide whether Jev can
             // still drive the desktop. `passed` keeps requiring both.
-            if let key = keys.openai {
+            // Same precedence as the app (AppModel): a local Live key wins over the one Graph serves.
+            let local = try await Credentials.readChecked("OPENAI_API_KEY")
+            let voiceKey = local?.isEmpty == false ? local : keys.openai
+            evidence["voiceCredentialSource"] = local?.isEmpty == false ? "local" : "graph"
+            if let key = voiceKey {
                 do { evidence["liveOneLunaToolRoundtrip"] = try await VoiceProbe.check(key: key) }
                 catch { evidence["liveOneLunaToolRoundtrip"] = false; evidence["liveOneLunaError"] = error.localizedDescription }
             }
