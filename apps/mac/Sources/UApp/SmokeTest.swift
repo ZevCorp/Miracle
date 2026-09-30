@@ -51,6 +51,28 @@ struct SmokeTest {
             evidence["stage"] = "complete"
         } catch { evidence["error"] = error.localizedDescription }
     }
+    /// Same contract as configureVoice for the Graph key: stdin only, validated before it is saved.
+    /// The Keychain item must be created by the app's own store, or its silent reads are refused.
+    static func configureGraph(output: URL) async {
+        var evidence: [String: Any] = ["passed": false, "stage": "validate_graph"]
+        defer {
+            if let data = try? JSONSerialization.data(withJSONObject: evidence, options: [.prettyPrinted, .sortedKeys]) {
+                try? data.write(to: output, options: .atomic)
+            }
+            NSApp.terminate(nil)
+        }
+        do {
+            guard let key = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else { throw AgentError.invalid("Falta la credencial en la entrada del instalador.") }
+            let graph = try GraphClient(baseURL: UserDefaults.standard.string(forKey: "graphURL") ?? GraphClient.defaultURL, apiKey: key)
+            let keys = try await graph.providerKeys()
+            evidence["graphVoiceKey"] = keys.openai?.isEmpty == false
+            evidence["graphJevKey"] = keys.typesafe?.isEmpty == false
+            evidence["stage"] = "save_keychain"
+            try await Credentials.save("GRAPH_API_KEY", value: key)
+            evidence["passed"] = try await Credentials.readChecked("GRAPH_API_KEY") == key
+            evidence["stage"] = "complete"
+        } catch { evidence["error"] = error.localizedDescription }
+    }
     /// Opens the installed app's real microphone and output route without contacting any service.
     static func audio(output: URL) async {
         var evidence: [String: Any] = ["date": ISO8601DateFormatter().string(from: Date()), "passed": false]
@@ -122,7 +144,12 @@ struct SmokeTest {
             let keys = try await graph.providerKeys()
             evidence["graphVoiceKey"] = keys.openai?.isEmpty == false
             evidence["graphJevKey"] = keys.typesafe?.isEmpty == false
-            if let key = keys.openai { evidence["liveOneLunaToolRoundtrip"] = try await VoiceProbe.check(key: key) }
+            // Voice and Jev are independent paths: a rejected voice key must not hide whether Jev can
+            // still drive the desktop. `passed` keeps requiring both.
+            if let key = keys.openai {
+                do { evidence["liveOneLunaToolRoundtrip"] = try await VoiceProbe.check(key: key) }
+                catch { evidence["liveOneLunaToolRoundtrip"] = false; evidence["liveOneLunaError"] = error.localizedDescription }
+            }
             guard let key = keys.typesafe, !key.isEmpty else { throw AgentError.unavailable("Graph no entrega typesafe.") }
             guard let fixture = NSRunningApplication.runningApplications(withBundleIdentifier: "com.zevcorp.u.mac.fixture").first else { throw AgentError.unavailable("Abre UFixture.app antes de la prueba.") }
             fixture.activate(options: [])

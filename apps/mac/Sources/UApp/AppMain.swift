@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var screenObservation: NSObjectProtocol?
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Diagnostics run in a separate process and must never close the user's UI.
-        let diagnosticFlags = ["--social-voice-test", "--wake-mic-test", "--chat-scroll-test", "--wake-test", "--spoken-voice-test", "--configure-voice-key", "--voice-test", "--audio-test", "--execution-test", "--smoke-test", "--diagnose"]
+        let diagnosticFlags = ["--social-voice-test", "--wake-mic-test", "--chat-scroll-test", "--wake-test", "--spoken-voice-test", "--configure-voice-key", "--configure-graph-key", "--voice-test", "--audio-test", "--execution-test", "--smoke-test", "--diagnose"]
         diagnosticMode = CommandLine.arguments.contains(where: diagnosticFlags.contains)
         if !diagnosticMode { terminateOlderCopies() }
         if let index = CommandLine.arguments.firstIndex(of: "--social-voice-test"), CommandLine.arguments.count > index + 1 {
@@ -55,6 +55,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         if let index = CommandLine.arguments.firstIndex(of: "--configure-voice-key"), CommandLine.arguments.count > index + 1 {
             Task { await SmokeTest.configureVoice(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
+            return
+        }
+        if let index = CommandLine.arguments.firstIndex(of: "--configure-graph-key"), CommandLine.arguments.count > index + 1 {
+            Task { await SmokeTest.configureGraph(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
             return
         }
         if let index = CommandLine.arguments.firstIndex(of: "--audio-test"), CommandLine.arguments.count > index + 1 {

@@ -37,6 +37,9 @@ fi
 
 STAGING="$HOME/Applications/.U.installing-$(/usr/bin/uuidgen).app"
 /usr/bin/ditto "$SOURCE" "$STAGING"
+# A repo inside iCloud Drive (Documents/Desktop sync) tags the bundle with FinderInfo and
+# file-provider attributes, and `codesign --verify --strict` rejects them as detritus.
+/usr/bin/xattr -cr "$STAGING"
 actual_identifier="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$STAGING/Contents/Info.plist")"
 if [[ "$actual_identifier" != "$EXPECTED_IDENTIFIER" ]]; then
   echo "La app preparada tiene un identificador inesperado: $actual_identifier" >&2
