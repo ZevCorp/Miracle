@@ -78,10 +78,6 @@ public static class PaletaDelNotch
     public static uint DelPunto(EstadoDelNotch estado)
         => estado == EstadoDelNotch.Omitido ? PuntoApagado : Punto;
 
-    /// <summary>El texto de este estado.</summary>
-    public static uint DeLaTinta(EstadoDelNotch estado)
-        => estado == EstadoDelNotch.Omitido ? TintaApagada : Tinta;
-
     /// <summary>
     /// ¿La marca es un ARO en vez de un punto lleno? Solo el fallo, y es lo que sustituye al rojo:
     /// algo que se quedó abierto se lee abierto.

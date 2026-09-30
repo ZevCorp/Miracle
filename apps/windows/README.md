@@ -22,7 +22,7 @@ Cómo se trabaja en Windows (el ciclo, las promesas, el portero, los aprendizaje
   funcionalidades fueron absorbidas por Graph (`/api/v1/agent/turn`, `/api/v1/teach/*`). Se conserva
   como vía de emergencia (`U_BACKEND_URL`) y por los recordatorios que aún sirve.
 - `docs/` — specs, diseño y diagnósticos de Windows.
-- `agente-piloto/`, `piloto/`, `laboratorio/`, `sondas/`, `puente-omi/` — herramientas y
+- `agente-piloto/`, `laboratorio/`, `sondas/`, `puente-omi/` — herramientas y
   experimentos de Windows.
 
 ## Backend

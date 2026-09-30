@@ -50,9 +50,6 @@ public sealed class SapInspectorReader
     /// <summary>Firma de los shells del último refresco, para no repetir el log en cada tick.</summary>
     private string _lastShellSig = "";
 
-    /// <summary>Cuántos sub-elementos se omitieron por caer dentro de un árbol mapeado. Solo para el registro.</summary>
-    private int _suppressedInTrees;
-
     /// <summary>
     /// Último recuento de filas BUENO por shell (id → filas). Ver <see cref="HoldRows"/>. Concurrente
     /// porque este lector se comparte entre el hilo del refresco periódico y el del diagnóstico de clic.
@@ -102,10 +99,7 @@ public sealed class SapInspectorReader
             return;
         }
 
-        LogBus.Log("inspector",
-            $"shells SAP: {shells.Count} con geometría (se pintan en este orden). " +
-            $"{_suppressedInTrees} sub-elementos dentro de árboles no se enmarcan (la fila ya los cubre).");
-        _suppressedInTrees = 0;
+        LogBus.Log("inspector", $"shells SAP: {shells.Count} con geometría (se pintan en este orden).");
         foreach (var s in shells)
             LogBus.Log("inspector",
                 $"   shell subType={s.SubType} filas={s.ChildCount} → " +
@@ -125,29 +119,14 @@ public sealed class SapInspectorReader
     {
         LogShells(elements);
 
-        // Cajas de los ÁRBOLES mapeados: lo que caiga dentro de una de ellas no se vuelve a enmarcar como
-        // campo. Dentro de un árbol la unidad accionable es la FILA (por clave), y sus filas ya se dibujan
-        // aparte; los sub-elementos que el recorrido encuentra ahí —el texto de la hoja, su icono— no se
-        // accionan por separado, así que su recuadro solo duplica el de la fila. El efecto visible era una
-        // caja estrecha pegada al texto ENCIMA de la caja de la fila, en cada hoja del árbol.
-        var treeBoxes = elements
-            .Where(e => e.BoundsKnown && e.ChildCount > 0 &&
-                        e.SubType.IndexOf("Tree", StringComparison.OrdinalIgnoreCase) >= 0)
-            .Select(e => new Rect(e.ScreenLeft, e.ScreenTop, e.Width, e.Height))
-            .ToList();
+        // Aquí vivió una supresión de los sub-elementos que caían dentro de un árbol mapeado. Nació de una
+        // hipótesis falsa sobre unos recuadros estrechos y midió 0 sub-elementos en los 16 repartos de
+        // shells SAP que guardan los logs: se quitó el 2026-09-30 en vez de seguir cargándola.
         var boxes = new List<SapBox>(elements.Count);
         foreach (var e in elements)
         {
             if (!e.BoundsKnown) continue; // los nodos de árbol no traen rect: se detectan, no se enmarcan
             bool shell = e.SubType.Length > 0;
-
-            // Sub-elemento dentro de un árbol mapeado: no se enmarca (ver treeBoxes). El propio árbol sí,
-            // porque es un shell y no está "dentro de sí mismo".
-            if (!shell && treeBoxes.Any(t => t.Contains(new Rect(e.ScreenLeft, e.ScreenTop, e.Width, e.Height))))
-            {
-                _suppressedInTrees++;
-                continue;
-            }
 
             int rows = shell ? HoldRows(e) : 0;
             // Un shell con filas enumeradas está MAPEADO: cada fila tiene clave y ruta, se puede enseñar
@@ -228,10 +207,6 @@ public sealed class SapInspectorReader
     private readonly ConcurrentDictionary<string, List<SapGuiSurface.TreeRow>> _rowCache = new();
     private readonly ConcurrentDictionary<string, int> _rowCacheStamp = new();
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
-
-    /// <summary>Filas visibles cacheadas de un árbol (vacío si aún no se leyeron).</summary>
-    public IReadOnlyList<SapGuiSurface.TreeRow> CachedRows(string treeId) =>
-        _rowCache.TryGetValue(treeId, out var v) ? v : Array.Empty<SapGuiSurface.TreeRow>();
 
     /// <summary>
     /// Las cajas de las filas visibles de cada árbol, en píxeles físicos. La caja sale DIRECTA de lo que SAP

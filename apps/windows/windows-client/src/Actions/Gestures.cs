@@ -16,12 +16,6 @@ public static class Gestures
 
     public static bool ShowDesktop() => Combo(VK_LWIN, VK_D);
 
-    /// <summary>
-    /// Atrás en el historial (Alt+Izquierda). GESTO y no botón a propósito: el explorador, los
-    /// navegadores y casi toda app con historial lo entienden, y no depende de acertar la etiqueta
-    /// de una flecha que cambia de nombre y de sitio entre versiones e idiomas.
-    /// </summary>
-    public static bool NavigateBack() => Combo(VK_MENU, VK_LEFT);
     public static bool StartMenu() => Tap(VK_LWIN);
     public static bool NotificationCenter() => Combo(VK_LWIN, VK_N);
 

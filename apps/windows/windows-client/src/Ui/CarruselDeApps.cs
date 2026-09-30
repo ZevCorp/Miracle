@@ -43,7 +43,6 @@ public sealed class CarruselDeApps : Window
         Foreground = Brushes.White, BorderThickness = new Thickness(0),
         HorizontalAlignment = HorizontalAlignment.Center,
     };
-    private IReadOnlyList<AppInstalada> _todas = Array.Empty<AppInstalada>();
 
     public CarruselDeApps()
     {
@@ -99,32 +98,6 @@ public sealed class CarruselDeApps : Window
         Loaded += (_, __) => { Centrar(); _filtro.Focus(); };
         SizeChanged += (_, __) => Centrar();
         Closed += (_, __) => Colocado?.Invoke(Rect.Empty);   // la carita vuelve a su sitio
-    }
-
-    /// <summary>Lee las apps instaladas y se muestra. La lectura va fuera del hilo de la interfaz:
-    /// recorrer el menú Inicio entero tarda lo suyo y congelaría la ventana justo al abrirla.</summary>
-    public async Task MostrarAsync()
-    {
-        Show();
-        _tira.Children.Add(new TextBlock
-        {
-            Text = "Buscando las aplicaciones instaladas…",
-            Foreground = Brushes.White, Margin = new Thickness(8),
-        });
-
-        var apps = await Task.Run(() =>
-        {
-            var lista = AppsInstaladas.Todas();
-            // El icono también se saca aquí: son cientos de llamadas al shell y una a una en el
-            // hilo de la interfaz se nota como un tirón.
-            return lista.Select(a => (App: a, Icono: AppsInstaladas.Icono(a.Lnk))).ToList();
-        });
-
-        _iconos = apps;
-        _todas = apps.Select(x => x.App).ToList();
-        LogBus.Log("carrusel", $"{_todas.Count} aplicación(es) instaladas");
-        Pintar("");
-        Activate();
     }
 
     private List<(AppInstalada App, ImageSource? Icono)> _iconos = new();

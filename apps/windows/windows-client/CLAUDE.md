@@ -151,5 +151,6 @@ disponible para **ejecutar**, que es donde nació como respaldo.
 
 ## Código inerte conocido
 
-La supresión de sub-elementos SAP contenidos en un árbol mapeado mide `0 sub-elementos` en la pantalla
-real. Nació de una hipótesis falsa sobre el origen de unos recuadros estrechos. Borrar o justificar.
+Ninguno a la fecha. El último —la supresión de sub-elementos SAP dentro de un árbol mapeado, nacida de
+una hipótesis falsa sobre unos recuadros estrechos— se quitó el 2026-09-30: medía `0 sub-elementos` en
+los 16 repartos de shells SAP que guardaban los logs.
