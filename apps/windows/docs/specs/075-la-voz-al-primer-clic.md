@@ -217,14 +217,14 @@ exige tres fotos seguidas sin estela, y por eso su cifra es mayor:
 | tres clics a 200 ms | idem | encendida (3 de 3) |
 | encender, 2,5 s, apagar y encender a 150 ms | encendida | encendida, y sigue viva (2 de 2) |
 | cuatro clics a 120 ms | **queda ENCENDIDA, con 3 sockets abiertos** | apagada, 0 sockets (2 de 2) |
-| cinco clics a 90 ms | encendida, con 3 sockets | encendida, 1 socket (2 de 2) |
-| encender, 1,2 s, apagar, 300 ms, encender | encendida | encendida (1 de 1) |
+| cinco clics a 90 ms | encendida, con 3 sockets | encendida, 1 socket (3 de 3) |
+| encender, 1,2 s, apagar, 300 ms, encender | encendida | encendida (2 de 2) |
 | un clic para apagar, tras cada caso que acaba encendido | apagada | apagada (todas) |
 
 En `main`, de los cuatro casos de más de un clic que parten de apagada, fallan dos; los otros tres
 arrancan del estado que dejó el fallo anterior y no se pueden contar. En la rama no falló ninguno en
-22 casos pasados: 11 con la primera versión del micrófono (la guardia, ya retirada) y 11 con el
-preparado. Con dos clics a 150 ms la rama ni siquiera llega a abrir un socket: no hay sesión de pago
+26 casos pasados: 11 con la primera versión del micrófono (la guardia, ya retirada) y 15 con el
+preparado, que cubren los once. Con dos clics a 150 ms la rama ni siquiera llega a abrir un socket: no hay sesión de pago
 que cerrar.
 
 Los archivos, con sus horas: `C:\U-versiones\voz-medidas\` (`antes-*.txt`, `despues-*.txt`).
