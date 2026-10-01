@@ -76,6 +76,9 @@ public sealed class ClavesDelBackend
     /// UNA VEZ, Y TAMBIÉN CUANDO FALLA. Dos claves son un viaje, no dos. Y si el backend está caído no
     /// se reintenta en bucle: sin voz se puede trabajar, y un bucle contra un backend caído es el
     /// pendiente nº3 de CLAUDE.md, que ya se pagó una vez con 14 turnos rebotando.
+    ///
+    /// LA EXCEPCIÓN ES UNA ESPERA, NO UN FALLO (promesa 687): si Graph niega la INSTALACIÓN —espera
+    /// aprobación— la siguiente llamada vuelve a pedir, porque entre una y otra la pueden haber aprobado.
     /// </remarks>
     public async Task<int> TraerAsync(CancellationToken ct = default)
     {
@@ -89,6 +92,18 @@ public sealed class ClavesDelBackend
         try
         {
             cuerpo = await _pedir(ct).ConfigureAwait(false);
+        }
+        catch (U.Graph.GraphNiegaLaInstalacion e)
+        {
+            // GRAPH NO NEGÓ LAS CLAVES: NEGÓ LA INSTALACIÓN (promesa 687, spec 076). Espera aprobación,
+            // la revocaron o aún no se presentó. Eso NO es un backend caído, y por eso no se da por
+            // perdido: «una vez, también cuando falla» dejaría la voz muerta hasta reiniciar Ü aunque
+            // la aprobaran al minuto. La próxima vez que hagan falta se piden otra vez — una petición
+            // por necesidad, no un bucle.
+            lock (_candado) _yaSePidio = false;
+            Estado = "sin claves: " + e.Message;
+            _log("claves: " + Estado);
+            return 0;
         }
         catch (Exception e)
         {
@@ -212,7 +227,6 @@ public sealed class ClavesDelBackend
     /// </summary>
     public static ClavesDelBackend DeGraph(string baseUrl, string? apiKey, Action<string> log)
     {
-        var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         return new ClavesDelBackend(
             DelEntornoDeSiempre,
             async ct =>
@@ -220,8 +234,14 @@ public sealed class ClavesDelBackend
                 using var req = new System.Net.Http.HttpRequestMessage(
                     System.Net.Http.HttpMethod.Get, $"{(baseUrl ?? "").TrimEnd('/')}/api/v1/agent/claves");
                 req.Headers.Add("X-API-Key", apiKey ?? "");
-                using var res = await http.SendAsync(req, ct).ConfigureAwait(false);
+                using var res = await Red.SendAsync(req, ct).ConfigureAwait(false);
                 string cuerpo = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                // UN 403 QUE NOMBRA A LA INSTALACIÓN NO ES «HTTP 403»: es «espera aprobación», y quien
+                // lo recibe lo dice así y vuelve a pedir cuando toque (promesa 687). Ese cuerpo no trae
+                // claves: lo escribe la compuerta, que no llega a la ruta que las entrega.
+                if (res.StatusCode == System.Net.HttpStatusCode.Forbidden
+                    && U.Graph.GraphNiegaLaInstalacion.DeUn403(cuerpo) is { } niega)
+                    throw niega;
                 if (!res.IsSuccessStatusCode)
                     // NUNCA el cuerpo entero: en un 200 trae las claves, y un mensaje de error que las
                     // arrastrara acabaría en el log igual que ellas.
@@ -230,6 +250,12 @@ public sealed class ClavesDelBackend
             },
             log);
     }
+
+    /// <summary>
+    /// Por donde se piden. Con el sello de la instalación (promesa 686): con la compuerta de Graph
+    /// puesta, las claves solo se le entregan a una instalación aprobada.
+    /// </summary>
+    private static readonly System.Net.Http.HttpClient Red = U.Graph.RedDeGraph.Cliente(TimeSpan.FromSeconds(10));
 
     /// <summary>Cuántas y cuáles faltan. Sin valores: el log se pega en los PR.</summary>
     private void Contar()

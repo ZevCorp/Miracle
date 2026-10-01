@@ -42,7 +42,9 @@ public sealed class BackendClient
     {
         _baseUrl = config.BackendUrl.TrimEnd('/');
         _userId = config.UserId;
-        _http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        // CON EL SELLO DE LA INSTALACIÓN (promesa 686). Contra el backend viejo no sella nada: solo
+        // pone la credencial en lo que va a Graph.
+        _http = RedDeGraph.Cliente(TimeSpan.FromMinutes(5));
 
         // La detección por host es deliberadamente tonta: el modo legacy existe SOLO para volver al
         // backend viejo en emergencia, y ese backend tiene un único dominio conocido.
