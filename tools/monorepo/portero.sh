@@ -48,7 +48,8 @@ gris()  { printf '\033[90m%s\033[0m\n' "$*"; }
 [ -n "${JUICIO+x}" ] || JUICIO=("${CODIGO[@]}" "${PROMESAS[@]}")
 : "${DONDE_PROMESAS:=en el contrato del proyecto}"
 declare -F preparar > /dev/null || preparar() { :; }
-declare -F compilar > /dev/null || compilar() { :; }
+# Un proyecto sin paso de compilación (Graph) no define compilar, y el portero no dice «compila».
+compila=si; declare -F compilar > /dev/null || compila=no
 
 # El proyecto es la carpeta que contiene el .githooks/ de quien carga este archivo. Se ubica por su
 # ruta, no por un nombre escrito aquí: mover el proyecto no deja al portero mirando al vacío.
@@ -100,18 +101,20 @@ sin_commitear() {
 construir() {
   local dir="$1" log="$2" salida codigo linea
 
-  gris "  … compilando"
-  if (cd "$dir" && compilar) > "$log" 2>&1; then
-    verde "  ✔  compila"
-  else
-    rojo  "  ✘  NO compila"
-    if grep -qE "error |^e: |error:" "$log"; then
-      grep -E "error |^e: |error:" "$log" | head -5 | sed 's/^/     /'
+  if [ "$compila" = si ]; then
+    gris "  … compilando"
+    if (cd "$dir" && compilar) > "$log" 2>&1; then
+      verde "  ✔  compila"
     else
-      tail -5 "$log" | sed 's/^/     /'
+      rojo  "  ✘  NO compila"
+      if grep -qE "error |^e: |error:" "$log"; then
+        grep -E "error |^e: |error:" "$log" | head -5 | sed 's/^/     /'
+      else
+        tail -5 "$log" | sed 's/^/     /'
+      fi
+      fallos=$((fallos+1))
+      return   # sin compilar no hay nada que juzgar: un contrato rojo por eso no dice nada
     fi
-    fallos=$((fallos+1))
-    return   # sin compilar no hay nada que juzgar: un contrato rojo por eso no dice nada
   fi
 
   # No son «tests» genéricos: son las promesas que el sistema dice cumplir. Rojo aquí significa que
