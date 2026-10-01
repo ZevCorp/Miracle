@@ -1,6 +1,6 @@
 # Plan de implementación: la actualización llega, y cuando no llega lo dice
 
-Estado: **implementado, sin publicar** (2026-09-30) · Nace del diagnóstico del 2026-09-30 · Rama: `jose/la-actualizacion-llega`
+Estado: **implementado** (2026-10-01) · Nace del diagnóstico del 2026-09-30 · Rama: `jose/la-actualizacion-llega`
 
 ## Diagnóstico: qué se midió
 
@@ -175,15 +175,70 @@ los 77 del completo.
 **Graph**: `node scripts/verify-windows-release.js` → OK; con el código de `main`, FALLÓ por «el
 dispatch no lleva user_message, que el workflow exige: GitHub contestaría 422».
 
+## Evidencia del 2026-10-01: el botón, el ensayo y la 1.3.6 de verdad
+
+**Contrato** con las 645 y 646 y la 620 enmendada: rojo antes («hay 3 (MemoriaBtn, CollarModoBtn,
+LadoBtn)» y dos `PENDIENTE`), INTACTO después. Sabotaje comprobado: el botón escondido, el 404 que no
+se reconoce, la migración que mira mayúsculas, el segundo toque que no se ignora y la frase que
+afirma la causa sin leerla → las tres rojas.
+
+**Banco** con `-ConGitHub`: 11 de 11, corrido solo. Dos corridas a la vez se pisan la instalación —así
+salieron «MAL» un S9 y un S2 que no lo eran—, y el guion lleva cerrojo desde entonces. El S11, contra
+el repo real y antes del cambio de nombre:
+
+```
+update: GitHub dice que https://github.com/ZevCorp/Miracle no existe: busco las versiones en https://github.com/ZevCorp/U-Windows-App
+update: al día: no hay nada publicado más nuevo que la 9.0.1. Vuelvo a mirar cada 30 min
+```
+
+**El workflow, ensayado en GitHub desde la rama** (run 36823906325, modo `ensayo`): compiló con los
+secretos, bajó la 1.3.6, empaquetó y publicó la pre-release `v1.3.7-ensayo.1` con su delta de
+**5,8 MB** (79,5 el completo), y la etiqueta apunta al commit compilado. `releases/latest` siguió
+siendo la 1.3.6.
+
+**La 1.3.6 de verdad** (el portable de su release, en `C:\U-banco\portable136`, con sus datos aparte):
+
+```
+(con la pre-release ya publicada)
+No updates, remote version (1.3.6) is not newer than current version (1.3.6)          ← no la ve
+
+(apuntada a una carpeta con los paquetes que construyó GitHub)
+[01:37:32] update: versión nueva disponible: 1.3.7-ensayo.1 — descargando…
+[01:37:33] update: versión 1.3.7-ensayo.1 descargada y lista para aplicar
+            (se mata el proceso y se reabre: aplica la 1.3.6, con SU código)
+Auto apply is true, so restarting to apply update...
+Package version 1.3.7-ensayo.1 applied successfully.
+[01:37:43] update: carpeta de trabajo: de «C:\U-banco\portable136\current» a «C:\Users\felip», …   ← ya es el código nuevo
+
+(la versión nueva, con su token real y la dirección VIEJA guardada en config.json)
+[01:39:03] update: GitHub dice que https://github.com/ZevCorp/Miracle no existe: busco las versiones en https://github.com/ZevCorp/U-Windows-App
+[01:39:08] update: al día: no hay nada publicado más nuevo que la 1.3.7-ensayo.1. Vuelvo a mirar cada 30 min
+```
+
+**El botón, pulsado en la ventana de verdad** (2 ventanas, las dos con el panel desplegado por el
+cursor y el botón invocado por UI Automation):
+
+- En la carita construida por GitHub, al día: el panel enseña Memoria, el collar, **actualizar** y el
+  de lado; el botón se llama «Buscar una versión nueva de Ü», y pulsarlo deja
+  `update: búsqueda a mano: ya está en la última versión`.
+- En la carita de la rama (`UBanco` 9.2.1 con la 9.2.2 descargada): el botón está en el color de
+  acento con su punto y se llama «Actualizar Ü: la versión 9.2.2 está lista»; pulsado a las 01:47:25,
+  `aplicando actualización y reiniciando` a las 01:47:27 y, ocho segundos después,
+  `update: actualización aplicada: 9.2.1 → 9.2.2 (pastilla)`.
+
+Lo que costó: el cursor sintético no desplegaba el muelle. Plegado, lo único que recibe el ratón es el
+dibujo de la pestaña, 5 px de ancho, porque el resto de la ventana es transparente; se encontró
+barriendo de 2 en 2 px. Y el primer guion elegía la ventana por un nombre con «Ü» en un `.ps1` sin
+BOM: no casaba nunca.
+
 ### Lo que NO se probó, dicho como tal
 
-- **La pastilla ⬇ pulsada en la carita.** El camino que recorre (`ApplyAndRestart`) es el de S1, S2 y
-  S7, pero el clic en la ventana de verdad no se dio: el muelle se despliega con el cursor encima y
-  había alguien usando el PC.
-- **Una release de verdad recibida por una instalación de verdad.** No se publicó nada: publicar le
-  llega a todos los equipos y lo decide el dueño. Tampoco corrió el workflow modificado en GitHub.
-- **La transición desde la 1.3.6.** La 1.3.6 instalada aplica con SU código, que es el modo viejo:
-  llega si no hay un programa abierto por ella, y si lo hay, en el primer arranque sin él.
+- **La release de verdad tras el cambio de nombre del repo.** Va después del merge: renombrar,
+  publicar la 1.3.7 y verla llegar a una 1.3.6 que pregunta por el nombre viejo. Lo que salga se
+  anota en el PR y en `RELEASING-WINDOWS.md`, no aquí: esta spec ya está en `main` para entonces.
+- **La transición desde la 1.3.6 con un programa abierto por ella.** La 1.3.6 aplica con SU código,
+  que es el modo viejo: llega si no hay un programa abierto por ella, y si lo hay, en el primer
+  arranque sin él.
 - **Otros equipos.** Todo se midió en una máquina. Un antivirus de empresa que no deje a `Update.exe`
   tocar la carpeta no se puede reproducir aquí; ahora, si pasa, la línea «NO se aplicó» lo trae.
 
@@ -191,7 +246,8 @@ dispatch no lleva user_message, que el workflow exige: GitHub contestaría 422»
 
 - [x] Todas las promesas verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO)
 - [x] Sabotaje de cada una, comprobado que se aplicó
-- [x] Los diez escenarios del banco en verde con la sonda; tres caminos con la carita
-- [ ] La pastilla pulsada en la carita de verdad
-- [ ] Una release de verdad recibida por una instalación de verdad
-- [ ] Estado de este documento: **implementado** (AAAA-MM-DD)
+- [x] Los once escenarios del banco en verde con la sonda; tres caminos con la carita
+- [x] El botón pulsado en la carita de verdad, en reposo y con una versión lista
+- [x] Un paquete construido por GitHub recibido y aplicado por la 1.3.6 de verdad
+- [ ] La 1.3.7 publicada tras el cambio de nombre y recibida por el feed real (después del merge)
+- [x] Estado de este documento: **implementado** (2026-10-01)
