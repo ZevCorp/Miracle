@@ -194,6 +194,25 @@ p14() {
   grep -q "git switch -" "$tmp/err" || { cat "$tmp/err"; falla "cambiar de rama en un árbol ajeno no avisó cómo deshacerlo"; }
 }
 
+p15() {
+  # Un clon que vive dentro de OneDrive: sus carpetas .git/worktrees/<árbol> quedan marcadas de solo
+  # lectura, y git borra la carpeta de trabajo pero no puede borrar esa. El 2026-09-30 pasó con
+  # cuatro árboles de un barrido: el árbol ya no estaba, y la herramienta decía que no lo pudo borrar.
+  como anf-g ses-g $arbol nuevo jose/solo-lectura > /dev/null 2>&1 || falla "nuevo falló"
+  adm="$(git -C "$tmp/clon-arboles/solo-lectura" rev-parse --absolute-git-dir)"
+  mkdir -p "$adm/logs/extra"
+  chmod -R a-w "$adm" 2> /dev/null
+  if command -v attrib.exe > /dev/null 2>&1; then
+    attrib.exe +R "$(cygpath -w "$adm")\\*" //S //D > /dev/null 2>&1
+    attrib.exe +R "$(cygpath -w "$adm")" > /dev/null 2>&1
+  fi
+  como anf-g ses-g $arbol cerrar jose/solo-lectura > "$tmp/out" 2>&1 || { cat "$tmp/out"; falla "cerrar no dio por cerrado un árbol terminado con su carpeta de git de solo lectura"; }
+  [ ! -d "$tmp/clon-arboles/solo-lectura" ] || falla "la carpeta de trabajo sigue en el disco"
+  [ ! -d "$adm" ] || falla "quedó un resto en $adm"
+  git rev-parse -q --verify refs/heads/jose/solo-lectura > /dev/null && falla "la rama sigue ahí"
+  [ -z "$(git worktree list | grep solo-lectura)" ] || falla "git sigue listando el árbol"
+}
+
 promesa 1  "una persona en su terminal commitea sin que el guardia la toque ni la anote" p1
 promesa 2  "el árbol es de la primera sesión de agente que escribe en él" p2
 promesa 3  "otra sesión no puede escribir en un árbol ajeno, y el aviso le dice cómo crear el suyo" p3
@@ -208,6 +227,7 @@ promesa 11 "cerrar borra el árbol, la rama local y la remota cuando su trabajo 
 promesa 12 "con squash merge, cerrar se fía del PR mergeado, y no cierra si hay commits posteriores" p12
 promesa 13 "limpiar deja en paz lo que usa otra sesión y lo recién tocado, y cierra lo terminado y caducado" p13
 promesa 14 "cambiar de rama en un árbol ajeno avisa cómo deshacerlo" p14
+promesa 15 "cerrar termina de borrar un árbol cuya carpeta de git está marcada de solo lectura" p15
 
 # ── el motor de los porteros ───────────────────────────────────────────────────────────────────────
 rm -f .git/sesion-del-arbol
