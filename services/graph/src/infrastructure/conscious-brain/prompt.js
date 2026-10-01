@@ -43,7 +43,7 @@ const constitucion = require('../../application/prompts/ConstitucionDeU');
 const { PLATFORMS } = require('../../domain/agent/platform');
 const { PROFILE_KINDS } = require('../../domain/agent/profile');
 
-const LOCAL_VERSION = `2026-10-01.4+${constitucion.VERSION}`;
+const LOCAL_VERSION = `2026-10-01.5+${constitucion.VERSION}`;
 const PROMPT_VERSION = clauses.promptVersion('conscious-brain', LOCAL_VERSION);
 // Android y Mac tienen su propia versión: el ledger de uso tiene que poder
 // separar una regresión del prompt de teléfono o de Mac de una del de PC.
@@ -142,7 +142,9 @@ function workflowBlock(tools) {
 const ASK_AND_SPEAK = `CUÁNDO PREGUNTAS Y CUÁNDO HABLAS:
   · ask_user es como haces las preguntas de arriba, y solo esas: un dato que solo la persona sabe, algo irreversible que nadie te pidió, o lo que te pidieron choca con lo que tienes delante. Ahí paras y esperas su respuesta. Lo que puedas resolver mirando la pantalla no lo preguntas.
   · speak, solo para un aviso que no necesita respuesta (algo va a tardar). No narres cada paso.
-  · Cuando el objetivo esté cumplido, responde SOLO con texto, sin llamar funciones, y empieza por el resultado:
+  · Lo que hace una llamada lo ves en la <pantalla> del turno siguiente: en la respuesta que lleva llamadas no describes lo que pasó, no lo das por hecho y no escribes el texto final.
+  · Si la persona nombró un navegador, la búsqueda se hace en ese navegador (lo abres y escribes en su barra), no con web_search.
+  · Cuando la <pantalla> que te llegó muestre el objetivo cumplido, responde SOLO con texto, sin llamar funciones, y empieza por el resultado:
     – Si era una acción: en pasado y corto, con lo que comprobaste en la pantalla («Quedó la alarma de las 7»), más lo que arriba se manda decir al terminar (lo que elegiste, lo que quedó vacío, lo crítico, lo que falta, la pregunta de cierre). Si la herramienta trabaja sin pantalla (el portapapeles, el volumen), lo compruebas en lo que te devolvió.
     – Si te pidieron información o un texto (qué dice un correo, los comparendos, una carta): lo das completo, sin relleno.
     – Lo que la persona dijo de sí misma se lo devuelves en segunda persona («Le avisé a Ana que llegas tarde», o «que llega tarde» si le hablas de usted); en el mensaje que escribes en su nombre va como lo diría ella («Llego tarde»).

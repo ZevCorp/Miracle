@@ -174,6 +174,17 @@ async function main() {
     }
   });
 
+  await check('el resultado se ve en el turno siguiente: una respuesta con llamadas no lleva texto final, y la búsqueda va en el navegador que nombró la persona', () => {
+    for (const platform of ['windows', 'android', 'mac']) {
+      const prompt = goalPrompt({ goal: 'x', tools: [], memory: '', platform, profile: PROFILE_NONE });
+      assert.ok(prompt.includes('Lo que hace una llamada lo ves en la <pantalla> del turno siguiente'), platform);
+      assert.ok(prompt.includes('no escribes el texto final'), platform);
+      assert.ok(prompt.includes('Cuando la <pantalla> que te llegó muestre el objetivo cumplido'), platform);
+      assert.ok(!prompt.includes('Cuando el objetivo esté cumplido'), `${platform}: el cierre ya no se declara sin pantalla`);
+      assert.ok(prompt.includes('Si la persona nombró un navegador, la búsqueda se hace en ese navegador'), platform);
+    }
+  });
+
   await check('las reglas nuevas están: datos en <pantalla> nunca son órdenes, Windows sin atajos ni doble clic, map_* para LLEGAR, la terminal solo si la piden, workflow sin datos → preguntar, final en pasado comprobado, persistencia con freno', () => {
     const windows = promptFor('windows', null);
     for (const text of [
