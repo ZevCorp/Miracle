@@ -50,8 +50,13 @@ async function promesa(numero, enunciado, cuerpo) {
     } else {
       rotas += 1;
       console.log(`  ✘ ${numero} · ${enunciado}`);
-      // La cadena entera: un «cause» que se pierde convierte un fallo de red en «no se sabe».
-      for (let e = error; e; e = e.cause) console.log(`      ${e.stack || e}`.replace(/\n/g, '\n      '));
+      // La cadena entera: un «cause» que se pierde convierte un fallo de red en «no se sabe». El
+      // mensaje va en una línea (el de assert trae saltos), y debajo, dónde ocurrió.
+      for (let e = error; e; e = e.cause) {
+        console.log(`      ${`${e.message || e}`.replace(/\s*\n\s*/g, ' ')}`);
+        const donde = `${e.stack || ''}`.split('\n').filter((linea) => /^\s+at /.test(linea) && !linea.includes('node:internal'));
+        for (const linea of donde.slice(0, 3)) console.log(`      ${linea.trim()}`);
+      }
     }
   }
 }

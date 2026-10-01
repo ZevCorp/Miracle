@@ -117,13 +117,21 @@ async function correrTodos(jueces) {
 const MARCA = /^\s*(✔|✘|⧗ PENDIENTE|⏭)\s+(\d+)\s+·\s*(.*)$/u;
 const ESTADO = { '✔': 'ok', '✘': 'rota', '⧗ PENDIENTE': 'pendiente', '⏭': 'saltada' };
 
+// El detalle de una marca son las líneas que le siguen, hasta la siguiente marca o una línea vacía.
 function marcasDe(resultado) {
   const marcas = new Map();
-  const lineas = resultado.salida.split(/\r?\n/);
-  lineas.forEach((linea, i) => {
+  let actual = null;
+  for (const linea of resultado.salida.split(/\r?\n/)) {
     const m = MARCA.exec(linea);
-    if (m) marcas.set(Number(m[2]), { estado: ESTADO[m[1]], enunciado: m[3], detalle: (lineas[i + 1] || '').trim() });
-  });
+    if (m) {
+      actual = { estado: ESTADO[m[1]], enunciado: m[3], detalle: [] };
+      marcas.set(Number(m[2]), actual);
+    } else if (!linea.trim()) {
+      actual = null;
+    } else if (actual && actual.detalle.length < 8) {
+      actual.detalle.push(`      ${linea.trim()}`);
+    }
+  }
   return marcas;
 }
 
@@ -152,7 +160,7 @@ async function main() {
   for (const nombre of fuera.keys()) {
     if (!enDisco.includes(nombre)) errores.push(`«Fuera del contrato» nombra ${nombre}, que no existe en scripts/`);
   }
-  if (errores.length) noSePudoJuzgar(`${errores.length} juez(ces) o fila(s) sin pareja entre scripts/ y docs/specs/*.md`, errores);
+  if (errores.length) noSePudoJuzgar(`scripts/ y docs/specs/*.md no cuadran: ${errores.length} problema(s), arriba.`, errores);
 
   const aJuzgar = vivas.filter((fila) => !filtros.length || filtros.some((filtro) => fila.juez.includes(filtro)));
   if (!aJuzgar.length) noSePudoJuzgar(`ningún juez se llama como «${filtros.join('», «')}»`);
@@ -171,7 +179,7 @@ async function main() {
       if (!numerosVivos.has(numero)) errores.push(`${juez} juzga la promesa ${numero}, que no es fila de ninguna spec`);
     }
   }
-  if (errores.length) noSePudoJuzgar(`${errores.length} promesa(s) juzgada(s) sin fila en docs/specs/*.md`, errores);
+  if (errores.length) noSePudoJuzgar(`scripts/ y docs/specs/*.md no cuadran: ${errores.length} problema(s), arriba.`, errores);
 
   let rotas = 0;
   const saltadas = [];
@@ -196,14 +204,15 @@ async function main() {
         console.log(verde(`  ✔ ${etiqueta}`));
       } else if (marca.estado === 'saltada') {
         saltadas.push(fila.numero);
-        console.log(gris(`  ⏭ ${etiqueta}\n      ${marca.detalle}`));
+        console.log(gris(`  ⏭ ${etiqueta}\n${marca.detalle.join('\n')}`));
       } else if (marca.estado === 'pendiente') {
         rotas += 1;
-        console.log(ambar(`  ⧗ PENDIENTE ${etiqueta}\n      ${marca.detalle}`));
+        console.log(ambar(`  ⧗ PENDIENTE ${etiqueta}`));
+        console.log(gris(marca.detalle.join('\n')));
       } else {
         rotas += 1;
         console.log(rojo(`  ✘ ${etiqueta}`));
-        console.log(gris(cola(resultado.salida)));
+        console.log(gris(marca.detalle.join('\n')));
       }
     } else if (!fila.heredada) {
       rotas += 1;
