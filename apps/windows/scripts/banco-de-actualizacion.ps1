@@ -127,6 +127,14 @@ function Corre([string]$Escenario) { return ($Solo.Count -eq 0) -or ($Solo -cont
 try {
     if (-not (Get-Command vpk -ErrorAction SilentlyContinue)) { throw 'falta vpk: dotnet tool install -g vpk' }
     New-Item -ItemType Directory -Force -Path $Banco | Out-Null
+    # UN BANCO A LA VEZ. Dos corridas comparten la instalacion y los feeds: la segunda le borra el suelo a la
+    # primera y un escenario sale MAL sin que el codigo tenga nada que ver (2026-10-01, el S9, por lanzarlo dos veces).
+    $cerrojo = Join-Path $Banco 'banco.lock'
+    if (Test-Path $cerrojo) {
+        $otro = 0; [void][int]::TryParse((Get-Content $cerrojo -Raw).Trim(), [ref]$otro)
+        if ($otro -gt 0 -and (Get-Process -Id $otro -ErrorAction SilentlyContinue)) { throw "ya hay un banco corriendo en $Banco (proceso $otro): espera a que termine" }
+    }
+    Set-Content -Path $cerrojo -Value $PID -Encoding ascii
     Matar
     Write-Host '1/2 compilando la sonda con el modulo de actualizacion de la rama...' -ForegroundColor Cyan
     Publicar $Pub
@@ -234,4 +242,5 @@ $resultados | Format-Table -AutoSize -Wrap | Out-String -Width 220 | Write-Host
 $mal = @($resultados | Where-Object Veredicto -eq 'MAL').Count
 $color = if ($mal -eq 0) { 'Green' } else { 'Red' }
 Write-Host "BANCO: $($resultados.Count - $mal) de $($resultados.Count) escenarios bien$(if ($Viejo) { ' (modo VIEJO: se esperan 5 MAL - S2 S5 S6 S7 S8)' })" -ForegroundColor $color
+Borrar (Join-Path $Banco 'banco.lock')
 exit $mal
