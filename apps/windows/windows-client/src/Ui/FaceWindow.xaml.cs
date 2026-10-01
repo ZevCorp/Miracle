@@ -219,7 +219,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         Senalador.Senala += (caja, _) => Dispatcher.BeginInvoke(() => Visitar(caja));
         // Y A LO QUE Ü PULSA (promesa 504): el ciclo rápido, la mano rápida y la escalera avisan por el mismo pulso, con la
         // caja del elemento y después del clic. Se atiende con BeginInvoke: quien pulsa no espera a la carita.
-        U.Graph.Surfaces.UiaSurface.Pulso += (x, y, w, h) => Dispatcher.BeginInvoke(() => Visitar(new Rect(x, y, w, h)));
+        U.Graph.Surfaces.UiaSurface.Pulso += (x, y, w, h) => Dispatcher.BeginInvoke(() => Visitar(new Rect(x, y, w, h), pulsa: true));
         // Y NINGUNA MANO PULSA SOBRE Ü (promesa 510): la escalera, la mano rápida y los toques de computer-use miran con la
         // misma regla que el ciclo rápido antes de cada clic físico.
         U.Graph.Surfaces.UiaSurface.LibrarElPunto = LibrarElPuntoDeUnClic;
@@ -1197,9 +1197,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 // El globo NO desaparece: sigue abriéndose donde hay algo que leer (una pregunta,
                 // una narración, un fallo) y por el atajo de escribirle. Lo que se quita es que la
                 // voz lo abra por su cuenta.
-                // La boca la mueve el audio EN VIVO, que no pasa por VoiceIO: sin esto el gesto
-                // quedaba dibujado y sin nadie que lo moviera (2026-08-05).
-                ActualizarBoca();
+                // El audio EN VIVO no pasa por VoiceIO: sin esto nadie volvía a mirar qué cara toca
+                // mientras Ü habla (2026-08-05).
+                ActualizarElPulsoDeLaVoz();
                 // Y el halo. Al colgar se apaga solo: lee _vivo.Viva y no depende de dónde esté el
                 // ratón —con el botón del collar no hay ratón de por medio—. Con las pastillas, quien
                 // lo apagaba era apartar el ratón, y por eso se quedaba encendido para siempre.
@@ -1466,7 +1466,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         LoadSounds();
         WireFaceGestures();
         ApplyTheme(Enum.TryParse(_config.FaceTheme, out FaceTheme t) ? t : FaceTheme.Light);
-        Face.StartIdle();          // gestos casuales: parpadeo, mirada, pulso
+        Face.StartIdle();          // lo que hace sola: parpadear y, muy de vez en cuando, saludar
         CollapsedFace.StartIdle();
 
         // SE ARRANCA EN LA CARITA, no en la barra. Abrir la aplicación desplegaba las siete
@@ -2683,8 +2683,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         double nivel = viva ? _vivo!.NivelVoz : 0.18;
         bool collar = viva && _vivo!.PorElCollar;
         VoiceHaloColor.Color = ReglaDelHalo.ColorParaEstado(collar, _actualizando);
-        VoiceHalo.Opacity = ReglaDelHalo.Opacidad(nivel, _bocaPaso);
-        VoiceHaloEscala.ScaleX = VoiceHaloEscala.ScaleY = ReglaDelHalo.Escala(nivel, _bocaPaso);
+        VoiceHalo.Opacity = ReglaDelHalo.Opacidad(nivel, _pasoDeLaVoz);
+        VoiceHaloEscala.ScaleX = VoiceHaloEscala.ScaleY = ReglaDelHalo.Escala(nivel, _pasoDeLaVoz);
     }
 
     // --- Temas de la carita: se alternan manteniéndola oprimida (claro → oscuro → transparente) ---
@@ -2787,6 +2787,15 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // apagada —la red va detrás—, y el carrillón se deja para cuando la estela ya se pintó: pedirle a
         // Windows que suene es trabajo del mismo hilo que tiene que pintarla, y iba delante.
         OnMic(this, new RoutedEventArgs());
+
+        // EL TOQUE SE CONTESTA CON EL CUERPO (spec 052, promesa 447). Los gestos de la carita responden a lo
+        // que pasa, no a un reloj: prenderle o apagarle la voz —tocándola, con el doble Ctrl, con el collar o
+        // con la onda, que todos entran por aquí— la hace rebotar. Detrás de la voz por lo mismo que el
+        // carrillón: nada se pone delante del primer clic. Y a las dos, porque es un solo dibujo en dos
+        // sitios y solo se ve la que está a la vista.
+        Face.Pulse();
+        CollapsedFace.Pulse();
+        LogBus.Log("ui-anim", "toque: la carita rebota");
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, PlayChime);
     }
 
@@ -4836,7 +4845,11 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// aquí (promesa 505): la regla la vuelve fantasma ANTES de volar, la posa al lado y nunca encima (506), y la trae
     /// sola a casa (507). La caja llega en píxeles físicos, como la da UIA.
     /// </summary>
-    private void Visitar(Rect fisico)
+    /// <param name="pulsa">
+    /// Ü lo PULSÓ, no solo lo señala. Los dos avisos entran por aquí, y solo el pulso es un clic: al posarse, la carita
+    /// lo presiona con la mano de ese lado (spec 052, promesa 446 — «cuando haga clic, que saque las manos y haga el clic»).
+    /// </param>
+    private void Visitar(Rect fisico, bool pulsa = false)
     {
         try
         {
@@ -4847,15 +4860,30 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // SEÑALAR VARIAS EMITE LAS DOS SEÑALES. Senalador avisa de «estas seis» y acto seguido de «la principal es
             // esta», y las dos llegan a la carita: el recorrido arrancaba y el aviso siguiente lo sustituía por un viaje
             // corriente a la primera (2026-08-07). Los ojos sí miran; lo que se ignora es el movimiento, que ya lleva la ruta.
+            var desde = new Point(Left, Top);
+            bool fue = false;
             if (_recorridoReciénLanzado) _recorridoReciénLanzado = false;
-            else if (_visita.Visitar(d.Elemento, new Point(Left, Top), TamañoDeLaCarita, d.Area))
+            else if (fue = _visita.Visitar(d.Elemento, desde, TamañoDeLaCarita, d.Area))
                 LogBus.Log("ui-anim", $"visita «{d.Elemento.X:0},{d.Elemento.Y:0} {d.Elemento.Width:0}x{d.Elemento.Height:0}»");
             else
                 LogBus.Log("ui-anim", $"visita: no cabe junto a {d.Elemento.X:0},{d.Elemento.Y:0} {d.Elemento.Width:0}x{d.Elemento.Height:0} sin taparlo: no vuela");
 
-            // Y los ojos hacia él, desde donde se posa: si queda a su derecha, mira a la izquierda.
+            // Y la cabeza hacia él, desde donde se posa: si queda a su derecha, mira a la izquierda.
             if (ReglaDeLaVisita.Junto(d.Elemento, TamañoDeLaCarita, d.Area) is { } posada)
-                CollapsedFace?.MirarHacia(d.Elemento.X + d.Elemento.Width / 2 < posada.X + TamañoDeLaCarita.Width / 2);
+            {
+                bool izquierda = d.Elemento.X + d.Elemento.Width / 2 < posada.X + TamañoDeLaCarita.Width / 2;
+                CollapsedFace?.MirarHacia(izquierda);
+
+                // LA MANO SALE AL POSARSE, no por el camino: el clic de verdad ya salió (promesa 504, el ciclo no espera
+                // a la carita), y el gesto lo cuenta en cuanto llega. Solo si fue: una carita que no cabe junto al
+                // elemento se quedó donde estaba, y presionar el aire desde lejos no dice nada.
+                if (pulsa && fue)
+                {
+                    var llega = EstanciaDeLaCarita.CuantoTarda(desde, posada);
+                    CollapsedFace?.Presionar(izquierda, llega);
+                    LogBus.Log("ui-anim", $"presiona a la {(izquierda ? "izquierda" : "derecha")}: la mano sale al posarse, en {llega.TotalMilliseconds:0} ms");
+                }
+            }
         }
         // UN FALLO DE LA VISITA NO ES UN FALLO DEL CLIC. Esto corre desde un BeginInvoke: sin este catch, la excepción
         // subiría al manejador de la app, que abre el diálogo de «Ü tropezó» encima de lo que Ü está pulsando.
@@ -5182,119 +5210,69 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         Face.Mood = mood;
         CollapsedFace.Mood = mood;
         UpdateChip(mood);
-        ActualizarBoca();
+        ActualizarElPulsoDeLaVoz();
     });
 
     /// <summary>
-    /// ¿Hay que estar moviendo la boca? Dos voces distintas pueden estar hablando y la carita no
-    /// tiene por qué saber cuál.
-    ///
-    /// La de Windows avisa por <see cref="FaceMood.Hablando"/>; la de la conversación en vivo NO
-    /// pasa por ahí —su audio sale por otro sitio— y ese fue el fallo: la boca estaba dibujada y
-    /// nadie la movía, porque el único disparador miraba a la voz vieja (2026-08-05).
+    /// ¿Hay que estar siguiendo la voz? Mientras haya una conversación viva o Ü esté hablando.
     /// </summary>
-    private void ActualizarBoca() =>
-        MoverLaBoca(_mood == FaceMood.Hablando || _vivo?.Viva == true);
+    private void ActualizarElPulsoDeLaVoz() =>
+        SeguirLaVoz(_mood == FaceMood.Hablando || _vivo?.Viva == true);
 
-    // ── La boca, mientras habla ───────────────────────────────────────────────────────────────
+    // ── El pulso de la voz ────────────────────────────────────────────────────────────────────
 
-    private System.Windows.Threading.DispatcherTimer? _boca;
-    private double _bocaAbierta;
-    private int _bocaPaso;
+    private System.Windows.Threading.DispatcherTimer? _pulsoDeLaVoz;
+    private int _pasoDeLaVoz;
 
     /// <summary>La última vez que se oyó algo por el altavoz. Sostiene el estado «hablando» durante
     /// los silencios cortos de dentro de una frase.</summary>
     private DateTime _ultimoSonido = DateTime.MinValue;
 
     /// <summary>
-    /// Abre y cierra la boca al ritmo de lo que se está diciendo.
+    /// Mientras hay voz, vuelve a mirar cada 60 ms qué cara toca y cómo late el halo.
     ///
-    /// El movimiento sale del VOLUMEN REAL de la voz, no de un bucle de animación: una boca que se
-    /// mueve sola mientras suena una frase acaba desincronizada de ella y se nota enseguida —es la
-    /// diferencia entre un muñeco que habla y uno al que le suena un altavoz detrás—. Ese volumen ya
-    /// lo mide la capa de voz para otra cosa (no confundir su propio eco con el usuario), así que
-    /// aquí se aprovecha en vez de medirlo por segunda vez.
-    ///
-    /// Cuando no hay sesión viva —la voz vieja de Windows no da nivel— se cae a un vaivén, que es
-    /// mejor que una boca quieta mientras se oye hablar.
-    ///
-    /// 16 cuadros por segundo y no 60: la boca cambia de FORMA, así que cada cuadro es un repintado
-    /// de la carita entera, y esto solo puede correr mientras habla. A 16 el habla ya se lee como
-    /// habla —el cine mudo iba a esa velocidad— y cuesta la cuarta parte.
+    /// AQUÍ SE MOVÍA LA BOCA, y ya no (spec 052, promesa 448). Este reloj abría y cerraba una boca
+    /// rellena siguiendo el volumen de la voz, 16 veces por segundo, con un vaivén de mentira para la voz
+    /// que no da nivel. El dueño la juzgó tres veces mirándola —«horrible», «extremadamente horrible»— y
+    /// se borró entera. Lo que queda es lo que el reloj hacía de paso y sí hace falta: en una
+    /// conversación en vivo se alterna entre hablar y callar sin que nadie más lo avise, así que alguien
+    /// tiene que preguntar. La cara de hablar es una sonrisa más ancha, a la que la carita llega sola
+    /// (<see cref="FaceControl.Llegada"/>); el nivel de la voz se ve en el halo.
     /// </summary>
-    private void MoverLaBoca(bool hablando)
+    private void SeguirLaVoz(bool hayVoz)
     {
-        if (!hablando)
+        if (!hayVoz)
         {
-            _boca?.Stop();
-            _boca = null;
-            _bocaAbierta = 0;
-            Face.MouthOpen = 0;
-            CollapsedFace.MouthOpen = 0;
+            _pulsoDeLaVoz?.Stop();
+            _pulsoDeLaVoz = null;
             return;
         }
-        if (_boca != null) return;
+        if (_pulsoDeLaVoz != null) return;
 
-        _boca = new System.Windows.Threading.DispatcherTimer(
+        _pulsoDeLaVoz = new System.Windows.Threading.DispatcherTimer(
             System.Windows.Threading.DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(60) };
-        _boca.Tick += (_, __) =>
+        _pulsoDeLaVoz.Tick += (_, __) =>
         {
-            _bocaPaso++;
+            _pasoDeLaVoz++;
             bool enVivo = _vivo?.Viva == true;
 
-            // LA BOCA TIENE QUE SABER PARARSE SOLA. Al temporizador solo lo apagaba RefreshMood, y
-            // a RefreshMood solo se le llamaba desde aquí abajo MIENTRAS había sesión viva. Si la
-            // sesión moría con la cara en «Hablando» —que es exactamente lo que pasa al cortarla a
-            // media frase, o al decirle «cállate»— nadie volvía a evaluar el estado: el temporizador
-            // seguía corriendo, se quedaba sin nivel al que seguir y caía al vaivén de más abajo.
-            // La boca se movía sola, en silencio, hasta que otra cosa cambiara el ánimo
-            // (2026-08-15, visto por el usuario: «cuando se queda ya callado la boca se sigue
-            // moviendo sola»). Depender de que otro se dé cuenta era el fallo; ahora se comprueba
-            // aquí, que es el único sitio que sigue vivo cuando todo lo demás se apagó.
+            // EL RELOJ TIENE QUE SABER PARARSE SOLO. Lo apagaba RefreshMood, y a RefreshMood solo se le
+            // llamaba desde aquí abajo MIENTRAS había sesión viva. Si la sesión moría con la cara en
+            // «Hablando» —que es lo que pasa al cortarla a media frase, o al decirle «cállate»— nadie
+            // volvía a evaluar el estado y la carita se quedaba con cara de hablar, en silencio
+            // (2026-08-15, visto por el usuario). Depender de que otro se dé cuenta era el fallo; ahora
+            // se comprueba aquí, que es el único sitio que sigue vivo cuando todo lo demás se apagó.
             if (!enVivo && !_voice.Activity.Hablando)
             {
-                MoverLaBoca(false);   // se para y cierra la boca; Stop() impide otro tick
+                SeguirLaVoz(false);   // se para; Stop() impide otro tick
                 RefreshMood();        // y se corrige el ánimo, que se quedó en «Hablando»
                 return;
             }
 
-            // CON NIVEL REAL, EL SILENCIO CIERRA LA BOCA. Caer al vaivén cuando el nivel es bajo
-            // haría que la carita moviera los labios durante las pausas de la conversación —y en una
-            // conversación se calla más de lo que se habla—, que es peor que no moverlos: parece que
-            // dice cosas que no dice. El vaivén es solo para la voz de Windows, que no da nivel.
-            double objetivo;
-            if (enVivo)
-            {
-                // Se estira porque la voz normal vive en la parte baja de la escala: una boca que
-                // solo se abre en los gritos no parece que hable.
-                double nivel = _vivo!.NivelVoz;
-                objetivo = nivel <= 0.004 ? 0 : Math.Min(1, Math.Pow(nivel, 0.55) * 1.45);
-            }
-            else
-            {
-                objetivo = 0.35 + 0.30 * Math.Sin(_bocaPaso * 0.9) + 0.15 * Math.Sin(_bocaPaso * 2.3);
-            }
-
-            // Se persigue el objetivo en vez de saltar a él: los labios tienen inercia, y sin esto
-            // la boca parpadea entre abierta y cerrada como un interruptor.
-            _bocaAbierta += (Math.Max(0, Math.Min(1, objetivo)) - _bocaAbierta) * 0.55;
-
-            // Redondeado a centésimas: por debajo de eso no se ve nada y solo serían repintados.
-            double abierta = Math.Round(_bocaAbierta, 2);
-            // La forma acompaña pero no va a la par: abrir mucho tiende a «a», poco a «o», y una
-            // onda lenta desempata para que no salga siempre la misma cara.
-            double redonda = Math.Round(Math.Max(0, Math.Min(1,
-                (1 - abierta) * 0.7 + 0.3 * (0.5 + 0.5 * Math.Sin(_bocaPaso * 0.37)))), 2);
-
-            if (Math.Abs(Face.MouthOpen - abierta) >= 0.01) { Face.MouthOpen = abierta; CollapsedFace.MouthOpen = abierta; }
-            if (Math.Abs(Face.MouthRound - redonda) >= 0.02) { Face.MouthRound = redonda; CollapsedFace.MouthRound = redonda; }
-
-            // Y que el resto de la cara acompañe: en vivo se alterna entre hablar y escuchar sin que
-            // nadie más lo avise. RefreshMood no hace nada si el estado no cambió, así que llamarla
-            // en cada cuadro sale gratis.
-            if (_vivo?.Viva == true || _actualizando) { RefreshMood(); PintarHalo(); }
+            // RefreshMood no hace nada si el estado no cambió, así que llamarla en cada tick sale gratis.
+            if (enVivo || _actualizando) { RefreshMood(); PintarHalo(); }
         };
-        _boca.Start();
+        _pulsoDeLaVoz.Start();
     }
 
     /// <summary>
