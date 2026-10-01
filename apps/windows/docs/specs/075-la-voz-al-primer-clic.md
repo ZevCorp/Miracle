@@ -1,6 +1,6 @@
 # Plan de implementación: la voz se enciende y se apaga al primer clic
 
-Estado: **implementado; medido sobre el PC real, pendiente de que el dueño lo pruebe hablando** (2026-10-01) · Rama: `jose/la-voz-al-primer-clic`
+Estado: **implementado y en `main`** (2026-10-01, PR #149); medido sobre el PC real, pendiente de que el dueño lo pruebe hablando · Rama: `jose/la-voz-al-primer-clic`, ya cerrada
 
 ## Diagnóstico: qué se midió
 
@@ -264,4 +264,6 @@ propósito, con un guion que falla a gritos si un sabotaje no llega a aplicarse.
 - [x] `.\scripts\verificar.ps1` pasa los niveles 1 y 2. Los escenarios (nivel 3) no se corrieron: no hay ninguno de la voz
 - [x] Probado sobre el PC real con el juez de fuera: rondas y ráfagas, antes y después. Una pantalla: la carita suelta
 - [ ] El dueño lo probó hablando
-- [ ] PR a `main`: la rama está commiteada en local, sin empujar
+- [x] En `main` desde el 2026-10-01: PR #149, squash `4e925cc0`, con el CI en verde. `main` se trajo
+      a la rama dos veces antes de entrar (388/388 y 46/46 tras la primera; portero y CI en verde tras
+      la segunda). El juez de fuera no volvió a correr sobre lo mezclado: el PC no estuvo quieto
