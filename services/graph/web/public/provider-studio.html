@@ -1040,7 +1040,8 @@
           if (compuerta.encendida) {
             els.gateRow.setAttribute('data-tone', 'success');
             els.gateTitle.textContent = 'Compuerta puesta · clave «' + puestas.join('», «') + '»';
-            detalle = 'La clave del instalador, sola, solo sirve para presentarse. Entra quien esté aprobada aquí arriba.';
+            detalle = 'La clave del instalador, sola, solo sirve para presentarse. Entra quien esté aprobada aquí arriba, '
+              + 'y las claves de OpenAI y TypeSafe solo se le entregan a una instalación aprobada.';
             els.gateButton.textContent = 'Apagar la compuerta';
           } else {
             els.gateRow.setAttribute('data-tone', 'warning');
@@ -1102,7 +1103,9 @@
           const etiquetas = Array.isArray(compuerta.etiquetas_de_las_instalaciones) ? compuerta.etiquetas_de_las_instalaciones : [];
           if (!etiquetas.length) return;
           const pregunta = '¿Encender la compuerta para la clave «' + etiquetas.join('», «') + '»? Desde ese momento solo entran las instalaciones '
-            + 'aprobadas. Las pendientes, y las Ü que aún no se han actualizado y no saben presentarse, se quedan fuera.';
+            + 'aprobadas. Las pendientes, y las Ü que aún no se han actualizado y no saben presentarse, se quedan fuera.\n\n'
+            + 'Además, las claves de OpenAI y TypeSafe dejan de entregarse a las demás API keys (Mac, Android, la extensión…). '
+            + 'Si alguna las necesita, su etiqueta va en AGENT_KEYS_ALLOWED_LABELS.';
           if (!window.confirm(pregunta)) return;
           mandarCompuerta(etiquetas, false);
         }
