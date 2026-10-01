@@ -216,10 +216,13 @@ else
       echo
       continue
     fi
-    # En un push de varias ramas, la que no toca este proyecto no tiene nada que juzgar aquí.
+    # Lo que se empuja no cambia nada de lo que decide el veredicto: solo documentación, o nada de
+    # este proyecto (otra rama del mismo push). Compilar y juzgar daría lo mismo que en main, que ya
+    # pasó su compuerta, y un .md no tiene por qué costar dos minutos de compilación. Si git no
+    # puede comparar, no se salta nada: se juzga.
     if git -C "$raiz" rev-parse -q --verify origin/main > /dev/null \
-       && git -C "$proyecto" diff --quiet "origin/main...$local_sha" -- . 2> /dev/null; then
-      gris "  ·  no toca $NOMBRE"
+       && git -C "$proyecto" diff --quiet "origin/main...$local_sha" -- "${JUICIO[@]}" 2> /dev/null; then
+      gris "  ·  no toca nada que cambie el veredicto de $NOMBRE: no se compila ni se juzga"
       echo
       continue
     fi

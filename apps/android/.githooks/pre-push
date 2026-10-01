@@ -186,6 +186,17 @@ else
       echo
       continue
     fi
+    # Un empuje que solo trae documentación o reglas para agentes no cambia lo que se compila ni lo
+    # que se juzga, y no tiene por qué exigir el SDK de Android: en el monorepo, quien corrige un .md
+    # de aquí puede no tenerlo (2026-09-30). El CI tampoco compila por un .md. Si git no puede
+    # comparar, no se salta nada.
+    if git rev-parse -q --verify origin/main > /dev/null \
+       && cambia="$(git diff --name-only "origin/main...$local_sha" -- "${pro:-.}" ":(exclude)${p}*.md" ":(exclude)${p}.claude" 2> /dev/null)" \
+       && [ -z "$cambia" ]; then
+      gris "  ·  no toca nada que se compile ni se juzgue en Android (solo documentación o reglas)"
+      echo
+      continue
+    fi
     # Un mismo sha empujado a dos refs se compila una vez; el test propio depende de la rama.
     case "$juzgados" in
       *" $local_sha "*) gris "  ·  compila y contrato: ya juzgado arriba" ;;

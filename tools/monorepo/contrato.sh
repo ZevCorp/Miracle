@@ -246,7 +246,10 @@ m5() {
 m6() {
   git branch -q jose/otra origin/main
   printf 'refs/heads/jose/otra %s refs/heads/jose/otra %s\n' "$(git rev-parse jose/otra)" "$CERO" | $portero > "$tmp/out" 2>&1 || { cat "$tmp/out"; falla "una rama que no toca el proyecto no pasó"; }
-  grep -q "no toca Juguete" "$tmp/out" || falla "juzgó una rama que no toca el proyecto"
+  grep -q "no toca nada que cambie el veredicto" "$tmp/out" || falla "juzgó una rama que no toca el proyecto"
+  echo nota >> README.md; commit "solo la raíz"
+  echo "CONTRATO ROTO" > "$tmp/no-importa"
+  empuja jose/motor > "$tmp/out" 2>&1 || { cat "$tmp/out"; falla "una rama cuyo único cambio nuevo está fuera del proyecto dejó de pasar"; }
 }
 
 promesa 21 "a main no se empuja directo" m1
@@ -254,7 +257,7 @@ promesa 22 "un contrato roto no pasa, y uno intacto sí" m2
 promesa 23 "un juez que no dice su veredicto no pasa, aunque salga con 0" m3
 promesa 24 "una rama que cambia código sin traer promesa no pasa; refactor/ queda exenta" m4
 promesa 25 "se juzga el commit que se empuja: un arreglo sin commitear no le da verde a un commit roto" m5
-promesa 26 "en un push de varias ramas, la que no toca el proyecto no se juzga" m6
+promesa 26 "una rama que no toca nada del veredicto del proyecto no se compila ni se juzga" m6
 
 echo
 if [ "$rotas" -eq 0 ]; then
