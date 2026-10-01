@@ -56,7 +56,7 @@ public static class ArranqueDeActualizacion
         try
         {
             // El feed no importa: de este gestor solo se usa lo que hay en el disco.
-            var gestor = new UpdateManager("https://github.com/ZevCorp/U-Windows-App");
+            var gestor = new UpdateManager(Updater.RepoDeHoy);
             if (!gestor.IsInstalled || gestor.CurrentVersion == null) return;
 
             RastroDeActualizacion.RutaDelLog = Path.Combine(logsDeVelopack, $"velopack_{gestor.AppId}.log");

@@ -36,7 +36,9 @@ public sealed class Updater
     public static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(30);
 
     private UpdateManager _mgr;
-    private readonly string _feedUrl;
+    private string _feedUrl;
+    /// <summary>Los otros nombres del repositorio que quedan por probar si GitHub dice que éste no existe.</summary>
+    private readonly Queue<string> _otrosNombres;
     private readonly string _carpetaDelRastro;
     /// <summary>¿Se le está presentando a GitHub el token embebido? Deja de ser cierto si lo rechaza.</summary>
     private bool _conToken;
@@ -61,9 +63,10 @@ public sealed class Updater
     /// </param>
     public Updater(string feedUrl, string carpetaDelRastro)
     {
-        _feedUrl = feedUrl.TrimEnd('/');
+        _otrosNombres = new Queue<string>(NombresDelFeed(feedUrl));
+        _feedUrl = _otrosNombres.Dequeue();
         _carpetaDelRastro = carpetaDelRastro;
-        _conToken = EsRepositorioDeGithub(feedUrl) && TokenDeLectura() != null;
+        _conToken = EsRepositorioDeGithub(_feedUrl) && TokenDeLectura() != null;
         // Sin canal explícito a propósito: Velopack usa el mismo con el que se empaquetó ("win"), y
         // pasarle uno distinto haría que pidiera un releases.<canal>.json que no existe → 404.
         //
@@ -76,9 +79,50 @@ public sealed class Updater
         //
         // Se conserva el camino de carpeta estática, y no se sustituye: es el que sirve para
         // publicar en cualquier sitio sin credenciales, y el que usan las pruebas locales.
-        _mgr = EsRepositorioDeGithub(feedUrl)
-            ? new UpdateManager(new Velopack.Sources.GithubSource(feedUrl, TokenDeLectura(), prerelease: false))
-            : new UpdateManager(feedUrl);
+        _mgr = Gestor();
+    }
+
+    /// <summary>El gestor de Velopack para el feed y el token de este momento: los dos pueden cambiar tras un rechazo.</summary>
+    private UpdateManager Gestor() => EsRepositorioDeGithub(_feedUrl)
+        ? new UpdateManager(new Velopack.Sources.GithubSource(_feedUrl, _conToken ? TokenDeLectura() : null, prerelease: false))
+        : new UpdateManager(_feedUrl);
+
+    /// <summary>El repositorio donde se publican las versiones, con el nombre que tiene hoy.</summary>
+    public const string RepoDeHoy = "https://github.com/ZevCorp/Miracle";
+
+    /// <summary>
+    /// Los nombres que el repositorio tuvo antes. Se llamó «U-Windows-App» hasta el 2026-10-01, cuando ya
+    /// era el monorepo de todo Miracle y el nombre decía otra cosa.
+    /// </summary>
+    public static readonly string[] NombresAnteriores = { "https://github.com/ZevCorp/U-Windows-App" };
+
+    /// <summary>
+    /// Por qué nombres se busca un feed, en orden: primero el que se pide, y si es NUESTRO repositorio,
+    /// después sus otros nombres. Una carpeta o un repositorio puesto a mano no tienen otros nombres.
+    /// </summary>
+    /// <remarks>
+    /// GitHub redirige el nombre viejo de un repositorio renombrado, así que con eso bastaría si el
+    /// cambio de nombre y la versión que lo conoce salieran siempre en el mismo orden. No se puede
+    /// prometer: una versión con el nombre nuevo publicada ANTES del cambio preguntaría por un
+    /// repositorio que no existe (404) y dejaría de actualizarse justo ella. Probando los dos nombres,
+    /// el orden da igual — y si un día se deshace el cambio, también.
+    /// </remarks>
+    public static IReadOnlyList<string> NombresDelFeed(string feed)
+    {
+        string pedido = (feed ?? "").Trim().TrimEnd('/');
+        var nuestros = new[] { RepoDeHoy }.Concat(NombresAnteriores).ToList();
+        string? canonico = nuestros.FirstOrDefault(n => n.Equals(pedido, StringComparison.OrdinalIgnoreCase));
+        if (canonico == null) return new[] { pedido };
+        return new[] { canonico }.Concat(nuestros.Where(n => n != canonico)).ToList();
+    }
+
+    /// <summary>¿Dice GitHub que el repositorio no existe? Solo un 404: lo demás no es cosa del nombre.</summary>
+    public static bool SeBuscaPorOtroNombre(Exception e)
+    {
+        for (Exception? x = e; x != null; x = x.InnerException)
+            if (x is HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound })
+                return true;
+        return false;
     }
 
     private static bool EsRepositorioDeGithub(string url) =>
@@ -164,14 +208,37 @@ public sealed class Updater
     /// <summary>Buscar en el feed, y si GitHub rechaza el token, otra vez sin él.</summary>
     private async Task<UpdateInfo?> ComprobarAsync()
     {
-        try { return await _mgr.CheckForUpdatesAsync(); }
-        catch (Exception e) when (SeReintentaSinToken(e, _conToken))
+        // Como mucho un replanteo por cada cosa que se puede replantear: el token y cada nombre.
+        for (int vuelta = 0; ; vuelta++)
+        {
+            try { return await _mgr.CheckForUpdatesAsync(); }
+            catch (Exception e) when (vuelta < 4 && Replantear(e)) { }
+        }
+    }
+
+    /// <summary>
+    /// Tras un rechazo de GitHub, ¿hay otra forma de preguntar? Sin el token, o por otro nombre del
+    /// repositorio. Deja el gestor listo para el reintento y dice qué cambió.
+    /// </summary>
+    private bool Replantear(Exception e)
+    {
+        if (SeReintentaSinToken(e, _conToken))
         {
             LogBus.Log("update", "GitHub rechazó el token embebido: de aquí en adelante busco sin token (60 peticiones por hora en vez de 5000)");
             _conToken = false;
-            _mgr = new UpdateManager(new Velopack.Sources.GithubSource(_feedUrl, null, prerelease: false));
-            return await _mgr.CheckForUpdatesAsync();
+            _mgr = Gestor();
+            return true;
         }
+        if (SeBuscaPorOtroNombre(e) && _otrosNombres.Count > 0)
+        {
+            string antes = _feedUrl;
+            _feedUrl = _otrosNombres.Dequeue();
+            _conToken = TokenDeLectura() != null;   // el token es del repositorio, no del nombre: se vuelve a probar con él
+            LogBus.Log("update", $"GitHub dice que {antes} no existe: busco las versiones en {_feedUrl}");
+            _mgr = Gestor();
+            return true;
+        }
+        return false;
     }
 
     private async Task PollLoopAsync()

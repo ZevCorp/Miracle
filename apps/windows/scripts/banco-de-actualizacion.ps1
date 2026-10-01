@@ -219,6 +219,15 @@ if ($ConGitHub -and (Corre 'S10')) {
     $rechazo = Linea 'GitHub rechaz'; $alDia = Linea 'update: al d.a'
     Anotar 'S10' 'token embebido que GitHub rechaza' ([bool]$rechazo -and [bool]$alDia) "dijo: $rechazo // $alDia $(Linea 'no se pudo comprobar')"
 }
+if ($ConGitHub -and (Corre 'S11')) {
+    # El repositorio cambio de nombre el 2026-10-01. La app pregunta por el nombre de hoy y, si GitHub dice
+    # que no existe (404), por el anterior: asi da igual en que orden salgan el cambio y la version.
+    # Mientras los dos nombres resuelvan, este escenario solo comprueba que el feed de verdad contesta.
+    Preparar 'quieto' 'https://github.com/ZevCorp/Miracle'
+    Lanzar; $null = Esperar 'update: (al d.a|no se pudo comprobar)' 45
+    $alDia = Linea 'update: al d.a'
+    Anotar 'S11' 'el feed de GitHub contesta por el nombre de hoy o por el anterior' ([bool]$alDia) "dijo: $(Linea 'GitHub dice que') // $alDia $(Linea 'no se pudo comprobar')"
+}
 Matar
 
 $resultados | Format-Table -AutoSize -Wrap | Out-String -Width 220 | Write-Host

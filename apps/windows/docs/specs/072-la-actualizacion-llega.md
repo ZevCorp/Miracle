@@ -47,6 +47,13 @@ promesa que la juzga. Cada fase empieza con el contrato ROTO y termina con el co
 | 643 | si GitHub rechaza el token embebido (401 o 403), Ü busca la actualización sin token en vez de rendirse; cualquier otro fallo —sin red, 404, 500— no pasa por ese camino | 4 |
 | 644 | abrir Ü por segunda vez no mata a la que ya está trabajando: al arrancar, la actualización descargada se aplica solo si no hay otra Ü viva de la misma instalación —la ruta se compara sin mirar mayúsculas, y una Ü de otra carpeta no cuenta—; y tras un intento que acaba de fallar no se reintenta en ese mismo arranque, para no entrar en bucle | 5 |
 
+| 645 | el feed se busca por el nombre nuevo del repositorio y, si GitHub contesta que no existe (404), por el anterior; una dirección guardada con un nombre viejo pasa a la nueva al cargar, y una puesta a mano se respeta | 8 |
+| 646 | el botón de actualizar del panel hace el trabajo entero con un toque: con una versión lista la aplica, sin ella busca, descarga y aplica, y mientras trabaja un segundo toque no hace nada; su dibujo dice el estado —en reposo, trabajando, hay versión— y cada desenlace tiene su frase, también la del intento que no llegó a aplicarse | 7 |
+
+Y una que cambia de enunciado: la **620** (spec 071) decía «tres botones y nada más». El dueño pidió
+el cuarto el 2026-10-01 —«un icono con buen estilo como el del último panel, para que los usuarios
+actualicen la app»— y ahora dice cuatro. El número se queda.
+
 **La que cierra el asunto es la 640**: quita la causa. La 641 es la que impide que la próxima causa,
 la que todavía no conocemos, vuelva a pasar meses en silencio.
 
@@ -73,13 +80,19 @@ la que todavía no conocemos, vuelva a pasar meses en silencio.
 | 5 | 644 | `Update/ArranqueDeActualizacion.cs` (nuevo), `App.Main`, `GuardiaDeInstancia` usa la misma identidad | 1 |
 | 6 | — (pipeline) | `windows-release.yml`: baja la release anterior para el delta, sella la versión; `WindowsAppReleaseService` y Provider Studio mandan `user_message`; `RELEASING-WINDOWS.md` | — |
 
+| 7 | 646, 620 | `Update/BotonDeActualizar.cs` (nuevo), `FaceWindow.xaml` y su código: un botón fijo en el óvalo, y fuera la pastilla ⬇ | 2 puertas para lo mismo (🔄 y ⬇) pasan a 1 |
+| 8 | 645 | `Updater` (nombres del feed), `Config` (migración), y la documentación que nombra el repo | 3 sitios con la dirección escrita |
+
 Ninguna toca el núcleo congelado.
 
 ## Lo que NO entra
 
-- **Cuándo y cómo se le propone a la persona actualizar** (aplicar sola cuando Ü lleva rato quieta,
-  qué dice la pastilla tras un intento fallido, el botón 🔄). El dueño lo pidió para después de que
-  el mecanismo sea fiable; aquí el mecanismo aplica cuando se le pide y dice la verdad de cómo salió.
+- **Aplicar sola cuando Ü lleva rato quieta.** Un equipo donde Ü no se cierra nunca sigue necesitando
+  que alguien pulse el botón, que se enciende cuando hay versión. Reiniciar Ü sin que nadie lo pida
+  exige saber con certeza que no está grabando una consulta ni en mitad de una tarea, y eso no está
+  medido: se queda fuera hasta medirlo.
+- **Que la narración de la versión no se corte.** Ü dice qué trae la versión y reinicia a los 2,2 s;
+  con la voz abierta, la frase no llega a terminar.
 - **Sacar los datos de la persona de la raíz de Velopack.** Lecciones, skills, recuerdos y logs viven
   en `%LOCALAPPDATA%\U`, que es la carpeta que el desinstalador borra entera. Es un hallazgo serio
   (ver abajo) y es otra rama: mudar datos de sitio necesita su propia migración.

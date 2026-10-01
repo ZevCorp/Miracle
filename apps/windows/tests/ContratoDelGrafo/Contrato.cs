@@ -968,7 +968,9 @@ internal static class Contrato
         // falle: callarse un almacén, enseñar como vacío uno que no pudo leer, o enseñar la clave que vive
         // en el mismo archivo que el nombre. Por eso lo que se juzga es lo que la ventana va a pintar.
         Console.WriteLine();
-        Prueba("620. el panel en reposo ofrece tres botones y nada más: «Memoria», el collar y el de cambiar de lado; Learn, Work, Subir y Jev ya no están en él", ElPanelTieneTresBotones);
+        // La 620 nació con «tres botones». El 2026-10-01 el dueño pidió el cuarto, el de actualizar, con el dibujo
+        // del mismo lápiz que los otros (spec 072): el enunciado cambia con él, y el número se queda.
+        Prueba("620. el panel en reposo ofrece cuatro botones y nada más: «Memoria», el collar, el de actualizar y el de cambiar de lado; Learn, Work, Subir y Jev ya no están en él", ElPanelTieneTresBotones);
         Prueba("621. lo que salió del panel no se pierde: subir estudios y encender Jev siguen teniendo su puerta en el panel de desarrollo, con el mismo manejador", LoQueSalioDelPanelNoSePierde);
         Prueba("622. la Memoria cuenta TODO lo que Ü guarda de ti: cada almacén tiene su apartado con su cuenta, y un almacén sin nada dice «todavía nada» en vez de desaparecer", LaMemoriaCuentaTodoLoGuardado);
         Prueba("623. un almacén que no se pudo leer dice que no se pudo leer y por qué; no se enseña como vacío", LoQueNoSePudoLeerSeDice);
@@ -994,6 +996,11 @@ internal static class Contrato
         Prueba("642. la versión que Ü declara es la instalada: la de Velopack cuando hay instalación y la del ensamblado solo cuando no la hay; vacío no es ausente, y sin ninguna de las dos dice «dev»", LaVersionDeclaradaEsLaInstalada);
         Prueba("643. si GitHub rechaza el token embebido (401 o 403), Ü busca la actualización sin token en vez de rendirse; cualquier otro fallo —sin red, 404, 500— no pasa por ese camino", UnTokenRechazadoNoDejaSinActualizar);
         Prueba("644. abrir Ü por segunda vez no mata a la que ya está trabajando: al arrancar, la actualización descargada se aplica solo si no hay otra Ü viva de la misma instalación —la ruta se compara sin mirar mayúsculas, y una Ü de otra carpeta no cuenta—; y tras un intento que acaba de fallar no se reintenta en ese mismo arranque, para no entrar en bucle", AbrirOtraVezNoMataALaQueTrabaja);
+        // EL REPO CAMBIA DE NOMBRE (2026-10-01): es un monorepo y ya no se llama «U-Windows-App». Las Ü instaladas
+        // llevan escrito el nombre viejo; GitHub lo redirige, pero una versión que no supiera caer al otro nombre
+        // dependería de que el cambio y la versión salieran en un orden exacto.
+        Prueba("645. el feed se busca por el nombre nuevo del repositorio y, si GitHub contesta que no existe (404), por el anterior; una dirección guardada con un nombre viejo pasa a la nueva al cargar, y una puesta a mano se respeta", ElFeedSobreviveAlCambioDeNombre);
+        Prueba("646. el botón de actualizar del panel hace el trabajo entero con un toque: con una versión lista la aplica, sin ella busca, descarga y aplica, y mientras trabaja un segundo toque no hace nada; su dibujo dice el estado —en reposo, trabajando, hay versión— y cada desenlace tiene su frase, también la del intento que no llegó a aplicarse", ElBotonDeActualizarHaceElTrabajoEntero);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -11242,6 +11249,127 @@ internal static class Contrato
         Debe(!Aplica(hayPendiente: false, acabaDeFallar: false, hayOtraViva: false), "y sin nada descargado no hay nada que aplicar");
     }
 
+    /// <summary>Promesa 645.</summary>
+    private static void ElFeedSobreviveAlCambioDeNombre()
+    {
+        var up = Capacidad("U.WindowsClient.Update.Updater");
+        var nombres = up?.GetMethod("NombresDelFeed", new[] { typeof(string) });
+        var porOtro = up?.GetMethod("SeBuscaPorOtroNombre", new[] { typeof(Exception) });
+        if (nombres == null || porOtro == null) { Pendiente("Update.Updater.NombresDelFeed/SeBuscaPorOtroNombre", "645", "072"); return; }
+        List<string> Nombres(string feed) => ((IEnumerable<string>)nombres.Invoke(null, new object[] { feed })!).ToList();
+        bool PorOtro(Exception e) => (bool)porOtro.Invoke(null, new object[] { e })!;
+        static HttpRequestException Http(HttpStatusCode? codigo) => new("Response status code does not indicate success.", null, codigo);
+
+        const string nuevo = "https://github.com/ZevCorp/Miracle", viejo = "https://github.com/ZevCorp/U-Windows-App";
+        var delNuevo = Nombres(nuevo);
+        Debe(delNuevo.Count == 2 && delNuevo[0] == nuevo && delNuevo[1] == viejo,
+            $"con el nombre nuevo se prueba primero ése y después el anterior: {string.Join(" → ", delNuevo)}");
+        var delViejo = Nombres(viejo + "/");
+        Debe(delViejo.Count == 2 && delViejo[0] == viejo && delViejo[1] == nuevo,
+            $"quien todavía trae el viejo —con su barra final— lo prueba primero y luego el nuevo, sin repetirse: {string.Join(" → ", delViejo)}");
+        Debe(Nombres("https://github.com/otra/cosa").SequenceEqual(new[] { "https://github.com/otra/cosa" }),
+            "un repositorio puesto a mano no tiene otros nombres: no se le cambia por el nuestro");
+        Debe(Nombres(@"C:\feed").SequenceEqual(new[] { @"C:\feed" }), "y una carpeta tampoco: es lo que usan las pruebas locales");
+
+        Debe(PorOtro(Http(HttpStatusCode.NotFound)), "un 404 del repositorio se busca por el otro nombre");
+        Debe(PorOtro(new InvalidOperationException("envuelta", Http(HttpStatusCode.NotFound))), "aunque llegue envuelto");
+        Debe(!PorOtro(Http(HttpStatusCode.Unauthorized)) && !PorOtro(Http(HttpStatusCode.InternalServerError)) && !PorOtro(Http(null)),
+            "un 401, un 500 o no tener red no son cosa del nombre: probar el otro solo gastaría peticiones");
+
+        // LO GUARDADO. config.json lleva escrita la dirección con la que nació cada instalación: sin migrarla, la
+        // versión nueva seguiría preguntando por el nombre viejo para siempre, y sin el token tras la redirección.
+        string? antes = Environment.GetEnvironmentVariable("U_DATA_DIR");
+        string tmp = Path.Combine(_raiz, "feed-renombrado");
+        try
+        {
+            Environment.SetEnvironmentVariable("U_DATA_DIR", tmp);
+            string cfg = U.WindowsClient.Config.Archivo;
+            Directory.CreateDirectory(Path.GetDirectoryName(cfg)!);
+            string Cargar(string? guardada)
+            {
+                File.WriteAllText(cfg, guardada == null ? "{}" : JsonSerializer.Serialize(new { UpdateFeedUrl = guardada }));
+                return U.WindowsClient.Config.Load().UpdateFeedUrl;
+            }
+            Debe(Cargar(null) == nuevo, $"una instalación nueva nace con el nombre nuevo: {Cargar(null)}");
+            Debe(Cargar(viejo) == nuevo && Cargar(viejo.ToUpperInvariant() + "/") == nuevo,
+                "la dirección guardada con el nombre anterior pasa a la nueva al cargar, también con otras mayúsculas y barra final");
+            Debe(Cargar("https://zyvfamlhlmztliexvmej.supabase.co/storage/v1/object/public/windows") == nuevo,
+                "y la del bucket de Supabase, que fue la primera, también llega a la de hoy y no a la de en medio");
+            Debe(Cargar("https://github.com/otra/cosa") == "https://github.com/otra/cosa" && Cargar(@"C:\feed") == @"C:\feed",
+                "una dirección puesta a mano se respeta");
+        }
+        finally { Environment.SetEnvironmentVariable("U_DATA_DIR", antes); }
+    }
+
+    /// <summary>Promesa 646.</summary>
+    private static void ElBotonDeActualizarHaceElTrabajoEntero()
+    {
+        var t = Capacidad("U.WindowsClient.Update.BotonDeActualizar");
+        var estado = t?.GetMethod("Estado", new[] { typeof(bool), typeof(bool) });
+        var alPulsar = t?.GetMethod("AlPulsar");
+        var deLaBusqueda = t?.GetMethod("FraseDeLaBusqueda");
+        var delIntento = t?.GetMethod("FraseDelIntento");
+        var tBusqueda = Capacidad("U.WindowsClient.Update.Updater+Busqueda");
+        if (estado == null || alPulsar == null || deLaBusqueda == null || delIntento == null || tBusqueda == null)
+        { Pendiente("Update.BotonDeActualizar.Estado/AlPulsar/FraseDeLaBusqueda/FraseDelIntento", "646", "072"); return; }
+        object Estado(bool hayVersionLista, bool trabajando) => estado.Invoke(null, new object[] { hayVersionLista, trabajando })!;
+        string Gesto(object e) => alPulsar.Invoke(null, new[] { e })!.ToString()!;
+        string Frase(string que, string detalle) => (string)deLaBusqueda.Invoke(null, new object[] { Enum.Parse(tBusqueda, que), detalle })!;
+
+        // UN TOQUE, EL TRABAJO ENTERO. Hasta hoy eran dos botones en dos sitios: 🔄 buscaba y ⬇ aplicaba, y el
+        // segundo solo existía a ratos. «No hay un botón confiable para actualizar», dijo el dueño.
+        Debe(Estado(false, false).ToString() == "EnReposo" && Gesto(Estado(false, false)) == "BuscarYAplicar",
+            "en reposo, pulsarlo busca, descarga y aplica: no hace falta saber si hay versión para pedirla");
+        Debe(Estado(true, false).ToString() == "HayVersionLista" && Gesto(Estado(true, false)) == "Aplicar",
+            "con una versión ya descargada, la aplica sin volver a buscar");
+        Debe(Estado(false, true).ToString() == "Trabajando" && Estado(true, true).ToString() == "Trabajando"
+             && Gesto(Estado(true, true)) == "Nada",
+            "mientras trabaja lo dice, y un segundo toque no hace nada: un botón que no responde se pulsa tres veces");
+
+        // CADA DESENLACE, SU FRASE, y para una persona: ni «Update.exe» ni el nombre de una excepción.
+        string alDia = Frase("AlDia", "1.3.7"), noAplica = Frase("NoAplica", "x"), fallo = Frase("Fallo", "Host desconocido. (api.github.com:443)");
+        Debe(alDia.Contains("1.3.7") && new[] { alDia, noAplica, fallo }.Distinct().Count() == 3,
+            $"al día dice con qué versión, y las tres frases son distintas: «{alDia}» · «{noAplica}» · «{fallo}»");
+        Debe(!fallo.Contains("api.github.com") && !fallo.Contains("Exception"), "la de no haber podido buscar no le enseña a la persona la dirección ni el error crudo");
+
+        var rastro = Capacidad("U.WindowsClient.Update.RastroDeActualizacion");
+        var anotar = rastro?.GetMethod("Anotar", new[] { typeof(string), typeof(string), typeof(string), typeof(string) });
+        var juzgar = rastro?.GetMethod("Juzgar", new[] { typeof(string), typeof(string), typeof(string) });
+        if (anotar == null || juzgar == null) { Pendiente("Update.RastroDeActualizacion", "646", "072"); return; }
+        string carpeta = Path.Combine(_raiz, "boton-de-actualizar");
+        Directory.CreateDirectory(carpeta);
+        object Veredicto(string actual, string? log)
+        {
+            anotar.Invoke(null, new object[] { carpeta, "1.3.7", "1.3.8", "pastilla" });
+            return juzgar.Invoke(null, new object?[] { carpeta, actual, log })!;
+        }
+        string DelIntento(object v) => (string)delIntento.Invoke(null, new[] { v })!;
+
+        string bloqueada = DelIntento(Veredicto("1.3.7", LogDeVelopackQueNoPudoRenombrar));
+        string sinCausa = DelIntento(Veredicto("1.3.7", null));
+        string llego = DelIntento(Veredicto("1.3.8", null));
+        Debe(bloqueada.Contains("1.3.8") && !bloqueada.Contains("Update.exe") && !bloqueada.Contains("Apply error"),
+            $"el intento que no se aplicó dice qué versión no pudo instalar, sin el error crudo del actualizador: «{bloqueada}»");
+        Debe(bloqueada != sinCausa && !string.IsNullOrWhiteSpace(sinCausa),
+            "y no afirma «otro programa tiene abierta mi carpeta» cuando el log no lo dice");
+        Debe(llego.Contains("1.3.8") && llego != bloqueada, $"el que sí llegó lo cuenta al volver: «{llego}»");
+
+        // [cableado] El óvalo tiene UNA puerta para actualizar, dibujada con el lápiz de las otras.
+        var (vista, codigo) = FuentesDeLaCarita();
+        if (vista == null) return;
+        var panel = ConNombre(vista, "BarPanel");
+        var boton = panel == null ? null : ConNombre(panel, "ActualizarBtn");
+        Debe(boton != null, "[cableado] el botón de actualizar vive en el óvalo");
+        if (boton == null) return;
+        Debe((string?)boton.Attribute("Click") == "OnActualizar", "[cableado] y pulsarlo llama a su manejador");
+        Debe(boton.Attribute("Content") == null && boton.Descendants().Any(e => e.Name.LocalName == "Path"),
+            "[cableado] está dibujado con trazos, no con un emoji: un emoji trae su propio color y su propio peso");
+        Debe(panel!.Descendants().All(e => NombreDe(e) != "UpdateBtn"),
+            "[cableado] la pastilla ⬇ de antes ya no está: dos botones para lo mismo es no saber cuál pulsar");
+        Debe(codigo.Contains("BotonDeActualizar.AlPulsar(") && codigo.Contains("BotonDeActualizar.Estado("),
+            "[cableado] la ventana no decide por su cuenta: pregunta a la regla qué toca hacer y cómo pintarse");
+    }
+
     private static void LaZonaDelNotchMantieneLaIntencion()
     {
         var t = Capacidad("U.WindowsClient.Ui.ReglaDeLaBandeja");
@@ -12529,8 +12657,11 @@ internal static class Contrato
             .Where(b => aRatos == null || !b.Ancestors().Contains(aRatos))
             .Where(b => (string?)b.Attribute("Visibility") != "Collapsed")
             .Select(NombreDe).ToList();
-        Debe(enReposo.Count == 3 && enReposo.Contains("MemoriaBtn") && enReposo.Contains("CollarModoBtn") && enReposo.Contains("LadoBtn"),
-            $"en reposo se ven tres botones —Memoria, el collar y el de lado—: hay {enReposo.Count} ({string.Join(", ", enReposo)})");
+        Debe(enReposo.Count == 4 && enReposo.Contains("MemoriaBtn") && enReposo.Contains("CollarModoBtn")
+             && enReposo.Contains("ActualizarBtn") && enReposo.Contains("LadoBtn"),
+            $"en reposo se ven cuatro botones —Memoria, el collar, el de actualizar y el de lado—: hay {enReposo.Count} ({string.Join(", ", enReposo)})");
+        Debe(enReposo.IndexOf("CollarModoBtn") < enReposo.IndexOf("ActualizarBtn") && enReposo.IndexOf("ActualizarBtn") < enReposo.IndexOf("LadoBtn"),
+            "el de actualizar va entre el collar y el de lado: abajo queda lo que menos se usa");
         foreach (string ido in new[] { "LearnBtn", "WorkBtn", "SubirBtn", "JevBtn" })
             Debe(ConNombre(panel, ido) == null, $"«{ido}» ya no vive en el óvalo");
 

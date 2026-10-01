@@ -21,7 +21,9 @@ instalados. El equivalente de [`apps/android/RELEASING.md`](../android/RELEASING
 - **Cada intento deja rastro.** El arranque siguiente escribe en el log `actualización aplicada: X → Y`
   o `la actualización NO se aplicó`, con la línea de error de `Update.exe`. Si un equipo no se
   actualiza, esa línea dice por qué (spec 072).
-- El feed son las **releases de este repo** (`ZevCorp/U-Windows-App`). Publicar = lanzar el workflow.
+- El feed son las **releases de este repo** (`ZevCorp/Miracle`; se llamó `U-Windows-App` hasta el
+  2026-10-01 y GitHub redirige el nombre viejo, que es el que llevan escrito las versiones
+  anteriores a la 1.3.7). Publicar = lanzar el workflow.
 - Las descargas son **deltas** para quien va una versión por detrás: unos 11 MB en vez de 77. Quien
   lleve dos o más baja el paquete completo; Velopack cae solo a él. Hasta la 1.3.6 no hubo deltas: el
   workflow no bajaba la release anterior antes de empaquetar, aunque este documento decía que sí.

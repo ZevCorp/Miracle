@@ -55,7 +55,7 @@ promesa que la juzga. Cada fase empieza con el contrato ROTO y termina con el co
 
 | # | Promesa | Fase que la pone verde |
 |---|---|---|
-| 620 | el panel en reposo ofrece tres botones y nada más: «Memoria», el collar y el de cambiar de lado; Learn, Work, Subir y Jev ya no están en él *(nació como «dos puertas»; el dueño pidió el tercero el mismo día, antes de que llegara a `main`)* | 3 y 5 |
+| 620 | el panel en reposo ofrece cuatro botones y nada más: «Memoria», el collar, el de actualizar y el de cambiar de lado; Learn, Work, Subir y Jev ya no están en él *(nació como «dos puertas»; el dueño pidió el tercero el mismo día, antes de que llegara a `main`, y el cuarto —actualizar— el 2026-10-01, con la spec 072)* | 3 y 5 |
 | 621 | lo que salió del panel no se pierde: subir estudios y encender Jev siguen teniendo su puerta en el panel de desarrollo, con el mismo manejador | 3 |
 | 622 | la Memoria cuenta TODO lo que Ü guarda de ti: cada almacén tiene su apartado con su cuenta, y un almacén sin nada dice «todavía nada» en vez de desaparecer | 1 |
 | 623 | un almacén que no se pudo leer dice que no se pudo leer y por qué; no se enseña como vacío | 1 |
