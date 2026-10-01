@@ -11,6 +11,7 @@
 #     preparar() { npm ci --no-audit --no-fund; }       # opcional: lo que pide un árbol recién sacado
 #     compilar() { :; }                                 # opcional: nivel 1
 #     juzgar()   { node scripts/contrato.js; }          # nivel 2: imprime el veredicto
+#     unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE     # dentro de un gancho, git los trae puestos
 #     . "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/monorepo/portero.sh"
 #
 # Las rutas son pathspecs de git relativos a la carpeta del proyecto, y las funciones corren con
@@ -249,7 +250,8 @@ else
             printf '%s\n' "$pendiente" | head -3 | sed 's/^/       /'
           fi
           arbol="$tmp/arbol-${local_sha:0:12}"
-          if git -C "$raiz" worktree add --detach --quiet "$arbol" "$local_sha" > "$tmp/worktree.log" 2>&1; then
+          # core.longpaths: en Windows, un TEMP largo más una ruta honda del repo pasa de 260 caracteres.
+          if git -C "$raiz" -c core.longpaths=true worktree add --detach --quiet "$arbol" "$local_sha" > "$tmp/worktree.log" 2>&1; then
             if (cd "$arbol/$pro" && preparar) > "$tmp/preparar.log" 2>&1; then
               construir "$arbol/$pro" "$tmp/build-${local_sha:0:12}.log"
             else

@@ -27,4 +27,8 @@ else
   juzgar()   { bash contrato.sh --cruce; }
 fi
 
+# Dentro de un gancho, git trae GIT_DIR puesto, y con él `rev-parse --show-toplevel` contesta la
+# carpeta actual en vez de la raíz del repo. Así falló el primer empuje real (2026-09-30), después
+# de pasar todos los simulados.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 . "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/monorepo/portero.sh"

@@ -50,6 +50,7 @@ CODIGO=('src')
 PROMESAS=('pruebas')
 DONDE_PROMESAS="en pruebas/"
 juzgar() { cat veredicto.txt; }
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 . "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/monorepo/portero.sh"
 EOF
 echo "CONTRATO INTACTO: 1 promesas." > apps/juguete/veredicto.txt
@@ -252,12 +253,35 @@ m6() {
   empuja jose/motor > "$tmp/out" 2>&1 || { cat "$tmp/out"; falla "una rama cuyo único cambio nuevo está fuera del proyecto dejó de pasar"; }
 }
 
+m7() {
+  # Hasta aquí el portero se llamó a mano. Git lo llama con su entorno, y desde un árbol de trabajo
+  # enlazado —que es donde trabaja cada agente— ese entorno trae GIT_DIR puesto. Ahí falló el primer
+  # empuje real (2026-09-30): los simulados no lo vieron.
+  printf '#!/usr/bin/env bash
+exec bash apps/juguete/.githooks/pre-push
+' > .githooks/pre-push
+  chmod +x .githooks/pre-push
+  commit "el gancho de verdad"
+  git worktree add -q -b jose/gancho "$tmp/arbol-gancho" jose/motor || falla "no se pudo crear el árbol enlazado"
+  cd "$tmp/arbol-gancho" || falla "no existe el árbol enlazado"
+  echo cambio >> apps/juguete/src/codigo.txt; echo cambio >> apps/juguete/pruebas/promesa.txt
+  commit "código con su promesa"
+  git push -q origin jose/gancho > "$tmp/out" 2>&1 || { cat "$tmp/out"; falla "un push de verdad con el contrato intacto no pasó"; }
+  git ls-remote --exit-code --heads origin jose/gancho > /dev/null 2>&1 || falla "el push no llegó al remoto"
+  antes="$(git ls-remote origin refs/heads/jose/gancho)"
+  echo "CONTRATO ROTO: 1 promesa(s) incumplida(s)." > apps/juguete/veredicto.txt; commit "contrato roto"
+  git push -q origin jose/gancho > "$tmp/out" 2>&1 && falla "un push de verdad con el contrato roto pasó"
+  grep -q "CONTRATO ROTO" "$tmp/out" || { cat "$tmp/out"; falla "el push se detuvo, pero no por el contrato"; }
+  [ "$(git ls-remote origin refs/heads/jose/gancho)" = "$antes" ] || falla "el commit roto llegó al remoto"
+}
+
 promesa 21 "a main no se empuja directo" m1
 promesa 22 "un contrato roto no pasa, y uno intacto sí" m2
 promesa 23 "un juez que no dice su veredicto no pasa, aunque salga con 0" m3
 promesa 24 "una rama que cambia código sin traer promesa no pasa; refactor/ queda exenta" m4
 promesa 25 "se juzga el commit que se empuja: un arreglo sin commitear no le da verde a un commit roto" m5
 promesa 26 "una rama que no toca nada del veredicto del proyecto no se compila ni se juzga" m6
+promesa 27 "llamado por git en un push de verdad desde un árbol enlazado, el portero deja pasar el contrato intacto y frena el roto" m7
 
 echo
 if [ "$rotas" -eq 0 ]; then
