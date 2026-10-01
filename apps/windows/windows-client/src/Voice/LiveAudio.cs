@@ -300,9 +300,21 @@ public sealed class LiveAudio : IDisposable
 
     public void CerrarMicrofono()
     {
+        lock (_candadoDelOido) _cierres++;
         CerrarCollar();
         CerrarLocal();
     }
+
+    /// <summary>
+    /// Cuántas veces se ha colgado. Lo que estaba a medio abrir cuando se colgó —buscar el collar son hasta
+    /// ocho segundos de rastreo— compara este número al llegar, y si cambió no abre nada.
+    /// </summary>
+    /// <remarks>
+    /// Sin esto, encender y apagar enseguida con el collar pedido y fuera de alcance acababa con el micrófono
+    /// del computador abierto y la voz apagada: el rastreo terminaba sin collar DESPUÉS de colgar, y su salida
+    /// de emergencia —«se abre el local»— no miraba si todavía había conversación.
+    /// </remarks>
+    private int _cierres;
 
     // ── La guardia (promesa 665) ─────────────────────────────────────────────
 
@@ -421,14 +433,17 @@ public sealed class LiveAudio : IDisposable
             return;
         }
 
-        bool entrega;
-        lock (_candadoDelOido) { _mic = mic; entrega = _oido.Entrega; }
+        bool entrega, guardia;
+        lock (_candadoDelOido) { _mic = mic; entrega = _oido.Entrega; guardia = _oido.EnGuardia; }
         if (entrega)
         {
             LogBus.Log("voz-viva", $"micrófono abierto a {RitmoEntrada} Hz");
             MicrofonoGrabando?.Invoke(false);
         }
-        else LogBus.Log("voz-viva", "micrófono en guardia: abierto por si llega el clic; lo que capte no se entrega");
+        else if (guardia)
+            LogBus.Log("voz-viva", "micrófono en guardia: abierto por si llega el clic; lo que capte no se entrega");
+        // Si mientras abría dejó de quererse —apagaron, o el ratón se fue—, no está ni oyendo ni en guardia:
+        // no se anuncia como ninguna de las dos cosas. La vuelta siguiente lo cierra, y esa sí deja su línea.
     }
 
     private static void CerrarElDispositivo(WaveInEvent mic)
@@ -473,16 +488,20 @@ public sealed class LiveAudio : IDisposable
     private async Task AbrirCollarAsync()
     {
         // Una búsqueda a la vez: el gesto se puede repetir mientras dura el rastreo.
+        int cierres;
         lock (_candadoDelOido)
         {
             if (_abriendoCollar || _usandoCollar) return;
             _abriendoCollar = true;
+            cierres = _cierres;
         }
 
         try
         {
             if (!CollarPermanente.Conectado && !await CollarPermanente.ConectarAsync())
             {
+                // COLGARON MIENTRAS SE BUSCABA: ya no hay conversación a la que darle un micrófono.
+                lock (_candadoDelOido) { if (_cierres != cierres) return; }
                 // Y SE ABRE EL LOCAL, no se supone que ya estaba: cuando se entra aquí porque el
                 // collar estaba conectado, AbrirMicrofono se lo saltó a propósito. Sin esta línea,
                 // un collar que se cae entre medias deja la conversación sin ningún micrófono.
@@ -491,15 +510,15 @@ public sealed class LiveAudio : IDisposable
                 return;
             }
 
-            CollarPermanente.Capturado += TrozoDelCollar;
-
             // El local se cierra DESPUÉS de que el collar esté entregando, no antes: entre cerrar
             // uno y abrir el otro no puede haber un hueco sin oír a nadie.
             lock (_candadoDelOido)
             {
+                if (_cierres != cierres) return;   // colgaron mientras conectaba: el collar no se engancha a nadie
                 _usandoCollar = true;
                 _relevo = new Relevo(UmbralRelevoMs);
             }
+            CollarPermanente.Capturado += TrozoDelCollar;
             CerrarLocal();
 
             _vigilante = new Timer(_ => Vigilar(), null, 1000, 1000);
@@ -617,9 +636,13 @@ public sealed class LiveAudio : IDisposable
         // alcance es reversible, y sin reintento la única salida era colgar y volver a pedirlo — que
         // desde fuera no se lee como «se cayó», se lee como «esto es inestable» (2026-08-13).
         if (!UsarCollar) return;
+        int cierres;
+        lock (_candadoDelOido) cierres = _cierres;
         _ = Task.Run(async () =>
         {
             await Task.Delay(ReintentoCollarMs);
+            // Diez segundos después puede no haber conversación: si colgaron, no se vuelve a buscar el collar.
+            lock (_candadoDelOido) { if (_cierres != cierres) return; }
             if (UsarCollar && !_usandoCollar) await AbrirCollarAsync();
         });
     }
