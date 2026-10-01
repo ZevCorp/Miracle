@@ -70,6 +70,9 @@ public static class LogBus
     /// <summary>Identidad estable durante la vida de este proceso, visible también en cada línea.</summary>
     public static string InstanceId => _instanceId;
 
+    /// <summary>La carpeta donde se escribe el log de esta instancia.</summary>
+    public static string Carpeta => _logDir;
+
     /// <summary>Ruta del archivo de esta instancia (para abrirlo desde la UI o adjuntarlo a un reporte).</summary>
     public static string TodayFile() => Path.Combine(_logDir, $"u-{DateTime.Now:yyyyMMdd}-{_instanceId}.log");
 

@@ -19,10 +19,13 @@ public sealed class MemoriaPersonal
     public MemoriaPersonal(string userId, string? archivo = null)
     {
         _userId = string.IsNullOrWhiteSpace(userId) ? "anon" : userId.Trim();
-        _archivo = archivo ?? Path.Combine(
-            U.Graph.UserPaths.Roaming,
-            "U", "memoria-personal.json");
+        _archivo = archivo ?? ArchivoPorDefecto;
     }
+
+    /// <summary>Dónde guarda la app. Un solo sitio que lo dice: la Memoria (spec 071) lee de aquí mismo.</summary>
+    public static string ArchivoPorDefecto => Path.Combine(
+        U.Graph.UserPaths.Roaming,
+        "U", "memoria-personal.json");
 
     public Task<Resultado> EjecutarAsync(string command, CancellationToken ct)
     {
