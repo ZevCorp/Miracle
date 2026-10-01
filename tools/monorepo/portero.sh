@@ -7,7 +7,7 @@
 #     CODIGO=('src' 'web/api' 'web/server.js')          # el código de producción
 #     PROMESAS=('scripts/verify-*.js' 'tests')          # lo que cuenta como promesa propia de la rama
 #     DONDE_PROMESAS="un scripts/verify-<slug>.js, con su fila en docs/specs/"
-#     JUICIO=('.' ':(exclude)*.md')                     # lo que cambia el veredicto (por defecto, CODIGO y PROMESAS)
+#     JUICIO=('src' 'scripts' 'docs/specs')             # lo que cambia el veredicto (por defecto, la carpeta entera)
 #     preparar() { npm ci --no-audit --no-fund; }       # opcional: lo que pide un árbol recién sacado
 #     compilar() { :; }                                 # opcional: nivel 1
 #     juzgar()   { node scripts/contrato.js; }          # nivel 2: imprime el veredicto
@@ -45,7 +45,10 @@ gris()  { printf '\033[90m%s\033[0m\n' "$*"; }
 
 : "${VEREDICTO_OK:=CONTRATO INTACTO}"
 # ${JUICIO+x} y no ${#JUICIO[@]}: el bash 3.2 de macOS da «unbound variable» al medir un array sin definir.
-[ -n "${JUICIO+x}" ] || JUICIO=("${CODIGO[@]}" "${PROMESAS[@]}")
+# Sin JUICIO, cuenta la carpeta entera del proyecto: es el valor que no se equivoca. Acotarlo es una
+# optimización que cada proyecto declara sabiendo qué deja fuera (el contrato de la raíz lo cazó el
+# 2026-09-30: con CODIGO y PROMESAS por defecto, un arreglo sin commitear en otro archivo daba verde).
+[ -n "${JUICIO+x}" ] || JUICIO=('.')
 : "${DONDE_PROMESAS:=en el contrato del proyecto}"
 declare -F preparar > /dev/null || preparar() { :; }
 # Un proyecto sin paso de compilación (Graph) no define compilar, y el portero no dice «compila».

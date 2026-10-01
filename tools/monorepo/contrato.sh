@@ -72,14 +72,18 @@ edita() { printf '{"session_id":"%s","tool_name":"Write","tool_input":{"file_pat
 # empuja <rama> [<sha>]: lo que git le pasa al portero por stdin.
 empuja() { printf 'refs/heads/%s %s refs/heads/%s %s\n' "$1" "${2:-$(git rev-parse HEAD)}" "$1" "$CERO" | $portero; }
 commit() { git add -A && git commit -q -m "$1"; }
-falla() { echo "$*"; return 1; }
+# falla corta la promesa AHÍ. Con «return 1» la función seguía, y su veredicto era el de su última
+# línea: el 2026-09-30 siete sabotajes pasaron en verde por eso, hasta que se comprobó cada uno.
+falla() { echo "$*"; : > "$tmp/fallo"; exit 1; }
 
 total=0; rotas=0
 promesa() {  # promesa <n> <enunciado> <función>
   local salida
   total=$((total + 1))
   cd "$clon" || exit 99
-  if salida="$("$3" 2>&1)"; then
+  rm -f "$tmp/fallo"
+  salida="$("$3" 2>&1)"
+  if [ ! -f "$tmp/fallo" ]; then
     verde "  ✔ $1 · $2"
   else
     rotas=$((rotas + 1))
@@ -103,7 +107,6 @@ p3() {
   [ "$codigo" -eq 2 ] || falla "el gancho salió con $codigo, y Claude Code solo frena con 2"
   grep -q "arbol.sh nuevo" "$tmp/err" || falla "el aviso no dice cómo crear un árbol propio"
   edita anf-b ses-b "$clon/apps/juguete/carpeta/nueva/archivo.txt" 2> /dev/null && falla "dejó escribir un archivo nuevo en una carpeta que aún no existe"
-  return 0
 }
 p4() {
   echo tres >> apps/juguete/notas.txt; git add -A
@@ -122,7 +125,6 @@ p7() {
   como anf-a ses-a $arbol tomar > /dev/null || falla "tomar falló"
   edita anf-a ses-a "$clon/apps/juguete/src/codigo.txt" || falla "tras tomar, la sesión sigue sin poder escribir"
   como - - $arbol tomar > /dev/null 2>&1 && falla "una persona, sin sesión, pudo tomar un árbol"
-  return 0
 }
 p8() {
   como anf-c ses-c $arbol nuevo jose/prueba-uno > "$tmp/out" 2>&1 || { cat "$tmp/out"; falla "nuevo falló"; }
@@ -132,10 +134,9 @@ p8() {
   git -C "$tmp/clon-arboles/prueba-uno" rev-parse -q --verify '@{upstream}' > /dev/null 2>&1 && falla "la rama nueva sigue a origin/main"
   edita anf-b ses-b "$tmp/clon-arboles/prueba-uno/apps/juguete/src/codigo.txt" 2> /dev/null && falla "el árbol nuevo no quedó a nombre de quien lo creó"
   como anf-c ses-c $arbol nuevo sin-barra > /dev/null 2>&1 && falla "aceptó una rama sin <persona>/"
-  return 0
 }
 p9() {
-  cd "$tmp/clon-arboles/prueba-uno" || return 1
+  cd "$tmp/clon-arboles/prueba-uno" || falla "no existe el árbol prueba-uno"
   echo cambio >> apps/juguete/src/codigo.txt
   como anf-c ses-c git commit -q -am "trabajo sin mergear" || falla "no se pudo commitear en el árbol propio"
   cd "$clon" && como anf-c ses-c $arbol cerrar jose/prueba-uno > "$tmp/out" 2>&1 && falla "cerró una rama con commits que main no tiene"
@@ -156,15 +157,14 @@ p11() {
   [ ! -d "$tmp/clon-arboles/prueba-uno" ] || falla "el árbol sigue en el disco"
   git rev-parse -q --verify refs/heads/jose/prueba-uno > /dev/null && falla "la rama local sigue ahí"
   git ls-remote --exit-code --heads origin jose/prueba-uno > /dev/null 2>&1 && falla "la rama remota sigue ahí"
-  return 0
 }
 p12() {
   git fetch -q origin && git merge -q --ff-only origin/main
   como anf-d ses-d $arbol nuevo jose/prueba-dos > /dev/null 2>&1 || falla "nuevo falló"
-  cd "$tmp/clon-arboles/prueba-dos" || return 1
+  cd "$tmp/clon-arboles/prueba-dos" || falla "no existe el árbol prueba-dos"
   echo squash >> apps/juguete/src/codigo.txt
   como anf-d ses-d git commit -q -am "lo que se mergeará con squash" || falla "commit"
-  cd "$clon" || return 1
+  cd "$clon" || falla "no existe el clon"
   como anf-d ses-d $arbol cerrar jose/prueba-dos > /dev/null 2>&1 && falla "cerró sin PR mergeado"
   echo "jose/prueba-dos $(git rev-parse jose/prueba-dos) 41" > "$tmp/mergeados"
   ( cd "$tmp/clon-arboles/prueba-dos" && echo posterior >> apps/juguete/src/codigo.txt && como anf-d ses-d git commit -q -am "después del PR" )

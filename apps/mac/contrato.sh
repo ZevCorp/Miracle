@@ -121,10 +121,16 @@ codigo=$?
 
 # Dónde se detuvo: XCTFail escribe «<archivo>.swift:<línea>: <mensaje>», y esa línea cae dentro de
 # una función test…. Sin esa pista (un error lanzado, un crash), no se sabe cuál fue y se dice así.
-fallo="" ; rota=""
-if [ "$codigo" -ne 0 ] || ! grep -qE "^PASS: $llamadas contracts" "$tmp/salida"; then
+
+# Pasó solo si salió con 0 Y escribió su PASS con el recuento de sus llamadas: un corredor que sale
+# con 0 sin decir nada no juzgó (se probó con un swift simulado el 2026-09-30).
+paso=no
+[ "$codigo" -eq 0 ] && grep -qE "^PASS: $llamadas contracts" "$tmp/salida" && paso=si
+fallo=""; rota=""
+if [ "$paso" = no ]; then
   fallo="$(grep -E 'Fatal error|error:' "$tmp/salida" | head -1)"
   [ -n "$fallo" ] || fallo="$(tail -1 "$tmp/salida")"
+  [ -n "$fallo" ] || fallo="el corredor no escribió nada, ni su línea «PASS: $llamadas contracts»"
   archivo="$(printf '%s' "$fallo" | grep -oE '[A-Za-z]+Tests\.swift:[0-9]+' | head -1)"
   if [ -n "$archivo" ]; then
     rota="$(awk -v hasta="${archivo##*:}" 'NR <= hasta && match($0, /func test[A-Za-z0-9_]+/) { f = substr($0, RSTART + 5, RLENGTH - 5) } END { print f }' "$tests/${archivo%%:*}")"
@@ -132,7 +138,7 @@ if [ "$codigo" -ne 0 ] || ! grep -qE "^PASS: $llamadas contracts" "$tmp/salida";
 fi
 
 rotas="$sin_juez"; sin_juzgar=0; estado=ok
-[ -z "$fallo" ] || { [ -n "$rota" ] || estado=perdido; }
+[ "$paso" = si ] || [ -n "$rota" ] || estado=perdido
 # En el orden en que el corredor las llama: las de antes del fallo pasaron, las de después no corrieron.
 while IFS= read -r juez; do
   fila="$(awk -F'\t' -v j="$juez" '$3 == j && $2 !~ /^~~/ { print $1 " · " $2; exit }' "$tmp/filas")"
