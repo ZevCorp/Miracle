@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# EL PORTERO DE GRAPH. Lo llama el despachador de la raíz (.githooks/pre-push) cuando la rama toca
+# services/graph/. Aquí solo se declara lo propio de Graph; las cuatro comprobaciones y el modo de
+# juzgar lo que se empuja son del motor común (tools/monorepo/portero.sh).
+#
+# Graph no compila: su nivel 1 es que el juez pueda cargar sus módulos, y eso ya lo dice el
+# contrato. El contrato entero tarda ~5 s (34 verificaciones, cuatro a la vez; medido el 2026-09-30).
+#
+# Se prueba sin empujar:
+#     printf 'refs/heads/<rama> %s refs/heads/<rama> 0\n' "$(git rev-parse HEAD)" | bash services/graph/.githooks/pre-push
+
+NOMBRE="Graph"
+
+# El código de producción: lo que corre en el servidor. web/public es la interfaz estática, y no
+# pide promesa (como la UI de Windows, se verifica a mano).
+CODIGO=('src' 'api' 'web/api' 'web/server.js' 'supabase/migrations')
+PROMESAS=('scripts/verify-*.js' 'tests')
+DONDE_PROMESAS="un scripts/verify-<slug>.js con su fila en docs/specs/NNN-<slug>.md (plantilla: docs/specs/PLANTILLA.md)"
+
+# Lo que cambia el veredicto: el código, los jueces y las tablas de promesas que el juez cruza.
+JUICIO=('src' 'api' 'web' 'scripts' 'tests' 'docs/specs' 'supabase' 'package.json' 'package-lock.json')
+
+preparar() { npm ci --no-audit --no-fund; }
+juzgar()   { node scripts/contrato.js; }
+
+. "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/monorepo/portero.sh"
