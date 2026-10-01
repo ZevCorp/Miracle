@@ -42,10 +42,14 @@ unido.
 | 609 | Lo mismo en la ventana de consulta de Windows. | `Contrato.cs` |
 
 La vista (pedida el 2026-09-29, a mitad de la rama): en la web, bajo la transcripción, un panel
-«Quién habla» con una fila por turno —avatar y nombre de la voz en su color— y una pastilla por voz
+«Quién habla» con una fila por turno —círculo y nombre de la voz— y una pastilla por voz
 con su parte de lo dicho; en Windows, lo mismo en lugar del texto corrido mientras se graba. La
 parte se mide en **caracteres transcritos**, no en tiempo, y la vista lo dice: el tiempo por voz
 vive en `encounter_metrics` y no llega a la pantalla.
+
+**Monocromática** (corregido el 2026-09-30, tras probarla el dueño): la primera versión daba un color
+a cada voz y competía con el texto. Las voces se distinguen por el número y por el relleno del
+círculo —tinta, papel con borde de tinta, gris—, con la paleta que ya tiene cada interfaz.
 
 ## Fases
 

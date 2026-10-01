@@ -141,17 +141,7 @@
   --spine-empty: #c3ccd9;
   --spine-filled: #2f6fe0;
   --spine-pending: #a34a06;
-
-  /* Voces de la consulta (spec 070): una por «[Hablante N]», en orden fijo y
-     rotando de 6 en 6. Ni success ni danger: una voz no es un estado. */
-  --color-voz-1: #2f6fe0;
-  --color-voz-2: #0f9b6c;
-  --color-voz-3: #7c4ddb;
-  --color-voz-4: #c2620a;
-  --color-voz-5: #c23a7b;
-  --color-voz-6: #0e8a99;
 }
-
 
 
 /* ============================================================
@@ -160,13 +150,6 @@
    ============================================================ */
 :root.dark {
   color-scheme: dark;
-  /* Voces de la consulta (spec 070), aclaradas para el fondo oscuro. */
-  --color-voz-1: #6f9ef0;
-  --color-voz-2: #3cc494;
-  --color-voz-3: #a784f0;
-  --color-voz-4: #e69140;
-  --color-voz-5: #e46ea5;
-  --color-voz-6: #3bbccb;
   --color-canvas: #08111f;
   --color-pearl: #0d1727;
   --color-ice: #1b2d48;
