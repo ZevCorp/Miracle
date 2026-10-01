@@ -943,6 +943,17 @@ internal static class Contrato
         // CUÁNDO, y asomaba en el primer sondeo: subir a una pestaña del navegador lo hacía caer encima
         // de ella. «Que solo aparezca al mantener el mouse allá arriba por 0,5 segs o algo así».
         Prueba("530. el notch se hace esperar: medio segundo con el cursor quieto en la franja de arriba lo asoma, y una sola vez por visita; pasar por ella, recorrerla de lado como quien busca una pestaña o hacer clic dentro no lo asoman, y tras un clic no vuelve hasta salir de la franja", ElNotchSeHaceEsperar);
+
+        // LA ONDA DEL NOTCH PRENDE Y APAGA LA VOZ (spec 065, 2026-09-30). El icono de la izquierda se pintaba
+        // y no se podía pulsar. «Que tenga el mismo funcionamiento que el de mensaje pero para activar y
+        // desactivar la voz (misma acción que cuando hago clic en la carita)». Las 532–535 son de otra rama
+        // sin mergear (exportar al HIS web): no se reciclan.
+        Prueba("540. la onda del notch es un botón como el de mensajes: pulsarla alterna la voz por el mismo camino que el clic en la carita y no abre el chat; su blanco mide lo mismo que el de mensajes sin mover el icono; y, como su clic ya abre o cuelga la voz, el notch lleva el mismo gancho que tira los clics de Ü", LaOndaDelNotchPrendeLaVoz);
+        // Y UN BOTÓN QUE NO SE VE NO ES UN BOTÓN. La primera prueba sobre el PC real (2026-09-30, 22:07) fotografió
+        // un notch recién arrancado: «Ü» en el centro, el de mensajes a la derecha y NADA a la izquierda. El dibujo
+        // solo se ponía al CAMBIAR de estado, y un notch nace en el estado en que ya está.
+        Prueba("541. el icono del notch es siempre el del estado que toca: recién nacido enseña la onda —no un hueco—, y al retirarse vuelve a la onda quieta, no se queda con el dibujo ni con el giro del último paso", ElIconoDelNotchEsElDelEstado);
+
         // 600-609 reservadas el 2026-09-29 para la spec 070 (quién dijo qué), por encima de lo que
         // ya ocupan otras ramas abiertas (hasta la 529). La 600-606 las juzgan Graph y la web.
         Prueba("607. de Soniox, el hablante viaja con el texto hasta el verbatim: una línea «[Hablante N]» cada vez que cambia la voz, numerada por orden de aparición y sin repetirse mientras habla la misma, también en la frase que quedó sin cerrar; sin hablante, el texto de siempre", ElHablanteViajaConElTexto);
@@ -10664,6 +10675,205 @@ internal static class Contrato
         clic(false, new System.Windows.Point(768, 300), false, ms * 5);
         clic(true, arriba, false, ms * 6);
         Debe(clic(true, arriba, false, ms * 7), "pero al salir de la franja y volver, el gesto vuelve a funcionar");
+    }
+
+    /// <summary>Promesa 540.</summary>
+    private static void LaOndaDelNotchPrendeLaVoz()
+    {
+        var t = Capacidad("U.WindowsClient.Ui.PanelDeAcciones");
+        var senal = t?.GetEvent("VozSolicitada");
+        if (t == null || senal == null) { Pendiente("PanelDeAcciones.VozSolicitada (la señal del botón de la onda)", "540", "065"); return; }
+
+        // SE CONSTRUYE EL NOTCH DE VERDAD, sin enseñarlo: el contrato corre en un hilo STA y lo que se
+        // promete es lo que pasa al pulsar, no cómo se llama un método. Si esta máquina no puede ni
+        // construirlo, eso NO es la promesa rota y se dice aparte (aprendizaje nº17).
+        System.Windows.Window notch;
+        try { notch = (System.Windows.Window)Activator.CreateInstance(t)!; }
+        catch (Exception e)
+        {
+            _fallos++;
+            Console.WriteLine("   ⚠ NO PUDE JUZGAR la 540: el notch no se pudo construir en esta máquina.");
+            for (var x = e; x != null; x = x.InnerException) Console.WriteLine($"     {x.GetType().Name}: {x.Message}");
+            return;
+        }
+
+        try
+        {
+            var botones = new List<System.Windows.Controls.Button>();
+            void Recorrer(object nodo)
+            {
+                if (nodo is System.Windows.Controls.Button b) botones.Add(b);
+                if (nodo is not System.Windows.DependencyObject d) return;
+                foreach (object hijo in System.Windows.LogicalTreeHelper.GetChildren(d)) Recorrer(hijo);
+            }
+            Recorrer(notch.Content);
+            System.Windows.Controls.Button? Por(string nombre) =>
+                botones.FirstOrDefault(b => System.Windows.Automation.AutomationProperties.GetName(b) == nombre);
+
+            var voz = Por("Activar o desactivar la voz");
+            var mensajes = Por("Abrir conversación");
+            Debe(mensajes != null, "el botón de mensajes sigue en el notch, con el nombre por el que lo encuentra UIA");
+            Debe(voz != null,
+                "la onda es un botón con nombre —«Activar o desactivar la voz»—: hay "
+                + $"{botones.Count} botón(es) en el notch ({string.Join(" · ", botones.Select(b => "«" + System.Windows.Automation.AutomationProperties.GetName(b) + "»"))}) y ninguno es ese");
+            if (voz == null || mensajes == null) return;
+
+            // PULSARLA: sale la señal UNA vez, y el chat no se abre. El cruce es lo que importa —un botón
+            // nuevo colgado del manejador del vecino pasaría cualquier prueba que solo mirase que existe—.
+            int veces = 0;
+            senal.AddEventHandler(notch, new Action(() => veces++));
+            bool ChatAbierto() => (bool)t.GetProperty("ChatAbierto")!.GetValue(notch)!;
+            voz.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Debe(veces == 1, $"pulsar la onda pide alternar la voz una vez (salió {veces})");
+            Debe(!ChatAbierto(), "y no abre el chat: eso es del otro botón");
+            voz.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Debe(veces == 2, $"pulsarla otra vez lo vuelve a pedir —activar y desactivar son el mismo gesto— (van {veces})");
+
+            // «EL MISMO FUNCIONAMIENTO QUE EL DE MENSAJE»: el mismo blanco, la misma mano, la misma plantilla.
+            Debe(voz.Cursor == mensajes.Cursor && voz.Cursor == System.Windows.Input.Cursors.Hand, "enseña la mano al pasar, como el de mensajes");
+            Debe(voz.Template != null && mensajes.Template != null && voz.Template.TargetType == mensajes.Template.TargetType
+                 && voz.Background == mensajes.Background && voz.BorderThickness == mensajes.BorderThickness,
+                "va vestido como el de mensajes: sin el cromo gris del botón de Windows");
+            Debe(voz.Content is System.Windows.FrameworkElement, "y lo que lleva dentro es el icono del estado, no otro dibujo");
+
+            // SIN MOVER EL ICONO. El blanco crece de 26 a 32 hacia fuera; el dibujo se queda donde estaba —pegado
+            // al inicio de la fila y centrado en el alto— y el blanco no sale recortado por la celda.
+            var raiz = (System.Windows.FrameworkElement)notch.Content;
+            raiz.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+            raiz.Arrange(new System.Windows.Rect(raiz.DesiredSize));
+            raiz.UpdateLayout();
+            var medidas = Capacidad("U.WindowsClient.Ui.MedidaDelNotch")!;
+            double C(string campo) => (double)medidas.GetField(campo, BindingFlags.Public | BindingFlags.Static)!.GetRawConstantValue()!;
+            Debe(Math.Abs(voz.ActualWidth - mensajes.ActualWidth) < 1 && Math.Abs(voz.ActualHeight - mensajes.ActualHeight) < 1
+                 && Math.Abs(voz.ActualWidth - C("CajaDelChat")) < 1,
+                $"el blanco de la onda mide lo mismo que el de mensajes ({voz.ActualWidth}×{voz.ActualHeight} frente a {mensajes.ActualWidth}×{mensajes.ActualHeight})");
+
+            // «NO LO RECORTA» SE MIDE POR LO QUE QUEDA A LA VISTA, no por si hay recorte. La primera versión
+            // exigía que no hubiera ninguno y salió roja sin que faltara un píxel: al 125 % la columna de 26 se
+            // redondea a 25,6, WPF le pone al botón un recorte de 32 × 39,2 y ese recorte lo contiene entero
+            // (medido 2026-09-30). Un recorte que no corta nada no es el fallo; quedarse en 26 de ancho, sí.
+            var recorte = System.Windows.Controls.Primitives.LayoutInformation.GetLayoutClip(voz);
+            var blanco = new System.Windows.Rect(0, 0, voz.ActualWidth, voz.ActualHeight);
+            var aLaVista = recorte == null ? blanco : System.Windows.Rect.Intersect(recorte.Bounds, blanco);
+            Debe(!aLaVista.IsEmpty && aLaVista.Width > blanco.Width - 1 && aLaVista.Height > blanco.Height - 1,
+                $"y cabe entero: la celda del icono no le recorta el blanco (de {blanco.Width:0.#}×{blanco.Height:0.#} quedan a la vista {(aLaVista.IsEmpty ? "0×0" : $"{aLaVista.Width:0.#}×{aLaVista.Height:0.#}")})");
+
+            // Y SE PUEDE PULSAR EN EL BORDE, que es lo que el blanco más grande compra: a un punto de cada
+            // lado del botón, fuera de la caja del icono, lo que hay bajo el cursor sigue siendo la onda.
+            //
+            // POR LA GEOMETRÍA (VisualTreeHelper.HitTest) y no por InputHitTest: una pieza que nunca se enseñó
+            // no cuelga de ninguna ventana viva, WPF la da por no visible e InputHitTest contesta «nada» en
+            // todas partes —en los tres puntos de la onda, centro incluido, medido 2026-09-30—. El de mensajes
+            // va de testigo: si la sonda no lo encuentra a él, la que no puede mirar es la sonda.
+            bool Bajo(System.Windows.Controls.Button boton, double x)
+            {
+                var punto = boton.TranslatePoint(new System.Windows.Point(x, boton.ActualHeight / 2), raiz);
+                System.Windows.DependencyObject? bajo = System.Windows.Media.VisualTreeHelper.HitTest(raiz, punto)?.VisualHit;
+                while (bajo != null && !ReferenceEquals(bajo, boton)) bajo = System.Windows.Media.VisualTreeHelper.GetParent(bajo);
+                return bajo != null;
+            }
+            if (!Bajo(mensajes, mensajes.ActualWidth / 2))
+            {
+                _fallos++;
+                Console.WriteLine("   ⚠ NO PUDE JUZGAR dónde se puede pulsar: la sonda no encuentra ni el botón de mensajes en su propio centro.");
+            }
+            else
+                Debe(Bajo(voz, 1) && Bajo(voz, voz.ActualWidth / 2) && Bajo(voz, voz.ActualWidth - 1),
+                    $"se puede pulsar en todo el blanco, también fuera del dibujo (borde izquierdo: {Bajo(voz, 1)}, centro: {Bajo(voz, voz.ActualWidth / 2)}, borde derecho: {Bajo(voz, voz.ActualWidth - 1)})");
+
+            // UN PUNTO DE HOLGURA en las posiciones, y no medio: con la maquetación redondeada al píxel del
+            // monitor, dos redondeos seguidos pueden sumar casi uno. Mover el icono de verdad son 3 o más.
+            var fila = (System.Windows.FrameworkElement)voz.Parent;
+            var icono = (System.Windows.FrameworkElement)voz.Content;
+            var dondeElIcono = icono.TranslatePoint(new System.Windows.Point(0, 0), fila);
+            var dondeMensajes = mensajes.TranslatePoint(new System.Windows.Point(0, 0), fila);
+            Debe(Math.Abs(dondeElIcono.X) < 1 && Math.Abs(icono.ActualWidth - C("CajaDelIcono")) < 1,
+                $"el icono no se mueve: sigue al inicio de la fila y mide {C("CajaDelIcono")} (está en x={dondeElIcono.X:0.#}, mide {icono.ActualWidth:0.#})");
+            Debe(Math.Abs(dondeElIcono.Y + icono.ActualHeight / 2 - fila.ActualHeight / 2) < 1,
+                $"ni sube ni baja: sigue centrado en el alto (su centro está en y={dondeElIcono.Y + icono.ActualHeight / 2:0.#} de {fila.ActualHeight:0.#})");
+            Debe(Math.Abs(dondeMensajes.X + mensajes.ActualWidth - fila.ActualWidth) < 1,
+                $"y el de mensajes sigue pegado al final de la fila: hacerle sitio a un botón no le quita el suyo al otro (acaba en x={dondeMensajes.X + mensajes.ActualWidth:0.#} de {fila.ActualWidth:0.#})");
+        }
+        finally { notch.Close(); }   // suelta sus relojes: una promesa posterior que bombee el hilo no los hereda
+
+        // [cableado] Lo que no se puede pulsar sin la app entera. Un solo sitio decide qué es «alternar»: el
+        // clic en la carita, el doble Ctrl y el botón del collar ya entran por StartMicByFace, y la onda es el cuarto.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(cara.Contains("SingleTap = StartMicByFace", StringComparison.Ordinal),
+            "[cableado] el clic en la carita ya no entra por StartMicByFace: «el mismo camino» dejó de tener a qué referirse");
+        Debe(cara.Contains("_acciones.VozSolicitada += StartMicByFace", StringComparison.Ordinal),
+            "[cableado] la carita no cuelga la onda del notch del mismo StartMicByFace que su propio clic");
+        if (FuenteDe("windows-client", "src", "Ui", "PanelDeAcciones.cs") is not { } panel) return;
+        Debe(panel.Contains("ToquesDeU.Proteger(this)", StringComparison.Ordinal),
+            "[cableado] el notch abre la voz con un clic y no tiene su propio gancho: un bucle modal se salta el filtro de hilo (promesa 508; eran 3 ventanas, con el notch son 4)");
+    }
+
+    /// <summary>Promesa 541.</summary>
+    private static void ElIconoDelNotchEsElDelEstado()
+    {
+        const BindingFlags privado = BindingFlags.NonPublic | BindingFlags.Instance;
+        var t = Capacidad("U.WindowsClient.Ui.PanelDeAcciones");
+        var olvidar = t?.GetMethod("Olvidar", privado);
+        var pintar = t?.GetMethod("PintarContenido", privado);
+        var campoIcono = t?.GetField("_icono", privado);
+        var campoDice = t?.GetField("_dice", privado);
+        var campoTexto = t?.GetField("_texto", privado);
+        var iconos = Capacidad("U.WindowsClient.Ui.IconosDelNotch")?.GetMethod("De");
+        var estados = Capacidad("U.WindowsClient.Ui.EstadoDelNotch");
+        if (t == null || olvidar == null) { Pendiente("PanelDeAcciones.Olvidar (volver a la onda al retirarse)", "541", "065"); return; }
+        if (pintar == null || campoIcono == null || campoDice == null || campoTexto == null || iconos == null || estados == null)
+        {
+            _fallos++;
+            Console.WriteLine("   ⚠ NO PUDE JUZGAR la 541: el notch ya no tiene «PintarContenido», «_icono», «_dice» o «_texto», o falta «IconosDelNotch.De». La sonda mira por esos nombres.");
+            return;
+        }
+
+        System.Windows.Window notch;
+        try { notch = (System.Windows.Window)Activator.CreateInstance(t)!; }
+        catch (Exception e)
+        {
+            _fallos++;
+            Console.WriteLine("   ⚠ NO PUDE JUZGAR la 541: el notch no se pudo construir en esta máquina.");
+            for (var x = e; x != null; x = x.InnerException) Console.WriteLine($"     {x.GetType().Name}: {x.Message}");
+            return;
+        }
+
+        try
+        {
+            var icono = (System.Windows.Shapes.Path)campoIcono.GetValue(notch)!;
+            object dice = campoDice.GetValue(notch)!;
+            var texto = (System.Windows.Controls.TextBlock)campoTexto.GetValue(notch)!;
+            var cultura = System.Globalization.CultureInfo.InvariantCulture;
+            string Dibujo(string estado) => System.Windows.Media.Geometry.Parse(
+                (string)iconos.Invoke(null, new[] { Enum.Parse(estados, estado) })!).ToString(cultura);
+            string Pintado() => icono.Data?.ToString(cultura) ?? "(nada)";
+            bool Girando() => icono.RenderTransform is System.Windows.Media.RotateTransform g
+                && (g.HasAnimatedProperties || Math.Abs(g.Angle) > 0.001);
+            void Pasa(string metodo, params object[] args)
+            {
+                dice.GetType().GetMethod(metodo)!.Invoke(dice, args);
+                pintar.Invoke(notch, null);
+            }
+
+            // RECIÉN NACIDO: la onda, y quieta.
+            Debe(Pintado() == Dibujo("Voz"), $"recién nacido enseña la onda, no un hueco (lo pintado es {Pintado()})");
+            Debe(!Girando(), "y la onda no gira");
+
+            // EL TESTIGO: la sonda ve cambiar el dibujo cuando cambia el estado. Sin esto, «sigue siendo la onda»
+            // de más abajo lo pasaría también un notch que no repinta nunca.
+            Pasa("Termina", "listo", true);
+            Debe(Pintado() == Dibujo("Hecho"), $"al terminar un paso enseña el visto (lo pintado es {Pintado()})");
+            olvidar.Invoke(notch, null);
+            Debe(Pintado() == Dibujo("Voz"), $"al retirarse vuelve a la onda: no se queda con el visto del último paso (lo pintado es {Pintado()})");
+            Debe(texto.Text == "Ü", $"y con el texto de quien no tiene tarea («{texto.Text}»)");
+
+            // EL QUE GIRA: retirarse en mitad de un paso no puede dejar la onda dando vueltas.
+            Pasa("Empieza", "abriendo algo");
+            Debe(Pintado() == Dibujo("EnCurso") && Girando(), "en curso enseña el aro y gira");
+            olvidar.Invoke(notch, null);
+            Debe(Pintado() == Dibujo("Voz") && !Girando(), $"al retirarse en mitad de un paso vuelve a la onda QUIETA (lo pintado es {Pintado()}, girando: {Girando()})");
+        }
+        finally { notch.Close(); }
     }
 
     /// <summary>Promesa 531.</summary>

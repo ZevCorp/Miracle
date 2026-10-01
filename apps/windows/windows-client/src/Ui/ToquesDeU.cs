@@ -38,7 +38,8 @@ public static class ToquesDeU
     /// <summary>
     /// Además del filtro de hilo, un gancho EN LA VENTANA: corre aunque un bucle modal —un diálogo, un arrastre con
     /// DragMove— despache los mensajes sin pasar por el filtro. Para las ventanas cuyo clic abre o cuelga la voz: la
-    /// carita, el muelle y la consulta. La sonda 0 midió que un gancho así lee la firma antes que WPF.
+    /// carita, el muelle, la consulta y —desde que su onda es un botón (promesa 540)— el notch. La sonda 0 midió que
+    /// un gancho así lee la firma antes que WPF.
     /// </summary>
     public static void Proteger(Window ventana)
     {
