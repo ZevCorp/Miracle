@@ -95,9 +95,9 @@ if [ "$todo" -eq 1 ] || printf '%s\n' "$tocado" | grep -vE '^(apps|services)/' |
   else
     fallos=$((fallos+1))
   fi
-  # Las herramientas comunes tienen su contrato (el guardia de los árboles y el motor de los
-  # porteros). Se juzga solo cuando la rama las toca: tarda ~1 min en Windows.
-  if [ "$todo" -eq 1 ] || printf '%s\n' "$tocado" | grep -qE '^(tools/monorepo/|\.githooks/)'; then
+  # Las herramientas comunes tienen su contrato (el guardia de los árboles, el motor de los
+  # porteros y el mapa de graphify). Se juzga solo cuando la rama las toca: tarda ~1 min en Windows.
+  if [ "$todo" -eq 1 ] || printf '%s\n' "$tocado" | grep -qE '^(tools/monorepo/|tools/graphify/|\.githooks/)'; then
     gris "  … el contrato de la raíz"
     if salida="$(bash tools/monorepo/contrato.sh 2>&1)" && printf '%s' "$salida" | grep -q "CONTRATO INTACTO"; then
       verde "  ✔  $(printf '%s\n' "$salida" | grep -o 'CONTRATO INTACTO: [0-9]* promesas' | tail -1)"

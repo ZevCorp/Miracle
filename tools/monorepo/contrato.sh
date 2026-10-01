@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # EL CONTRATO DE LA RAÍZ — lo que prometen las herramientas comunes del monorepo: el guardia de los
-# árboles (arbol.sh) y el motor de los porteros (portero.sh). Las juzga de verdad, en un repo de
+# árboles (arbol.sh), el motor de los porteros (portero.sh) y el mapa de graphify (tools/graphify/). Las juzga de verdad, en un repo de
 # juguete con su remoto, sin tocar este: crea ramas, árboles, sesiones de agente simuladas y
 # empujes, y mira qué pasa.
 #
@@ -77,9 +77,14 @@ commit() { git add -A && git commit -q -m "$1"; }
 # línea: el 2026-09-30 siete sabotajes pasaron en verde por eso, hasta que se comprobó cada uno.
 falla() { echo "$*"; : > "$tmp/fallo"; exit 1; }
 
+# Con números detrás —«contrato.sh 36 41»— se juzgan solo esas promesas: sirve para iterar sobre una
+# sin esperar a las demás (el contrato entero tarda ~1 min, y varios con algo roto). Es PARCIAL y
+# lo dice: nunca imprime «CONTRATO INTACTO», así que ni el portero ni el CI lo toman por veredicto.
+SOLO=" $* "
 total=0; rotas=0
 promesa() {  # promesa <n> <enunciado> <función>
   local salida
+  if [ "$SOLO" != "  " ]; then case "$SOLO" in *" $1 "*) ;; *) return 0 ;; esac; fi
   total=$((total + 1))
   cd "$clon" || exit 99
   rm -f "$tmp/fallo"
@@ -303,7 +308,241 @@ promesa 25 "se juzga el commit que se empuja: un arreglo sin commitear no le da 
 promesa 26 "una rama que no toca nada del veredicto del proyecto no se compila ni se juzga" m6
 promesa 27 "llamado por git en un push de verdad desde un árbol enlazado, el portero deja pasar el contrato intacto y frena el roto" m7
 
+# ── el mapa del código (graphify) ──────────────────────────────────────────────────────────────────
+# Lo que prometen tools/graphify/ y los ganchos que lo llaman. Por qué existen (2026-10-01): medido
+# con agentes, el mapa no ahorraba nada porque llegaba desfasado —graphify solo rehace el de la raíz,
+# nunca tras un pull ni dentro de un árbol de agente— y porque nadie le preguntaba lo único que
+# contesta mejor que grep: a quién afecta un cambio. Un graphify de mentira apunta cada llamada; el
+# de verdad no hace falta para juzgar la fontanería.
+mapa="$tmp/mapa"
+llamadas="$tmp/mapa-llamadas"
+mkdir -p "$tmp/bin-mapa" "$tmp/home-mapa"
+cat > "$tmp/bin-mapa/graphify" <<EOF
+#!/usr/bin/env bash
+sleep "\${FALSO_TARDA:-0}"
+echo "\$(pwd -P)|\$*" >> "$llamadas"
+mkdir -p graphify-out && echo '{"nodes":[],"links":[]}' > graphify-out/graph.json
+EOF
+chmod +x "$tmp/bin-mapa/graphify"
+git init -q "$mapa"
+cd "$mapa" || exit 99
+mkdir -p tools/graphify tools/monorepo .githooks apps/uno/src apps/dos/src apps/uno/graphify-out
+cp "$raiz"/tools/graphify/* tools/graphify/ 2> /dev/null
+cp "$raiz/tools/monorepo/arbol.sh" tools/monorepo/
+for g in pre-commit post-checkout post-commit post-merge; do cp "$raiz/.githooks/$g" .githooks/ 2> /dev/null; done
+echo uno > apps/uno/src/a.cs; echo dos > apps/dos/src/b.cs
+printf 'graphify-out/\n' > .gitignore
+echo '{"nodes":[],"links":[]}' > apps/uno/graphify-out/graph.json
+git config core.hooksPath .githooks
+git add -A && git commit -q -m "el mapa de juguete"
+mapa_raiz="$(pwd -P)"
+
+# conmapa <comando…>: con el graphify de mentira en el PATH y un HOME sin graphify de verdad.
+conmapa() { env HOME="$tmp/home-mapa" PATH="$tmp/bin-mapa:$PATH" "$@"; }
+sinmapa() { env HOME="$tmp/home-mapa" PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v -i -e graphify -e '\.local/bin' | paste -sd:)" "$@"; }
+# espera <patrón> [segundos]: el refresco corre en segundo plano; se espera a que apunte la llamada.
+espera() {
+  local i=0
+  while [ "$i" -lt "${2:-20}" ]; do grep -q -- "$1" "$llamadas" 2> /dev/null && return 0; sleep 1; i=$((i + 1)); done
+  return 1
+}
+
+g1() {
+  cd "$mapa" || falla "no existe el repo del mapa"
+  rm -f "$llamadas"
+  echo cambio >> apps/uno/src/a.cs
+  sinmapa git commit -q -am "sin graphify" > "$tmp/out" 2>&1 || { cat "$tmp/out"; falla "sin graphify instalado, el commit no pasó"; }
+  sleep 2
+  [ ! -f "$llamadas" ] || falla "algo llamó a un graphify que no está instalado"
+}
+g2() {
+  cd "$mapa" || falla "no existe el repo del mapa"
+  [ -f tools/graphify/refrescar.sh ] || falla "PENDIENTE: tools/graphify/refrescar.sh todavía no existe"
+  rm -f "$llamadas"
+  echo cambio >> apps/uno/src/a.cs
+  conmapa git commit -q -am "tras un commit" || falla "el commit no pasó"
+  espera "$mapa_raiz/apps/uno|update ." || falla "tras un commit no se rehízo el mapa de apps/uno"
+  sleep 1
+  grep -q "apps/dos" "$llamadas" && falla "construyó el mapa de apps/dos, que nadie había pedido"
+  grep -q "^$mapa_raiz|" "$llamadas" && falla "rehízo el mapa de la raíz"
+  rm -f "$llamadas"
+  conmapa git switch -q -c jose/otra || falla "no se pudo cambiar de rama"
+  espera "$mapa_raiz/apps/uno|update ." || falla "tras un cambio de rama no se rehízo el mapa"
+  echo cambio >> apps/uno/src/a.cs; conmapa git commit -q -am "en la otra" > /dev/null 2>&1
+  conmapa git switch -q main
+  sleep 3; rm -f "$llamadas"
+  conmapa git merge -q --no-edit jose/otra > /dev/null 2>&1 || falla "el merge no pasó"
+  espera "$mapa_raiz/apps/uno|update ." || falla "tras un merge (lo que hace git pull) no se rehízo el mapa"
+}
+g3() {
+  cd "$mapa" || falla "no existe el repo del mapa"
+  [ -f tools/graphify/refrescar.sh ] || falla "PENDIENTE: tools/graphify/refrescar.sh todavía no existe"
+  sleep 3; rm -f "$llamadas"
+  conmapa git worktree add -q -b jose/arbol-mapa "$tmp/arbol-mapa" main > /dev/null 2>&1 || falla "no se pudo crear el árbol enlazado"
+  arbol_raiz="$(cd "$tmp/arbol-mapa" && pwd -P)"
+  espera "$arbol_raiz/apps/uno|update ." || falla "el árbol nuevo no construyó el mapa de apps/uno, que el clon principal sí tiene"
+  sleep 1
+  grep -q "$arbol_raiz/apps/dos" "$llamadas" && falla "el árbol construyó el de apps/dos, que el clon principal no tiene"
+  return 0
+}
+g4() {
+  cd "$mapa" || falla "no existe el repo del mapa"
+  [ -f tools/graphify/refrescar.sh ] || falla "PENDIENTE: tools/graphify/refrescar.sh todavía no existe"
+  sleep 3; rm -f "$llamadas"
+  echo cambio >> apps/uno/src/a.cs
+  inicio=$(date +%s)
+  conmapa env FALSO_TARDA=6 git commit -q -am "un mapa lento" || falla "el commit no pasó"
+  [ $(( $(date +%s) - inicio )) -lt 4 ] || falla "el commit esperó al mapa: tardó $(( $(date +%s) - inicio )) s"
+  espera "$mapa_raiz/apps/uno|update ." 15 || falla "el mapa lento no terminó de rehacerse en segundo plano"
+}
+g5() {
+  cd "$mapa" || falla "no existe el repo del mapa"
+  [ -f tools/graphify/refrescar.sh ] || falla "PENDIENTE: tools/graphify/refrescar.sh todavía no existe"
+  sleep 3; rm -f "$llamadas"
+  echo cambio >> apps/uno/src/a.cs
+  conmapa env GRAPHIFY_SKIP_HOOK=1 git commit -q -am "sin refresco" || falla "el commit no pasó"
+  sleep 3
+  [ ! -f "$llamadas" ] || falla "GRAPHIFY_SKIP_HOOK=1 no apagó el refresco"
+}
+
+# ── impacto: a quién afecta lo que cambia la rama ──────────────────────────────────────────────────
+# Un mapa de juguete escrito a mano: a.cs define A (L2), .Hacer() (L5) y .Otro() (L20); b.cs llama a
+# .Hacer() en su línea 7; c.cs llama a .Otro() en su línea 9; una spec cita a A.
+imp="$tmp/impacto"
+git init -q "$imp"
+cd "$imp" || exit 99
+mkdir -p tools/graphify apps/uno/src apps/uno/docs apps/uno/graphify-out apps/sinmapa/src
+cp "$raiz"/tools/graphify/* tools/graphify/ 2> /dev/null
+for i in $(seq 1 30); do echo "linea $i"; done > apps/uno/src/a.cs
+echo b > apps/uno/src/b.cs; echo c > apps/uno/src/c.cs; echo spec > apps/uno/docs/spec.md; echo x > apps/sinmapa/src/x.cs
+printf 'graphify-out/\n' > .gitignore
+git add -A && git commit -q -m "el proyecto de juguete"
+cat > apps/uno/graphify-out/graph.json <<'EOF'
+{"directed": false, "nodes": [
+ {"id": "ns", "label": "N", "type": "namespace", "file_type": "code", "metadata": {"kind": "csharp_namespace", "namespace": "N"}, "source_file": "src/a.cs", "source_location": "L1"},
+ {"id": "a", "label": "A", "file_type": "code", "metadata": {"namespace": "N"}, "source_file": "src/a.cs", "source_location": "L2"},
+ {"id": "a_hacer", "label": ".Hacer()", "file_type": "code", "metadata": {"namespace": "N"}, "source_file": "src/a.cs", "source_location": "L5"},
+ {"id": "a_otro", "label": ".Otro()", "file_type": "code", "metadata": {"namespace": "N"}, "source_file": "src/a.cs", "source_location": "L20"},
+ {"id": "b", "label": "B", "file_type": "code", "source_file": "src/b.cs", "source_location": "L1"},
+ {"id": "b_usa", "label": ".Usa()", "file_type": "code", "source_file": "src/b.cs", "source_location": "L3"},
+ {"id": "c_usa", "label": ".UsaOtro()", "file_type": "code", "source_file": "src/c.cs", "source_location": "L2"},
+ {"id": "copia_a", "label": "A", "file_type": "code", "metadata": {"namespace": "N"}, "source_file": "sondas/copia.cs", "source_location": "L1"},
+ {"id": "copia_hacer", "label": ".Hacer()", "file_type": "code", "metadata": {"namespace": "N"}, "source_file": "sondas/copia.cs", "source_location": "L3"},
+ {"id": "d_usa", "label": ".UsaLaCopia()", "file_type": "code", "source_file": "src/d.cs", "source_location": "L2"},
+ {"id": "nuevo", "label": ".Nuevo()", "file_type": "code", "source_file": "src/nuevo.cs", "source_location": "L1"},
+ {"id": "spec", "label": "La spec", "file_type": "document", "source_file": "docs/spec.md", "source_location": "L1"}
+], "links": [
+ {"source": "a", "target": "a_hacer", "relation": "method", "source_file": "src/a.cs", "source_location": "L5"},
+ {"source": "copia_a", "target": "copia_hacer", "relation": "method", "source_file": "sondas/copia.cs", "source_location": "L3"},
+ {"source": "b_usa", "target": "a_hacer", "relation": "calls", "confidence": "EXTRACTED", "source_file": "src/b.cs", "source_location": "L7"},
+ {"source": "b", "target": "ns", "relation": "imports", "confidence": "EXTRACTED", "source_file": "src/b.cs", "source_location": "L1"},
+ {"source": "c_usa", "target": "a_otro", "relation": "calls", "confidence": "EXTRACTED", "source_file": "src/c.cs", "source_location": "L9"},
+ {"source": "d_usa", "target": "copia_hacer", "relation": "calls", "confidence": "EXTRACTED", "source_file": "src/d.cs", "source_location": "L4"},
+ {"source": "c_usa", "target": "nuevo", "relation": "calls", "confidence": "INFERRED", "source_file": "src/c.cs", "source_location": "L11"},
+ {"source": "spec", "target": "a", "relation": "references", "confidence": "INFERRED", "source_file": "docs/spec.md", "source_location": "L4"}
+]}
+EOF
+# La rama: cambia .Hacer() (la línea 6 de a.cs) y la línea 1 (la del espacio de nombres), añade un archivo nuevo y toca unas notas sin código.
+# El mapa de arriba es el de después del cambio, como lo deja el refresco: ya conoce nuevo.cs, y
+# —como hace graphify con dos definiciones del mismo nombre completo— le atribuye a c.cs un uso de
+# .Nuevo() que no puede existir, y a la copia de sondas/ la llamada de d.cs.
+git switch -q -c jose/cambio
+sed -i -e 's/^linea 1$/linea 1 cambiada/' -e 's/^linea 6$/linea 6 cambiada/' apps/uno/src/a.cs
+echo nuevo > apps/uno/src/nuevo.cs; echo notas > apps/uno/notas.txt
+git add -A && git commit -q -m "cambia .Hacer(), añade nuevo.cs y unas notas"
+for viejo in apps/uno/src/a.cs apps/uno/src/nuevo.cs apps/uno/notas.txt; do
+  touch -d '2000-01-01' "$viejo" 2> /dev/null || touch -t 200001010000 "$viejo"
+done
+
+impacto() { bash tools/graphify/impacto.sh "$@"; }
+
+i1() {
+  cd "$imp" || falla "no existe el repo de impacto"
+  [ -f tools/graphify/impacto.sh ] || falla "PENDIENTE: tools/graphify/impacto.sh todavía no existe"
+  impacto --base main apps/uno > "$tmp/out" 2>&1 || { cat "$tmp/out"; falla "impacto salió con error sobre un mapa sano"; }
+  grep -q "src/b.cs:7" "$tmp/out" || { cat "$tmp/out"; falla "no nombró a src/b.cs:7, que llama a .Hacer()"; }
+  grep -q "\.Hacer()" "$tmp/out" || falla "no nombró el símbolo cambiado"
+}
+i2() {
+  cd "$imp" || falla "no existe el repo de impacto"
+  [ -f tools/graphify/impacto.sh ] || falla "PENDIENTE: tools/graphify/impacto.sh todavía no existe"
+  impacto --base main apps/uno > "$tmp/out" 2>&1 || falla "impacto salió con error"
+  grep -q "src/c.cs" "$tmp/out" && { cat "$tmp/out"; falla "nombró a c.cs, que depende de .Otro(), y .Otro() no cambió"; }
+  return 0
+}
+i3() {
+  cd "$imp" || falla "no existe el repo de impacto"
+  [ -f tools/graphify/impacto.sh ] || falla "PENDIENTE: tools/graphify/impacto.sh todavía no existe"
+  impacto --base main apps/sinmapa > "$tmp/out" 2>&1; codigo=$?
+  [ "$codigo" -eq 2 ] || { cat "$tmp/out"; falla "sin mapa salió con $codigo, y «no pude mirar» es 2"; }
+  grep -qi "no hay mapa" "$tmp/out" || falla "sin mapa no dijo que no había mapa"
+}
+i4() {
+  cd "$imp" || falla "no existe el repo de impacto"
+  [ -f tools/graphify/impacto.sh ] || falla "PENDIENTE: tools/graphify/impacto.sh todavía no existe"
+  impacto --base main apps/uno > "$tmp/out" 2>&1 || falla "impacto salió con error"
+  grep -q "más viejo" "$tmp/out" && falla "avisó de un mapa viejo cuando el mapa es más nuevo que el código"
+  touch apps/uno/src/a.cs; touch -d '2000-01-01' apps/uno/graphify-out/graph.json 2> /dev/null || touch -t 200001010000 apps/uno/graphify-out/graph.json
+  impacto --base main apps/uno > "$tmp/out" 2>&1
+  grep -q "más viejo" "$tmp/out" || { cat "$tmp/out"; falla "no avisó de que el mapa es más viejo que el código que juzga"; }
+  touch apps/uno/graphify-out/graph.json
+}
+i5() {
+  cd "$imp" || falla "no existe el repo de impacto"
+  [ -f tools/graphify/impacto.sh ] || falla "PENDIENTE: tools/graphify/impacto.sh todavía no existe"
+  impacto --base main apps/uno > "$tmp/out" 2>&1 || falla "impacto salió con error"
+  sed -n '/[Dd]ocumentos/,$p' "$tmp/out" | grep -q "docs/spec.md" || { cat "$tmp/out"; falla "la spec que cita a A no salió bajo «Documentos»"; }
+  sed -n '1,/[Dd]ocumentos/p' "$tmp/out" | grep -q "docs/spec.md" && falla "la spec salió mezclada con el código"
+  return 0
+}
+
+i6() {
+  # Medido el 2026-10-01 sobre el commit ff880743: una sonda nueva declaraba su propio LogBus y el
+  # mapa le atribuyó 278 llamadas. Un archivo que acaba de nacer no lo usa nadie de fuera todavía.
+  cd "$imp" || falla "no existe el repo de impacto"
+  [ -f tools/graphify/impacto.sh ] || falla "PENDIENTE: tools/graphify/impacto.sh todavía no existe"
+  impacto --base main apps/uno > "$tmp/out" 2>&1 || falla "impacto salió con error"
+  grep -q "src/c.cs:11" "$tmp/out" && { cat "$tmp/out"; falla "le contó a nuevo.cs, que acaba de nacer, un uso desde c.cs"; }
+  grep -qi "nuevo" "$tmp/out" || { cat "$tmp/out"; falla "no dijo que había archivos nuevos que dejó fuera"; }
+}
+i7() {
+  # El mismo caso, del otro lado: el LogBus de verdad quedó con CERO usos en el mapa, porque todos
+  # se fueron a la copia. Tocar el de verdad y leer «no afecta a nadie» es el fallo peligroso.
+  cd "$imp" || falla "no existe el repo de impacto"
+  [ -f tools/graphify/impacto.sh ] || falla "PENDIENTE: tools/graphify/impacto.sh todavía no existe"
+  impacto --base main apps/uno > "$tmp/out" 2>&1 || falla "impacto salió con error"
+  grep -q "src/d.cs:4" "$tmp/out" || { cat "$tmp/out"; falla "no contó la llamada de d.cs, que el mapa atribuyó a la otra definición de N.A.Hacer()"; }
+  grep -q "sondas/copia.cs" "$tmp/out" || { cat "$tmp/out"; falla "no dijo con qué otra definición comparte nombre"; }
+}
+i8() {
+  cd "$imp" || falla "no existe el repo de impacto"
+  [ -f tools/graphify/impacto.sh ] || falla "PENDIENTE: tools/graphify/impacto.sh todavía no existe"
+  touch apps/uno/notas.txt
+  impacto --base main apps/uno > "$tmp/out" 2>&1 || falla "impacto salió con error"
+  grep -q "más viejo" "$tmp/out" && { cat "$tmp/out"; falla "unas notas sin código, tocadas después del mapa, dispararon el aviso de mapa viejo"; }
+  grep -q "\`N\`" "$tmp/out" && { cat "$tmp/out"; falla "contó el espacio de nombres N como un símbolo cambiado"; }
+  return 0
+}
+
+promesa 31 "sin graphify instalado, los ganchos del mapa no hacen nada y no frenan a git" g1
+promesa 32 "tras commit, cambio de rama y merge se rehace el mapa de cada proyecto que lo tiene, y de ninguno más" g2
+promesa 33 "un árbol enlazado nuevo construye el mapa de los proyectos que el clon principal tiene mapeados" g3
+promesa 34 "el refresco no hace esperar a git: corre en segundo plano" g4
+promesa 35 "GRAPHIFY_SKIP_HOOK=1 apaga el refresco" g5
+promesa 36 "impacto nombra a quién de fuera llama a cada símbolo cambiado, con archivo y línea" i1
+promesa 37 "impacto solo cuenta los símbolos de las líneas cambiadas, no el archivo entero" i2
+promesa 38 "impacto distingue «no pude mirar» de «no afecta a nadie»: sin mapa sale con 2 y lo dice" i3
+promesa 39 "impacto avisa cuando el mapa es más viejo que el código que juzga" i4
+promesa 40 "impacto separa los documentos que citan lo cambiado del código que depende de ello" i5
+promesa 41 "impacto deja fuera los archivos nuevos, y lo dice: nadie de fuera usa todavía lo que acaba de nacer" i6
+promesa 42 "cuando dos definiciones comparten nombre completo, impacto cuenta los usos de las dos y nombra a la otra" i7
+promesa 43 "ni un archivo sin código ni un espacio de nombres cuentan: no disparan el aviso de mapa viejo ni salen como símbolo cambiado" i8
+
 echo
+if [ "$SOLO" != "  " ]; then
+  echo "PARCIAL: $total promesa(s) juzgada(s), $rotas incumplida(s). No vale como veredicto: corre el contrato entero."
+  exit "$rotas"
+fi
 if [ "$rotas" -eq 0 ]; then
   verde "CONTRATO INTACTO: $total promesas."
   exit 0

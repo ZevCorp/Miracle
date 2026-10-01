@@ -101,7 +101,18 @@ decisión del dueño; su CI se exige igual.
   `git fetch origin && bash <(git show origin/main:tools/monorepo/ponerse-al-dia.sh)`
 - Traer lo que se empuje a los repos de origen mientras no estén archivados:
   `tools/monorepo/importar.sh`
-- El grafo del código: `graphify` (guía en `docs/herramientas/`). `graphify-out/` no se versiona.
+- El mapa del código (`graphify`): se instala con `tools/graphify/instalar.ps1` (Windows) o
+  `bash tools/graphify/instalar.sh` (Mac), y desde ahí se rehace solo tras cada commit, cambio de
+  rama y pull. Hay un mapa por proyecto, en `<proyecto>/graphify-out/`, que no se versiona. Cuándo
+  usarlo (medido con agentes el 2026-10-01; la guía está en `docs/herramientas/`):
+  - **A quién afecta tu rama:** `bash tools/graphify/impacto.sh`. Una llamada da, por cada símbolo
+    que cambiaste, quién lo usa desde fuera, con archivo y línea. Córrelo antes de tocar algo
+    compartido y antes del PR; cada PR lo recibe además como comentario.
+  - **Quién depende de una pieza:** `graphify affected "Nombre"`, dentro de la carpeta del proyecto.
+  - **Una pregunta amplia, sin nombre que buscar:** `graphify query "…"` una vez para saber por
+    dónde empezar, y después se lee el código.
+  - **Si ya tienes el nombre exacto, busca directo.** Consultar el mapa antes de cada búsqueda no
+    ahorra nada: se midió, y sumaba pasos.
 
 ## Este archivo
 

@@ -397,15 +397,18 @@ Estos costaron caro. Aplicarlos ahorra rondas enteras.
 
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+El mapa del código de este proyecto vive en `graphify-out/`. **No se versiona** (hasta el 2026-08-21
+sí, y cada commit que tocaba código arrastraba un diff de 138.000 líneas en `graph.json`: ningún PR
+se podía revisar). Se crea con `tools\graphify\instalar.ps1` y desde ahí se rehace solo tras cada
+commit, cambio de rama y pull.
 
-**graphify-out/ is NOT committed** (see .gitignore). It is generated output: after cloning, run
-`graphify update .` once and it appears. It was tracked until 2026-08-21 and the problem was not
-its size — it was that every commit touching code dragged a 138,000-line diff in graph.json, which
-makes a pull request impossible to review.
+Cuándo usarlo está en las reglas comunes (`AGENTS.md` de la raíz, §Herramientas), y salió de medirlo
+el 2026-10-01 con agentes sobre este mismo código:
 
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- **A quién afecta tu rama:** `bash tools/graphify/impacto.sh` (desde cualquier carpeta del repo).
+  Es lo que alimenta el punto 4 del PR —cuántos sitios tocan lo que cambiaste— sin contarlos a mano.
+- **Quién depende de una pieza:** `graphify affected "RellenadorSap"`, desde `apps/windows`.
+- **Pregunta amplia:** `graphify query "…"` una vez, y después se lee el código.
+- **Con un nombre exacto, Grep directo.** La regla anterior —«primero `graphify query` para cualquier
+  pregunta»— se retiró: sumaba llamadas y no ahorraba ninguna (27.500 tokens con ella frente a
+  22.300 sin ella en la misma tarea).
