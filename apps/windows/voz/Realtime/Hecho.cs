@@ -26,7 +26,13 @@ public abstract record Hecho
     public sealed record DiceElUsuario(string Trozo) : Hecho;
 
     /// <summary>Un trozo de lo que dice Ü.</summary>
-    public sealed record DiceU(string Trozo) : Hecho;
+    /// <param name="DelDelegado">
+    /// Lo devolvió quien actúa, no lo dijo la voz (spec 078, promesa 70). Con GPT-Live son dos modelos: el delegado
+    /// devuelve un texto y la voz lo dice después con sus palabras. Contar los dos como dichos por Ü dejaba
+    /// «Abrí tu correo en Gmail. Abrí tu correo en Gmail.» en el hilo. Quién lo cuenta lo decide la conversación,
+    /// que es quien sabe si hay voz.
+    /// </param>
+    public sealed record DiceU(string Trozo, bool DelDelegado = false) : Hecho;
 
     /// <summary>Se acabó el turno: lo dicho queda fijo y la siguiente frase empieza línea nueva.</summary>
     public sealed record CierraElTurno : Hecho;

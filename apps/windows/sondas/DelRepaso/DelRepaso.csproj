@@ -26,4 +26,9 @@
     <Compile Include="..\..\windows-client\src\Voice\LoAprendido.cs" Link="DeLaApp\LoAprendido.cs" />
     <Compile Include="..\..\windows-client\src\Voice\DiarioDeLaSesion.cs" Link="DeLaApp\DiarioDeLaSesion.cs" />
   </ItemGroup>
+  <!-- Las pantallas de mentira del caso con fotos (spec 078): una ventana tipo SAP con el cursor sobre un
+       botón distinto en cada una. Viajan junto al .exe porque el caso las lee de su propia carpeta. -->
+  <ItemGroup>
+    <None Include="fotos\*.jpg" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

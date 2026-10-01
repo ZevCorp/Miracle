@@ -216,6 +216,9 @@ internal static class Contrato
         Prueba("67. la prisa del delegado y cuánto piensa se eligen al construir: sin prisa la delegación no lleva service_tier, ni al abrir ni al cambiar de modo, y el esfuerzo pedido es el que viaja", LaPrisaSeElige);
         // Spec 074: lo que la persona prefiere es, casi siempre, sobre cómo le hablan — y quien habla es la voz.
         Prueba("68. lo que la persona prefiere le llega a quien habla: un session.instructions.append sin delegación con el texto dentro, que nunca pasa de lo que cabe en un append y lo dice si recorta; un protocolo de una sola voz no manda nada", LasPreferenciasLleganALaVoz);
+        // Spec 078: Ü ve. La pantalla del momento del pedido viaja sola, y lo que devuelve el delegado no se confunde con la voz.
+        Prueba("69. la pantalla del momento del pedido viaja en un solo mensaje: delante el texto que dice que es la pantalla, que no lo dijo la persona y dónde está, y detrás la foto por referencia con detalle alto; sin identificador no se manda nada, y un protocolo que no ve por referencia no manda nada", LaPantallaViajaConElPedido);
+        Prueba("70. lo que devuelve el delegado se distingue de lo que dice la voz: response.output_text.done llega marcado como del delegado, y la transcripción de la voz no", LoDelDelegadoSeDistingue);
 
         Console.WriteLine();
         if (_pendientes > 0)
@@ -1417,15 +1420,12 @@ internal static class Contrato
              && Campo(ct[0], "type") == "input_text" && Campo(ct[0], "text") == "abre la admisión",
             "el texto escrito es un response.item.create: mensaje del usuario con un input_text");
 
-        // Si GPT-Live mira o no lo juzga la 49: la FORMA de la foto sí se leyó, pero una de tamaño real no cabe.
+        // LA FOTO INCRUSTADA YA NO EXISTE EN GPT-LIVE (spec 078, 2026-10-01). Aquí se juzgaba su FORMA —un
+        // input_image en data URL— sabiendo que una de tamaño real no cabía: 118.000 bytes en un buzón de 32.768.
+        // Desde la 027 la foto entra por referencia (54) y esto no lo llamaba nadie; mandarla dejaba la sesión sin
+        // poder contestar. Lo que se juzga ahora es que no se pueda mandar por descuido.
         byte[] jpeg = { 0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3 };
-        var foto = Mensaje(p.Fotograma(jpeg));
-        var enFoto = Nodo(foto, "item", "content");
-        Debe(Campo(foto, "type") == "response.item.create" && Campo(foto, "item", "role") == "user"
-             && enFoto is { ValueKind: JsonValueKind.Array } cf
-             && cf.EnumerateArray().Any(x => Campo(x, "type") == "input_image"
-                 && Campo(x, "image_url") == "data:image/jpeg;base64," + Convert.ToBase64String(jpeg)),
-            "la foto es un mensaje del usuario con un input_image en data URL JPEG");
+        Debe(p.Fotograma(jpeg).Length == 0, "GPT-Live no manda fotos incrustadas, ni una pequeña: la foto entra por referencia (54)");
 
         var hechas = new List<(string Id, string Nombre, string Resultado)>
             { ("call_1", "map_look", "SAP Easy Access"), ("call_2", "map_where_am_i", "NWP1") };
@@ -1628,6 +1628,69 @@ internal static class Contrato
     /// persona, que no las lleva (promesa 40). Sin esto la preferencia se guardaba y nadie la cumplía.
     /// Va como instrucción y no como avance: un avance es algo que pasó; esto es cómo tiene que hablar.
     /// </remarks>
+    /// <remarks>
+    /// LO QUE SE MIDIÓ ANTES DE ESCRIBIRLA (sonda, 2026-10-01): una foto metida en la conversación ANTES de que
+    /// la persona hable le llega al delegado —contestó «7421», que solo estaba en la foto—, y con sus
+    /// instrucciones diciéndoselo contesta en UNA vuelta (1,1 s) en vez de gastar otra en mirar. La voz no se
+    /// inmuta: 5 s callada tras recibirla. El texto va delante para que nadie la tome por algo dicho por la
+    /// persona, y dice dónde está según el mapa: una foto nunca decide dónde se está.
+    /// </remarks>
+    private static void LaPantallaViajaConElPedido()
+    {
+        var p = GptLive();
+        var m = typeof(IProtocolo).GetMethod("PantallaAlPedir");
+        if (p == null || m == null) { Pendiente("IProtocolo.PantallaAlPedir", "spec 078"); return; }
+        string Manda(IProtocolo a, string id, string donde) => m.Invoke(a, new object[] { id, donde }) as string ?? "";
+
+        string json = Manda(p, "file-abc123", "uia://Notepad.exe/pendientes");
+        Debe(json.Length > 0, "GPT-Live manda la pantalla del pedido");
+        if (json.Length == 0) return;
+        var msg = Mensaje(json);
+        Debe(Campo(msg, "type") == "response.item.create" && Campo(msg, "item", "role") == "user",
+            "es un mensaje en la conversación, como el de map_look: por ahí le llega al delegado");
+        var partes = Nodo(msg, "item", "content");
+        Debe(partes is { ValueKind: JsonValueKind.Array } c && c.GetArrayLength() == 2, "UN solo mensaje con dos partes: el texto y la foto");
+        if (partes is not { ValueKind: JsonValueKind.Array } lista || lista.GetArrayLength() != 2) return;
+        string texto = Campo(lista[0], "text");
+        Debe(Campo(lista[0], "type") == "input_text" && texto.Contains("PANTALLA", StringComparison.Ordinal) && texto.Contains("no lo dijo la persona", StringComparison.Ordinal),
+            $"delante, el texto que dice que es la pantalla y que no lo dijo la persona («{texto}»)");
+        Debe(texto.Contains("uia://Notepad.exe/pendientes", StringComparison.Ordinal), "y dónde está, según el mapa: una foto no decide eso");
+        // Medido el 2026-10-01 en la Ü de pruebas: con «según el mapa» a secas, quien actúa preguntó igual dónde estaba
+        // (map_where_am_i) y volvió a mirar: 3 vueltas y 7,5 s para leer un número que ya tenía en la foto.
+        Debe(texto.Contains("map_where_am_i", StringComparison.Ordinal),
+            "y dice que eso es lo que contestaría map_where_am_i en ese instante: con el sitio ya dicho, no se gasta una vuelta en preguntarlo");
+        Debe(Campo(lista[1], "type") == "input_image" && Campo(lista[1], "file_id") == "file-abc123" && Campo(lista[1], "detail") == "high",
+            "detrás, la foto por referencia y con detalle alto");
+        Debe(!json.Contains("\"response.create\"", StringComparison.Ordinal), "y no pide turno: la pantalla acompaña al pedido, no es un pedido");
+
+        Debe(Manda(p, "   ", "uia://Notepad.exe/pendientes").Length == 0, "sin identificador no se manda nada: una foto que no subió no existe");
+        string sinDonde = Manda(p, "file-abc123", "  ");
+        Debe(sinDonde.Length > 0 && !sinDonde.Contains("«»", StringComparison.Ordinal) && !sinDonde.Contains("\\u00AB\\u00BB", StringComparison.OrdinalIgnoreCase),
+            "sin ubicación manda la foto igual, y no dice una ubicación vacía");
+        Debe(Manda(new ProtocoloOpenAI(), "file-abc123", "uia://Notepad.exe/pendientes").Length == 0,
+            "un protocolo que no ve por referencia no manda nada: una pantalla incrustada no le cabe");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE, visto en el log de la 073: «Abrí tu correo en Gmail. Abrí tu correo en Gmail.»
+    /// El texto que devuelve el delegado se traducía como algo dicho por Ü, y la voz lo volvía a decir con sus
+    /// palabras: en el hilo y en el diario quedaba dos veces. Aquí solo se distingue; quién lo cuenta lo decide
+    /// la conversación, que es quien sabe si hay voz (promesa 749 del grafo).
+    /// </remarks>
+    private static void LoDelDelegadoSeDistingue()
+    {
+        var p = GptLive();
+        var marca = typeof(Hecho.DiceU).GetProperty("DelDelegado");
+        if (p == null || marca == null) { Pendiente("Hecho.DiceU.DelDelegado", "spec 078"); return; }
+
+        var delDelegado = p.Leer(Mensaje("""{"type":"response.event","delegation_id":"item_1","event":{"type":"response.output_text.done","text":"El resultado es 144."}}"""));
+        Debe(delDelegado.Count == 1 && delDelegado[0] is Hecho.DiceU d1 && d1.Trozo == "El resultado es 144." && (bool)marca.GetValue(d1)!,
+            "lo que devuelve el delegado llega con su texto y marcado como suyo");
+        var deLaVoz = p.Leer(Mensaje("""{"type":"session.output_transcript.delta","delta":"Listo, da 144."}"""));
+        Debe(deLaVoz.Count == 1 && deLaVoz[0] is Hecho.DiceU d2 && !(bool)marca.GetValue(d2)!,
+            "y lo que dice la voz, no");
+    }
+
     private static void LasPreferenciasLleganALaVoz()
     {
         var p = GptLive();

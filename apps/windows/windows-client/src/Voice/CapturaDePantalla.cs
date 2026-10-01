@@ -71,8 +71,15 @@ public static class CapturaDePantalla
     }
 
     /// <summary>Un fotograma de AHORA MISMO, comprimido a JPEG. Null si algo impidió capturarlo.</summary>
-    public static byte[]? Capturar()
+    public static byte[]? Capturar() => Capturar(out _);
+
+    /// <summary>
+    /// El fotograma y, de paso, su huella (spec 078): con ella se decide si la pantalla cambió desde la última que
+    /// viajó, sin subir nada para averiguarlo. Se saca ANTES de dibujar el cursor: mover el ratón no es otra pantalla.
+    /// </summary>
+    public static byte[]? Capturar(out int[]? huella)
     {
+        huella = null;
         // Tamaño por Win32 y no por WinForms: activar WinForms en un proyecto WPF hace ambiguos
         // Brush, Application, MouseEventArgs y media docena más en toda la aplicación.
         var pantalla = new Rectangle(0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
@@ -80,10 +87,12 @@ public static class CapturaDePantalla
 
         using var completa = new Bitmap(pantalla.Width, pantalla.Height, PixelFormat.Format24bppRgb);
         using (var g = Graphics.FromImage(completa))
-        {
             g.CopyFromScreen(pantalla.Left, pantalla.Top, 0, 0, pantalla.Size, CopyPixelOperation.SourceCopy);
+        // Con el lienzo ya soltado: leer los bytes de un bitmap que todavía tiene un Graphics abierto encima
+        // es pedirle a GDI+ dos cosas a la vez.
+        huella = HuellaDe(completa);
+        using (var g = Graphics.FromImage(completa))
             DibujarCursor(g);
-        }
 
         var (w, h) = Medida(completa.Width, completa.Height);
         if (w == completa.Width && h == completa.Height) return AJpeg(completa);
@@ -96,6 +105,29 @@ public static class CapturaDePantalla
         }
 
         return AJpeg(reducida);
+    }
+
+    /// <summary>La huella de un bitmap de 24 bits, leída de sus bytes: ~12.000 muestras, sin GetPixel.</summary>
+    private static int[]? HuellaDe(Bitmap bmp)
+    {
+        try
+        {
+            var datos = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+            try
+            {
+                int paso = datos.Stride;
+                IntPtr origen = datos.Scan0;
+                // Luminancia de un píxel BGR, con los pesos de siempre. Lo que importa es que sea la misma cuenta cada vez.
+                int Luminancia(int x, int y)
+                {
+                    int p = y * paso + x * 3;
+                    return (Marshal.ReadByte(origen, p + 2) * 299 + Marshal.ReadByte(origen, p + 1) * 587 + Marshal.ReadByte(origen, p) * 114) / 1000;
+                }
+                return PantallaAlPedir.Huella(Luminancia, bmp.Width, bmp.Height);
+            }
+            finally { bmp.UnlockBits(datos); }
+        }
+        catch { return null; }   // sin huella la foto se toma por nueva: se manda de más, nunca de menos
     }
 
     private static byte[]? AJpeg(Bitmap bmp)

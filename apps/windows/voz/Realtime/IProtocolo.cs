@@ -191,6 +191,15 @@ public interface IProtocolo
     /// </summary>
     string ParaLaVoz(string texto) => "";
 
+    /// <summary>
+    /// La pantalla del momento en que la persona pide algo, para que quien actúa la vea sin gastar una vuelta en
+    /// pedirla (spec 078, promesa 69). Vacío si este protocolo no ve por referencia: una pantalla incrustada no
+    /// le cabe, y a una sola voz que también actúa no se le cuela una foto que nadie pidió.
+    /// </summary>
+    /// <param name="idDelArchivo">La copia ya subida. Sin ella no hay nada que mandar.</param>
+    /// <param name="donde">Dónde está la persona según el mapa. Una foto no decide eso.</param>
+    string PantallaAlPedir(string idDelArchivo, string donde) => "";
+
     /// <summary>Qué está diciendo el servidor, en hechos. Vacío si no dice nada que nos toque.</summary>
     IReadOnlyList<Hecho> Leer(JsonElement mensaje);
 }

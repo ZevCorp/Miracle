@@ -700,11 +700,21 @@ internal static class Contrato
         // ese camino se perdía siempre, y la referencia muerta envenenaba el resto de la conversación.
         Prueba("254. mandar la foto cede el turno de inmediato y con la copia en pie: no se duerme esperando a que el servidor la descargue, y cuando el turno vuelve al modelo no se ha borrado nada — borrar antes de que lea deja la sesión apuntando a un archivo que ya no existe", MandarLaFotoNoLaBorraAntesDeVerse);
 
-        // LO QUE SE MIRÓ SE QUEDA EN CASA (spec 027, fase 3). Pedido del dueño: «que queden alojadas en local, en una
-        // memoria del asistente, para que pueda recordar en cualquier momento acciones pasadas», y el tope que eligió
-        // él: «siete días o dos gigas, y pásalas a JPEG». La pantalla de ayer no se puede volver a capturar.
-        Prueba("255. el álbum de miradas vive en local con su ficha —cuándo, en qué ubicación y qué estaba pasando—, se guarda en JPEG, se puede pedir la última foto de una ubicación, y se poda por edad y por tamaño: siete días o dos gigas, lo más viejo primero", ElAlbumDeMiradasRecuerdaYPoda);
-
+        // ── ACTA DE RETIRO: 255, 257 y 258 (spec 078, 2026-10-01) ───────────────────────────────────
+        //
+        // Aquí vivió el álbum de miradas. La 255: «el álbum vive en local con su ficha, en JPEG, y se poda: siete
+        // días o dos gigas». La 257: «se guarda una mirada por CAMBIO de ubicación y no por reloj». La 258: «el
+        // modelo puede pedir lo que vio antes» (map_look_back). Fue un pedido del dueño —«que queden alojadas en
+        // local, en una memoria del asistente, para que pueda recordar acciones pasadas»— y se construyó entero:
+        // llegaron a verde y se sabotearon.
+        //
+        // Lo que se midió después, en su PC, del 18 al 30 de septiembre: 3.238 capturas, 592 MB, y map_look_back
+        // llamada CERO veces. Guardaba mucho y no lo consultaba nadie. «Cualquier implementación que no haya
+        // funcionado […] la eliminamos, como por ejemplo eso de ver la pantalla» (el dueño, 2026-10-01).
+        //
+        // No mueren sin descendencia. Recordar con fotos lo hace ahora el diario de la sesión, que el repaso SÍ
+        // lee (743, 744), y ver la pantalla sin pedirla, la foto que viaja con cada pedido (740, 741). Que el
+        // álbum no vuelva lo vigila la 746. Los números NO se reciclan.
 
         // VER COMO PARA COMPUTER USE (spec 027, fase 4, 2026-09-17, elegido por el dueño). La reducción a 1024 px
         // venía de cuando la imagen tenía que caber INCRUSTADA en un buzón de 32.768 bytes; por referencia ya no
@@ -713,11 +723,6 @@ internal static class Contrato
         // 32 px y 2.048 de lado— y la documentación de OpenAI, que pide el detalle fino justo para computer use.
         Prueba("256. la foto que viaja va a la RESOLUCIÓN DE LA PANTALLA, como pide una tarea de computer use: una pantalla de 1080p se manda entera y sin reducir, una más grande se reduce sólo hasta caber en el presupuesto del servidor conservando la proporción, y una más pequeña nunca se agranda", MirarVaAResolucionDePantalla);
 
-        // EL ÁLBUM NO TENÍA PUERTA (spec 027, fase 5, 2026-09-17). El dueño le pidió a Ü que recordara una
-        // investigación sobre aves y la foto de aquel momento, y contestó que no tenía ninguna — y era verdad:
-        // «UltimaDe» existía y no la llamaba nadie, y sólo se guardaba al llamar map_look, que en esa tarea no
-        // se llamó. Se construyó la memoria sin la forma de consultarla.
-        Prueba("257. se guarda una mirada por CAMBIO de ubicación y no por reloj: seguir en el mismo sitio no guarda otra, cambiar sí, y volver a un sitio del que ya hay una foto fresca tampoco la repite", UnaMiradaPorCambioDeUbicacion);
         // LLEGAR ES LLEGAR (spec 029, corte 1, 2026-09-17). De 79 map_go_to en tres días, 21 acabaron en «no hay
         // ningún camino» tras agotar el plazo: 315 s. En al menos ocho, Ü YA ESTABA donde se le pidió: pidió
         // www.google.com y estaba en google.com; pidió …/document/u/0/ y estaba en …/document/u/0; pidió …/search?q=…
@@ -749,8 +754,6 @@ internal static class Contrato
         // recuerdo se escribe DESPUÉS de tocar». Desde la 497 fuera de una comprobación no hay coreografía: el clic va por el
         // ciclo rápido y recordar es map_esto_es, explícito. Lo de dentro ya lo promete la 180.
         Prueba("267. un paso que hizo 0 de N se ve como fallo, no con ✓: el notch y el registro lo pintan como lo que fue", CeroDeUnoSeVeComoFallo);
-
-        Prueba("258. el modelo puede pedir lo que vio antes: pedir la mirada de una ubicación devuelve su foto con su ficha —cuándo fue y qué estaba pasando—, y si de esa no hay, dice QUÉ ubicaciones sí recuerda en vez de contestar que no hay nada", ElModeloPuedePedirLoQueVioAntes);
 
         // EL NOTCH NO DECÍA QUE LO HABÍAN PARADO (spec 028, ampliada 2026-09-17). El dueño, tras probarlo en vivo:
         // «una vez yo detuve la conversación… que se guarde en notch». El estado y el icono de «se quedó sin
@@ -1040,6 +1043,24 @@ internal static class Contrato
         Prueba("715. la Memoria enseña lo aprendido: las habilidades enseñadas hablando salen con las demás, y las preferencias tienen su apartado", LaMemoriaEnsenaLoAprendido);
         Prueba("716. las preferencias le llegan también a quien habla: al confirmarse la apertura la voz recibe las preferencias —no las habilidades, que son de quien actúa—, las más recientes primero y dentro de lo que cabe en un append; sin preferencias no se le manda nada", LasPreferenciasLleganAQuienHabla);
         Prueba("717. una preferencia se guarda en su sitio: quien actúa tiene preferencia_guardar, que escribe en lo aprendido y no en la memoria personal; sus instrucciones mandan usarla para cómo quiere las cosas la persona y dejan memory_remember para datos y compromisos; y el repaso propone como preferencia la que solo estaba entre los datos", UnaPreferenciaSeGuardaEnSuSitio);
+
+        // ── Spec 078: Ü ve — para contestar sin pedir permiso para mirar, y para aprender de lo que ve (2026-10-01) ──
+        // 740-759 reservadas (718-739 se dejan: otra rama abierta numera por ahí). «La capacidad de poder ver es
+        // clave para la generación de skills, además, y preferencias» (el dueño). Medido antes de escribir nada, con
+        // la sonda contra el servidor: una foto metida en la conversación antes de hablar le llega al delegado, y con
+        // sus instrucciones diciéndoselo contesta en una vuelta en vez de dos. En los logs del dueño, el 24 % de los
+        // pedidos empieza mirando y el 31 % pide una foto.
+        Console.WriteLine();
+        Prueba("740. la pantalla solo viaja con el pedido si cambió: dos capturas de la misma pantalla dan la misma huella aunque parpadee el cursor o corra el reloj, y otra ventana da otra; y no viaja si no ha pasado el respiro, si ya van las del tope, o si está apagada", LaPantallaSoloViajaSiCambio);
+        Prueba("741. al empezar a hablar la persona, y al escribir, Ü manda la pantalla de ese momento antes que el pedido; una conexión nueva empieza la cuenta de cero; y las instrucciones del delegado dicen que ya ve la pantalla al empezar, sin que las de la voz única cambien", LaPantallaViajaAntesQueElPedido);
+        Prueba("742. lo que la persona muestra se ve: cada clic suyo lleva la foto del instante de pulsar, en su orden; se entregan una sola vez, a lo sumo las del tope, y sin sesión no se toma ninguna", LoQueLaPersonaMuestraSeVe);
+        Prueba("743. el diario lleva las fotos de lo que la persona tocó y de lo que a Ü no le salió: las más recientes hasta el tope, numeradas en el texto; se guardan con el diario, se vuelven a leer iguales y se retiran con él", ElDiarioLlevaLasFotos);
+        Prueba("744. el repaso ve: lo que se le pide al modelo lleva cada foto del diario como imagen, rotulada con su línea; sin fotos la petición es la de siempre; y se le puede quitar la vista sin quitarle el repaso", ElRepasoVe);
+        Prueba("745. toda copia subida a OpenAI queda apuntada en disco hasta que se borra: un borrado que falla la deja pendiente, un reintento que sale bien la quita, y otra sesión —o la app después de caerse— encuentra lo pendiente", TodaCopiaQuedaApuntada);
+        Prueba("746. el álbum automático ya no existe: nada captura la pantalla al cambiar de sitio, map_look_back no está en el catálogo y la Memoria no tiene el apartado «pantalla»", ElAlbumYaNoExiste);
+        Prueba("747. lo que la persona dice no se guarda crudo por una lista de palabras: cerrar un turno no escribe en la memoria personal", LoDichoNoSeGuardaCrudo);
+        Prueba("748. quien actúa sabe qué día es: las instrucciones con que abre dicen el día de la semana, la fecha y la hora locales", QuienActuaSabeQueDiaEs);
+        Prueba("749. lo que devuelve el delegado no se cuenta dos veces: con el micrófono abierto lo dice la voz, y solo eso queda como dicho por Ü; en una sesión escrita, que no tiene voz, es la respuesta", LoDelDelegadoNoSeCuentaDosVeces);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -11392,83 +11413,6 @@ internal static class Contrato
         }
     }
 
-    private static void ElAlbumDeMiradasRecuerdaYPoda()
-    {
-        var t = Capacidad("U.WindowsClient.Navigation.AlbumDeMiradas");
-        Debe(t != null, "todavía no existe «Navigation.AlbumDeMiradas» (spec 027, promesa 255). "
-            + "La promesa está escrita y en rojo, que es donde tiene que estar");
-        if (t == null) return;
-
-        string carpeta = Path.Combine(Path.GetTempPath(), "u-album-" + Guid.NewGuid().ToString("N")[..8]);
-        long ahora = 0;
-        const long Dia = 86_400_000L;
-        // Un JPEG de verdad empieza por FF D8 FF y acaba por FF D9. Relleno en medio para darle tamaño.
-        byte[] Jpeg(int bytes) { var b = new byte[Math.Max(5, bytes)]; b[0] = 0xFF; b[1] = 0xD8; b[2] = 0xFF; b[^2] = 0xFF; b[^1] = 0xD9; return b; }
-
-        object Album(long topeBytes, long topeMs) => Activator.CreateInstance(
-            t, new object[] { carpeta, (Func<long>)(() => Volatile.Read(ref ahora)), topeBytes, topeMs })!;
-        var mGuardar = t.GetMethod("Guardar");
-        var mUltima  = t.GetMethod("UltimaDe");
-        var mPodar   = t.GetMethod("Podar");
-        if (mGuardar == null || mUltima == null || mPodar == null)
-        { Pendiente("AlbumDeMiradas.Guardar / UltimaDe / Podar", "255", "027"); return; }
-        var a = Album(2L * 1024 * 1024 * 1024, 7 * Dia);
-
-        object? Guarda(object al, byte[] j, string donde, string que) => mGuardar.Invoke(al, new object[] { j, donde, que });
-        object? Ultima(object al, string donde) => mUltima.Invoke(al, new object[] { donde });
-        int Poda(object al) => (int)mPodar.Invoke(al, null)!;
-        string Campo(object f, string n) => (f.GetType().GetProperty(n)?.GetValue(f) ?? "").ToString()!;
-        long Numero(object f, string n) => Convert.ToInt64(f.GetType().GetProperty(n)?.GetValue(f) ?? 0L);
-
-        try
-        {
-            ahora = 1_000;
-            var f1 = Guarda(a, Jpeg(1000), "web://instagram.com", "abriendo los mensajes");
-            Debe(f1 != null, "guardar una mirada devuelve su ficha");
-            if (f1 == null) return;
-            Debe(Campo(f1, "Ubicacion") == "web://instagram.com", $"la ficha dice DÓNDE se tomó ({Campo(f1, "Ubicacion")})");
-            Debe(Campo(f1, "QuePasaba") == "abriendo los mensajes", $"y QUÉ estaba pasando ({Campo(f1, "QuePasaba")})");
-            Debe(Numero(f1, "Cuando") == 1_000, $"y CUÁNDO, por el reloj que se le dio ({Numero(f1, "Cuando")})");
-            string archivo = Campo(f1, "Archivo");
-            Debe(File.Exists(archivo), $"y la foto está en el disco ({archivo})");
-            Debe(archivo.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase),
-                $"guardada en JPEG, que pesa la mitad que el PNG ({Path.GetExtension(archivo)})");
-
-            // UN PNG NO ENTRA. Si el álbum acepta cualquier cosa, «se guarda en JPEG» es una intención y no un hecho.
-            var png = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2 };
-            Debe(Guarda(a, png, "web://instagram.com", "no debería entrar") == null,
-                "lo que no es JPEG no entra: el álbum no se llena de formatos que nadie prometió");
-
-            ahora = 2_000;
-            Guarda(a, Jpeg(1000), "web://instagram.com", "escribiendo el mensaje");
-            ahora = 3_000;
-            Guarda(a, Jpeg(1000), "uia://EXCEL.exe/inicio", "el libro en blanco");
-
-            var ultima = Ultima(a, "web://instagram.com");
-            Debe(ultima != null && Campo(ultima, "QuePasaba") == "escribiendo el mensaje",
-                "se puede pedir la última foto de UNA ubicación, y es la más reciente de ese sitio, no la de otro");
-            Debe(Ultima(a, "web://no-estuve-nunca") == null, "de un sitio donde no se miró no se inventa una foto");
-
-            // POR EDAD: siete días. Lo de hace ocho ya no está.
-            ahora = 3_000 + 8 * Dia;
-            int porEdad = Poda(a);
-            Debe(porEdad == 3, $"a los ocho días se van las tres de entonces ({porEdad})");
-            Debe(Ultima(a, "web://instagram.com") == null, "y pedirlas ya no devuelve nada: se fueron de verdad");
-
-            // POR TAMAÑO: con un tope de 2500 bytes y tres fotos de 1000, sobra la más vieja.
-            var b = Album(2500, 7 * Dia);
-            ahora += 1_000; Guarda(b, Jpeg(1000), "web://a", "la más vieja");
-            ahora += 1_000; Guarda(b, Jpeg(1000), "web://b", "la de en medio");
-            ahora += 1_000; Guarda(b, Jpeg(1000), "web://c", "la más nueva");
-            int porTamano = Poda(b);
-            Debe(porTamano == 1, $"pasado el tope de tamaño se va UNA, la justa para volver a caber ({porTamano})");
-            Debe(Ultima(b, "web://a") == null, "y la que se va es la MÁS VIEJA, no la que toque");
-            Debe(Ultima(b, "web://c") != null, "la más nueva se queda: podar no es vaciar");
-        }
-        finally { try { Directory.Delete(carpeta, true); } catch { } }
-    }
-
-
     private static void MirarVaAResolucionDePantalla()
     {
         var t = Capacidad("U.WindowsClient.Voice.CapturaDePantalla");
@@ -11504,77 +11448,6 @@ internal static class Contrato
         // Y NUNCA SE AGRANDA: inventar píxeles no añade nada que ver y sí lo que cobrar.
         var (w4, h4) = Mide(640, 360);
         Debe(w4 == 640 && h4 == 360, $"una pantalla más pequeña que el presupuesto se manda tal cual ({w4}x{h4})");
-    }
-
-    private static void UnaMiradaPorCambioDeUbicacion()
-    {
-        var t = Capacidad("U.WindowsClient.Navigation.CuandoSeMira");
-        var m = t?.GetMethod("HayQueGuardar", BindingFlags.Public | BindingFlags.Static);
-        if (m == null) { Pendiente("Navigation.CuandoSeMira.HayQueGuardar", "257", "027"); return; }
-        bool Toca(string antes, string ahora, long ultimaDeEsa, long reloj, long frescuraMs)
-            => (bool)m.Invoke(null, new object[] { antes, ahora, ultimaDeEsa, reloj, frescuraMs })!;
-
-        const long Fresco = 60_000;
-        Debe(Toca("", "web://instagram.com", 0, 1_000, Fresco),
-            "la primera ubicación de la sesión se guarda: sin foto previa no hay nada que enseñar");
-        Debe(!Toca("web://instagram.com", "web://instagram.com", 1_000, 5_000, Fresco),
-            "seguir en el mismo sitio NO guarda otra: una captura por tick compite con el lector de pantalla");
-        // Y SIGUE SIN GUARDAR aunque la foto que hay sea VIEJA: es no haberse movido lo que lo impide, no la
-        // frescura. Sin esta línea las dos cláusulas se tapan una a otra y quitar cualquiera deja el contrato
-        // verde — se descubrió saboteando, que es exactamente para lo que sirve el paso 5 del ciclo.
-        Debe(!Toca("web://instagram.com", "web://instagram.com", 1_000, 200_000, Fresco),
-            "y no guarda ni con la foto vieja: quedarse quieto no es llegar a ningún sitio");
-        Debe(Toca("web://instagram.com", "web://google.com", 0, 6_000, Fresco),
-            "cambiar de sitio sí guarda: es el cambio lo que deja algo nuevo que recordar");
-        Debe(!Toca("web://google.com", "web://instagram.com", 1_000, 20_000, Fresco),
-            "y volver a un sitio del que ya hay una foto FRESCA no la repite");
-        Debe(Toca("web://google.com", "web://instagram.com", 1_000, 200_000, Fresco),
-            "pero si la que hay es vieja, sí: la pantalla de hace tres minutos ya no es la misma");
-        Debe(!Toca("web://google.com", "", 0, 300_000, Fresco),
-            "y sin saber dónde estamos no se guarda: una foto sin ubicación no se puede pedir después");
-    }
-
-    private static void ElModeloPuedePedirLoQueVioAntes()
-    {
-        var t = Capacidad("U.WindowsClient.Navigation.AlbumDeMiradas");
-        var m = t?.GetMethod("LoQueRecuerdo");
-        if (t == null || m == null) { Pendiente("AlbumDeMiradas.LoQueRecuerdo (la puerta del álbum)", "258", "027"); return; }
-
-        string carpeta = Path.Combine(Path.GetTempPath(), "u-puerta-" + Guid.NewGuid().ToString("N")[..8]);
-        long ahora = 0;
-        static byte[] Jpeg() { var b = new byte[600]; b[0] = 0xFF; b[1] = 0xD8; b[2] = 0xFF; b[^2] = 0xFF; b[^1] = 0xD9; return b; }
-        var a = Activator.CreateInstance(t, new object[] {
-            carpeta, (Func<long>)(() => Volatile.Read(ref ahora)), 2L * 1024 * 1024 * 1024, 7 * 86_400_000L })!;
-        var mGuardar = t.GetMethod("Guardar")!;
-
-        try
-        {
-            ahora = 1_000; mGuardar.Invoke(a, new object[] { Jpeg(), "web://google.com", "buscando aves raras de Antioquia" });
-            ahora = 2_000; mGuardar.Invoke(a, new object[] { Jpeg(), "uia://EXCEL.exe/inicio", "el libro en blanco" });
-
-            var r = m.Invoke(a, new object[] { "web://google.com" })!;
-            var tr = r.GetType();
-            object? ficha = tr.GetProperty("Ficha")?.GetValue(r);
-            string cuenta = (tr.GetProperty("Cuenta")?.GetValue(r) ?? "").ToString()!;
-            Debe(ficha != null, "pedir la mirada de una ubicación devuelve su foto");
-            if (ficha != null)
-            {
-                string que = (ficha.GetType().GetProperty("QuePasaba")?.GetValue(ficha) ?? "").ToString()!;
-                Debe(que == "buscando aves raras de Antioquia", $"y con su ficha: qué estaba pasando ({que})");
-            }
-            Debe(cuenta.Contains("aves", StringComparison.OrdinalIgnoreCase),
-                $"y lo cuenta en castellano, con lo que pasaba, no en bruto («{Corto120(cuenta)}»)");
-
-            // DE UN SITIO QUE NO TIENE, NO SE CALLA: se dice QUÉ sí recuerda. Contestar «no hay nada» sobre
-            // una memoria que sí tiene fotos es lo que hizo creer al dueño que el álbum no existía.
-            var r2 = m.Invoke(a, new object[] { "web://no-estuve-nunca" })!;
-            object? ficha2 = r2.GetType().GetProperty("Ficha")?.GetValue(r2);
-            string cuenta2 = (r2.GetType().GetProperty("Cuenta")?.GetValue(r2) ?? "").ToString()!;
-            Debe(ficha2 == null, "de un sitio donde no se miró no se inventa una foto");
-            Debe(cuenta2.Contains("google", StringComparison.OrdinalIgnoreCase) && cuenta2.Contains("EXCEL", StringComparison.OrdinalIgnoreCase),
-                $"pero se dice QUÉ ubicaciones sí recuerda, para que el modelo pueda pedir otra («{Corto120(cuenta2)}»)");
-        }
-        finally { try { Directory.Delete(carpeta, true); } catch { } }
     }
 
     private static string Corto120(string t) => t.Length <= 120 ? t : t[..120];
@@ -12306,7 +12179,7 @@ internal static class Contrato
     private static readonly string[] ApartadosDeLaMemoria =
     {
         "quien", "datos", "preferencias", "recordatorios", "conversacion", "habilidades", "lecciones",
-        "pantalla", "sitios", "explicado", "aparatos", "registro", "fuera",
+        "sitios", "explicado", "aparatos", "registro", "fuera",
     };
 
     private static System.Xml.Linq.XElement? ConNombre(System.Xml.Linq.XElement raiz, string nombre) =>
@@ -12588,13 +12461,7 @@ internal static class Contrato
         charla.Agregar("asistente", "Llamar al laboratorio.");
         charla.Agregar("usuario", "gracias");
 
-        long ms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         byte[] jpeg = { 0xFF, 0xD8, 0xFF, 0xE0, 0, 0 };
-        var album = new AlbumDeMiradas(Path.Combine(local, "recuerdos", "miradas"), () => ms,
-            AlbumDeMiradas.DosGigas, AlbumDeMiradas.SieteDiasMs);
-        album.Guardar(jpeg, "uia://Notepad.exe/sin-título-bloc-de-notas", "pasando por aquí");
-        album.Guardar(jpeg, "web://google.com/search", "pasando por aquí");
-        album.Guardar(jpeg, "web://google.com/search", "miró la pantalla");
 
         SkillEnsenada.Empaquetar("Enviar un correo en Gmail", "Úsala cuando haya que mandar un correo",
             "web://mail.google.com", new[] { new PasoEnsenado("Redactar") })!.Guardar(Path.Combine(local, "skills"));
@@ -12628,7 +12495,7 @@ internal static class Contrato
         // un apartado que desaparece cuando está vacío no se distingue de uno que nadie escribió.
         var claves = vacia.Select(a => (string)a.Clave).ToList();
         Debe(claves.SequenceEqual(ApartadosDeLaMemoria),
-            $"sin nada guardado se cuentan los trece apartados, en su orden: {string.Join(", ", claves)}");
+            $"sin nada guardado se cuentan los doce apartados, en su orden: {string.Join(", ", claves)}");
         foreach (var a in vacia.Where(a => (string)a.Clave != "fuera"))
         {
             string clave = (string)a.Clave, estado = a.Estado.ToString(), resumen = (string)a.Resumen;
@@ -12647,7 +12514,7 @@ internal static class Contrato
         int Cuenta(string clave) => (int)(Apartado(llena, clave)?.Cuenta ?? -1);
         string Estado(string clave) => Apartado(llena, clave)?.Estado.ToString() ?? "(no está)";
 
-        Debe(llena.Select(a => (string)a.Clave).SequenceEqual(ApartadosDeLaMemoria), "con todo guardado siguen siendo los mismos trece");
+        Debe(llena.Select(a => (string)a.Clave).SequenceEqual(ApartadosDeLaMemoria), "con todo guardado siguen siendo los mismos doce");
         foreach (string clave in ApartadosDeLaMemoria)
             Debe(Estado(clave) == "ConDatos", $"«{clave}» tiene datos y lo dice: {Estado(clave)}");
 
@@ -12656,9 +12523,6 @@ internal static class Contrato
         Debe(Cuenta("conversacion") == 3, $"lo hablado son 3 turnos: {Cuenta("conversacion")}");
         Debe(Cuenta("habilidades") == 1, $"hay 1 habilidad enseñada: {Cuenta("habilidades")}");
         Debe(Cuenta("lecciones") == 1, $"hay 1 lección grabada: {Cuenta("lecciones")}");
-        Debe(Cuenta("pantalla") == 3, $"se miró la pantalla 3 veces: {Cuenta("pantalla")}");
-        Debe(((IEnumerable<dynamic>)Apartado(llena, "pantalla")!.Entradas).Count() == 2,
-            "las 3 miradas se cuentan por sitio: el Bloc de notas y google.com, no una fila por foto");
         Debe(Cuenta("explicado") == 2, $"hay 2 cosas explicadas señalándolas: {Cuenta("explicado")}");
         Debe(Cuenta("aparatos") == 2, $"hay 2 aparatos, el collar y el micrófono bautizado: {Cuenta("aparatos")}");
         Debe(Cuenta("registro") == 2, $"el registro tiene 2 días: {Cuenta("registro")}");
@@ -12687,7 +12551,7 @@ internal static class Contrato
         foreach (string roto in new[]
                  {
                      Path.Combine(roaming, "config.json"), Path.Combine(roaming, "memoria-personal.json"),
-                     Path.Combine(local, "recuerdos", "miradas", "album.json"), Path.Combine(local, "titulos-web.json"),
+                     Path.Combine(local, "titulos-web.json"),
                      Path.Combine(local, "collar.json"),
                  })
             File.WriteAllText(roto, "{ \"items\": [ { \"text\": \"a med");
@@ -12702,7 +12566,7 @@ internal static class Contrato
 
         string Estado(string clave) => Apartado(leido, clave)?.Estado.ToString() ?? "(no está)";
         string Resumen(string clave) => (string)(Apartado(leido, clave)?.Resumen ?? "");
-        foreach (string clave in new[] { "quien", "datos", "recordatorios", "pantalla", "sitios", "conversacion" })
+        foreach (string clave in new[] { "quien", "datos", "recordatorios", "sitios", "conversacion" })
         {
             Debe(Estado(clave) == "NoSePudoLeer", $"«{clave}» no se pudo leer y lo dice, en vez de decir «vacío»: {Estado(clave)}");
             Debe(Resumen(clave).Contains("no pude leer", StringComparison.OrdinalIgnoreCase),
@@ -12723,6 +12587,12 @@ internal static class Contrato
     {
         if (LeerLaMemoria(DateTimeOffset.Now) == null) { Pendiente("Memoria.LoQueUSabe.Leer", "624", "071"); return; }
         SembrarLaMemoria();
+        // Dos demostraciones más, una en un programa y otra en una web. Hasta la spec 078 estos dos nombres salían
+        // del apartado «pantalla», que se fue con el álbum de miradas: la regla sigue, y se juzga donde se sigue usando.
+        foreach (var (id, donde) in new[] { ("leccion_20260924_090000", "uia://Notepad.exe/sin-título-bloc-de-notas"), ("leccion_20260924_091500", "web://www.google.com/search") })
+            U.WindowsClient.Teach.LeccionEnDisco.Guardar(new U.WindowsClient.Teach.Leccion(id, donde, donde, 12_000, "",
+                Array.Empty<U.WindowsClient.Teach.EventoDeLaLeccion>(), Array.Empty<FraseDicha>(),
+                Array.Empty<U.WindowsClient.Teach.CuadroDeLaLeccion>()), U.WindowsClient.Teach.LeccionEnDisco.NuevaCarpeta(id));
         var ahora = DateTimeOffset.Now;
         var hoy = LeerLaMemoria(ahora)!;
 
@@ -16883,6 +16753,401 @@ internal static class Contrato
         string reglas = m.Pedidos.Count == 1 && JsonDocument.Parse(m.Pedidos[0]).RootElement.TryGetProperty("instructions", out var ins) ? ins.GetString() ?? "" : "";
         Debe(reglas.Contains("solo está entre los DATOS", StringComparison.Ordinal),
             "las reglas del repaso dicen que una preferencia que solo está entre los datos se propone como preferencia");
+    }
+
+    // ── Spec 078: Ü ve ────────────────────────────────────────────────────────────────────────────
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: pagar por ver. Cada foto que se queda en la conversación frena cada vuelta del
+    /// delegado unos 30 ms (medido el 2026-10-01: 0,9–1,6 s con una, 2,3–2,8 s con cuarenta), y no hay con qué
+    /// quitarla después. Mandar una por pedido sin mirar si la pantalla es la misma convertiría una sesión larga
+    /// en una lenta — y aquí la velocidad manda. Y al revés: una huella que cambia con el parpadeo del cursor no
+    /// ahorra nada.
+    /// </remarks>
+    private static void LaPantallaSoloViajaSiCambio()
+    {
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        var t = Cap004("U.WindowsClient.Voice.PantallaAlPedir");
+        MethodInfo? huella = t?.GetMethod("Huella", f), cambio = t?.GetMethod("Cambio", f), toca = t?.GetMethod("Toca", f), encendida = t?.GetMethod("Encendida", f);
+        if (t == null || huella == null || cambio == null || toca == null || encendida == null)
+        { Pendiente("Voice.PantallaAlPedir (Huella, Cambio, Toca, Encendida)", "740", "078"); return; }
+        int tope = (int)t.GetField("Tope", f)!.GetRawConstantValue()!, espacio = (int)t.GetField("EspacioMs", f)!.GetRawConstantValue()!;
+
+        // Una pantalla de mentira de 1920×1080, dicha por su luminancia: escritorio, barra de tareas con su reloj,
+        // y —según el caso— el cursor de texto encendido y una ventana delante.
+        Func<int, int, int> Pantalla(bool cursorDeTexto, bool otroMinuto, bool otraVentana) => (x, y) =>
+        {
+            if (otraVentana && x >= 300 && x < 1500 && y >= 150 && y < 900) return 240;
+            if (cursorDeTexto && x >= 800 && x < 802 && y >= 500 && y < 518) return 0;
+            if (x >= 1800 && x < 1900 && y >= 1050 && y < 1070) return otroMinuto ? 200 : 40;
+            return y < 1040 ? 30 + x / 64 % 3 * 5 : 90;
+        };
+        int[] H(Func<int, int, int> p) => (int[])huella.Invoke(null, new object[] { p, 1920, 1080 })!;
+        bool C(int[]? a, int[] b) => (bool)cambio.Invoke(null, new object?[] { a, b })!;
+        bool T(int[]? ultima, int[] ahora, long ms, int van, bool si) => (bool)toca.Invoke(null, new object?[] { ultima, ahora, ms, van, si })!;
+
+        int[] quieta = H(Pantalla(false, false, false)), parpadeo = H(Pantalla(true, true, false)), otra = H(Pantalla(false, false, true));
+        Debe(!C(quieta, quieta), "la misma pantalla no cambió");
+        Debe(!C(quieta, parpadeo), "el cursor de texto que parpadea y el reloj que corre no son otra pantalla");
+        Debe(C(quieta, otra), "otra ventana delante sí es otra pantalla");
+        Debe(C(null, quieta), "y sin foto anterior, cualquiera es nueva");
+
+        Debe(T(null, quieta, long.MaxValue, 0, true), "la primera viaja");
+        Debe(!T(quieta, parpadeo, 60_000, 1, true), "la misma pantalla no vuelve a viajar: el delegado ya la tiene");
+        Debe(T(quieta, otra, espacio, 1, true), "otra pantalla, pasado el respiro, viaja");
+        Debe(!T(quieta, otra, espacio - 1, 1, true), $"antes del respiro de {espacio} ms no: un carraspeo detrás de otro no son dos pedidos");
+        Debe(!T(quieta, otra, 60_000, tope, true), $"con las {tope} del tope ya mandadas no viaja otra: cada una frena todas las vueltas que quedan");
+        Debe(tope is > 0 and <= 16, $"y el tope es bajo a propósito ({tope})");
+        Debe(!T(null, quieta, long.MaxValue, 0, false), "apagada, ninguna");
+
+        bool E(string? valor) => (bool)encendida.Invoke(null, new object[] { (Func<string, string?>)(_ => valor) })!;
+        Debe(E(null) && E("") && E("1"), "viene encendida");
+        Debe(!E("0") && !E(" 0 "), "y U_FOTO_AL_PEDIR=0 la apaga sin recompilar");
+    }
+
+    private static void LaPantallaViajaAntesQueElPedido()
+    {
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        if (Cap004("U.WindowsClient.Voice.PantallaAlPedir") == null) { Pendiente("Voice.PantallaAlPedir", "741", "078"); return; }
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo")!;
+        string delDelegado = (string)t.GetProperty("InstruccionesDelDelegado", f)!.GetValue(null)!;
+        string deUnaVoz = (string)t.GetProperty("InstruccionesNormales", f)!.GetValue(null)!;
+        Debe(delDelegado.Contains("YA VES LA PANTALLA AL EMPEZAR", StringComparison.Ordinal),
+            "las instrucciones del delegado dicen que ya ve la pantalla al empezar: sin decírselo gastó igual la vuelta en mirar (sonda)");
+        string marca = typeof(Voz.Realtime.ProtocoloGptLive).GetField("MarcaDeLaPantalla")?.GetRawConstantValue() as string ?? "";
+        Debe(marca.Length > 0 && delDelegado.Contains(marca, StringComparison.Ordinal),
+            $"y cómo reconocer esa foto: por la MISMA marca con que el protocolo la manda («{marca}»), no por una parecida (nº16)");
+        // Medido el 2026-10-01 en la Ü de pruebas («¿qué número se ve en la calculadora?»): con la foto delante,
+        // quien actúa llamó a map_where_am_i y a map_look antes de contestar «144» —3 vueltas, 7,5 s—, porque más
+        // arriba sus instrucciones dicen que una foto nunca decide dónde se está. El párrafo tiene que decirle que
+        // el sitio ya viene escrito junto a la foto, y nombrar las tres herramientas que no hacen falta para empezar.
+        int desde = delDelegado.IndexOf("YA VES LA PANTALLA AL EMPEZAR", StringComparison.Ordinal);
+        int hasta = desde < 0 ? -1 : delDelegado.IndexOf("TRABAJA SIN ANUNCIAR", desde, StringComparison.Ordinal);
+        string vista = desde >= 0 && hasta > desde ? delDelegado[desde..hasta] : "";
+        Debe(vista.Contains("map_where_am_i", StringComparison.Ordinal) && vista.Contains("map_look", StringComparison.Ordinal)
+             && vista.Contains("map_what_i_see", StringComparison.Ordinal),
+            "y nombra las tres llamadas que NO hacen falta para empezar —mirar, listar y preguntar dónde está—: el sitio ya viene escrito junto a la foto");
+        Debe(!deUnaVoz.Contains("YA VES LA PANTALLA AL EMPEZAR", StringComparison.Ordinal),
+            "las de la voz única no cambian: a ella no le llega esa foto");
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        // DONDE NACE EL TURNO, que es un solo sitio para las dos voces: GPT-Live no avisa de que la persona empezó
+        // a hablar —el turno lo abre la conversación con el primer trozo de lo que dice—, y Realtime sí.
+        var turno = System.Text.RegularExpressions.Regex.Match(v, @"private void EmpiezaUnTurnoDelUsuario\([\s\S]*?\n    }");
+        Debe(turno.Success && turno.Value.Contains("MandarLaPantallaAlPedir(", StringComparison.Ordinal),
+            "[cableado] al empezar a hablar la persona nadie manda la pantalla");
+        var escrito = System.Text.RegularExpressions.Regex.Match(v, @"private async Task EnviarTextoInternoAsync\([\s\S]*?\n    }");
+        int foto = escrito.Value.IndexOf("await MandarLaPantallaAlPedirAsync(", StringComparison.Ordinal), texto = escrito.Value.IndexOf("MensajesDeTexto(", StringComparison.Ordinal);
+        Debe(escrito.Success && foto >= 0 && texto > foto, "[cableado] lo escrito: la pantalla tiene que ir ANTES que el texto, o el delegado empieza sin ella");
+        var mandar = System.Text.RegularExpressions.Regex.Match(v, @"private async Task MandarLaPantallaAlPedirAsync\([\s\S]*?\n    }");
+        Debe(mandar.Success && mandar.Value.Contains("PantallaAlPedir.Toca(", StringComparison.Ordinal) && mandar.Value.Contains("_protocolo.PantallaAlPedir(", StringComparison.Ordinal),
+            "[cableado] mandarla no pasa por la regla que decide si toca, o no sale por el protocolo");
+        var conexion = System.Text.RegularExpressions.Regex.Match(v, @"private void EmpiezaUnaConexion\([\s\S]*?\n    }");
+        Debe(conexion.Success && conexion.Value.Contains("_pantallasMandadas = 0", StringComparison.Ordinal),
+            "[cableado] una conexión nueva no empieza la cuenta de cero: es otra conversación, que no tiene ninguna foto");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: una demostración que no enseña nada. Dentro de SAP GUI, UIA ve un panel opaco:
+    /// «mira cómo se radica» seguido de cuatro clics daba cuatro líneas sin nombre —y la 706 ni siquiera las
+    /// contaba—. La foto del instante de pulsar, con el cursor dibujado encima, es lo único que dice qué se tocó.
+    /// </remarks>
+    private static void LoQueLaPersonaMuestraSeVe()
+    {
+        var t = Cap004("U.WindowsClient.Voice.LoQueHiciste");
+        if (t?.GetMethod("TomarConFotos") == null || t.GetMethod("AlPulsar") == null || t.GetMethod("AnotarEn") == null || t.GetProperty("ConFotos") == null)
+        { Pendiente("LoQueHiciste.AlPulsar / AnotarEn / TomarConFotos / ConFotos", "742", "078"); return; }
+        int tope = (int)t.GetField("TopeDeFotos")!.GetRawConstantValue()!;
+        byte[] Foto(int n) => new byte[] { 0xFF, 0xD8, (byte)n };
+        Task<byte[]?> Tomada(int n) => Task.FromResult<byte[]?>(Foto(n));
+
+        dynamic r = Activator.CreateInstance(t)!;
+        r.ConFotos = true;
+        r.AlPulsar(100, 200, Tomada(1));
+        r.AnotarEn(100, 200, "uia:name=Facturación", "Facturación", "TreeItem", "saplogon");
+        r.AlPulsar(300, 400, Tomada(2));
+        r.AnotarEn(300, 400, "", "", "Pane", "saplogon");                              // SAP por UIA: sin nombre
+        r.AnotarEn(500, 600, "uia:name=Guardar", "Guardar", "Button", "saplogon");     // resuelto sin que hubiera foto
+        var hecho = ((System.Collections.IEnumerable)r.TomarConFotos()).Cast<dynamic>().ToList();
+        Debe(hecho.Count == 3, $"tres clics dan tres entradas, también el que UIA no sabe nombrar: {hecho.Count}");
+        if (hecho.Count == 3)
+        {
+            Debe(((string)hecho[0].Linea).Contains("«Facturación»", StringComparison.Ordinal) && hecho[0].Foto != null && ((byte[])hecho[0].Foto)[2] == 1,
+                "cada uno con SU foto: la del instante en que se pulsó ese");
+            Debe(hecho[1].Foto != null && ((byte[])hecho[1].Foto)[2] == 2 && ((string)hecho[1].Linea).Contains("sin nombre", StringComparison.Ordinal),
+                $"el que no tiene nombre dice que no lo tiene, y lleva su foto, que es lo que lo explica: «{(string)hecho[1].Linea}»");
+            Debe(hecho[2].Foto == null && ((string)hecho[2].Linea).Contains("«Guardar»", StringComparison.Ordinal), "y el que no tuvo foto sale igual, sin ella");
+        }
+        Debe(((System.Collections.IEnumerable)r.TomarConFotos()).Cast<dynamic>().Count() == 0, "se entregan una sola vez");
+
+        for (int i = 0; i < tope + 3; i++) { r.AlPulsar(i, i, Tomada(i)); r.AnotarEn(i, i, "", $"botón {i}", "Button", "chrome"); }
+        var muchos = ((System.Collections.IEnumerable)r.TomarConFotos()).Cast<dynamic>().ToList();
+        var conFoto = muchos.Where(x => x.Foto != null).ToList();
+        Debe(muchos.Count == tope + 3 && conFoto.Count == tope && ((byte[])conFoto[^1].Foto)[2] == (byte)(tope + 2),
+            $"las fotos, a lo sumo las {tope} últimas; las líneas, todas ({muchos.Count} líneas, {conFoto.Count} con foto)");
+
+        r.ConFotos = false;
+        r.AlPulsar(1, 1, Tomada(9));
+        r.AnotarEn(1, 1, "", "Uno", "Button", "chrome");
+        var sinSesion = ((System.Collections.IEnumerable)r.TomarConFotos()).Cast<dynamic>().ToList();
+        Debe(sinSesion.Count == 1 && sinSesion[0].Foto == null, "sin sesión no se guarda ninguna foto: la pantalla de la persona no se retiene porque sí");
+
+        r.Anotar("uia:name=X", "X", "Button", "chrome");
+        Debe(((IEnumerable<string>)r.Tomar()).Count() == 1, "y la entrega de siempre (706) sigue como estaba");
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"private async Task EjecutarNucleoAsync\([\s\S]*?TomarConFotos\(\)[\s\S]*?fotos\.Add\("),
+            "[cableado] habilidad_lo_que_hice no le manda las fotos a quien actúa");
+    }
+
+    private static void ElDiarioLlevaLasFotos()
+    {
+        dynamic? d = NuevoDiario("sesion-743");
+        if (d == null || Diario!.GetMethod("PonerFoto") == null || Diario.GetMethod("FotosParaElRepaso") == null || Diario.GetMethod("Retirar") == null)
+        { Pendiente("DiarioDeLaSesion.PonerFoto / FotosParaElRepaso / Retirar", "743", "078"); return; }
+        int tope = (int)Diario.GetField("TopeDeFotos")!.GetRawConstantValue()!;
+        byte[] deLoTocado = { 0xFF, 0xD8, 1 }, deLoQueFallo = { 0xFF, 0xD8, 2 };
+
+        d.Persona("mira cómo se radica una cuenta, fíjate");
+        int toco = (int)d.Toco("pulsó «Radicar cuenta» (Button) en saplogon");
+        d.PonerFoto(toco, deLoTocado);
+        d.Hizo("map_take", "exit=Guardar", "«Guardar» no está a la vista: no pulsé nada.", true, deLoQueFallo);
+        d.Hizo("map_take", "exit=Cerrar", "pulsé «Cerrar»", false, (byte[]?)null);
+
+        string texto = (string)d.Texto();
+        var lineas = texto.Split('\n');
+        Debe(lineas.Any(l => l.Contains("Radicar cuenta", StringComparison.Ordinal) && l.Contains("[FOTO 1]", StringComparison.Ordinal)),
+            $"lo que la persona tocó lleva su foto, numerada en el texto:\n{texto}");
+        Debe(lineas.Any(l => l.Contains("NO SALIÓ", StringComparison.Ordinal) && l.Contains("[FOTO 2]", StringComparison.Ordinal)),
+            "y lo que a Ü no le salió, la suya: es la pantalla que explica la corrección de después");
+        Debe(lineas.Count(l => l.Contains("[FOTO", StringComparison.Ordinal)) == 2, "lo demás no lleva foto");
+
+        string carpeta = Path.Combine(_raiz, "por-repasar-743");
+        string archivo = (string)d.Guardar(carpeta);
+        dynamic leido = Diario.GetMethod("Leer")!.Invoke(null, new object[] { archivo })!;
+        Debe((string)leido.Texto() == texto, "se guarda y se vuelve a leer igual, con sus marcas");
+        var fotos = ((System.Collections.IEnumerable)leido.FotosParaElRepaso()).Cast<dynamic>().ToList();
+        Debe(fotos.Count == 2, $"y las fotos vuelven con él: {fotos.Count}");
+        if (fotos.Count == 2)
+        {
+            Debe(((byte[])fotos[0].Jpeg).SequenceEqual(deLoTocado) && ((byte[])fotos[1].Jpeg).SequenceEqual(deLoQueFallo), "byte a byte, y en su orden");
+            Debe(((string)fotos[0].Rotulo).Contains("FOTO 1", StringComparison.Ordinal) && ((string)fotos[0].Rotulo).Contains("Radicar cuenta", StringComparison.Ordinal),
+                $"cada una rotulada con su número y su línea: «{(string)fotos[0].Rotulo}»");
+        }
+
+        dynamic muchas = NuevoDiario("sesion-743b")!;
+        for (int i = 0; i < tope + 3; i++) { int id = (int)muchas.Toco($"pulsó «botón {i}»"); muchas.PonerFoto(id, new byte[] { 0xFF, 0xD8, (byte)i }); }
+        var quedan = ((System.Collections.IEnumerable)muchas.FotosParaElRepaso()).Cast<dynamic>().ToList();
+        Debe(quedan.Count == tope && ((byte[])quedan[^1].Jpeg)[2] == (byte)(tope + 2) && ((byte[])quedan[0].Jpeg)[2] == 3,
+            $"con más fotos que el tope se quedan las {tope} más recientes ({quedan.Count})");
+        Debe(quedan.Count > 0 && ((string)quedan[0].Rotulo).Contains("FOTO 1", StringComparison.Ordinal)
+             && ((string)muchas.Texto()).Split('\n').Count(l => l.Contains("[FOTO", StringComparison.Ordinal)) == tope,
+            "numeradas desde 1, y el texto marca solo esas: una marca sin foto mandaría al repaso a buscar lo que no hay");
+
+        Diario.GetMethod("Retirar")!.Invoke(null, new object[] { archivo });
+        Debe(!File.Exists(archivo) && !Directory.EnumerateFileSystemEntries(carpeta).Any(),
+            "y se retiran con él: un diario repasado no deja fotos de la pantalla de nadie en disco");
+    }
+
+    /// <remarks>
+    /// LO QUE NO CAMBIA: la compuerta de la cita (708). Ver ayuda a NOMBRAR —el botón exacto, el campo— lo que
+    /// la persona enseñó; no es evidencia de que lo enseñara. Y lo que no se pueda juzgar aquí —que el modelo use
+    /// bien las fotos— lo mide la batería de la sonda.
+    /// </remarks>
+    private static void ElRepasoVe()
+    {
+        dynamic? aprendido = NuevoAprendido(Path.Combine(_raiz, "aprendido-744.json"));
+        dynamic? diario = NuevoDiario("sesion-744");
+        var t = Cap004("U.WindowsClient.Voice.ElRepaso");
+        if (aprendido == null || diario == null || t?.GetProperty("ConFotos") == null || Diario!.GetMethod("PonerFoto") == null)
+        { Pendiente("ElRepaso.ConFotos y DiarioDeLaSesion.PonerFoto", "744", "078"); return; }
+        byte[] jpeg = { 0xFF, 0xD8, 0xFF, 0xE0, 7, 7 };
+        diario.Persona("mira cómo se radica una cuenta, fíjate bien");
+        int toco = (int)diario.Toco("pulsó algo sin nombre para Ü (Pane) en saplogon");
+        diario.PonerFoto(toco, jpeg);
+
+        var montado = NuevoRepaso((object)aprendido, _ => RespuestaDelModelo());
+        if (montado is not { } m) { Pendiente("Voice.ElRepaso", "744", "078"); return; }
+        m.Repaso.RepasarAsync(diario, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(m.Pedidos.Count == 1, "un repaso, un pedido");
+        if (m.Pedidos.Count != 1) return;
+
+        static string Tx(JsonElement o, string campo) => o.ValueKind == JsonValueKind.Object && o.TryGetProperty(campo, out var x) && x.ValueKind == JsonValueKind.String ? x.GetString() ?? "" : "";
+        using var pedido = JsonDocument.Parse(m.Pedidos[0]);
+        var entrada = pedido.RootElement.GetProperty("input");
+        Debe(entrada.ValueKind == JsonValueKind.Array, $"con fotos, la entrada son partes y no un texto solo (es {entrada.ValueKind})");
+        if (entrada.ValueKind != JsonValueKind.Array) return;
+        var partes = entrada.EnumerateArray().Where(x => x.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.Array)
+            .SelectMany(x => x.GetProperty("content").EnumerateArray()).ToList();
+        int i = partes.FindIndex(x => Tx(x, "type") == "input_image");
+        Debe(partes.Count(x => Tx(x, "type") == "input_image") == 1 && i >= 0
+             && Tx(partes[i], "image_url") == "data:image/jpeg;base64," + Convert.ToBase64String(jpeg),
+            "la foto del diario viaja como imagen, entera");
+        // EL RÓTULO, Y NO EL DIARIO. El texto del diario también dice «[FOTO 1]» y «sin nombre», y va justo delante
+        // cuando el rótulo falta: el 2026-10-01 el sabotaje que quitaba el rótulo dejó esta comprobación en verde.
+        // Lo que distingue al rótulo es que es SOLO de esa foto: no trae lo que la persona dijo.
+        string delante = i > 0 && Tx(partes[i - 1], "type") == "input_text" ? Tx(partes[i - 1], "text") : "";
+        Debe(delante.Contains("FOTO 1", StringComparison.Ordinal) && delante.Contains("sin nombre", StringComparison.Ordinal)
+             && !delante.Contains("fíjate bien", StringComparison.Ordinal),
+            "rotulada, justo delante, con su número y su línea: el modelo tiene que saber de qué momento es");
+        string todo = string.Join("\n", partes.Where(x => Tx(x, "type") == "input_text").Select(x => Tx(x, "text")));
+        Debe(todo.Contains("fíjate bien", StringComparison.Ordinal) && todo.Contains("PREFERENCIAS GUARDADAS", StringComparison.Ordinal),
+            "y sigue llevando el diario y lo que Ü ya sabe");
+        string reglas = Tx(pedido.RootElement, "instructions");
+        Debe(reglas.Contains("FOTO", StringComparison.Ordinal) && reglas.Contains("cita", StringComparison.Ordinal),
+            "las reglas dicen para qué son las fotos, y que la cita sigue saliendo de lo que la persona dijo");
+
+        dynamic sinFotos = NuevoDiario("sesion-744b")!;
+        sinFotos.Persona("abre la calculadora y calcula doce por doce");
+        m.Repaso.RepasarAsync(sinFotos, CancellationToken.None).GetAwaiter().GetResult();
+        using (var deSiempre = JsonDocument.Parse(m.Pedidos[1]))
+            Debe(deSiempre.RootElement.GetProperty("input").ValueKind == JsonValueKind.String, "sin fotos, la petición es la de siempre: un texto");
+
+        m.Repaso.ConFotos = false;
+        m.Repaso.RepasarAsync(diario, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(m.Pedidos.Count == 3 && !m.Pedidos[2].Contains("input_image", StringComparison.Ordinal), "y con la vista quitada repasa igual, sin mandar ninguna imagen");
+
+        m.Repaso.ConFotos = true;
+        string carpeta = Path.Combine(_raiz, "por-repasar-744");
+        diario.Guardar(carpeta);
+        m.Repaso.PendientesAsync(carpeta, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(!Directory.EnumerateFileSystemEntries(carpeta).Any(), "y la cola, al retirar un diario repasado, retira sus fotos con él");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: fotos de la pantalla de alguien olvidadas en OpenAI. «QUE NO DUREN MUCHO TIEMPO EN
+    /// OPENAI» (el dueño, 2026-09-16). La copia se borra al cerrar la conversación, pero el borrado fallaba con la red
+    /// —7 en trece días— y la lista de lo subido vivía solo en memoria: cerrar la app a mitad las dejaba para siempre.
+    /// </remarks>
+    private static void TodaCopiaQuedaApuntada()
+    {
+        var t = Cap004("U.WindowsClient.Voice.CopiasPorBorrar");
+        if (t == null) { Pendiente("Voice.CopiasPorBorrar", "745", "078"); return; }
+        List<string> Pendientes(object c) => ((IEnumerable<string>)((dynamic)c).Pendientes()).ToList();
+
+        string archivo = Path.Combine(_raiz, "copias-745.json");
+        dynamic una = Activator.CreateInstance(t, new object[] { archivo })!;
+        una.Apuntar("file-1");
+        una.Apuntar("file-2");
+        una.Apuntar("file-1");
+        dynamic otra = Activator.CreateInstance(t, new object[] { archivo })!;
+        Debe(Pendientes((object)otra).SequenceEqual(new[] { "file-1", "file-2" }), "lo apuntado lo encuentra otra instancia —otra sesión, o la app al volver a abrir—, sin repetidos");
+        Func<string, Task<bool>> soloLaPrimera = id => Task.FromResult(id == "file-1");
+        int borradas = (int)otra.ReintentarAsync(soloLaPrimera).GetAwaiter().GetResult();
+        Debe(borradas == 1 && Pendientes((object)una).SequenceEqual(new[] { "file-2" }), "un reintento quita la que se borró y conserva la que no");
+
+        var mirada = Cap004("U.WindowsClient.Voice.MiradaSubida")!;
+        var ctor = mirada.GetConstructors().FirstOrDefault(k => k.GetParameters().Length == 3);
+        if (ctor == null) { Pendiente("MiradaSubida(subir, borrar, apuntes)", "745", "078"); return; }
+        dynamic apuntes = Activator.CreateInstance(t, new object[] { Path.Combine(_raiz, "copias-745b.json") })!;
+        bool hayRed = false;
+        int n = 0;
+        Func<byte[], Task<string>> subir = _ => Task.FromResult($"file-m{++n}");
+        Func<string, Task<bool>> borrar = _ => Task.FromResult(hayRed);
+        dynamic m = ctor.Invoke(new object[] { subir, borrar, (object)apuntes });
+        m.SubirAsync(new byte[] { 1 }).GetAwaiter().GetResult();
+        m.SubirAsync(new byte[] { 2 }).GetAwaiter().GetResult();
+        Debe(Pendientes((object)apuntes).SequenceEqual(new[] { "file-m1", "file-m2" }), "una copia queda apuntada desde que se SUBE: si la app se cae con la sesión abierta, se sabe qué hay allí");
+        m.SoltarAsync().GetAwaiter().GetResult();
+        Debe(Pendientes((object)apuntes).Count == 2, "si el borrado falla al cerrar, siguen pendientes");
+        hayRed = true;
+        int tras = (int)apuntes.ReintentarAsync(borrar).GetAwaiter().GetResult();
+        Debe(tras == 2 && !Pendientes((object)apuntes).Any(), "y el reintento, con red, las borra y deja la lista vacía");
+        m.SubirAsync(new byte[] { 3 }).GetAwaiter().GetResult();
+        m.SoltarAsync().GetAwaiter().GetResult();
+        Debe(!Pendientes((object)apuntes).Any(), "cuando el borrado sale bien a la primera, no queda nada apuntado");
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        // LA LLAMADA, Y NO LA DECLARACIÓN. «ArrancarAsync … ReintentarLasCopiasPendientes(» casaba con la definición
+        // del método, que está más abajo en el mismo archivo: el 2026-10-01 se quitó la llamada y esto siguió verde.
+        // Una llamada es una línea que empieza por el nombre y acaba en «;».
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"public async Task ArrancarAsync\([\s\S]*?\n[ \t]*ReintentarLasCopiasPendientes\(\);"),
+            "[cableado] abrir la voz no reintenta lo que quedó pendiente de borrar");
+    }
+
+    /// <remarks>
+    /// POR QUÉ SE VA. El álbum guardaba una foto de la pantalla en cada cambio de sitio «para recordar acciones
+    /// pasadas»: 3.238 capturas y 592 MB en el PC del dueño, y `map_look_back`, su única puerta, llamada cero
+    /// veces en trece días. «Cualquier implementación que no haya funcionado […] la eliminamos, como por ejemplo
+    /// eso de ver la pantalla» (el dueño, 2026-10-01). Lo que hoy recuerda con fotos es el diario de la sesión,
+    /// que sí se lee (743, 744).
+    /// </remarks>
+    private static void ElAlbumYaNoExiste()
+    {
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        Debe(Cliente.GetType("U.WindowsClient.Navigation.AlbumDeMiradas") == null, "el álbum de miradas ya no está en el cliente");
+        Debe(Cliente.GetType("U.WindowsClient.Navigation.CuandoSeMira") == null, "ni la regla que decidía cuándo guardar una");
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo")!;
+        foreach (string catalogo in new[] { "Herramientas", "HerramientasDelPiloto" })
+            Debe(!((IReadOnlyList<Voz.Realtime.Utensilio>)t.GetMethod(catalogo, f)!.Invoke(null, null)!).Any(u => u.Nombre == "map_look_back"),
+                $"map_look_back no está en {catalogo}: una herramienta sin álbum detrás contestaría siempre que no hay nada");
+        foreach (string cual in new[] { "InstruccionesDelDelegado", "InstruccionesNormales" })
+            Debe(!((string)t.GetProperty(cual, f)!.GetValue(null)!).Contains("map_look_back", StringComparison.Ordinal), $"ni {cual} la nombra");
+        var plan = Cliente.GetType("U.WindowsClient.Memoria.LoQueUSabe")?.GetField("Plan")?.GetValue(null) as IReadOnlyList<string>;
+        Debe(plan != null && !plan.Contains("pantalla"), "la Memoria ya no tiene el apartado «pantalla»");
+        if (FuenteDe("windows-client", "src", "Navigation", "MapaVivo.cs") is { } mapa)
+            Debe(!mapa.Contains("CapturaDePantalla", StringComparison.Ordinal), "[cableado] cambiar de sitio sigue capturando la pantalla");
+    }
+
+    /// <remarks>
+    /// LA SEGUNDA CAPTURA POR PALABRAS. La 074 retiró «me gusta», «soy», «tengo un»; quedó la de «recuerda que»,
+    /// «no olvides», «ten presente», que guardaba la frase cruda al cerrar el turno ADEMÁS de lo que guardara
+    /// quien actúa: el mismo dato dos veces, una limpia y otra con el «eh, recuerda que…» delante. Lo que se le
+    /// escape a quien actúa lo recoge el repaso, con criterio y con cita.
+    /// </remarks>
+    private static void LoDichoNoSeGuardaCrudo()
+    {
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo")!;
+        var crudas = t.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
+            .Where(x => x.Name.StartsWith("GuardarPeticionPersonal", StringComparison.Ordinal) || x.Name.StartsWith("GuardarDetallePersonal", StringComparison.Ordinal))
+            .Select(x => x.Name).ToList();
+        Debe(crudas.Count == 0, $"la conversación ya no tiene capturas por lista de palabras: {string.Join(", ", crudas)}");
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        var cierra = System.Text.RegularExpressions.Regex.Match(v, @"case Hecho\.CierraElTurno:[\s\S]*?break;");
+        Debe(cierra.Success && !System.Text.RegularExpressions.Regex.IsMatch(cierra.Value, @"Memoria\??\.EjecutarAsync|GuardarPeticion|GuardarDetalle"),
+            "[cableado] cerrar un turno escribe en la memoria personal");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE, medido el 2026-10-01 sobre la Ü de pruebas: a «escribe la fecha de hoy» quien
+    /// actúa escribió «2025-02-27», después intentó abrir «reloj», y acabó abriendo una consola y tecleando
+    /// `date /t`. No sabía qué día era: nadie se lo decía.
+    /// </remarks>
+    private static void QuienActuaSabeQueDiaEs()
+    {
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        var m = Cap004("U.WindowsClient.Voice.ConversacionEnVivo")?.GetMethod("FechaParaQuienActua", f);
+        if (m == null) { Pendiente("ConversacionEnVivo.FechaParaQuienActua(ahora)", "748", "078"); return; }
+        string Dicha(DateTimeOffset cuando) => (string)m.Invoke(null, new object[] { cuando })!;
+
+        string madrugada = Dicha(new DateTimeOffset(2026, 10, 1, 4, 31, 0, TimeSpan.FromHours(-5)));
+        foreach (string trozo in new[] { "jueves", "1 de octubre de 2026", "4:31" })
+            Debe(madrugada.Contains(trozo, StringComparison.Ordinal), $"dice «{trozo}»: «{madrugada}»");
+        string tarde = Dicha(new DateTimeOffset(2026, 2, 27, 16, 5, 0, TimeSpan.FromHours(-5)));
+        foreach (string trozo in new[] { "viernes", "27 de febrero de 2026", "16:05" })
+            Debe(tarde.Contains(trozo, StringComparison.Ordinal), $"y otro día, lo suyo —en castellano, sea cual sea el idioma de Windows—: «{trozo}» en «{tarde}»");
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        var componer = System.Text.RegularExpressions.Regex.Match(v, @"private async Task<string> ComponerInstruccionesAsync\([\s\S]*?\n    }");
+        Debe(componer.Success && componer.Value.Contains("FechaParaQuienActua(", StringComparison.Ordinal),
+            "[cableado] las instrucciones de apertura no llevan la fecha");
+    }
+
+    private static void LoDelDelegadoNoSeCuentaDosVeces()
+    {
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        var m = Cap004("U.WindowsClient.Voice.ConversacionEnVivo")?.GetMethod("SeCuentaComoDichoPorU", f);
+        if (m == null) { Pendiente("ConversacionEnVivo.SeCuentaComoDichoPorU(delDelegado, conMicrofono)", "749", "078"); return; }
+        bool S(bool delDelegado, bool conMicrofono) => (bool)m.Invoke(null, new object[] { delDelegado, conMicrofono })!;
+
+        Debe(S(false, true) && S(false, false), "lo que dice la voz cuenta siempre como dicho por Ü");
+        Debe(S(true, false), "en una sesión escrita, que no tiene voz, lo que devuelve el delegado ES la respuesta");
+        Debe(!S(true, true), "con el micrófono abierto lo dice la voz: contarlo también deja «Abrí tu correo en Gmail. Abrí tu correo en Gmail.» en el hilo y en el diario");
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        var dice = System.Text.RegularExpressions.Regex.Match(v, @"case Hecho\.DiceU d:[\s\S]*?break;");
+        Debe(dice.Success && dice.Value.Contains("SeCuentaComoDichoPorU(", StringComparison.Ordinal),
+            "[cableado] lo que llega como dicho por Ü no pasa por esa regla");
     }
 
     private static void ElDelegadoSeCambiaSinRecompilar()

@@ -33,7 +33,7 @@ public sealed record Apartado(string Clave, string Titulo, string Resumen, Estad
 
 /// <summary>Dónde está en disco cada cosa que Ü guarda de la persona.</summary>
 public sealed record Fuentes(string UserId, string Config, string Memoria, string Conversacion, string Aprendido, string Skills,
-    string Lecciones, string Miradas, string Fotos, string TitulosWeb, string Collar, string NombresDeDispositivos,
+    string Lecciones, string Fotos, string TitulosWeb, string Collar, string NombresDeDispositivos,
     string Logs, bool ElRegistroSeCopia)
 {
     /// <summary>
@@ -48,7 +48,7 @@ public sealed record Fuentes(string UserId, string Config, string Memoria, strin
     public static Fuentes DeLaApp(string userId, bool elRegistroSeCopia) => new(
         Limpio(userId), U.WindowsClient.Config.Archivo, MemoriaPersonal.ArchivoPorDefecto,
         ConversacionPersonal.ArchivoPorDefecto, LoAprendido.ArchivoPorDefecto, SkillEnsenada.CarpetaPorDefecto, LeccionEnDisco.CarpetaRaiz,
-        AlbumDeMiradas.CarpetaDelUsuario, FotosDeLosRecuerdos.Carpeta, PestanasAbiertas.Archivo,
+        FotosDeLosRecuerdos.Carpeta, PestanasAbiertas.Archivo,
         CollarPermanente.Archivo, U.WindowsClient.Voice.NombresDeDispositivos.Archivo, LogBus.Carpeta, elRegistroSeCopia);
 
     /// <summary>Las mismas, colgando de dos carpetas dadas. Es por donde el contrato las juzga.</summary>
@@ -58,7 +58,7 @@ public sealed record Fuentes(string UserId, string Config, string Memoria, strin
         return new(Limpio(userId), Path.Combine(r, "config.json"), Path.Combine(r, "memoria-personal.json"),
             Path.Combine(r, "conversacion-personal.json"), Path.Combine(r, "aprendido.json"), Path.Combine(l, "skills"),
             Path.Combine(l, "lecciones"),
-            Path.Combine(l, "recuerdos", "miradas"), Path.Combine(l, "recuerdos", "fotos"),
+            Path.Combine(l, "recuerdos", "fotos"),
             Path.Combine(l, "titulos-web.json"), Path.Combine(l, "collar.json"),
             Path.Combine(l, "nombres-de-dispositivos.json"), Path.Combine(l, "logs"), ElRegistroSeCopia: true);
     }
@@ -72,7 +72,7 @@ public sealed record Fuentes(string UserId, string Config, string Memoria, strin
 /// (spec 071), y no decide nada más: no escribe, no borra, no corrige.
 /// </summary>
 /// <remarks>
-/// EL PLAN ES EL DENOMINADOR (promesa 622). Los trece apartados salen siempre, haya algo o no: uno que
+/// EL PLAN ES EL DENOMINADOR (promesa 622). Los doce apartados salen siempre, haya algo o no: uno que
 /// desapareciera al estar vacío no se distinguiría de uno que nadie escribió, y «esto es todo lo que
 /// sé de ti» pasaría a ser cierto solo de lo que se acordó de enseñar (aprendizaje nº10).
 ///
@@ -98,7 +98,7 @@ public static class LoQueUSabe
     public static readonly IReadOnlyList<string> Plan = new[]
     {
         "quien", "datos", "preferencias", "recordatorios", "conversacion", "habilidades", "lecciones",
-        "pantalla", "sitios", "explicado", "aparatos", "registro", "fuera",
+        "sitios", "explicado", "aparatos", "registro", "fuera",
     };
 
     public static IReadOnlyList<Apartado> Leer(Fuentes f, DateTimeOffset ahora)
@@ -117,7 +117,6 @@ public static class LoQueUSabe
             Conversacion(f, ahora),
             Habilidades(f, aprendido),
             Lecciones(f, ahora),
-            Pantalla(f, ahora),
             Sitios(f),
             Explicado(f, ahora),
             Aparatos(f),
@@ -314,35 +313,8 @@ public static class LoQueUSabe
             EstadoDelApartado.ConDatos, entradas.Count, entradas);
     }
 
-    private static Apartado Pantalla(Fuentes f, DateTimeOffset ahora)
-    {
-        const string clave = "pantalla", titulo = "Lo que he visto en tu pantalla";
-        const string nada = "Todavía no he guardado ninguna foto de tu pantalla.";
-        using var leido = Json(Path.Combine(f.Miradas, "album.json"));
-        if (leido.Como == Como.NoHay) return Vacio(clave, titulo, nada);
-        if (leido.Doc == null) return NoPude(clave, titulo, leido.Como);
-        if (leido.Doc.RootElement.ValueKind != JsonValueKind.Array) return NoPude(clave, titulo, Como.Danado);
-
-        // La misma regla que el álbum al cargar: una ficha cuya foto ya no está no es un recuerdo.
-        var fichas = leido.Doc.RootElement.EnumerateArray()
-            .Where(x => x.ValueKind == JsonValueKind.Object && File.Exists(Texto(x, "Archivo")))
-            .Select(x => (Sitio: NombresDeSitios.De(Texto(x, "Ubicacion")),
-                Cuando: x.TryGetProperty("Cuando", out var c) && c.TryGetInt64(out long ms)
-                    ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : DateTimeOffset.MinValue))
-            .ToList();
-        if (fichas.Count == 0) return Vacio(clave, titulo, nada);
-
-        // Una fila por SITIO y no por foto: mil seiscientas filas de «pasando por aquí» no se leen.
-        var entradas = fichas.GroupBy(x => x.Sitio.Length > 0 ? x.Sitio : "Un sitio sin nombre")
-            .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase)
-            .Select(g => new Entrada(g.Key, Cuantas(g.Count(), "foto", "fotos").TrimEnd('.')
-                + " · la última, " + Fechas.Dicha(g.Max(x => x.Cuando), ahora)))
-            .ToList();
-        string resumen = Cuantas(fichas.Count, "foto de tu pantalla", "fotos de tu pantalla").TrimEnd('.')
-            + $" en {Numero(entradas.Count)} {(entradas.Count == 1 ? "sitio" : "sitios distintos")}."
-            + " Las tomo al pasar por cada programa o página para acordarme de cómo es, y las borro solas a los siete días.";
-        return new Apartado(clave, titulo, resumen, EstadoDelApartado.ConDatos, fichas.Count, entradas);
-    }
+    // AQUÍ ESTABA EL APARTADO «Lo que he visto en tu pantalla», que contaba las fotos del álbum de miradas. El álbum
+    // se fue con la spec 078 (promesa 746): Ü ya no guarda una foto de cada sitio por el que pasa.
 
     private static Apartado Sitios(Fuentes f)
     {

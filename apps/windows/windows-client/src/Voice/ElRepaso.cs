@@ -58,6 +58,12 @@ public sealed class ElRepaso
     /// </summary>
     public Func<CancellationToken, Task<string>>? DatosQueYaSabe { get; set; }
 
+    /// <summary>
+    /// Si el repaso VE (spec 078, promesa 744): las fotos del diario —lo que la persona tocó, lo que a Ü no le
+    /// salió— viajan como imágenes. Se puede apagar sin apagar el repaso: entonces lee, y no mira.
+    /// </summary>
+    public bool ConFotos { get; set; } = true;
+
     /// <summary>UN REPASO A LA VEZ en todo el proceso: cerrar y volver a abrir en seguida lanza dos sobre la
     /// misma carpeta, y el mismo diario repasado a la par guardaría dos veces cada dato.</summary>
     private static readonly SemaphoreSlim UnoALaVez = new(1, 1);
@@ -80,7 +86,8 @@ public sealed class ElRepaso
             string yaSabe = _aprendido.ParaElRepaso();
             if (DatosQueYaSabe != null && await DatosQueYaSabe(ct) is { Length: > 0 } datos)
                 yaSabe += "\n\nDATOS DE LA PERSONA YA GUARDADOS:\n" + datos;
-            string respuesta = await _modelo(Peticion(yaSabe, diario.Texto()), ct);
+            var fotos = ConFotos ? diario.FotosParaElRepaso() : Array.Empty<DiarioDeLaSesion.FotoDelDiario>();
+            string respuesta = await _modelo(Peticion(yaSabe, diario.Texto(), fotos), ct);
             propuestas = Leer(respuesta);
         }
         catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
@@ -139,8 +146,9 @@ public sealed class ElRepaso
                 }
                 var informe = await RepasarAsync(diario, ct);
                 if (informe.Error.Length > 0) continue;   // sigue pendiente
-                try { File.Delete(archivo); retirados++; }
-                catch (IOException e) { _log($"no pude retirar el diario repasado ({archivo}): {e.Message}"); }
+                // CON SUS FOTOS (743): un diario repasado no deja en disco fotos de la pantalla de nadie.
+                try { DiarioDeLaSesion.Retirar(archivo); retirados++; }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { _log($"no pude retirar el diario repasado ({archivo}): {e.Message}"); }
             }
             return retirados;
         }
@@ -244,7 +252,7 @@ public sealed class ElRepaso
     // ── Lo que se le pide al modelo, y lo que contesta ───────────────────────
 
     /// <summary>El cuerpo de la petición a la Responses API (promesa 713).</summary>
-    internal static string Peticion(string loQueYaSabe, string diario)
+    internal static string Peticion(string loQueYaSabe, string diario, IReadOnlyList<DiarioDeLaSesion.FotoDelDiario>? fotos = null)
     {
         var cadena = new JsonObject { ["type"] = "string" };
         var esquema = new JsonObject
@@ -280,7 +288,7 @@ public sealed class ElRepaso
         {
             ["model"] = Modelo,
             ["instructions"] = Instrucciones,
-            ["input"] = "LO QUE Ü YA SABE DE ESTA PERSONA\n\n" + loQueYaSabe + "\n\n\nEL DIARIO DE LA SESIÓN QUE ACABA DE TERMINAR\n\n" + diario,
+            ["input"] = Entrada("LO QUE Ü YA SABE DE ESTA PERSONA\n\n" + loQueYaSabe + "\n\n\nEL DIARIO DE LA SESIÓN QUE ACABA DE TERMINAR\n\n" + diario, fotos),
             ["reasoning"] = new JsonObject { ["effort"] = "medium" },
             ["text"] = new JsonObject
             {
@@ -288,6 +296,23 @@ public sealed class ElRepaso
             },
         };
         return peticion.ToJsonString();
+    }
+
+    /// <summary>
+    /// La entrada de la petición: el texto solo, como siempre, o —si el diario trae fotos— el texto y detrás cada
+    /// foto con su rótulo delante, para que el modelo sepa de qué momento es cada una.
+    /// </summary>
+    private static JsonNode Entrada(string texto, IReadOnlyList<DiarioDeLaSesion.FotoDelDiario>? fotos)
+    {
+        if (fotos == null || fotos.Count == 0) return JsonValue.Create(texto)!;
+        var partes = new JsonArray { new JsonObject { ["type"] = "input_text", ["text"] = texto } };
+        foreach (var foto in fotos)
+        {
+            partes.Add(new JsonObject { ["type"] = "input_text", ["text"] = foto.Rotulo });
+            // DETALLE ALTO: las fotos están para leer el nombre de un botón o de un campo, y en bajo no se lee.
+            partes.Add(new JsonObject { ["type"] = "input_image", ["image_url"] = "data:image/jpeg;base64," + Convert.ToBase64String(foto.Jpeg), ["detail"] = "high" });
+        }
+        return new JsonArray { new JsonObject { ["role"] = "user", ["content"] = partes } };
     }
 
     /// <summary>
@@ -383,6 +408,14 @@ public sealed class ElRepaso
           PREFERENCIAS donde se cumple, y un dato no le llega a quien habla.
         · Si la sesión no enseñó nada y no hubo ninguna tarea de varios pasos que apuntar, devuelve la lista vacía.
           En una sesión corta es lo normal, y es mejor que inventar.
+
+        LAS FOTOS
+
+        Algunas líneas del diario terminan en «[FOTO n]», y detrás del diario viene esa FOTO: la pantalla de ese
+        momento, con el cursor dibujado donde la persona pulsó o donde estaba cuando a Ü algo no le salió. Úsalas
+        para escribir bien los pasos: el nombre exacto del botón, del campo o de la ventana que se ve bajo el
+        cursor, sobre todo cuando la línea dice que lo pulsado no tiene nombre. Una foto enseña QUÉ se tocó; no
+        prueba que la persona quisiera enseñarlo. Lo que decide qué se guarda sigue siendo lo que ella DIJO.
 
         LA CITA
 

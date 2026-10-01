@@ -319,11 +319,50 @@ public sealed class ProtocoloGptLive : IProtocolo
         audio = Convert.ToBase64String(pcm),
     });
 
-    public string Fotograma(byte[] jpeg) => MensajeDelUsuario(new
+    /// <summary>
+    /// LA FOTO INCRUSTADA NO EXISTE EN GPT-LIVE (spec 078). Aquí había un mensaje con la imagen dentro, en data URL,
+    /// y nunca cupo ninguna: 118.000 bytes en un buzón de 32.768 (response_input_buffer_full, 2026-09-12). Desde la
+    /// 027 la foto entra por referencia (<see cref="FotogramaPorReferencia"/>) y esto no lo llamaba nadie. Vacío:
+    /// quien llame no manda algo que deja la sesión sin poder contestar.
+    /// </summary>
+    public string Fotograma(byte[] jpeg) => "";
+
+    /// <summary>
+    /// LA PANTALLA DEL PEDIDO (spec 078, promesa 69): un solo mensaje con el texto delante y la foto detrás.
+    /// </summary>
+    /// <remarks>
+    /// Medido el 2026-10-01 con la sonda: metida en la conversación ANTES de que la persona hable, la foto le
+    /// llega al delegado —contestó «7421», que solo estaba en ella—; «pulsa el botón verde de abajo» salió en una
+    /// vuelta de 0,86 s como `pulsa: Radicar`; la voz se quedó callada al recibirla y contestó «hola» sin delegar.
+    /// El texto va en el mismo mensaje para que nadie lo tome por algo que dijo la persona, y dice dónde está
+    /// según el mapa. No pide turno: acompaña al pedido que viene detrás.
+    /// </remarks>
+    public string PantallaAlPedir(string idDelArchivo, string donde)
     {
-        type = "input_image",
-        image_url = "data:image/jpeg;base64," + Convert.ToBase64String(jpeg),
-    });
+        if (string.IsNullOrWhiteSpace(idDelArchivo)) return "";
+        // CON LAS PALABRAS DE LA HERRAMIENTA. Con «según el mapa» a secas, quien actúa preguntó igual dónde estaba y
+        // volvió a mirar: 3 vueltas y 7,5 s para leer «144» (Ü de pruebas, 2026-10-01). Sus instrucciones dicen que
+        // una foto nunca decide dónde se está y que eso solo lo dice map_where_am_i: se le da su respuesta, nombrada.
+        string lugar = string.IsNullOrWhiteSpace(donde) ? ""
+            : $" Dónde está la persona ya está comprobado: map_where_am_i contesta ahora mismo «{donde.Trim()}». No hace falta volver a preguntarlo.";
+        return JsonSerializer.Serialize(new
+        {
+            type = "response.item.create",
+            item = new
+            {
+                type = "message",
+                role = "user",
+                content = new object[]
+                {
+                    new { type = "input_text", text = MarcaDeLaPantalla + " Foto de la pantalla en el momento de pedirlo, con el cursor dibujado donde apuntaba." + lugar },
+                    new { type = "input_image", file_id = idDelArchivo.Trim(), detail = "high" },
+                },
+            },
+        });
+    }
+
+    /// <summary>Con qué empieza el texto que acompaña a la pantalla del pedido. Las instrucciones del delegado la nombran.</summary>
+    public const string MarcaDeLaPantalla = "[PANTALLA: esto no lo dijo la persona]";
 
     /// <summary>
     /// LA FOTO POR REFERENCIA (promesa 54, spec 027): entra el identificador, no la imagen.
@@ -526,7 +565,7 @@ public sealed class ProtocoloGptLive : IProtocolo
                 {
                     if (Cadena(ev, "type") == "response.output_text.done"
                         && Cadena(ev, "text") is { Length: > 0 } texto)
-                        hechos.Add(new Hecho.DiceU(texto));
+                        hechos.Add(new Hecho.DiceU(texto, DelDelegado: true));   // lo devuelve quien actúa: la voz lo dirá después (70)
                     else if (Cadena(ev, "type") == "response.output_item.done"
                         && ev.TryGetProperty("item", out var item) && Cadena(item, "type") == "function_call")
                         hechos.Add(new Hecho.Pide(new[] { ProtocoloOpenAI.LaLlamada(item) }));

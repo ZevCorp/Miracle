@@ -1341,6 +1341,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 linea => LogBus.Log("repaso", linea))
             {
                 DatosQueYaSabe = ct => memoriaPersonal.ContextoAsync(ct),
+                // U_REPASO_SIN_FOTOS=1: repasa leyendo, sin mandarle al modelo las fotos del diario (spec 078).
+                ConFotos = (Environment.GetEnvironmentVariable("U_REPASO_SIN_FOTOS") ?? "").Trim() != "1",
             };
             _vivo.RepasarLoPendiente();   // la última sesión antes de cerrar Ü: su repaso quedó a medias
             _recordatorios = new RecordatoriosEnVivo(memoriaPersonal, AvisarRecordatorio);

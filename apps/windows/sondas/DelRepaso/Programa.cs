@@ -8,7 +8,7 @@ using U.WindowsClient.Voice;
 
 // LA SONDA DEL REPASO (spec 074): ¿decide bien el modelo de verdad qué se aprende de una sesión?
 //
-//   sonda-del-repaso [--veces 2] [--solo "scholar"] [--a-la-vez 6] [--verboso] [--salida <carpeta>]
+//   sonda-del-repaso [--veces 2] [--solo "scholar"] [--a-la-vez 6] [--verboso] [--sin-fotos] [--salida <carpeta>]
 //
 // QUÉ HACE. Por cada sesión etiquetada de la batería: siembra lo que Ü ya sabía, escribe el diario de la
 // sesión, y la repasa con ElRepaso —el de la app— contra gpt-6-luna. Después mira EL ALMACÉN, no lo que el
@@ -42,6 +42,9 @@ internal static class Programa
 {
     private static readonly HttpClient Red = new() { Timeout = TimeSpan.FromSeconds(120) };
     private static string _clave = "";
+
+    /// <summary>El control del caso con fotos (spec 078): el mismo repaso, a ciegas. Dice cuánto de lo acertado es de VER.</summary>
+    private static bool _sinFotos;
 
     /// <summary>Sin mayúsculas ni tildes: «Scholar» y «schólar» son lo mismo para juzgar.</summary>
     internal static bool Dice(string texto, params string[] trozos)
@@ -364,7 +367,39 @@ internal static class Programa
             ("sigue habiendo UNA: no la duplica", e => e.Preferencias.Count == 1),
             ("y no la guarda como dato", e => e.Datos.Count == 0),
         }),
+
+        // LA VISTA (spec 078). En SAP, UIA no nombra nada: el clic llega como «algo sin nombre» en un punto.
+        // Lo que se pulsó solo está en la foto, bajo el cursor. Las fotos son pantallas de mentira (fotos\).
+        new("enseña MOSTRANDO donde nada tiene nombre: solo lo dicen las fotos", true, Nada, d =>
+        {
+            d.Persona("mira, te voy a mostrar cómo se radica una cuenta, fíjate bien");
+            d.U("Te sigo.");
+            MostroSinNombre(d, 1, 342, 236);
+            MostroSinNombre(d, 2, 342, 356);
+            MostroSinNombre(d, 3, 342, 476);
+            MostroSinNombre(d, 4, 1162, 636);
+            d.Persona("así es como se radica una cuenta, ¿viste?");
+            d.U("Sí.");
+        }, new (string, Func<Estado, bool>)[]
+        {
+            ("queda UNA habilidad", e => e.Habilidades.Count == 1),
+            ("que habla de radicar", e => e.Habilidad("radic")),
+            ("con lo que se VE bajo el cursor: Facturación", e => e.Habilidad("facturaci")),
+            ("y Urgencias Adultos", e => e.Habilidad("urgencias adultos")),
+            ("y Guardar", e => e.Habilidad("guardar")),
+            ("y ningún paso dice «sin nombre»: la foto lo nombró", e => !e.Habilidad("sin nombre")),
+        }),
     };
+
+    /// <summary>
+    /// Un clic de la persona que UIA no supo nombrar, con la foto de ese momento. La línea es la que escribe
+    /// <c>LoQueHiciste.AnotarEn</c> en la app: si allí cambia, aquí también.
+    /// </summary>
+    private static void MostroSinNombre(DiarioDeLaSesion d, int foto, int x, int y)
+    {
+        int id = d.Toco($"pulsó algo sin nombre para Ü en saplogon, en el punto ({x}, {y}): qué es se ve en su foto, bajo el cursor");
+        d.PonerFoto(id, File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "fotos", $"clic-{foto}.jpg")));
+    }
 
     private static async Task<int> Main(string[] args)
     {
@@ -379,6 +414,7 @@ internal static class Programa
         string solo = Arg("--solo", "");
         string salida = Arg("--salida", "");
         LogBus.Verboso = args.Contains("--verboso");
+        _sinFotos = args.Contains("--sin-fotos");
 
         _clave = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "";
         if (string.IsNullOrWhiteSpace(_clave)) _clave = Environment.GetEnvironmentVariable("OPENAI_API_KEY", EnvironmentVariableTarget.User) ?? "";
@@ -470,6 +506,7 @@ internal static class Programa
         var repaso = new ElRepaso(aprendido, LlamarAsync, (dato, _) => { lock (datos) datos.Add(dato); return Task.CompletedTask; },
             linea => LogBus.Log("repaso", linea));
         if (caso.DatosYa.Length > 0) repaso.DatosQueYaSabe = _ => Task.FromResult(caso.DatosYa);
+        repaso.ConFotos = !_sinFotos;
         var reloj = Stopwatch.StartNew();
         var informe = await repaso.RepasarAsync(diario, CancellationToken.None);
         reloj.Stop();

@@ -132,6 +132,77 @@ internal static class Programa
         if (!await abierta.Task) { Console.WriteLine("NO ABRIÓ. Ver la línea de tiempo:"); Volcar(); return 3; }
         Anotar("sonda", $"sesión abierta · delegado={delegado} · esfuerzo={esfuerzo} · avances={_avances}");
 
+        // ── LA VISTA (spec 077): ¿qué le llega a quién ANTES de que la persona pida nada? ──
+        // --foto-antes: una foto subida y metida en la conversación por referencia, como la manda la app tras
+        //   map_look, pero SIN que nadie la pidiera. Si el delegado la describe sin llamar a nada, le llegó.
+        // --item-antes: lo mismo con un texto («EN PANTALLA AHORA…»), con el rol que diga --rol-del-item.
+        // --contexto-callado: un thinking.append a la voz con algo que NO es un avance —dónde está la persona—.
+        //   Con --espera-ms se deja pasar ese tiempo antes de hablar: si la voz lo dice sola, no sirve.
+        string fotoAntes = Arg("--foto-antes", ""), itemAntes = Arg("--item-antes", ""), rolDelItem = Arg("--rol-del-item", "user");
+        string contextoCallado = Arg("--contexto-callado", "");
+        int esperaMs = int.Parse(Arg("--espera-ms", "0"));
+        string fotoSubida = "";
+        if (fotoAntes.Length > 0)
+        {
+            fotoSubida = await SubirFotoAsync(clave, await File.ReadAllBytesAsync(fotoAntes));
+            Anotar("sonda", fotoSubida.Length > 0 ? $"foto subida ({fotoSubida}); entra por referencia, sin pedir turno" : "NO PUDE SUBIR LA FOTO");
+            // --texto-con-la-foto: la foto y, en el MISMO mensaje, dónde está la persona según el mapa. ¿Lo toma la
+            //   voz por algo que dijo la persona?
+            string textoConLaFoto = Arg("--texto-con-la-foto", "");
+            if (fotoSubida.Length > 0 && textoConLaFoto.Length > 0)
+                await MandarAsync(new
+                {
+                    type = "response.item.create",
+                    item = new
+                    {
+                        type = "message", role = "user",
+                        content = new object[]
+                        {
+                            new { type = "input_text", text = textoConLaFoto },
+                            new { type = "input_image", file_id = fotoSubida, detail = "high" },
+                        },
+                    },
+                }, fin.Token);
+            else if (fotoSubida.Length > 0)
+            {
+                // --fotos N: la misma referencia N veces, para medir cuánto frena al delegado una sesión larga
+                //   que ya lleva N pantallas en la conversación.
+                int cuantas = int.Parse(Arg("--fotos", "1"));
+                for (int i = 0; i < cuantas; i++) await MandarCrudoAsync(Protocolo.FotogramaPorReferencia(fotoSubida), fin.Token);
+                if (cuantas > 1) Anotar("sonda", $"({cuantas} fotos en la conversación)");
+            }
+        }
+        if (itemAntes.Length > 0)
+        {
+            string tipoDeTexto = rolDelItem == "assistant" ? "output_text" : "input_text";
+            await MandarAsync(new { type = "response.item.create", item = new { type = "message", role = rolDelItem, content = new[] { new { type = tipoDeTexto, text = itemAntes } } } }, fin.Token);
+            Anotar("sonda", $"item de texto ({rolDelItem}) en la conversación, sin pedir turno: {itemAntes}");
+        }
+        // --instruccion-callada: lo mismo por session.instructions.append, que es por donde la app le manda a la
+        //   voz las preferencias de la persona al abrir (ProtocoloGptLive.ParaLaVoz). ¿Se pone a hablar al recibirla?
+        string instruccionCallada = Arg("--instruccion-callada", "");
+        if (instruccionCallada.Length > 0)
+        {
+            await MandarCrudoAsync(Protocolo.ParaLaVoz(instruccionCallada), fin.Token);
+            Anotar("sonda", "INSTRUCCIÓN CALLADA → " + instruccionCallada);
+        }
+        if (contextoCallado.Length > 0)
+        {
+            await MandarAsync(new { type = "session.thinking.append", delegation_id = (string?)null, content = contextoCallado }, fin.Token);
+            Anotar("sonda", "CONTEXTO CALLADO → " + contextoCallado);
+        }
+        if (esperaMs > 0)
+        {
+            // Con el caño abierto y en silencio: sin audio el servidor no llega a inyectar el contexto (promesa 685).
+            var hasta = Reloj.ElapsedMilliseconds + esperaMs;
+            while (Reloj.ElapsedMilliseconds < hasta)
+            {
+                await MandarAsync(new { type = "session.input_audio.append", audio = Convert.ToBase64String(new byte[4800]) }, fin.Token);
+                await Task.Delay(100, fin.Token);
+            }
+            Anotar("sonda", $"({esperaMs} ms de silencio antes de hablar: lo que la voz diga hasta aquí lo dijo sola)");
+        }
+
         // EL MICRÓFONO: medio segundo de silencio, la frase al ritmo real, y silencio hasta el final. El servidor
         // necesita el caño abierto para saber que la persona calló.
         if (escrita)
@@ -187,6 +258,7 @@ internal static class Programa
         try { await MandarAsync(new { type = "session.close" }, CancellationToken.None); } catch { }
         await Task.WhenAny(recibir, Task.Delay(3000));
         fin.Cancel();
+        if (fotoSubida.Length > 0) await BorrarFotoAsync(clave, fotoSubida);   // la copia dura lo que la sesión
 
         Volcar();
         Resumen(delegado, esfuerzo);
@@ -427,6 +499,29 @@ internal static class Programa
             return pcm;
         }
         throw new InvalidOperationException("no pude sintetizar la frase con ningún modelo de voz");
+    }
+
+    private static async Task<string> SubirFotoAsync(string clave, byte[] jpeg)
+    {
+        using var http = new HttpClient();
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", clave);
+        using var cuerpo = new MultipartFormDataContent();
+        cuerpo.Add(new StringContent("vision"), "purpose");
+        var foto = new ByteArrayContent(jpeg);
+        foto.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        cuerpo.Add(foto, "file", "pantalla.jpg");
+        using var r = await http.PostAsync("https://api.openai.com/v1/files", cuerpo);
+        string texto = await r.Content.ReadAsStringAsync();
+        if (!r.IsSuccessStatusCode) { Console.WriteLine($"  (subir la foto: {(int)r.StatusCode} {texto})"); return ""; }
+        return JsonDocument.Parse(texto).RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
+    }
+
+    private static async Task BorrarFotoAsync(string clave, string id)
+    {
+        using var http = new HttpClient();
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", clave);
+        using var r = await http.DeleteAsync($"https://api.openai.com/v1/files/{id}");
+        Console.WriteLine(r.IsSuccessStatusCode ? $"  (foto {id} borrada de OpenAI)" : $"  (NO pude borrar la foto {id}: {(int)r.StatusCode})");
     }
 
     private static async Task MandarAsync(object mensaje, CancellationToken ct)
