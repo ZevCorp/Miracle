@@ -18,7 +18,7 @@ import kotlin.time.TimeSource
  *
  * La píldora pide el alto desde el hilo de la UI; la corrida termina su tarea y empieza la siguiente en el suyo.
  * Sin sección crítica, `pide` leía «abierta», `termine` corría entero y `pide` armaba el alto después: el freno
- * quedaba armado sin tarea, el aviso «Vale, paro.» salía sin su «Listo, tienes el control de vuelta.», y la
+ * quedaba armado sin tarea, el aviso del alto («Vale, paro.» entonces; «Ya paro.» desde la spec 009) salía sin su «Listo, tienes el control de vuelta.», y la
  * tarea siguiente podía nacer con ese alto. Medido por el revisor de 3A: 492.958 altos sin devolver el control
  * en 3 millones de vueltas.
  *
@@ -36,7 +36,7 @@ class Contrato003Carrera {
         fun promesa(n: Int) = "promesa $n: ${PROMESAS.getValue(n)}"
 
         /** Las frases escritas aquí y no leídas de producción. */
-        const val ALTO = "Vale, paro."
+        const val ALTO = "Ya paro."
         const val LISTO = "Listo, tienes el control de vuelta."
 
         /** Hasta aquí se estresa: lo que llegue antes, las vueltas o el tiempo. */

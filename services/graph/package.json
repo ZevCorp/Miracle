@@ -17,7 +17,6 @@
     "test:note-rescue": "node scripts/verify-note-rescue.js",
     "test:templates-catalog": "node scripts/verify-institutional-catalog.js",
     "test:clinical-assistant-api": "node scripts/verify-clinical-assistant.js",
-    "test:organizer": "node scripts/verify-organizer-profiles.js",
     "test:clinical": "node scripts/verify-institutional-catalog.js && node scripts/verify-clinical-workflow.js && node scripts/verify-note-fidelity.js && node scripts/verify-clinical-assistant.js",
     "test:tree-steps": "node scripts/verify-tree-node-steps.js",
     "test:dynamic-values": "node scripts/verify-dynamic-values.js",

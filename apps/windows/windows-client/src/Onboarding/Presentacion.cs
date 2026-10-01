@@ -1,3 +1,4 @@
+using U.WindowsClient.Cuenta;
 using U.WindowsClient.Diagnostics;
 using U.WindowsClient.Persona;
 using U.WindowsClient.SystemApi;
@@ -133,7 +134,35 @@ public static class Presentacion
         return resumen;
     }
 
-    // EL SALUDO DE LA PRIMERA VEZ YA NO VIVE AQUÍ (spec 080): era un mensaje que se mandaba como si lo
-    // dijera la persona, y quedaba en el hilo guardado entre sesiones. El primer encuentro lo lleva
-    // ahora Persona.PrimerEncuentro, con su guion en las instrucciones y su final de verdad.
+    /// <summary>
+    /// Lo que se le manda a Ü al abrir la conversación la primera vez, para que salude ELLA y no
+    /// espere a que hable la persona. Según con quién habla (spec 078, §5 del diseño, promesa 735).
+    /// </summary>
+    /// <remarks>
+    /// VA COMO NOTA DEL SISTEMA (<c>ConversacionEnVivo.AvisarAlModeloAsync</c>), no como texto de la persona:
+    /// hasta el 2026-10-01 entraba por lo escrito, se guardaba en el hilo como dicho por el USUARIO —y volvía
+    /// en cada sesión siguiente— y la carita lo pintaba «Tú: [instrucción del sistema…]» (D7). Va marcado para
+    /// que no lo lea en voz alta creyendo que se lo dijeron.
+    ///
+    /// Y SIN «LA ÚNICA PREGUNTA DE CORTESÍA DE TODA LA CONVERSACIÓN»: la constitución sí deja preguntar —un dato
+    /// que solo la persona sabe, o antes de algo irreversible que nadie pidió— y una regla que lo prohibía todo
+    /// se contradecía con ella. Lo que queda dicho es lo que importa: esta pregunta es la excepción porque mirar
+    /// el equipo es idea de Ü, y lo que le pidan después lo hace sin pedir permiso.
+    /// </remarks>
+    public static string Saludo(string nombre, PerfilDeUso perfil)
+    {
+        string quien = perfil.EsMedico
+            ? "quién eres y que le ayudas en los programas que ya usa —historias clínicas, SAP, el correo— para que le quede más tiempo para sus pacientes"
+            : perfil.EsPersona
+            ? "quién eres y que le ayudas con su computador en el día a día —archivos, internet, correos, documentos—: la persona te dice qué quiere y tú lo haces en la pantalla"
+            : "quién eres y que trabajas sobre las aplicaciones que ya usa";
+        return "[instrucción del sistema, no la leas en voz alta] Es la PRIMERA vez que te abren en este "
+            + $"equipo{(string.IsNullOrWhiteSpace(nombre) ? "" : $" y la persona se llama {nombre.Trim()}")}. "
+            + $"Preséntate en dos frases cortas: {quien}. "
+            + "Después haz UNA pregunta: si quiere que mires su computador para contarle qué puedes hacer en él. "
+            + "Si dice que sí, llama a scan_computer y cuéntale el resultado con tus palabras, sin leer la lista "
+            + "entera: lo más útil primero. Si dice que no, dilo bien y quédate esperando. Esa pregunta es la "
+            + "excepción porque mirar el equipo es idea tuya: lo que te pidan después, lo haces sin pedir permiso. "
+            + "No hagas nada más en este primer turno.";
+    }
 }

@@ -57,6 +57,7 @@ public static class FueraDelAltTab
         typeof(EstudiosWindow),
         typeof(MemoriaWindow),       // se lee con calma y se vuelve a ella: como los estudios (spec 071)
         typeof(LoginWindow),
+        typeof(OnboardingWindow),    // el menú «cambiar perfil» (spec 078) lo sigue usando, solo con las tarjetas
         typeof(EscenaDeBienvenida),  // el primer encuentro: si se va a otra ventana, se vuelve a él (spec 080)
         typeof(LogWindow),
         typeof(VideoLibraryWindow),

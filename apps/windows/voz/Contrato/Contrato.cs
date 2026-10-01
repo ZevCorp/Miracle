@@ -192,6 +192,15 @@ internal static class Contrato
 
         Prueba("50. GPT Realtime confirma la apertura con lo primero que manda su servidor al conectar: declara que confirma, session.created es un Hecho.Abierta, y ni un error, ni session.updated, ni ningún otro mensaje lo es", GptRealtimeConfirmaLaApertura);
 
+        // LA VOZ SABE CON QUIÉN HABLA Y VUELVE ENTERA DE UN MODO (spec 078 de Windows, 2026-10-01). Volver del aprendiz
+        // mandaba a la voz un append de 25.000 caracteres —las de siempre con la memoria ya no eran las de la apertura—,
+        // el servidor lo rechazaba y la voz se quedaba asintiendo con una palabra el resto de la sesión. Y la persona
+        // que se oye le hablaba igual a un médico que a quien ordena sus fotos, en el español de otro país.
+        Prueba("56. volver de un modo con GPT-Live es su propio mensaje: la delegación con las instrucciones que se le den, íntegras byte a byte aunque no sean las de la apertura, y a la voz su persona detrás del prefijo medido de la vuelta, nunca las de operar; con GPT Realtime volver es su apertura, y un protocolo que no lo declara vuelve con su cambio de modo", VolverDeUnModoEsSuMensaje);
+        Prueba("57. ningún append a la voz de GPT-Live pasa de 1.756 caracteres, el más largo que se midió aceptado: unas reglas que miden justo eso salen enteras, unas instrucciones de operar que no caben le devuelven su persona en vez de mandarse, y una frase de perfil desmedida deja la persona base", NingunAppendPasaDelTope);
+        Prueba("58. la voz de GPT-Live sabe con quién habla: la frase del perfil va pegada detrás de su persona al abrir y al volver, sin perfil la persona es la base exacta, y con perfil sigue diciendo las reglas de la 46 y la 55", LaVozSabeConQuienHabla);
+        Prueba("59. la persona de la voz es la de Ü: español de Colombia —computador, no ordenador—, sin «sobre todo SAP» ni emojis, y con el prefijo de la vuelta y la frase de perfil más larga cabe en 1.700 caracteres", LaPersonaEsLaDeU);
+
         Console.WriteLine();
         if (_pendientes > 0)
             Console.WriteLine($"({_pendientes} de ellas PENDIENTES: la capacidad todavía no existe. "
@@ -1241,12 +1250,14 @@ internal static class Contrato
     }
 
     /// <summary>
-    /// UNAS INSTRUCCIONES DEL TAMAÑO DE LAS DE Ü, no un marcador. Las de Ü miden 20.694 caracteres
-    /// (21.497 bytes UTF-8, medido el 2026-09-12 por la sonda de huecos), y comprobarlas con Contains de
-    /// una frase de 46 dejaba en verde recortarlas: el sabotaje V2 de la revisión —cortar a 4.000, una
-    /// defensa verosímil ante el tope de 16.384 fichas— salió VOZ ÍNTEGRA. Estas miden más que las de Ü,
-    /// llevan lo que JSON escapa (tildes, Ü, comillas, barra invertida, tabulador, saltos de línea) y
-    /// terminan en la regla que se pierde primero si alguien las corta.
+    /// UNAS INSTRUCCIONES DEL TAMAÑO DE LAS DE Ü, no un marcador. Las de Ü miden 17.547 caracteres desde
+    /// la spec 078 de Windows (18.230 bytes UTF-8, 2026-10-01: la constitución de Ü y la operación), y las
+    /// de siempre de un médico de Cardiología con el decisor, 19.831 (19.880 en el peor caso que juzga la
+    /// 724 del grafo); antes medían 20.694 (2026-09-12) y llegaron a 25.096.
+    /// Comprobarlas con Contains de una frase de 46 dejaba en verde recortarlas: el sabotaje V2 de la
+    /// revisión —cortar a 4.000, una defensa verosímil ante el tope de 16.384 fichas— salió VOZ ÍNTEGRA.
+    /// Estas miden más que las de Ü (unos 24.100), llevan lo que JSON escapa (tildes, Ü, comillas, barra
+    /// invertida, tabulador, saltos de línea) y terminan en la regla que se pierde primero si alguien las corta.
     /// </summary>
     private static string InstruccionesComoLasDeU(string primeraLinea)
     {
@@ -1581,7 +1592,7 @@ internal static class Contrato
     ///
     /// Al volver NO se le pasan las instrucciones de operar: la voz no las lleva (40), y el servidor
     /// rechaza un append de más de 500 fichas («Context append text must not exceed 500 tokens.», medido
-    /// con 2.400 caracteres; las de Ü son 20.694).
+    /// con 2.400 caracteres; las de Ü eran 20.694 entonces y son 17.547 desde la spec 078 de Windows).
     /// </remarks>
     private static void CambiarDeModoCambiaLaVoz()
     {
@@ -1940,6 +1951,157 @@ internal static class Contrato
         public IEnumerable<string> Resultados(IReadOnlyList<(string Id, string Nombre, string Resultado)> hechas) => Array.Empty<string>();
         public string PedirRespuesta(string instrucciones = "") => "";
         public IReadOnlyList<Hecho> Leer(JsonElement mensaje) => Array.Empty<Hecho>();
+    }
+
+    // ── Spec 078 de Windows: la voz por perfil y la vuelta de un modo (56-59) ──────────
+
+    private const string AlCambiarDeModo078 = "CAMBIO DE MODO. Desde ahora mandan estas reglas sobre cuándo y cómo hablas, por encima de las anteriores:\n";
+    private const string AlVolver078 = "VUELVES A TU MODO DE SIEMPRE. Lo anterior sobre el modo especial ya no manda; desde ahora mandan estas reglas:\n";
+
+    /// <summary>Volver de un modo, por la interfaz (así se juzga también el valor por defecto). Null si no existe.</summary>
+    private static List<string>? VueltaDeModo(IProtocolo p, string instrucciones, IReadOnlyList<Utensilio> utensilios)
+        => (typeof(IProtocolo).GetMethod("VueltaDeModo")?.Invoke(p, new object[] { instrucciones, utensilios })
+            as IEnumerable<string>)?.ToList();
+
+    /// <summary>Una propiedad pública de ProtocoloGptLive que todavía puede no existir.</summary>
+    private static PropertyInfo? DeGptLive(string propiedad)
+        => Realtime.GetType("Voz.Realtime.ProtocoloGptLive")?.GetProperty(propiedad, BindingFlags.Public | BindingFlags.Instance);
+
+    /// <summary>Lo que se le añade a la voz en una tanda de mensajes: el content del append, o "" si no hay.</summary>
+    private static string LoAnadido(IEnumerable<string> mensajes)
+        => mensajes.Select(Mensaje).Where(x => Campo(x, "type") == "session.instructions.append")
+            .Select(x => Campo(x, "content")).FirstOrDefault() ?? "";
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE (D2 del mapa de la voz, 2026-10-01): los tres sitios de vuelta —terminar de enseñar,
+    /// devolver la voz prestada y el botón Jev— mandaban las instrucciones de siempre a secas, y CambioDeModo solo
+    /// reconoce la vuelta si son IDÉNTICAS a las de la apertura. No lo eran en cuanto la apertura llevó memoria o hilo:
+    /// la voz recibía un append de 25.000 caracteres que el servidor rechazaba. Volver tiene su propio mensaje y no
+    /// compara: lo que el delegado recibe son las de AHORA, y la voz, su persona.
+    /// </remarks>
+    private static void VolverDeUnModoEsSuMensaje()
+    {
+        var p = GptLive();
+        if (p == null) { Pendiente("Voz.Realtime.ProtocoloGptLive", "078·56"); return; }
+        var utensilios = new List<Utensilio> { new("map_look", "Mira la pantalla", new List<Argumento>()) };
+        string persona = Campo(Mensaje(p.Apertura("ERES Ü. LAS DE LA APERTURA, SIN MEMORIA", utensilios, "").First()), "session", "instructions");
+
+        string deAhora = InstruccionesComoLasDeU("ERES Ü. LAS DE SIEMPRE, AHORA CON LA MEMORIA Y EL HILO");
+        var vuelta = VueltaDeModo(p, deAhora, utensilios)?.Select(Mensaje).ToList();
+        if (vuelta == null) { Pendiente("IProtocolo.VueltaDeModo", "078·56"); return; }
+        string tipos = string.Join(" · ", vuelta.Select(x => Campo(x, "type")));
+        Debe(vuelta.Count == 2 && Campo(vuelta[0], "type") == "session.update" && Campo(vuelta[1], "type") == "session.instructions.append",
+            $"volver es UN session.update de la delegación y detrás UN session.instructions.append a la voz (salió: {tipos})");
+        if (vuelta.Count < 2) return;
+
+        string alDelegado = Campo(vuelta[0], "session", "delegation", "responses", "instructions");
+        Debe(MismosBytes(alDelegado, deAhora),
+            $"el delegado recibe las de siempre de AHORA, íntegras byte a byte, aunque no sean las de la apertura: llevan la memoria y el hilo ({deAhora.Length} caracteres; llegan {alDelegado.Length})");
+        Debe(Campo(vuelta[0], "session", "delegation", "responses", "tools").Contains("map_look", StringComparison.Ordinal),
+            "con su catálogo");
+        string aLaVoz = Campo(vuelta[1], "content");
+        Debe(persona.Length > 0 && aLaVoz == AlVolver078 + persona,
+            "y la voz recibe su persona de siempre detrás del prefijo medido de la vuelta, letra por letra");
+        Debe(!aLaVoz.Contains("LAS DE SIEMPRE", StringComparison.Ordinal),
+            "nunca las instrucciones de operar: la voz no las lleva, y en un append no caben");
+        // Y SIN COMPARAR CON LA APERTURA: unas de siempre cortas y distintas de las de la apertura también son volver.
+        // Por el cambio de modo, que sí compara, serían «CAMBIO DE MODO…» + las de operar.
+        var corta = VueltaDeModo(p, "LAS DE SIEMPRE, CORTAS Y DISTINTAS", utensilios);
+        string conCortas = corta == null ? "" : LoAnadido(corta);
+        Debe(conCortas == AlVolver078 + persona,
+            $"volver no compara con la apertura: con unas de siempre cortas y distintas, la voz recibe igual su persona («{conCortas[..Math.Min(60, conCortas.Length)]}»)");
+
+        var rt = VueltaDeModo(new ProtocoloOpenAI(), "LAS DE SIEMPRE CON LA MEMORIA", utensilios)?.Select(Mensaje).ToList() ?? new List<JsonElement>();
+        Debe(rt.Count == 1 && Campo(rt[0], "type") == "session.update" && Campo(rt[0], "session", "instructions") == "LAS DE SIEMPRE CON LA MEMORIA",
+            "con GPT Realtime volver es su apertura reenviada: un session.update con las de siempre, que ya cambia la voz");
+        var sinDeclarar = VueltaDeModo(new ProtocoloQueNoLoDeclara(), "LAS DE SIEMPRE", utensilios);
+        Debe(sinDeclarar != null && sinDeclarar.Count == 0,
+            "y un protocolo que no lo declara vuelve con su cambio de modo, que es su apertura: aquí, nada");
+    }
+
+    /// <remarks>
+    /// EL TOPE ES EL MEDIDO, no uno redondo: el append del aprendiz con su prefijo, 1.756 caracteres, se aceptó el
+    /// 2026-09-12, y el mismo texto repetido hasta 1.900 se rechazó. Un append rechazado deja la sesión viva y a la voz
+    /// con las reglas que tenía: el fallo solo se ve en el log. Por eso se decide aquí, antes de mandarlo.
+    /// </remarks>
+    private static void NingunAppendPasaDelTope()
+    {
+        var p = GptLive();
+        object? valor = Realtime.GetType("Voz.Realtime.ProtocoloGptLive")
+            ?.GetField("TopeDelAppend", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)?.GetRawConstantValue();
+        var pExtra = DeGptLive("PersonaExtra");
+        if (p == null || valor is not int tope || pExtra == null)
+        { Pendiente("ProtocoloGptLive.TopeDelAppend · PersonaExtra", "078·57"); return; }
+        Debe(tope == 1_756, $"el tope es el append más largo que se midió aceptado, 1.756 caracteres (dice {tope})");
+
+        var utensilios = new List<Utensilio>();
+        string persona = Campo(Mensaje(p.Apertura("LAS DE LA APERTURA", utensilios, "").First()), "session", "instructions");
+
+        string reglas = new string('r', tope - AlCambiarDeModo078.Length);
+        var alAprendiz = CambioDeModo(p, reglas, utensilios, false);
+        if (alAprendiz == null) { Pendiente("IProtocolo.CambioDeModo", "078·57"); return; }
+        Debe(LoAnadido(alAprendiz) == AlCambiarDeModo078 + reglas,
+            "unas reglas que con el prefijo miden justo el tope —como el aprendiz medido— salen enteras");
+
+        string operar = InstruccionesComoLasDeU("LAS DE SIEMPRE CON LA MEMORIA DE AHORA");
+        var conOperar = CambioDeModo(p, operar, utensilios, false)!;
+        string anadido = LoAnadido(conOperar);
+        Debe(anadido.Length <= tope && anadido == AlVolver078 + persona,
+            $"unas instrucciones de operar que no caben en un append no se mandan a la voz: se le devuelve su persona (se mandaron {anadido.Length} caracteres)");
+        Debe(MismosBytes(Campo(Mensaje(conOperar[0]), "session", "delegation", "responses", "instructions"), operar),
+            "mientras el delegado sí las recibe enteras");
+
+        var q = GptLive()!;
+        pExtra.SetValue(q, new string('x', 2_000));
+        q.Apertura("LAS DE LA APERTURA", utensilios, "").ToList();
+        var vuelta = VueltaDeModo(q, "LAS DE SIEMPRE", utensilios);
+        if (vuelta == null) { Pendiente("IProtocolo.VueltaDeModo", "078·57"); return; }
+        string conExtra = LoAnadido(vuelta);
+        Debe(conExtra.Length <= tope && conExtra == AlVolver078 + ProtocoloGptLive.InstruccionesDeLaVoz,
+            $"y una frase de perfil que haría pasar la vuelta del tope deja la persona base, entera (se mandaron {conExtra.Length})");
+    }
+
+    /// <remarks>
+    /// LO QUE SE OYE ES LA VOZ, no el delegado: el perfil que solo llegara a las instrucciones de operar no cambiaría
+    /// cómo suena Ü. La frase va pegada detrás de la base, y la base sigue intacta: la 46 y la 55 juzgan lo que la voz
+    /// tiene que seguir diciendo con cualquier perfil.
+    /// </remarks>
+    private static void LaVozSabeConQuienHabla()
+    {
+        var p = GptLive();
+        var pExtra = DeGptLive("PersonaExtra");
+        if (p == null || pExtra == null) { Pendiente("ProtocoloGptLive.PersonaExtra", "078·58"); return; }
+        string Abre() => Campo(Mensaje(p.Apertura("INSTRUCCIONES DEL DELEGADO", new List<Utensilio>(), "").First()), "session", "instructions");
+
+        Debe(Abre() == ProtocoloGptLive.InstruccionesDeLaVoz, "sin perfil la persona con la que abre es la base, exacta: la voz de antes");
+        const string medico = " Le hablas a un médico o una médica de Cardiología: de usted.";
+        pExtra.SetValue(p, medico);
+        string conPerfil = Abre();
+        Debe(conPerfil == ProtocoloGptLive.InstruccionesDeLaVoz + medico, "con perfil, su frase va pegada detrás de la base al abrir");
+        var vuelta = VueltaDeModo(p, "LAS DE SIEMPRE", new List<Utensilio>());
+        Debe(vuelta != null && LoAnadido(vuelta) == AlVolver078 + ProtocoloGptLive.InstruccionesDeLaVoz + medico,
+            "y al volver de un modo también: la voz no olvida con quién habla");
+        foreach (string regla in new[] { "NO ANUNCIES LO QUE VAS A HACER", "HABLA EN PASADO", "«voy a…»", "«vamos a…»", "«dame un momento»", "DELEGA" })
+            Debe(conPerfil.Contains(regla, StringComparison.Ordinal), $"y con perfil sigue diciendo «{regla}» (46 y 55)");
+        pExtra.SetValue(p, null);
+        Debe(Abre() == ProtocoloGptLive.InstruccionesDeLaVoz, "y quitar el perfil —también con null— la devuelve a la base");
+    }
+
+    /// <remarks>
+    /// LA PERSONALIDAD QUE SE OYE (spec 078 de Windows): decía «este ordenador, sobre todo SAP». El presupuesto es el
+    /// de la vuelta: el prefijo, la base y la frase de perfil más larga que se deja escribir (300, promesa 709 del
+    /// grafo) tienen que caber en 1.700, con margen bajo el tope medido de 1.756.
+    /// </remarks>
+    private static void LaPersonaEsLaDeU()
+    {
+        string voz = ProtocoloGptLive.InstruccionesDeLaVoz;
+        Debe(voz.Contains("computador", StringComparison.Ordinal) && !voz.Contains("ordenador", StringComparison.OrdinalIgnoreCase),
+            "la voz habla de «computador», como se dice en Colombia, y no de «ordenador»");
+        Debe(voz.Contains("Colombia", StringComparison.Ordinal), "y sabe que habla el español de Colombia");
+        Debe(!voz.Contains("sobre todo SAP", StringComparison.OrdinalIgnoreCase), "y no le habla a todo el mundo como a un usuario de SAP");
+        Debe(!voz.Any(c => char.IsSurrogate(c) || (c >= '\u2600' && c <= '\u27BF')), "sin emojis");
+        int conLaMasLarga = AlVolver078.Length + voz.Length + 300;
+        Debe(conLaMasLarga <= 1_700, $"con el prefijo de la vuelta y la frase de perfil más larga cabe en 1.700 caracteres (mide {conLaMasLarga})");
     }
 
     // ── El arnés ─────────────────────────────────────────────────────────────

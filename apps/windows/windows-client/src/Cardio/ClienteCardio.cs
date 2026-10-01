@@ -17,8 +17,9 @@ namespace U.WindowsClient.Cardio;
 public sealed class ClienteCardio
 {
     /// <summary>
-    /// El MISMO modelo de texto que ya usa Ü: el delegado de GPT-Live (<c>ProtocoloGptLive</c>). La
-    /// familia gpt-5.x lee imágenes (ver <c>CapturaDePantalla</c>). <c>U_CARDIO_MODELO</c> lo cambia sin
+    /// <c>gpt-5.6-luna</c>, que lee imágenes (ver <c>CapturaDePantalla</c>). Era el delegado de GPT-Live y por
+    /// eso se eligió; desde el 2026-09-29 el delegado es <c>gpt-6.1-sol</c> (promesa 520) y la lectura de
+    /// estudios NO se cambió con él: no se ha vuelto a medir con Sol. <c>U_CARDIO_MODELO</c> lo cambia sin
     /// recompilar —p. ej. a <c>gpt-5.6-terra</c>, que también está en uso—.
     /// </summary>
     public const string ModeloPorDefecto = "gpt-5.6-luna";

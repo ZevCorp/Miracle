@@ -57,6 +57,18 @@ public sealed class ElPlanPorObjetivos
     /// <summary>Cada paso en cuanto termina, para el log.</summary>
     public Action<string>? AlTerminarPaso { get; set; }
 
+    /// <summary>
+    /// VARIOS CON ESE NOMBRE (promesa 741): si el último «pulsa: X» no pulsó porque hay más de un «X» a la vista, la lista
+    /// numerada con que contestó el ciclo rápido; si no, null. Sin ella, lo de antes: el paso pasa a Jev.
+    /// </summary>
+    /// <remarks>
+    /// Hasta el 2026-10-01 el paso pasaba a Jev como «llegar a «X» y pulsarlo», y Jev elegía uno con su umbral. Con dos
+    /// pacientes del mismo nombre, eso es equivocarse de paciente sin que nadie se entere. Ahora el plan para con la lista, y
+    /// quien planea elige con map_take y which —por el tipo, o mirando— o, si son personas distintas, pregunta (la regla
+    /// vive en las instrucciones del delegado).
+    /// </remarks>
+    public Func<string, string?>? Homonimos { get; set; }
+
     /// <summary>La cuenta del último plan (promesa 515): la línea que lee la métrica de la spec 062.</summary>
     public string UltimaCuenta { get; private set; } = "";
 
@@ -147,7 +159,8 @@ public sealed class ElPlanPorObjetivos
 
     /// <summary>
     /// A DÓNDE VA UN PASO QUE NO ES UN GESTO (promesa 516): «pulsa: &lt;nombre&gt;» por el ciclo rápido, sin Jev —Luna ya
-    /// vio ese nombre—; si no está a la vista, pasa a Jev como objetivo. Cualquier otra frase es un objetivo para Jev.
+    /// vio ese nombre—; si no está a la vista, pasa a Jev como objetivo, y si hay varios con ese nombre, el plan para con
+    /// la lista (741). Cualquier otra frase es un objetivo para Jev.
     /// </summary>
     public Recorrido Objetivo(string paso, IReadOnlyList<string> hecho)
     {
@@ -169,12 +182,18 @@ public sealed class ElPlanPorObjetivos
         {
             if (!p.StartsWith(prefijo, StringComparison.OrdinalIgnoreCase)) continue;
             string nombre = p[prefijo.Length..].Trim().Trim('«', '»', '"', '\'', '“', '”').Trim();
-            // SI NO ESTÁ, PUEDE QUE LA PÁGINA AÚN CARGUE (promesa 524): una espera a que se quede quieta y otra búsqueda,
-            // antes de pedirle a Jev que adivine sobre una pantalla a medias.
-            if (nombre.Length > 0 && (_pulsarPorNombre(nombre) || (EsperarQuieta?.Invoke() == true && _pulsarPorNombre(nombre))))
+            if (nombre.Length > 0)
             {
-                _acciones++;
-                return new Recorrido(Array.Empty<Vuelta>(), $"cumplido: pulsé «{nombre}» por el ciclo rápido", true);
+                if (_pulsarPorNombre(nombre)) return Pulsado(nombre);
+                // VARIOS NO ES «NO ESTÁ» (promesa 741): ni se espera ni se le pasa a Jev; el plan para con la lista.
+                if (Varios(nombre) is { } varios) return varios;
+                // SI NO ESTÁ, PUEDE QUE LA PÁGINA AÚN CARGUE (promesa 524): una espera a que se quede quieta y otra búsqueda,
+                // antes de pedirle a Jev que adivine sobre una pantalla a medias.
+                if (EsperarQuieta?.Invoke() == true)
+                {
+                    if (_pulsarPorNombre(nombre)) return Pulsado(nombre);
+                    if (Varios(nombre) is { } variosTrasEsperar) return variosTrasEsperar;
+                }
             }
             // LLEGAR, NO ADIVINAR (promesa 525): si no está en esta pantalla, Jev puede navegar hasta donde esté. Con «pulsar
             // «Sonido»» dentro de Pantalla, Jev eligió «Mostrar más valores» con 0,31 (2026-09-29, 03:04): Sonido cuelga de Sistema.
@@ -182,6 +201,24 @@ public sealed class ElPlanPorObjetivos
                                 + "(la sección que lo contiene, o Atrás)", hecho));
         }
         return Contar(_conJev(p, hecho));
+    }
+
+    private Recorrido Pulsado(string nombre)
+    {
+        _acciones++;
+        return new Recorrido(Array.Empty<Vuelta>(), $"cumplido: pulsé «{nombre}» por el ciclo rápido", true);
+    }
+
+    /// <summary>El paso que para porque hay varios con ese nombre (promesa 741); null si no fue por eso.</summary>
+    private Recorrido? Varios(string nombre)
+    {
+        string? lista = Homonimos?.Invoke(nombre);
+        if (string.IsNullOrWhiteSpace(lista)) return null;
+        // «Repite con which=N» es la frase de map_take; aquí which no existe, y se dice dónde está.
+        int corte = lista.IndexOf(" Repite con which=N", StringComparison.Ordinal);
+        string cuales = (corte > 0 ? lista[..corte] : lista).Trim().TrimEnd('.');
+        return new Recorrido(Array.Empty<Vuelta>(),
+            $"no pulsé nada: {cuales}. El plan para aquí: el que toque se pulsa con map_take («{nombre}») y which=N", false);
     }
 
     private Recorrido Contar(Recorrido r)

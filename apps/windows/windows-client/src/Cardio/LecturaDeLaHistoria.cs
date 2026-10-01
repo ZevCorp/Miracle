@@ -27,7 +27,7 @@ public static class LecturaDeLaHistoria
     public const int LargoDelTitular = 220;
 
     public const string PromptTranscribir = """
-        Eres el módulo de lectura de historias clínicas de U, el asistente clínico de Miracle AI para
+        Eres el módulo de lectura de historias clínicas de Ü, el asistente clínico de Miracle AI para
         médicos en Colombia.
 
         Recibes documentos de la historia clínica de UN paciente: fotos tomadas a documentos y PDFs. Antes
@@ -50,7 +50,7 @@ public static class LecturaDeLaHistoria
         """;
 
     public const string PromptMotivo = """
-        Eres U, el asistente clínico de Miracle AI. Un cardiólogo va a atender a un paciente y tiene su
+        Eres Ü, el asistente clínico de Miracle AI. Un cardiólogo va a atender a un paciente y tiene su
         historia clínica: muchos documentos que dicen muchas cosas. Tu única tarea es contestarle:
         ¿por qué vino a cardiología este paciente?
 

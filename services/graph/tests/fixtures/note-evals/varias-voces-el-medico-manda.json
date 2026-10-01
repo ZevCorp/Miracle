@@ -47,7 +47,7 @@
   },
   "transcript": "[Hablante 1] Cuénteme, ¿qué le pasa?\n[Hablante 2] Doctor, yo tengo gastritis, eso es lo que tengo, me arde la boca del estómago hace una semana. Y estoy tomando losartán de cien.\n[Hablante 3] Él además es diabético, doctor, yo se lo digo siempre.\n[Hablante 1] En su historia el losartán está en cincuenta miligramos al día, así queda. ¿Alguna vez le han medido el azúcar?\n[Hablante 2] No, nunca.\n[Hablante 1] El abdomen está blando, con dolor leve a la palpación en epigastrio, sin masas. Voy a pedir una glicemia en ayunas y le dejo omeprazol 20 miligramos en ayunas por cuatro semanas.",
   "recorded_output": {
-    "summary": "Consulta por ardor epigástrico de una semana de evolución en paciente que refiere gastritis y diabetes, en tratamiento con losartán 50 mg al día.",
+    "summary": "Consulta por ardor en la boca del estómago de una semana de evolución; refiere antecedente de gastritis y la acompañante refiere que es diabético. Losartán 50 mg al día según la historia clínica.",
     "sections": [
       {
         "key": "motivo_consulta",
@@ -61,7 +61,7 @@
       {
         "key": "antecedentes",
         "label": "Antecedentes",
-        "content": "Refiere antecedente de gastritis y diabetes según acompañante. En tratamiento con losartán 50 mg al día según historia clínica. No refiere medición previa de glucosa.",
+        "content": "Refiere antecedente de gastritis. La acompañante refiere que es diabético. Losartán 50 mg al día según la historia clínica. Refiere que nunca se le ha medido la glucosa.",
         "grounding": "explicit",
         "evidence": [
           "Doctor, yo tengo gastritis, eso es lo que tengo, me arde la boca del estómago hace una semana. Y estoy tomando losartán de cien.",
@@ -82,7 +82,7 @@
       {
         "key": "analisis",
         "label": "Análisis",
-        "content": "Paciente con ardor epigástrico de una semana, refiere antecedente de gastritis y diabetes según acompañante, en tratamiento con losartán 50 mg al día. Examen físico con abdomen blando y dolor leve en epigastrio sin masas. No se ha medido glucosa previamente. Se decide iniciar omeprazol 20 mg en ayunas por cuatro semanas y solicitar glicemia en ayunas para confirmar o descartar diabetes.",
+        "content": "Consulta por ardor en la boca del estómago de una semana de evolución. Refiere antecedente de gastritis y la acompañante refiere que es diabético; toma losartán 50 mg al día según la historia clínica.\n\nAl examen, abdomen blando con dolor leve a la palpación en epigastrio, sin masas. Refiere que nunca se le ha medido la glucosa.\n\nSe inicia omeprazol por el ardor y el dolor en epigastrio, y se solicita glicemia en ayunas para confirmar o descartar diabetes, porque nunca se le ha medido la glucosa y la acompañante refiere que es diabético.",
         "grounding": "entailed",
         "evidence": [
           "Doctor, yo tengo gastritis, eso es lo que tengo, me arde la boca del estómago hace una semana.",
@@ -96,14 +96,16 @@
       {
         "key": "plan",
         "label": "Plan",
-        "content": "- Omeprazol 20 mg en ayunas por cuatro semanas para tratamiento de ardor epigástrico.\n- Solicitar glicemia en ayunas para confirmar o descartar diabetes.",
+        "content": "- Omeprazol 20 mg en ayunas por cuatro semanas, por el ardor y el dolor en epigastrio.\n- Glicemia en ayunas para confirmar o descartar diabetes.",
         "grounding": "explicit",
         "evidence": [
           "Voy a pedir una glicemia en ayunas y le dejo omeprazol 20 miligramos en ayunas por cuatro semanas."
         ]
       }
     ],
-    "warnings": [],
+    "warnings": [
+      "No dictó una impresión diagnóstica."
+    ],
     "missing_required_sections": []
   },
   "expect": {
@@ -125,7 +127,15 @@
       "paciente con gastritis",
       "para la gastritis",
       "diabetes no controlada",
+      "gastritis y diabetes",
+      "por vía oral",
+      "compatible con",
+      "sugiere",
+      "probable",
       "[Hablante"
+    ],
+    "required_warnings": [
+      "impresión diagnóstica"
     ],
     "max_inferred": 1,
     "evidence_spans_valid": true

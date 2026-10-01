@@ -22,7 +22,7 @@ public partial class FaceWindow
 {
     private readonly PerfilDeLaPersona _perfiles = new();
     private readonly CuadernoDeClases _cuaderno = new();
-    private Perfil _perfil = new();
+    private Perfil _laPersona = new();
     private Rol _rol = Rol.SinElegir;
     private bool _hayIdentidadPrevia;
 
@@ -77,16 +77,16 @@ public partial class FaceWindow
             }
 
             _hayIdentidadPrevia = hayMedico || !string.IsNullOrWhiteSpace(_config.Email);
-            _perfil = _perfiles.Leer();
-            if (!_perfil.Conocido && _hayIdentidadPrevia)
+            _laPersona = _perfiles.Leer();
+            if (!_laPersona.Conocido && _hayIdentidadPrevia)
             {
-                _perfil = PrimerEncuentro.DeIdentidadPrevia(_config.DisplayName);
-                _perfiles.Guardar(_perfil);
+                _laPersona = PrimerEncuentro.DeIdentidadPrevia(_config.DisplayName);
+                _perfiles.Guardar(_laPersona);
                 LogBus.Log("persona", "esta instalación ya tenía identidad: pasa a médico conocido, sin preguntar nada");
             }
-            _rol = ReglaDelRol.Efectivo(_perfil, _hayIdentidadPrevia);
-            LogBus.Log("persona", _perfil.Conocido
-                ? $"conocida · {Roles.Nombre(_rol)} · {_perfil.Gustos.Count} gusto(s) · por {_perfil.Origen}"
+            _rol = ReglaDelRol.Efectivo(_laPersona, _hayIdentidadPrevia);
+            LogBus.Log("persona", _laPersona.Conocido
+                ? $"conocida · {Roles.Nombre(_rol)} · {_laPersona.Gustos.Count} gusto(s) · por {_laPersona.Origen}"
                 : "todavía no conozco a quien me usa: el primer encuentro está pendiente");
         }
         catch (Exception ex)
@@ -94,6 +94,28 @@ public partial class FaceWindow
             for (var x = ex; x != null; x = x.InnerException)
                 LogBus.Log("persona", $"no pude preparar la identidad: {x.GetType().Name}: {x.Message}");
         }
+    }
+
+    /// <summary>
+    /// El rol que la persona dijo llena el perfil de uso de la spec 078: médico → médico; estudiante → persona.
+    /// Si ya había uno elegido —o viene de la cuenta Miracle— no se pisa. La especialidad la pone quien la sabe
+    /// (la cuenta, o el menú «cambiar perfil»): aquí no se inventa.
+    /// </summary>
+    private void DarleSuPerfilDeUso(Rol rol)
+    {
+        try
+        {
+            if (_perfilDeLaCuenta || rol == Rol.SinElegir) return;
+            string quiere = rol == Rol.Medico ? Cuenta.PerfilDeUso.Medico : Cuenta.PerfilDeUso.Persona;
+            if (Cuenta.PerfilDeUso.Normalizar(_config.Perfil) == quiere) return;
+            _config.Perfil = quiere;
+            if (quiere == Cuenta.PerfilDeUso.Persona) { _config.Especialidad = ""; _config.EspecialidadNombre = ""; }
+            _config.Save();
+            AplicarElPerfil(Cuenta.PerfilDeUso.Resolver(false, "", "", _config.Perfil, _config.Especialidad,
+                _config.EspecialidadNombre, _config.DisplayName));
+            LogBus.Log("persona", $"perfil de uso según el rol: {_perfil.Describir()}");
+        }
+        catch (Exception e) { LogBus.Log("persona", $"no pude llenar el perfil de uso: {e.GetType().Name}: {e.Message}"); }
     }
 
     // ── lo que cada rol enciende ─────────────────────────────────────────────
@@ -157,7 +179,7 @@ public partial class FaceWindow
         var encuentro = _encuentro;
         if (encuentro is { Hecho: false }) return PrimerEncuentro.Guion(encuentro.Perfil);
 
-        string alma = Alma.Componer(_perfil);
+        string alma = Alma.Componer(_laPersona);
         string clases = _rol == Rol.Estudiante ? ClasesParaLaVoz.Contexto(_rol, _cuaderno.Todas()) : "";
         return string.Join("\n\n", new[] { alma, clases }.Where(x => x.Length > 0));
     }
@@ -204,10 +226,10 @@ public partial class FaceWindow
     /// </remarks>
     private void OfrecerElPrimerEncuentro()
     {
-        if (!PrimerEncuentro.HaceFalta(_perfil, _hayIdentidadPrevia))
+        if (!PrimerEncuentro.HaceFalta(_laPersona, _hayIdentidadPrevia))
         {
-            LogBus.Log("encuentro", _perfil.Conocido
-                ? $"no hace falta: ya nos conocemos ({Roles.Nombre(_perfil.Rol)}, por {_perfil.Origen}). "
+            LogBus.Log("encuentro", _laPersona.Conocido
+                ? $"no hace falta: ya nos conocemos ({Roles.Nombre(_laPersona.Rol)}, por {_laPersona.Origen}). "
                   + @"Para volver a verlo: cierra Ü, borra %APPDATA%\U\perfil.json y vuelve a abrir."
                 : "no hace falta: esta instalación ya tenía identidad");
             return;
@@ -475,7 +497,7 @@ public partial class FaceWindow
     private void AlTerminarElEncuentro(Perfil perfil)
     {
         bool cambioDeRol = _rol != Rol.SinElegir && _rol != perfil.Rol;
-        _perfil = perfil;
+        _laPersona = perfil;
         _rol = perfil.Rol;
         _hayIdentidadPrevia = false;
         if (cambioDeRol)
@@ -493,6 +515,7 @@ public partial class FaceWindow
         }
         if (_encuentro is { } terminado) _escena?.Anotado(terminado.Piezas()); else _escena?.Sabe(perfil);
         _escena?.Terminado(perfil);
+        DarleSuPerfilDeUso(perfil.Rol);   // el perfil de la spec 078 sale del rol que dijo
         _dichoAlTerminar = _ultimoDichoEnLaEscena;
         EncenderLoDelRol();
 

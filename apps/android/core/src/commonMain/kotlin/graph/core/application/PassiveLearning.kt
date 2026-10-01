@@ -56,7 +56,7 @@ class PassiveLearning(
         lastInquiry = null
         clicksSinceInquiry = 0
         log.log("learn", if (quiet) "▶ enseñanza pasiva automática (ejecución)" else "▶ enseñanza pasiva activada")
-        if (!quiet) voice.narrate("🎓 Observo mientras usas el teléfono; aprendo solo.")
+        if (!quiet) voice.narrate("Observo mientras usas el teléfono; aprendo solo.")
     }
 
     /** Apaga el modo consolidando lo que quedara pendiente de la app actual. */
@@ -67,7 +67,7 @@ class PassiveLearning(
         mutex.withLock { consolidate() }
         recorder?.stop()
         log.log("learn", "■ enseñanza pasiva desactivada")
-        if (!quiet) voice.narrate("🎓 Dejo de observar.")
+        if (!quiet) voice.narrate("Dejo de observar.")
     }
 
     /** Un clic del usuario dentro de una app, con el árbol de UI visible en ese momento. */
@@ -132,7 +132,7 @@ class PassiveLearning(
         repo.save(final)
         log.log("learn", "■ ${if (previous != null) "refinado" else "aprendido"}: ${final.name} · ${final.elements.size} elementos")
         // Al usuario se le habla en su idioma, no en técnico: nada de nombres de herramientas ni conteos.
-        voice.narrate("🧩 Ahora el uso de ${appName(app)} es mejor y más rápido.")
+        voice.narrate("Ahora el uso de ${appName(app)} es mejor y más rápido.")
         // Aprendizaje continuo: el MCP nuevo/refinado puede cubrir pasos conscientes de workflows
         // que ya existían — la plataforma los reconecta en background.
         onLearned?.invoke(final)

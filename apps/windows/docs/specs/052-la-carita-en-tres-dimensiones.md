@@ -64,7 +64,7 @@ cada una en algo que se rompe si alguien lo contradice.
 | 441 | girar la cabeza no es correr los ojos: los rasgos se proyectan sobre una cara curva, así que al girar todos se van hacia donde mira, el ojo que se acerca al borde se estrecha más que el otro y los dos quedan más juntos; ningún rasgo se sale de la cara; sin giro todo queda donde siempre estuvo; y lo pintado se mueve de verdad hacia ese lado | 2 |
 | 442 | las manos asoman y se esconden: en reposo no se ven; al saludar salen por detrás de la cara —lo que la cara tapa no cambia—, una saluda mientras la otra se queda, y al terminar vuelven a esconderse solas en menos de dos segundos y medio | 3 |
 | 443 | la carita tiene volumen: con luz arriba, el cuerpo es más claro arriba que abajo y más oscuro en el borde que hacia dentro, en los dos temas | 4 |
-| 444 | la carita está viva sin estar ansiosa: sola solo parpadea, cada 8 a 18 segundos —cerrar es más rápido que abrir y el parpadeo entero dura menos de un cuarto de segundo—; girar la cabeza y el pulso no salen solos; el saludo sale solo muy rara vez, entre hora y media y tres horas; y quieta no pide cuadros | 5, 7 |
+| 444 | la carita está viva sin estar ansiosa: sola solo parpadea, cada 8 a 18 segundos —cerrar es más rápido que abrir y el parpadeo entero dura menos de un cuarto de segundo—; girar la cabeza y el pulso no salen solos; y quieta no pide cuadros | 5, 7 |
 | 445 | la carita blanca es casi blanca sin ser blanca: su cuerpo no llega al blanco puro en ningún punto ni se apaga —el centro no baja de 240 de 255, y arriba, abajo y a los lados no baja de 225—, y conserva el volumen | 6 |
 | 446 | cuando Ü pulsa algo, la carita lo presiona con la mano: saca solo la mano de ese lado, la empuja hacia fuera y la esconde sola en menos de un segundo, por detrás de la cara; la mano no se sale del aire que la ventana de la carita le deja, tampoco al saludar; y solo presiona cuando el pulso es de Ü: señalar no saca la mano | 8 |
 | 447 | los gestos responden a lo que pasa: tocar la carita la hace rebotar, y al ir junto a lo que Ü toca gira la cabeza hacia ello y la sigue teniendo girada aunque cambie de estado | 9 |
@@ -73,6 +73,10 @@ cada una en algo que se rompe si alguien lo contradice.
 La 444 se REESCRIBIÓ el 2026-10-01, antes de llegar a `main` (ver «La segunda vuelta»): decía «parpadea
 sola cada 3 a 7 segundos […] los gestos grandes siguen espaciados 8 segundos o más y los tres salen». Y
 a la 440 se le quitó «con la boca abierta» —ya no hay boca que abrir— y se le añadió «presionando».
+
+Y la 444 perdió su parte del saludo el mismo 2026-10-01, ya en `main`, a petición del dueño («creo que
+exageramos con lo de tres horas»): decía «el saludo sale solo muy rara vez, entre hora y media y tres
+horas». Cuándo saluda lo promete ahora la **690** (spec 077), y la cara de conversar la **691**.
 
 ### Con qué se juzga
 

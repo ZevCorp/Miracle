@@ -367,6 +367,17 @@
 
                         <Border Style="{StaticResource Sep}"/>
 
+                        <!-- ── Con quién habla Ü (spec 078): médico con su especialidad, uso personal
+                             o sin elegir. La bienvenida promete «lo puedes cambiar cuando quieras
+                             desde el menú de Ü», y es aquí. Con la cuenta Miracle dentro manda la
+                             cuenta y la fila solo lo dice. El texto lo pone PintarElPerfilEnElMenu. -->
+                        <TextBlock Text="Cómo me usas" Style="{StaticResource SectionLabel}"/>
+                        <Button x:Name="PerfilBtn" Content="Sin elegir · cambiar" Height="30" Margin="0,4,0,0"
+                                Click="OnCambiarPerfil" Style="{StaticResource MenuBtn}"
+                                AutomationProperties.Name="Cambiar con quién habla Ü"/>
+
+                        <Border Style="{StaticResource Sep}"/>
+
                         <!-- ── Backend: herramientas de desarrollo, TODAS a la vista. El desplegable
                              que las escondía murió en la limpieza del panel (2026-08-31): abrirlo
                              era un clic que no compraba nada — quien llega hasta aquí ya está

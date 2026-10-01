@@ -152,7 +152,7 @@ class Freno(
         /** Lo que se dice al soltar tras un alto: pararse en silencio se vive igual que colgarse. */
         const val DEVUELVO_EL_CONTROL = "Listo, tienes el control de vuelta."
 
-        /** El aviso del alto, una vez por tarea. */
-        const val ALTO = "Vale, paro."
+        /** El aviso del alto, una vez por tarea. Decía «Vale, paro.», y «vale» no es de Colombia (spec 009, promesa 908). */
+        const val ALTO = "Ya paro."
     }
 }

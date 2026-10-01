@@ -25,7 +25,7 @@ public interface IUserChannel
 
 /// <summary>
 /// El bucle de ejecución del lado cliente. Es el gemelo de <c>core/application/Engine.kt</c>, pero
-/// donde aquel llamaba a un <c>Brain</c> local, este hace <c>POST /api/agent/turn</c> al backend.
+/// donde aquel llamaba a un <c>Brain</c> local, este hace <c>POST /api/v1/agent/turn</c> a Graph.
 /// El cliente CONDUCE el bucle (capturar → pedir decisión → ejecutar → repetir) y el cerebro remoto
 /// solo decide. Toda la inteligencia está del otro lado del cable.
 /// </summary>
@@ -68,6 +68,16 @@ public sealed class AgentLoop
     };
 
     /// <summary>
+    /// LO QUE VIAJA CUANDO UNA PREGUNTA SE QUEDA SIN RESPUESTA: el hecho, no una orden. Decía «usa tu mejor
+    /// criterio», que es justo lo contrario de la constitución de Ü («si preguntaste y no te contestan, no
+    /// repites la pregunta ni la contestas tú: el dato no se inventa y lo que no se puede deshacer no se
+    /// hace»): se preguntó porque era un dato que solo sabe la persona, o algo irreversible que nadie
+    /// pidió, y el silencio no lo convierte en una elección de Ü (spec 078, 2026-10-01). Empieza como
+    /// el «(sin respuesta)» que Graph pone cuando no llega nada, para que los dos caminos digan lo mismo.
+    /// </summary>
+    internal const string SinRespuesta = "(sin respuesta: la persona no contestó)";
+
+    /// <summary>
     /// Ejecuta un objetivo hasta que el cerebro devuelve el control con texto. Devuelve ese resumen.
     ///
     /// <paramref name="requireOrigin"/> es la COMPUERTA DE SUPERFICIE: el origen (<c>sapgui://QAS</c>,
@@ -87,8 +97,9 @@ public sealed class AgentLoop
         // LO QUE SE NARRA ES QUE EMPEZAMOS, NO EL ENCARGO ENTERO. Desde que narrar se OYE
         // (promesa 142), soltar aquí el objetivo tal cual hacía que Ü leyera en voz alta los 4442
         // caracteres del encargo de comprobar, superficies y URLs incluidas — 2026-09-03 21:35:12,
-        // insufrible. El objetivo entero sigue yendo al log, que es donde sirve.
-        _voice.Narrate(goal.Length > 90 ? "¡Vamos!" : $"¡Vamos! {goal}");
+        // insufrible. El objetivo entero sigue yendo al log, que es donde sirve. Y lo que se narra es un
+        // estado, no un anuncio: «¡Vamos!» se oía al comprobar, y Ü no anuncia lo que va a hacer.
+        _voice.Narrate(goal.Length > 90 ? "En marcha." : $"En marcha: {goal}");
         LogBus.Log("agent", $"▶ objetivo: «{Short(goal, 160)}»" +
             (requireOrigin.Length > 0 ? $" · compuerta: solo actúa en «{requireOrigin}»" : " · SIN compuerta de superficie"));
         // Telemetría "Windows Live": esta corrida consciente entera se correlaciona por runId.
@@ -128,7 +139,8 @@ public sealed class AgentLoop
             catch (OperationCanceledException) { throw; }
             catch (Exception e)
             {
-                _voice.Speak("No pude contactar con el cerebro. Revisa la conexión.");
+                // Sin «Revisa la conexión»: es de tú, y la causa puede ser otra (un error del servidor, un plazo vencido).
+                _voice.Speak("El cerebro no respondió y tuve que parar.");
                 LogBus.Log("agent", $"✗ el cerebro no respondió: {e.Message}");
                 TelemetryBus.Emit("conscious_run_end", phase: "error", runId: runId, label: e.Message);
                 return $"error de backend: {e.Message}";
@@ -164,19 +176,23 @@ public sealed class AgentLoop
             {
                 _voice.Speak(resp.Question!);
                 string answer = await _user.AskAsync(resp.Question!, ct);
-                inform = string.IsNullOrWhiteSpace(answer) ? "usa tu mejor criterio" : answer;
+                inform = string.IsNullOrWhiteSpace(answer) ? SinRespuesta : answer;
             }
 
             await Task.Delay(300, ct);
         }
 
+        // LAS FRASES FIJAS NO TUTEAN (spec 078): este bucle corre también en el puente clínico, y Speak sale por la voz viva,
+        // que puede estar hablándole de usted a un médico. «¿Me lo dices de otra forma?» le hablaba de tú.
         if (!string.IsNullOrWhiteSpace(summary)) _voice.Speak(summary);
         else if (actions == 0)
         {
-            summary = "Mmm, no estoy seguro de haberte entendido. ¿Me lo dices de otra forma?";
+            summary = "No entendí qué hacer. ¿Cómo sería con otras palabras?";
             _voice.Speak(summary);
         }
-        _voice.Narrate("¡Listo! 🎉");
+        // «Listo.» SOLO SI NO HUBO RESUMEN: al comprobar, lo narrado se oye (promesa 142), y tras el resumen era decir dos
+        // veces que terminó. Sin emoji: Ü no habla con emojis.
+        else _voice.Narrate("Listo.");
         LogBus.Log("agent", $"■ fin · {actions} acción(es) · {Short(summary, 160)}");
         TelemetryBus.Emit("conscious_run_end", runId: runId, label: summary);
         return string.IsNullOrWhiteSpace(summary) ? "Hecho" : summary;
@@ -283,7 +299,12 @@ public sealed class AgentLoop
         string result = a.Kind switch
         {
             "tap" => InputExecutor.Tap(a.X, a.Y) ? "ok" : "no se pudo ejecutar la acción",
-            "type" => InputExecutor.Type(a.X, a.Y, a.Text ?? "") ? "ok" : "no se pudo ejecutar la acción",
+            // Un `type` sin punto (Graph lo manda con x=-1, y=-1: el `type` de computer-use no lleva
+            // coordenadas) teclea donde ya está el foco. Antes se hacía clic en (-1,-1), que el
+            // sistema lleva a la esquina (0,0): el foco se iba del campo antes de escribir (spec 078).
+            "type" => (TieneDondeTocar(a.X, a.Y)
+                    ? InputExecutor.Type(a.X, a.Y, a.Text ?? "")
+                    : InputExecutor.TypeText(a.Text ?? "")) ? "ok" : "no se pudo ejecutar la acción",
             "scroll" => InputExecutor.Scroll(a.Down) ? "ok" : "no se pudo ejecutar la acción",
             "swipe" => InputExecutor.Swipe(a.X1, a.Y1, a.X2, a.Y2, a.Ms) ? "ok" : "no se pudo ejecutar la acción",
             "key" => InputExecutor.Key(a.Key ?? "") ? "ok" : "no se pudo ejecutar la acción",
@@ -297,6 +318,13 @@ public sealed class AgentLoop
     }
 
     /// <summary>
+    /// ¿Trae la acción un punto de la pantalla donde tocar? Un negativo es «sin punto»: el `type` de
+    /// computer-use llega con x=-1, y=-1 y se teclea donde está el foco (promesa 710). (0,0) sí es un
+    /// punto: la esquina de arriba a la izquierda.
+    /// </summary>
+    internal static bool TieneDondeTocar(int x, int y) => x >= 0 && y >= 0;
+
+    /// <summary>
     /// Una acción en una línea legible. El TEXTO de un `type` se registra recortado: es exactamente el
     /// dato que faltaba para reconstruir el incidente del 2026-07-26 (qué se escribió y dónde). Queda
     /// solo en el log LOCAL (%LOCALAPPDATA%\U\logs), nunca sale hacia Graph.
@@ -304,7 +332,9 @@ public sealed class AgentLoop
     private static string Describe(AgentAction a) => a.Kind switch
     {
         "tap" => $"tap ({a.X},{a.Y})",
-        "type" => $"type ({a.X},{a.Y}) «{Short(a.Text, 40)}»",
+        "type" => TieneDondeTocar(a.X, a.Y)
+            ? $"type ({a.X},{a.Y}) «{Short(a.Text, 40)}»"
+            : $"type (donde está el foco) «{Short(a.Text, 40)}»",
         "key" => $"key «{a.Key}»",
         "scroll" => $"scroll {(a.Down ? "abajo" : "arriba")}",
         "swipe" => $"swipe ({a.X1},{a.Y1})→({a.X2},{a.Y2})",
