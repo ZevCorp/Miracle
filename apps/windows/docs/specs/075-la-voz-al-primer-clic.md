@@ -144,6 +144,46 @@ collar que conecta tarde, su salida al micrófono local, el reintento de diez se
 
 ## Hallazgos
 
+Lo que salió al implementarla, por orden (2026-10-01):
+
+- **La primera idea para el micrófono fue adelantarse al clic, y se retiró.** Con abrirlo costando
+  320–550 ms, se puso «en guardia»: al acercar el ratón a la carita el dispositivo empezaba a abrirse
+  sin entregar nada. Medido sobre el PC, seis rondas con el ratón 150 ms encima antes de pulsar:
+  micrófono a los 103–399 ms del clic; una séptima, en frío, **551 ms**. Pasaba del medio segundo,
+  no valía para el doble Ctrl ni para la onda del notch, y encendía el indicador de micrófono de
+  Windows con solo pasar el ratón. Entonces se le preguntó a la API qué parte de «abrir» era cara
+  (aprendizaje nº13): inicializar, 449 ms; arrancar, 240–257. La guardia se borró entera
+  (aprendizaje nº6) y el micrófono se deja inicializado.
+- **Dentro de la app, arrancar el micrófono preparado tarda menos que en la sonda**: 7–38 ms cuando
+  hace poco que se usó, contra los ~250 de un arranque tras 20 s parado.
+- **El sabotaje de la 662 encontró una protección que no lo era.** Con las comprobaciones de «¿sigo
+  siendo la sesión vigente?» quitadas, solo fallaban 2 de 6 ráfagas: en las otras cuatro la conexión
+  tardía se paraba porque pedirle el testigo a una cancelación ya desechada lanza. Quién llegaba
+  antes decidía. La cancelación de una sesión apagada ya no se desecha.
+- **Lo escrito mientras abre se tiraba.** Con la voz encendida desde el gesto, una frase escrita
+  podía llegar antes que el socket y `EnviarTextoInternoAsync` salía sin decir nada. Ahora espera a
+  la confirmación. La cláusula salió roja la primera vez por una razón que no era esa: «abre el bloc
+  de notas» ya venía dentro de la apertura, en la descripción de una herramienta.
+- **`LiveAudio` tenía la misma clase de error con el collar**, tres veces: el collar que conecta
+  después de colgar se enganchaba igual, su salida de emergencia abría el micrófono del computador
+  con la voz apagada, y el reintento de diez segundos volvía a buscarlo.
+- **El juez de fuera rompió a quien juzgaba.** Leía el log de la Ü con `File.ReadAllText`, que no
+  comparte la escritura; si la app anotaba en ese instante, su log fallaba una vez y `LogBus` se
+  apagaba para siempre (`_fileBroken`). Una tanda entera salió sin una línea de voz. El juez abre
+  ahora compartiendo. Que `LogBus` no vuelva a intentarlo nunca es una deuda aparte.
+- **Y medía la estela contra la foto equivocada**: con una referencia por caso, el caso que empezaba
+  encendido comparaba contra una carita con estela, y «10 % de diferencia» se leyó como apagada. La
+  referencia es una, la de la carita apagada, tomada antes del primer clic.
+- **La promesa 337 está atada a la 663**: el sabotaje que quitaba el aviso de apagado la puso roja
+  también (el notch se retira en ese mismo cambio). Bien atadas.
+- **Mandar la delegación aparte no acelera la confirmación.** Se probó abrir con lo mínimo y mandar
+  herramientas e instrucciones detrás: 550–903 ms contra 849–1.235. Lo que pesa es la historia.
+
+## Lo que se midió sobre el PC real
+
+Con el juez de fuera: ratón de verdad sobre la carita de una Ü de pruebas, la estela mirada en los
+píxeles de la pantalla y el resto en el log de esa Ü. Milisegundos desde que se suelta el botón.
+
 ## Cierre
 
 - [ ] Todas las promesas verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO)
