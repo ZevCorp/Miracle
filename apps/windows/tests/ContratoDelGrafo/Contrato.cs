@@ -958,6 +958,21 @@ internal static class Contrato
         // ya ocupan otras ramas abiertas (hasta la 529). La 600-606 las juzgan Graph y la web.
         Prueba("607. de Soniox, el hablante viaja con el texto hasta el verbatim: una línea «[Hablante N]» cada vez que cambia la voz, numerada por orden de aparición y sin repetirse mientras habla la misma, también en la frase que quedó sin cerrar; sin hablante, el texto de siempre", ElHablanteViajaConElTexto);
         Prueba("609. la vista de voces parte lo oído en turnos: cada línea «[Hablante N]» abre un turno de esa voz, lo que sigue sin etiqueta es de la misma, lo de antes de la primera voz no es de nadie, y la parte de lo dicho de cada voz suma 100", LaVistaDeVocesParteLoOido);
+
+        // LA VOZ AL PRIMER CLIC (spec 075, 2026-10-01). «Se demora varios segundos en aparecer la estela y muchos
+        // más en que me escuche… la cliqueo para cerrarla y no se cierra, me toca volver a hacer clic». Medido en
+        // main con un juez de fuera: estela a los 666–1.027 ms del clic, sesión confirmada a los 1.509–1.902, y lo
+        // que el servidor recibe antes de confirmar lo tira. Encender y apagar esperaban a la red para CONSTAR, y
+        // entre medias otro clic hacía lo contrario de lo que se quería. 660 en adelante: 620–629 y 640–648 son de
+        // otras ramas sin mergear.
+        Prueba("660. un clic enciende la voz sin esperar a la red: con el servidor todavía sin contestar, la voz ya consta encendida, avisó una sola vez y pidió el micrófono; un corte de red al conectar se reintenta sin apagarla, y si no hay manera se apaga y lo dice", UnClicEnciendeSinEsperarALaRed);
+        Prueba("661. lo que se dice mientras la sesión abre no se pierde ni se adelanta: nada sale antes de que el servidor confirme, y al confirmar sale entero y en orden, por delante de lo que se capte después; lo que no quepa en la espera se tira por lo más viejo y queda contado", LoDichoMientrasAbreNoSePierde);
+        Prueba("662. cada clic alterna la voz exactamente una vez: una ráfaga de N clics la deja encendida si N es impar y apagada si es par, los avisos alternan sin repetirse, y la conexión que llega tarde se suelta sin abrir sesión", CadaClicAlternaUnaVez);
+        Prueba("663. apagar no espera a nadie: con el borrado de las miradas colgado, al volver del clic la voz ya consta apagada, avisó, soltó el micrófono y no manda un trozo más; las miradas se retiran igual", ApagarNoEsperaANadie);
+        Prueba("664. apagar y volver a encender seguido deja viva la segunda: ni el cierre de la sesión vieja ni su escucha que termina cierran la nueva", ApagarYEncenderSeguidoDejaVivaLaSegunda);
+        Prueba("665. el micrófono se pone en guardia al acercarse a la carita: lo captado en guardia no se entrega a nadie, sin clic se suelta solo, y con clic lo siguiente se entrega sin volver a abrir el dispositivo", ElMicrofonoSePoneEnGuardia);
+        Prueba("666. cada encendido y cada apagado dejan una línea voz-clic con los milisegundos de cada tramo desde el gesto, y el tramo que no llegó lo dice en vez de faltar", CadaGestoDejaSuLineaDeTiempos);
+        Prueba("667. la historia que se manda al abrir cabe siempre en lo que el servidor acepta: se queda con los turnos más recientes que entren en el presupuesto, enteros y en orden", LaHistoriaCabeSiempre);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -16338,6 +16353,590 @@ internal static class Contrato
         var releidas = cuerpos.Select(LoQueLleva).SelectMany(x => x.Ids).ToList();
         Debe((bool)(releidas.SequenceEqual(new[] { "f4", "f5", "f6", "f7" })), $"el reintento lee solo lo que faltó: [{string.Join(", ", releidas)}]");
         Debe((bool)(!string.IsNullOrEmpty((string)s.Resumen)), "y ahora sí hay resumen");
+    }
+
+    // ── LA VOZ AL PRIMER CLIC (spec 075) ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Una conversación de verdad con las puertas cambiadas: el CABLE —lo que tarda el servidor en contestar la
+    /// conexión— lo suelta el contrato cuando quiere; el MICRÓFONO solo se anota; lo que sale, a una lista.
+    /// </summary>
+    /// <remarks>
+    /// EL CABLE NO OBEDECE A LA CANCELACIÓN, y es a propósito: una conexión de verdad puede contestar DESPUÉS de
+    /// que la persona ya apagó. Un cable de mentira que se cancelara solo dejaría sin juzgar justo ese caso, que es
+    /// el del log del 2026-09-30 a las 10:03:16 («socket conectado» dos veces en el mismo segundo).
+    /// </remarks>
+    private sealed class VozDePrueba : IDisposable
+    {
+        private const BindingFlags Privado = BindingFlags.NonPublic | BindingFlags.Instance;
+        public readonly IDisposable Conv;
+        public readonly Type Tipo;
+        public readonly List<bool> Avisos = new();
+        public readonly List<bool> Micro = new();
+        public readonly List<string> Mandados = new();
+        public readonly List<string> Dichos = new();
+        public readonly List<string> Borradas = new();
+        public readonly List<TaskCompletionSource<bool>> Cables = new();
+        /// <summary>Si no es null, el borrado de las miradas espera a que el contrato lo suelte.</summary>
+        public TaskCompletionSource<bool>? Borrado;
+
+        private readonly MethodInfo _alternar, _procesar, _trozo;
+        private readonly MethodInfo? _foto;
+        private readonly PropertyInfo _viva;
+        private readonly string? _claveDeAntes;
+        private TaskCompletionSource<bool>? _cableDeAhora;
+        private int _subidas;
+
+        private VozDePrueba(IDisposable conv, Type tipo, MethodInfo alternar, MethodInfo procesar, MethodInfo trozo, PropertyInfo viva, string? claveDeAntes)
+        { Conv = conv; Tipo = tipo; _alternar = alternar; _procesar = procesar; _trozo = trozo; _viva = viva; _claveDeAntes = claveDeAntes; _foto = tipo.GetMethod("MandarFotoAsync", Privado); }
+
+        public static VozDePrueba? Nueva(string promesa)
+        {
+            var tc = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+            var tLive = typeof(Voz.Realtime.IProtocolo).Assembly.GetType("Voz.Realtime.ProtocoloGptLive");
+            var cable = tc?.GetField("_abreElCable", Privado);
+            var micro = tc?.GetField("_elMicro", Privado);
+            var puerta = tc?.GetField("_puerta", Privado);
+            var abierta = tc?.GetField("_puertaAbierta", Privado);
+            var sube = tc?.GetField("_subeLaMirada", Privado);
+            var borra = tc?.GetField("_borraLaMirada", Privado);
+            var alternar = tc?.GetMethod("AlternarAsync");
+            var procesar = tc?.GetMethod("Procesar", Privado);
+            var trozo = tc?.GetMethod("MandarTrozo", Privado);
+            var viva = tc?.GetProperty("Viva");
+            if (tc == null || tLive == null || cable == null || micro == null || puerta == null || abierta == null || sube == null
+                || borra == null || alternar == null || procesar == null || trozo == null || viva == null)
+            {
+                Pendiente("ConversacionEnVivo._abreElCable y _elMicro (las puertas del cable y del micrófono)", promesa, "075");
+                return null;
+            }
+
+            // SIN CLAVE NO SE ARRANCA, y el contrato no lleva ninguna: se pone una de mentira, que no sale del proceso
+            // porque el cable es de mentira también.
+            string? antes = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+            Environment.SetEnvironmentVariable("OPENAI_API_KEY", "clave-del-contrato");
+
+            var live = Activator.CreateInstance(tLive,
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.CreateInstance | BindingFlags.OptionalParamBinding,
+                null, new[] { Type.Missing, Type.Missing }, null)!;
+            var conv = (IDisposable)Activator.CreateInstance(tc, new object?[] { new SurfaceMapTools(() => null), live })!;
+            var v = new VozDePrueba(conv, tc, alternar, procesar, trozo, viva, antes);
+
+            cable.SetValue(conv, (Func<CancellationToken, Task>)(_ =>
+            {
+                var c = new TaskCompletionSource<bool>();
+                lock (v.Cables) { v.Cables.Add(c); v._cableDeAhora = c; }
+                return c.Task;
+            }));
+            micro.SetValue(conv, (Action<bool>)(abre => { lock (v.Micro) v.Micro.Add(abre); }));
+            puerta.SetValue(conv, (Func<string, CancellationToken, Task>)((j, _) => { lock (v.Mandados) v.Mandados.Add(j); return Task.CompletedTask; }));
+            abierta.SetValue(conv, (Func<bool>)(() => v.Viva && v._cableDeAhora?.Task.IsCompletedSuccessfully == true));
+            sube.SetValue(conv, (Func<byte[], Task<string>>)(_ => Task.FromResult($"file-{Interlocked.Increment(ref v._subidas)}")));
+            borra.SetValue(conv, (Func<string, Task>)(async id =>
+            {
+                var espera = v.Borrado;
+                if (espera != null) await espera.Task.ConfigureAwait(false);
+                lock (v.Borradas) v.Borradas.Add(id);
+            }));
+            tc.GetEvent("Cambio")!.AddEventHandler(conv, (Action<bool>)(x => { lock (v.Avisos) v.Avisos.Add(x); }));
+            tc.GetEvent("Dice")!.AddEventHandler(conv, (Action<string>)(x => { lock (v.Dichos) v.Dichos.Add(x); }));
+            return v;
+        }
+
+        public bool Viva => (bool)_viva.GetValue(Conv)!;
+
+        /// <summary>Un clic: alterna, y vuelve en cuanto la conversación le devuelve el hilo.</summary>
+        public Task Alterna() => (Task)_alternar.Invoke(Conv, _alternar.GetParameters().Select(p => p.DefaultValue).ToArray())!;
+
+        /// <summary>El servidor contesta la conexión que se pidió en el puesto <paramref name="cual"/> (la última, si no se dice).</summary>
+        public void Conecta(int cual = -1)
+        {
+            TaskCompletionSource<bool> c;
+            lock (Cables) c = Cables[cual < 0 ? Cables.Count - 1 : cual];
+            c.TrySetResult(true);
+        }
+
+        public void FallaElCable(Exception e)
+        {
+            TaskCompletionSource<bool> c;
+            lock (Cables) c = Cables[^1];
+            c.TrySetException(e);
+        }
+
+        public int Conexiones { get { lock (Cables) return Cables.Count; } }
+        public void Llega(string json) => _procesar.Invoke(Conv, new object[] { json, CancellationToken.None });
+        public void Confirma() => Llega("{\"type\":\"session.started\"}");
+
+        /// <summary>Un trozo de micrófono de 100 ms que lleva su número en la primera muestra.</summary>
+        public void Capta(byte marca)
+        {
+            var pcm = new byte[4800];
+            pcm[0] = marca;
+            _trozo.Invoke(Conv, new object[] { pcm });
+        }
+
+        /// <summary>Los trozos que salieron por el cable, por su número y en el orden en que salieron.</summary>
+        public List<int> Audios()
+        {
+            var l = new List<int>();
+            string[] copia; lock (Mandados) copia = Mandados.ToArray();
+            foreach (string m in copia)
+            {
+                using var doc = JsonDocument.Parse(m);
+                if (doc.RootElement.TryGetProperty("type", out var t) && t.GetString() == "session.input_audio.append")
+                    l.Add(Convert.FromBase64String(doc.RootElement.GetProperty("audio").GetString()!)[0]);
+            }
+            return l;
+        }
+
+        public int Aperturas { get { lock (Mandados) return Mandados.Count(m => m.Contains("\"session.start\"", StringComparison.Ordinal)); } }
+        public bool[] LosAvisos() { lock (Avisos) return Avisos.ToArray(); }
+        public bool[] ElMicro() { lock (Micro) return Micro.ToArray(); }
+
+        /// <summary>Una mirada subida en esta conversación: lo que el cierre tendrá que retirar.</summary>
+        public bool Mira()
+        {
+            if (_foto == null) return false;
+            ((Task)_foto.Invoke(Conv, new object[] { new byte[] { 1, 2, 3 }, CancellationToken.None })!).GetAwaiter().GetResult();
+            return true;
+        }
+
+        /// <summary>Encendida, conectada y confirmada, como queda tras un clic con el servidor contestando.</summary>
+        public bool EnciendeDelTodo()
+        {
+            Alterna();
+            if (!Espera(() => Conexiones > 0, 2000)) return false;
+            Conecta();
+            if (!Espera(() => Aperturas > 0, 3000)) return false;
+            Confirma();
+            return Viva;
+        }
+
+        public void Dispose()
+        {
+            // QUE NADA QUEDE COLGADO: Dispose cierra la conversación esperándola, y una espera que el contrato dejó
+            // sin soltar lo colgaría a él.
+            Borrado?.TrySetResult(true);
+            lock (Cables) foreach (var c in Cables) c.TrySetException(new OperationCanceledException());
+            try { Conv.Dispose(); } catch { }
+            Environment.SetEnvironmentVariable("OPENAI_API_KEY", _claveDeAntes);
+        }
+    }
+
+    /// <summary>Espera a que algo que ocurre en otro hilo llegue a ser cierto. Falso si no llegó en el plazo.</summary>
+    private static bool Espera(Func<bool> condicion, int plazoMs)
+    {
+        long fin = Environment.TickCount64 + plazoMs;
+        while (Environment.TickCount64 < fin) { if (condicion()) return true; Thread.Sleep(5); }
+        return condicion();
+    }
+
+    private static string Lista(IEnumerable<bool> l) => "[" + string.Join(", ", l.Select(x => x ? "enciende" : "apaga")) + "]";
+
+    /// <summary>Promesa 660.</summary>
+    /// <remarks>
+    /// EN MAIN, «ENCENDIDA» CONSTABA DESPUÉS DE LA RED (medido el 2026-10-01 con un juez de fuera, tres rondas): la
+    /// estela se veía a los 666–1.027 ms del clic y el micrófono abría a los 673–987, porque Viva y Cambio(true)
+    /// iban detrás de ConnectAsync. Nada de lo que la persona ve o hace en el clic depende del servidor.
+    /// </remarks>
+    private static void UnClicEnciendeSinEsperarALaRed()
+    {
+        using (var v = VozDePrueba.Nueva("660"))
+        {
+            if (v == null) return;
+            var clic = v.Alterna();   // el servidor todavía no contestó la conexión
+            Debe(v.Viva, "al volver del clic la voz ya consta encendida, con el servidor todavía sin contestar");
+            Debe(v.LosAvisos().SequenceEqual(new[] { true }), $"y avisó UNA vez de que encendió: es lo que pinta la estela (avisos: {Lista(v.LosAvisos())})");
+            Debe(v.ElMicro().SequenceEqual(new[] { true }), $"y pidió el micrófono en el mismo clic, no al conectar (micrófono: {Lista(v.ElMicro())})");
+            Debe(v.Conexiones == 1 && !clic.IsCompleted, $"la conexión se pidió una vez y sigue pendiente (pedidas: {v.Conexiones})");
+            Debe(v.Mandados.Count == 0, $"y nada ha salido por un cable que todavía no existe (salieron {v.Mandados.Count})");
+
+            v.Conecta();
+            Debe(Espera(() => v.Aperturas == 1, 3000), $"cuando el servidor contesta, se manda la apertura, una (aperturas: {v.Aperturas})");
+            v.Confirma();
+            Debe(v.Viva && v.LosAvisos().SequenceEqual(new[] { true }),
+                $"y ni conectar ni confirmar vuelven a avisar: la estela ya estaba (avisos: {Lista(v.LosAvisos())})");
+        }
+
+        // UN CORTE DE RED AL CONECTAR NO APAGA NADA. En main cada reintento pasaba por TerminarAsync: la estela se
+        // apagaba y se volvía a encender, el micrófono se cerraba y se abría, y lo dicho entre medias se perdía.
+        using (var v = VozDePrueba.Nueva("660"))
+        {
+            if (v == null) return;
+            v.Alterna();
+            v.FallaElCable(new System.Net.Http.HttpRequestException("sin red"));
+            Debe(Espera(() => v.Conexiones == 2, 4000), $"un corte de red al conectar se reintenta solo (conexiones pedidas: {v.Conexiones})");
+            Debe(v.Viva && v.LosAvisos().SequenceEqual(new[] { true }) && v.ElMicro().SequenceEqual(new[] { true }),
+                $"y mientras se reintenta la voz sigue encendida y el micrófono abierto: ni un aviso más (avisos: {Lista(v.LosAvisos())}, micrófono: {Lista(v.ElMicro())})");
+            v.Conecta();
+            Debe(Espera(() => v.Aperturas == 1, 3000), "y el reintento que conecta abre la sesión");
+        }
+
+        // Y SI NO HAY MANERA, SE APAGA Y LO DICE. Lo que no es de red no se reintenta: fallaría igual.
+        using (var v = VozDePrueba.Nueva("660"))
+        {
+            if (v == null) return;
+            v.Alterna();
+            v.FallaElCable(new InvalidOperationException("el servidor dijo que no"));
+            Debe(Espera(() => !v.Viva, 3000), "si la conexión falla sin remedio, la voz se apaga");
+            Debe(v.LosAvisos().SequenceEqual(new[] { true, false }) && v.ElMicro().SequenceEqual(new[] { true, false }),
+                $"avisando una vez y soltando el micrófono (avisos: {Lista(v.LosAvisos())}, micrófono: {Lista(v.ElMicro())})");
+            Debe(Espera(() => { lock (v.Dichos) return v.Dichos.Any(d => d.Contains("No pude abrir la voz", StringComparison.Ordinal)); }, 2000),
+                "y lo dice: una estela que se apaga sola sin una palabra es el mismo «no me oye» de antes");
+            Debe(v.Aperturas == 0, $"sin haber mandado ninguna apertura (aperturas: {v.Aperturas})");
+        }
+    }
+
+    /// <summary>Promesa 661.</summary>
+    /// <remarks>
+    /// LO QUE LLEGA ANTES DE session.started, EL SERVIDOR LO TIRA. Medido el 2026-09-30 con una sonda: de «Manzana.
+    /// Repite solamente la primera palabra que dije», mandado justo detrás de session.start, no transcribió nada y
+    /// contestó «Repite.»; guardado y mandado en ráfaga tras session.started, transcribió «Manzana. Re…» y contestó
+    /// «Manzana.». Por eso lo dicho mientras abre se guarda, y por eso no puede salir antes de tiempo.
+    /// </remarks>
+    private static void LoDichoMientrasAbreNoSePierde()
+    {
+        using (var v = VozDePrueba.Nueva("661"))
+        {
+            if (v == null) return;
+            v.Alterna();
+            v.Capta(1); v.Capta(2);          // dicho con la conexión todavía sin contestar
+            Debe(v.Audios().Count == 0, $"lo dicho antes de conectar no sale: no hay por dónde (salieron {v.Audios().Count} trozo(s))");
+            v.Conecta();
+            Debe(Espera(() => v.Aperturas == 1, 3000), "la apertura sale al conectar");
+            v.Capta(3);                      // conectado, pero el servidor aún no confirmó
+            Debe(v.Audios().Count == 0,
+                $"y con el socket ya conectado tampoco sale nada antes de que el servidor confirme: lo tiraría (salieron: {string.Join(", ", v.Audios())})");
+            v.Confirma();
+            Debe(Espera(() => v.Audios().Count == 3, 2000) && v.Audios().SequenceEqual(new[] { 1, 2, 3 }),
+                $"al confirmar sale TODO lo guardado, en orden (salieron: {string.Join(", ", v.Audios())})");
+            v.Capta(4);
+            Debe(Espera(() => v.Audios().Count == 4, 2000) && v.Audios().SequenceEqual(new[] { 1, 2, 3, 4 }),
+                $"y lo que se capta después va detrás, sin adelantarse a lo guardado (salieron: {string.Join(", ", v.Audios())})");
+            string[] orden; lock (v.Mandados) orden = v.Mandados.ToArray();
+            Debe(orden.Length > 0 && orden[0].Contains("\"session.start\"", StringComparison.Ordinal),
+                "y lo primero que sale por el cable es la apertura, no un trozo de micrófono");
+        }
+
+        // APAGADA ANTES DE CONFIRMAR, lo guardado no sale nunca: ni al apagar ni si el servidor confirma tarde.
+        using (var v = VozDePrueba.Nueva("661"))
+        {
+            if (v == null) return;
+            v.Alterna();
+            v.Capta(1);
+            v.Conecta();
+            Espera(() => v.Aperturas == 1, 3000);
+            var apaga = v.Alterna();
+            apaga.Wait(3000);
+            v.Confirma();   // el servidor confirma una sesión que ya se apagó
+            Thread.Sleep(150);
+            Debe(v.Audios().Count == 0, $"lo guardado de una sesión que se apagó sin confirmar no se manda a nadie (salieron: {string.Join(", ", v.Audios())})");
+        }
+
+        // EL TOPE: la espera no puede crecer sin fin si el servidor no contesta, y lo que se tira queda contado.
+        var t = typeof(Voz.Realtime.IProtocolo).Assembly.GetType("Voz.Realtime.PreEscucha");
+        var empezar = t?.GetMethod("Empezar");
+        var guardar = t?.GetMethod("Guardar");
+        var siguiente = t?.GetMethod("Siguiente");
+        var perdidos = t?.GetProperty("MsPerdidos");
+        var guardados = t?.GetProperty("MsGuardados");
+        if (t == null || empezar == null || guardar == null || siguiente == null || perdidos == null || guardados == null)
+        { Pendiente("Voz.Realtime.PreEscucha (Empezar, Guardar, Siguiente, MsGuardados, MsPerdidos)", "661", "075"); return; }
+        var pre = Activator.CreateInstance(t, new object[] { 24000, 1000 })!;   // 24 kHz, un segundo de tope
+        byte[] Trozo(byte n) { var b = new byte[4800]; b[0] = n; return b; }
+        Debe(!(bool)guardar.Invoke(pre, new object[] { Trozo(0) })!, "sin haber empezado no guarda nada: el trozo es de quien lo trae");
+        empezar.Invoke(pre, null);
+        for (byte n = 1; n <= 15; n++)
+            Debe((bool)guardar.Invoke(pre, new object[] { Trozo(n) })!, $"mientras espera, guarda cada trozo (el {n})");
+        Debe((int)guardados.GetValue(pre)! == 1000 && (int)perdidos.GetValue(pre)! == 500,
+            $"con un segundo de tope y 1,5 s captados, guarda 1.000 ms y cuenta 500 perdidos (guarda {guardados.GetValue(pre)}, perdidos {perdidos.GetValue(pre)})");
+        var salen = new List<int>();
+        while (siguiente.Invoke(pre, null) is byte[] b) salen.Add(b[0]);
+        Debe(salen.SequenceEqual(Enumerable.Range(6, 10)), $"y lo que se tira es lo más viejo: quedan los diez últimos, en orden (salen: {string.Join(", ", salen)})");
+        Debe(!(bool)guardar.Invoke(pre, new object[] { Trozo(99) })!, "y una vez vaciada deja de guardar: lo siguiente va directo");
+    }
+
+    /// <summary>Promesa 662.</summary>
+    /// <remarks>
+    /// EL CLIC PREGUNTABA UN ESTADO QUE CAMBIABA TARDE. AlternarAsync miraba Viva, que no se ponía a verdadero hasta
+    /// conectar: un segundo clic mientras abría veía «apagada» y abría OTRA sesión (log del 2026-09-30, 10:03:16:
+    /// «socket conectado» dos veces en el mismo segundo). Con N clics el resultado dependía de cuándo cayera cada uno.
+    /// </remarks>
+    private static void CadaClicAlternaUnaVez()
+    {
+        for (int n = 1; n <= 6; n++)
+        {
+            using var v = VozDePrueba.Nueva("662");
+            if (v == null) return;
+            for (int i = 0; i < n; i++) v.Alterna();   // seguidos, sin que el servidor llegue a contestar ninguna conexión
+            bool impar = n % 2 == 1;
+            var esperados = Enumerable.Range(0, n).Select(i => i % 2 == 0).ToArray();
+            Debe(v.Viva == impar, $"{n} clic(s) seguidos la dejan {(impar ? "encendida" : "apagada")} (quedó {(v.Viva ? "encendida" : "apagada")})");
+            Debe(v.LosAvisos().SequenceEqual(esperados), $"con {n} clic(s) los avisos alternan sin repetirse (avisos: {Lista(v.LosAvisos())})");
+            Debe(v.ElMicro().SequenceEqual(esperados), $"y el micrófono se pide y se suelta en el mismo orden (micrófono: {Lista(v.ElMicro())})");
+
+            // AHORA CONTESTAN TODAS LAS CONEXIONES, las vigentes y las que ya nadie espera.
+            for (int c = 0; c < v.Conexiones; c++) v.Conecta(c);
+            Espera(() => v.Aperturas == (impar ? 1 : 0), 1500);
+            Thread.Sleep(120);
+            Debe(v.Viva == impar, $"y que las conexiones contesten después no cambia nada: tras {n} clic(s) sigue {(impar ? "encendida" : "apagada")}");
+            Debe(v.LosAvisos().Length == n, $"sin un aviso de más (con {n} clic(s) hubo {v.LosAvisos().Length} avisos)");
+            Debe(v.Aperturas == (impar ? 1 : 0),
+                $"y solo abre sesión la conexión vigente: la que llega tarde se suelta sin mandar su apertura (con {n} clic(s), aperturas: {v.Aperturas})");
+        }
+    }
+
+    /// <summary>Promesa 663.</summary>
+    /// <remarks>
+    /// APAGAR ESPERABA A LA RED ANTES DE CONSTAR: TerminarAsync hacía «await mirada.SoltarAsync()» —un DELETE por
+    /// HTTP por cada mirada, con 30 s de plazo— ANTES de Viva = false. La estela seguía encendida, la persona volvía
+    /// a hacer clic, y ese segundo clic era el que apagaba. «Me toca volver a hacer clic» (el dueño, 2026-09-30).
+    /// </remarks>
+    private static void ApagarNoEsperaANadie()
+    {
+        using var v = VozDePrueba.Nueva("663");
+        if (v == null) return;
+        Debe(v.EnciendeDelTodo(), "[preparación] la voz enciende, conecta y confirma");
+        Debe(v.Mira() && v.Borradas.Count == 0, "[preparación] hay una mirada subida, sin retirar todavía");
+        v.Capta(1);
+        Debe(Espera(() => v.Audios().Count == 1, 2000), "[preparación] encendida, lo que se capta sale");
+
+        v.Borrado = new TaskCompletionSource<bool>();   // el borrado de las miradas se queda colgado
+        var clic = v.Alterna();
+        Debe(!v.Viva, "al volver del clic la voz ya consta apagada, con el borrado de las miradas todavía colgado");
+        Debe(v.LosAvisos().SequenceEqual(new[] { true, false }), $"y avisó: es lo que apaga la estela (avisos: {Lista(v.LosAvisos())})");
+        Debe(v.ElMicro().SequenceEqual(new[] { true, false }), $"y soltó el micrófono en el mismo clic (micrófono: {Lista(v.ElMicro())})");
+        Debe(!clic.IsCompleted && v.Borradas.Count == 0, "sin esperar al borrado, que sigue sin contestar");
+        v.Capta(2);
+        Thread.Sleep(60);
+        Debe(v.Audios().Count == 1, $"y apagada no manda un trozo más (salieron: {string.Join(", ", v.Audios())})");
+
+        v.Borrado.SetResult(true);
+        Debe(clic.Wait(3000) && v.Borradas.SequenceEqual(new[] { "file-1" }),
+            $"las miradas se retiran igual, después: apagar deprisa no deja copias en la cuenta (borradas: {string.Join(", ", v.Borradas)})");
+        Debe(v.LosAvisos().Length == 2, $"y terminar de cerrar no avisa otra vez (avisos: {Lista(v.LosAvisos())})");
+    }
+
+    /// <summary>Promesa 664.</summary>
+    /// <remarks>
+    /// EL FINAL DE LA SESIÓN VIEJA TOCABA «LA» SESIÓN, FUERA LA QUE FUERA. TerminarAsync acababa con «_ws?.Dispose();
+    /// _ws = null» después de sus esperas, y SeAcaboLaEscuchaAsync, al terminar la escucha vieja, cerraba la voz si
+    /// Viva: con una sesión nueva ya abierta por otro clic, cerraban la nueva.
+    /// </remarks>
+    private static void ApagarYEncenderSeguidoDejaVivaLaSegunda()
+    {
+        using var v = VozDePrueba.Nueva("664");
+        if (v == null) return;
+        var acabo = v.Tipo.GetMethod("SeAcaboLaEscuchaAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+        if (acabo == null) { Pendiente("ConversacionEnVivo.SeAcaboLaEscuchaAsync (el final de una escucha)", "664", "075"); return; }
+
+        Debe(v.EnciendeDelTodo() && v.Mira(), "[preparación] la primera sesión enciende, confirma y sube una mirada");
+        v.Borrado = new TaskCompletionSource<bool>();   // su cierre se queda a medias
+        var apaga = v.Alterna();
+        var enciende = v.Alterna();                     // la persona vuelve a encender enseguida
+        Debe(v.Viva && v.Conexiones == 2, $"el segundo clic enciende otra vez y pide su propia conexión (conexiones: {v.Conexiones})");
+        v.Conecta();
+        Debe(Espera(() => v.Aperturas == 2, 3000), "la segunda sesión manda su apertura");
+        v.Confirma();
+
+        v.Borrado.SetResult(true);   // ahora termina el cierre de la vieja
+        Debe(apaga.Wait(3000), "el cierre de la sesión vieja termina");
+        Thread.Sleep(120);
+        Debe(v.Viva, "y la nueva sigue viva: el final del cierre viejo no la cierra");
+        Debe(v.LosAvisos().SequenceEqual(new[] { true, false, true }), $"sin un aviso de más (avisos: {Lista(v.LosAvisos())})");
+        Debe(v.ElMicro().SequenceEqual(new[] { true, false, true }), $"con el micrófono pedido para la nueva (micrófono: {Lista(v.ElMicro())})");
+
+        // LA ESCUCHA DE LA SESIÓN VIEJA TERMINA: su cancelación es otra, no la de la sesión que está viva.
+        using var vieja = new CancellationTokenSource();
+        vieja.Cancel();
+        ((Task)acabo.Invoke(v.Conv, new object[] { vieja.Token })!).Wait(3000);
+        Thread.Sleep(60);
+        Debe(v.Viva && v.LosAvisos().Length == 3,
+            $"y que termine la escucha de la vieja tampoco cierra la nueva (quedó {(v.Viva ? "encendida" : "apagada")}, avisos: {Lista(v.LosAvisos())})");
+
+        v.Capta(7);
+        Debe(Espera(() => v.Audios().Contains(7), 2000), "la nueva sigue oyendo: lo que se capta sale por su cable");
+    }
+
+    /// <summary>Promesa 665.</summary>
+    /// <remarks>
+    /// EL MICRÓFONO TARDA EN ABRIR 320–550 ms ÉL SOLO (medido el 2026-09-30 con una sonda: WaveIn y WASAPI por igual,
+    /// 546 ms tras 15 s de reposo): no es la API, es el dispositivo. Para estar captando al medio segundo del clic
+    /// hay que empezar a abrirlo antes del clic. Y un micrófono que se abre al acercar el ratón tiene que poder
+    /// jurar que no oyó nada: lo captado en guardia no llega a nadie.
+    /// </remarks>
+    private static void ElMicrofonoSePoneEnGuardia()
+    {
+        var t = Cap004("U.WindowsClient.Voice.OidoEnGuardia");
+        var acercarse = t?.GetMethod("Acercarse");
+        var alejarse = t?.GetMethod("Alejarse");
+        var abrir = t?.GetMethod("Abrir");
+        var cerrar = t?.GetMethod("Cerrar");
+        var tic = t?.GetMethod("Tic");
+        var entrega = t?.GetProperty("Entrega");
+        var quiere = t?.GetProperty("QuiereDispositivo");
+        if (t == null || acercarse == null || alejarse == null || abrir == null || cerrar == null || tic == null || entrega == null || quiere == null)
+        { Pendiente("Voice.OidoEnGuardia (Acercarse, Alejarse, Abrir, Cerrar, Tic, Entrega, QuiereDispositivo)", "665", "075"); return; }
+
+        object Nuevo() => Activator.CreateInstance(t, new object[] { 4000 })!;
+        string Acerca(object o, long ms) => acercarse.Invoke(o, new object[] { ms })!.ToString()!;
+        string Aleja(object o) => alejarse.Invoke(o, null)!.ToString()!;
+        string Abre(object o) => abrir.Invoke(o, null)!.ToString()!;
+        string Cierra(object o) => cerrar.Invoke(o, null)!.ToString()!;
+        string Tic(object o, long ms) => tic.Invoke(o, new object[] { ms })!.ToString()!;
+        bool Entrega(object o) => (bool)entrega.GetValue(o)!;
+        bool Quiere(object o) => (bool)quiere.GetValue(o)!;
+
+        // ACERCARSE Y NO PULSAR.
+        var g = Nuevo();
+        Debe(!Quiere(g) && !Entrega(g), "nace sin querer el dispositivo y sin entregar nada");
+        Debe(Acerca(g, 0) == "AbrirDispositivo" && Quiere(g), "acercarse a la carita manda abrir el dispositivo");
+        Debe(!Entrega(g), "y en guardia NO entrega: lo captado antes del clic no llega a nadie");
+        Debe(Acerca(g, 100) == "Nada", "acercarse otra vez con el dispositivo ya pedido no manda abrir otro");
+        Debe(Tic(g, 4099) == "Nada", "la guardia aguanta mientras no caduque (cuenta desde el último acercamiento)");
+        Debe(Tic(g, 4100) == "CerrarDispositivo" && !Quiere(g), "y sin clic se suelta sola al caducar: un ratón aparcado encima no deja el micrófono abierto");
+        Debe(Tic(g, 9000) == "Nada", "soltada, no vuelve a mandar cerrar");
+
+        // ACERCARSE Y ALEJARSE.
+        g = Nuevo();
+        Acerca(g, 0);
+        Debe(Aleja(g) == "CerrarDispositivo" && !Quiere(g), "alejarse sin pulsar suelta el dispositivo");
+        Debe(Aleja(g) == "Nada", "y alejarse dos veces no cierra dos veces");
+
+        // ACERCARSE Y PULSAR: el dispositivo ya está, y desde el clic se entrega.
+        g = Nuevo();
+        Acerca(g, 0);
+        Debe(Abre(g) == "Nada" && Entrega(g), "con la guardia puesta, el clic no vuelve a abrir el dispositivo y lo siguiente se entrega");
+        Debe(Aleja(g) == "Nada" && Entrega(g) && Quiere(g), "y apartar el ratón con la voz encendida no suelta nada");
+        Debe(Tic(g, 60_000) == "Nada" && Entrega(g), "ni caduca: lo que caduca es la guardia, no la conversación");
+        Debe(Cierra(g) == "CerrarDispositivo" && !Entrega(g) && !Quiere(g), "colgar deja de entregar y suelta el dispositivo");
+
+        // PULSAR SIN HABERSE ACERCADO (el doble Ctrl, el collar): se abre en el clic, como siempre.
+        g = Nuevo();
+        Debe(Abre(g) == "AbrirDispositivo" && Entrega(g), "sin guardia, abrir la voz manda abrir el dispositivo y entrega");
+        Debe(Acerca(g, 10) == "Nada" && Entrega(g), "y acercarse con la voz encendida no cambia nada");
+        Debe(Cierra(g) == "CerrarDispositivo", "y al colgar se suelta");
+        Debe(Cierra(g) == "Nada", "colgar dos veces no cierra dos veces");
+
+        // [cableado] La regla tiene que ser la que usa el micrófono de verdad, y alguien tiene que acercarse.
+        if (FuenteDe("windows-client", "src", "Voice", "LiveAudio.cs") is not { } audio) return;
+        Debe(audio.Contains("OidoEnGuardia", StringComparison.Ordinal) && audio.Contains("_oido.Entrega", StringComparison.Ordinal),
+            "[cableado] LiveAudio no decide con OidoEnGuardia qué trozos entrega: la regla juzgada no es la que corre");
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(cara.Contains("PrepararElOido()", StringComparison.Ordinal) && cara.Contains("SoltarElOido()", StringComparison.Ordinal),
+            "[cableado] la carita no pone el micrófono en guardia al acercarse ni lo suelta al alejarse");
+    }
+
+    /// <summary>Promesa 666.</summary>
+    /// <remarks>
+    /// EL LOG NO PODÍA DECIR CUÁNTO TARDABA: sus horas van al segundo y el clic no dejaba línea. La queja era de
+    /// milisegundos y hubo que montar un juez de fuera para medirla. Y UN TRAMO QUE NO LLEGÓ SE DICE (patrón nº10):
+    /// una línea que solo trae los tramos cumplidos se lee igual con la sesión confirmada que sin confirmar.
+    /// </remarks>
+    private static void CadaGestoDejaSuLineaDeTiempos()
+    {
+        var t = Cap004("U.WindowsClient.Voice.RelojDelClic");
+        var ctor = t?.GetConstructor(new[] { typeof(string), typeof(IReadOnlyList<string>), typeof(Func<long>) });
+        var marca = t?.GetMethod("Marca");
+        var linea = t?.GetMethod("Linea");
+        if (t == null || ctor == null || marca == null || linea == null)
+        { Pendiente("Voice.RelojDelClic (el gesto, sus tramos y un reloj; Marca y Linea)", "666", "075"); return; }
+
+        long ahora = 1000;
+        var r = ctor.Invoke(new object[] { "encender", new[] { "estela", "micrófono", "socket", "confirmada" }, (Func<long>)(() => ahora) });
+        void Marca(string tramo, string nota = "") => marca.Invoke(r, new object[] { tramo, nota });
+        string Linea() => (string)linea.Invoke(r, linea.GetParameters().Select(p => p.DefaultValue).ToArray())!;
+        ahora = 1012; Marca("estela");
+        ahora = 1080; Marca("micrófono", "ya estaba en guardia");
+        ahora = 1300; Marca("estela");   // una segunda marca del mismo tramo no pisa la primera
+        ahora = 1510; Marca("socket");
+        Debe(Linea() == "encender · estela +12 ms · micrófono +80 ms (ya estaba en guardia) · socket +510 ms · confirmada: sin llegar",
+            $"la línea trae TODOS los tramos, en su orden, con los milisegundos desde el gesto; el que no llegó lo dice (dio: «{Linea()}»)");
+
+        // Y LA CONVERSACIÓN LA ESCRIBE: una por encendido y una por apagado, lleguen hasta donde lleguen.
+        var anotado = Cap004("U.WindowsClient.Diagnostics.LogBus")?.GetEvent("Anotado");
+        if (anotado == null) { Pendiente("LogBus.Anotado", "666", "075"); return; }
+        var lineas = new List<string>();
+        Action<string, string> oye = (tag, msg) => { if (tag == "voz-clic") lock (lineas) lineas.Add(msg); };
+        string[] Lineas() { lock (lineas) return lineas.ToArray(); }
+        anotado.AddEventHandler(null, oye);
+        try
+        {
+            using (var v = VozDePrueba.Nueva("666"))
+            {
+                if (v == null) return;
+                Debe(v.EnciendeDelTodo(), "[preparación] la voz enciende, conecta y confirma");
+                Debe(Espera(() => Lineas().Length == 1, 2000), $"un encendido confirmado deja UNA línea voz-clic (dejó {Lineas().Length})");
+                string enc = Lineas().FirstOrDefault() ?? "";
+                Debe(enc.StartsWith("encender · ", StringComparison.Ordinal) && enc.Contains("socket +", StringComparison.Ordinal)
+                    && enc.Contains("confirmada +", StringComparison.Ordinal),
+                    $"que dice que es un encendido y cuándo conectó y cuándo confirmó el servidor (dio: «{enc}»)");
+                Debe(enc.Contains("estela: sin llegar", StringComparison.Ordinal),
+                    $"y la estela, que aquí nadie pintó, consta como sin llegar en vez de faltar (dio: «{enc}»)");
+                v.Alterna().Wait(3000);
+                Debe(Espera(() => Lineas().Length == 2, 2000) && (Lineas().LastOrDefault() ?? "").StartsWith("apagar · ", StringComparison.Ordinal),
+                    $"y el apagado deja la suya (líneas: {string.Join(" | ", Lineas())})");
+            }
+
+            lock (lineas) lineas.Clear();
+            using (var v = VozDePrueba.Nueva("666"))
+            {
+                if (v == null) return;
+                v.Alterna();            // encender, y el servidor no contesta
+                v.Alterna().Wait(3000); // apagar antes de que conecte
+                Debe(Espera(() => Lineas().Length == 2, 2000), $"un encendido que se apaga antes de conectar deja igual sus dos líneas (dejó {Lineas().Length}: {string.Join(" | ", Lineas())})");
+                string enc = Lineas().FirstOrDefault(l => l.StartsWith("encender", StringComparison.Ordinal)) ?? "";
+                Debe(enc.Contains("socket: sin llegar", StringComparison.Ordinal) && enc.Contains("confirmada: sin llegar", StringComparison.Ordinal),
+                    $"y la del encendido dice que ni conectó ni confirmó, no se calla los tramos (dio: «{enc}»)");
+            }
+        }
+        finally { anotado.RemoveEventHandler(null, oye); }
+    }
+
+    /// <summary>Promesa 667.</summary>
+    /// <remarks>
+    /// LA VOZ NO ABRÍA Y NO ERA LA RED: 14 aperturas rechazadas entre el 29 y el 30 de septiembre de 2026 con
+    /// «Initial items must not exceed 8192 tokens». Historial() mandaba los últimos 56 turnos sin mirar cuánto
+    /// pesaban —hasta 4.000 caracteres cada uno—; el día que falló sumaban 34.564 caracteres. Para la persona es el
+    /// mismo fallo que un clic que no enciende: la estela aparece dos segundos y se va.
+    /// </remarks>
+    private static void LaHistoriaCabeSiempre()
+    {
+        var historial = typeof(ConversacionPersonal).GetMethod("Historial");
+        var tope = historial?.GetParameters().FirstOrDefault(p => p.Name == "maxCaracteres");
+        if (historial == null || tope == null || !tope.HasDefaultValue)
+        { Pendiente("ConversacionPersonal.Historial(maxTurnos, maxCaracteres): el presupuesto de la historia", "667", "075"); return; }
+        int presupuesto = (int)tope.DefaultValue!;
+        Debe(presupuesto > 0 && presupuesto <= 24_000,
+            $"el presupuesto por defecto deja margen bajo las 8.192 fichas del servidor: con 34.564 caracteres se rechazó, y a ~4 caracteres por ficha el límite ronda los 32.000 (es {presupuesto})");
+
+        string archivo = Path.Combine(_raiz, "historia-667.json");
+        // Cada turno, con su fecha: escritos seguidos, Agregar juntaría los del mismo rol y el orden no se podría juzgar.
+        var turnos = Enumerable.Range(0, 60).Select(i => new
+        {
+            userId = "contrato-667",
+            role = i % 2 == 0 ? "usuario" : "asistente",
+            text = $"turno {i:00} " + new string((char)('a' + i % 26), 2990),
+            createdAt = new DateTimeOffset(2026, 9, 30, 8, 0, 0, TimeSpan.Zero).AddMinutes(i),
+        }).ToArray();
+        File.WriteAllText(archivo, JsonSerializer.Serialize(new { turnos }));
+        var c = new ConversacionPersonal("contrato-667", archivo);
+
+        IReadOnlyList<(string Role, string Text)> Pide(int maxTurnos, int maxCaracteres)
+            => (IReadOnlyList<(string Role, string Text)>)historial.Invoke(c, new object[] { maxTurnos, maxCaracteres })!;
+        var h = (IReadOnlyList<(string Role, string Text)>)historial.Invoke(c, historial.GetParameters().Select(p => p.DefaultValue).ToArray())!;
+        int suma = h.Sum(x => x.Text.Length);
+        Debe(suma <= presupuesto, $"con 60 turnos de 3.000 caracteres, lo que se manda cabe en el presupuesto (manda {suma} de {presupuesto})");
+        Debe(h.Count >= 2 && suma > presupuesto - 3_100, $"y lo aprovecha: no se queda corto dejando sitio para un turno más (manda {h.Count} turno(s), {suma} caracteres)");
+        var esperados = turnos.Skip(60 - h.Count).Select(x => x.text).ToArray();
+        Debe(h.Select(x => x.Text).SequenceEqual(esperados),
+            $"son los MÁS RECIENTES, enteros y en orden: del turno {60 - h.Count} al 59 (primero: «{(h.Count > 0 ? h[0].Text[..8] : "")}», último: «{(h.Count > 0 ? h[^1].Text[..8] : "")}»)");
+
+        var uno = Pide(56, 1000);
+        Debe(uno.Count == 1 && uno[0].Text.Length == 1000 && turnos[59].text.EndsWith(uno[0].Text, StringComparison.Ordinal),
+            $"si ni el turno más reciente cabe, se manda su final y no una historia vacía ({uno.Count} turno(s), {(uno.Count > 0 ? uno[0].Text.Length : 0)} caracteres)");
+        var pocos = Pide(3, presupuesto);
+        Debe(pocos.Count == 3 && pocos[^1].Text == turnos[59].text, $"y el tope de turnos sigue mandando cuando es el más estrecho de los dos ({pocos.Count} turno(s))");
     }
 
     private static void Debe(bool condicion, string promesa)
