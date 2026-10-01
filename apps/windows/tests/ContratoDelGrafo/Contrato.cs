@@ -457,11 +457,10 @@ internal static class Contrato
         // Los numeros NO se reciclan: la spec 011 y los commits de esta rama los citan por numero,
         // y reusarlos haria que un plan viejo hablara de otra cosa.
 
-        // LA LINEA «ESCRIBELE…» VUELVE, con el diseno original y esperando de verdad (2026-09-06).
-        // La 165 se retiro hace una hora porque la burbuja no convencia; el dueno pidio la de la
-        // rama 008 tal cual y que tardara «un segundo y medio». Numero NUEVO: 165 esta retirada y
-        // los numeros no se reciclan.
-        Prueba("167. la línea «Escríbele…» se hace esperar: segundo y medio de ratón quieto sobre la carita, y arrastrarla no la llama por mucho que se tarde", LaLineaSeHaceEsperar);
+        // 167 RETIRADA el 2026-09-30 por el dueño (spec 011, acta de la 167): la línea «Escríbele…»
+        // que asomaba tras segundo y medio de ratón quieto sobre la carita se quitó entera —«no nos
+        // gusta»—, y con ella ReglaDeLaLinea, que era lo único que esta promesa juzgaba. Escribirle
+        // sigue a mano por Ctrl+Alt+U y por el botón de mensajes del notch. Los números no se reciclan.
 
         // LA LECCIÓN QUE CLAUDE VE (spec 013, 2026-09-06). El pantallazo por paso se disparaba AL
         // OBSERVAR el paso —después del clic y de su efecto—, que es la carrera que el dueño lleva
@@ -934,7 +933,16 @@ internal static class Contrato
         Prueba("527. el notch se aparta como la carita: si bajo el punto de un clic de Ü está el notch, se vuelve transparente al ratón un momento, se mira otra vez y se pulsa lo de debajo; cualquier otra ventana de Ü sigue sin pulsarse y se dice cuál", ElNotchSeApartaComoLaCarita);
         Prueba("528. leer el diálogo de delante tiene plazo: si la app no contesta en 2 s, map_unblock no se congela —dice que no pudo leer el diálogo a tiempo, no que no hay ninguno— y no pulsa nada", LeerElDialogoTienePlazo);
         Prueba("529. saber dónde estoy tampoco se congela leyendo un diálogo: map_where_am_i lee el diálogo por la misma puerta con plazo que map_unblock; las dos lecturas del diálogo son una", DondeEstoyNoSeCongelaConUnDialogo);
+        // Ü NO ESTORBA EN ALT+TAB (spec 064, 2026-09-30). De 9 piezas flotantes solo 5 se sacaban de ahí, cada una
+        // por su cuenta; la carita y el muelle no, y salían dos «Ü» en cada cambio de ventana. La 530 es de otra
+        // rama sin mergear (el notch se hace esperar): no se recicla.
+        Prueba("531. las piezas flotantes de Ü —la carita, el muelle, el notch, el carrusel, las tarjetas y las superposiciones— no salen en Alt+Tab: su estilo lleva TOOLWINDOW y nunca APPWINDOW sin perder lo que ya tenía; las ventanas de trabajo siguen saliendo; y toda ventana de Ü está declarada flotante o de trabajo, así que una nueva no se cuela sin decirlo", UNoEstorbaEnAltTab);
         Prueba("520. quien planea es GPT-6.1 Sol con el pensamiento en bajo y sin pagar de más por velocidad: delegado gpt-6.1-sol con reasoning.effort = low y sin service_tier priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
+
+        // EL NOTCH SE HACE ESPERAR (spec 063, 2026-09-30). La 260 congela DÓNDE se pide; nada decía
+        // CUÁNDO, y asomaba en el primer sondeo: subir a una pestaña del navegador lo hacía caer encima
+        // de ella. «Que solo aparezca al mantener el mouse allá arriba por 0,5 segs o algo así».
+        Prueba("530. el notch se hace esperar: medio segundo con el cursor quieto en la franja de arriba lo asoma, y una sola vez por visita; pasar por ella, recorrerla de lado como quien busca una pestaña o hacer clic dentro no lo asoman, y tras un clic no vuelve hasta salir de la franja", ElNotchSeHaceEsperar);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -8019,7 +8027,7 @@ internal static class Contrato
         double carita = Convert.ToDouble(caritaPx), aire = Convert.ToDouble(airePx);
         double ventana = carita + 2 * aire;
 
-        // CABE, y no «casi». La ventana de la carita suelta mide 72 + 2·28 = 128, y un halo que se
+        // CABE, y no «casi». La ventana de la carita suelta mide 66 + 2·17 = 100, y un halo que se
         // pasa de ahí no se ve grande: se ve CORTADO contra un borde que es un círculo con esquina.
         // Se barre el rango entero de voz y toda la fase del latido, porque el máximo puede estar
         // en cualquier punto y una regla solo se conoce por su peor caso.
@@ -8099,30 +8107,6 @@ internal static class Contrato
 
 
 
-
-    /// <summary>Promesa 167.</summary>
-    private static void LaLineaSeHaceEsperar()
-    {
-        var t = Capacidad("U.WindowsClient.Ui.ReglaDeLaLinea");
-        if (t == null) { Pendiente("ReglaDeLaLinea", "167", "011"); return; }
-
-        var asoma = t.GetMethod("Asoma", BindingFlags.Public | BindingFlags.Static);
-        var reposoMs = t.GetField("ReposoMs")?.GetValue(null);
-        if (asoma == null || reposoMs == null) { Pendiente("ReglaDeLaLinea.Asoma/ReposoMs", "167", "011"); return; }
-        int ms = Convert.ToInt32(reposoMs);
-        bool Asoma(int quieto, bool arrastrando) =>
-            (bool)asoma.Invoke(null, new object[] { quieto, arrastrando })!;
-
-        // SEGUNDO Y MEDIO, y el suelo es alto a proposito: la primera version salia al instante y la
-        // segunda a 550 ms, y las dos se rechazaron por lo mismo — «lo veo muy rápido». Por debajo
-        // de 1,2 s esto vuelve a ser un cartel que se adelanta a lo que ibas a hacer.
-        Debe(ms >= 1200, $"la línea se hace esperar de verdad: son {ms} ms, y el dueño pidió segundo y medio");
-        Debe(!Asoma(0, false), "rozarla de camino a otra cosa no la llama");
-        Debe(!Asoma(ms - 1, false), "ni fallando un milisegundo para el reposo");
-        Debe(!Asoma(550, false), "ni con el reposo que tenía antes: 550 ms se rechazó por rápido");
-        Debe(Asoma(ms, false), "cumplido el reposo, asoma");
-        Debe(!Asoma(ms * 10, true), "pero arrastrándola no asoma por mucho que se tarde: ir a moverla no es ir a escribirle");
-    }
 
     // ── Lo hace a la primera (spec 017) ──────────────────────────────────────
 
@@ -10524,6 +10508,112 @@ internal static class Contrato
             "en el borde de arriba pero lejos del centro —la esquina—: fuera de la franja");
         Debe(!Asoma(libre, pieza, new System.Windows.Point(768, 400)),
             "a media pantalla, aunque esté centrado: fuera de la franja, o cualquier paso del cursor la dispararía");
+    }
+
+    /// <summary>Promesa 530.</summary>
+    private static void ElNotchSeHaceEsperar()
+    {
+        var t = Capacidad("U.WindowsClient.Ui.EsperaDelAsomo");
+        if (t == null) { Pendiente("EsperaDelAsomo", "530", "063"); return; }
+        var dispara = t.GetMethod("Dispara");
+        var esperaMs = t.GetField("EsperaMs")?.GetValue(null);
+        if (dispara == null || esperaMs == null) { Pendiente("EsperaDelAsomo.Dispara/EsperaMs", "530", "063"); return; }
+        int ms = Convert.ToInt32(esperaMs);
+
+        // Una espera nueva por escena: el estado de una no puede ayudar ni estorbar a la siguiente.
+        var t0 = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        var arriba = new System.Windows.Point(768, 0);
+        Func<bool, System.Windows.Point, bool, int, bool> Nueva()
+        {
+            var e = Activator.CreateInstance(t)!;
+            return (dentro, cursor, boton, alMs) =>
+                (bool)dispara.Invoke(e, new object[] { dentro, cursor, boton, t0.AddMilliseconds(alMs) })!;
+        }
+
+        // «O ALGO ASÍ», PERO NO MENOS: por debajo de 0,4 s vuelve a ser tropezar con el borde.
+        Debe(ms >= 400, $"la espera es de verdad: son {ms} ms, y el dueño pidió medio segundo");
+
+        // QUIETO ARRIBA, MEDIO SEGUNDO: asoma, y UNA vez. Quedarse ahí no lo vuelve a pedir en cada
+        // sondeo — si algo lo retira mientras tanto, no reaparece en bucle.
+        var quieto = Nueva();
+        Debe(!quieto(true, arriba, false, 0), "al llegar a la franja no asoma todavía");
+        Debe(!quieto(true, arriba, false, ms - 1), "ni un milisegundo antes de cumplir la espera");
+        Debe(quieto(true, new System.Windows.Point(771, 2), false, ms),
+            "cumplida la espera con el cursor quieto —un temblor de pocos píxeles es quieto—, asoma");
+        Debe(!quieto(true, arriba, false, ms + 150), "y no vuelve a pedirlo mientras siga ahí: una vez por visita");
+        quieto(false, new System.Windows.Point(768, 300), false, ms + 300);
+        Debe(!quieto(true, arriba, false, ms + 400), "al volver, la espera empieza de cero");
+        Debe(quieto(true, arriba, false, 2 * ms + 400), "y cumplida otra vez, vuelve a asomar");
+
+        // PASAR DE LARGO: subir a una pestaña tropieza con el borde y se va.
+        var paso = Nueva();
+        paso(true, arriba, false, 0);
+        paso(true, arriba, false, ms / 3);
+        paso(false, new System.Windows.Point(768, 30), false, ms / 2);
+        Debe(!paso(false, new System.Windows.Point(768, 30), false, ms * 3), "rozar la franja de paso no lo asoma, por mucho que se espere después fuera");
+
+        // RECORRERLA DE LADO: buscando pestaña a ras del borde, el cursor no está quieto.
+        var recorre = Nueva();
+        bool algunaVez = false;
+        for (int i = 0; i <= 20; i++)
+            algunaVez |= recorre(true, new System.Windows.Point(560 + i * 20, 1), false, i * 100);
+        Debe(!algunaVez, "recorrer el borde de lado dos segundos, como quien busca una pestaña, no lo asoma");
+
+        // EL CLIC: lo que cierra el asunto. Un clic en la franja es usar lo de debajo.
+        var clic = Nueva();
+        clic(true, arriba, false, 0);
+        clic(true, arriba, true, ms / 2);
+        clic(true, arriba, false, ms / 2 + 100);
+        Debe(!clic(true, arriba, false, ms * 4), "tras un clic dentro de la franja no asoma, aunque el cursor se quede quieto mucho más");
+        clic(false, new System.Windows.Point(768, 300), false, ms * 5);
+        clic(true, arriba, false, ms * 6);
+        Debe(clic(true, arriba, false, ms * 7), "pero al salir de la franja y volver, el gesto vuelve a funcionar");
+    }
+
+    /// <summary>Promesa 531.</summary>
+    private static void UNoEstorbaEnAltTab()
+    {
+        var t = Capacidad("U.WindowsClient.Ui.FueraDelAltTab");
+        if (t == null) { Pendiente("FueraDelAltTab", "531", "064"); return; }
+        var estilo = t.GetMethod("Estilo", new[] { typeof(int) });
+        var esFlotante = t.GetMethod("EsFlotante", new[] { typeof(Type) });
+        var esDeTrabajo = t.GetMethod("EsDeTrabajo", new[] { typeof(Type) });
+        if (estilo == null || esFlotante == null || esDeTrabajo == null)
+        { Pendiente("FueraDelAltTab.Estilo/EsFlotante/EsDeTrabajo", "531", "064"); return; }
+        int Estilo(int ex) => (int)estilo.Invoke(null, new object[] { ex })!;
+        bool Flotante(Type v) => (bool)esFlotante.Invoke(null, new object[] { v })!;
+        bool DeTrabajo(Type v) => (bool)esDeTrabajo.Invoke(null, new object[] { v })!;
+
+        // EL ESTILO. Windows lista en Alt+Tab toda ventana visible que no sea de herramienta, y APPWINDOW la
+        // fuerza a salir aunque lo sea: hacen falta las dos cosas, poner una y quitar la otra.
+        const int TOOLWINDOW = 0x80, APPWINDOW = 0x40000, LAYERED = 0x80000, TRANSPARENT = 0x20, TOPMOST = 0x8;
+        Debe((Estilo(0) & TOOLWINDOW) != 0, "una ventana sin nada puesto queda como ventana de herramienta");
+        Debe((Estilo(APPWINDOW) & APPWINDOW) == 0 && (Estilo(APPWINDOW) & TOOLWINDOW) != 0,
+            "y si traía APPWINDOW se le quita: con él saldría en Alt+Tab aunque fuera de herramienta");
+        int rica = LAYERED | TRANSPARENT | TOPMOST;
+        Debe((Estilo(rica) & rica) == rica,
+            "sin perder lo que ya tenía: en capas, transparente al ratón (la carita fantasma, promesa 505) y siempre encima");
+        Debe(Estilo(Estilo(rica | APPWINDOW)) == Estilo(rica | APPWINDOW), "y aplicarlo dos veces deja lo mismo que una");
+
+        // LA DECLARACIÓN. Todas las clases del cliente que heredan de Window, sin excepción: la clase de error
+        // era que cada ventana se acordaba —o no— de salirse de Alt+Tab por su cuenta.
+        Type[] todos;
+        try { todos = Cliente.GetTypes(); }
+        catch (ReflectionTypeLoadException e) { todos = e.Types.Where(x => x != null).ToArray()!; }
+        var ventanas = todos.Where(x => typeof(System.Windows.Window).IsAssignableFrom(x) && !x.IsAbstract).ToList();
+        Debe(ventanas.Count >= 16, $"se miran las ventanas de verdad: hay {ventanas.Count} clases de ventana en el cliente, y eran 16 al escribir esto");
+        var sinDeclarar = ventanas.Where(v => !Flotante(v) && !DeTrabajo(v)).Select(v => v.Name).OrderBy(n => n).ToList();
+        Debe(sinDeclarar.Count == 0,
+            "toda ventana de Ü está declarada flotante o de trabajo" + (sinDeclarar.Count == 0 ? "" : $" — faltan: {string.Join(", ", sinDeclarar)}"));
+        var lasDos = ventanas.Where(v => Flotante(v) && DeTrabajo(v)).Select(v => v.Name).ToList();
+        Debe(lasDos.Count == 0, "y ninguna es las dos cosas a la vez" + (lasDos.Count == 0 ? "" : $" — {string.Join(", ", lasDos)}"));
+
+        // LAS QUE SE VEN SIEMPRE, por nombre: son las dos «Ü» de las fotos del dueño, más el notch.
+        Type? V(string nombre) => ventanas.FirstOrDefault(v => v.Name == nombre);
+        foreach (string nombre in new[] { "FaceWindow", "Muelle", "PanelDeAcciones", "CarruselDeApps", "TarjetaDeRecuerdo" })
+            Debe(V(nombre) is Type v && Flotante(v), $"«{nombre}» es una pieza flotante: no sale en Alt+Tab");
+        foreach (string nombre in new[] { "ConsultaWindow", "EstudiosWindow", "LoginWindow" })
+            Debe(V(nombre) is Type v && DeTrabajo(v), $"«{nombre}» es una ventana de trabajo: sigue saliendo en Alt+Tab, que es donde se la busca");
     }
 
     private static void LaZonaDelNotchMantieneLaIntencion()

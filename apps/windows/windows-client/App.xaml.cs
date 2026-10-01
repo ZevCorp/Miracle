@@ -77,6 +77,9 @@ public partial class App : Application
         // UN CLIC DE Ü NO ES UN TOQUE DE LA PERSONA (promesa 508): se instala antes de que exista la primera ventana, para
         // que ninguna —la carita, el muelle, el notch— tome por suyo un clic que mandó Ü.
         Ui.ToquesDeU.Instalar();
+        // LAS PIEZAS FLOTANTES NO SALEN EN ALT+TAB (promesa 531): también antes de la primera ventana, para que la
+        // carita y el muelle —que nacen enseguida— se carguen ya pasando por aquí.
+        Ui.FueraDelAltTab.Aplicar();
         // Nunca dejar caer la carita por una excepción no capturada: es un overlay permanente.
         DispatcherUnhandledException += (_, ex) =>
         {

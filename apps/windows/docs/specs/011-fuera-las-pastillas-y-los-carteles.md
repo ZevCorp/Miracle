@@ -47,6 +47,7 @@ promesa que la juzga. Cada fase empieza con el contrato ROTO y termina con el co
 | 164 | ningún elemento de la interfaz muestra texto al pasar el ratón, ni uno que lo declare: se apaga en un solo sitio y para todo lo que se escriba después | 3 |
 | ~~165~~ | ~~la línea «Escríbele…» pide reposo~~ — **RETIRADA** por el dueño el 2026-09-06 (ver *Lo que NO entra*) | — |
 | ~~166~~ | ~~escribir con el ratón sobre la carita abre el globo con esa letra~~ — **RETIRADA** con la 165 | — |
+| ~~167~~ | ~~la línea «Escríbele…» se hace esperar: segundo y medio de ratón quieto~~ — **RETIRADA** por el dueño el 2026-09-30 (ver *Acta de retiro de la promesa 167*) | — |
 
 **La que cierra el asunto es la 164.** Mientras el apagado sea una lista de 44 tachones, las otras
 cuatro son cosmética: el cartel vuelve en cuanto alguien añada un botón.
@@ -156,3 +157,18 @@ invisible que roba teclas sin afordancia es peor que no tener el gesto.
 globo *con el ratón desde la carita suelta*, pero quedan dos que no dependen de ella: `Ctrl+Alt+U`,
 que abre el globo con el foco ya en la caja, y el muelle del borde derecho, que lo tiene a un cursor
 de distancia. Esto se comprobó leyendo `InvocarPorAtajo` y `Muelle`, no se supone.
+
+## Acta de retiro de la promesa 167 (2026-09-30)
+
+La 167 nació el mismo 2026-09-06, una hora después de retirar la 165: el dueño pidió recuperar la
+línea «Escríbele…» de la rama 008 tal cual, esperando segundo y medio de ratón quieto. Tres semanas
+después la quita entera, mirándola en pantalla: «no nos gusta». **Los números no se reciclan.**
+
+Se fue todo lo que la línea tenía, no solo su dibujo: el `Popup` `GhostPista`, sus dos relojes, el
+aviso de arrastre que existía solo para ella y `ReglaDeLaLinea`, que era lo único que la 167
+juzgaba. Dejarla escondida en el código habría sido código inerte con una promesa en verde
+certificándolo.
+
+**El hueco vuelve a ser el que describe el acta de arriba, y sigue cubierto.** Con el ratón desde la
+carita suelta ya no se abre el globo; quedan `Ctrl+Alt+U` (`InvocarPorAtajo` → `AbrirChat(true)`) y
+el botón de mensajes del notch (`PanelDeAcciones`, `_botonMensajes`). Comprobado leyendo los dos.

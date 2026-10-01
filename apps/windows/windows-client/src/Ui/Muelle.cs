@@ -30,7 +30,7 @@ namespace U.WindowsClient.Ui;
 /// LA PESTAÑA ES ESTRECHA A PROPÓSITO, Y CORTA. Está topmost sobre el trabajo de alguien: cada píxel
 /// que ocupe del borde derecho es un píxel de barra de desplazamiento ajena que deja de poder
 /// pulsarse. Por eso mide 14 px de blanco y solo 64 de alto, centrada — no una franja de lado a
-/// lado. El dibujo son 5 px; el blanco del gesto es casi el triple, que es la misma regla que ya
+/// lado. El dibujo son 4 px; el blanco del gesto es más del triple, que es la misma regla que ya
 /// siguen las pastillas de la carita: acertarle a cinco píxeles sería puntería, no una interfaz.
 ///
 /// EL ANCLA ES LA PESTAÑA, NO LA VENTANA. La pestaña va acoplada al borde derecho y el panel crece
@@ -48,8 +48,33 @@ public sealed class Muelle : Window, AnfitrionDeLaCarita
 
     public Window Ventana => this;
 
-    /// <summary>Blanco del gesto de la pestaña. El dibujo son <see cref="AnchoDibujo"/>.</summary>
-    private const double AnchoPestana = 14, AltoPestana = 64, AnchoDibujo = 5;
+    /// <summary>Blanco del gesto de la pestaña. El dibujo son <see cref="AnchoDibujo"/> × <see cref="AltoDibujo"/>.</summary>
+    /// <remarks>
+    /// El DIBUJO bajó de 5×56 a 4×40 el 2026-09-30 (lo pidió el dueño: «un poco más pequeño», con la
+    /// pastilla plegada de Wispr Flow de referencia). El BLANCO del gesto no se tocó: achicar lo que
+    /// se ve no tiene por qué obligar a apuntar mejor.
+    /// </remarks>
+    private const double AnchoPestana = 14, AltoPestana = 64, AnchoDibujo = 4, AltoDibujo = 40;
+
+    /// <summary>
+    /// La pestaña con la carita guardada: blanco a medias y un filete oscuro casi transparente.
+    /// </summary>
+    /// <remarks>
+    /// Era blanco OPACO con el filete claro del estudio, y en el borde de la pantalla, siempre a la
+    /// vista, llamaba la atención de más (2026-09-30, pedido por el dueño: «que no desconcentre
+    /// tanto»). Sigue siendo BLANCO y no gris —el gris es la pestaña vacía, y confundirlas es no
+    /// saber si Ü se cerró—; lo que baja es cuánto se impone. El filete es oscuro porque el blanco
+    /// translúcido, sobre un fondo claro, sin él desaparece.
+    /// </remarks>
+    private static readonly Brush BlancoGuardada = Congelar(Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF)),
+                                  FileteGuardada = Congelar(Color.FromArgb(0x2E, 0x00, 0x00, 0x00));
+
+    private static Brush Congelar(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
 
     /// <summary>
     /// Lo que el muelle se aparta del borde derecho.
@@ -118,7 +143,7 @@ public sealed class Muelle : Window, AnfitrionDeLaCarita
         _dibujoPestana = new Border
         {
             Width = AnchoDibujo,
-            Height = AltoPestana - 8,
+            Height = AltoDibujo,
             CornerRadius = new CornerRadius(AnchoDibujo / 2),
             // Gris apagado, el MISMO de las pastillas de la carita: se ve que hay algo y no compite.
             Background = new SolidColorBrush(Color.FromArgb(0x80, 0xA8, 0xA8, 0xAE)),
@@ -218,9 +243,9 @@ public sealed class Muelle : Window, AnfitrionDeLaCarita
             if (_guardando == value) return;
             _guardando = value;
             _dibujoPestana.Background = value
-                ? Estudio.Superficie
+                ? BlancoGuardada
                 : new SolidColorBrush(Color.FromArgb(0x80, 0xA8, 0xA8, 0xAE));
-            _dibujoPestana.BorderBrush = Estudio.Borde;
+            _dibujoPestana.BorderBrush = FileteGuardada;
             _dibujoPestana.BorderThickness = new Thickness(value ? 1 : 0);
             LogBus.Log("muelle", value ? "la carita queda guardada aquí" : "la carita sale del muelle");
         }
