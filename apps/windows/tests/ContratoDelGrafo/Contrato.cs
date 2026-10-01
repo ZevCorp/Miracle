@@ -10911,7 +10911,7 @@ internal static class Contrato
 
         // EL ESTILO, Y NO LA RESPUESTA AL CLIC. La primera versión contestaba MA_NOACTIVATE a WM_MOUSEACTIVATE, el
         // contrato la dio por buena y el PC la desmintió (2026-09-30, 23:40): tras pulsar la onda, delante no quedaba
-        // el notch… ni la app, sino NINGUNA ventana, y la letra tecleada después no llegaba a nadie. Con
+        // el notch… ni la app: quedaba una ventana sin título, o ninguna (la sonda de esa pasada no las distinguía). Con
         // WS_EX_NOACTIVATE en la ventana, medido tres minutos después, las letras caen en la app de delante.
         const int NOACTIVATE = 0x08000000, LAYERED = 0x80000, TOOLWINDOW = 0x80, TOPMOST = 0x8, TRANSPARENT = 0x20;
         int deSiempre = LAYERED | TOOLWINDOW | TOPMOST;   // 0x80088: el que trae el notch, leído de su log

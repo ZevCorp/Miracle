@@ -438,8 +438,8 @@ public sealed class PanelDeAcciones : Window
     ///
     /// Y LO QUE NO LO ARREGLÓ, medido ese mismo día a las 23:40: contestar «no me actives» a la pregunta
     /// que Windows hace antes de cada clic. El notch dejó de activarse, sí, pero la app de delante
-    /// perdió el teclado igual: delante no quedaba NINGUNA ventana y la letra tecleada después no
-    /// llegaba a nadie. Con este estilo —el de los teclados en pantalla, y el que ya lleva
+    /// perdió el teclado igual: delante dejó de estar ella —quedó una ventana sin título, o ninguna:
+    /// la sonda de esa pasada no las distinguía—. Con este estilo —el de los teclados en pantalla, y el que ya lleva
     /// <see cref="AuraDeAprendizaje"/>— las letras tecleadas tras pulsar la onda cayeron en la app.
     ///
     /// Abrir el chat no depende de que el clic active: <see cref="EnfocarEntrada"/> pide el teclado a
