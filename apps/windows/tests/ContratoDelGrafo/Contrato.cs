@@ -10568,6 +10568,7 @@ internal static class Contrato
         clic(false, new System.Windows.Point(768, 300), false, ms * 5);
         clic(true, arriba, false, ms * 6);
         Debe(clic(true, arriba, false, ms * 7), "pero al salir de la franja y volver, el gesto vuelve a funcionar");
+    }
 
     /// <summary>Promesa 531.</summary>
     private static void UNoEstorbaEnAltTab()
