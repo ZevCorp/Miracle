@@ -102,8 +102,8 @@ public static class PeticionASystemOne
 
             w.WriteStartObject(IdPeligro);
             w.WriteString("type", "noul");
-            w.WriteString("instructions",
-                "¿Accionar la puerta elegida sería irreversible o peligroso: guardar, enviar, eliminar, confirmar, pagar, cerrar sin guardar?");
+            // LA MISMA PREGUNTA QUE LA MANO DEL PLAN (spec 078, D6, promesa 730): una sola frase de lo peligroso.
+            w.WriteString("instructions", U.Ciclo.Jev.PreguntaDePeligro);
             w.WriteStartObject("criteria");
             w.WriteString("true", "Deja un efecto que no se puede deshacer o que afecta a otros");
             w.WriteString("false", "Navegar, abrir, seleccionar o mirar: se puede volver atrás");

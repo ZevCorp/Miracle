@@ -86,41 +86,47 @@ class Mcp(
             listOf(McpParam("seconds", "Duración en segundos"), McpParam("message", "Etiqueta (opcional)"))) {
             system.setTimer(it.int("seconds", 60), it.str("message")) },
         McpTool("show_alarms", "Abre la lista de alarmas del reloj.") { system.showAlarms() },
-        McpTool("create_event", "Crea un evento de calendario vía Intent (prellenado).",
+        McpTool("create_event", "Abre en el calendario el formulario de un evento nuevo, ya lleno. NO lo guarda: " +
+            "si te lo pidieron, toca Guardar y mira que quedó.",
             listOf(McpParam("title", "Título del evento"), McpParam("start", "Inicio ISO-8601 local, p.ej. 2026-07-06T15:00 (opcional)"), McpParam("location", "Lugar (opcional)"))) {
             system.createEvent(it.str("title"), it.str("start"), it.str("location")) },
         McpTool("dial", "Abre el marcador con un número (sin llamar todavía).",
             listOf(McpParam("number", "Número de teléfono"))) { system.dial(it.str("number")) },
         McpTool("call", "Llama directamente a un número vía Intent (requiere permiso de llamada).",
             listOf(McpParam("number", "Número de teléfono"))) { system.call(it.str("number")) },
-        McpTool("send_sms", "Abre un SMS prellenado a un número (el usuario confirma el envío).",
+        McpTool("send_sms", "Abre la app de mensajes con el SMS ya escrito. NO lo envía: si te pidieron mandarlo, " +
+            "toca Enviar en la pantalla y mira que salió.",
             listOf(McpParam("number", "Destinatario"), McpParam("message", "Texto (opcional)"))) {
             system.sendSms(it.str("number"), it.str("message")) },
-        McpTool("send_email", "Abre un correo prellenado.",
+        McpTool("send_email", "Abre la app de correo con un correo nuevo ya escrito. NO lo envía: si te pidieron " +
+            "mandarlo, toca Enviar en la pantalla y mira que salió; si solo te pidieron escribirlo, lo dejas abierto. " +
+            "No adjunta archivos: si hay que adjuntar algo, lo adjuntas tú en la pantalla antes de Enviar y miras " +
+            "que esté.",
             listOf(McpParam("to", "Destinatario (opcional)"), McpParam("subject", "Asunto (opcional)"), McpParam("body", "Cuerpo (opcional)"))) {
             system.sendEmail(it.str("to"), it.str("subject"), it.str("body")) },
-        McpTool("web_search", "Busca en la web vía el Intent de búsqueda del sistema.",
+        McpTool("web_search", "Abre la búsqueda del sistema (por lo general, la app de Google) con lo que le pases. " +
+            "NO devuelve resultados: para contestar, mira la página en la pantalla siguiente, y un dato (el clima, " +
+            "un precio) solo lo das si lo leíste ahí. Si la persona nombró un navegador, ábrelo con launch_app y " +
+            "busca en su barra de direcciones.",
             listOf(McpParam("query", "Qué buscar"))) { system.webSearch(it.str("query")) },
         McpTool("open_url", "Abre una URL en el navegador.",
             listOf(McpParam("url", "URL http(s)"))) { system.openUrl(it.str("url")) },
-        McpTool("check_simit_fines", "Abre el portal OFICIAL de SIMIT (Sistema Nacional de Información " +
-            "de Comparendos de Tránsito, simit.org.co) para consultar comparendos/multas de tránsito en " +
-            "Colombia por cédula o placa. Úsala cuando el usuario pida revisar sus comparendos o multas, " +
-            "o evaluar si uno prescribió/caducó. Tras abrir, sigue con computer-use: busca por cédula o " +
-            "placa (pregunta con ask_user cuál usar si no lo sabes) y lee, de cada infracción, su ESTADO " +
-            "(comparendo/pendiente de resolución VS. resolución o multa YA en firme) y su FECHA. " +
-            "CONOCIMIENTO LEGAL para razonar (Código Nacional de Tránsito, Ley 769 de 2002; SIEMPRE " +
-            "aclara al usuario que esto NO es asesoría legal definitiva y que debe confirmarlo con el " +
-            "organismo de tránsito): la CADUCIDAD (art. 161) es de 1 año desde el hecho — si sigue como " +
-            "\"comparendo\" SIN resolución sancionatoria en firme pasado ese año, la autoridad pudo haber " +
-            "perdido la facultad de sancionar; la PRESCRIPCIÓN (art. 159) es de 3 años, pero aplica al " +
-            "COBRO de una multa que YA está en firme (otro escenario distinto). Ninguna de las dos opera " +
-            "sola en el portal: hay que ALEGARLA mediante un derecho de petición ante el organismo de " +
-            "tránsito que impuso el comparendo (NO ante SIMIT, que solo consulta). LÍMITES ESTRICTOS: " +
-            "JAMÁS pagues, envíes ni radiques ningún formulario/recurso/derecho de petición en nombre del " +
-            "usuario — es una gestión legal ante un tercero y debe hacerla él mismo. Solo informa lo que " +
-            "encontraste y, si lo pide, redacta el TEXTO del derecho de petición (por chat o con " +
-            "send_email/share_text) para que él lo revise y presente.") { system.openUrl("https://www.simit.org.co/") },
+        McpTool("check_simit_fines", "Abre el portal OFICIAL de SIMIT (simit.org.co) para consultar comparendos y " +
+            "multas de tránsito en Colombia por cédula o placa. Úsala cuando la persona pida revisar sus " +
+            "comparendos o multas, o saber si uno caducó o prescribió. Después sigue en la pantalla: busca por " +
+            "cédula o placa (si no sabes cuál, pregúntalo) y lee de cada infracción su ESTADO (comparendo " +
+            "pendiente de resolución, o resolución o multa YA en firme) y su FECHA. PARA RAZONAR (Código Nacional " +
+            "de Tránsito, Ley 769 de 2002; di siempre que no es asesoría legal definitiva y que lo confirme con el " +
+            "organismo de tránsito): la CADUCIDAD (art. 161) es de 1 año desde el hecho: si sigue como comparendo " +
+            "SIN resolución sancionatoria pasado ese año, la autoridad pudo perder la facultad de sancionar. La " +
+            "PRESCRIPCIÓN de la multa (art. 159, modificado por la Ley 1383 de 2010, art. 26) es de 3 años contados " +
+            "desde la ocurrencia del hecho, y se interrumpe con la notificación del mandamiento de pago: si el " +
+            "portal muestra cobro coactivo, no la des por prescrita sin saber cuándo le notificaron ese " +
+            "mandamiento. Ninguna se aplica sola en el portal: se pide con un derecho de petición ante el " +
+            "organismo de tránsito que impuso el comparendo (NO ante SIMIT, que solo consulta). SI TE PIDEN " +
+            "PAGAR: llegas con ese comparendo hasta la pasarela oficial de pago, y ahí sigue la persona. SI TE " +
+            "PIDEN RADICAR el derecho de petición: lo radicas en el canal oficial de ese organismo de tránsito, " +
+            "con los datos de la persona. Si te piden el texto, lo redactas completo.") { system.openUrl("https://www.simit.org.co/") },
         McpTool("open_maps", "Abre Maps en un lugar o búsqueda.",
             listOf(McpParam("query", "Lugar o búsqueda"))) { system.maps(it.str("query")) },
         McpTool("directions", "Abre la navegación hacia un destino.",
@@ -133,16 +139,14 @@ class Mcp(
             listOf(McpParam("text", "Texto a compartir"))) { system.shareText(it.str("text")) },
         McpTool("set_clipboard", "Copia un texto al portapapeles (sin UI).",
             listOf(McpParam("text", "Texto a copiar"))) { system.setClipboard(it.str("text")) },
-        McpTool("set_volume", "Ajusta el volumen de un canal de audio directamente (sin UI). Útil para " +
-            "asegurar que una alarma/llamada/medio se oiga.",
+        McpTool("set_volume", "Pone el volumen de un canal de audio en el porcentaje que pidió la persona, " +
+            "directamente (sin UI).",
             listOf(
                 McpParam("stream", "Canal de audio", listOf("media", "ring", "alarm", "notification", "call")),
-                McpParam("percent", "Nivel 0-100 (usa 100 para asegurar que se oiga)"),
+                McpParam("percent", "Nivel 0-100 que pidió la persona. Para «súbele» o «bájale» sin cifra, usa adjust_volume."),
             )) { system.setVolume(it.str("stream").ifBlank { "media" }, it.int("percent", 100)) },
-        McpTool("adjust_volume", "Sube, baja, muda o restaura el volumen de un canal de audio con un solo " +
-            "golpe (como el botón físico), sin necesitar un porcentaje exacto. Úsala, por ejemplo, para " +
-            "bajar el volumen tras poner música/un video si crees que puede molestar, o subirlo si el " +
-            "usuario no lo va a escuchar bien.",
+        McpTool("adjust_volume", "Sube, baja, silencia o restaura el volumen de un canal de audio con un solo " +
+            "golpe, como el botón físico, y muestra el panel de volumen. Sirve para «súbele» o «bájale» sin cifra.",
             listOf(
                 McpParam("stream", "Canal de audio", listOf("media", "ring", "alarm", "notification", "call")),
                 McpParam("direction", "Acción", listOf("raise", "lower", "mute", "unmute")),

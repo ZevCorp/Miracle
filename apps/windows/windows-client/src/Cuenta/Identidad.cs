@@ -53,4 +53,36 @@ public static class Identidad
     /// </remarks>
     public static string CorreoQueMandaEnLaMaquina(string correoDelMedico, string correoDeMaquina) =>
         string.IsNullOrWhiteSpace(correoDelMedico) ? correoDeMaquina ?? "" : correoDelMedico;
+
+    /// <summary>
+    /// Qué bienvenida toca al abrir Ü (spec 078, promesa 702). El perfil —médico o uso personal— se
+    /// pregunta UNA vez, y nunca a quien ya entró con su cuenta Miracle: ese es médico.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="HayQuePreguntar"/> NO SE TOCA (es la promesa 98) y decide lo de siempre: equipo
+    /// nuevo, bienvenida entera. Lo nuevo es el equipo que YA tenía correo de antes de que existiera
+    /// el perfil: a ese no se le vuelve a pedir nombre y correo, solo el perfil.
+    /// </remarks>
+    /// <param name="hayMedicoDentro">Si <see cref="SesionMiracle.HayMedico"/> es cierto.</param>
+    /// <param name="correoDeMaquina">El <c>Config.Email</c>.</param>
+    /// <param name="perfilElegido">El <c>Config.Perfil</c>, tal cual se guardó.</param>
+    public static Bienvenida QueBienvenida(bool hayMedicoDentro, string correoDeMaquina, string perfilElegido)
+    {
+        if (HayQuePreguntar(hayMedicoDentro, correoDeMaquina)) return Bienvenida.Completa;
+        if (!hayMedicoDentro && PerfilDeUso.Normalizar(perfilElegido).Length == 0) return Bienvenida.SoloPerfil;
+        return Bienvenida.Nada;
+    }
+}
+
+/// <summary>Qué le enseña Ü a quien lo abre. Ver <see cref="Identidad.QueBienvenida"/>.</summary>
+public enum Bienvenida
+{
+    /// <summary>Ya se sabe quién es y cómo usa Ü: no se pregunta nada.</summary>
+    Nada,
+
+    /// <summary>Equipo nuevo: nombre, correo y perfil.</summary>
+    Completa,
+
+    /// <summary>El equipo ya tenía correo, pero nunca dijo si es médico o uso personal.</summary>
+    SoloPerfil,
 }

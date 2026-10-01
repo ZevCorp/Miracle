@@ -88,7 +88,7 @@ public sealed class CuentaDelTurno
         {
             long t = _relojMs();
             if (_finTrabajo is long f && (_habloTras == null || _habloTras < f)) _habloTras = t;
-            // UNA FRASE, NO UN TROZO (promesa 683): la voz llega a trozos de pocas sílabas, y contar trozos
+            // UNA FRASE, NO UN TROZO (promesa 753): la voz llega a trozos de pocas sílabas, y contar trozos
             // diría «habló doce veces» de una sola frase. Un trozo tras más de una pausa de frase abre otra.
             if (_ultimoTrozo is not long u || t - u > PausaDeFraseMs) _frases.Add(t);
             _ultimoTrozo = t;
@@ -157,7 +157,7 @@ public sealed class CuentaDelTurno
     }
 
     /// <summary>
-    /// SI ALGUIEN LE HABLABA A LA PERSONA MIENTRAS SE TRABAJABA (promesa 683, spec 073): las frases que la voz
+    /// SI ALGUIEN LE HABLABA A LA PERSONA MIENTRAS SE TRABAJABA (promesa 753, spec 073): las frases que la voz
     /// dijo entre la primera llamada y el final de la última tanda, y el hueco más largo sin ninguna.
     /// </summary>
     /// <remarks>

@@ -74,7 +74,7 @@ public static class CapturaDePantalla
     public static byte[]? Capturar() => Capturar(out _);
 
     /// <summary>
-    /// El fotograma y, de paso, su huella (spec 078): con ella se decide si la pantalla cambió desde la última que
+    /// El fotograma y, de paso, su huella (spec 079): con ella se decide si la pantalla cambió desde la última que
     /// viajó, sin subir nada para averiguarlo. Se saca ANTES de dibujar el cursor: mover el ratón no es otra pantalla.
     /// </summary>
     public static byte[]? Capturar(out int[]? huella)

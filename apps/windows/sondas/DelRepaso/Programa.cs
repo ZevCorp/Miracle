@@ -43,7 +43,7 @@ internal static class Programa
     private static readonly HttpClient Red = new() { Timeout = TimeSpan.FromSeconds(120) };
     private static string _clave = "";
 
-    /// <summary>El control del caso con fotos (spec 078): el mismo repaso, a ciegas. Dice cuánto de lo acertado es de VER.</summary>
+    /// <summary>El control del caso con fotos (spec 079): el mismo repaso, a ciegas. Dice cuánto de lo acertado es de VER.</summary>
     private static bool _sinFotos;
 
     /// <summary>Sin mayúsculas ni tildes: «Scholar» y «schólar» son lo mismo para juzgar.</summary>
@@ -368,7 +368,7 @@ internal static class Programa
             ("y no la guarda como dato", e => e.Datos.Count == 0),
         }),
 
-        // LA VISTA (spec 078). En SAP, UIA no nombra nada: el clic llega como «algo sin nombre» en un punto.
+        // LA VISTA (spec 079). En SAP, UIA no nombra nada: el clic llega como «algo sin nombre» en un punto.
         // Lo que se pulsó solo está en la foto, bajo el cursor. Las fotos son pantallas de mentira (fotos\).
         new("enseña MOSTRANDO donde nada tiene nombre: solo lo dicen las fotos", true, Nada, d =>
         {

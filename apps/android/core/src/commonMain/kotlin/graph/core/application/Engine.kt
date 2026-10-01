@@ -54,9 +54,9 @@ class ExecutionEngine(
     private val compuerta: CompuertaDePregunta? = null,
 ) {
     /**
-     * Ejecuta un objetivo hasta que el modelo devuelve el control con texto. Devuelve ese resumen.
-     * `announce=false` para objetivos internos (reencaminado / acción anticipada): no narra el texto
-     * del objetivo (que puede ser largo) ni el "¡Listo!" final.
+     * Ejecuta un objetivo hasta que el modelo devuelve el control con texto. Devuelve ese resumen; si se acaban los
+     * [maxTurns] antes, devuelve [NO_TERMINE]. `announce=false` para objetivos internos (reencaminado / acción
+     * anticipada): no narra el arranque ni el «Listo.» final, ni dice que no terminó.
      *
      * [dijoLaPersona] es lo que la persona escribió o dictó, que NO siempre es el [goal]: una acción anticipada autónoma y
      * el «CONTEXTO INMEDIATO» de una propuesta los redacta el modelo. Solo esto autoriza lo sensible (spec 006, promesa
@@ -68,7 +68,7 @@ class ExecutionEngine(
         val b = brain()
         b.begin(goal)
         compuerta?.empieza(dijoLaPersona.orEmpty()) // solo lo que dijo la persona autoriza (spec 006, promesas 601 y 611)
-        if (announce) voice.narrate("¡Vamos! $goal")
+        if (announce) voice.narrate(EN_MARCHA)
         log.log("run", "▶ objetivo de ${goal.length} caracteres")
         val started = TimeSource.Monotonic.markNow()
 
@@ -76,6 +76,7 @@ class ExecutionEngine(
         var summary = ""
         var turns = 0
         var actions = 0
+        var terminado = false // el cerebro dijo que acabó; si no, se acabaron los turnos
         var wantShot = false // el screenshot solo se adjunta cuando el modelo va a usar computer-use
         try {
             while (turns < maxTurns) {
@@ -102,7 +103,7 @@ class ExecutionEngine(
                 if (turn.narration.isNotBlank()) voice.narrate(turn.narration)
                 if (turn.speech != null) { voice.speak(turn.speech); log.log("run", "🗣 ${turn.speech.length} caracteres") }
                 if (turn.text.isNotBlank()) summary = turn.text
-                if (turn.done) break
+                if (turn.done) { terminado = true; break }
 
                 val out = mutableListOf<String>()
                 turn.actions.forEachIndexed { i, action ->
@@ -117,30 +118,56 @@ class ExecutionEngine(
                 turn.question?.let { q ->
                     log.log("run", "❓ pregunta de ${q.length} caracteres")
                     voice.speak(q)
-                    b.inform(user?.ask(q)?.ifBlank { "usa tu mejor criterio" } ?: "No hay usuario; usa tu mejor criterio.")
+                    b.inform(user?.ask(q)?.ifBlank { SIN_RESPUESTA } ?: SIN_CANAL)
                 }
                 espera(400)
             }
         } catch (p: Paraste) {
-            // Parada, no fallo: ni resumen en voz alta ni "¡Listo!". Una sola narración, y el control vuelve.
+            // Parada, no fallo: ni resumen en voz alta ni «Listo.». Una sola narración, y el control vuelve.
             val secs = started.elapsedNow().inWholeSeconds
             log.log("run", "✋ ${p.motivo} · $turns turnos · $actions acciones · ${secs}s · no sigo")
-            if (p.motivo == PARASTE_TU) voice.narrate("✋ Paré, como pediste.")
+            if (p.motivo == PARASTE_TU) voice.narrate(PARE)
             return "paraste: paré en el turno $turns tras $actions acciones y no hice el resto"
         }
 
         val secs = started.elapsedNow().inWholeSeconds
-        // Terminó con un mensaje: dilo en voz alta.
-        if (summary.isNotBlank()) {
+        // Terminó con un mensaje: dilo en voz alta. «Listo.» SOLO SI NO HUBO RESUMEN: tras el resumen era decir dos veces
+        // que terminó (spec 009, promesa 907; lo mismo que U.exe en AgentLoop.cs).
+        var listo = false
+        if (!terminado) {
+            // Se acabaron los turnos sin que el cerebro terminara: ni «Listo.» ni un texto de a mitad como resultado, que
+            // el prompt le prohíbe escribir mientras tiene llamadas (spec 009, promesa 907). Lo único cierto es que no acabó.
+            summary = NO_TERMINE
+            if (announce) voice.speak(summary)
+        } else if (summary.isNotBlank()) {
             voice.speak(summary)
         } else if (actions == 0 && announce) {
-            // No dijo nada y no hizo nada: una frase corta y humana, jamás un listado técnico.
-            summary = "Mmm, no estoy seguro de haberte entendido. ¿Me lo dices de otra forma?"
+            // No dijo nada y no hizo nada: una frase corta, sin tú ni usted, jamás un listado técnico.
+            summary = NO_ENTENDI
             voice.speak(summary)
+        } else {
+            listo = announce
         }
-        log.log("run", "■ ${turns} turnos · $actions acciones · ${secs}s · resumen de ${summary.length} caracteres")
-        if (announce) voice.narrate("¡Listo! 🎉")
+        log.log("run", "■ ${turns} turnos · $actions acciones · ${secs}s · resumen de ${summary.length} caracteres" + if (terminado) "" else " · sin terminar")
+        if (listo) voice.narrate(LISTO)
         return summary.ifBlank { "Hecho" }
+    }
+
+    /**
+     * LO QUE EL MOTOR DICE POR SU CUENTA (spec 009). Ü no habla con emojis ni con frases de máquina, y estas frases no
+     * tutean ni ustedean: Android todavía no sabe si le habla a un médico o a una persona. Lo que viaja cuando una
+     * pregunta se queda sin respuesta es el HECHO, no una orden: decía «usa tu mejor criterio», lo contrario de la
+     * constitución («si preguntaste y no te contestan, … el dato no se inventa y lo que no se puede deshacer no se hace»).
+     * Empieza como el «(sin respuesta)» de Graph y dice lo mismo que U.exe (`AgentLoop.SinRespuesta`).
+     */
+    companion object {
+        const val EN_MARCHA = "En marcha."
+        const val LISTO = "Listo."
+        const val NO_ENTENDI = "No entendí qué hacer. ¿Cómo sería con otras palabras?"
+        const val NO_TERMINE = "No alcancé a terminar; quedó a medias."
+        const val PARE = "Paré."
+        const val SIN_RESPUESTA = "(sin respuesta: la persona no contestó)"
+        const val SIN_CANAL = "(sin respuesta: no hay a quién preguntarle)"
     }
 
     /** Con el alto echado no se sigue: ni otra acción ni otro turno. */

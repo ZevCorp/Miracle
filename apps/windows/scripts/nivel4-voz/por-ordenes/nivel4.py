@@ -6,7 +6,7 @@ voz, delegado, manos— y lee de SU log la línea voz-turno de cada pedido.
     python nivel4.py <U.exe> <carpeta de datos> <puerto desde el que buscar uno libre> <etiqueta> "orden 1" "orden 2" ...
 
 - En modo texto la voz no suena y no abre el micrófono. Por eso mismo NO prueba que la voz hable mientras
-  se trabaja: sin micrófono no se le cuenta nada (promesa 685). Eso lo mide sondas/DeLaVoz.
+  se trabaja: sin micrófono no se le cuenta nada (promesa 755). Eso lo mide sondas/DeLaVoz.
 - Solo arranca con el PC quieto, y cierra por PID lo que ella misma abrió.
 - U_NIVEL4_SEMILLA: una config.json con correo, nombre y «PresentacionHecha». Sin correo la Ü se queda en la
   bienvenida y no llega a abrir el MCP.

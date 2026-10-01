@@ -4,13 +4,13 @@ namespace U.WindowsClient.Voice;
 
 /// <summary>
 /// LO QUE LA PERSONA HA TOCADO desde la última vez que se preguntó (spec 074, de la 046), Y CÓMO SE VEÍA LA
-/// PANTALLA AL TOCARLO (spec 078). Es lo que hace que «mira, se hace así» sirva: quien actúa pregunta, y le
+/// PANTALLA AL TOCARLO (spec 079). Es lo que hace que «mira, se hace así» sirva: quien actúa pregunta, y le
 /// llegan los clics con el mismo nombre con que <c>map_take</c> los encuentra, y la foto de cada uno.
 /// </summary>
 /// <remarks>
-/// <para>SE ENTREGA UNA SOLA VEZ (promesa 706). Tomar vacía el rastro: si la siguiente consulta repitiera lo
+/// <para>SE ENTREGA UNA SOLA VEZ (promesa 766). Tomar vacía el rastro: si la siguiente consulta repitiera lo
 /// ya entregado, el mismo paso entraría dos veces en la habilidad.</para>
-/// <para>LA FOTO ES DEL INSTANTE DE PULSAR, no del de resolver (promesa 742). Entre el clic y saber qué era
+/// <para>LA FOTO ES DEL INSTANTE DE PULSAR, no del de resolver (promesa 782). Entre el clic y saber qué era
 /// pasan decenas de milisegundos de UIA, y para entonces la pantalla ya enseña el efecto del clic: el menú
 /// abierto, la ventana siguiente. Lo que explica «pulsé ESTO» es lo que había debajo del cursor al pulsar, y
 /// la captura ya dibuja el cursor encima.</para>
@@ -80,7 +80,7 @@ public sealed class LoQueHiciste
         }
     }
 
-    /// <summary>Un clic resuelto sin saber dónde fue: como hasta la spec 078, sin foto.</summary>
+    /// <summary>Un clic resuelto sin saber dónde fue: como hasta la spec 079, sin foto.</summary>
     public void Anotar(string selector, string etiqueta, string tipo, string proceso)
         => Apuntar(null, -1, -1, selector, etiqueta, tipo, proceso);
 

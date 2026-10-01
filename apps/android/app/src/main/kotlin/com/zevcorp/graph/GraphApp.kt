@@ -170,7 +170,7 @@ class GraphApp : Application() {
                 workflows.save(wf)
                 val sub = wf.steps.count { it.subconscious }
                 LogBus.log("workflow", "🧭 workflow \"${wf.name}\": ${wf.steps.size} steps ($sub subconscientes, ${wf.steps.size - sub} conscientes)")
-                voice.narrate("🧭 Aprendí el flujo \"${wf.name}\" (${wf.steps.size} pasos).")
+                voice.narrate("Aprendí el flujo «${wf.name}» (${wf.steps.size} pasos).")
             }
         }
     }
@@ -490,7 +490,7 @@ class GraphApp : Application() {
         // PRESENTACIÓN OBLIGATORIA: antes de la primera ejecución, el usuario dice su nombre (una
         // sola vez). Con él aparece su tarjeta en el panel Android del Provider Studio.
         if (Telemetry.userName.isBlank()) {
-            val name = bubble?.ask("¡Hola! Soy Ü 😊 Antes de empezar, ¿cómo te llamas?")?.trim().orEmpty()
+            val name = bubble?.ask("¡Hola! Soy Ü. Antes de empezar, ¿cómo te llamas?")?.trim().orEmpty()
                 .filterNot { it == '\n' || it == '\r' }.take(60)
             if (name.isBlank()) return "Necesito tu nombre para poder empezar"
             prefs.edit().putString("userName", name).apply()
@@ -539,8 +539,8 @@ class GraphApp : Application() {
                 else
                     "CONTEXTO INMEDIATO: hace un momento le PREGUNTASTE por voz al usuario: «${it.question}» " +
                         "(app ${it.app}). Si su mensaje es la RESPUESTA a esa pregunta, no ejecutes nada: " +
-                        "agradécele brevemente con speak y termina (su respuesta ya quedó guardada en tu " +
-                        "memoria). Si es una orden nueva, ejecútala."
+                        "contesta en una frase como respuesta final, sin llamar herramientas, y termina (su " +
+                        "respuesta ya quedó guardada en tu memoria). Si es una orden nueva, ejecútala."
             }
             synchronized(goalPrompts) { goalPrompts.clear(); goalPrompts.add(prompt.trim()) }
             running {

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# EL MAPA AL DÍA: tras un merge —y `git pull` es un merge— el mapa de graphify de cada proyecto se
+# rehace en segundo plano. Es el gancho que graphify no instala: sin él, el mapa se queda atrás con
+# cada pull. Sin graphify instalado no hace nada. El porqué está en tools/graphify/refrescar.sh.
+refrescar="$(git rev-parse --show-toplevel)/tools/graphify/refrescar.sh"
+[ -f "$refrescar" ] && bash "$refrescar"
+exit 0

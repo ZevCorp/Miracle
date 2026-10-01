@@ -163,7 +163,7 @@ public static class LoQueUSabe
     }
 
     /// <summary>
-    /// Cómo quiere las cosas (spec 074, promesa 715). Lo escribe <c>LoAprendido</c>; aquí se lee el archivo
+    /// Cómo quiere las cosas (spec 074, promesa 775). Lo escribe <c>LoAprendido</c>; aquí se lee el archivo
     /// sin pasar por él, porque él APARTA un archivo ilegible —lo mueve—, y mirar no puede cambiar lo mirado (626).
     /// </summary>
     private static Apartado Preferencias(Lectura aprendido, DateTimeOffset ahora)
@@ -314,7 +314,7 @@ public static class LoQueUSabe
     }
 
     // AQUÍ ESTABA EL APARTADO «Lo que he visto en tu pantalla», que contaba las fotos del álbum de miradas. El álbum
-    // se fue con la spec 078 (promesa 746): Ü ya no guarda una foto de cada sitio por el que pasa.
+    // se fue con la spec 079 (promesa 786): Ü ya no guarda una foto de cada sitio por el que pasa.
 
     private static Apartado Sitios(Fuentes f)
     {

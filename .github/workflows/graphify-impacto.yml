@@ -1,0 +1,93 @@
+name: Graphify · a quién afecta el PR
+
+# Deja en cada PR UN comentario que dice a quién afecta: qué archivos de fuera del cambio llaman o
+# referencian lo que el PR toca, con archivo y línea, y qué documentos lo citan. Es el mismo
+# `tools/graphify/impacto.sh` que se corre a mano; aquí nadie tiene que instalar nada ni acordarse.
+#
+# Por qué (2026-10-01): somos varios sobre el mismo código y la zona de choque se anunciaba de
+# memoria («toca la UI»). Medido con agentes, averiguar quién depende de UNA clase costó entre 5 y
+# 10 búsquedas; el mapa lo contesta en una para todo el PR. El mapa se construye aquí con el código
+# del PR: solo lee el código (AST), no usa IA y no cuesta nada.
+#
+# NO es parte de la compuerta (monorepo.yml) y no bloquea nada: informa. Si falla, el PR se mergea
+# igual; por eso no se añade a los checks obligatorios de `main`.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: impacto-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  impacto:
+    # Un PR desde un fork trae un token de solo lectura y no podría comentar.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE: origin/${{ github.base_ref }}
+      PR: ${{ github.event.pull_request.number }}
+      REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Qué proyectos toca
+        id: toca
+        run: |
+          proyectos="$(git diff --name-only "$(git merge-base "$BASE" HEAD)" HEAD \
+            | awk -F/ '($1=="apps"||$1=="services") && NF>2 {print $1"/"$2}' | sort -u | tr '\n' ' ')"
+          echo "proyectos=$proyectos" >> "$GITHUB_OUTPUT"
+          echo "Toca: ${proyectos:-ningún proyecto}"
+
+      # La misma versión que tools/graphify/instalar.ps1 e instalar.sh: otro graphify, otro mapa.
+      - name: graphify
+        if: steps.toca.outputs.proyectos != ''
+        run: pip install --quiet graphifyy==0.9.71
+
+      - name: El mapa de cada proyecto, con el código del PR
+        if: steps.toca.outputs.proyectos != ''
+        env:
+          PYTHONHASHSEED: '0'
+        run: |
+          for p in ${{ steps.toca.outputs.proyectos }}; do
+            [ -d "$p" ] || continue
+            echo "── $p"
+            (cd "$p" && graphify update . 2>&1 | tail -3)
+          done
+
+      - name: A quién afecta
+        if: steps.toca.outputs.proyectos != ''
+        run: |
+          {
+            echo '<!-- graphify-impacto -->'
+            bash tools/graphify/impacto.sh --base "$BASE" > impacto.md; codigo=$?
+            head -c 60000 impacto.md
+            [ "$codigo" -eq 0 ] || echo "_El mapa no pudo mirar todo (salida $codigo); lo de arriba es parcial._"
+            echo
+            echo "<sub>Lo calcula \`tools/graphify/impacto.sh\` sobre el mapa de graphify del PR. Dice quién usa lo que cambiaste, no si se rompe: eso lo dicen el contrato y la prueba. Se actualiza con cada push.</sub>"
+          } > comentario.md
+          cat comentario.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Un solo comentario, que se actualiza
+        if: steps.toca.outputs.proyectos != ''
+        run: |
+          id="$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.body | startswith("<!-- graphify-impacto -->")) | .id' | head -1)"
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@comentario.md > /dev/null
+          else
+            gh pr comment "$PR" --repo "$REPO" --body-file comentario.md
+          fi

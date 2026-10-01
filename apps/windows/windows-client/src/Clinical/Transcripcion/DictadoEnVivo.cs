@@ -42,7 +42,7 @@ public sealed class DictadoEnVivo : IDisposable
     private readonly GraphConfig _config;
     private readonly LiveAudio _audio;
     private readonly SesionMiracle? _sesion;
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(25) };
+    private static readonly HttpClient Http = U.Graph.RedDeGraph.Cliente(TimeSpan.FromSeconds(25));   // con el sello (promesa 686)
 
     private ClientWebSocket? _ws;
     private CancellationTokenSource? _vida;

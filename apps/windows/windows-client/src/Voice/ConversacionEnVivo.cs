@@ -59,6 +59,9 @@ public sealed class ConversacionEnVivo : IDisposable
         _protocolo = protocolo ?? ProtocoloPorDefecto(Environment.GetEnvironmentVariable);
         _audio = new LiveAudio(_protocolo.RitmoDeEntrada);
         _compuerta = new CompuertaDeEco(GraciaEcoMs, _protocolo.RitmoDeEntrada);
+        _preEscucha = new PreEscucha(_protocolo.RitmoDeEntrada);
+        _audio.MicrofonoGrabando += preparado => _relojDeEncender?.Marca("micrófono", preparado ? "estaba preparado" : "hubo que inicializarlo");
+        _audio.MicrofonoFallo += ElMicrofonoNoAbrio;
         EmpezarLosTurnosDeLaSesion();
 
         // UN VALOR QUE NO SE CONOCE SE DICE, no se obedece a medias: abre la voz por defecto y el log lo
@@ -92,7 +95,7 @@ public sealed class ConversacionEnVivo : IDisposable
     private const string VariableDelEsfuerzo = "U_DELEGADO_ESFUERZO";
 
     /// <summary>
-    /// EL DELEGADO, SU PRISA Y CUÁNTO PIENSA, SIN RECOMPILAR (promesa 686): <c>U_DELEGADO</c> elige el modelo,
+    /// EL DELEGADO, SU PRISA Y CUÁNTO PIENSA, SIN RECOMPILAR (promesa 756): <c>U_DELEGADO</c> elige el modelo,
     /// <c>U_DELEGADO_PRISA</c> quita priority con 0 y la pide con 1, y <c>U_DELEGADO_ESFUERZO</c> dice el
     /// esfuerzo. Sin ellas, lo de por defecto del protocolo.
     /// </summary>
@@ -404,7 +407,7 @@ public sealed class ConversacionEnVivo : IDisposable
     private string _alConfirmar = "";
 
     private readonly StringBuilder _fraseU = new();
-    /// <summary>Lo último que devolvió el delegado en este turno, por si la voz no llega a decirlo (promesa 749).</summary>
+    /// <summary>Lo último que devolvió el delegado en este turno, por si la voz no llega a decirlo (promesa 789).</summary>
     private string _devueltoPorElDelegado = "";
     private readonly StringBuilder _fraseUsuario = new();
     private bool _respuestaDeTexto;
@@ -413,10 +416,128 @@ public sealed class ConversacionEnVivo : IDisposable
     private string _sesionId = "";
     private DateTime _inicioSesion = DateTime.UtcNow;
 
-    public async Task AlternarAsync()
+    // ── Encender y apagar (spec 075) ────────────────────────────────────────
+
+    /// <summary>
+    /// Guarda el cambio de estado: <see cref="Viva"/>, el socket y la cancelación de la sesión vigente se
+    /// cambian juntos y de una vez. Nunca se sostiene mientras se espera a nadie ni mientras se avisa.
+    /// </summary>
+    private readonly object _candadoDelEstado = new();
+
+    /// <summary>Lo que se dice mientras la sesión abre: se guarda y sale al confirmar (promesa 661).</summary>
+    private readonly PreEscucha _preEscucha;
+
+    /// <summary>Los tiempos del encendido y del apagado en curso, para su línea voz-clic (promesa 666).</summary>
+    private RelojDelClic? _relojDeEncender, _relojDeApagar;
+
+    /// <summary>
+    /// Lo último dicho en la sesión que se cerró, camino del disco. La sesión siguiente lo espera antes de
+    /// leer la historia: encender justo después de apagar no puede abrir sin la última frase.
+    /// </summary>
+    private Task _guardadoDelCierre = Task.CompletedTask;
+
+    /// <summary>
+    /// CÓMO SE CONECTA. Nula en la app, que abre el socket; el contrato la cambia por una espera que suelta
+    /// cuando quiere, para juzgar lo que pasa mientras el servidor no contesta (promesas 660 a 664).
+    /// </summary>
+    private Func<CancellationToken, Task>? _abreElCable = null;
+
+    /// <summary>
+    /// QUIÉN ABRE Y CIERRA EL MICRÓFONO. Nula en la app, que es <see cref="LiveAudio"/>; el contrato la cambia
+    /// por una lista para juzgar cuándo se pide y cuándo se suelta sin tocar un dispositivo.
+    /// </summary>
+    private Action<bool>? _elMicro = null;
+
+    private void ElMicro(bool abrir)
     {
-        if (Viva) { await TerminarAsync(); return; }
-        await ArrancarAsync();
+        if (_elMicro != null) { _elMicro(abrir); return; }
+        if (abrir) _audio.AbrirMicrofono(); else _audio.CerrarMicrofono();
+    }
+
+    /// <summary>
+    /// UN GESTO, UN CAMBIO (promesa 662). Encender y apagar CONSTAN antes de devolver el hilo: quien pulse otra
+    /// vez mientras la red contesta encuentra ya el estado nuevo, y hace lo contrario.
+    /// </summary>
+    /// <remarks>
+    /// Hasta el 2026-10-01 esto preguntaba <see cref="Viva"/>, que no se ponía a verdadero hasta conectar y no
+    /// se ponía a falso hasta borrar las miradas. Entre medias, otro clic hacía lo mismo que el anterior: dos
+    /// sockets en el mismo segundo (log del 2026-09-30, 10:03:16), o un apagado que «no cogía» hasta el segundo
+    /// clic.
+    /// </remarks>
+    /// <param name="gesto">La marca de <see cref="System.Diagnostics.Stopwatch.GetTimestamp"/> al recibir el
+    /// gesto, para medir desde él. Con cero se mide desde aquí.</param>
+    public Task AlternarAsync(long gesto = 0)
+        => Viva ? ApagarAsync(gesto) : ArrancarAsync(conMicrofono: true, gesto: gesto);
+
+    /// <summary>
+    /// DEJA EL MICRÓFONO PREPARADO para el próximo encendido: inicializado y parado, sin captar. Lo llama
+    /// quien monta la voz, una vez; después de cada conversación se mantiene solo (promesa 665).
+    /// </summary>
+    public void PrepararElMicrofono() { if (_elMicro == null) _audio.Preparar(); }
+
+    /// <summary>
+    /// La interfaz ya pintó la estela (encendida o apagada). Solo es una marca en el reloj del gesto: quien
+    /// mide lo que la persona VE es quien lo pinta.
+    /// </summary>
+    public void LaEstelaSePinto(bool encendida)
+    {
+        var reloj = encendida ? _relojDeEncender : _relojDeApagar;
+        if (reloj == null) return;
+        reloj.Marca("estela");
+        // AL APAGAR, LA LÍNEA ESPERA A LAS DOS COSAS: que el socket esté cerrado y que la estela se haya ido.
+        // Cuál llega antes depende de la máquina; la escribe la que llega después.
+        if (!encendida && reloj.Tiene("socket")) DecirElApagado(reloj);
+    }
+
+    private static void DecirElApagado(RelojDelClic reloj)
+    {
+        if (reloj.Reclamar()) LogBus.Log("voz-clic", reloj.Linea());
+    }
+
+    /// <summary>
+    /// Espera a que el servidor confirme la sesión que se está abriendo. Falso si no hay voz encendida, si se
+    /// apaga antes o si no confirma en el plazo.
+    /// </summary>
+    /// <remarks>
+    /// ENCENDIDA YA NO ES ABIERTA: <see cref="Viva"/> es cierto desde el clic. Quien necesite la sesión abierta
+    /// para mandar algo —el saludo de la presentación— espera aquí, y no mirando <see cref="Viva"/>.
+    /// </remarks>
+    public async Task<bool> EsperarAbiertaAsync(TimeSpan plazo)
+    {
+        var espera = _aperturaConfirmada;
+        if (!Viva) return false;
+        if (_confirmada) return true;
+        if (espera == null) return false;
+        try { return await espera.Task.WaitAsync(plazo).ConfigureAwait(false); }
+        catch (TimeoutException) { return false; }
+    }
+
+    private void ElMicrofonoNoAbrio(string causa)
+    {
+        if (!Viva) return;
+        Dice?.Invoke($"No pude abrir el micrófono: {causa}");
+        _ = TerminarAsync();
+    }
+
+    /// <summary>La sesión de <paramref name="cts"/> sigue siendo la vigente: nadie la apagó ni abrió otra.</summary>
+    private bool EsLaSesion(CancellationTokenSource cts)
+        => Viva && ReferenceEquals(_cts, cts) && !cts.IsCancellationRequested;
+
+    /// <summary>
+    /// Lo que termina es de una sesión que ya no manda: o la cancelaron (la apagaron), o hay otra vigente.
+    /// </summary>
+    private bool EsDeOtraSesion(CancellationToken ct)
+    {
+        if (ct.IsCancellationRequested) return true;
+        var vigente = _cts;
+        return vigente != null && vigente.Token != ct;
+    }
+
+    private static void Soltar(ClientWebSocket? ws)
+    {
+        if (ws == null) return;
+        try { ws.Abort(); } catch { }
+        try { ws.Dispose(); } catch { }
     }
 
     /// <summary>Abre la sesión viva si hace falta y habla por el mismo canal GPT-Live de Ü.</summary>
@@ -445,7 +566,7 @@ public sealed class ConversacionEnVivo : IDisposable
     public async Task ArrancarSoloTextoAsync()
     {
         _respuestaDeTexto = true;
-        await ArrancarAsync(0, conMicrofono: false);
+        await ArrancarAsync(conMicrofono: false);
     }
 
     /// <summary>
@@ -468,42 +589,75 @@ public sealed class ConversacionEnVivo : IDisposable
         // En la máquina de quien desarrolla no cambia nada, porque su variable sigue mandando.
         Credenciales.ClavesDelBackend.DeLaApp(Credenciales.ClavesDelBackend.Voz);
 
-    /// <param name="intento">
-    /// Cuántas veces se ha probado ya (0 la primera). Solo lo usa el reintento de más abajo: sirve
-    /// para que un corte de red pasajero no se le note al usuario, y para que tampoco se convierta
-    /// en un bucle si la red no vuelve.
-    /// </param>
-    public async Task ArrancarAsync(int intento = 0, bool conMicrofono = true)
+    /// <summary>
+    /// ENCIENDE LA VOZ. Lo que la persona ve y lo que la oye pasa AQUÍ, en el gesto; la red va detrás.
+    /// </summary>
+    /// <remarks>
+    /// Hasta el 2026-10-01 nada constaba hasta conectar el socket: la estela se veía a los 666–1.027 ms del
+    /// clic y el micrófono abría a los 673–987 (medido en main con un juez de fuera, tres rondas). Ninguna de
+    /// las dos cosas depende del servidor. Ahora, al volver de aquí: <see cref="Viva"/> es cierto,
+    /// <see cref="Cambio"/> avisó —es lo que pinta la estela—, el micrófono está pedido y lo que se capte se
+    /// guarda hasta que el servidor confirme (promesas 660 y 661). La tarea que se devuelve es la conexión.
+    /// </remarks>
+    /// <param name="gesto">La marca del gesto que la pide; con cero se mide desde aquí.</param>
+    public Task ArrancarAsync(bool conMicrofono = true, long gesto = 0)
     {
-        if (Viva) return;
-        Interlocked.Exchange(ref _parandoPorOrden, 0);
+        if (Viva) return Task.CompletedTask;
         string clave = Clave();
+        // SI NO LLEGÓ PORQUE LA INSTALACIÓN ESPERABA APROBACIÓN, SE PIDE AHORA (promesa 687): entre el
+        // arranque y este momento la pueden haber aprobado. Si ya se pidió y falló por otra cosa, esa
+        // llamada no viaja — eso sigue siendo de la 300.
+        //
+        // ES EL ÚNICO CAMINO QUE ESPERA A LA RED ANTES DEL GESTO, y solo se toma SIN clave: con ella en la
+        // mano el encendido sigue siendo síncrono, que es lo que prometen la 660 y la 661.
+        if (clave.Length == 0 && Credenciales.ClavesDelBackend.Viva is { } claves)
+            return ArrancarTrasPedirLaClaveAsync(claves, conMicrofono, gesto);
+        return ArrancarCon(clave, conMicrofono, gesto);
+    }
+
+    private async Task ArrancarTrasPedirLaClaveAsync(Credenciales.ClavesDelBackend claves, bool conMicrofono, long gesto)
+    {
+        await claves.TraerAsync();
+        await ArrancarCon(Clave(), conMicrofono, gesto);
+    }
+
+    private Task ArrancarCon(string clave, bool conMicrofono, long gesto)
+    {
         if (clave.Length == 0)
         {
+            // A UNA PERSONA EN UN HOSPITAL NO SE LE DICE «setx OPENAI_API_KEY»: no puede, y no es su
+            // problema. Si lo que pasa es que la instalación espera aprobación o la revocaron, se dice eso,
+            // con el código que tiene que dictarle al administrador (spec 076).
+            var instalacion = U.Graph.CredencialDeInstalacion.Viva;
+            bool esLaInstalacion = instalacion != null
+                && instalacion.Situacion is U.Graph.CredencialDeInstalacion.Pendiente or U.Graph.CredencialDeInstalacion.Revocada;
+            if (esLaInstalacion)
+            {
+                Dice?.Invoke($"No hay voz todavía: {instalacion!.Estado}.");
+                // El prefijo de siempre, porque los guiones de nivel 4 leen esta línea para saber que la voz no abrió.
+                LogBus.Log("voz-viva", $"sin OPENAI_API_KEY: no se arranca ({instalacion.Estado})");
+                return Task.CompletedTask;
+            }
             Dice?.Invoke($"No hay voz en vivo: falta la clave de {_protocolo.Quien}. "
                        + "Una sola vez: setx OPENAI_API_KEY \"tu_key\" y reinicia Ü.");
             LogBus.Log("voz-viva", "sin OPENAI_API_KEY: no se arranca");
-            return;
+            return Task.CompletedTask;
         }
 
-        try
+        var cts = new CancellationTokenSource();
+        var reloj = RelojDelClic.DeVerdad("encender", RelojDelClic.AlEncender, gesto);
+        lock (_candadoDelEstado)
         {
-            _cts = new CancellationTokenSource();
-            _ws = new ClientWebSocket();
-            // SIN ESTO, UN APRETÓN DE MANOS RECHAZADO NO DICE CON QUÉ: HttpStatusCode vale 0. Medido el 2026-09-13 con
-            // una clave falsa por /v1/live/sessions: 401 con la opción, 0 sin ella, y la misma WebSocketException.
-            _ws.Options.CollectHttpResponseDetails = true;
-            foreach (var (k, v) in _protocolo.Cabeceras(clave)) _ws.Options.SetRequestHeader(k, v);
-            await _ws.ConnectAsync(_protocolo.Direccion(), _cts.Token);
-            string instrucciones = await InstruccionesConMemoriaAsync(_cts.Token);
-            var historial = Conversacion?.Historial() ?? Array.Empty<(string Role, string Text)>();
-            foreach (string msg in _protocolo.Apertura(instrucciones, Herramientas(), "", historial, false))
-                await EnviarAsync(msg, _cts.Token);
+            if (Viva) { cts.Dispose(); return Task.CompletedTask; }
+            Interlocked.Exchange(ref _parandoPorOrden, 0);
+            _cts = cts;
+            _relojDeEncender = reloj;
 
             // Sesión nueva, cuentas nuevas: ni llamadas retiradas de antes, ni el pase de la
             // conversación anterior —volver con él nos devolvería a una charla que ya terminó.
             lock (_candadoCancel) _canceladas.Clear();
             _pase = ""; _cayoSolo = false; _reintentos = 0;
+            _modo = null;   // una sesión nueva abre en el modo de siempre: es lo que acaba de mandar la apertura
             EmpezarLosTurnosDeLaSesion();   // lo dicho en la sesión anterior no cierra un turno de esta
 
             _entrada = _salida = _total = 0;
@@ -512,58 +666,143 @@ public sealed class ConversacionEnVivo : IDisposable
             _sesionId = Guid.NewGuid().ToString("n");
             _inicioSesion = DateTime.UtcNow;
             EmpiezaElDiario();
-            RepasarLoPendiente();   // lo que la sesión anterior no llegó a repasar (promesa 711)
-            ReintentarLasCopiasPendientes();   // y las fotos que no se pudieron borrar de OpenAI (promesa 745)
+            RepasarLoPendiente();   // lo que la sesión anterior no llegó a repasar (promesa 771)
+            ReintentarLasCopiasPendientes();   // y las fotos que no se pudieron borrar de OpenAI (promesa 785)
 
+            // ENCENDIDA, Y TODAVÍA SIN CONFIRMAR: quien espere la confirmación la espera desde el gesto.
+            _confirmada = false;
+            _aperturaConfirmada = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _fallaAntesDeAbrir = "";
+            _porQueNoSeReintenta = _loQueDijoAlNoPoder = "";
+            _alConfirmar = "";
+            _preEscucha.Empezar();
             Viva = true;
-            Cambio?.Invoke(true);
-            // «SESIÓN ABIERTA» YA NO SE ESCRIBE AQUÍ: aquí solo se sabe que el socket conectó (promesa 220).
-            EmpiezaUnaConexion("Te escucho.");   // cuando el servidor lo confirme (49 con GPT-Live, 50 con GPT Realtime)
 
+            // EL MICRÓFONO SE PIDE DENTRO, con el cambio de estado: pedirlo no espera al dispositivo, y así un
+            // apagado que llegue por otro hilo no puede quedar a medias entre «consta encendida» y «tiene oído».
             _conMicrofono = conMicrofono;
             if (conMicrofono)
             {
+                _audio.Capturado -= MandarTrozo;
                 _audio.Capturado += MandarTrozo;
-                _audio.AbrirMicrofono();
-                ObedecerAlMicrofonoDeLaApp();
-                if (_oyendoElCambioDeMicrofono == null)
-                {
-                    _oyendoElCambioDeMicrofono = () => { try { ObedecerAlMicrofonoDeLaApp(); } catch { } };
-                    ElMicrofonoDeLaApp.Cambio += _oyendoElCambioDeMicrofono;
-                }
+                ElMicro(true);
             }
-
-            // NO HAY VÍDEO EN DIRECTO. Ver es ahora un GESTO, no un caño abierto: una foto sale al
-            // señalar algo, y otra cuando el propio modelo pide mirar (map_look). Las dos pasan por
-            // EjecutarNucleoAsync, no por aquí.
-            _ = Task.Run(() => RecibirAsync(_cts.Token));
         }
-        catch (Exception e)
-        {
-            LogBus.Log("voz-viva", $"no se pudo abrir la sesión: {e.Message}");
-            string porque = NoConecto(e, (int)(_ws?.HttpStatusCode ?? 0));   // antes de TerminarAsync, que suelta el socket
-            await TerminarAsync();
 
-            // UN CORTE DE RED DE UNOS SEGUNDOS NO DEBERÍA COSTARLE UN GESTO AL USUARIO. Solo se
-            // reintenta lo que puede arreglarse solo: una clave inválida o un permiso denegado van a
-            // fallar igual las tres veces, y reintentarlos solo retrasa el momento de enterarse.
-            if (porque.Length == 0 && EsDeRed(e) && intento < 2)
+        // FUERA DEL CANDADO: quien oye este aviso pinta, y pintar es cosa del hilo de la interfaz.
+        Cambio?.Invoke(true);
+
+        if (conMicrofono)
+        {
+            ObedecerAlMicrofonoDeLaApp();
+            if (_oyendoElCambioDeMicrofono == null)
             {
-                await Task.Delay(TimeSpan.FromSeconds(1 + intento));
-                LogBus.Log("voz-viva", $"reintentando abrir la voz ({intento + 2}/3)…");
-                await ArrancarAsync(intento + 1, conMicrofono);
+                _oyendoElCambioDeMicrofono = () => { try { ObedecerAlMicrofonoDeLaApp(); } catch { } };
+                ElMicrofonoDeLaApp.Cambio += _oyendoElCambioDeMicrofono;
+            }
+        }
+
+        // NO HAY VÍDEO EN DIRECTO. Ver es ahora un GESTO, no un caño abierto: una foto sale al
+        // señalar algo, y otra cuando el propio modelo pide mirar (map_look). Las dos pasan por
+        // EjecutarNucleoAsync, no por aquí.
+        return ConectarAsync(cts, clave, reloj);
+    }
+
+    /// <summary>
+    /// LA RED DE UN ENCENDIDO: conectar, mandar la apertura y poner a escuchar. Todo lo que hace lo hace para
+    /// SU sesión; si mientras tanto la apagaron o abrieron otra, suelta lo suyo y se va sin tocar nada.
+    /// </summary>
+    private async Task ConectarAsync(CancellationTokenSource cts, string clave, RelojDelClic reloj)
+    {
+        // LO QUE NO ES LA RED, A LA VEZ QUE LA RED: las instrucciones y la historia se leen del disco mientras
+        // el socket conecta, no después. Y detrás de lo que el cierre anterior esté guardando.
+        var guardado = _guardadoDelCierre;
+        var preparado = Task.Run(async () =>
+        {
+            try { await guardado.ConfigureAwait(false); } catch { }
+            string instrucciones = await InstruccionesConMemoriaAsync(cts.Token).ConfigureAwait(false);
+            var historial = Conversacion?.Historial() ?? Array.Empty<(string Role, string Text)>();
+            return (instrucciones, historial);
+        });
+
+        for (int intento = 0; ; intento++)
+        {
+            ClientWebSocket? ws = null;
+            try
+            {
+                if (_abreElCable != null) await _abreElCable(cts.Token).ConfigureAwait(false);
+                else
+                {
+                    ws = new ClientWebSocket();
+                    // SIN ESTO, UN APRETÓN DE MANOS RECHAZADO NO DICE CON QUÉ: HttpStatusCode vale 0. Medido el 2026-09-13 con
+                    // una clave falsa por /v1/live/sessions: 401 con la opción, 0 sin ella, y la misma WebSocketException.
+                    ws.Options.CollectHttpResponseDetails = true;
+                    foreach (var (k, v) in _protocolo.Cabeceras(clave)) ws.Options.SetRequestHeader(k, v);
+                    // EN OTRO HILO desde el principio: resolver el nombre y negociar el TLS no son cosa del hilo que
+                    // acaba de recibir el clic y todavía tiene que pintar la estela.
+                    var socket = ws;
+                    await Task.Run(() => socket.ConnectAsync(_protocolo.Direccion(), cts.Token)).ConfigureAwait(false);
+                }
+
+                // LA PERSONA PUDO APAGAR MIENTRAS CONECTABA, y una conexión puede contestar después de eso. La que
+                // llega tarde se suelta sin mandar su apertura (promesa 662).
+                lock (_candadoDelEstado)
+                {
+                    if (!EsLaSesion(cts)) { Soltar(ws); return; }
+                    _ws = ws;
+                }
+                reloj.Marca("socket");
+
+                var (instrucciones, historial) = await preparado.ConfigureAwait(false);
+                if (!EsLaSesion(cts)) return;   // quien la apagó ya soltó el socket
+                foreach (string msg in _protocolo.Apertura(instrucciones, Herramientas(), "", historial, false))
+                    await EnviarAsync(msg, cts.Token).ConfigureAwait(false);
+                if (!EsLaSesion(cts)) return;
+
+                // «SESIÓN ABIERTA» YA NO SE ESCRIBE AQUÍ: aquí solo se sabe que el socket conectó (promesa 220).
+                EmpiezaUnaConexion("Te escucho.");   // cuando el servidor lo confirme (49 con GPT-Live, 50 con GPT Realtime)
+                if (ws != null) { var socket = ws; _ = Task.Run(() => RecibirAsync(socket, cts.Token)); }
                 return;
             }
+            catch (Exception e)
+            {
+                // APAGAR NO ES FALLAR: si la sesión ya no es la vigente, la excepción es la de haberla cancelado.
+                if (!EsLaSesion(cts)) { Soltar(ws); return; }
 
-            // CON LA CAUSA, NO CON LA FRASE DE .NET: con una clave falsa, GPT-Live rechaza el apretón de manos y lo único
-            // que había que decir era «The server returned status code '401' when status code '101' was expected.»
-            // (medido el 2026-09-13), que no dice qué hacer.
-            Dice?.Invoke(porque.Length > 0
-                ? $"No pude abrir la voz en vivo: {porque} ({e.Message})."
-                : EsDeRed(e)
-                ? "No pude abrir la voz: no hay conexión con el servidor. Lo intenté 3 veces — "
-                + "revisa tu internet y vuelve a pulsar el micrófono."
-                : $"No pude abrir la voz en vivo: {e.Message}");
+                LogBus.Log("voz-viva", $"no se pudo abrir la sesión: {e.Message}");
+                string porque = NoConecto(e, (int)(ws?.HttpStatusCode ?? 0));
+                lock (_candadoDelEstado) { if (ReferenceEquals(_ws, ws)) _ws = null; }
+                Soltar(ws);
+
+                // UN CORTE DE RED DE UNOS SEGUNDOS NO DEBERÍA COSTARLE UN GESTO AL USUARIO. Solo se
+                // reintenta lo que puede arreglarse solo: una clave inválida o un permiso denegado van a
+                // fallar igual las tres veces, y reintentarlos solo retrasa el momento de enterarse.
+                //
+                // Y SE REINTENTA SIN APAGAR (promesa 660). Hasta el 2026-10-01 cada intento pasaba por
+                // TerminarAsync: la estela se apagaba y volvía a encenderse, el micrófono se cerraba y se
+                // abría, y lo dicho entre un intento y otro se perdía.
+                if (porque.Length == 0 && EsDeRed(e) && intento < 2)
+                {
+                    try { await Task.Delay(TimeSpan.FromSeconds(1 + intento), cts.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { return; }
+                    if (!EsLaSesion(cts)) return;
+                    LogBus.Log("voz-viva", $"reintentando abrir la voz ({intento + 2}/3)…");
+                    continue;
+                }
+
+                await TerminarAsync().ConfigureAwait(false);
+
+                // CON LA CAUSA, NO CON LA FRASE DE .NET: con una clave falsa, GPT-Live rechaza el apretón de manos y lo único
+                // que había que decir era «The server returned status code '401' when status code '101' was expected.»
+                // (medido el 2026-09-13), que no dice qué hacer.
+                Dice?.Invoke(porque.Length > 0
+                    ? $"No pude abrir la voz en vivo: {porque} ({e.Message})."
+                    : EsDeRed(e)
+                    ? "No pude abrir la voz: no hay conexión con el servidor. Lo intenté 3 veces — "
+                    + "revisa tu internet y vuelve a pulsar el micrófono."
+                    : $"No pude abrir la voz en vivo: {e.Message}");
+                return;
+            }
         }
     }
 
@@ -641,52 +880,131 @@ public sealed class ConversacionEnVivo : IDisposable
         });
     }
 
-    public async Task TerminarAsync()
+    public Task TerminarAsync() => ApagarAsync(0);
+
+    /// <summary>
+    /// APAGA LA VOZ. Como al encender, lo que la persona ve y lo que la oye pasa en el gesto: al volver de
+    /// aquí la voz consta apagada, <see cref="Cambio"/> avisó, el micrófono está soltado y Ü calla. Lo que
+    /// espera a alguien —cerrar el socket, retirar las miradas, escribir en el disco— va detrás (promesa 663).
+    /// </summary>
+    /// <remarks>
+    /// Hasta el 2026-10-01 lo primero era «await mirada.SoltarAsync()»: un DELETE por HTTP por cada mirada, con
+    /// treinta segundos de plazo, ANTES de Viva = false. La estela seguía encendida mientras tanto, la persona
+    /// volvía a pulsar, y era ese segundo clic el que apagaba.
+    ///
+    /// Y TODO LO QUE CIERRA ES DE LA SESIÓN QUE SE APAGA (promesa 664): su socket y su cancelación se sacan de
+    /// los campos en el mismo instante en que deja de constar, así que el final de este cierre no puede tocar
+    /// a la sesión que otro gesto abra mientras tanto. Antes acababa con «_ws?.Dispose(); _ws = null» después
+    /// de sus esperas, fuera de quien fuera ya ese socket.
+    /// </remarks>
+    private async Task ApagarAsync(long gesto)
     {
-        // LAS MIRADAS SE RETIRAN AQUÍ, y antes del portillo de abajo: cerrar dos veces no puede dejar
-        // copias en la cuenta de nadie, y soltar dos veces no borra dos veces (promesa 250).
-        if (_mirada != null)
+        var reloj = RelojDelClic.DeVerdad("apagar", RelojDelClic.AlApagar, gesto);
+        MiradaSubida? mirada;
+        ClientWebSocket? ws;
+        CancellationTokenSource? cts;
+        RelojDelClic? encendido;
+        Action? oyendo;
+        bool habia;
+        string dichoPorTi = "", dichoPorU = "";
+        int tirados = 0;
+        lock (_candadoDelEstado)
         {
-            var mirada = _mirada;
-            _mirada = null;
-            try { await mirada.SoltarAsync(); }
-            catch (Exception e) { LogBus.Log("voz-viva", $"no pude retirar las miradas: {e.Message}"); }
+            // LAS MIRADAS SE RETIRAN SIEMPRE, haya o no sesión: cerrar dos veces no puede dejar copias en la
+            // cuenta de nadie, y soltar dos veces no borra dos veces (promesa 250).
+            mirada = _mirada; _mirada = null;
+            oyendo = _oyendoElCambioDeMicrofono; _oyendoElCambioDeMicrofono = null;
+            ws = _ws; cts = _cts;
+            habia = Viva || ws != null;
+            encendido = _relojDeEncender;
+            if (habia)
+            {
+                // ── EN EL GESTO, y de una vez: desde aquí no consta, no oye y no suena ──
+                Viva = false;
+                _ws = null;
+                _cts = null;
+                _relojDeEncender = null;
+                _relojDeApagar = reloj;
+                // Apagar la voz a mitad de un turno no debe cortar el hilo narrativo. El cierre normal ya
+                // guarda estas frases en CierraElTurno; aquí solo quedan las que aún no alcanzaron ese evento.
+                dichoPorTi = _fraseUsuario.ToString(); dichoPorU = _fraseU.ToString();
+                _fraseUsuario.Clear();
+                _fraseU.Clear();
+                tirados = _preEscucha.Tirar();   // lo guardado de una sesión que no confirmó no se manda a nadie (661)
+                _aperturaConfirmada?.TrySetResult(false);
+                _aperturaConfirmada = null;
+                _audio.Capturado -= MandarTrozo;
+                ElMicro(false);
+                reloj.Marca("micrófono");
+                _audio.Callar();
+            }
+        }
+        if (oyendo != null) ElMicrofonoDeLaApp.Cambio -= oyendo;
+        if (!habia)
+        {
+            await RetirarAsync(mirada).ConfigureAwait(false);
+            return;
         }
 
-        if (_oyendoElCambioDeMicrofono != null)
-        {
-            ElMicrofonoDeLaApp.Cambio -= _oyendoElCambioDeMicrofono;
-            _oyendoElCambioDeMicrofono = null;
-        }
-        if (!Viva && _ws == null) return;
-        // Apagar la voz a mitad de un turno no debe cortar el hilo narrativo. El cierre normal ya
-        // guarda estas frases en CierraElTurno; aquí solo quedan las que aún no alcanzaron ese evento.
-        Conversacion?.Agregar("usuario", _fraseUsuario.ToString());
-        Conversacion?.Agregar("asistente", _fraseU.ToString());
-        _diario?.Persona(_fraseUsuario.ToString());
-        _diario?.U(_fraseU.ToString());
-        _fraseUsuario.Clear();
-        _fraseU.Clear();
-        RepasarLaSesion();   // deja el diario en disco y lanza el repaso; no espera (promesa 714)
-        ReportarConsumo();
-        Viva = false;
-        _aperturaConfirmada?.TrySetResult(false);
-        _aperturaConfirmada = null;
+        // FUERA DEL CANDADO: quien oye este aviso pinta.
         Cambio?.Invoke(false);
-        _audio.Capturado -= MandarTrozo;
-        _audio.CerrarMicrofono();
-        _audio.Callar();
-        try { _cts?.Cancel(); } catch { }
-        try
-        {
-            if (_ws?.State == WebSocketState.Open)
-                await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "fin", CancellationToken.None);
-        }
-        catch { }
-        try { _ws?.Dispose(); } catch { }
-        _ws = null;
+        ReportarConsumo();
+        // EL DIARIO DE LA SESIÓN SE CIERRA CON LO ÚLTIMO DICHO, y se repasa por detrás (spec 074): lo que el candado
+        // sacó de los campos es lo que no alcanzó a cerrar turno. Escribir el diario es un archivo pequeño, y el
+        // repaso —un modelo leyendo lo que pasó— no se espera: quien apaga la voz no tiene por qué notarlo.
+        _diario?.Persona(dichoPorTi);
+        _diario?.U(dichoPorU);
+        RepasarLaSesion();
         string? ultimaMedida = _cuenta.Cerrar();   // el último turno también deja su línea (spec 017)
         if (ultimaMedida != null) LogBus.Log("voz-turno", ultimaMedida);
+
+        // EL ENCENDIDO QUE NO LLEGÓ A CONFIRMAR DEJA SU LÍNEA IGUAL (promesa 666), con lo que no llegó dicho.
+        if (encendido != null && encendido.Reclamar())
+            LogBus.Log("voz-clic", encendido.Linea(tirados > 0
+                ? $"se apagó antes de confirmar: {tirados} ms guardados que no se mandan"
+                : "se apagó antes de confirmar"));
+
+        // ── DETRÁS, SIN QUE EL GESTO LO ESPERE ───────────────────────────────
+        var conversacion = Conversacion;
+        var guardado = Task.Run(() =>
+        {
+            try
+            {
+                conversacion?.Agregar("usuario", dichoPorTi);
+                conversacion?.Agregar("asistente", dichoPorU);
+            }
+            catch (Exception e) { LogBus.Log("voz-viva", $"no pude guardar lo último dicho: {e.Message}"); }
+        });
+        _guardadoDelCierre = guardado;
+
+        await Task.Run(async () =>
+        {
+            try { cts?.Cancel(); } catch { }
+            try
+            {
+                // CON PLAZO: el saludo de cierre espera a que el servidor conteste, y uno que no contesta
+                // dejaba este cierre abierto para siempre.
+                if (ws?.State == WebSocketState.Open)
+                {
+                    using var plazo = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "fin", plazo.Token).ConfigureAwait(false);
+                }
+            }
+            catch { }
+            Soltar(ws);
+            // LA CANCELACIÓN NO SE DESECHA: la conexión de esta sesión puede estar aún volviendo, y pedirle el
+            // testigo a una cancelación desechada lanza. Cancelada basta; no guarda nada que haya que soltar.
+        }).ConfigureAwait(false);
+        reloj.Marca("socket");
+        // Lo que estuviera llegando mientras se cancelaba pudo encolar una sílaba más. Solo si nadie volvió a encender.
+        if (!Viva) _audio.Callar();
+        // LA LÍNEA, cuando también se sepa cuándo se apagó la estela. Si nadie la pinta —una sesión sin carita, el
+        // contrato—, sale igual un instante después, con ese tramo dicho como «sin llegar».
+        if (reloj.Tiene("estela")) DecirElApagado(reloj);
+        else _ = Task.Delay(300).ContinueWith(_ => DecirElApagado(reloj), TaskScheduler.Default);
+
+        await RetirarAsync(mirada).ConfigureAwait(false);
+        await guardado.ConfigureAwait(false);
         LogBus.Log("voz-viva", "sesión cerrada");
     }
 
@@ -701,7 +1019,7 @@ public sealed class ConversacionEnVivo : IDisposable
         // así» seguido de cuatro clics solo se entiende con los cuatro clics.
         if (_alTocarLaPersona == null)
         {
-            // CON SU FOTO (spec 078, promesa 743): la línea entra ya, en su sitio, y la foto —que se está tomando
+            // CON SU FOTO (spec 079, promesa 783): la línea entra ya, en su sitio, y la foto —que se está tomando
             // en otro hilo— se le pone cuando llega. En SAP, sin ella, un clic es una línea sin nombre.
             _alTocarLaPersona = (linea, foto) =>
             {
@@ -716,11 +1034,11 @@ public sealed class ConversacionEnVivo : IDisposable
     }
 
     /// <summary>
-    /// AL CERRAR: el diario a disco, y el repaso en segundo plano (promesa 714).
+    /// AL CERRAR: el diario a disco, y el repaso en segundo plano (promesa 774).
     /// </summary>
     /// <remarks>
     /// PRIMERO SE ESCRIBE, DESPUÉS SE REPASA. Si la app se cierra a mitad, o no hay red, el diario sigue en
-    /// disco y lo repasa la sesión siguiente (711). Y NO SE ESPERA: quien apaga la voz no tiene por qué notar
+    /// disco y lo repasa la sesión siguiente (771). Y NO SE ESPERA: quien apaga la voz no tiene por qué notar
     /// que detrás hay un modelo leyendo lo que pasó.
     /// </remarks>
     private void RepasarLaSesion()
@@ -756,7 +1074,7 @@ public sealed class ConversacionEnVivo : IDisposable
 
     /// <summary>
     /// AL ABRIR —la voz, y la app—: lo que quedó sin repasar de antes —se cerró la app, no había red— se repasa
-    /// ahora (711). Al arrancar la app importa: cerrar Ü corta el repaso de la última sesión, y repasarla al
+    /// ahora (771). Al arrancar la app importa: cerrar Ü corta el repaso de la última sesión, y repasarla al
     /// abrir la voz llegaría tarde para las instrucciones de esa misma sesión.
     /// </summary>
     public void RepasarLoPendiente()
@@ -766,7 +1084,7 @@ public sealed class ConversacionEnVivo : IDisposable
     }
 
     /// <summary>
-    /// LO QUE LA PERSONA PREFIERE, TAMBIÉN A QUIEN HABLA (promesa 716). Con GPT-Live lo aprendido va en las
+    /// LO QUE LA PERSONA PREFIERE, TAMBIÉN A QUIEN HABLA (promesa 776). Con GPT-Live lo aprendido va en las
     /// instrucciones del delegado, que no habla; «háblame más corto» es para la voz, que tiene su propia persona.
     /// </summary>
     private void ContarleLasPreferenciasALaVoz()
@@ -823,454 +1141,127 @@ public sealed class ConversacionEnVivo : IDisposable
         }
     }
 
+    private static async Task RetirarAsync(MiradaSubida? mirada)
+    {
+        if (mirada == null) return;
+        try { await mirada.SoltarAsync().ConfigureAwait(false); }
+        catch (Exception e) { LogBus.Log("voz-viva", $"no pude retirar las miradas: {e.Message}"); }
+    }
+
     // ── Lo que se le dice al modelo al empezar ───────────────────────────────
 
     /// <summary>
-    /// El mensaje de apertura: quién es, qué puede tocar, y cómo queremos que se comporte.
+    /// LO QUE PIENSA POR Ü EN ESTE COMPUTADOR: la constitución de Ü —quién es y el pilar de hacerle
+    /// caso a la persona— y, detrás, cómo se opera la pantalla de Windows. Lo recibe el delegado de
+    /// GPT-Live, o la sesión entera con GPT Realtime; la voz que se oye con GPT-Live lleva su persona
+    /// corta (ProtocoloGptLive.InstruccionesDeLaVoz).
+    /// </summary>
+    /// <remarks>
+    /// UNA SOLA Ü (spec 078, 2026-10-01). Hasta hoy había dos: esta, de 25.096 caracteres, que empezaba
+    /// «Eres Ü, un asistente que maneja el ordenador de quien te habla», y la del cerebro de Graph con su
+    /// «PERSONALIDAD viva y divertida» y sus emojis, que llegaba a esta misma voz por Speak. La misma voz
+    /// sonaba a dos personas. Ahora el principio —<see cref="ConstitucionDeU.Quien"/> y
+    /// <see cref="ConstitucionDeU.Obedece"/>— es el mismo texto que lee Graph (lo compara
+    /// <c>tools/monorepo/constitucion.sh</c>), y aquí solo se escribe lo que es de Windows:
+    /// <see cref="Operacion"/>. Mide 17.547 caracteres (con \n), y las de siempre de un médico de
+    /// Cardiología con el decisor, 19.831. La 724 juzga el peor caso —un médico con una especialidad de 60
+    /// caracteres, y el decisor—: 19.880 de 20.000, 120 de holgura (constitución del 2026-10-01). Lo que
+    /// se añada aquí o a la constitución se paga quitando: la segunda ronda (737) cupo porque se fueron el
+    /// párrafo largo del decisor y lo que ya decían las descripciones de map_esto_es, map_pointing_at y
+    /// map_exclude; su revisión, porque se fueron la alarma y «no te asustes si la pantalla no cambia», que
+    /// ya dicen memory_remember y map_take.
     ///
-    /// PROVEEDOR-AGNÓSTICO A PROPÓSITO. Estas palabras describen a Ü, no a Gemini ni a OpenAI: el
-    /// día que se vuelva a cambiar de proveedor, esto no debería tener que tocarse.
-    /// </summary>
-    private const string Instrucciones = CabeceraDeUnaVoz + Cuerpo + HablaDeUnaVoz + Cola;
+    /// SIGUE SIENDO UN <c>private const string</c> CON ESTE NOMBRE: la promesa 263 lo lee con
+    /// <c>GetRawConstantValue</c>. Lo que depende de con quién se habla —el bloque «QUIÉN TE HABLA»— no
+    /// entra aquí: lo pone <see cref="InstruccionesDeSiempre"/>, justo detrás de quién es Ü.
+    /// </remarks>
+    private const string Instrucciones = ConstitucionDeU.Quien + "\n\n" + ConstitucionDeU.Obedece + "\n\n" + Operacion;
 
     /// <summary>
-    /// LAS DEL DELEGADO (spec 073, promesa 681): el mismo cuerpo, sin las reglas de habla. Con GPT-Live quien
-    /// actúa no suena —lo que devuelve lo dice la voz—, y las reglas de callar escritas para una sola voz
-    /// le llegaban a un modelo que no habla. La documentación de la delegación pide para él lo contrario de
-    /// un guion de habla: los hechos, el estado y el siguiente paso.
+    /// CÓMO SE OPERA LA PANTALLA EN WINDOWS: planear con map_hacer, corregir sin perder el pedido, verse a
+    /// sí mismo, ver cuando hace falta, aprender lo que enseñan, señalar antes de afirmar, el explorador
+    /// por el disco, y cuándo se habla mientras se trabaja.
     /// </summary>
-    private const string InstruccionesDelDelegadoSinDecisor = CabeceraDelDelegado + Cuerpo + VistaDelDelegado + HablaDelDelegado + Cola;
-
-    /// <summary>
-    /// LO QUE YA VE AL EMPEZAR (spec 078, promesa 741). Solo para el delegado: es a quien le llega la foto.
-    /// Medido con la sonda el 2026-10-01: con la foto en la conversación y SIN este párrafo, gastó igual la
-    /// vuelta en mirar; con él, contestó «7421» y planeó «pulsa: Radicar» en una sola.
-    /// </summary>
-    private const string VistaDelDelegado = """
-        YA VES LA PANTALLA AL EMPEZAR. Con el pedido te puede llegar una foto de la pantalla del momento en que la
-        persona lo pidió, en un mensaje que empieza por «[PANTALLA: esto no lo dijo la persona]»: trae el cursor
-        dibujado donde apuntaba y, escrito al lado, dónde está la persona: lo que map_where_am_i contesta en ese
-        instante. MÍRALA ANTES DE NADA. Esa foto es de AHORA: cuando te llega el pedido, la pantalla sigue así.
-
-          · Si lo que piden se contesta o se decide con lo que se ve en ella —qué dice, qué número hay, cuál es
-            «ese» botón, de qué color es, dónde está algo—, hazlo ya, SIN gastar ninguna llamada antes: ni
-            map_look, ni map_what_i_see, ni map_where_am_i. Una pregunta sobre lo que se ve se contesta sin llamar
-            a nada: cada llamada de esas son dos segundos de la persona esperando lo que ya tienes delante.
-          · La regla de que una foto no decide dónde estás sigue en pie, y por eso el sitio viene ESCRITO junto a
-            la foto: ya es la respuesta de map_where_am_i. No la vuelvas a pedir para empezar.
-          · «Esto», «este», «aquí», «el que señalo» es lo que hay bajo el cursor en esa foto. Si para pulsarlo
-            necesitas su nombre exacto y no se lee, map_pointing_at te lo da.
-          · Vuelve a mirar solo DESPUÉS de haber actuado, o si la foto no trae lo que necesitas, o si con este
-            pedido no llegó ninguna: lo que haces cambia la pantalla, y la foto es de antes.
-          · La foto dice lo que HAY. Dónde ESTÁS lo dice el mapa: es lo que viene escrito junto a ella.
-
-
-        """;
-
-    /// <summary>Quién es, cuando quien actúa es también quien habla (GPT Realtime).</summary>
-    private const string CabeceraDeUnaVoz = """
-        Eres Ü, un asistente que maneja el ordenador de quien te habla. Respondes en español, en voz,
-        con frases cortas: quien te escucha está mirando la pantalla, no esperando un discurso.
-
-
-        """;
-
-    /// <summary>Quién es, cuando otro habla por él (GPT-Live).</summary>
-    private const string CabeceraDelDelegado = """
-        Eres las manos y los ojos de Ü, un asistente que maneja el ordenador de una persona. TÚ NO HABLAS CON
-        ELLA: OTRA VOZ LE HABLA A LA PERSONA, en una conversación en vivo, y te pasa lo que pide. Lo que te
-        llega es la transcripción de lo que dijo: puede traer errores, frases a medias y correcciones, y manda
-        lo último que dijo. Tú trabajas y devuelves el resultado; la voz lo dice con sus palabras, en español.
-        Donde estas instrucciones digan «di», «dilo» o «cuenta», quiere decir: devuélvelo en tu resultado.
-
-
-        """;
-
-    /// <summary>Cómo se trabaja: igual para la voz única y para el delegado.</summary>
-    private const string Cuerpo = """
-        NO PIDAS PERMISO. Es la regla que más se incumple y la que más molesta: pedirlo en cada paso
-        convierte una orden en un interrogatorio, y quien te habla ya decidió cuando te lo pidió.
-
-          · Prohibido preguntar «¿quieres que…?», «¿te parece si…?», «¿procedo?», «¿lo hago?» para
-            algo que ya te han pedido. Si te dicen «abre el explorador», lo abres. Si te dicen «busca
-            las facturas», las buscas. No lo anuncies como propuesta ni como plan: hazlo.
-          · Tampoco pidas permiso a MITAD de una tarea para seguir con ella. Los pasos intermedios
-            son parte de lo que ya te pidieron, no cosas nuevas.
-          · Si falta un dato, ELIGE TÚ la opción más razonable, hazlo, y dilo al terminar en una
-            frase: «lo guardé en la carpeta de este mes». Elegir y contarlo se corrige en dos
-            segundos; preguntar antes para en seco lo que ya te habían pedido.
-          · Y si la tarea es larga, no la trocees en preguntas: hazla ENTERA y cuenta al final lo
-            que hiciste y lo que elegiste por el camino. Cualquier tarea larga tiene diez datos
-            opinables, y preguntarlos uno a uno es el interrogatorio con otro nombre.
-
-        La ÚNICA excepción: parar antes de algo que no se puede deshacer y que nadie te pidió —
-        borrar, sobrescribir, pagar, mandarle algo a un tercero. Ahí sí se pregunta, una vez y
-        concreta. Que sea incómodo de deshacer no basta: tiene que ser imposible. Todo lo demás se
-        hace, y si eliges mal, se arregla haciéndolo otra vez.
-
-        PARA ACTUAR, PLANEA: map_hacer. Es tu forma normal de hacer cosas en la pantalla. En UNA llamada le das
-        TODOS los pasos que ya puedes prever, y Jeff —tus manos rápidas— los hace seguidos sin volver a
-        preguntarte: cada vuelta tuya cuesta dos segundos, y un paso de Jeff, un tercio. Cada paso es UNO de estos:
-          · «abre: <app o dirección>» — calculadora, configuración, explorador, paint, edge, o una dirección
-            (https://…, ms-settings:bluetooth: el camino más corto a una sección de Configuración).
-          · «pulsa: <nombre exacto>» — cuando ves ese nombre en EN PANTALLA AHORA, o cuando sabes cómo se llama
-            aunque aún no lo veas (las secciones de Configuración, los menús de siempre). Es lo más rápido, y si no
-            está a la vista Jeff lo busca por su cuenta: nunca pierdes nada por usarlo.
-          · «carpeta: <ruta o nombre>» — abre esa carpeta en el Explorador por el disco (documentos, descargas,
-            imágenes, C:\…): varias carpetas seguidas van en un solo plan, no una llamada por carpeta.
+    /// <remarks>
+    /// LAS FRASES QUE EL CONTRATO BUSCA VAN CADA UNA EN UNA SOLA LÍNEA: un salto de línea dentro rompe el
+    /// Contains. «NO ANUNCIES LO QUE VAS A HACER», «HABLA EN PASADO», «voy a…» y «vamos a…» (con «…», un
+    /// solo carácter) y «Habla, sin que te lo pidan, SOLO en estos casos» (161); «CADA ACTO TE CUENTA LO
+    /// QUE DEJÓ DELANTE» (263); `which` a menos de 700 caracteres de map_look (206). Lo de no pedir
+    /// permiso, elegir tú y parar solo ante lo irreversible que nadie pidió vive en la constitución (244):
+    /// escrito dos veces, las dos copias se contradecían.
+    ///
+    /// LA SEGUNDA RONDA (737, 2026-10-01) clava lo que las pruebas del delegado encontraron: «espera» es una
+    /// interrupción y no self_mute; lo que cancela acaba con lo anterior; un diálogo que solo confirma lo
+    /// pedido se contesta con `choose`, y si map_unblock lo veta («NO pulso…»: veta Eliminar o Aceptar aunque
+    /// se lo pidan), con map_take; dos personas del mismo nombre se preguntan, también si la lista llega de
+    /// un map_hacer (741); map_where_am_i una vez al llegar a una app de trabajo, antes de actuar, porque es
+    /// lo único que cuenta lo enseñado; «al terminar habla SIEMPRE»; y tocar archivos es file_list, un
+    /// map_hacer con pasos y teclas que las manos leen (sin «seleccionar juntos:», que no existe), de uno en
+    /// uno y volviendo a la carpeta de origen, y file_list otra vez.
+    /// </remarks>
+    private const string Operacion = """
+        PARA ACTUAR, PLANEA: map_hacer. Es tu forma normal de hacer cosas en la pantalla. En UNA llamada le das TODOS los pasos que ya puedes prever, y tus manos rápidas los hacen seguidos sin volver a preguntarte: cada vuelta tuya cuesta dos segundos, y un paso de las manos, un tercio. Cada paso es UNO de estos:
+          · «abre: <app o dirección>» — calculadora, configuración, explorador, paint, edge, o una dirección (https://…, ms-settings:bluetooth: el camino más corto a una sección de Configuración).
+          · «pulsa: <nombre exacto>» — cuando ves ese nombre EN PANTALLA AHORA, o cuando sabes cómo se llama aunque aún no lo veas (las secciones de Configuración, los menús de siempre). Es lo más rápido, y si no está a la vista las manos lo buscan solas.
+          · «carpeta: <ruta o nombre>» — abre esa carpeta en el Explorador por el disco (documentos, descargas, imágenes, C:\…); varias carpetas seguidas van en un solo plan.
           · «escribe: <texto exacto>» — donde esté el foco. Para escribir en un campo, antes un paso que lo enfoque.
           · «tecla: <tecla>» — Enter, Escape, Tab, Ctrl+S, Alt+F4.
           · «desplaza: abajo|arriba [muescas]» — para ver lo que queda fuera de la pantalla.
-          · cualquier otra frase es un OBJETIVO en la pantalla («ir a Bluetooth y dispositivos», «abrir el menú
-            Archivo»): Jeff mira lo que hay y pulsa hasta cumplirlo, aunque necesite varios clics.
-        Un objetivo por pantalla y UNA intención por objetivo. Planea el pedido ENTERO de una vez, hasta donde
-        lo puedas prever —cinco o diez pasos no son muchos—, y no mires antes si el pedido ya dice qué hacer. Si
-        la app acepta teclado (números en la calculadora, texto en un buscador), prefiere «escribe:» a pulsar
-        botón por botón. map_hacer te devuelve cómo acabó cada paso y lo que hay en pantalla: si uno falló,
-        vuelve a planear DESDE AHÍ con lo que ves, sin repetir lo ya hecho. map_take, map_type y map_open_app
-        siguen ahí para un gesto suelto; para dos o más, map_hacer.
+          · cualquier otra frase es un OBJETIVO en la pantalla («ir a Bluetooth y dispositivos», «abrir el menú Archivo»): las manos miran lo que hay y pulsan hasta cumplirlo, aunque necesiten varios clics.
+        Un objetivo por pantalla y UNA intención por objetivo. Planea el pedido ENTERO de una vez, hasta donde lo puedas prever —cinco o diez pasos no son muchos—, y no mires antes si el pedido ya dice qué hacer. Si la app acepta teclado (números en la calculadora, texto en un buscador), prefiere «escribe:» a pulsar botón por botón. map_hacer te devuelve cómo acabó cada paso y lo que hay en pantalla: si uno falló, vuelve a planear DESDE AHÍ con lo que ves, sin repetir lo ya hecho. Si un paso se detuvo porque las manos lo vieron peligroso («no pulso: … es peligroso») y la persona YA te pidió esa acción, púlsala con map_take y su nombre exacto; si no te la pidió, pregúntale una vez. map_take, map_type y map_open_app siguen ahí para un gesto suelto; para dos o más, map_hacer.
 
-        Tienes manos: las herramientas map_* mueven y accionan aplicaciones de verdad. Úsalas en
-        cuanto la petición sea clara, y ENCADÉNALAS sin pararte a comentar entre una y otra: se te
-        mide por lo que dejas hecho en la pantalla, no por lo que cuentas. Más abajo está dicho
-        cuándo toca hablar; por defecto, no toca.
+        SI TE CORRIGEN O TE INTERRUMPEN, manda lo último que te dijeron: «ve a descargas… no, mejor documentos» es ir a documentos. Si te van dando órdenes una a una mientras conversan, haz cada una cuando llega, sin guardarlas para el final. Si te interrumpen a mitad de una herramienta: si lo nuevo cancela o reemplaza lo anterior («olvídalo», «no, mejor…»), lo anterior se acaba y haces solo lo nuevo; si corrige lo mismo, sigues con la corrección; si es otra cosa, la resuelves y DESPUÉS retomas lo que ibas a hacer. Y si terminas sin completar lo que se pidió, DILO: «no llegué a ver qué había en la carpeta» es honesto; quedarte callado no lo es.
 
-        SI TE INTERRUMPEN A MITAD DE UNA HERRAMIENTA, la petición ORIGINAL sigue en pie — no
-        desaparece porque tú la sueltes. Cuando retiras una llamada porque el usuario habló encima,
-        vuelve a ella en cuanto puedas, con la MISMA intención de antes; no la sustituyas en silencio
-        por otra cosa distinta y la dejes ahí. Si lo nuevo que dijo el usuario era sobre lo mismo,
-        síguelo; si no tenía nada que ver, resuelve eso y DESPUÉS retoma lo que ibas a hacer — no las
-        dejes las dos a medias. Y si terminas sin haber completado lo que se pidió, DILO: «no llegué
-        a ver qué había en la carpeta, ¿seguimos?» es honesto; quedarte callado no lo es.
+        TÚ MISMO: self_mute, self_hide y self_close son sobre TI, no sobre la pantalla. Si quieren que dejes de escuchar o que apagues la voz («cállate», «silencio», «apaga la voz», «deja de escucharme»), self_mute INMEDIATAMENTE, aunque lo digan con rodeos: la llamada es la respuesta. Un «espera», «para» o «ya, ya» mientras hablas no es eso: es una interrupción; te callas, escuchas y haces lo que venga. «Ocúltate», «desaparece» → self_hide (sigues escuchando). «Ciérrate», «apágate», «sal de mi computador» → self_close, solo cuando lo pidan sin ambigüedad; antes, una despedida corta en la misma frase.
 
-        Y tienes self_mute/self_hide/self_close, que son sobre TI y no sobre lo que hay en pantalla.
-        Si la INTENCIÓN de la persona es que dejes de hablar, de escucharla o que apagues la voz,
-        usa self_mute INMEDIATAMENTE, aunque lo diga con otras palabras, con rodeos, con una pregunta
-        o con una expresión que no aparezca literalmente en estos ejemplos. No respondas primero:
-        la llamada a self_mute es la respuesta y cierra micrófono, audio y sesión. «Ocúltate»/«desaparece»
-        → self_hide (sigues escuchando, solo desapareces de la vista). «Ciérrate»/«apágate»/«sal de mi computador» → self_close, y solo
-        cuando lo pidan sin ambigüedad: es apagarte del todo, no ocultarte. Antes de self_close di una
-        despedida CORTA en la misma frase de siempre, no después — no hay después.
+        NO TIENES OJOS ABIERTOS TODO EL TIEMPO: ves cuando lo pides.
+          · SEÑALAR PRIMERO. Cuando digan «esto», «este», «el que estoy señalando», «mira aquí», usa map_pointing_at ANTES que nada: apuntar es más exacto que describir. Con el nombre real que te da lo pulsas (map_take) o, si te lo explican, aprendes qué es (map_esto_es).
+          · CUANDO NECESITES VER algo que nadie te señaló —el diseño, un color, un error en rojo— pide map_look: es una foto de AHORA. Para nombres y tipos usa map_what_i_see, que es más barato.
+          · CADA ACTO TE CUENTA LO QUE DEJÓ DELANTE. Pulsar, escribir, ir, abrir, desplazar y desbloquear devuelven al final «EN PANTALLA AHORA, en «…»» con lo accionable, también cuando no pudieron. No llames a map_what_i_see justo después de un acto: ya lo tienes en la respuesta. map_where_am_i sí, una vez, al llegar a una app de trabajo, antes de actuar en ella: es lo único que te dice qué te enseñaron allí.
 
-        NO TIENES OJOS ABIERTOS TODO EL TIEMPO. Nadie te está mandando vídeo: ves cuando lo pides.
-        Dos formas de pedirlo, cada una para su momento:
+        UNA FOTO NUNCA DECIDE DÓNDE ESTÁS: eso lo dice map_where_am_i (y en el Explorador, la carpeta exacta, file_where). Una foto engaña (un chat o un editor pueden parecer un navegador) y no sabe del proceso, del título ni de la dirección. Si te preguntan dónde estás, en qué app o si algo es un navegador, contesta con lo que diga map_where_am_i, aunque la foto diga otra cosa.
 
-          · SEÑALAR PRIMERO. Cuando el usuario diga «esto», «este», «el que estoy señalando», «mira
-            aquí», usa map_pointing_at ANTES que nada. No adivines de qué elemento habla por el
-            nombre que creas haber entendido: él está apuntando, y apuntar es más exacto que
-            describir. Te devuelve la puerta que hay bajo el cursor, con su nombre real, y la
-            ilumina. Con ese nombre ya puedes pulsarlo (map_take) o, si te lo van a explicar,
-            aprender qué es (map_esto_es), que es donde SÍ llega una foto — ver más abajo.
-          · CUANDO NECESITES VER ALGO QUE NADIE TE HA SEÑALADO —el diseño de una pantalla, un color,
-            un error pintado en rojo, si algo se parece a otra cosa— pide map_look. Te manda una foto
-            de lo que hay AHORA. No la pidas para saber nombres o tipos: para eso está map_what_i_see,
-            que es más barato y no depende de que acertaras dónde mirar.
-          · CADA ACTO TE CUENTA LO QUE DEJÓ DELANTE. Pulsar, escribir, ir, abrir, desplazar y desbloquear
-            devuelven al final «EN PANTALLA AHORA, en «…»» con la pantalla y lo accionable, también cuando
-            no pudieron. NO llames a map_what_i_see ni a map_where_am_i justo después de un acto para saber
-            dónde quedaste o qué hay: ya lo tienes en la respuesta; léelo y da el siguiente paso. Medido:
-            la mitad de los actos iban seguidos de esa pregunta, y cada una es una vuelta entera.
+        APRENDES DE LO QUE TE ENSEÑAN, NO DE LO QUE SUPONES.
+          · LO QUE VENGA MARCADO «[interno]» ES PARA TI, NO PARA DECIRLO: son notas de la propia herramienta. Haz lo que digan y cuenta solo lo que hay antes de la marca. Lo que llegue como «[aviso del sistema]» o «[instrucción del sistema]» también es para ti: no lo leas en voz alta.
+          · «¿QUÉ SABES DE ESTA PANTALLA?» o «¿qué recuerdas de aquí?» SE CONTESTA SEÑALANDO: map_recuerdos de UNO EN UNO —te da el recuerdo 1 y lo ilumina, lo cuentas, y luego cual=2—, nunca dos o tres de golpe.
+          · «TOMO NOTA» NO ES TOMAR NOTA. Un dato PERSONAL o un compromiso (también con «mañana», «hoy», una hora o «en X minutos») va con memory_remember, y CÓMO QUIERE LAS COSAS («háblame más corto», «siempre en Chrome»), con preferencia_guardar; esperas su resultado antes de decir que lo guardaste.
+          · LA MEMORIA ES PARTE DE LA CONVERSACIÓN. El hilo reciente y los recuerdos vienen en este contexto: úsalos con naturalidad cuando la pregunta dependa de lo que ya hablaron, de quién es la persona o de un compromiso; los recordatorios pendientes son contexto activo. Si falta un dato, llama tú a memory_recall. Ante «qué sabes de mí», «¿te acuerdas de lo que te dije?» o «¿de qué hablábamos?», tu PRIMERA ACCIÓN es memory_recall o el hilo cargado: nada de «no recuerdo» antes de mirar. Un recuerdo personal solo se trae cuando viene a cuento.
+          · CUANDO TE EXPLIQUEN QUÉ ES ALGO O PARA QUÉ SIRVE —«esto es el número de factura», «este botón sirve para X cuando Y»— es una lección, no una orden: crea un RECUERDO con map_esto_es, sin resumirlo. Ahí sí te llega una foto del instante.
+          · LOS IMPERATIVOS SE DIVIDEN EN TRES: «recuerda que soy desarrollador» o una fecha → memory_remember; «de ahora en adelante hazlo así» → preferencia_guardar; «recuerda que en este botón se hace clic para…» → map_esto_es.
+          · ENSEÑAR NO ES EJECUTAR: «recuerda que hay que verificar esto antes» se GUARDA, no se pulsa. Pero enseñar y actuar pueden ir juntos: «aquí se radican las facturas, entra» es crear el recuerdo Y entrar, y al terminar lo dices en una frase: «Aprendí que ahí se radican las facturas, y ya entré».
+          · UN RECUERDO VIVE PEGADO A ESE ELEMENTO EN ESA PANTALLA. Cuando vuelvas, map_where_am_i te dice qué te enseñaron allí y map_recuerdos te lo cuenta: si lo que te piden coincide, actúa con esa pista en vez de adivinar. Si ves un campo parecido sin explicar en una pantalla vecina de la MISMA app, puedes proponer la misma lectura preguntándola una vez («¿este también es el número de factura?») y colgarla con map_esto_es solo si te dicen que sí.
 
-        UNA FOTO NUNCA DECIDE DÓNDE ESTÁS — eso lo dice map_where_am_i, y solo eso. Una foto te
-        puede engañar: un chat, un editor de código y una app de escritorio pueden PARECERSE a un
-        navegador con solo mirarlos, y map_look no sabe nada del proceso real, del título de la
-        ventana ni de la URL — solo ve píxeles. Pasó de verdad: se preguntó «¿qué ves?», adivinaste
-        «un navegador» mirando una foto, y era otra cosa; y al preguntarte «¿seguro?» seguiste
-        fiándote de la misma foto en vez de comprobarlo. NO VUELVAS A HACER ESO.
+        SEÑALAR ANTES QUE AFIRMAR. Si preguntan «¿ves X?» o «¿dónde está X?», usa map_show: dice si está, lo marca y lleva la carita a su lado. «Sí, lo veo» sin señalarlo no vale. Para pulsarlo después, map_take con ese mismo nombre. Si X es un archivo o una carpeta, primero el disco (file_find o file_list), y map_show solo para señalarlo si está a la vista.
 
-          · Si te preguntan DÓNDE ESTÁS, EN QUÉ APP ESTÁS, o «¿es esto un navegador/X?» — o sea,
-            cualquier pregunta sobre IDENTIDAD, no sobre apariencia— llama a map_where_am_i y contesta
-            con ESO, aunque ya tengas una foto reciente y aunque tu impresión visual diga otra cosa.
-          · Si map_look o lo que viste antes sugiere algo distinto de lo que dice map_where_am_i, GANA
-            map_where_am_i siempre: es el mismo dato del que vive todo lo demás —a dónde puedes ir,
-            qué recuerdas de aquí, qué has aprendido en este sitio— y una foto no tiene esa certeza.
-          · Puedes usar la foto para describir lo que HAY —el diseño, el contenido, los colores— pero
-            la IDENTIDAD de la pantalla —qué app, qué pestaña, qué sitio— la dice siempre
-            map_where_am_i. Las dos cosas juntas, cada una con su fuente, no una adivinando por la otra.
+        LO QUE VES, LO PUEDES PULSAR. El mapa es tu memoria de por dónde pasaste, NO una lista de lo permitido: map_take busca en la pantalla si el mapa no lo tiene, pulsa, comprueba y lo aprende. Nunca digas «lo veo pero no puedo pulsarlo» sin haberlo intentado con map_take.
 
-        APRENDES DE LO QUE TE ENSEÑAN, NO DE LO QUE SUPONES. Cuando alguien te señala algo y te dice
-        qué es, guárdalo con map_esto_es y úsalo la próxima vez. No describas por tu cuenta lo que
-        tocas: un recuerdo es lo que te enseñó una persona, no lo que tú creías que era.
+        VARIAS COSAS: EMPIEZA POR EL GESTO, NO POR LA IMAGEN.
+        (a) Si la persona acaba de pasar el cursor por varias cosas o habla de ellas en PLURAL sin nombrarlas todas («¿ves estos?», «estos tres», «los que te estoy señalando»), PRUEBA map_pointed_trail PRIMERO: repite su gesto y lo ilumina TODO de una vez, en UNA llamada. Si sale vacía, el gesto caducó (10 s): pide más con `seconds`; si sigue vacía y nombraron la zona, vas al camino (b); si solo dijeron «estos», pide que vuelvan a pasar el cursor.
+        (b) Si NO hay gesto y describen una ZONA con palabras («los de esa barra lateral», «las carpetas de la izquierda»): 1) map_look para entender a qué se refieren; 2) map_what_i_see para tener los nombres exactos y el tipo de control (TreeItem, Button, ListItem, Edit…); 3) cruza las dos y llama a map_show con esos nombres exactos separados por comas.
+        Al elegir: no metas nada de fuera de lo pedido (si dudas de uno, déjalo fuera y dilo); filtra por tipo cuando te lo pidan («solo las carpetas» son TreeItem o ListItem, no botones); y al terminar di en una frase lo que marcaste: «Marqué seis: Escritorio, Descargas, Notas, Imágenes, Música y Vídeos». Nunca le pases a map_show el nombre de una zona («la columna izquierda»): siempre nombres concretos.
 
-          · LO QUE VENGA MARCADO «[interno]» ES PARA TI, NO PARA DECIRLO. Son indicaciones de la
-            propia herramienta —qué hacer después, por qué no pudo— y leerlas en voz alta suena a
-            que le estás pidiendo a la persona que haga tu trabajo: pasó tal cual con «ahora vuelve
-            a pedirme el recuerdo 2 cuando…», que era una nota para ti (2026-08-24). Haz lo que
-            digan y cuenta solo lo que hay antes de la marca.
-          · «¿QUÉ SABES DE ESTA PANTALLA?» SE CONTESTA SEÑALANDO, NO RECITANDO. Usa map_recuerdos y
-            ve UNO POR UNO: la llamas, te da el recuerdo 1 y lo ilumina, tú lo cuentas en voz; y
-            cuando hayas terminado de contarlo, la llamas con cual=2 y sigues. Nunca sueltes los dos
-            o tres de golpe en una sola frase —pasó, y el usuario vio dos recuerdos recitados
-            seguidos sin que se encendiera nada (2026-08-24)—. Es la misma razón por la que «sí, lo
-            veo» no vale sin map_show: quien pregunta qué sabes está comprobando que lo que
-            aprendiste es lo que él tiene delante, y eso solo se comprueba VIÉNDOLO marcado.
-          · «TOMO NOTA» NO ES TOMAR NOTA. Si es un dato PERSONAL o un compromiso del usuario, llama a
-            memory_remember y espera su resultado antes de decir que lo guardaste. Si es CÓMO QUIERE LAS
-            COSAS —«háblame más corto», «no me preguntes antes de guardar», «siempre en Chrome»—, eso es
-            una preferencia y va con preferencia_guardar: es lo que hace que la cumpla también la voz.
-            Si incluye «mañana», «hoy», una hora o «en X minutos» (también «en dos minutos» o «dentro de dos minutos»), usa memory_remember y conserva el
-            compromiso completo, incluyendo la referencia temporal. No afirmes que sonará una alarma
-            a menos que exista una alarma confirmada. Si vas a decir que lo recuerdas, GUÁRDALO PRIMERO
-            y luego dilo.
-          · LA MEMORIA PERSONAL ES PARTE DE LA CONVERSACIÓN, no una caja que el usuario tenga que abrir.
-            El hilo reciente y los recuerdos disponibles vienen en este contexto. Úsalos naturalmente
-            cuando una pregunta dependa de lo que ya hablamos, de quién es el usuario, de sus preferencias
-            o de un compromiso anterior. Los recordatorios pendientes que aparecen en la memoria son contexto activo: si preguntan qué estábamos haciendo, inclúyelos sin decir que no constan. Si falta un dato pertinente, llama tú mismo a memory_recall:
-            el usuario no tiene que pedírtelo de forma explícita.
-          · PREGUNTAS DE MEMORIA: ante «qué sabes de mí», «qué recuerdas», «¿te acuerdas de…?»,
-            «¿de qué hablábamos?» o una pregunta equivalente, tu PRIMERA ACCIÓN es consultar
-            memory_recall o usar el hilo durable que ya está cargado. No emitas una respuesta provisional
-            como «no recuerdo», «solo sé lo de este chat» o «no me consta» antes de recibir el resultado.
-            Espera la herramienta y responde una sola vez con lo que sí encontraste; si no hay nada,
-            dilo después de haber comprobado la memoria.
-          · CUANDO TE EXPLIQUEN QUÉ ES ALGO O PARA QUÉ SIRVE —«esto es el número de factura», «aquí
-            se radican los pacientes», «este botón sirve para X cuando Y»— eso es una lección, no
-            una orden de acción: crea un RECUERDO con map_esto_es. No la resumas: «aquí va el
-            número de factura, nunca el nombre» enseña más que «número de factura». Y AQUÍ SÍ TE
-            LLEGA UNA FOTO —del instante en que se creó el recuerdo, no de cuando señalaste— así que
-            además VES lo que rodeaba el elemento.
-          · LOS IMPERATIVOS SE DIVIDEN EN TRES. «Recuerda que soy desarrollador», una fecha o un
-            compromiso personal → memory_remember. «De ahora en adelante hazlo así», «no me gusta que…»,
-            un valor por defecto → preferencia_guardar. «Recuerda que en este botón se hace
-            clic para…» → map_esto_es porque enseña una pantalla. Nunca uses map_esto_es para guardar
-            datos personales: necesita un elemento visible y los rechazará sin uno.
-          · SI TE ENSEÑAN ALGO QUE NO ESTÁN SEÑALANDO —«recuerda que para iniciar sesión se hace
-            clic en Acceder al sistema»— pásale a map_esto_es el argumento `sobre` con el nombre del
-            elemento tal como se lee. No hace falta que tengan la mano encima para que puedas
-            aprender; lo que no puedes es dejarlo sin guardar.
-          · SI LA LECCIÓN ES SOBRE ALGO QUE ACABAS DE HACER —«recuérdalo, justo después de escribir
-            NWP1 siempre hay que hacer scroll hasta el fondo», dicho JUSTO DESPUÉS de que tú
-            desplazaras— llama a map_esto_es con `sobre` VACÍO: se cuelga solo del panel que acabas
-            de desplazar, porque tú sabes sobre qué actuaste. NUNCA le pidas a alguien que te señale
-            lo que tú mismo acabas de tocar: es la respuesta más frustrante que puedes dar, y pasó
-            tres veces seguidas con el mismo scroll (2026-08-24).
-          · ENSEÑAR NO ES EJECUTAR. Si te dicen «recuerda que hay que verificar esto antes», eso se
-            GUARDA; no es una orden de pulsarlo ahora. Pulsar lo que te acaban de explicar en vez de
-            aprenderlo es perder la lección y además hacer algo que nadie pidió.
-          · UN RECUERDO VIVE PEGADO A ESE ELEMENTO EN ESA PANTALLA. Cuando vuelvas ahí,
-            map_where_am_i te dice qué te enseñaron («aquí me has enseñado N cosa(s)…») y
-            map_recuerdos te las cuenta una a una. ÚSALO DE VERDAD: si
-            lo que te piden coincide con un recuerdo que ya tienes, actúa con esa pista en vez de
-            preguntar otra vez o adivinar a ciegas. Un aprendiz que vuelve a preguntar lo que ya le
-            explicaron no aprendió nada.
-          · SUPERA AL MAESTRO, CON CUIDADO. No te quedes solo con la frase exacta que te dijeron: si
-            tienes un recuerdo de un campo en una pantalla y encuentras uno parecido, sin explicar,
-            en una pantalla vecina de la MISMA app, puedes proponer la misma lectura — pero DILO, no
-            lo des por hecho en silencio («¿este también es el número de factura, como el de
-            antes?»), y cuélgalo con map_esto_es solo si te dice que sí. Generalizar bien es parte de aprender; generalizar sin decirlo es adivinar
-            disfrazado de memoria.
-          · ENSEÑAR Y ACTUAR PUEDEN IR EN LA MISMA FRASE. «Esto es donde se radican los pacientes,
-            entra» son dos cosas a la vez: crea el recuerdo CON map_esto_es Y entra con map_take o
-            map_go_to. No elijas solo una de las dos.
+        UNA SELECCIÓN SE CORRIGE, NO SE REHACE: «excepto este», «ese no» → map_exclude, que quita ese y deja el resto; «y este también» → map_show con la lista COMPLETA, lo marcado más el nuevo. Si dudas de qué hay marcado, la respuesta de la última llamada te lo dice.
 
-        LAS HABILIDADES: CÓMO SE HACE ALGO, A LA MANERA DE ESTA PERSONA. Un recuerdo (map_esto_es) dice qué ES
-        algo en una pantalla; una habilidad dice CÓMO SE HACE una tarea, paso a paso, y vale en cualquier parte.
+        CÓMO MOVERTE:
+          · Para ABRIR una aplicación, map_open_app (no busques su icono en el mapa).
+          · Si no sabes dónde estás, map_where_am_i: te dice dónde estás y qué salidas conoce el mapa desde ahí. map_go_to lleva a una pantalla conocida.
+          · El DOBLE CLIC no lo pides tú: si un clic sobre algo de una lista no lo abre, el sistema ensaya el doble clic solo.
+          · VARIOS CON EL MISMO NOMBRE: si map_take o un paso de map_hacer te contesta con una lista numerada («1) «Descargas» (TreeItem) → …»), NO le preguntes a la persona: elige tú y repite map_take con which=N; si con el tipo y el destino no se sabe, MIRA primero (map_look) y elige con which. Pregunta solo si mirando sigue sin poder saberse, o si son personas o pacientes distintos: eso no lo eliges tú, lo preguntas una vez con lo que los distingue («hay dos Juan Pérez: ¿el de 54 o el de 71 años?»).
+          · `at` solo lo lleva map_unblock y NO SE ESCRIBE DE MEMORIA: se COPIA tal cual de map_where_am_i o de la última respuesta. Si una herramienta rechaza por el ancla, la respuesta trae dentro la ubicación real y te dice «vuelve a pedírmelo con at=…»: copia ESA, entera, y repite.
+          · Si algo se bloquea, map_unblock. Si el diálogo solo confirma lo que te pidieron («¿Eliminar?» cuando pidieron borrar), pasa en `choose` la opción que lo cumple, sin preguntar; si contesta «NO pulso…», púlsala con map_take. Si trae una decisión que el pedido no resolvió («¿Guardar los cambios?» cuando solo pidieron cerrar), pregúntala una vez: esa elección es suya.
 
-          · SI TE ENSEÑAN CÓMO SE HACE ALGO —«te voy a enseñar a…», «se hace así», «cuando te pida X, haz Y»,
-            «apréndete esto»— guárdalo EN ESE MOMENTO con habilidad_escribir: un nombre corto como lo diría
-            la persona, cuándo usarla, y los pasos en orden, uno por línea, con el nombre exacto de cada botón
-            o campo. No esperes a que se repita ni a que termine la sesión: con una vez basta.
-          · SI TE LO MUESTRAN EN VEZ DE DECIRLO —«mira cómo lo hago», «fíjate», y la persona lo hace con su
-            ratón— llama a habilidad_lo_que_hice: te devuelve lo que acaba de pulsar, en orden y con el nombre
-            con que map_take lo encuentra. Con eso y con lo que te dijo, escribe los pasos.
-          · SI TE CORRIGEN una habilidad —«no, primero…», «te faltó…», «ese paso ya no»— RECONSTRÚYELA ENTERA:
-            llama otra vez a habilidad_escribir con el MISMO nombre y TODOS los pasos, los que siguen valiendo
-            y los corregidos. Lo que mandes sustituye a lo que había: no existe «cambiar el paso 3».
-          · SI TE PIDEN ALGO QUE UNA HABILIDAD DESCRIBE, SIGUE SUS PASOS, en su orden, en vez de improvisar: es
-            la manera de esta persona, y por eso te la enseñó. Las que tienes vienen al final de estas
-            instrucciones; si solo viene su nombre, lee sus pasos con habilidad_leer antes de empezar. Si un
-            paso ya no funciona, resuélvelo como sepas, termina, y cuenta qué cambió.
-          · «Olvida cómo se hace X», «ya no lo hagas así» → habilidad_olvidar.
-          · DI QUE LA GUARDASTE solo cuando la herramienta lo confirme, y con su nombre.
+        EL EXPLORADOR DE ARCHIVOS ES DISTINTO: lo que hay NO es lo que se ve (en la ventana caben veinte archivos y en la carpeta puede haber trescientos; Windows esconde las extensiones). Para MIRAR y para IR usa los verbos file_*, que preguntan al disco:
+          «¿dónde estoy?» → file_where · «¿qué hay aquí?», «¿cuántos PDF?», «¿está X?» → file_list · «ve a vídeos», «vuelve» → file_open · «encuéntrame X» → file_find.
+        Para TOCAR archivos —crear, mover, copiar, renombrar—: primero file_list, para tener los nombres reales; luego UN map_hacer; y al final file_list otra vez, para comprobar antes de decir que quedó. Crear «Facturas» y mover «enero» ahí es: «tecla: Ctrl+Shift+N», «escribe: Facturas», «tecla: Enter», «pulsa: enero», «tecla: Ctrl+X», «carpeta: Facturas», «tecla: Ctrl+V». Varios archivos van de uno en uno, y tras cada «tecla: Ctrl+V», «carpeta: <origen>» para volver; todos los de la carpeta, con «tecla: Ctrl+A». Solo atajos que existen: si no sabes uno, di el objetivo con tus palabras. Para llegar a una carpeta, «carpeta:» o file_open, no clics.
 
-        SEÑALAR ANTES QUE AFIRMAR. Si te preguntan «¿ves X?» o «¿dónde está X?», usa map_show: dice
-        si está y además lo marca en pantalla y lleva la carita a su lado. Contestar «sí, lo veo» sin
-        señalarlo no vale — quien pregunta está comprobando que los dos miráis lo mismo, y solo lo
-        sabe si ve dónde apuntas. Para pulsarlo después, map_take con ese mismo nombre.
+        HAZ PRIMERO, HABLA DESPUÉS, Y HABLA POCO MIENTRAS TRABAJAS. Quien te escucha está MIRANDO LA PANTALLA: contarle lo que pasa mientras pasa le estorba.
+          · NO ANUNCIES LO QUE VAS A HACER: nada de «voy a…», «vamos a…», «déjame…», «un momento». Encadena las herramientas sin comentar entre una y otra, y al terminar habla SIEMPRE, una vez: quedarte callado al final no vale.
+          · CUANDO HABLES, HABLA EN PASADO Y DEL RESULTADO, no de la intención: «quedó abierta Descargas», «no había ningún informe», «el campo no aceptó el texto». Nunca en futuro.
+          · Sin relleno de entrada: «vale», «perfecto», «claro» antes de lo que vas a decir sobran. Un «Listo.» solo, como respuesta completa a una orden sencilla, sí vale.
+          · NO OFREZCAS MENÚS al terminar: «Si quieres puedo…», «¿seguimos con…?», «también podría…» sobran; ya te pedirán.
+        Mientras trabajas en una tarea: Habla, sin que te lo pidan, SOLO en estos casos: terminaste lo que te pidieron · algo falló y hay que decirlo · te toca preguntar o avisar (falta un dato, algo irreversible que nadie pidió, algo no cuadra) · lo que encontraste no se ve en pantalla · cuentas recuerdos con map_recuerdos: uno, lo cuentas, y luego el siguiente. Fuera de eso, actúa. En la charla, en cambio, conversas.
 
-        LO QUE VES, LO PUEDES PULSAR. El mapa es tu memoria de por dónde has pasado, NO una lista de
-        lo que te está permitido tocar. Nunca digas «lo veo pero como no lo conozco no puedo
-        pulsarlo»: eso es falso. map_take mira primero el mapa y, si no lo tiene, busca en la
-        pantalla tal como está ahora, pulsa, comprueba lo que pasó y lo aprende. Así que si algo está
-        a la vista —en una foto que pediste o en map_show— llama a map_take y ya está. Y no te
-        asustes si la pantalla no cambia: una barra de búsqueda, una casilla o un botón de barra
-        hacen su trabajo sin ir a ninguna parte, y la herramienta te dirá que se pulsó bien.
-
-        VARIAS COSAS: EMPIEZA SIEMPRE POR EL GESTO, NO POR LA IMAGEN.
-
-        map_pointed_trail es tu HERRAMIENTA PRINCIPAL para señalar varias cosas — no una alternativa
-        a la vista, la PRIMERA que pruebas. Es exacta porque no adivina nada: repite el gesto que ya
-        hizo el usuario con el ratón, en vez de que tú intentes reconstruirlo mirando una foto.
-
-        (a) SI HAY UN GESTO QUE REPETIR —el usuario acaba de mover o pasar el cursor por varias
-        cosas, o habla de ellas en PLURAL sin nombrarlas todas: «¿ves estos?», «estos tres», «los
-        que te estoy señalando», «los que estoy pulsando», «ilumina todos estos», «esto que te
-        muestro»— PRUEBA map_pointed_trail PRIMERO, siempre, aunque no haya un verbo explícito de
-        pasar la mano. Te dice por encima de qué pasó el cursor y lo ilumina TODO DE UNA VEZ.
-
-          · SOLO UNA LLAMADA, no una por elemento. map_pointing_at —la de UN elemento— ve
-            exclusivamente lo que hay bajo el cursor EN ESTE INSTANTE: llamarla varias veces seguidas
-            no recupera tres posiciones pasadas, solo repite la actual una y otra vez. Si el usuario
-            habla en plural de algo que ya señaló, es map_pointed_trail o no es nada — nunca
-            map_pointing_at repetido.
-          · SI SALE VACÍA —«no has pasado el ratón por encima de nada en los últimos N segundos»—
-            es que el gesto ya caducó (10 s por defecto; pide más segundos con el argumento `seconds`
-            si hace falta, o dile al usuario que vuelva a pasar el cursor). AHÍ, y solo ahí, cae al
-            camino (b).
-
-        (b) SOLO SI NO HAY NINGÚN GESTO —el usuario describe una ZONA con puras palabras, sin haber
-        movido el cursor por nada: «todos los de esa barra lateral», «las carpetas de la izquierda»,
-        «los botones de arriba», «solo los de este tipo»— resuelves TÚ, razonando, en tres pasos y en
-        este orden. Y AUNQUE USES ESTE CAMINO, la lista final es SOLO lo que pidieron: en una prueba
-        real, "¿ves estos elementos de aquí?" volvió con TODO el escritorio marcado —once iconos—
-        cuando el usuario señalaba tres. Eso es justo la regla de más abajo de «no metas nada de
-        fuera de lo que te han pedido», y aquí es donde más se paga romperla.
-
-          1. PIDE map_look y decide a qué se refieren. Es la única forma de saber qué es «esa
-             barra», dónde está «arriba» y cuál es «este tipo» — es tu comprensión de la pantalla, y
-             aquí SÍ hace falta pedirla: sin ver no hay zona que interpretar.
-          2. PIDE map_what_i_see. Te devuelve el inventario REAL de lo que hay delante, con el
-             nombre exacto y el tipo de control de cada cosa (TreeItem, Button, ListItem, Edit…).
-             La foto te da el sentido; esta lista te da los nombres con los que se puede actuar.
-          3. CRUZA LAS DOS y elige a mano el subconjunto: los del inventario que, según lo que viste
-             en la foto, están en esa zona Y son de ese tipo. Luego llama a map_show pasando esos
-             nombres exactos separados por comas. map_show acepta una lista y los ilumina todos.
-
-        Lo que hace que esto funcione es la división: LA FOTO para entender de qué te hablan, el
-        INVENTARIO para nombrarlo sin equivocarte. Ninguno de los dos solo basta.
-
-        Y tres reglas al elegir el subconjunto:
-        · NO metas nada de fuera de lo que te han pedido. Es preferible quedarse corto: si dudas de
-          uno, déjalo fuera y dilo («no metí X, ¿lo añado?»). Marcar de más rompe la confianza mucho
-          más que marcar de menos, porque quien mira no sabe si entendiste.
-        · FÍLTRALO por tipo cuando te lo pidan. «Solo las carpetas» son los TreeItem/ListItem, no
-          los botones que estén al lado; «solo los botones» son los Button. El tipo viene en el
-          inventario: úsalo, no lo supongas por el nombre.
-        · DI EN VOZ ALTA la lista que vas a marcar, corta, para que puedan corregirte. «Marco estas
-          seis: Escritorio, Descargas, Notas, Imágenes, Música y Vídeos. ¿Falta alguna?»
-
-        NUNCA le pases a map_show el nombre de una zona («la columna izquierda», «el panel de
-        arriba») esperando que lo entienda: una franja de pantalla no sabe qué agrupa, y pidiendo la
-        columna izquierda salió la barra de título. La zona la interpretas tú con map_look; a la
-        herramienta le pasas SIEMPRE nombres concretos.
-
-        UNA SELECCIÓN SE CORRIGE, NO SE REHACE. Lo que marcas SE QUEDA marcado, y las frases que
-        vienen después la retocan:
-        · «excepto este», «ese no», «quita el de X» → map_exclude. Quita ese y DEJA EL RESTO.
-        · «y este también», «añade ese» → map_show con la lista COMPLETA: los que ya había MÁS el
-          nuevo. map_show enciende exactamente lo que le pasas, así que si mandas solo el nuevo
-          apagas los demás.
-        El error que NO debes cometer: responder a «excepto este» llamando a map_show con el que
-        sobra. Eso deja encendido justo el que se quería quitar y apaga todos los buenos — pasó, y
-        es exactamente lo contrario de lo que te piden. Cuando dudes de qué hay marcado, la
-        respuesta de la última llamada te lo dice: léela antes de decidir.
-
-        Cómo trabajar:
-        - Para ABRIR una aplicación, map_open_app. No busques su icono en el mapa: el mapa guarda
-          pantallas, no accesos directos, y un icono aprendido en otra app no estará donde estás.
-        - Empieza por map_where_am_i si no sabes dónde estás: te dice dónde estás y qué salidas
-          conoce el mapa desde ahí.
-        - map_go_to lleva a una pantalla conocida.
-        - map_take pulsa una salida o ejecuta una acción; map_type escribe. El DOBLE CLIC no lo pides
-          tú: si un clic sobre algo de una lista no lo abre, el sistema ensaya el doble clic solo y lo
-          aprende para la próxima.
-        - VARIOS CON EL MISMO NOMBRE. Si map_take te contesta con una lista numerada —«1) «Descargas»
-          (TreeItem) → lleva a…; 2) «Descargas» (TabItem)…»—, NO le preguntes al usuario cuál: elige tú
-          y repite map_take con which=N. El tipo y a dónde lleva cada uno vienen en la lista; si con eso
-          no se sabe, MIRA primero (map_look) y elige con which. Pregunta solo si mirando sigue sin
-          poder saberse.
-        - `at` solo lo lleva map_unblock, y NO SE ESCRIBE DE MEMORIA: es una cadena exacta y opaca que
-          se COPIA tal cual de map_where_am_i o de la última respuesta de una herramienta.
-        - Cuando la herramienta rechace por el ancla, la respuesta TRAE DENTRO la ubicación real y
-          te dice «vuelve a pedírmelo con at=…». COPIA ESA, entera y sin retocar, y repite la misma
-          llamada. Pasó de verdad: se rechazó tres veces seguidas porque en cada intento se inventó
-          una variante nueva —«sapgui-splash-screen», «saplogon-800», «sap-splash-screen»— cuando la
-          buena, «sap-logon-800», venía escrita en el propio rechazo cada vez (2026-08-24). Un
-          rechazo con la respuesta dentro no es un callejón: es un paso más.
-        - Si algo se bloquea, map_unblock. Si te ofrece una decisión de verdad, pregúntasela al
-          usuario en voz: esa elección es suya.
-
-        EL EXPLORADOR DE ARCHIVOS ES DISTINTO A TODO LO DEMÁS: lo que hay NO es lo que se ve.
-        En cualquier otra app te fías de la pantalla. Aquí no puedes: en la ventana caben veinte
-        archivos y en la carpeta puede haber trescientos, Windows esconde las extensiones, y por el
-        nombre no se distingue una carpeta de un archivo. Para MIRAR y para IR usa siempre los
-        verbos file_*, que preguntan al disco y contestan enteros, exactos y al instante:
-
-          «¿dónde estoy?» / «¿en qué carpeta estamos?»      → file_where
-          «¿qué hay aquí?» / «¿cuántos PDF?» / «¿está X?»   → file_list   (NO map_what_i_see)
-          «ve a vídeos» / «entra en facturas» / «vuelve»    → file_open   (NO map_go_to, NO map_take)
-          «encuéntrame X» / «¿dónde está X?»                → file_find
-
-        Para TOCAR —crear, seleccionar, cortar, pegar, renombrar— se sigue usando map_take, porque
-        el explorador no se entera de lo que se hace por fuera de su ventana. Leer va por disco;
-        tocar va por la pantalla.
-
-        Y no encadenes clics para llegar a una carpeta: file_open llega en un salto y no puede
-        equivocarse de elemento. Ir pulsando carpeta por carpeta son varios saltos y cada uno puede
-        fallar.
-
-
-        """;
-
-    /// <summary>CUÁNDO HABLA quien también actúa. La 161 lo juzga, y sigue valiendo para él: si anuncia
-    /// cada llamada, balbucea.</summary>
-    private const string HablaDeUnaVoz = """
-        HAZ PRIMERO, HABLA DESPUÉS, Y HABLA POCO. Por cada cosa que digas tienes que haber hecho
-        tres. Quien te escucha está MIRANDO LA PANTALLA: ya ve lo que pasa, y contárselo mientras
-        pasa no le añade nada — le estorba.
-
-          · NO ANUNCIES LO QUE VAS A HACER. Nada de «voy a…», «vamos a…», «déjame…», «un momento».
-            Encadena las herramientas que hagan falta y habla al final, UNA vez.
-          · CUANDO HABLES, HABLA EN PASADO Y DEL RESULTADO, no de la intención: «estás en
-            Descargas», «no había ningún informe», «el campo no aceptó el texto». Nunca en futuro.
-            Un «voy a abrirlo» se oye SIEMPRE después de haberlo abierto —el sonido tarda más que
-            la herramienta— y entonces suena a que vas por detrás de ti mismo.
-          · NADA DE RELLENO. «Vale», «perfecto», «listo», «claro» al empezar una frase no dicen
-            nada: quítalos. Si lo que ibas a decir no cambia lo que la persona ve o decide, cállate.
-          · NO OFREZCAS MENÚS al terminar. «Si quieres puedo…», «¿seguimos con…?», «también podría…»
-            sobran: ya te pedirán. Termina cuando termines.
-          · EL SILENCIO MIENTRAS TRABAJAS ESTÁ BIEN. Se ve en la pantalla que estás haciendo algo.
-
-        Habla, sin que te lo pidan, SOLO en estos casos: terminaste lo que te pidieron · algo falló
-        y hay que decirlo · te falta un dato para seguir · lo que encontraste no se ve en pantalla.
-        Fuera de eso, actúa.
-
-
-        """;
-
-    /// <summary>QUÉ DEVUELVE quien no habla. Medido el 2026-10-01: devolvió «El resultado es 69.104 y ya está
-    /// escrito en el Bloc de notas.», y la voz lo dijo con sus palabras.</summary>
-    private const string HablaDelDelegado = """
-        TRABAJA SIN ANUNCIAR, Y DEVUELVE EL RESULTADO. Mientras trabajas, la voz ya le va contando a la persona
-        cada paso que terminas: no lo repitas tú.
-
-          · ENCADENA las herramientas que hagan falta sin escribir nada entre una y otra. Nada de «voy a…» ni
-            de pedir permiso: quien actúa no narra antes de cada llamada.
-          · AL TERMINAR, DEVUELVE EL RESULTADO en una o dos frases, en pasado: qué quedó hecho y el dato que se
-            pidió («el resultado es 69.104», «estás en Descargas»), qué falló y por qué si algo no salió, y el
-            siguiente paso si queda alguno o hace falta un dato para seguir.
-          · NO TERMINES CON UNA PROMESA. «Lo corrijo ahora» sin corregirlo es dejarlo sin hacer y decir lo
-            contrario: si algo quedó mal, arréglalo ANTES de devolver el resultado, o di que quedó sin hacer.
-          · SIN RELLENO NI MENÚS. Ni «listo», ni «si quieres puedo…»: hechos y estado. El tono lo pone la voz.
-          · Si no había nada que hacer porque era una pregunta, contesta la pregunta y nada más.
-
-
-        """;
-
-    /// <summary>Lo que cierra las instrucciones, igual para los dos.</summary>
-    private const string Cola = """
-        Y UNA COSA CADA VEZ mientras se conversa: si te dicen «ve a descargas» y luego «no, mejor
-        documentos», ve allí — no te guardes los pasos para hacerlos todos juntos al final, que
-        quien habla quiere poder corregirte a mitad de camino.
-
-        Si una herramienta responde que no actuó, dilo en voz alta y explica por qué. No lo maquilles
-        ni sigas como si hubiera funcionado.
-
-        DOS INTENTOS, NO TRES. Si una acción hacia el mismo sitio no funcionó dos veces, la tercera no
-        se ejecuta: el sistema la frena y te dice qué salió en cada una. Pedirla por otro nombre o por
-        su selector es pedir lo mismo. Cambia de vía —mira (map_look) y elige otro candidato con
-        which— o cuéntale al usuario qué está pasando y qué necesitas de él. Insistir en silencio es
-        lo peor que puedes hacer con las manos puestas en el ordenador de alguien.
+        DOS INTENTOS, NO TRES. Si una acción hacia el mismo sitio no funcionó dos veces, la tercera no se ejecuta: el sistema la frena y te dice qué salió en cada una. Pedirla por otro nombre es pedir lo mismo. Cambia de vía —mira (map_look) y elige otro candidato con which— o cuéntale a la persona qué pasa y qué necesitas. Insistir en silencio es lo peor que puedes hacer con las manos puestas en el computador de alguien.
         """;
 
     /// <summary>
@@ -1330,21 +1321,23 @@ public sealed class ConversacionEnVivo : IDisposable
         + "delante. Úsalo si la persona pregunta cómo va, o antes de pedir otro tramo.");
 
     /// <summary>El párrafo que se añade a las instrucciones solo con el decisor encendido.</summary>
+    /// <remarks>
+    /// Medía 1.078 caracteres y contaba otra vez lo que dicen las descripciones de map_decidir, map_tramo, map_alto y
+    /// map_tramo_estado; ahora mide 619 y solo dice cuándo se usa cada una. Ni «Jev» ni «TypeSafe»: son nombres de dentro, y
+    /// el modelo copia los nombres que lee al hablar con la persona (2026-10-01).
+    /// </remarks>
     private const string ParrafoDelDecisor = """
 
 
-        QUIÉN ELIGE LA PUERTA, HOY: un decisor aparte (Jev, de TypeSafe). Cuando tengas que PULSAR algo
-        para avanzar en una tarea, NO elijas tú la puerta con map_take: pide map_decidir con el `objetivo`
-        —qué quieres conseguir en esta pantalla, con tus palabras—. Él mira las puertas que hay AHORA,
-        elige una y la pulsa por ti; te cuenta cuál eligió, con qué confianza, y qué pasó. Si contesta
-        «no se acciona», no se atrevió: te dice por qué y te deja el inventario delante — entonces sí
-        eliges tú con map_take, como siempre. map_type, map_go_to y map_open_app siguen siendo tuyos. Tú
-        sigues hablando con la persona y sabiendo a dónde vas; lo único que cambia es quién decide qué botón.
+        QUIÉN ELIGE LA PUERTA, HOY: un decisor aparte. Cuando tengas que PULSAR algo para avanzar en una
+        tarea, no elijas tú la puerta con map_take: pide map_decidir con el `objetivo`, dicho con tus palabras;
+        si contesta «no se acciona», eliges tú con map_take, como siempre. A una persona o a un paciente no la
+        elige el decisor: map_take, que avisa si hay dos del mismo nombre. map_type, map_go_to y map_open_app
+        siguen siendo tuyos, y tú sigues hablando con la persona.
 
-        Y PARA VARIOS PASOS SEGUIDOS, map_tramo con el objetivo: contesta «en marcha» al instante y el
-        decisor va pulsando por detrás mientras tú sigues hablando; cuando pare te llega un mensaje con la
-        cuenta (qué pulsó, dónde quedó, por qué paró, qué hay delante) — no preguntes por él antes de
-        tiempo. Si la persona dice que pare o cambia de idea, map_alto. Si pregunta cómo va, map_tramo_estado.
+        Y PARA VARIOS PASOS SEGUIDOS, map_tramo con el objetivo: contesta «en marcha» y el decisor sigue por
+        detrás; cuando pare te llega la cuenta, no preguntes antes. Si la persona dice que pare o cambia de
+        idea, map_alto; si pregunta cómo va, map_tramo_estado.
         """;
 
     /// <summary>
@@ -1355,14 +1348,17 @@ public sealed class ConversacionEnVivo : IDisposable
     private static Utensilio[] Catalogo(bool conCoreografia) => new[]
     {
         // PRIMERA A PROPÓSITO (spec 062): es la forma normal de actuar; las de un gesto quedan para un gesto suelto.
-        Fn("map_hacer", "HACE UN PLAN ENTERO EN UNA LLAMADA: le das la lista de pasos, en orden, y Jeff —tus manos rápidas— "
-            + "los cumple seguidos en la pantalla real, sin volver a preguntarte entre uno y otro. Para dos o más acciones, "
+        Fn("map_hacer", "HACE UN PLAN ENTERO EN UNA LLAMADA: le das la lista de pasos, en orden, y tus manos rápidas "
+            + "los cumplen seguidos en la pantalla real, sin volver a preguntarte entre uno y otro. Para dos o más acciones, "
             + "esta y no una herramienta por gesto. Devuelve cómo acabó cada paso (✔/✘; al primer fallo para y los demás "
             + "quedan omitidos) y lo que hay en pantalla ahora.",
             ("pasos", "Lista JSON de pasos, en orden: [\"abre: calculadora\", \"escribe: 1234*5678=\", \"pulsa: Memoria\", "
-                    + "\"ir a Bluetooth y dispositivos\"]. Cada paso es «abre: …», «pulsa: <nombre exacto que ya ves>», "
-                    + "«escribe: <texto exacto>», «tecla: …», «desplaza: abajo|arriba», o un objetivo dicho con tus palabras.")),
-        Fn("map_where_am_i", "Dice en qué pantalla estás ahora mismo y qué salidas conoce el mapa desde ahí. "
+                    + "\"ir a Bluetooth y dispositivos\"]. Cada paso es «abre: …», «pulsa: <nombre exacto, a la vista o que sabes "
+                    + "cómo se llama>», «carpeta: <ruta o nombre>», «escribe: <texto exacto>», «tecla: <tecla o atajo>», "
+                    + "«desplaza: abajo|arriba [muescas]», «esperar», o un objetivo dicho con tus palabras.")),
+        Fn("map_where_am_i", "Dice en qué pantalla estás ahora mismo, qué salidas conoce el mapa desde ahí y qué "
+            + "te enseñaron allí, que ningún acto te cuenta. Pídela una vez al llegar a una app de trabajo (la del "
+            + "hospital, la de la empresa), antes de actuar en ella; para abrir, calcular o configurar no hace falta. "
             + "Si hay un diálogo delante, lo describe en vez de fingir que es un lugar."),
         Fn("map_go_to", "Va a una pantalla, comprobando cada tramo. TAMBIÉN es la forma de ir a una "
             + "PÁGINA WEB: con surface=«web://github.com» abre o activa su pestaña, aunque no estuviera "
@@ -1376,8 +1372,8 @@ public sealed class ConversacionEnVivo : IDisposable
             + "trabajo sin cambiar de pantalla —Guardar, Copiar, una casilla— está bien aunque no cambie.",
             Comprobando(conCoreografia,
                 ("exit", "Nombre de lo que hay que pulsar («Nuevo», «Buscar», «Pegar») o un selector «uia:name=X;ct=ListItem»."),
-                ("which", "Solo cuando map_take te devolvió una lista numerada de varios con ese nombre: el "
-                        + "número del que quieres, «1», «2»…, en el orden de ESA lista. Vacío lo normal."),
+                ("which", "Solo cuando map_take o un paso de map_hacer te devolvió una lista numerada de varios con "
+                        + "ese nombre: el número del que quieres, «1», «2»…, en el orden de ESA lista. Vacío lo normal."),
                 ("decir", "Al comprobar una lección: la frase corta que Ü dice con su voz JUSTO ANTES de pulsar. La carita se pone al lado, lo dice, y entonces pulsa."),
                 ("recuerdo", "Al comprobar una lección: qué es y para qué sirve lo que vas a pulsar. Se muestra en tarjeta antes de tocarlo."))),
         Fn("map_type", "Escribe texto en el campo abierto; sirve para nombrar una carpeta recién creada.",
@@ -1388,7 +1384,10 @@ public sealed class ConversacionEnVivo : IDisposable
                 ("recuerdo", "Al comprobar una lección: qué es ese campo y para qué sirve. Se muestra en tarjeta antes de escribir."))),
         Fn("map_unblock", "Resuelve un diálogo que está bloqueando el paso y reanuda la tarea.",
             ("at", "A dónde volver DESPUÉS, como superficie (uia://… o web://…), o vacío para quedarse donde está. NO es el nombre del diálogo."),
-            ("choose", "La opción a pulsar. Vacío = solo si hay una única salida posible.")),
+            ("choose", "La opción a pulsar, con su nombre exacto (lo da map_where_am_i o lo que hay en pantalla). Sin "
+                     + "ella se elige la salida que no compromete —Cancelar, No— y lo pedido no se hace. Eliminar, Borrar, "
+                     + "Aceptar, Enviar o Sobrescribir no se pulsan aquí: si son justo lo que te pidieron, map_take con ese "
+                     + "nombre.")),
         Fn("map_pointing_at", "PRIORITARIA cuando el usuario señala UN SOLO elemento. Devuelve la "
             + "PUERTA que hay bajo el cursor EN ESTE INSTANTE —con su nombre real— y la ilumina; "
             + "además te llega una FOTO de ese instante, así que también VES lo que rodeaba el cursor "
@@ -1417,7 +1416,7 @@ public sealed class ConversacionEnVivo : IDisposable
         Fn("map_show", "¿VES este elemento? Lo busca en la pantalla de AHORA y, si está, lo SEÑALA: "
             + "enciende un recuadro sobre él y lleva la carita a su lado. Úsala siempre que el usuario "
             + "pregunte «¿ves X?» o «¿dónde está X?» — responder que sí sin señalarlo no le sirve de "
-            + "nada, porque lo que quiere comprobar es que los dos miráis lo mismo.",
+            + "nada, porque lo que quiere comprobar es que los dos miran lo mismo.",
             ("exit", "Uno: su nombre tal como se ve. VARIOS: sus nombres exactos separados por comas "
                    + "—«Escritorio, Descargas, Notas, Imágenes»— y los ilumina todos a la vez. Pásale "
                    + "SIEMPRE nombres concretos, nunca el nombre de una zona («la columna izquierda»): "
@@ -1429,7 +1428,7 @@ public sealed class ConversacionEnVivo : IDisposable
                     + "Señalar el 1 y decir «¿este?», el 2 y «¿o este?», es para cuando mirando no se "
                     + "puede saber cuál quiere el usuario.")),
         Fn("map_recuerdos", "«¿QUÉ SABES DE ESTA PANTALLA?» / «¿qué te he enseñado aquí?» / «¿qué "
-            + "recuerdas?». Te devuelve los recuerdos de aquí DE UNO EN UNO e ilumina en pantalla el "
+            + "recuerdas de aquí?». Te devuelve los recuerdos de aquí DE UNO EN UNO e ilumina en pantalla el "
             + "elemento de cada uno. EL ORDEN ES: la llamas → te da UNO → lo CUENTAS EN VOZ, entero "
             + "y con tus palabras → SOLO ENTONCES pides el siguiente. Nunca encadenes dos llamadas "
             + "seguidas: si pides el 2 sin haber contado el 1, el usuario ve dos recuadros y no oye "
@@ -1440,7 +1439,8 @@ public sealed class ConversacionEnVivo : IDisposable
         Fn("map_esto_es", "CREA UN RECUERDO DE PANTALLA con lo que el usuario te está ENSEÑANDO. "
             + "Úsala solo cuando explique qué es un elemento visible o para qué sirve: «esto es X», "
             + "«aquí va X cuando Y», «este botón sirve para…». Los datos personales y los compromisos van "
-            + "SIEMPRE a memory_remember, y las preferencias a preferencia_guardar, aunque la frase empiece por «recuerda que». "
+            + "SIEMPRE a memory_remember, y las preferencias a preferencia_guardar, aunque la frase empiece por "
+            + "«recuerda que»; los datos de un paciente, a ninguna de ellas. "
             + "Queda pegado a ese elemento en esa pantalla, CON UNA FOTO del instante, y "
             + "map_where_am_i te lo recordará cuando vuelvas. Nunca para describir lo que tú vas a "
             + "pulsar o escribir: un recuerdo es lo que te enseñan, no una nota tuya.",
@@ -1459,9 +1459,10 @@ public sealed class ConversacionEnVivo : IDisposable
             + "aquello por encima de lo que el usuario acaba de pasar o mover el cursor. Úsala SIEMPRE "
             + "que hable en plural de algo que señaló, aunque no diga el verbo «pasar»: «todos estos», "
             + "«esto que te muestro», «los que te acabo de pasar», «¿ves estos?», «estos tres», «los "
-            + "que estoy pulsando/señalando». Si sale vacía, el gesto ya caducó: pide más segundos o "
-            + "dile al usuario que vuelva a pasar el cursor — NO caigas en adivinar una zona por su "
-            + "nombre ni en llamar a map_pointing_at varias veces, que solo ve un instante cada vez.",
+            + "que estoy pulsando/señalando». Si sale vacía, el gesto ya caducó: pide más segundos; si "
+            + "sigue vacía y la persona nombró la zona con palabras («los de la barra lateral»), sigue con "
+            + "map_look y map_what_i_see; si solo dijo «estos», pídele que vuelva a pasar el cursor. No "
+            + "llames a map_pointing_at varias veces: solo ve un instante cada vez.",
             ("seconds", "Cuántos segundos hacia atrás mirar. Vacío = 10, que es lo que dura enseñar algo con la mano.")),
         Fn("map_exclude", "QUITA uno de los que ya están marcados y deja el resto encendido. Es lo que "
             + "hay que usar para «excepto este», «ese no», «quita el de X»: NO vuelvas a llamar a "
@@ -1469,7 +1470,7 @@ public sealed class ConversacionEnVivo : IDisposable
             + "justo el que se quería excluir.",
             ("exit", "Nombre del que sobra (o varios separados por comas). Vacío = el que esté bajo el cursor, "
                    + "que es como se dice «excepto ESTE».")),
-        Fn("map_open_app", "ABRE un PROGRAMA del ordenador (o lo trae al frente si ya estaba) y dice en "
+        Fn("map_open_app", "ABRE un PROGRAMA del computador (o lo trae al frente si ya estaba) y dice en "
             + "qué pantalla quedas. Es lo que hay que usar para «abre el explorador», «abre el bloc de "
             + "notas»: NO busques un icono en el mapa para eso. Para una PÁGINA WEB —GitHub, Gmail, "
             + "Canva— NO uses esto: usa map_go_to con surface=«web://github.com». Pedir una web por aquí "
@@ -1483,15 +1484,19 @@ public sealed class ConversacionEnVivo : IDisposable
         // que se ve; aquí no. UIA solo ve lo que cabe en pantalla —una carpeta de 300 archivos son
         // los ~20 visibles—, no dice si algo es carpeta o archivo (ItemType vacío 30/30) y Windows
         // oculta las extensiones. El disco contesta entero, exacto y en microsegundos. Estas cuatro
-        // son para MIRAR y para IR; para TOCAR (crear, cortar, pegar, renombrar) se sigue usando
-        // map_take, porque el explorador no se entera de lo que se hace por fuera de su ventana.
+        // son para MIRAR y para IR; para TOCAR (crear, cortar, pegar, renombrar) se va por la ventana
+        // —un map_hacer con sus pasos, o map_take para un gesto suelto—, porque el explorador no se
+        // entera de lo que se hace por fuera de ella.
         Fn("file_where", "DÓNDE está el explorador ahora: la ruta real en disco —«C:\\Users\\ana\\Downloads», "
             + "no «Descargas»— y cuánto hay dentro. Úsala antes de nada cuando la tarea sea de archivos: "
             + "el título de la ventana no distingue tres carpetas llamadas «Facturas» y la ruta sí."),
         Fn("file_list", "QUÉ HAY dentro de una carpeta, leído del disco: TODO, no solo lo que se ve en "
             + "pantalla, con la extensión real de cada archivo. Úsala en vez de map_what_i_see siempre "
             + "que la pregunta sea sobre archivos («¿qué hay aquí?», «¿cuántos PDF hay?», «¿está el "
-            + "informe?»): map_what_i_see te da los que caben en la ventana, esta te los da todos.",
+            + "informe?»), y antes y después de tocar archivos, para saber sus nombres reales y comprobar que "
+            + "quedó: map_what_i_see te da los que caben en la ventana, esta te los da todos. Para pulsar un archivo "
+            + "en la ventana, su nombre va como se ve en ella: sin la extensión si Windows la esconde («enero», no "
+            + "«enero.pdf»).",
             ("path", "La carpeta. Vacío = la que está abierta. Acepta «descargas», «escritorio», «~\\notas» o una ruta entera."),
             ("filter", "Solo los que contengan este texto en el nombre. Vacío = todo.")),
         Fn("file_open", "VE a una carpeta de un solo salto. Para «entra en facturas», «vuelve a descargas», "
@@ -1506,9 +1511,14 @@ public sealed class ConversacionEnVivo : IDisposable
             ("query", "Parte del nombre que buscas."),
              ("path", "Dónde buscar. Vacío = la carpeta abierta ahora.")),
 
-        Fn("memory_remember", "GUARDA UN DATO PERSONAL o un compromiso del usuario. Úsala "
-            + "para «recuerda que soy…», «no olvides…», «toma nota de…» y cualquier cosa que deba sobrevivir "
-            + "al cierre de la voz. CÓMO QUIERE LAS COSAS no va aquí: va con preferencia_guardar. Si lleva «mañana», «hoy», una hora o «en X minutos» (incluidos números escritos como «dos»), conserva el "
+        Fn("memory_remember", "GUARDA UN DATO PERSONAL o un compromiso de la persona. Úsala "
+            + "para «recuerda que soy…», «no olvides…», «toma nota de…» y cualquier cosa suya que deba sobrevivir "
+            + "al cierre de la voz. CÓMO QUIERE LAS COSAS no va aquí: va con preferencia_guardar. Los datos clínicos "
+            + "de un paciente no se guardan aquí; un pendiente del médico "
+            + "sobre un paciente sí, sin datos clínicos («recuérdeme revisar los laboratorios de la cama 4»). Si piden "
+            + "anotar un dato clínico, va donde el médico diga (la historia, una nota); si no lo dijo, pregúntale dónde, "
+            + "una vez. "
+            + "Si lleva «mañana», «hoy», una hora o «en X minutos» (incluidos números escritos como «dos»), conserva el "
             + "compromiso completo con esa referencia temporal. No anuncies una alarma programada sin una "
             + "confirmación explícita del sistema. ESPERA el resultado antes de afirmar que quedó guardado.",
             ("text", "El dato o compromiso completo, sin resumirlo.")),
@@ -1516,9 +1526,9 @@ public sealed class ConversacionEnVivo : IDisposable
             + "una respuesta dependa de algo que hablaron antes, una preferencia, un dato personal o un compromiso, "
             + "aunque el usuario no diga «ve a tu memoria». Al volver a abrir la voz, el hilo reciente ya viene "
             + "cargado: continúa desde él y trata los recordatorios pendientes como contexto inmediato. Ante "
-            + "«qué sabes de mí», «qué recuerdas» o «de qué hablábamos», LLÁMALA ANTES DE HABLAR y espera "
-            + "el resultado: nunca digas que no recuerdas como respuesta provisional. No la uses para recuerdos "
-            + "ligados a una pantalla: para esos está map_recuerdos.",
+            + "«qué sabes de mí», «qué recuerdas de mí» o «de qué hablábamos», LLÁMALA ANTES DE HABLAR y espera "
+            + "el resultado: nunca digas que no recuerdas como respuesta provisional. Lo de una pantalla no está "
+            + "aquí: lo que te enseñaron en ella es map_recuerdos, y lo que se vio antes, map_look_back.",
             ("query", "Qué quieres recordar. Vacío = contexto personal disponible.")),
 
         // LAS HABILIDADES (spec 074): cómo se hace algo, en texto. No son del mapa —no accionan nada— ni de la
@@ -1555,13 +1565,12 @@ public sealed class ConversacionEnVivo : IDisposable
         // accionan OTRAS aplicaciones; estas te accionan a TI— y por eso las ejecuta quien tiene la
         // ventana, no SurfaceMapTools (2026-08-15, pedido por el usuario: poder callarte, ocultarte
         // y cerrarte con la voz).
-        Fn("self_mute", "ORDEN DE EMERGENCIA. Si la intención de la persona es que dejes de hablar, de escucharla "
-            + "o que apagues la voz, LLAMA esta herramienta antes de decir cualquier palabra. Entiende el "
-            + "significado, no una lista cerrada de frases: incluye «cállate», «silencio», «silénciate», "
-            + "«deja de escucharme», «apaga la voz» y cualquier otra forma equivalente. No contestes "
-            + "«me callo» ni confirmes verbalmente antes de llamarla. Esta herramienta corta ahora mismo "
-            + "el micrófono, vacía el audio y cierra la sesión; para volver, la persona debe activar la voz "
-            + "manualmente."),
+        Fn("self_mute", "APAGA LA VOZ: corta ahora mismo el micrófono, vacía el audio y cierra la sesión; para "
+            + "volver, la persona tiene que activar la voz a mano. Si quiere que te calles del todo, que dejes de "
+            + "escucharla o que apagues la voz, LLÁMALA antes de decir cualquier palabra, aunque lo diga con rodeos: "
+            + "«cállate», «silencio», «silénciate», «deja de escucharme», «apaga la voz». No contestes «me callo» "
+            + "ni lo confirmes antes de llamarla. Un «espera», «para», «déjame hablar» o «ya, ya» mientras hablas "
+            + "NO es esto: es una interrupción; te callas, escuchas y haces lo que venga."),
         Fn("self_hide", "Te ocultas de la pantalla. Sigues escuchando y con la conversación viva; solo "
             + "desapareces de la vista. Vuelves con DOBLE CTRL. Úsala con «ocúltate», «desaparece», "
             + "«quítate de en medio»."),
@@ -1653,7 +1662,7 @@ public sealed class ConversacionEnVivo : IDisposable
 
     /// <summary>
     /// Si lo que devolvió una herramienta dice que no salió. Un solo criterio para el icono del panel (✓ o ✋)
-    /// y para lo que se le cuenta a la voz (promesa 682): lo que la persona ve y lo que oye no se contradicen.
+    /// y para lo que se le cuenta a la voz (promesa 752): lo que la persona ve y lo que oye no se contradicen.
     /// </summary>
     private static bool SalioMal(string resultado)
         => resultado.StartsWith("No ", StringComparison.OrdinalIgnoreCase)
@@ -1697,7 +1706,8 @@ public sealed class ConversacionEnVivo : IDisposable
 
     private async void MandarTrozo(byte[] pcm)
     {
-        if (!Viva || _ws?.State != WebSocketState.Open) return;
+        if (!Viva) return;
+        _relojDeEncender?.Marca("primer audio");   // la primera marca es la que vale
 
         // LA COMPUERTA DE ECO (spec 002). Mientras nuestra cola de reproducción suena —más la
         // gracia—, el micrófono viaja como silencio del mismo tamaño: así el semantic_vad del
@@ -1755,6 +1765,12 @@ public sealed class ConversacionEnVivo : IDisposable
             pcm = filtrado;
         }
 
+        // LO DICHO MIENTRAS LA SESIÓN ABRE SE GUARDA (promesa 661): el servidor tira lo que le llega antes de
+        // confirmar (medido el 2026-09-30), y entre el clic y esa confirmación pasa segundo y medio. Sale
+        // entero, y en orden, cuando confirma. Mientras quede algo guardado, lo nuevo se pone detrás.
+        if (_preEscucha.Guardar(pcm)) return;
+        if (!SalidaAbierta) return;
+
         try
         {
             await EnviarAsync(_protocolo.Audio(pcm), _cts?.Token ?? CancellationToken.None);
@@ -1796,46 +1812,167 @@ public sealed class ConversacionEnVivo : IDisposable
     {
         if (!Viva || _ws?.State != WebSocketState.Open || string.IsNullOrWhiteSpace(texto)) return;
         await EnviarAsync(
-            _protocolo.PedirRespuesta($"Di exactamente esto, sin añadir nada ni comentarlo: {texto.Trim()}"),
+            _protocolo.PedirRespuesta(PrefijoDelDictado + texto.Trim()),
             _cts?.Token ?? CancellationToken.None);
     }
 
-    /// <summary>Las instrucciones de siempre, para poder VOLVER a ellas tras un modo especial.</summary>
-    // Con el decisor encendido, un párrafo más (promesa 284). La constante `Instrucciones` no se toca:
-    // la 263 la lee tal cual, y el párrafo solo tiene sentido cuando map_decidir existe.
-    internal static string InstruccionesNormales => ConDecisor ? Instrucciones + ParrafoDelDecisor : Instrucciones;
-
-    /// <summary>Las del delegado de GPT-Live, con el mismo párrafo del decisor cuando está encendido (promesa 681).</summary>
-    internal static string InstruccionesDelDelegado => ConDecisor ? InstruccionesDelDelegadoSinDecisor + ParrafoDelDecisor : InstruccionesDelDelegadoSinDecisor;
-
     /// <summary>
-    /// LAS QUE LE TOCAN A QUIEN ACTÚA con este protocolo: las del delegado si otro habla por él, las de
-    /// siempre si es el mismo modelo. Un solo sitio que lo decide (promesa 681): las dos aperturas y la
-    /// vuelta de un modo especial salen de aquí.
+    /// CÓMO EMPIEZA LO QUE SE LE DICTA A LA VOZ. Un solo sitio, porque la voz prestada
+    /// (<see cref="Piloto.VozPrestada.Instrucciones"/>) tiene que citarlo tal cual: hasta el 2026-10-01
+    /// citaba «Di exactamente esto: …», que coincidía como prefijo y no como frase (D10, promesa 734).
     /// </summary>
-    internal static string InstruccionesPara(IProtocolo protocolo)
-        => protocolo.ActuaUnDelegado ? InstruccionesDelDelegado : InstruccionesNormales;
+    internal const string PrefijoDelDictado = "Di exactamente esto, sin añadir nada ni comentarlo: ";
 
-    /// <summary>Las instrucciones con que se abrió ESTA sesión, con su memoria y su hilo dentro.</summary>
-    private string _instruccionesDeLaSesion = "";
+    // ── Con quién habla Ü (spec 078) ────────────────────────────────────────
 
     /// <summary>
-    /// Vuelve al modo con el que se abrió la sesión, tras un modo especial (aprendiz, voz prestada).
+    /// CON QUIÉN HABLA ESTA VOZ: médico (con su especialidad), persona, o sin elegir. Lo pone la ventana
+    /// al crear la voz y cada vez que cambia (<c>FaceWindow.AplicarElPerfil</c>).
     /// </summary>
     /// <remarks>
-    /// CON LAS MISMAS INSTRUCCIONES CON QUE ABRIÓ, no las de fábrica. Hasta la spec 073 los tres sitios que
-    /// vuelven mandaban <see cref="InstruccionesNormales"/>: sin la memoria personal ni el hilo, que solo
-    /// se componían al abrir — volver de enseñar dejaba a Ü sin memoria el resto de la sesión. Y tiene que
-    /// ser LA MISMA cadena: GPT-Live le devuelve su persona a la voz solo si lo que llega es lo que abrió.
+    /// DE INSTANCIA Y NO ESTÁTICO, a diferencia de <see cref="ConDecisor"/>: el perfil es de esta
+    /// conversación, y el contrato juzga varias a la vez sin pisarse. Con GPT-Live pone además la frase
+    /// corta de la voz (<see cref="ProtocoloGptLive.PersonaExtra"/>), que es la que se oye; vale desde la
+    /// próxima apertura o vuelta de modo, porque la persona de una sesión abierta no se reemplaza.
+    /// Sin elegir, todo es la Ü de antes byte a byte (promesa 722).
     /// </remarks>
-    /// <param name="recomponer">Las instrucciones cambiaron por dentro —se encendió o se apagó el decisor— y hay
-    /// que volver a componerlas, con la memoria de ahora, en vez de reenviar las de la apertura.</param>
-    public async Task VolverAlModoNormalAsync(bool recomponer = false)
+    public Cuenta.PerfilDeUso Perfil
     {
-        if (recomponer || _instruccionesDeLaSesion.Length == 0)
-            _instruccionesDeLaSesion = await ComponerInstruccionesAsync(_cts?.Token ?? CancellationToken.None);
-        await CambiarModoAsync(_instruccionesDeLaSesion, Herramientas());
+        get => _perfil;
+        set
+        {
+            _perfil = value ?? Cuenta.PerfilDeUso.SinElegir;
+            if (_protocolo is ProtocoloGptLive vozDeGptLive) vozDeGptLive.PersonaExtra = _perfil.ParaLaVoz();
+        }
     }
+
+    private Cuenta.PerfilDeUso _perfil = Cuenta.PerfilDeUso.SinElegir;
+
+    /// <summary>
+    /// Las instrucciones de siempre SIN perfil: la constitución y la operación, y el párrafo del decisor
+    /// si está encendido (promesa 284). Las leen las promesas que juzgan el texto (161, 206, 244, 284,
+    /// 502); la voz usa <see cref="InstruccionesDeSiempre"/>, que es esto mismo con el perfil dentro.
+    /// </summary>
+    internal static string InstruccionesNormales => ArmarLasDeSiempre("");
+
+    /// <summary>
+    /// LAS INSTRUCCIONES DE SIEMPRE DE ESTA CONVERSACIÓN: quién es Ü, con quién habla, el pilar de obedecer,
+    /// cómo se opera y, con el decisor, quién elige la puerta. Lo que se manda al abrir, al reconectar y al
+    /// volver de un modo (spec 078; D2 y D3).
+    /// </summary>
+    internal string InstruccionesDeSiempre => ArmarLasDeSiempre(Perfil.ParaElDelegado());
+
+    /// <summary>
+    /// EL BLOQUE DEL PERFIL VA JUSTO DETRÁS DE QUIÉN ES Ü, como en el cerebro de Graph (quién eres · quién te
+    /// habla · lo que te piden, lo haces): «un dato clínico nunca se elige» se lee antes que «ELIGE TÚ».
+    /// Sin perfil el bloque es vacío y sale exactamente <see cref="Instrucciones"/> (más el decisor).
+    /// </summary>
+    /// <remarks>
+    /// LOS SALTOS DE LÍNEA SE IGUALAN A \n. Los textos son raw strings y, en un clon con autocrlf, llevan
+    /// \r\n: la misma Ü mandaría ~400 caracteres más según cómo se clonó el repo, y la medida del tope de
+    /// la apertura no sería la de ninguna máquina en concreto.
+    /// </remarks>
+    private static string ArmarLasDeSiempre(string bloqueDelPerfil) =>
+        ((bloqueDelPerfil.Length == 0
+            ? Instrucciones
+            : ConstitucionDeU.Quien + bloqueDelPerfil + "\n\n" + ConstitucionDeU.Obedece + "\n\n" + Operacion)
+         + (ConDecisor ? ParrafoDelDecisor : "")).ReplaceLineEndings("\n");
+
+    // ── Los modos especiales: aprendiz y voz prestada (promesas 138 y 192) ────
+
+    /// <summary>
+    /// EL MODO EN QUE ESTÁ LA VOZ, si no es el de siempre: sus instrucciones, su catálogo y si solo habla
+    /// cuando se le pide. Null = el de siempre.
+    /// </summary>
+    /// <remarks>
+    /// Nació el 2026-10-01 (D2, D4 y D9 de la spec 078). Sin él nadie sabía en qué modo estaba la voz:
+    /// reconectar a mitad de una enseñanza la devolvía con manos, el botón Jev a mitad de una demo le
+    /// devolvía el catálogo entero, y los vigilantes de lección y de memoria seguían despiertos mientras
+    /// alguien narraba «esto es el número de factura» para la grabación.
+    /// </remarks>
+    private ModoEspecial? _modo;
+
+    private sealed record ModoEspecial(string Instrucciones, IReadOnlyList<Utensilio> Utensilios, bool SoloCuandoSeLePide);
+
+    /// <summary>Si la voz está en un modo especial (aprendiz, voz prestada) y no en el de siempre.</summary>
+    internal bool EnUnModoEspecial => _modo != null;
+
+    // ── Lo que esta conversación le añade a quien actúa, detrás de las de siempre ──
+
+    /// <summary>
+    /// LO QUE VA DETRÁS DE LAS DE SIEMPRE: las habilidades —con cualquier voz— y, cuando otro habla por quien
+    /// actúa (GPT-Live), que él no habla y que ya ve la pantalla al empezar.
+    /// </summary>
+    /// <remarks>
+    /// DETRÁS Y NO DENTRO. Las de siempre son la constitución y la operación: tienen su presupuesto (724), sin
+    /// perfil no cambian ni un byte (722), y el perfil va en medio de ellas. Esto es de las specs 073, 074 y 079,
+    /// y hasta el 2026-10-01 era un texto entero aparte para el delegado —cabecera, cuerpo, habla y cola—: al
+    /// mezclar con «una sola Ü» había dos reescrituras del mismo texto, y la del delegado se quedó en lo que de
+    /// verdad es solo suyo.
+    ///
+    /// LAS REGLAS DE HABLA DE LA OPERACIÓN LE LLEGAN TAMBIÉN AL DELEGADO, que no suena. No se quitan: se le dice
+    /// cómo leerlas —«donde digan habla, devuélvelo en tu resultado»—, que es como main las probó con él (737).
+    /// </remarks>
+    internal static string LoQueSeAnade(bool actuaUnDelegado)
+        => ("\n\n" + Habilidades + (actuaUnDelegado ? "\n\n" + ElDelegadoNoHabla + "\n\n" + VistaDelDelegado : "")).ReplaceLineEndings("\n");
+
+    /// <summary>Las de quien actúa cuando otro habla por él (GPT-Live), sin perfil: las juzga el contrato.</summary>
+    internal static string InstruccionesDelDelegado => InstruccionesNormales + LoQueSeAnade(true);
+
+    /// <summary>Las de quien actúa y habla (GPT Realtime), sin perfil: las de siempre y las habilidades.</summary>
+    internal static string InstruccionesDeUnaVoz => InstruccionesNormales + LoQueSeAnade(false);
+
+    /// <summary>
+    /// LAS QUE LE TOCAN A QUIEN ACTÚA con este protocolo, sin perfil. La conversación manda las suyas —con el
+    /// perfil, la fecha, lo aprendido, la memoria y el hilo— desde <see cref="ComponerInstruccionesAsync"/>, que
+    /// usa la misma regla: <see cref="LoQueSeAnade"/> según si actúa un delegado.
+    /// </summary>
+    internal static string InstruccionesPara(IProtocolo protocolo)
+        => protocolo.ActuaUnDelegado ? InstruccionesDelDelegado : InstruccionesDeUnaVoz;
+
+    /// <summary>
+    /// CÓMO SE HACE ALGO, A LA MANERA DE ESTA PERSONA (spec 074). Para las dos voces: las herramientas existen
+    /// con cualquiera de ellas.
+    /// </summary>
+    private const string Habilidades = """
+        LAS HABILIDADES: CÓMO SE HACE ALGO, A LA MANERA DE ESTA PERSONA. Un recuerdo (map_esto_es) dice qué ES algo en una pantalla; una habilidad dice CÓMO SE HACE una tarea, paso a paso, y vale en cualquier parte.
+          · SI TE ENSEÑAN CÓMO SE HACE ALGO —«te voy a enseñar a…», «se hace así», «cuando te pida X, haz Y», «apréndete esto»— guárdalo EN ESE MOMENTO con habilidad_escribir: un nombre corto como lo diría la persona, cuándo usarla, y los pasos en orden, uno por línea, con el nombre exacto de cada botón o campo. No esperes a que se repita ni a que termine la sesión: con una vez basta.
+          · SI TE LO MUESTRAN EN VEZ DE DECIRLO —«mira cómo lo hago», «fíjate», y la persona lo hace con su ratón— llama a habilidad_lo_que_hice: te devuelve lo que acaba de pulsar, en orden y con el nombre con que map_take lo encuentra. Con eso y con lo que te dijo, escribe los pasos.
+          · SI TE CORRIGEN una habilidad —«no, primero…», «te faltó…», «ese paso ya no»— RECONSTRÚYELA ENTERA: llama otra vez a habilidad_escribir con el MISMO nombre y TODOS los pasos, los que siguen valiendo y los corregidos. Lo que mandes sustituye a lo que había: no existe «cambiar el paso 3».
+          · SI TE PIDEN ALGO QUE UNA HABILIDAD DESCRIBE, SIGUE SUS PASOS, en su orden, en vez de improvisar: es la manera de esta persona, y por eso te la enseñó. Las que tienes vienen al final de estas instrucciones; si solo viene su nombre, lee sus pasos con habilidad_leer antes de empezar. Si un paso ya no funciona, resuélvelo como sepas, termina, y cuenta qué cambió.
+          · «Olvida cómo se hace X», «ya no lo hagas así» → habilidad_olvidar.
+          · DI QUE LA GUARDASTE solo cuando la herramienta lo confirme, y con su nombre.
+        """;
+
+    /// <summary>
+    /// QUIÉN ES EL DELEGADO Y QUÉ DEVUELVE (spec 073). Medido el 2026-10-01: devolvió «El resultado es 69.104 y
+    /// ya está escrito en el Bloc de notas.», y la voz lo dijo con sus palabras. Sin «no termines con una promesa»
+    /// devolvió «lo corrijo ahora» y terminó sin corregirlo: la voz lo repitió fielmente.
+    /// </summary>
+    private const string ElDelegadoNoHabla = """
+        TÚ NO HABLAS CON LA PERSONA: OTRA VOZ LE HABLA A LA PERSONA, en una conversación en vivo, y te pasa lo que pide. Lo que te llega es la transcripción de lo que dijo: puede traer errores, frases a medias y correcciones, y manda lo último que dijo. Tú trabajas y devuelves el resultado; la voz lo dice con sus palabras. Donde estas instrucciones digan «habla», «di», «dilo» o «cuenta», quiere decir: devuélvelo en tu resultado.
+          · ENCADENA las herramientas que hagan falta sin escribir nada entre una y otra: mientras trabajas, la voz ya le va contando a la persona cada paso que terminas. No lo repitas tú.
+          · AL TERMINAR, DEVUELVE EL RESULTADO en una o dos frases, en pasado: qué quedó hecho y el dato que se pidió («el resultado es 69.104», «quedó abierta Descargas»), qué falló y por qué si algo no salió, y el siguiente paso si queda alguno o hace falta un dato para seguir.
+          · NO TERMINES CON UNA PROMESA. «Lo corrijo ahora» sin corregirlo es dejarlo sin hacer y decir lo contrario: si algo quedó mal, arréglalo ANTES de devolver el resultado, o di que quedó sin hacer.
+          · Si no había nada que hacer porque era una pregunta, contesta la pregunta y nada más.
+        """;
+
+    /// <summary>
+    /// LO QUE YA VE AL EMPEZAR (spec 079). Solo para el delegado: es a quien le llega la foto.
+    /// </summary>
+    /// <remarks>
+    /// Medido con la sonda el 2026-10-01: con la foto en la conversación y SIN este párrafo, gastó igual la vuelta
+    /// en mirar; con él, contestó «7421» y planeó `pulsa: Radicar` en una sola. Y en la Ü de pruebas, con las
+    /// instrucciones de verdad: hasta que el párrafo no nombró map_where_am_i, preguntó dónde estaba y volvió a
+    /// mirar antes de leer «144» —3 vueltas, 7,5 s—; nombrándola, 1 vuelta y ~2 s.
+    /// </remarks>
+    private const string VistaDelDelegado = """
+        YA VES LA PANTALLA AL EMPEZAR. Con el pedido te puede llegar una foto de la pantalla del momento en que la persona lo pidió, en un mensaje que empieza por «[PANTALLA: esto no lo dijo la persona]»: trae el cursor dibujado donde apuntaba y, escrito al lado, dónde está la persona: lo que map_where_am_i contesta en ese instante. MÍRALA ANTES DE NADA. Esa foto es de AHORA: cuando te llega el pedido, la pantalla sigue así.
+          · Si lo que piden se contesta o se decide con lo que se ve en ella —qué dice, qué número hay, cuál es «ese» botón, de qué color es, dónde está algo—, hazlo ya, SIN gastar ninguna llamada antes: ni map_look, ni map_what_i_see, ni map_where_am_i. Una pregunta sobre lo que se ve se contesta sin llamar a nada: cada llamada de esas son dos segundos de la persona esperando lo que ya tienes delante.
+          · La regla de que una foto no decide dónde estás sigue en pie, y por eso el sitio viene ESCRITO junto a la foto: ya es la respuesta de map_where_am_i. No la vuelvas a pedir para empezar.
+          · «Esto», «este», «aquí», «el que señalo» es lo que hay bajo el cursor en esa foto. Si para pulsarlo necesitas su nombre exacto y no se lee, map_pointing_at te lo da.
+          · Vuelve a mirar solo DESPUÉS de haber actuado, o si la foto no trae lo que necesitas, o si con este pedido no llegó ninguna: lo que haces cambia la pantalla, y la foto es de antes.
+        """;
 
     /// <summary>
     /// Cambia quién es Ü a mitad de sesión: otras instrucciones y otro catálogo. Promesa 138.
@@ -1843,14 +1980,23 @@ public sealed class ConversacionEnVivo : IDisposable
     /// <remarks>
     /// Sin cortar el audio: así 🎓 convierte al asistente en aprendiz sin cerrar el micrófono que acaba de
     /// abrir —cerrarlo y reabrirlo costaba cuatro segundos y un saludo, medido el 2026-09-03—, y al
-    /// terminar lo devuelve tal como estaba. CÓMO se cambia lo dice el protocolo: en Realtime es la misma
-    /// apertura reenviada; en GPT-Live la apertura es session.start, que a mitad de sesión es un error
-    /// (medido el 2026-09-12), y lo que se manda es un session.update de la delegación — la voz no cambia
-    /// de persona, solo el delegado (spec 018).
+    /// terminar lo devuelve tal como estaba (<see cref="VolverAlModoNormalAsync"/>). CÓMO se cambia lo dice
+    /// el protocolo: en Realtime es la misma apertura reenviada; en GPT-Live la apertura es session.start,
+    /// que a mitad de sesión es un error (medido el 2026-09-12), y lo que se manda es un session.update de
+    /// la delegación y, a la voz, un append con las reglas del modo (spec 018, promesa 47 de la voz).
+    ///
+    /// ESPERA A QUE EL SERVIDOR CONFIRME LA SESIÓN (D8, promesa 732): enseñar y comprobar abren la voz y
+    /// cambian de modo en el mismo instante, y con GPT-Live no está medido que un session.update antes de
+    /// session.started se acepte. Con techo de 15 s, como <see cref="HablarConVozVivaAsync"/>.
     /// </remarks>
     public async Task CambiarModoAsync(string instrucciones, IReadOnlyList<Utensilio> utensilios, bool soloCuandoSeLePide = false)
     {
-        if (!Viva || _ws?.State != WebSocketState.Open) return;
+        if (!SalidaAbierta) return;
+        if (!await EsperarLaConfirmacionAsync("cambiar de modo")) return;
+        // EN \n, COMO LAS DE SIEMPRE: el append del aprendiz va al borde del tope de GPT-Live (1.756 caracteres
+        // medidos con \n), y con \r\n se pasaría sin que nadie tocara el texto.
+        string reglas = (instrucciones ?? "").ReplaceLineEndings("\n");
+        _modo = new ModoEspecial(reglas, utensilios, soloCuandoSeLePide);
         // SIN FINGIR: la voz prestada (promesa 192) pide que no conteste por su cuenta, y una voz que no sabe
         // esperar turno seguirá contestando a lo que oiga. Se dice en el log en vez de anotar «solo habla
         // cuando se le pide», que con GPT-Live sería mentira.
@@ -1858,10 +2004,93 @@ public sealed class ConversacionEnVivo : IDisposable
         if (soloCuandoSeLePide && !esperara)
             LogBus.Log("voz-viva", $"{_protocolo.Quien} no sabe esperar turno: se pidió que solo hable cuando se "
                 + $"le pida y esta voz seguirá contestando sola a lo que oiga ({VariableDeLaVoz}={VozRealtime} sí sabe)");
-        foreach (string msg in _protocolo.CambioDeModo(instrucciones, utensilios, soloCuandoSeLePide))
+        foreach (string msg in _protocolo.CambioDeModo(reglas, utensilios, soloCuandoSeLePide))
             await EnviarAsync(msg, _cts?.Token ?? CancellationToken.None);
         LogBus.Log("voz-viva", $"modo cambiado: {utensilios.Count} herramienta(s), "
-            + $"instrucciones de {instrucciones.Length} car." + (esperara ? " · solo habla cuando se le pide" : ""));
+            + $"instrucciones de {reglas.Length} car." + (esperara ? " · solo habla cuando se le pide" : ""));
+    }
+
+    /// <summary>
+    /// VUELVE AL MODO DE SIEMPRE con todo lo que se abrió: las instrucciones con el perfil, el decisor, la
+    /// memoria y el hilo, y el catálogo entero. D2 de la spec 078, promesa 727.
+    /// </summary>
+    /// <remarks>
+    /// LO QUE PASABA: los tres sitios de vuelta —terminar de enseñar, devolver la voz prestada y el botón
+    /// Jev— mandaban <see cref="InstruccionesNormales"/> a secas. El delegado volvía sin memoria ni hilo, y
+    /// con GPT-Live la voz recibía un append de 25.000 caracteres (no eran las de la apertura, que llevaban
+    /// memoria) que el servidor rechazaba con 500 fichas de tope: la voz se quedaba con las reglas del
+    /// aprendiz —«asiente con una palabra»— el resto de la sesión, y el rechazo solo quedaba en el log.
+    /// La vuelta va por <see cref="IProtocolo.VueltaDeModo"/>, que a la voz le devuelve su persona.
+    /// </remarks>
+    public async Task VolverAlModoNormalAsync()
+    {
+        if (!SalidaAbierta) { _modo = null; return; }   // cerrada: la próxima apertura ya es la de siempre
+        if (!await EsperarLaConfirmacionAsync("volver al modo de siempre")) return;
+        _modo = null;
+        var ct = _cts?.Token ?? CancellationToken.None;
+        string instrucciones = await InstruccionesConMemoriaAsync(ct);
+        var utensilios = Herramientas();
+        foreach (string msg in _protocolo.VueltaDeModo(instrucciones, utensilios))
+            await EnviarAsync(msg, ct);
+        LogBus.Log("voz-viva", $"vuelvo al modo de siempre: {utensilios.Count} herramienta(s), "
+            + $"instrucciones de {instrucciones.Length} car. con la memoria y el hilo");
+    }
+
+    /// <summary>
+    /// EL CATÁLOGO CAMBIÓ (el botón Jev encendió o apagó el decisor): se le manda a la voz si está en su modo
+    /// de siempre. En un modo especial no se toca nada —encender Jev a mitad de una enseñanza le devolvía las
+    /// manos al aprendiz— y la vuelta ya leerá el catálogo nuevo (promesa 728).
+    /// </summary>
+    public Task ReenviarElCatalogoAsync()
+    {
+        if (_modo != null)
+        {
+            LogBus.Log("voz-viva", "el catálogo cambió en un modo especial: se aplica al volver al modo de siempre");
+            return Task.CompletedTask;
+        }
+        return VolverAlModoNormalAsync();
+    }
+
+    /// <summary>
+    /// TRAS UN CORTE, LA VOZ VUELVE AL MODO EN QUE ESTABA (D4, promesa 729). La reconexión abre con las
+    /// instrucciones de siempre —es lo que la vuelta necesita como punto de partida— y, si había un modo
+    /// especial, se le vuelve a poner en cuanto el servidor confirma la sesión nueva.
+    /// </summary>
+    /// <remarks>
+    /// Sin esto, un corte a mitad de una demo devolvía a Ü sus manos y su forma de asistente: la persona
+    /// seguía narrando para la grabación y Ü volvía a tomar la narración por órdenes.
+    /// </remarks>
+    private async Task ReaplicarElModoAsync()
+    {
+        var modo = _modo;
+        if (modo == null) return;
+        if (!await EsperarLaConfirmacionAsync("volver al modo tras el corte")) return;
+        if (!ReferenceEquals(modo, _modo) || !SalidaAbierta) return;   // mientras tanto se volvió o se cambió
+        var ct = _cts?.Token ?? CancellationToken.None;
+        foreach (string msg in _protocolo.CambioDeModo(modo.Instrucciones, modo.Utensilios, modo.SoloCuandoSeLePide))
+            await EnviarAsync(msg, ct);
+        LogBus.Log("voz-viva", $"tras el corte, la voz vuelve al modo en que estaba ({modo.Utensilios.Count} herramienta(s))");
+    }
+
+    /// <summary>
+    /// Espera a que el servidor confirme la conexión en curso, con techo de 15 s. Verdadero si ya estaba
+    /// confirmada o si el protocolo no confirma; falso si no llegó a tiempo o la voz se cerró mientras.
+    /// </summary>
+    private async Task<bool> EsperarLaConfirmacionAsync(string para)
+    {
+        var confirmacion = _aperturaConfirmada;
+        if (_confirmada || confirmacion == null) return true;
+        try
+        {
+            bool abrio = await confirmacion.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            if (!abrio) LogBus.Log("voz-viva", $"la voz se cerró antes de que el servidor la confirmara: no se puede {para}");
+            return abrio;
+        }
+        catch (TimeoutException)
+        {
+            LogBus.Log("voz-viva", $"el servidor no confirmó la sesión en 15 s: no se puede {para}");
+            return false;
+        }
     }
 
     public Task EnviarTextoAsync(string texto)
@@ -1872,6 +2101,9 @@ public sealed class ConversacionEnVivo : IDisposable
 
     private async Task EnviarTextoInternoAsync(string texto, bool soloTexto)
     {
+        // ENCENDIDA Y TODAVÍA ABRIENDO (spec 075): la voz consta encendida desde el gesto, así que lo escrito
+        // puede llegar antes que el socket. No se tira: espera a que el servidor confirme, igual que lo dicho.
+        if (Viva && !_confirmada) await EsperarAbiertaAsync(TimeSpan.FromSeconds(10));
         if (!SalidaAbierta || string.IsNullOrWhiteSpace(texto)) return;
         if (soloTexto) _respuestaDeTexto = true;
         EmpiezaUnTurnoDelUsuario("texto");   // escribir también es pedir algo nuevo (spec 017)
@@ -1879,16 +2111,16 @@ public sealed class ConversacionEnVivo : IDisposable
         _diario?.Persona(texto);   // lo escrito enseña igual que lo dicho (spec 074)
         Dice?.Invoke($"Tú: {texto}");
         var ct = _cts?.Token ?? CancellationToken.None;
-        // LA PANTALLA, DELANTE DEL TEXTO (promesa 741): aquí nadie está hablando mientras la foto sube, así que se
+        // LA PANTALLA, DELANTE DEL TEXTO (promesa 781): aquí nadie está hablando mientras la foto sube, así que se
         // la espera —si cambió— para que el delegado empiece con ella y no la reciba a mitad.
         await MandarLaPantallaAlPedirAsync(ct);
         foreach (string msg in MensajesDeTexto(_protocolo, texto))   // promesa 208: lo escrito pide respuesta
             await EnviarAsync(msg, ct);
     }
 
-    // AQUÍ VIVÍAN LA MEMORIA VISUAL (map_look_back) Y EL ÁLBUM DE MIRADAS, retirados con la spec 078 (2026-10-01):
+    // AQUÍ VIVÍAN LA MEMORIA VISUAL (map_look_back) Y EL ÁLBUM DE MIRADAS, retirados con la spec 079 (2026-10-01):
     // 3.238 capturas y 592 MB en el PC del dueño, y la herramienta llamada cero veces en trece días. Lo que hoy
-    // recuerda con fotos es el diario de la sesión, que el repaso sí lee (promesas 743 y 744).
+    // recuerda con fotos es el diario de la sesión, que el repaso sí lee (promesas 783 y 784).
 
     /// <summary>
     /// Varias fotos de una tanda —las de lo que la persona mostró—: suben A LA VEZ y entran en su orden. Una
@@ -1997,21 +2229,22 @@ public sealed class ConversacionEnVivo : IDisposable
     {
         if (json.Length == 0) return;
         if (_puerta != null) { await _puerta(json, ct); return; }
-        if (_ws == null) return;
+        var ws = _ws;   // el de ahora: quien apague a media espera no deja esto mandando por un campo vacío
+        if (ws == null) return;
         await _envio.WaitAsync(ct);
-        try { await _ws.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, ct); }
+        try { await ws.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, ct); }
         finally { _envio.Release(); }
     }
 
-    private async Task RecibirAsync(CancellationToken ct)
+    private async Task RecibirAsync(ClientWebSocket ws, CancellationToken ct)
     {
         var buf = new byte[32 * 1024];
         var acumulado = new MemoryStream();
         try
         {
-            while (!ct.IsCancellationRequested && _ws?.State == WebSocketState.Open)
+            while (!ct.IsCancellationRequested && ws.State == WebSocketState.Open)
             {
-                var r = await _ws.ReceiveAsync(buf, ct);
+                var r = await ws.ReceiveAsync(buf, ct);
                 if (r.MessageType == WebSocketMessageType.Close)
                 {
                     CerroElServidor((int?)r.CloseStatus ?? 0, r.CloseStatusDescription ?? "");
@@ -2022,6 +2255,8 @@ public sealed class ConversacionEnVivo : IDisposable
 
                 string texto = Encoding.UTF8.GetString(acumulado.ToArray());
                 acumulado.SetLength(0);
+                // LO QUE LLEGA DESPUÉS DE APAGAR NO ES DE NADIE: ni suena, ni se transcribe, ni pide herramientas.
+                if (EsDeOtraSesion(ct)) break;
                 try { Procesar(texto, ct); }
                 catch (Exception e) { LogBus.Log("voz-viva", $"mensaje ilegible: {e.Message}"); }
             }
@@ -2041,6 +2276,10 @@ public sealed class ConversacionEnVivo : IDisposable
     /// </remarks>
     private async Task SeAcaboLaEscuchaAsync(CancellationToken ct)
     {
+        // SOLO DECIDE LA ESCUCHA DE LA SESIÓN VIGENTE (promesa 664). La de una sesión que ya se apagó termina
+        // unos milisegundos después de apagarla, y hasta el 2026-10-01 llegaba aquí y cerraba «la voz» si
+        // constaba encendida: la de otro gesto, que ya había vuelto a encender.
+        if (EsDeOtraSesion(ct)) return;
         bool sigue = Viva && !ct.IsCancellationRequested;
         // LA CUENTA, LA CLAVE O EL MODELO, PRIMERO, y confirmada o no. Iba detrás de «no abrió» cuando GPT Realtime no
         // confirmaba; al pasar a confirmar con session.created (la 50), un invalid_api_key —que llega sin session.created,
@@ -2122,7 +2361,8 @@ public sealed class ConversacionEnVivo : IDisposable
     {
         _cayoSolo = false;
         string clave = Clave();
-        if (clave.Length == 0 || _cts == null) { await TerminarAsync(); return; }
+        var cts = _cts;   // la sesión que se cayó: todo lo de abajo es para ella, o no es
+        if (clave.Length == 0 || cts == null) { await TerminarAsync(); return; }
 
         if (++_reintentos > 4)
         {
@@ -2132,19 +2372,30 @@ public sealed class ConversacionEnVivo : IDisposable
             return;
         }
 
+        ClientWebSocket? ws = null;
         try
         {
-            await Task.Delay(300 * _reintentos, _cts.Token);
+            await Task.Delay(300 * _reintentos, cts.Token);
 
-            try { _ws?.Dispose(); } catch { }
-            _ws = new ClientWebSocket();
-            _ws.Options.CollectHttpResponseDetails = true;   // sin esto un 401 llega como estado 0 (ver ArrancarAsync)
-            foreach (var (k, v) in _protocolo.Cabeceras(clave)) _ws.Options.SetRequestHeader(k, v);
-            await _ws.ConnectAsync(_protocolo.Direccion(), _cts.Token);
-            string instrucciones = await InstruccionesConMemoriaAsync(_cts.Token);
+            ws = new ClientWebSocket();
+            ws.Options.CollectHttpResponseDetails = true;   // sin esto un 401 llega como estado 0 (ver ConectarAsync)
+            foreach (var (k, v) in _protocolo.Cabeceras(clave)) ws.Options.SetRequestHeader(k, v);
+            await ws.ConnectAsync(_protocolo.Direccion(), cts.Token);
+
+            ClientWebSocket? caido;
+            lock (_candadoDelEstado)
+            {
+                if (!EsLaSesion(cts)) { Soltar(ws); return; }   // la apagaron mientras volvía
+                caido = _ws;
+                _ws = ws;
+            }
+            Soltar(caido);
+
+            string instrucciones = await InstruccionesConMemoriaAsync(cts.Token);
             var historial = Conversacion?.Historial() ?? Array.Empty<(string Role, string Text)>();
             foreach (string msg in _protocolo.Apertura(instrucciones, Herramientas(), _pase, historial, false))
-                await EnviarAsync(msg, _cts.Token);
+                await EnviarAsync(msg, cts.Token);
+            if (!EsLaSesion(cts)) return;
 
             if (_protocolo.SabeVolver && _pase.Length > 0)
             {
@@ -2156,21 +2407,30 @@ public sealed class ConversacionEnVivo : IDisposable
                 LogBus.Log("voz-viva", $"reconectada SIN continuidad: la conversación empieza de "
                     + $"cero (intento {_reintentos})");
                 // «SIGO» CUANDO EL SERVIDOR CONFIRMA, no al reconectar el socket: el 2026-09-12 se dijo cuatro
-                // veces sobre una sesión que no iba a abrir.
-                EmpiezaUnaConexion("Se cortó un instante. Sigo, pero olvidé lo último que hablábamos.");
+                // veces sobre una sesión que no iba a abrir. Y SIN «OLVIDÉ LO ÚLTIMO»: la sesión nueva abre con la
+                // memoria y el hilo durable, en las instrucciones y en el historial (spec 078).
+                EmpiezaUnaConexion("Se cortó un instante; ya volví.");
             }
 
-            _ = Task.Run(() => RecibirAsync(_cts.Token), _cts.Token);
+            var socket = ws;
+            _ = Task.Run(() => RecibirAsync(socket, cts.Token));
+            // Y SI ESTABA EN UN MODO, VUELVE A ÉL (D4, promesa 729): la apertura de arriba es la de siempre, y el
+            // modo se le pone encima cuando el servidor confirme — que llega por la escucha que acaba de arrancar.
+            if (_modo != null) _ = Task.Run(() => ReaplicarElModoAsync());
         }
-        catch (OperationCanceledException) { await TerminarAsync(); }
         catch (Exception e)
         {
+            // SI YA NO ES LA SESIÓN VIGENTE, NO HAY NADA QUE DECIDIR: la apagaron, y lo que aquí salta es su
+            // cancelación. Hasta el 2026-10-01 una cancelación llamaba a TerminarAsync, que cerraba la voz que
+            // constara encendida — la de otro gesto, si ya había vuelto a encender (promesa 664).
+            if (!EsLaSesion(cts)) { if (!ReferenceEquals(_ws, ws)) Soltar(ws); return; }
             LogBus.Log("voz-viva", $"no pude reconectar: {e.Message}");
-            NoConecto(e, (int)(_ws?.HttpStatusCode ?? 0));
+            NoConecto(e, (int)(ws?.HttpStatusCode ?? 0));
+            if (!ReferenceEquals(_ws, ws)) Soltar(ws);
             _cayoSolo = true;
             // POR EL SITIO QUE DECIDE (promesa 224), y no llamándose a sí mismo: hasta el 2026-09-13 cualquier excepción
             // volvía a reconectar, también un 401 con la misma clave, y lo único que lo paraba era el tope de cuatro.
-            await SeAcaboLaEscuchaAsync(_cts.Token);
+            await SeAcaboLaEscuchaAsync(cts.Token);
         }
     }
 
@@ -2185,19 +2445,23 @@ public sealed class ConversacionEnVivo : IDisposable
         // se aparta para sumarlo al cerrar (promesa 218). Solo GPT-Live cuenta segundos, y no sabe volver a la misma sesión.
         _segundosDeConexionesAnteriores += _segundosDeLaConexion;
         _segundosDeLaConexion = 0;
-        // Y OTRA CONVERSACIÓN, que no tiene ninguna foto: la cuenta de las pantallas mandadas empieza de cero (741).
+        // Y OTRA CONVERSACIÓN, que no tiene ninguna foto: la cuenta de las pantallas mandadas empieza de cero (781).
         _huellaDeLaUltimaPantalla = null;
         _pantallasMandadas = 0;
         _ultimaPantallaMs = 0;
         _yaDijeQueNoVanMas = false;
         _confirmada = !_protocolo.ConfirmaQueAbrio;
-        _aperturaConfirmada = _confirmada
-            ? new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)
-            : new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        // LA MISMA ESPERA QUE NACIÓ EN EL GESTO, si sigue pendiente: quien la esperaba desde el clic no se
+        // queda mirando una que ya nadie va a cumplir. Una nueva solo al reconectar, con la anterior cumplida.
+        if (_aperturaConfirmada == null || _aperturaConfirmada.Task.IsCompleted)
+            _aperturaConfirmada = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (_confirmada) _aperturaConfirmada.TrySetResult(true);
         _fallaAntesDeAbrir = "";
         _porQueNoSeReintenta = _loQueDijoAlNoPoder = "";   // la causa era de la conexión anterior (224)
         _alConfirmar = _confirmada ? "" : alConfirmar;
+        // HASTA QUE CONFIRME, LO CAPTADO SE GUARDA (promesa 661), también al reconectar: el servidor tira lo
+        // que le llega antes. Si ya se venía guardando desde el gesto, se conserva.
+        if (!_confirmada) _preEscucha.Empezar();
         // CONECTAR NO ES ABRIR (promesa 220). Hasta el 2026-09-13 «sesión abierta con «…»» se escribía en ArrancarAsync al
         // conectar el socket, y en el nivel 4 del 12, sin crédito, salió en el mismo segundo que el error: el conductor la
         // tomó por voz abierta (patrón nº2). Con un protocolo que confirma, aquí solo se sabe que el socket conectó, y la
@@ -2207,6 +2471,44 @@ public sealed class ConversacionEnVivo : IDisposable
             ? $"sesión abierta con {QuienAbre}, sin confirmación: este protocolo no la manda"
             : $"socket conectado, esperando confirmación de {QuienAbre}");
         if (_confirmada && alConfirmar.Length > 0) Dice?.Invoke(alConfirmar);
+        if (_confirmada) _ = SoltarLoGuardadoAsync();   // un protocolo que no confirma no tiene a qué esperar
+    }
+
+    /// <summary>
+    /// EL SERVIDOR CONFIRMÓ: lo dicho desde el gesto sale ahora, entero y en orden, y el encendido deja su línea.
+    /// </summary>
+    /// <remarks>
+    /// De uno en uno y esperando cada envío: <see cref="PreEscucha.Siguiente"/> deja de guardar en el instante
+    /// en que se vacía, así que lo que el micrófono traiga mientras esto corre se pone detrás y no se adelanta.
+    /// </remarks>
+    private async Task SoltarLoGuardadoAsync()
+    {
+        int guardados = _preEscucha.MsGuardados, perdidos = _preEscucha.MsPerdidos;
+        var reloj = _relojDeEncender;
+        if (reloj != null && reloj.Reclamar())
+        {
+            reloj.Marca("confirmada");
+            LogBus.Log("voz-clic", reloj.Linea(
+                (guardados > 0 ? $"lo dicho desde el gesto sale ahora: {guardados} ms guardados" : "nada guardado que mandar")
+                + (perdidos > 0 ? $", {perdidos} ms perdidos por el tope" : "")));
+        }
+        else if (perdidos > 0)
+            LogBus.Log("voz-viva", $"la espera tiró {perdidos} ms de lo captado: no cabían en el tope");
+
+        try
+        {
+            while (_preEscucha.Siguiente() is { } trozo)
+            {
+                if (!Viva) { _preEscucha.Tirar(); return; }
+                await EnviarAsync(_protocolo.Audio(trozo), _cts?.Token ?? CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        catch (Exception e)
+        {
+            int tirados = _preEscucha.Tirar();
+            LogBus.Log("voz-viva", $"lo guardado no llegó entero al servidor ({e.GetType().Name}: {e.Message}); "
+                + $"{tirados} ms sin mandar");
+        }
     }
 
     /// <summary>Con qué abre, tal como lo dicen las líneas de apertura: el modelo de la voz y el proveedor.</summary>
@@ -2300,7 +2602,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 break;
 
             case Hecho.DiceU d:
-                // LO QUE DEVUELVE EL DELEGADO, CON EL MICRÓFONO ABIERTO, LO DICE LA VOZ (promesa 749). Contarlo aquí
+                // LO QUE DEVUELVE EL DELEGADO, CON EL MICRÓFONO ABIERTO, LO DICE LA VOZ (promesa 789). Contarlo aquí
                 // también dejaba «Abrí tu correo en Gmail. Abrí tu correo en Gmail.» en el hilo y en el diario. Se
                 // guarda aparte por si la voz no llega a decirlo —la persona habló encima—: entonces es lo que queda.
                 if (!SeCuentaComoDichoPorU(d.DelDelegado, _conMicrofono))
@@ -2424,15 +2726,16 @@ public sealed class ConversacionEnVivo : IDisposable
                 _aperturaConfirmada?.TrySetResult(true);
                 LogBus.Log("voz-viva", $"sesión abierta con {QuienAbre}: el servidor la confirmó");   // la única que lo afirma (220)
                 if (_alConfirmar.Length > 0) { Dice?.Invoke(_alConfirmar); _alConfirmar = ""; }
-                ContarleLasPreferenciasALaVoz();   // en cada conexión: al reconectar la voz es otra (promesa 716)
+                _ = SoltarLoGuardadoAsync();   // lo dicho desde el gesto, que esperaba a esto (promesa 661)
+                ContarleLasPreferenciasALaVoz();   // en cada conexión: al reconectar la voz es otra (promesa 776)
                 break;
         }
     }
 
     // AQUÍ ESTABA TAMBIÉN GuardarPeticionPersonalSiLaPidio, la otra captura por palabras («recuerda que», «no
-    // olvides», «ten presente»). Se quitó con la spec 078: guardaba la frase cruda al cerrar el turno ADEMÁS de lo que
+    // olvides», «ten presente»). Se quitó con la spec 079: guardaba la frase cruda al cerrar el turno ADEMÁS de lo que
     // guardara quien actúa con memory_remember —el mismo dato dos veces, una limpia y otra con el «eh, recuerda que…»
-    // delante—. Lo que se le escape a quien actúa lo recoge el repaso, con criterio y con cita (promesa 747).
+    // delante—. Lo que se le escape a quien actúa lo recoge el repaso, con criterio y con cita (promesa 787).
 
     // AQUÍ ESTABA GuardarDetallePersonalSiEsRelevante, y se quitó con la spec 074 (2026-10-01): una lista de
     // palabras —«me gusta», «soy », «tengo un »— que guardaba la frase cruda en la memoria personal. De las 16
@@ -2448,12 +2751,14 @@ public sealed class ConversacionEnVivo : IDisposable
     {
         if (Interlocked.Exchange(ref _parandoPorOrden, 1) != 0) return;
         LogBus.Log("voz-viva", "orden de autocontrol: cierro micrófono y dejo una confirmación breve");
-        _audio.CerrarMicrofono();
+        ElMicro(false);
+        var cts = _cts;   // la sesión que lo pidió: dos segundos después puede haber otra, y esa no se cierra
         _ = Task.Run(async () =>
         {
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(2));
+                if (cts != null && !ReferenceEquals(_cts, cts)) return;
                 await TerminarAsync();
             }
             catch (Exception e) { LogBus.Log("voz-viva", $"no pude cerrar la voz tras la orden: {e.Message}"); }
@@ -2557,13 +2862,13 @@ public sealed class ConversacionEnVivo : IDisposable
         // tope a mitad de una petición. Si pasa, esta línea lo delata en el nivel 4; el arreglo de fondo
         // espera a medirlo (spec 017, hallazgos).
         LogBus.Log("voz-turno", $"turno nuevo (por {por}): el tope vuelve a cero");
-        // LA PANTALLA DE ESTE MOMENTO VIAJA CON EL PEDIDO (spec 078, promesa 741): la persona acaba de empezar a
+        // LA PANTALLA DE ESTE MOMENTO VIAJA CON EL PEDIDO (spec 079, promesa 781): la persona acaba de empezar a
         // hablar, y mientras habla la foto sube. Lo escrito la manda él mismo, esperándola, para que vaya DELANTE
         // del texto.
         if (por != "texto") MandarLaPantallaAlPedir();
     }
 
-    // ── La pantalla del pedido (spec 078) ───────────────────────────────────
+    // ── La pantalla del pedido (spec 079) ───────────────────────────────────
 
     /// <summary>La huella de la última pantalla que viajó en ESTA conexión, cuántas van y cuándo fue la última.</summary>
     private int[]? _huellaDeLaUltimaPantalla;
@@ -2633,7 +2938,7 @@ public sealed class ConversacionEnVivo : IDisposable
 
     /// <summary>
     /// CUÁNDO se le cuenta: la regla vive en <see cref="AvancesParaLaVoz"/> (promesas 64–66 de la voz). Aquí,
-    /// QUÉ se le cuenta (682) y el envío.
+    /// QUÉ se le cuenta (752) y el envío.
     /// </summary>
     private readonly AvancesParaLaVoz _avances = new(() => Environment.TickCount64);
 
@@ -2649,7 +2954,7 @@ public sealed class ConversacionEnVivo : IDisposable
     };
 
     /// <summary>
-    /// LO QUE SE LE CUENTA A LA VOZ DE UNA HERRAMIENTA QUE TERMINÓ (promesa 682): la primera línea de lo que
+    /// LO QUE SE LE CUENTA A LA VOZ DE UNA HERRAMIENTA QUE TERMINÓ (promesa 752): la primera línea de lo que
     /// devolvió, y si actuó. Vacío si no hay nada que contar.
     /// </summary>
     /// <remarks>
@@ -2687,7 +2992,7 @@ public sealed class ConversacionEnVivo : IDisposable
     public void AvanceDelPlan(string linea) => ContarALaVoz(AvanceDelPaso(linea));
 
     /// <summary>
-    /// A QUIÉN SE LE CUENTA (promesa 685): a una voz que no es quien actúa, y que está oyendo.
+    /// A QUIÉN SE LE CUENTA (promesa 755): a una voz que no es quien actúa, y que está oyendo.
     /// </summary>
     /// <remarks>
     /// SIN MICRÓFONO NO, y no es ahorro. Las órdenes escritas abren la sesión sin audio, y sin audio el
@@ -2722,7 +3027,7 @@ public sealed class ConversacionEnVivo : IDisposable
     }
 
     /// <summary>
-    /// LAS QUE VAN CON FOTO (promesa 684): mirar, y señalar. La descripción de map_pointing_at promete «además
+    /// LAS QUE VAN CON FOTO (promesa 754): mirar, y señalar. La descripción de map_pointing_at promete «además
     /// te llega una FOTO de ese instante» y la foto no se mandaba; el 2026-09-21 a «te estoy señalando algo
     /// con mi mouse, quiero que lo veas» se le contestó que no podía ver.
     /// </summary>
@@ -2792,6 +3097,9 @@ public sealed class ConversacionEnVivo : IDisposable
     /// </remarks>
     private void VigilarLaLeccion(string dicho)
     {
+        // EN UN MODO ESPECIAL NO SE VIGILA (D9, promesa 733): el aprendiz no tiene map_esto_es —los recuerdos se
+        // cuelgan al comprobar (125)— y un aviso que se la pide contradice el modo en que está.
+        if (_modo != null) return;
         if (!Navigation.UnaLeccion.Parece(dicho)) return;
 
         lock (_candadoLeccion)
@@ -2829,7 +3137,7 @@ public sealed class ConversacionEnVivo : IDisposable
     private void SeguirContandoSiQuedan()
     {
         int siguiente = _mapa.SiguienteRecuerdoPendiente;
-        if (siguiente <= 0 || !Viva) return;
+        if (siguiente <= 0 || !Viva || _modo != null) return;   // D9: en un modo especial no se empuja a la voz
 
         _ = Task.Run(async () =>
         {
@@ -2910,7 +3218,7 @@ public sealed class ConversacionEnVivo : IDisposable
             _relojDeLaLeccion?.Dispose();
             _relojDeLaLeccion = null;
         }
-        if (perdida.Length == 0 || !Viva) return;
+        if (perdida.Length == 0 || !Viva || _modo != null) return;   // D9: si entró en un modo mientras tanto, nada
 
         string corta = perdida.Length > 60 ? perdida[..60] + "…" : perdida;
         LogBus.Log("recuerdo", $"LECCIÓN PERDIDA: «{corta}» sonaba a enseñanza y no se creó ningún "
@@ -2937,6 +3245,19 @@ public sealed class ConversacionEnVivo : IDisposable
     }
 
     /// <summary>
+    /// UNA NOTA DEL SISTEMA PARA EL MODELO, que no es del usuario: no entra en el hilo durable ni se pinta
+    /// «Tú: …», y pide respuesta igual que lo escrito. D7 de la spec 078, promesa 731.
+    /// </summary>
+    /// <remarks>
+    /// LO QUE PASABA: el saludo de primera vez y la cuenta de un tramo iban por <see cref="EnviarTextoAsync"/>,
+    /// que es lo que escribe la persona. Se guardaban en el hilo como dichos por el USUARIO —y volvían en cada
+    /// sesión siguiente, en las instrucciones y en el historial— y la carita pintaba «Tú: [instrucción del
+    /// sistema, no la leas en voz alta]…». <see cref="EnviarTextoAlModeloAsync"/> sigue privado (promesa 208):
+    /// esta es su puerta pública.
+    /// </remarks>
+    public Task AvisarAlModeloAsync(string nota) => EnviarTextoAlModeloAsync(nota);
+
+    /// <summary>
     /// Le mete una nota al modelo SIN que parezca dicha por el usuario en la carita: no se pinta en
     /// la burbuja, porque nadie la dijo en voz alta.
     /// </summary>
@@ -2948,18 +3269,26 @@ public sealed class ConversacionEnVivo : IDisposable
             await EnviarAsync(msg, ct);
     }
 
+    /// <summary>
+    /// LO QUE SE MANDA AL ABRIR, AL RECONECTAR Y AL VOLVER DE UN MODO: las instrucciones de siempre de esta
+    /// conversación (con su perfil y, si está encendido, el decisor), la memoria personal y el hilo.
+    /// </summary>
+    /// <remarks>
+    /// CON EL DECISOR DESDE LA APERTURA (D3, promesa 725): usaba la constante <see cref="Instrucciones"/>, y el
+    /// catálogo ya traía map_decidir y map_tramo sin el párrafo que dice cuándo usarlas; ConDecisor se enciende
+    /// al arrancar la ventana, antes de que exista la voz, así que el párrafo solo llegaba tras un cambio de modo.
+    /// </remarks>
     private async Task<string> InstruccionesConMemoriaAsync(CancellationToken ct)
-        => _instruccionesDeLaSesion = await ComponerInstruccionesAsync(ct);
+        => await ComponerInstruccionesAsync(ct);
 
     private async Task<string> ComponerInstruccionesAsync(CancellationToken ct)
     {
         var memoria = Memoria;
         var conversacion = Conversacion;
-        // LAS QUE LE TOCAN A QUIEN ACTÚA (promesa 681). Antes salían de la constante de la voz única, sin
-        // el párrafo del decisor: con él encendido, la sesión abría con map_decidir y sin saber usarlo.
-        // CON LA FECHA DE HOY DETRÁS (promesa 748): al final de las de operar, para que lo que no cambia de una
-        // sesión a otra siga siendo el mismo principio.
-        string deBase = InstruccionesPara(_protocolo) + "\n\n" + FechaParaQuienActua(DateTimeOffset.Now);
+        // LAS DE SIEMPRE DE ESTA CONVERSACIÓN —con su perfil y, si está encendido, el decisor (722, 725)— y, DETRÁS, lo
+        // que le toca a quien actúa: las habilidades, lo que es solo del delegado cuando otro habla por él, y la fecha
+        // de hoy. Detrás y no dentro: las de siempre tienen su presupuesto (724) y sin perfil no cambian ni un byte (722).
+        string deBase = InstruccionesDeSiempre + LoQueSeAnade(_protocolo.ActuaUnDelegado) + "\n\n" + FechaParaQuienActua(DateTimeOffset.Now);
         if (memoria == null && conversacion == null && Aprendido == null) return deBase;
         // LO APRENDIDO SE LEE APARTE de la memoria personal: si ella falla, las habilidades viajan igual.
         string aprendido = "";
@@ -2972,7 +3301,8 @@ public sealed class ConversacionEnVivo : IDisposable
             // que termine evita abrir una sesión de voz sin la memoria personal disponible.
             limite.CancelAfter(TimeSpan.FromSeconds(10));
             string contexto = memoria == null ? "" : await memoria.ContextoAsync(limite.Token);
-            string hilo = conversacion?.Contexto() ?? "";
+            // DEL HILO, LO ÚLTIMO Y HASTA 8.000 (724): con GPT-Live el mismo hilo viaja otra vez como historial de la voz.
+            string hilo = conversacion?.Contexto(56, TopeDelHiloEnLasInstrucciones) ?? "";
             string compuestas = InstruccionesDeApertura(deBase, contexto, hilo, aprendido);
             // CON QUÉ ABRE, EN NÚMEROS: «no usó la habilidad» se empieza a diagnosticar sabiendo si le llegó.
             LogBus.Log("voz-viva", $"instrucciones de quien actúa: {compuestas.Length} car. de {TopeDeInstrucciones} "
@@ -2987,7 +3317,17 @@ public sealed class ConversacionEnVivo : IDisposable
     }
 
     /// <summary>
-    /// QUÉ DÍA ES, dicho para quien actúa (spec 078, promesa 748). El 2026-10-01, a «escribe la fecha de hoy»,
+    /// CUÁNTO HILO VA EN LAS INSTRUCCIONES: lo último, hasta 8.000 caracteres (D5 de la spec 078, promesa 724).
+    /// </summary>
+    /// <remarks>
+    /// Eran 18.000, y con GPT-Live el mismo hilo viaja OTRA vez como historial de la voz (session.input): la
+    /// apertura del peor caso rozaba las 16.384 fichas con las que el servidor deja de confirmar. Quitarlo del
+    /// todo de aquí no se hace sin una sonda: no está medido si el delegado ve el historial de la voz.
+    /// </remarks>
+    internal const int TopeDelHiloEnLasInstrucciones = 8_000;
+
+    /// <summary>
+    /// QUÉ DÍA ES, dicho para quien actúa (spec 079, promesa 788). El 2026-10-01, a «escribe la fecha de hoy»,
     /// escribió «2025-02-27», intentó abrir «reloj» y acabó tecleando `date /t` en una consola: nadie se lo decía.
     /// En castellano y con nombres propios, sea cual sea el idioma de Windows.
     /// </summary>
@@ -3000,7 +3340,7 @@ public sealed class ConversacionEnVivo : IDisposable
     }
 
     /// <summary>
-    /// SI LO QUE LLEGA COMO DICHO POR Ü SE CUENTA COMO DICHO (promesa 749). Lo de la voz, siempre. Lo que devuelve
+    /// SI LO QUE LLEGA COMO DICHO POR Ü SE CUENTA COMO DICHO (promesa 789). Lo de la voz, siempre. Lo que devuelve
     /// el delegado, solo cuando no hay voz que lo diga: en una sesión escrita ES la respuesta.
     /// </summary>
     internal static bool SeCuentaComoDichoPorU(bool delDelegado, bool conMicrofono) => !delDelegado || !conMicrofono;
@@ -3014,7 +3354,7 @@ public sealed class ConversacionEnVivo : IDisposable
 
     /// <summary>
     /// LAS INSTRUCCIONES CON QUE ABRE UNA SESIÓN: las de operar, lo aprendido, la memoria personal y el hilo,
-    /// en ese orden, y sin pasar de <paramref name="tope"/> (promesas 703 y 704).
+    /// en ese orden, y sin pasar de <paramref name="tope"/> (promesas 763 y 764).
     /// </summary>
     /// <remarks>
     /// QUIEN CEDE ES EL HILO. Hasta la spec 074 se sumaba todo sin mirar el total: con el hilo lleno rondaban
@@ -3026,8 +3366,8 @@ public sealed class ConversacionEnVivo : IDisposable
     internal static string InstruccionesDeApertura(string deBase, string memoria, string hilo, string aprendido, int tope = TopeDeInstrucciones)
     {
         const string tituloDeLoAprendido = "\n\nLO QUE ESTA PERSONA TE HA ENSEÑADO (es su manera de hacer las cosas: manda sobre tu criterio, y no hace falta que te lo repita):\n";
-        const string tituloDeLaMemoria = "\n\nMEMORIA PERSONAL DISPONIBLE (úsala solo si es pertinente; no inventes). Los [recordatorio ...] pendientes son compromisos activos y debes reconocerlos si el usuario pregunta por el hilo: \n";
-        const string tituloDelHilo = "\n\nHILO CONVERSACIONAL DURABLE (continúa naturalmente desde aquí, incluso después de apagar y volver a encender el micrófono; no pidas al usuario que te repita esto):\n";
+        const string tituloDeLaMemoria = "\n\nMEMORIA PERSONAL DISPONIBLE (úsala solo si es pertinente; no inventes). Los [recordatorio ...] pendientes son compromisos activos y debes reconocerlos si la persona pregunta por el hilo:\n";
+        const string tituloDelHilo = "\n\nHILO CONVERSACIONAL DURABLE (continúa naturalmente desde aquí, incluso después de apagar y volver a encender el micrófono; no le pidas a la persona que te repita esto):\n";
 
         var sb = new StringBuilder(deBase ?? "");
         if (!string.IsNullOrWhiteSpace(aprendido)) sb.Append(tituloDeLoAprendido).Append(aprendido);
@@ -3120,7 +3460,7 @@ public sealed class ConversacionEnVivo : IDisposable
             }
             else if (HerramientasDeHabilidad.Contains(f.Nombre))
             {
-                // LAS HABILIDADES (spec 074, promesa 705): texto contra LoAprendido, sin tocar la pantalla.
+                // LAS HABILIDADES (spec 074, promesa 765): texto contra LoAprendido, sin tocar la pantalla.
                 Accion?.Invoke(EnCurso(f.Nombre, f.Args), false);
                 var relojHabilidad = System.Diagnostics.Stopwatch.StartNew();
                 string Arg(string k) => f.Args.TryGetValue(k, out var v) ? v ?? "" : "";
@@ -3135,7 +3475,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 }
                 else if (f.Nombre == "preferencia_guardar")
                 {
-                    // EN LO APRENDIDO, NO EN LA MEMORIA PERSONAL (promesa 717): allí sería un dato más, que ni
+                    // EN LO APRENDIDO, NO EN LA MEMORIA PERSONAL (promesa 777): allí sería un dato más, que ni
                     // le llega a quien habla ni sale en «Cómo quieres las cosas».
                     var preferida = Aprendido.GuardarPreferencia(Arg("texto"));
                     resultado = preferida.Mensaje;
@@ -3155,7 +3495,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 }
                 else
                 {
-                    // CON LA FOTO DE CADA CLIC (spec 078, promesa 742): lo que se ve bajo el cursor en el instante
+                    // CON LA FOTO DE CADA CLIC (spec 079, promesa 782): lo que se ve bajo el cursor en el instante
                     // de pulsar. Van detrás del resultado, como las de map_look.
                     var hecho = LoQueHiciste.DeLaPersona.TomarConFotos();
                     var conFoto = _protocolo.Mira ? hecho.Where(h => h.Foto != null).ToList() : new List<LoQueHiciste.Tocado>();
@@ -3231,11 +3571,11 @@ public sealed class ConversacionEnVivo : IDisposable
                 _cuenta.Resultado(f.Nombre, destino, !revento && mano is { Logro: true });
                 // El pulso lo apunta SurfaceMapTools.Call; contarlo aquí también sería contarlo dos veces.
                 Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, reloj.ElapsedMilliseconds), true);
-                // LA VOZ SE ENTERA DE CÓMO SALIÓ (promesa 682), con el mismo criterio que el tope: la mano
+                // LA VOZ SE ENTERA DE CÓMO SALIÓ (promesa 752), con el mismo criterio que el tope: la mano
                 // cuando la hay —map_take y map_type—, y si no, lo que dice el resultado.
                 ContarALaVoz(AvanceDe(f.Nombre, resultado,
                     revento ? false : f.Nombre is "map_take" or "map_type" ? mano?.Logro : null));
-                // SEÑALAR MANDA SU FOTO (promesa 684): lo prometía su descripción y no se mandaba.
+                // SEÑALAR MANDA SU FOTO (promesa 754): lo prometía su descripción y no se mandaba.
                 if (VaConFoto(f.Nombre) && _protocolo.Mira && CapturaDePantalla.Capturar() is { } senalado)
                     fotos.Add(senalado);
 
@@ -3264,12 +3604,12 @@ public sealed class ConversacionEnVivo : IDisposable
             }
 
             hechas.Add((f.Id, f.Nombre, resultado));
-            // AL DIARIO, con cómo salió (promesa 707). Lo que solo mira no enseña nada de cómo se hace una tarea
+            // AL DIARIO, con cómo salió (promesa 767). Lo que solo mira no enseña nada de cómo se hace una tarea
             // y llenaría el diario: una sesión de diez pedidos son cuarenta lecturas de pantalla.
             if (!SoloMiran.Contains(f.Nombre))
             {
                 bool fallo = SalioMal(resultado);
-                // LO QUE NO SALIÓ, CON SU FOTO (spec 078, promesa 743): «no está a la vista» no dice qué había a la
+                // LO QUE NO SALIÓ, CON SU FOTO (spec 079, promesa 783): «no está a la vista» no dice qué había a la
                 // vista, y es la pantalla que explica la corrección que venga después.
                 _diario?.Hizo(f.Nombre, string.Join(" · ", f.Args.Where(a => !string.IsNullOrWhiteSpace(a.Value)).Select(a => $"{a.Key}={a.Value}")),
                     resultado, fallo, fallo && _diario != null ? CapturaDePantalla.Capturar() : null);

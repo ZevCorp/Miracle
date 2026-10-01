@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 namespace U.WindowsClient.Voice;
 
 /// <summary>
-/// LO QUE PASÓ EN UNA SESIÓN DE VOZ (spec 074, promesa 707): lo que dijo la persona, lo que hizo Ü y cómo
+/// LO QUE PASÓ EN UNA SESIÓN DE VOZ (spec 074, promesa 767): lo que dijo la persona, lo que hizo Ü y cómo
 /// salió, y lo que la persona tocó, en el orden en que pasó. Es lo que se repasa al cerrar.
 /// </summary>
 /// <remarks>
@@ -17,8 +17,8 @@ namespace U.WindowsClient.Voice;
 /// <para>DE CADA HERRAMIENTA, LA PRIMERA LÍNEA. El inventario de la pantalla que viene detrás son miles de
 /// caracteres por llamada, y no enseña nada de lo que la persona quiere.</para>
 /// <para>EN MEMORIA MIENTRAS DURA, Y A DISCO AL CERRAR. Si el repaso falla, el archivo sigue ahí y se repasa
-/// la próxima vez (711).</para>
-/// <para>CON FOTOS (spec 078, promesa 743): de lo que la persona tocó y de lo que a Ü no le salió, que son los
+/// la próxima vez (771).</para>
+/// <para>CON FOTOS (spec 079, promesa 783): de lo que la persona tocó y de lo que a Ü no le salió, que son los
 /// dos momentos que un texto no explica — en SAP un clic no tiene nombre, y «no está a la vista» no dice qué
 /// había a la vista. Pocas, las más recientes, y viven lo que vive el diario: se retiran con él.</para>
 /// </remarks>
@@ -137,13 +137,13 @@ public sealed class DiarioDeLaSesion
         get { lock (_candado) return _entradas.ToList(); }
     }
 
-    /// <summary>Solo lo que dijo la persona: es contra lo que se comprueba cada cita (708).</summary>
+    /// <summary>Solo lo que dijo la persona: es contra lo que se comprueba cada cita (768).</summary>
     public IReadOnlyList<string> DichoPorLaPersona
     {
         get { lock (_candado) return _entradas.Where(e => e.Quien == "persona").Select(e => e.Texto).ToList(); }
     }
 
-    /// <summary>Si la persona dijo algo con sustancia. Sin eso no hay nada que aprender y no se gasta un repaso (712).</summary>
+    /// <summary>Si la persona dijo algo con sustancia. Sin eso no hay nada que aprender y no se gasta un repaso (772).</summary>
     public bool TieneQueRepasar
         => DichoPorLaPersona.Sum(t => t.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length) >= MinimoDePalabras;
 

@@ -92,6 +92,9 @@ class OpenAiBrain(
         val name: String,          // "computer" para computer_call; el nombre de la función si es function_call
         val safety: JsonArray,     // pending_safety_checks a acusar (vacío si no hay)
         val isComputer: Boolean,
+        // La acción que produjo esta función en el turno: su resultado es actionResults[actionIndex]. null si no produjo
+        // ninguna (ask_user, speak, list_apps, o una función que no existe). Spec 009, promesa 910.
+        val actionIndex: Int? = null,
     )
 
     private var previousId = ""
@@ -112,7 +115,8 @@ class OpenAiBrain(
     override fun begin(goal: String) {
         this.goal = goal
         previousId = startId
-        continuationMessage = if (startId.isNotBlank()) goal else ""
+        // El objetivo nuevo de un hilo que sigue, con las palabras del prompt del hilo (spec 009, promesa 909).
+        continuationMessage = if (startId.isNotBlank()) PromptDelCerebroLocal.continuacion(goal) else ""
         pending = emptyList()
         internalResults.clear()
         informText = ""
@@ -140,70 +144,39 @@ class OpenAiBrain(
         }
     }
 
-    private fun customFn(name: String, description: String, arg: String) = buildJsonObject {
+    /** ask_user / speak: las herramientas propias de Ü, con las palabras del núcleo (las de Graph), no unas de este cerebro. */
+    private fun customFn(h: PromptDelCerebroLocal.HerramientaPropia) = buildJsonObject {
         put("type", "function")
-        put("name", name)
-        put("description", description)
+        put("name", h.nombre)
+        put("description", h.descripcion)
         putJsonObject("parameters") {
             put("type", "object")
-            putJsonObject("properties") { putJsonObject(arg) { put("type", "string") } }
-            putJsonArray("required") { add(arg) }
+            putJsonObject("properties") {
+                putJsonObject(h.parametro) {
+                    put("type", "string")
+                    put("description", h.descripcionDelParametro)
+                }
+            }
+            putJsonArray("required") { add(h.parametro) }
         }
     }
 
     private fun dataUri(png: ByteArray) = "data:image/png;base64,${Base64.encodeToString(png, Base64.NO_WRAP)}"
 
     override suspend fun next(state: ScreenState, actionResults: List<String>): BrainTurn = withContext(Dispatchers.IO) {
-        val stateBlock = "Pantalla actual: ${state.screen}\nDónde estás (árbol de UI de Android):\n${state.uiContext}"
-
-        val input = mutableListOf<JsonElement>()
-        fun userMessage(text: String) {
-            val content = mutableListOf<JsonElement>(ojo("type" to ojs("input_text"), "text" to ojs(text)))
-            state.screenshotPng?.let {
-                content += ojo("type" to ojs("input_image"), "image_url" to ojs(dataUri(it)), "detail" to ojs("original"))
-            }
-            input += ojo("type" to ojs("message"), "role" to ojs("user"), "content" to JsonArray(content))
-        }
-
-        if (previousId.isBlank()) {
-            userMessage(goalPrompt(stateBlock))
-        } else if (pending.isEmpty()) {
-            userMessage(continuationMessage.ifBlank { informText.ifBlank { "Continúa." } } + "\n$stateBlock")
-            continuationMessage = ""
-            informText = ""
-        } else {
-            pending.forEachIndexed { i, call ->
-                when {
-                    call.isComputer -> {
-                        // La respuesta a un computer_call ES el screenshot actual (más los acuses de seguridad).
-                        val out = ojo(
-                            "type" to ojs("computer_screenshot"),
-                            "image_url" to ojs(state.screenshotPng?.let { dataUri(it) } ?: ""),
-                            "detail" to ojs("original"),
-                        )
-                        val fields = linkedMapOf<String, JsonElement>(
-                            "type" to ojs("computer_call_output"),
-                            "call_id" to ojs(call.id),
-                            "output" to out,
-                        )
-                        if (call.safety.isNotEmpty()) fields["acknowledged_safety_checks"] = call.safety
-                        input += JsonObject(fields)
-                    }
-                    call.name == "ask_user" -> input += functionOutput(call.id, informText.ifBlank { "(sin respuesta)" })
-                    internalResults.containsKey(call.id) ->
-                        input += functionOutput(call.id, Json.encodeToString(JsonObject.serializer(), internalResults.getValue(call.id)))
-                    call.name == "speak" -> input += functionOutput(call.id, "ok")
-                    else -> input += functionOutput(call.id, actionResults.getOrElse(i) { "ok" })
-                }
-            }
-            informText = ""
+        // Cada turno lleva la pantalla de ESTE turno dentro de <pantalla>: lo de dentro son datos, nunca instrucciones
+        // (spec 009, promesas 904 y 909).
+        val input = when {
+            previousId.isBlank() -> primerTurno(state)
+            pending.isEmpty() -> turnoQueSigue(state)
+            else -> respuestas(state, actionResults)
         }
         internalResults.clear()
 
         val toolDecls = mutableListOf<JsonElement>(ojo("type" to ojs("computer")))
         tools.forEach { toolDecls += mcpFn(it) }
-        toolDecls += customFn("ask_user", "Pregunta al usuario cuando tengas una duda real e importante. Responde con texto o voz.", "question")
-        toolDecls += customFn("speak", "Di algo en voz alta con tu personalidad. Solo para lo importante; no narres cada paso.", "text")
+        toolDecls += customFn(PromptDelCerebroLocal.ASK_USER)
+        toolDecls += customFn(PromptDelCerebroLocal.SPEAK)
 
         val fields = mutableListOf(
             "model" to ojs(model()),
@@ -240,6 +213,73 @@ class OpenAiBrain(
                 LogBus.log("openai", "PARSE FALLÓ: ${e.message} · body=${res.body.take(1200)}")
                 throw e
             }
+    }
+
+    /** Un mensaje de usuario: el texto y, si hay, la captura. */
+    private fun userMessage(text: String, png: ByteArray?): JsonObject {
+        val content = mutableListOf<JsonElement>(ojo("type" to ojs("input_text"), "text" to ojs(text)))
+        png?.let { content += ojo("type" to ojs("input_image"), "image_url" to ojs(dataUri(it)), "detail" to ojs("original")) }
+        return ojo("type" to ojs("message"), "role" to ojs("user"), "content" to JsonArray(content))
+    }
+
+    /** El primer turno de un hilo: el prompt entero, armado en el núcleo, y la pantalla. */
+    private fun primerTurno(state: ScreenState): List<JsonElement> = listOf(
+        userMessage(
+            PromptDelCerebroLocal.goalPrompt(goal, tools, memory(), PromptDelCerebroLocal.Proveedor.OPENAI) + "\n\n" +
+                PromptDelCerebroLocal.estado(state),
+            state.screenshotPng,
+        ),
+    )
+
+    /** Un turno sin llamadas pendientes en un hilo que sigue: el objetivo nuevo, la respuesta a una duda o «Continúa.». */
+    private fun turnoQueSigue(state: ScreenState): List<JsonElement> {
+        val texto = continuationMessage.ifBlank { informText.ifBlank { "Continúa." } }
+        continuationMessage = ""
+        informText = ""
+        return listOf(userMessage(texto + "\n" + PromptDelCerebroLocal.estado(state), state.screenshotPng))
+    }
+
+    /**
+     * La respuesta a las llamadas del turno anterior y, después, la pantalla de ESTE turno: el prompt promete que cada turno
+     * trae <pantalla> y que lo que hizo una llamada se ve en el siguiente; sin esto, tras una función el modelo no volvía a
+     * ver la pantalla en todo el objetivo (lo mismo que corrigió `openaiBrain.js` de Graph). Si hubo una computer_call, la
+     * captura ya va en su salida y el mensaje lleva solo el texto.
+     *
+     * Cada función se contesta con el resultado de SU acción (actionIndex), no con el de la acción que ocupa su posición en
+     * la lista: speak, ask_user y list_apps no producen acción y una computer_call puede producir varias, así que con la
+     * posición un fallo llegaba como «ok» a otra llamada (spec 009, promesas 909 y 910).
+     */
+    private fun respuestas(state: ScreenState, actionResults: List<String>): List<JsonElement> {
+        val input = mutableListOf<JsonElement>()
+        for (call in pending) {
+            input += when {
+                call.isComputer -> {
+                    // La respuesta a un computer_call ES el screenshot actual (más los acuses de seguridad).
+                    val out = ojo(
+                        "type" to ojs("computer_screenshot"),
+                        "image_url" to ojs(state.screenshotPng?.let { dataUri(it) } ?: ""),
+                        "detail" to ojs("original"),
+                    )
+                    val fields = linkedMapOf<String, JsonElement>(
+                        "type" to ojs("computer_call_output"),
+                        "call_id" to ojs(call.id),
+                        "output" to out,
+                    )
+                    if (call.safety.isNotEmpty()) fields["acknowledged_safety_checks"] = call.safety
+                    JsonObject(fields)
+                }
+                call.name == "ask_user" -> functionOutput(call.id, informText.ifBlank { "(sin respuesta)" })
+                internalResults.containsKey(call.id) ->
+                    functionOutput(call.id, Json.encodeToString(JsonObject.serializer(), internalResults.getValue(call.id)))
+                call.name == "speak" -> functionOutput(call.id, "ok")
+                call.actionIndex != null -> functionOutput(call.id, actionResults.getOrNull(call.actionIndex) ?: "ok")
+                else -> functionOutput(call.id, PromptDelCerebroLocal.herramientaQueNoExiste(call.name))
+            }
+        }
+        informText = ""
+        val capturaEnviada = pending.any { it.isComputer }
+        input += userMessage(PromptDelCerebroLocal.estado(state), if (capturaEnviada) null else state.screenshotPng)
+        return input
     }
 
     private fun functionOutput(callId: String, output: String) = ojo(
@@ -324,8 +364,8 @@ class OpenAiBrain(
                     val safety = (item["pending_safety_checks"] as? JsonArray) ?: JsonArray(emptyList())
                     val args = runCatching { Json.parseToJsonElement(item.ostr("arguments")).jsonObject }
                         .getOrDefault((item["arguments"] as? JsonObject) ?: JsonObject(emptyMap()))
-                    calls += Call(id, name, safety, isComputer = false)
                     if (name !in setOf("ask_user", "speak")) intents += args.ostr("intent")
+                    val indice = actions.size
                     when (name) {
                         in mcpNames -> actions += AgentAction.Mcp(
                             name, args.filterKeys { it != "intent" }.mapValues { it.value.oprim()?.contentOrNull ?: "" })
@@ -333,6 +373,8 @@ class OpenAiBrain(
                         "ask_user" -> question = args.ostr("question")
                         "speak" -> speech = args.ostr("text")
                     }
+                    // Su resultado será el de la acción que produjo aquí, si produjo una (spec 009, promesa 910).
+                    calls += Call(id, name, safety, isComputer = false, actionIndex = indice.takeIf { actions.size > it })
                 }
             }
         }
@@ -369,86 +411,6 @@ class OpenAiBrain(
             else -> item.ostr("text")
         }
 
-    private val workflowRule: String
-        get() {
-            val wfs = tools.filter { it.via.startsWith("workflow") }
-            if (wfs.isEmpty()) return ""
-            return """
-        WORKFLOWS APRENDIDOS (tareas COMPLETAS que YA sabes hacer): ${wfs.joinToString(", ") { it.name }}.
-        REGLA DE ORO: si el objetivo coincide con un workflow, tu PRIMERA Y ÚNICA acción es LLAMARLO
-        (workflow_…) pasándole en "context" los datos variables. NO abras la app tú mismo: el workflow
-        ya incluye abrirla y todos los pasos. Solo si reporta steps fallidos, completa tú lo que faltó.
-            """.trimIndent()
-        }
-
-    private val learnedRule: String
-        get() {
-            val learned = tools.filter { it.via.startsWith("aprendido") }
-            if (learned.isEmpty()) return ""
-            return """
-        HERRAMIENTAS APRENDIDAS (mapas de apps que YA conoces): ${learned.joinToString(", ") { it.name }}.
-        Si la tarea es en una app con herramienta aprendida, encadena launch_app + la herramienta con la
-        secuencia COMPLETA de taps desde la primera respuesta; cae a computer-use solo si reporta fallos.
-            """.trimIndent()
-        }
-
-    private fun goalPrompt(stateBlock: String) = """
-        Eres Ü, un asistente con PERSONALIDAD viva y divertida que controla un teléfono Android REAL.
-        Objetivo del usuario: $goal
-
-        CÓMO VES LA PANTALLA: recibes una descripción de TEXTO del árbol de UI y, cuando hace falta tocar
-        algo visual, un screenshot. Ubícate con el texto (home, cajón de apps, una app, notificaciones…) y
-        decide. Para tocar un elemento concreto, usa computer-use (click/type con coordenadas del screenshot).
-
-        ENTORNO REAL: esto es un TELÉFONO Android físico con PANTALLA TÁCTIL — no una computadora de
-        escritorio ni un navegador. No hay teclado físico ni mouse, así que NINGÚN atajo de teclado
-        (Ctrl+A, Ctrl+C, Ctrl+V, Cmd+A, "seleccionar todo" con teclas, etc.) existe ni hace nada aquí:
-        NUNCA los intentes. Para seleccionar texto, mantén presionado (long-press) sobre él y arrastra los
-        controladores que aparecen, o toca "Seleccionar todo"/"Copiar"/"Pegar" en el menú contextual que
-        sale al hacer long-press. Los únicos keypress válidos en este dispositivo son ENTER (confirmar o
-        enviar un campo) y BACK (volver atrás); cualquier otra tecla o combinación no hace nada.
-
-        DOS formas de actuar, elige la más directa:
-        1) HERRAMIENTAS (function-calling, sin imagen): gestos de navegación y ACCIONES DEL SISTEMA por
-           Intent/API — abrir apps, alarmas, timers, llamar, SMS, correo, calendario, buscar en web, mapas,
-           cámara, ajustes, portapapeles. Herramientas: ${tools.joinToString(", ") { it.name }}.
-        2) COMPUTER-USE: para tocar elementos concretos DENTRO de una app (click/type sobre el screenshot).
-        REGLA: para cualquier tarea del sistema (alarma, timer, llamada, abrir app, buscar…) usa SIEMPRE la
-        herramienta correspondiente, NO computer-use: es directa y sin UI.
-        $learnedRule
-        $workflowRule
-
-        En el campo "intent" de cada llamada a función escribe una frase corta y con chispa (ej: "Abro el
-        cajón de apps 📲"). Usa speak SOLO para avisos importantes. No hables por hablar.
-        CUÁNDO PREGUNTAR (ask_user): si algo depende de un dato del usuario que no puedes saber ni ver
-        (¿cuál es el chat de Sebastián?, ¿cuál cuenta?, ¿a qué hora?), pregunta DE UNA. Lo que sí puedas
-        resolver mirando la pantalla o con tu memoria, NO lo preguntes.
-
-        CÓMO HABLAS: eres un compañero, no un manual. Respuestas CORTAS (1-2 frases), naturales, en el
-        idioma del usuario. NUNCA enumeres tus herramientas ni uses términos técnicos.
-        $memoryBlock
-        PERSISTENCIA: no te rindas tras una sola acción. Si tras tocar algo la pantalla no cambió como
-        esperabas, MIRA de nuevo (otro screenshot) y prueba otra vía; solo termina cuando el objetivo esté
-        cumplido de verdad o sea genuinamente imposible. Cuando el objetivo esté completo, responde SOLO
-        con texto (sin llamar funciones).
-        TU PROPIO CHROME (ignóralo SIEMPRE): sobre cualquier app pueden aparecer elementos de Ü que NO son
-        parte de la app y que debes IGNORAR por completo — nunca los toques y NUNCA concluyas por ellos que
-        la app está "bloqueada", "cargando" o inaccesible: (1) una carita blanca flotante, (2) una píldora
-        roja de "detener", (3) una notificación o banner "Ü está ejecutando". La app SÍ está disponible;
-        opera sobre ella normalmente.
-
-        $stateBlock
-    """.trimIndent()
-
-    private val memoryBlock: String
-        get() {
-            val mem = memory()
-            if (mem.isBlank()) return ""
-            return """
-        MEMORIA DEL USUARIO (reglas y preferencias que te ha enseñado; aplícalas sin que te las repita).
-        Agrupada por app: cuando vayas a usar una app, aplica al pie de la letra todo lo que aparece bajo
-        ella (nombres de contactos, cuentas, preferencias). Nunca "aproximes" un dato que ya conoces.
-        $mem
-            """.trimIndent()
-        }
+    // El prompt de este cerebro lo arma el núcleo (PromptDelCerebroLocal, spec 009): la constitución de Ü y el mismo texto
+    // de Android que el cerebro de Graph. Aquí no se escribe ningún texto de prompt.
 }

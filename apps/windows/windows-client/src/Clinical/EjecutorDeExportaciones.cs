@@ -37,7 +37,7 @@ public sealed class EjecutorDeExportaciones : IDisposable
 {
     private readonly GraphConfig _config;
     private readonly RellenadorSap _rellenador;
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
+    private static readonly HttpClient Http = U.Graph.RedDeGraph.Cliente(TimeSpan.FromSeconds(30));   // con el sello (promesa 686)
 
     /// <summary>
     /// EL HILO DONDE SE TOCA SAP, y no es un detalle de implementación: es el hilo de la interfaz.

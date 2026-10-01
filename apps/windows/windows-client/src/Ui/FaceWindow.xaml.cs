@@ -71,6 +71,15 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private Updater.ReleaseMessage? _mensajeDeActualizacion;
     private AgentLoop _loop = null!;
     private BackendClient? _backend;
+    /// <summary>
+    /// Con quién habla Ü en esta sesión (spec 078): médico con su especialidad, uso personal, o sin
+    /// elegir —la Ü de antes—. Lo decide <see cref="EnsureOnboarded"/> antes de que nazcan el backend
+    /// y la voz, y lo cambia el menú (<see cref="OnCambiarPerfil"/>). Se reparte con
+    /// <see cref="AplicarElPerfil"/>.
+    /// </summary>
+    private Cuenta.PerfilDeUso _perfil = Cuenta.PerfilDeUso.SinElegir;
+    /// <summary>De dónde salió el perfil de la carita: si hay médico con su cuenta, ella manda.</summary>
+    private bool _perfilDeLaCuenta;
     private CancellationTokenSource? _cts;
     private VideoLibraryWindow? _videoWindow;
     private LogWindow? _logWindow;
@@ -160,6 +169,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // la telemetría de "Windows Live" arranque con el usuario correcto.
         EnsureOnboarded();
 
+        // LA CREDENCIAL DE ESTA INSTALACIÓN (spec 076). Aquí y no más abajo: tiene que estar puesta ANTES
+        // de la primera petición a Graph, y después del correo, que es con lo que se presenta.
+        PresentarLaInstalacion();
+
         MaxHeight = SystemParameters.WorkArea.Height - 48; // al llegar al tope, el globo hace scroll
         ColocarVentana();
 
@@ -219,7 +232,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         Senalador.Senala += (caja, _) => Dispatcher.BeginInvoke(() => Visitar(caja));
         // Y A LO QUE Ü PULSA (promesa 504): el ciclo rápido, la mano rápida y la escalera avisan por el mismo pulso, con la
         // caja del elemento y después del clic. Se atiende con BeginInvoke: quien pulsa no espera a la carita.
-        U.Graph.Surfaces.UiaSurface.Pulso += (x, y, w, h) => Dispatcher.BeginInvoke(() => Visitar(new Rect(x, y, w, h)));
+        U.Graph.Surfaces.UiaSurface.Pulso += (x, y, w, h) => Dispatcher.BeginInvoke(() => Visitar(new Rect(x, y, w, h), pulsa: true));
         // Y NINGUNA MANO PULSA SOBRE Ü (promesa 510): la escalera, la mano rápida y los toques de computer-use miran con la
         // misma regla que el ciclo rápido antes de cada clic físico.
         U.Graph.Surfaces.UiaSurface.LibrarElPunto = LibrarElPuntoDeUnClic;
@@ -492,7 +505,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 {
                     var vivo = _vivo;
                     if (vivo == null) { LogBus.Log("tramo", "sin sesión de voz: la cuenta queda para map_tramo_estado"); return; }
-                    _ = vivo.EnviarTextoAsync("[el tramo terminó] " + cuenta);
+                    // UNA NOTA DEL SISTEMA, NO DE LA PERSONA (spec 078, D7): por EnviarTextoAsync se guardaba en el hilo
+                    // como dicha por el usuario y la carita la pintaba «Tú: [el tramo terminó]…».
+                    _ = vivo.AvisarAlModeloAsync("[el tramo terminó] " + cuenta);
                 };
                 if (cfgDecisor.Quien != "luna") _interruptorDelDecisor.Encender(Credenciales.ClavesDelBackend.DeLaApp);
                 PintarBotonJev();
@@ -512,6 +527,11 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // ubicación, la verificación de llegadas y los vetos — y duplicar una protección es la
             // forma más segura de que una de las dos copias se quede atrás.
             _vivo = new ConversacionEnVivo(mcp.Map);
+            // CON QUIÉN HABLA (spec 078): el bloque «QUIÉN TE HABLA» del delegado y la frase de la voz de GPT-Live.
+            _vivo.Perfil = _perfil;
+            // EL MICRÓFONO, PREPARADO DESDE YA (spec 075): inicializarlo cuesta ~450 ms y arrancarlo ~250.
+            // Lo primero se paga ahora, que nadie espera; el clic solo paga lo segundo. Preparado no capta.
+            _vivo.PrepararElMicrofono();
             // «Cállate», «ocúltate», «ciérrate»: van al chrome de la ventana, no al mapa de
             // pantallas — por eso se resuelven aquí y no dentro de SurfaceMapTools.
             _vivo.Autocontrol = AtenderAutocontrol;
@@ -905,18 +925,27 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 // gestos van por las manos de u/, «pulsa:» por este mismo ciclo, y los objetivos por el motor de u/ con Jev.
                 var manosDelPlan = new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero);
                 var mapaDelPlan = mcp.Map;
+                // DOS DEL MISMO NOMBRE (promesa 741): lo que contestó el ciclo cuando no pulsó porque había varios —la marca
+                // es la misma con que map_take reconoce su lista—, para que el plan pare con ella en vez de dársela a Jev.
+                string? variosDelPlan = null;
                 var planDeLuna = new Navigation.ElPlanPorObjetivos(
                     manosDelPlan.Abrir, manosDelPlan.Escribir, manosDelPlan.Tecla,
-                    nombre => mapaDelPlan.CicloRapido?.Invoke(nombre, 0, null) is { Cambio: not null },
+                    nombre =>
+                    {
+                        var r = mapaDelPlan.CicloRapido?.Invoke(nombre, 0, null);
+                        variosDelPlan = r is { Cambio: null } sinPulsar && sinPulsar.Texto.Contains("which=N") ? sinPulsar.Texto : null;
+                        return r is { Cambio: not null };
+                    },
                     ObjetivoConJev,
                     () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
                     () => mapaDelPlan.LoQueVeoRapido?.Invoke() ?? "",
                     () => Environment.TickCount64)
                 {
-                    // CADA PASO, AL LOG Y A LA VOZ (spec 073, promesa 682): sin lo segundo, un plan de diez pasos son diez cosas hechas de las que la voz no se entera.
+                    // CADA PASO, AL LOG Y A LA VOZ (spec 073, promesa 752): sin lo segundo, un plan de diez pasos son diez cosas hechas de las que la voz no se entera.
                     Desplazar = manosDelPlan.Desplazar, EsperarQuieta = manosDelPlan.EsperarQuieta, AlTerminarPaso = l => { LogBus.Log("plan", "   " + l); _vivo?.AvanceDelPlan(l); },
                     // «carpeta:» por el disco, con la misma regla que file_open (promesa 526).
                     AbrirCarpeta = ruta => SystemApi.Explorador.Navegar(SystemApi.Explorador.Expandir(ruta)).Length > 0,
+                    Homonimos = nombre => variosDelPlan is { } v && v.Contains($"«{nombre}»") ? v : null,
                 };
                 mapaDelPlan.Hacer = planDeLuna.Hacer;
                 _ = Task.Run(() => { if (JevDelPlan() is { } jev) LogBus.Log("plan", $"Jev caliente en {jev.Calentar()} ms"); });
@@ -1195,13 +1224,17 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 // El globo NO desaparece: sigue abriéndose donde hay algo que leer (una pregunta,
                 // una narración, un fallo) y por el atajo de escribirle. Lo que se quita es que la
                 // voz lo abra por su cuenta.
-                // La boca la mueve el audio EN VIVO, que no pasa por VoiceIO: sin esto el gesto
-                // quedaba dibujado y sin nadie que lo moviera (2026-08-05).
-                ActualizarBoca();
+                // El audio EN VIVO no pasa por VoiceIO: sin esto nadie volvía a mirar qué cara toca
+                // mientras Ü habla (2026-08-05).
+                ActualizarElPulsoDeLaVoz();
                 // Y el halo. Al colgar se apaga solo: lee _vivo.Viva y no depende de dónde esté el
                 // ratón —con el botón del collar no hay ratón de por medio—. Con las pastillas, quien
                 // lo apagaba era apartar el ratón, y por eso se quedaba encendido para siempre.
                 PintarHalo();
+                // CUÁNDO SE VIO, para la línea «voz-clic» (promesa 666): con prioridad por debajo de la de
+                // pintar, esto corre cuando la estela ya salió hacia la pantalla, no cuando se pidió.
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
+                    () => _vivo?.LaEstelaSePinto(viva));
             });
             // El halo repinta AL MOMENTO en que cambia el origen, y no sólo cuando Ü habla: el
             // temporizador de la boca vive únicamente mientras Ü está hablando, así que encender la
@@ -1326,6 +1359,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // El backend es Graph: la credencial (X-API-Key) sale del MISMO GraphConfig que usa la
         // ventana de workflows — una sola fuente de key para toda la app.
         _backend = new BackendClient(_config, _graphConfig);
+        AplicarElPerfil(_perfil);   // el perfil viaja en el primer turno y en la enseñanza (spec 078)
         if (_vivo != null)
         {
             var memoriaPersonal = new MemoriaPersonal(_config.UserId);
@@ -1341,8 +1375,11 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 linea => LogBus.Log("repaso", linea))
             {
                 DatosQueYaSabe = ct => memoriaPersonal.ContextoAsync(ct),
-                // U_REPASO_SIN_FOTOS=1: repasa leyendo, sin mandarle al modelo las fotos del diario (spec 078).
+                // U_REPASO_SIN_FOTOS=1: repasa leyendo, sin mandarle al modelo las fotos del diario (spec 079).
                 ConFotos = (Environment.GetEnvironmentVariable("U_REPASO_SIN_FOTOS") ?? "").Trim() != "1",
+                // CON UN MÉDICO, EL REPASO NO GUARDA DATOS POR SU CUENTA (promesa 778): se mira el perfil de AHORA, que
+                // puede haber cambiado desde que se creó la voz (entró un médico con su cuenta).
+                ConUnMedico = () => _perfil.EsMedico,
             };
             _vivo.RepasarLoPendiente();   // la última sesión antes de cerrar Ü: su repaso quedó a medias
             _recordatorios = new RecordatoriosEnVivo(memoriaPersonal, AvisarRecordatorio);
@@ -1474,8 +1511,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         LoadSounds();
         WireFaceGestures();
         ApplyTheme(Enum.TryParse(_config.FaceTheme, out FaceTheme t) ? t : FaceTheme.Light);
-        Face.StartIdle();          // gestos casuales: parpadeo, mirada, pulso
+        Face.StartIdle();          // lo que hace sola: parpadear
         CollapsedFace.StartIdle();
+        EmpezarASaludar();         // y saluda cuando la persona vuelve, y cada media hora (spec 077)
 
         // SE ARRANCA EN LA CARITA, no en la barra. Abrir la aplicación desplegaba las siete
         // herramientas de golpe sobre el trabajo de alguien que no ha pedido ninguna todavía: lo
@@ -1515,11 +1553,17 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     }
 
     /// <summary>
-    /// Asegura la identidad del usuario: genera el InstallId (una vez) y, si aún no hay correo, muestra
-    /// el popup de bienvenida para capturar nombre+correo. El correo es la clave canónica en el backend.
-    /// Si el usuario cierra el popup sin completarlo, se seguirá sin telemetría y se re-preguntará en el
-    /// próximo arranque — nunca bloquea el uso del asistente.
+    /// Asegura la identidad del usuario y con quién habla Ü: genera el InstallId (una vez) y enseña la
+    /// bienvenida que toque (<see cref="Cuenta.Identidad.QueBienvenida"/>): la entera en un equipo
+    /// nuevo —cómo vas a usar Ü, nombre y correo— o solo la pregunta del perfil en un equipo que ya
+    /// tenía correo. Si el usuario la cierra sin completarla, se sigue como antes y se re-pregunta en
+    /// el próximo arranque — nunca bloquea el uso del asistente.
     /// </summary>
+    /// <remarks>
+    /// Corre ANTES de crear el backend y la voz (OnLoaded), así que <see cref="_perfil"/> ya se sabe
+    /// cuando nacen. Quien entró con su cuenta Miracle es médico y no se le pregunta nunca: la cuenta
+    /// manda, como en la promesa 98.
+    /// </remarks>
     private void EnsureOnboarded()
     {
         try
@@ -1534,7 +1578,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // «Te damos la bienvenida» es no haber mirado (promesa 98, 2026-09-01).
             //
             // La sesión se restaura de disco aquí mismo, sin red: es leer un archivo cifrado. La
-            // carita no se queda esperando a nadie.
+            // carita no se queda esperando a nadie. La especialidad del médico viaja en ese archivo
+            // (promesa 704), así que también se sabe sin red.
             var sesion = new Cuenta.SesionMiracle(Cuenta.Nube.SupabaseUrl, Cuenta.Nube.ClavePublicable);
             bool hayMedico = sesion.Restaurar();
 
@@ -1552,26 +1597,182 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     _config.Save();
                     LogBus.Log("onboarding", $"identidad tomada de la sesión del médico · {sesion.MedicoId}");
                 }
+
+                // Quien entró con su cuenta Miracle es médico: no se le pregunta nunca en este
+                // equipo, tampoco cuando cierre sesión. Su especialidad NO se copia (promesa 742):
+                // config.json es del equipo y no de la cuenta, y en un PC compartido la de la Dra. A
+                // se le aplicaba al Dr. B. La del médico viaja en su sesión (704); la guardada aquí
+                // es solo la que alguien eligió en este equipo.
+                if (Cuenta.PerfilDeUso.Normalizar(_config.Perfil).Length == 0)
+                {
+                    _config.Perfil = Cuenta.PerfilDeUso.Medico;
+                    _config.Save();
+                }
             }
 
-            if (!Cuenta.Identidad.HayQuePreguntar(hayMedico, _config.Email))
+            switch (Cuenta.Identidad.QueBienvenida(hayMedico, _config.Email, _config.Perfil))
             {
-                LogBus.Log("onboarding", hayMedico
-                    ? "no pregunto quién eres: ya hay un médico con sesión iniciada"
-                    : "no pregunto quién eres: ya había correo en este equipo");
-                return;
+                case Cuenta.Bienvenida.Completa:
+                {
+                    var win = new OnboardingWindow { Owner = this };
+                    if (win.ShowDialog() == true && !string.IsNullOrWhiteSpace(win.EnteredEmail))
+                    {
+                        _config.DisplayName = win.EnteredName;
+                        _config.Email = win.EnteredEmail;
+                        _config.UserId = win.EnteredEmail; // el scoping de workflows y la telemetría hablan del mismo usuario
+                        GuardarElPerfilElegido(win);
+                        _config.Save();
+                    }
+                    break;
+                }
+                case Cuenta.Bienvenida.SoloPerfil:
+                {
+                    var win = new OnboardingWindow(ModoDeBienvenida.SoloPerfil, _config.DisplayName) { Owner = this };
+                    if (win.ShowDialog() == true && win.PerfilElegido.Length > 0)
+                    {
+                        GuardarElPerfilElegido(win);
+                        _config.Save();
+                    }
+                    break;
+                }
+                default:
+                    LogBus.Log("onboarding", hayMedico
+                        ? "no pregunto quién eres: ya hay un médico con sesión iniciada"
+                        : "no pregunto quién eres: ya había correo y perfil en este equipo");
+                    break;
             }
 
-            var win = new OnboardingWindow { Owner = this };
-            if (win.ShowDialog() == true && !string.IsNullOrWhiteSpace(win.EnteredEmail))
-            {
-                _config.DisplayName = win.EnteredName;
-                _config.Email = win.EnteredEmail;
-                _config.UserId = win.EnteredEmail; // el scoping de workflows y la telemetría hablan del mismo usuario
-                _config.Save();
-            }
+            _perfilDeLaCuenta = hayMedico;
+            _perfil = Cuenta.PerfilDeUso.Resolver(hayMedico,
+                sesion.MedicoEspecialidad, sesion.MedicoEspecialidadNombre,
+                _config.Perfil, _config.Especialidad, _config.EspecialidadNombre,
+                hayMedico && sesion.MedicoNombre.Length > 0 ? sesion.MedicoNombre : _config.DisplayName);
+            LogBus.Log("onboarding", $"perfil: {_perfil.Describir()}");
         }
         catch (Exception ex) { LogBus.Log("onboarding", ex.Message); }
+        PintarElPerfilEnElMenu();
+    }
+
+    /// <summary>Lo que se eligió en la bienvenida, a config.json (sin guardar todavía).</summary>
+    private void GuardarElPerfilElegido(OnboardingWindow win)
+    {
+        if (win.PerfilElegido.Length == 0) return;
+        _config.Perfil = win.PerfilElegido;
+        // Una persona no tiene especialidad: se borra la que hubiera para que no reaparezca si un día
+        // vuelve a elegir salud y la de antes ya no es la suya.
+        _config.Especialidad = win.PerfilElegido == Cuenta.PerfilDeUso.Medico ? win.EspecialidadCodigo : "";
+        _config.EspecialidadNombre = win.PerfilElegido == Cuenta.PerfilDeUso.Medico ? win.EspecialidadNombre : "";
+    }
+
+    /// <summary>
+    /// Reparte el perfil a quien lo usa: el cable de Graph (turno y enseñanza) y el menú. Un solo
+    /// sitio para que un cambio desde el menú no deje a nadie con el perfil viejo.
+    /// </summary>
+    /// <remarks>
+    /// La voz en vivo lo recibe aquí, pero GPT-Live no deja reemplazar la persona a mitad de una sesión:
+    /// con la voz abierta, el cambio vale desde la próxima apertura o la próxima vuelta de un modo.
+    /// </remarks>
+    private void AplicarElPerfil(Cuenta.PerfilDeUso perfil)
+    {
+        _perfil = perfil;
+        if (_backend != null) _backend.Perfil = perfil.ParaElCable();
+        if (_vivo != null) _vivo.Perfil = perfil;
+        PintarElPerfilEnElMenu();
+    }
+
+    /// <summary>La fila del menú dice el perfil de ahora; con la cuenta Miracle dentro no se cambia aquí.</summary>
+    private void PintarElPerfilEnElMenu()
+    {
+        try
+        {
+            PerfilBtn.Content = _perfilDeLaCuenta
+                ? $"{_perfil.ParaElMenu()} · de tu cuenta Miracle"
+                : $"{_perfil.ParaElMenu()} · cambiar";
+            PerfilBtn.IsEnabled = !_perfilDeLaCuenta;
+        }
+        catch (Exception ex) { LogBus.Log("onboarding", $"no se pudo pintar el perfil en el menú: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// Cambiar el perfil desde el menú: la misma bienvenida, solo con las tarjetas y la especialidad,
+    /// con lo de ahora ya marcado. «Lo puedes cambiar cuando quieras desde el menú de Ü» es esto.
+    /// </summary>
+    private void OnCambiarPerfil(object sender, RoutedEventArgs e)
+    {
+        if (_perfilDeLaCuenta) return;
+        try
+        {
+            var win = new OnboardingWindow(ModoDeBienvenida.SoloPerfil, _config.DisplayName,
+                _config.Perfil, _config.EspecialidadNombre) { Owner = this };
+            if (win.ShowDialog() != true || win.PerfilElegido.Length == 0) return;
+            GuardarElPerfilElegido(win);
+            _config.Save();
+            AplicarElPerfil(Cuenta.PerfilDeUso.Resolver(false, "", "",
+                _config.Perfil, _config.Especialidad, _config.EspecialidadNombre, _config.DisplayName));
+            LogBus.Log("onboarding", $"perfil cambiado desde el menú: {_perfil.Describir()}");
+        }
+        catch (Exception ex) { LogBus.Log("onboarding", $"no se pudo cambiar el perfil: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// CADA INSTALACIÓN TIENE SU CREDENCIAL (spec 076, promesas 680-687).
+    /// </summary>
+    /// <remarks>
+    /// El instalador es público y lleva UNA clave de Graph que comparten todas las copias. Esa clave ya
+    /// solo sirve para presentarse: aquí la instalación dice quién es, Graph le da una credencial propia
+    /// y un administrador la aprueba en Provider Studio. Lo que se carga de disco se carga AHORA, sin
+    /// red, para que la primera petición ya la lleve; presentarse y preguntar van en segundo plano.
+    ///
+    /// Contra un Graph anterior a la 076 no hace nada visible: presentarse da 404, no se insiste y no
+    /// viaja ninguna cabecera.
+    /// </remarks>
+    private void PresentarLaInstalacion()
+    {
+        try
+        {
+            var credencial = CredencialDeInstalacion.DeGraph(_graphConfig, m => LogBus.Log("instalacion", m));
+            credencial.AlCambiar += situacion =>
+            {
+                // APROBADA: las claves que no llegaron por estar esperando se piden ahora, sin reiniciar Ü.
+                if (situacion == CredencialDeInstalacion.Aprobada)
+                    _ = Credenciales.ClavesDelBackend.Viva?.TraerSiFaltaAlgunaAsync();
+                // UN RECHAZO A MITAD DE SESIÓN (Graph dejó de conocerla, o la devolvieron a pendiente) vuelve
+                // a poner la vigilancia. Si ya hay una en marcha, esta llamada no hace nada.
+                if (situacion is CredencialDeInstalacion.SinPresentar or CredencialDeInstalacion.Pendiente)
+                    VigilarLaInstalacion(credencial);
+                // A LA PERSONA SE LE DICE LO QUE PUEDE ARREGLAR: que espera aprobación, con el código que
+                // tiene que dictarle al administrador, o que la revocaron. Lo demás se queda en el log.
+                if (situacion is CredencialDeInstalacion.Pendiente or CredencialDeInstalacion.Revocada)
+                {
+                    string frase = credencial.Estado;
+                    Dispatcher.BeginInvoke(() => SetStatus(char.ToUpper(frase[0]) + frase[1..] + "."));
+                }
+            };
+            CredencialDeInstalacion.Viva = credencial;
+            VigilarLaInstalacion(credencial);
+        }
+        catch (Exception ex)
+        {
+            // La cadena entera (patrón nº3). Sin credencial Ü sigue arrancando: contra un Graph sin
+            // compuerta funciona igual, y contra uno con compuerta el 403 lo dirá con su nombre.
+            for (var x = ex; x != null; x = x.InnerException)
+                LogBus.Log("instalacion", $"no pude preparar la credencial · {x.GetType().Name}: {x.Message}");
+        }
+    }
+
+    private void VigilarLaInstalacion(CredencialDeInstalacion credencial)
+    {
+        var datos = new Dictionary<string, string>
+        {
+            ["email"] = _config.Email ?? "",
+            ["display_name"] = _config.DisplayName ?? "",
+            ["install_id"] = _config.InstallId ?? "",
+            ["machine_name"] = Environment.MachineName,
+            ["os_version"] = Environment.OSVersion.VersionString,
+            ["app_version"] = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "",
+        };
+        // Task.Run: la vigilancia no vuelve al hilo de la interfaz entre pregunta y pregunta.
+        _ = Task.Run(() => credencial.VigilarAsync(datos, (ms, ct) => Task.Delay(ms, ct)));
     }
 
     /// <summary>Arranca la telemetría de "Windows Live" con la identidad actual (no-op sin correo).</summary>
@@ -1584,7 +1785,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             InstallId = _config.InstallId,
             DisplayName = _config.DisplayName,
             AppId = _graphConfig.AppId,
-            AppVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "",
+            // La instalada, no la del ensamblado: el panel decía 1.0.0.0 para todos los equipos (promesa 642).
+            AppVersion = Updater.VersionDeclarada(
+                ArranqueDeActualizacion.VersionInstalada,
+                System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString()),
             MachineName = Environment.MachineName,
             OsVersion = Environment.OSVersion.VersionString
         };
@@ -1598,11 +1802,11 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
     /// <summary>
     /// Arranca el sondeo de versiones nuevas. El usuario no toca nada: si aparece una, se descarga en
-    /// segundo plano y recién ahí asoma la pastilla. Ver <see cref="Updater"/>.
+    /// segundo plano y el botón de actualizar del panel se enciende. Ver <see cref="Updater"/>.
     /// </summary>
     private void StartUpdater()
     {
-        _updater = new Updater(_config.UpdateFeedUrl);
+        _updater = new Updater(_config.UpdateFeedUrl, App.CarpetaDelRastroDeActualizacion);
         VersionText.Text = $"Versión {_updater.CurrentVersion}";
         // UpdateReady llega desde un hilo del pool, no del Dispatcher: tocar la UI directo reventaría.
         // QUÉ versión es ya no se dice al pasar el ratón (promesa 164): el ⬇ dice que hay algo nuevo
@@ -1610,15 +1814,48 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         _updater.UpdateReady += info => Dispatcher.Invoke(() =>
         {
             _mensajeDeActualizacion = info.Message;
-            ShowUpdate(true);
+            PintarBotonDeActualizar();
             SetStatus($"Hay una actualización lista: {info.Version}.");
         });
         _updater.Start();
+        PintarBotonDeActualizar();
+
+        // LO QUE PASÓ CON EL TOQUE ANTERIOR. Quien pulsó actualizar vio a Ü cerrarse y volver: tiene que
+        // saber si volvió en la versión nueva o no, y hasta hoy volver en la vieja era idéntico a no haber
+        // pulsado. Solo se cuenta el intento que pidió la persona; los que Ü hace sola al cerrar o al
+        // arrancar van al log, que es donde se mira un equipo que no se actualiza.
+        var intento = ArranqueDeActualizacion.UltimoVeredicto;
+        if (intento.Via == "pastilla" && intento.Que != ResultadoDelIntento.SinIntento)
+        {
+            SetStatus(BotonDeActualizar.FraseDelIntento(intento));
+            MostrarConversacion(intento.Que == ResultadoDelIntento.Aplicada ? MotivoDelGlobo.SoloEsProgreso : MotivoDelGlobo.AlgoFallo);
+        }
     }
 
-    private void OnApplyUpdate(object sender, RoutedEventArgs e)
+    /// <summary>El botón de actualizar del panel. Qué hace cada toque lo decide <see cref="BotonDeActualizar"/>.</summary>
+    private void OnActualizar(object sender, RoutedEventArgs e)
     {
+        var estado = BotonDeActualizar.Estado(_updater?.ReadyInfo != null, _actualizando);
+        if (BotonDeActualizar.AlPulsar(estado) == GestoDelBoton.Nada) return;
         _ = AplicarActualizacionConNarrativaAsync();
+    }
+
+    /// <summary>
+    /// El dibujo dice el estado: en reposo, con la tinta de los demás iconos; con una versión lista, en
+    /// el color de acento y con su punto; mientras trabaja, a media tinta.
+    /// </summary>
+    private void PintarBotonDeActualizar()
+    {
+        if (ActualizarBtn == null) return;
+        var estado = BotonDeActualizar.Estado(_updater?.ReadyInfo != null, _actualizando);
+        var tinta = estado == EstadoDelBoton.HayVersionLista ? Estudio.Acento : Estudio.Tinta;
+        ActualizarFlecha.Stroke = tinta;
+        ActualizarBandeja.Stroke = tinta;
+        ActualizarPunto.Fill = Estudio.Acento;
+        ActualizarPunto.Visibility = estado == EstadoDelBoton.HayVersionLista ? Visibility.Visible : Visibility.Collapsed;
+        ActualizarDibujo.Opacity = estado == EstadoDelBoton.Trabajando ? 0.45 : 1;
+        System.Windows.Automation.AutomationProperties.SetName(ActualizarBtn,
+            BotonDeActualizar.Nombre(estado, _updater?.ReadyInfo?.Version));
     }
 
     /// <summary>Flujo visible y hablado: morado mientras se instala, mensaje del release y reinicio.</summary>
@@ -1627,6 +1864,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         if (_actualizando || _updater == null) return;
         _actualizando = true;
         PintarHalo();
+        PintarBotonDeActualizar();
         try
         {
             if (_updater.ReadyInfo == null)
@@ -1638,9 +1876,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 {
                     _actualizando = false;
                     PintarHalo();
-                    Speak(resultado.Que == Updater.Busqueda.AlDia
-                        ? "Ya estoy al día. No hay una actualización nueva para instalar."
-                        : $"No pude actualizarme: {resultado.Detalle}.");
+                    PintarBotonDeActualizar();
+                    Speak(BotonDeActualizar.FraseDeLaBusqueda(resultado.Que, resultado.Detalle));
                     return;
                 }
             }
@@ -1657,7 +1894,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         {
             _actualizando = false;
             PintarHalo();
-            LogBus.Log("update", $"actualización pedida por voz falló: {ex.Message}");
+            PintarBotonDeActualizar();
+            LogBus.Log("update", $"aplicar la actualización falló antes de reiniciar — {ex.GetType().Name}: {ex.Message}");
             Speak("No pude completar la actualización, pero sigo aquí. Puedes intentarlo de nuevo.");
         }
     }
@@ -1685,8 +1923,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             SetStatus(que switch
             {
                 Updater.Busqueda.AlDia => $"Ya tienes la última versión ({detalle}).",
-                Updater.Busqueda.Descargada => $"Versión {detalle} descargada. Pulsa ⬇ para escuchar qué trae y reiniciar.",
-                Updater.Busqueda.YaEstabaLista => $"La versión {detalle} ya estaba lista. Pulsa ⬇ para reiniciar.",
+                Updater.Busqueda.Descargada => $"Versión {detalle} descargada. Pulsa el botón de actualizar del panel para escuchar qué trae y reiniciar.",
+                Updater.Busqueda.YaEstabaLista => $"La versión {detalle} ya estaba lista. Pulsa el botón de actualizar del panel para reiniciar.",
                 Updater.Busqueda.NoAplica => $"No se puede actualizar: {detalle}.",
                 _ => $"No pude comprobarlo: {detalle}",
             });
@@ -1695,7 +1933,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     }
 
     /// <summary>
-    /// Si el usuario nunca tocó la pastilla, la versión descargada se instala al cerrar: el próximo
+    /// Si el usuario nunca tocó el botón de actualizar, la versión descargada se instala al cerrar: el próximo
     /// arranque ya es la nueva, sin que él haya hecho nada.
     /// </summary>
     protected override void OnClosed(EventArgs e)
@@ -1994,6 +2232,112 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             : $"carita en casa: vuelve a dejarse tocar · exstyle=0x{estilo:X}");
     }
 
+    // ── El saludo (spec 077) ──────────────────────────────────────────────────────────────────────────────────────
+
+    private readonly ReglaDelSaludo _saludo = new(() => Environment.TickCount64);
+    private readonly Random _dadoDelSaludo = new();
+    private System.Windows.Threading.DispatcherTimer? _latidoDelSaludo;
+    private long _proximoSaludoSolo;
+
+    /// <summary>
+    /// SALUDA CUANDO VUELVES, Y CADA MEDIA HORA (promesa 690). Un solo reloj y en la ventana (692): había uno por cada
+    /// dibujo de la carita, de hora y media a tres horas, y el dueño: «exageramos […] que salude apenas abres el app, o
+    /// desbloqueas el computador, o apenas estás volviendo a interactuar con ella». Los cuatro avisos entran por
+    /// <see cref="Saludar"/>, que le pregunta a <see cref="ReglaDelSaludo"/>:
+    ///   · abrir Ü: aquí mismo, segundo y medio después de aparecer, para que se la vea llegar;
+    ///   · desbloquear: <c>SystemEvents.SessionSwitch</c>;
+    ///   · volver a tocar el PC: el latido le dice a la regla cuánto lleva sin tocarse (<c>GetLastInputInfo</c>);
+    ///   · acercarle el ratón: <see cref="OnCollapsedHoverIn"/>.
+    /// El latido va cada 2 s y no lee la pantalla: una pregunta a Windows y una comparación de relojes.
+    /// </summary>
+    private void EmpezarASaludar()
+    {
+        if (_latidoDelSaludo != null) return;
+        ProgramarElSaludoSolo();
+        _latidoDelSaludo = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _latidoDelSaludo.Tick += (_, _) =>
+        {
+            if (_saludo.Volvio(SegundosSinTocarElPc())) Saludar(MotivoDelSaludo.Vuelta);
+            else if (Environment.TickCount64 >= _proximoSaludoSolo)
+            {
+                Saludar(MotivoDelSaludo.Rato);
+                ProgramarElSaludoSolo();   // salude o no: si no era el momento, el siguiente llega a su hora
+            }
+        };
+        _latidoDelSaludo.Start();
+
+        // El aviso del desbloqueo llega por el hilo de SystemEvents, y es un evento ESTÁTICO: sin soltarlo al cerrar, la
+        // ventana se quedaría colgada de él.
+        Microsoft.Win32.SystemEvents.SessionSwitch += AlCambiarLaSesion;
+        Closed += (_, __) =>
+        {
+            Microsoft.Win32.SystemEvents.SessionSwitch -= AlCambiarLaSesion;
+            _latidoDelSaludo?.Stop();
+        };
+
+        DentroDe(1500, () => Saludar(MotivoDelSaludo.Arranque));
+    }
+
+    private void AlCambiarLaSesion(object? sender, Microsoft.Win32.SessionSwitchEventArgs e)
+    {
+        if (e.Reason != Microsoft.Win32.SessionSwitchReason.SessionUnlock) return;
+        // Un momento después: al desbloquear, el escritorio tarda en pintarse y el saludo se perdería detrás.
+        Dispatcher.BeginInvoke(() => DentroDe(900, () => Saludar(MotivoDelSaludo.Desbloqueo)));
+    }
+
+    /// <summary>
+    /// EL ÚNICO SITIO QUE SALUDA. Pregunta a la regla, saluda a las dos caritas —es un solo dibujo en dos sitios y solo
+    /// se ve la que está a la vista— y lo anota: el log es lo único que hace medible un gesto.
+    /// </summary>
+    private void Saludar(MotivoDelSaludo motivo)
+    {
+        try
+        {
+            // Libre: a la vista, en reposo y en casa. En una conversación o trabajando no interrumpe, y de visita
+            // junto a lo que Ü pulsa tampoco.
+            bool libre = IsVisible && _mood == FaceMood.Reposo && _visita.Tocable;
+            if (!_saludo.Toca(motivo, libre)) return;
+            Face.Saludar();
+            CollapsedFace.Saludar();
+            ProgramarElSaludoSolo();
+            LogBus.Log("ui-anim", $"saluda: {PorQueSaluda(motivo)}");
+        }
+        // Un saludo que revienta no puede abrir el diálogo de «Ü tropezó»: llega desde un reloj y desde un evento del sistema.
+        catch (Exception e) { LogBus.Log("ui-anim", $"el saludo reventó: {e.GetType().Name}: {e.Message}"); }
+    }
+
+    private static string PorQueSaluda(MotivoDelSaludo motivo) => motivo switch
+    {
+        MotivoDelSaludo.Arranque => "se abrió Ü",
+        MotivoDelSaludo.Desbloqueo => "se desbloqueó el computador",
+        MotivoDelSaludo.Vuelta => $"volviste a tocar el PC tras {ReglaDelSaludo.AusenciaSeg / 60} minutos o más",
+        MotivoDelSaludo.Acercarse => $"le acercaste el ratón tras {ReglaDelSaludo.RatoSinTratarlaSeg / 60} minutos sin tratarla",
+        _ => "pasó el rato",
+    };
+
+    private void ProgramarElSaludoSolo() =>
+        _proximoSaludoSolo = Environment.TickCount64 + (long)(ReglaDelSaludo.ProximoEspontaneo(_dadoDelSaludo.NextDouble()) * 1000);
+
+    private void DentroDe(int ms, Action hacer)
+    {
+        var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms) };
+        t.Tick += (_, _) => { t.Stop(); hacer(); };
+        t.Start();
+    }
+
+    /// <summary>Cuánto hace de la última tecla o movimiento de ratón en este PC, en segundos.</summary>
+    private static double SegundosSinTocarElPc()
+    {
+        var info = new LASTINPUTINFO { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<LASTINPUTINFO>() };
+        return GetLastInputInfo(ref info) ? unchecked((uint)Environment.TickCount - info.dwTime) / 1000.0 : 0;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetLastInputInfo(ref LASTINPUTINFO info);
+
     private System.Windows.Threading.DispatcherTimer? _latidoDeVisita;
 
     /// <summary>
@@ -2128,16 +2472,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         UpdateContextZone();
     }
 
-    private void ShowUpdate(bool on)
-    {
-        UpdateBtn.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
-        UpdateContextZone();
-    }
-
     /// <summary>La zona vive solo mientras haya algo dentro; si no, se lleva su separador con ella.</summary>
     private void UpdateContextZone() =>
         ContextZone.Visibility =
-            UpdateBtn.Visibility == Visibility.Visible ||
             StopBtn.Visibility == Visibility.Visible ||
             RestartTeachBtn.Visibility == Visibility.Visible
                 ? Visibility.Visible : Visibility.Collapsed;
@@ -2226,9 +2563,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // el mismo gris —lo que hice el 2026-09-05— borró el color de dos que SÍ lo tenían:
         // «hay versión nueva» era azul y «detener» era rojo, y los dejé grises a los dos. El color
         // ahí no es adorno: es lo único que distingue un botón que informa de uno que interrumpe.
-        UpdateBtn.Background = Estudio.AcentoSuave;   // hay algo nuevo
+        // (El de «hay versión nueva» ya no es una pastilla: es el botón fijo de actualizar, que dice lo
+        // mismo con su trazo en el color de acento. Ver PintarBotonDeActualizar.)
         StopBtn.Background = Estudio.AlertaSuave;     // esto para lo que está pasando
-        UpdateBtn.Foreground = Estudio.Acento;
         StopBtn.Foreground = Estudio.Alerta;
 
         // Y LOS NEUTROS, SIN FONDO NINGUNO (2026-09-06, lo pidió el dueño mirando el del collar:
@@ -2240,7 +2577,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // nada — y desde que 📍 nace APAGADO, un interruptor cuyo estado de reposo no se ve es un
         // interruptor que no se encuentra.
         foreach (var b in new System.Windows.Controls.Primitives.ButtonBase[]
-                 { RestartTeachBtn, ComprobarBtn, MenuActivator, CollarModoBtn, LadoBtn,
+                 { RestartTeachBtn, ComprobarBtn, MenuActivator, CollarModoBtn, ActualizarBtn, LadoBtn,
                    InspectorBtn, LocatorBtn, RecuerdosBtn, LogsBtn })
         {
             b.Foreground = Estudio.Tinta;
@@ -2257,6 +2594,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         LadoHojaIzquierda.Stroke = Estudio.Tinta;
         LadoHojaDerecha.Stroke = Estudio.Tinta;
         PintarBotonDeLado();
+        PintarBotonDeActualizar();
 
         SepContexto.Background = Estudio.Borde;
         SepBarra.Background = Estudio.Borde;
@@ -2621,6 +2959,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </remarks>
     private void OnCollapsedHoverIn(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        Saludar(MotivoDelSaludo.Acercarse);   // «apenas la estás viendo por primera vez en el rato» (spec 077)
         PintarHalo();   // que aparezca ya con el aspecto que toca, no con el de la vez anterior
         _prevForeground = GetForegroundWindow();   // para que Esc devuelva el teclado a donde estaba
     }
@@ -2660,8 +2999,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         double nivel = viva ? _vivo!.NivelVoz : 0.18;
         bool collar = viva && _vivo!.PorElCollar;
         VoiceHaloColor.Color = ReglaDelHalo.ColorParaEstado(collar, _actualizando);
-        VoiceHalo.Opacity = ReglaDelHalo.Opacidad(nivel, _bocaPaso);
-        VoiceHaloEscala.ScaleX = VoiceHaloEscala.ScaleY = ReglaDelHalo.Escala(nivel, _bocaPaso);
+        VoiceHalo.Opacity = ReglaDelHalo.Opacidad(nivel, _pasoDeLaVoz);
+        VoiceHaloEscala.ScaleX = VoiceHaloEscala.ScaleY = ReglaDelHalo.Escala(nivel, _pasoDeLaVoz);
     }
 
     // --- Temas de la carita: se alternan manteniéndola oprimida (claro → oscuro → transparente) ---
@@ -2760,8 +3099,21 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// es otra cosa — dos notas que SUBEN, escuchar = abrirse.</summary>
     private void StartMicByFace()
     {
-        PlayChime();
+        // PRIMERO LA VOZ, DESPUÉS EL CARRILLÓN (spec 075). OnMic vuelve en cuanto la voz consta encendida o
+        // apagada —la red va detrás—, y el carrillón se deja para cuando la estela ya se pintó: pedirle a
+        // Windows que suene es trabajo del mismo hilo que tiene que pintarla, y iba delante.
         OnMic(this, new RoutedEventArgs());
+
+        // EL TOQUE SE CONTESTA CON EL CUERPO (spec 052, promesa 447). Los gestos de la carita responden a lo
+        // que pasa, no a un reloj: prenderle o apagarle la voz —tocándola, con el doble Ctrl, con el collar o
+        // con la onda, que todos entran por aquí— la hace rebotar. Detrás de la voz por lo mismo que el
+        // carrillón: nada se pone delante del primer clic. Y a las dos, porque es un solo dibujo en dos
+        // sitios y solo se ve la que está a la vista.
+        Face.Pulse();
+        CollapsedFace.Pulse();
+        _saludo.Tratada();
+        LogBus.Log("ui-anim", "toque: la carita rebota");
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, PlayChime);
     }
 
     /// <summary>
@@ -2842,8 +3194,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </summary>
     private async void OnMic(object sender, RoutedEventArgs e)
     {
-
-        if (_vivo != null) { await _vivo.AlternarAsync(); return; }
+        // EL RELOJ EMPIEZA EN EL GESTO: la línea «voz-clic» mide desde aquí cada tramo (promesa 666).
+        long gesto = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (_vivo != null) { await _vivo.AlternarAsync(gesto); return; }
 
         SetStatus("Escuchando…");   // a la píldora, no al globo: ver el comentario de _vivo.Cambio
         string heard = await _voice.ListenOnceAsync(CancellationToken.None);
@@ -2983,11 +3336,14 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 var cierre = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
                 cierre.Tick += (_, __) => { cierre.Stop(); Application.Current.Shutdown(); };
                 cierre.Start();
-                return "Cerrándome. Hasta luego.";
+                // LO QUE PASA, NO UNA DESPEDIDA (spec 078, D10): las instrucciones ya piden despedirse ANTES de
+                // llamarla, y «Cerrándome. Hasta luego.» la hacía despedirse dos veces.
+                return "Me cierro en dos segundos. Si todavía no te despediste, hazlo ahora en una frase corta; si ya lo hiciste, no digas nada más.";
 
             case "self_update":
                 _ = AplicarActualizacionConNarrativaAsync();
-                return "Voy a buscar la actualización. Verás el halo morado y te contaré qué trae antes de reiniciarme.";
+                // EN PASADO Y CIERTO (spec 078, D10): «Voy a buscar…» le daba a la voz justo el futuro que tiene prohibido.
+                return "Empecé a buscar la actualización: el halo morado dice que está en marcha, y antes de reiniciarme cuento qué trae.";
 
             // No es autocontrol —no se acciona a sí misma— pero se despacha por aquí porque mira
             // ESTE equipo, y eso lo sabe la ventana y no el mapa de pantallas de otras apps.
@@ -3054,11 +3410,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 if (!_vivo.Viva) { LogBus.Log("presentacion", "abriendo la voz para saludar…"); StartMicByFace(); }
                 else LogBus.Log("presentacion", "la voz ya estaba abierta");
 
-                // Abrir la sesión es ir y volver por la red, y no avisa cuando termina. Se le da
-                // margen comprobando, en vez de dormir a ciegas un número redondo: así el saludo
-                // sale en cuanto está lista y no siempre en el peor caso.
-                for (int i = 0; i < 40 && _vivo?.Viva != true; i++) await Task.Delay(250);
-                if (_vivo?.Viva != true)
+                // Abrir la sesión es ir y volver por la red. ENCENDIDA YA NO ES ABIERTA (spec 075): la voz
+                // consta encendida desde el gesto, así que mirar Viva daría por lista una sesión que aún
+                // no confirmó, y el saludo se mandaría a un socket sin conectar. Se espera la confirmación.
+                if (_vivo == null || !await _vivo.EsperarAbiertaAsync(TimeSpan.FromSeconds(10)))
                 {
                     LogBus.Log("presentacion", $"ABORTADO: la voz no abrió en {crono.ElapsedMilliseconds} ms. "
                         + "No hay saludo — mira las líneas «voz-viva» de justo antes para saber por qué.");
@@ -3066,7 +3421,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 }
 
                 LogBus.Log("presentacion", $"voz lista en {crono.ElapsedMilliseconds} ms · mandando el saludo");
-                await _vivo.EnviarTextoAsync(Onboarding.Presentacion.Saludo(_config.DisplayName));
+                // NOTA DEL SISTEMA (spec 078, D7) y según con quién habla: por EnviarTextoAsync quedaba en el hilo
+                // como dicha por la persona, y volvía en cada sesión siguiente.
+                await _vivo.AvisarAlModeloAsync(Onboarding.Presentacion.Saludo(_config.DisplayName, _perfil));
                 LogBus.Log("presentacion", "saludo entregado. Lo que Ü diga a partir de aquí sale en «voz-viva»; "
                     + "si acepta el escaneo, se verá «ejecutando «scan_computer»» y luego el resultado.");
             }
@@ -3081,13 +3438,12 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private Decision.InterruptorDelDecisor? _interruptorDelDecisor;
 
     /// <summary>
-    /// Instrucciones y catálogo, otra vez a la sesión: lo mismo que hace Learn/Work al cambiar de modo. Sin
-    /// sesión de voz no hay nada que re-mandar; la próxima apertura ya lee el catálogo nuevo.
+    /// Instrucciones y catálogo, otra vez a la sesión, con la memoria y el hilo (spec 078, D2). Sin sesión de
+    /// voz no hay nada que re-mandar; la próxima apertura ya lee el catálogo nuevo. Y en un modo especial
+    /// tampoco: encender Jev a mitad de una enseñanza le devolvía las manos al aprendiz; la vuelta lo leerá.
     /// </summary>
     private Task ReenviarCatalogoALaVozAsync() =>
-        _vivo != null
-            ? _vivo.VolverAlModoNormalAsync(recomponer: true)   // el decisor cambia las instrucciones por dentro
-            : Task.CompletedTask;
+        _vivo != null ? _vivo.ReenviarElCatalogoAsync() : Task.CompletedTask;
 
     /// <summary>
     /// EL BOTÓN «JEV»: enciende y apaga el decisor sin reiniciar. Encender pide Jev; sin clave se queda apagado
@@ -3758,7 +4114,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         {
             try
             {
-                // CON LAS INSTRUCCIONES CON QUE ABRIÓ (spec 073): las de fábrica no llevan la memoria personal.
+                // CON LA MEMORIA Y EL HILO (spec 078, D2): volver con las instrucciones a secas los perdía, y con
+                // GPT-Live dejaba a la voz con las reglas del aprendiz el resto de la sesión.
                 await _vivo.VolverAlModoNormalAsync();
             }
             catch (Exception ex) { LogBus.Log("teach", $"no pude devolver la voz a asistente: {ex.Message}"); }
@@ -4810,7 +5167,11 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// aquí (promesa 505): la regla la vuelve fantasma ANTES de volar, la posa al lado y nunca encima (506), y la trae
     /// sola a casa (507). La caja llega en píxeles físicos, como la da UIA.
     /// </summary>
-    private void Visitar(Rect fisico)
+    /// <param name="pulsa">
+    /// Ü lo PULSÓ, no solo lo señala. Los dos avisos entran por aquí, y solo el pulso es un clic: al posarse, la carita
+    /// lo presiona con la mano de ese lado (spec 052, promesa 446 — «cuando haga clic, que saque las manos y haga el clic»).
+    /// </param>
+    private void Visitar(Rect fisico, bool pulsa = false)
     {
         try
         {
@@ -4821,15 +5182,30 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // SEÑALAR VARIAS EMITE LAS DOS SEÑALES. Senalador avisa de «estas seis» y acto seguido de «la principal es
             // esta», y las dos llegan a la carita: el recorrido arrancaba y el aviso siguiente lo sustituía por un viaje
             // corriente a la primera (2026-08-07). Los ojos sí miran; lo que se ignora es el movimiento, que ya lleva la ruta.
+            var desde = new Point(Left, Top);
+            bool fue = false;
             if (_recorridoReciénLanzado) _recorridoReciénLanzado = false;
-            else if (_visita.Visitar(d.Elemento, new Point(Left, Top), TamañoDeLaCarita, d.Area))
+            else if (fue = _visita.Visitar(d.Elemento, desde, TamañoDeLaCarita, d.Area))
                 LogBus.Log("ui-anim", $"visita «{d.Elemento.X:0},{d.Elemento.Y:0} {d.Elemento.Width:0}x{d.Elemento.Height:0}»");
             else
                 LogBus.Log("ui-anim", $"visita: no cabe junto a {d.Elemento.X:0},{d.Elemento.Y:0} {d.Elemento.Width:0}x{d.Elemento.Height:0} sin taparlo: no vuela");
 
-            // Y los ojos hacia él, desde donde se posa: si queda a su derecha, mira a la izquierda.
+            // Y la cabeza hacia él, desde donde se posa: si queda a su derecha, mira a la izquierda.
             if (ReglaDeLaVisita.Junto(d.Elemento, TamañoDeLaCarita, d.Area) is { } posada)
-                CollapsedFace?.MirarHacia(d.Elemento.X + d.Elemento.Width / 2 < posada.X + TamañoDeLaCarita.Width / 2);
+            {
+                bool izquierda = d.Elemento.X + d.Elemento.Width / 2 < posada.X + TamañoDeLaCarita.Width / 2;
+                CollapsedFace?.MirarHacia(izquierda);
+
+                // LA MANO SALE AL POSARSE, no por el camino: el clic de verdad ya salió (promesa 504, el ciclo no espera
+                // a la carita), y el gesto lo cuenta en cuanto llega. Solo si fue: una carita que no cabe junto al
+                // elemento se quedó donde estaba, y presionar el aire desde lejos no dice nada.
+                if (pulsa && fue)
+                {
+                    var llega = EstanciaDeLaCarita.CuantoTarda(desde, posada);
+                    CollapsedFace?.Presionar(izquierda, llega);
+                    LogBus.Log("ui-anim", $"presiona a la {(izquierda ? "izquierda" : "derecha")}: la mano sale al posarse, en {llega.TotalMilliseconds:0} ms");
+                }
+            }
         }
         // UN FALLO DE LA VISITA NO ES UN FALLO DEL CLIC. Esto corre desde un BeginInvoke: sin este catch, la excepción
         // subiría al manejador de la app, que abre el diálogo de «Ü tropezó» encima de lo que Ü está pulsando.
@@ -5156,119 +5532,69 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         Face.Mood = mood;
         CollapsedFace.Mood = mood;
         UpdateChip(mood);
-        ActualizarBoca();
+        ActualizarElPulsoDeLaVoz();
     });
 
     /// <summary>
-    /// ¿Hay que estar moviendo la boca? Dos voces distintas pueden estar hablando y la carita no
-    /// tiene por qué saber cuál.
-    ///
-    /// La de Windows avisa por <see cref="FaceMood.Hablando"/>; la de la conversación en vivo NO
-    /// pasa por ahí —su audio sale por otro sitio— y ese fue el fallo: la boca estaba dibujada y
-    /// nadie la movía, porque el único disparador miraba a la voz vieja (2026-08-05).
+    /// ¿Hay que estar siguiendo la voz? Mientras haya una conversación viva o Ü esté hablando.
     /// </summary>
-    private void ActualizarBoca() =>
-        MoverLaBoca(_mood == FaceMood.Hablando || _vivo?.Viva == true);
+    private void ActualizarElPulsoDeLaVoz() =>
+        SeguirLaVoz(_mood == FaceMood.Hablando || _vivo?.Viva == true);
 
-    // ── La boca, mientras habla ───────────────────────────────────────────────────────────────
+    // ── El pulso de la voz ────────────────────────────────────────────────────────────────────
 
-    private System.Windows.Threading.DispatcherTimer? _boca;
-    private double _bocaAbierta;
-    private int _bocaPaso;
+    private System.Windows.Threading.DispatcherTimer? _pulsoDeLaVoz;
+    private int _pasoDeLaVoz;
 
     /// <summary>La última vez que se oyó algo por el altavoz. Sostiene el estado «hablando» durante
     /// los silencios cortos de dentro de una frase.</summary>
     private DateTime _ultimoSonido = DateTime.MinValue;
 
     /// <summary>
-    /// Abre y cierra la boca al ritmo de lo que se está diciendo.
+    /// Mientras hay voz, vuelve a mirar cada 60 ms qué cara toca y cómo late el halo.
     ///
-    /// El movimiento sale del VOLUMEN REAL de la voz, no de un bucle de animación: una boca que se
-    /// mueve sola mientras suena una frase acaba desincronizada de ella y se nota enseguida —es la
-    /// diferencia entre un muñeco que habla y uno al que le suena un altavoz detrás—. Ese volumen ya
-    /// lo mide la capa de voz para otra cosa (no confundir su propio eco con el usuario), así que
-    /// aquí se aprovecha en vez de medirlo por segunda vez.
-    ///
-    /// Cuando no hay sesión viva —la voz vieja de Windows no da nivel— se cae a un vaivén, que es
-    /// mejor que una boca quieta mientras se oye hablar.
-    ///
-    /// 16 cuadros por segundo y no 60: la boca cambia de FORMA, así que cada cuadro es un repintado
-    /// de la carita entera, y esto solo puede correr mientras habla. A 16 el habla ya se lee como
-    /// habla —el cine mudo iba a esa velocidad— y cuesta la cuarta parte.
+    /// AQUÍ SE MOVÍA LA BOCA, y ya no (spec 052, promesa 448). Este reloj abría y cerraba una boca
+    /// rellena siguiendo el volumen de la voz, 16 veces por segundo, con un vaivén de mentira para la voz
+    /// que no da nivel. El dueño la juzgó tres veces mirándola —«horrible», «extremadamente horrible»— y
+    /// se borró entera. Lo que queda es lo que el reloj hacía de paso y sí hace falta: en una
+    /// conversación en vivo se alterna entre hablar y callar sin que nadie más lo avise, así que alguien
+    /// tiene que preguntar. La cara de hablar es una sonrisa más ancha, a la que la carita llega sola
+    /// (<see cref="FaceControl.Llegada"/>); el nivel de la voz se ve en el halo.
     /// </summary>
-    private void MoverLaBoca(bool hablando)
+    private void SeguirLaVoz(bool hayVoz)
     {
-        if (!hablando)
+        if (!hayVoz)
         {
-            _boca?.Stop();
-            _boca = null;
-            _bocaAbierta = 0;
-            Face.MouthOpen = 0;
-            CollapsedFace.MouthOpen = 0;
+            _pulsoDeLaVoz?.Stop();
+            _pulsoDeLaVoz = null;
             return;
         }
-        if (_boca != null) return;
+        if (_pulsoDeLaVoz != null) return;
 
-        _boca = new System.Windows.Threading.DispatcherTimer(
+        _pulsoDeLaVoz = new System.Windows.Threading.DispatcherTimer(
             System.Windows.Threading.DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(60) };
-        _boca.Tick += (_, __) =>
+        _pulsoDeLaVoz.Tick += (_, __) =>
         {
-            _bocaPaso++;
+            _pasoDeLaVoz++;
             bool enVivo = _vivo?.Viva == true;
 
-            // LA BOCA TIENE QUE SABER PARARSE SOLA. Al temporizador solo lo apagaba RefreshMood, y
-            // a RefreshMood solo se le llamaba desde aquí abajo MIENTRAS había sesión viva. Si la
-            // sesión moría con la cara en «Hablando» —que es exactamente lo que pasa al cortarla a
-            // media frase, o al decirle «cállate»— nadie volvía a evaluar el estado: el temporizador
-            // seguía corriendo, se quedaba sin nivel al que seguir y caía al vaivén de más abajo.
-            // La boca se movía sola, en silencio, hasta que otra cosa cambiara el ánimo
-            // (2026-08-15, visto por el usuario: «cuando se queda ya callado la boca se sigue
-            // moviendo sola»). Depender de que otro se dé cuenta era el fallo; ahora se comprueba
-            // aquí, que es el único sitio que sigue vivo cuando todo lo demás se apagó.
+            // EL RELOJ TIENE QUE SABER PARARSE SOLO. Lo apagaba RefreshMood, y a RefreshMood solo se le
+            // llamaba desde aquí abajo MIENTRAS había sesión viva. Si la sesión moría con la cara en
+            // «Hablando» —que es lo que pasa al cortarla a media frase, o al decirle «cállate»— nadie
+            // volvía a evaluar el estado y la carita se quedaba con cara de hablar, en silencio
+            // (2026-08-15, visto por el usuario). Depender de que otro se dé cuenta era el fallo; ahora
+            // se comprueba aquí, que es el único sitio que sigue vivo cuando todo lo demás se apagó.
             if (!enVivo && !_voice.Activity.Hablando)
             {
-                MoverLaBoca(false);   // se para y cierra la boca; Stop() impide otro tick
+                SeguirLaVoz(false);   // se para; Stop() impide otro tick
                 RefreshMood();        // y se corrige el ánimo, que se quedó en «Hablando»
                 return;
             }
 
-            // CON NIVEL REAL, EL SILENCIO CIERRA LA BOCA. Caer al vaivén cuando el nivel es bajo
-            // haría que la carita moviera los labios durante las pausas de la conversación —y en una
-            // conversación se calla más de lo que se habla—, que es peor que no moverlos: parece que
-            // dice cosas que no dice. El vaivén es solo para la voz de Windows, que no da nivel.
-            double objetivo;
-            if (enVivo)
-            {
-                // Se estira porque la voz normal vive en la parte baja de la escala: una boca que
-                // solo se abre en los gritos no parece que hable.
-                double nivel = _vivo!.NivelVoz;
-                objetivo = nivel <= 0.004 ? 0 : Math.Min(1, Math.Pow(nivel, 0.55) * 1.45);
-            }
-            else
-            {
-                objetivo = 0.35 + 0.30 * Math.Sin(_bocaPaso * 0.9) + 0.15 * Math.Sin(_bocaPaso * 2.3);
-            }
-
-            // Se persigue el objetivo en vez de saltar a él: los labios tienen inercia, y sin esto
-            // la boca parpadea entre abierta y cerrada como un interruptor.
-            _bocaAbierta += (Math.Max(0, Math.Min(1, objetivo)) - _bocaAbierta) * 0.55;
-
-            // Redondeado a centésimas: por debajo de eso no se ve nada y solo serían repintados.
-            double abierta = Math.Round(_bocaAbierta, 2);
-            // La forma acompaña pero no va a la par: abrir mucho tiende a «a», poco a «o», y una
-            // onda lenta desempata para que no salga siempre la misma cara.
-            double redonda = Math.Round(Math.Max(0, Math.Min(1,
-                (1 - abierta) * 0.7 + 0.3 * (0.5 + 0.5 * Math.Sin(_bocaPaso * 0.37)))), 2);
-
-            if (Math.Abs(Face.MouthOpen - abierta) >= 0.01) { Face.MouthOpen = abierta; CollapsedFace.MouthOpen = abierta; }
-            if (Math.Abs(Face.MouthRound - redonda) >= 0.02) { Face.MouthRound = redonda; CollapsedFace.MouthRound = redonda; }
-
-            // Y que el resto de la cara acompañe: en vivo se alterna entre hablar y escuchar sin que
-            // nadie más lo avise. RefreshMood no hace nada si el estado no cambió, así que llamarla
-            // en cada cuadro sale gratis.
-            if (_vivo?.Viva == true || _actualizando) { RefreshMood(); PintarHalo(); }
+            // RefreshMood no hace nada si el estado no cambió, así que llamarla en cada tick sale gratis.
+            if (enVivo || _actualizando) { RefreshMood(); PintarHalo(); }
         };
-        _boca.Start();
+        _pulsoDeLaVoz.Start();
     }
 
     /// <summary>
@@ -5954,7 +6280,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private async Task DevolverLaVozAsync(string etiqueta)
     {
         if (_vivo is not { Viva: true }) return;
-        try { await _vivo.VolverAlModoNormalAsync(); }
+        try { await _vivo.VolverAlModoNormalAsync(); }   // con la memoria y el hilo (spec 078, D2)
         catch (Exception ex) { LogBus.Log(etiqueta, $"no pude devolver la voz: {ex.Message}"); }
     }
 

@@ -15,7 +15,7 @@
 - **Antipatrón**: deducir de capturas de pantalla. El 2026-07-26 costó **cuatro rondas** — una
   captura no distingue «espaciado correcto» de «filas equivocadas» de «otra caja encima»; el log sí.
 - **Líneas útiles**: `shell subType=`, `filas del árbol ·`, `fila seleccionada`, `CONTRASTE geometría`,
-  `✋ no se llegó a`, `⏱ TIEMPOS`.
+  `✋ no se llegó a`, `⏱ TIEMPOS`, y `voz-clic:` (los milisegundos de cada encendido y apagado de la voz).
 
 ### 2. Un mensaje describe el paso que falló; nunca concluye
 

@@ -98,28 +98,28 @@ la juzga. Cada fase empieza con el contrato ROTO y termina con el contrato INTAC
 
 ## La especificación
 
-En el contrato del grafo, numeradas desde la 700 (la 046 reservó 400–407 en su rama; no se reutilizan):
+En el contrato del grafo, numeradas desde la 760 (la 046 reservó 400–407 en su rama; no se reutilizan):
 
 | # | Promesa | Fase |
 |---|---|---|
-| 700 | lo aprendido se guarda al momento y sobrevive a cerrar y abrir: una habilidad con su nombre, cuándo y pasos, una preferencia y una observación del cuaderno | 1 |
-| 701 | volver a enseñar una habilidad con el mismo nombre la reconstruye entera: queda una sola, sin pasos viejos, aunque el nombre llegue con otras mayúsculas o sin tildes | 1 |
-| 702 | una habilidad sin nombre o sin pasos no se guarda, y la respuesta dice cuál de los dos falta; un archivo que no se puede leer se aparta en vez de pisarse | 1 |
-| 703 | una sesión nueva abre sabiendo lo aprendido: las instrucciones de quien actúa llevan cada preferencia y cada habilidad con su cuándo y sus pasos, y el cuaderno de observaciones no viaja | 2 |
-| 704 | lo aprendido cabe siempre: pasado su presupuesto las habilidades viajan como índice —nombre y cuándo— con la herramienta para leer sus pasos, y el hilo de la conversación cede sitio para que las instrucciones no pasen de lo que el servidor admite | 2 |
-| 705 | quien actúa puede guardar una habilidad en el momento, leerla, olvidarla y preguntar lo que la persona acaba de hacer: las cuatro herramientas están en su catálogo, y sus instrucciones mandan reconstruirla entera a cada corrección y seguirla cuando se pide lo que describe | 2 |
-| 706 | lo que la persona hizo se entrega entero, en orden y una sola vez: N clics con identidad dan N entradas y la consulta siguiente no las repite; un clic sobre la propia Ü o sin identidad no cuenta | 2 |
-| 707 | el diario de la sesión guarda lo que dijo la persona, lo que hizo Ü con cómo salió y lo que la persona tocó, en orden; se escribe en disco al cerrar y se vuelve a leer igual | 3 |
-| 708 | el repaso no guarda nada sin una cita literal de la persona que esté en el diario: una propuesta con una cita inventada, con palabras de Ü o sin cita se descarta, y queda dicho cuál y por qué | 4 |
-| 709 | el repaso aplica lo que el modelo propone: una habilidad enseñada entra a la primera, una corrección reconstruye la que había, una preferencia entra con una vez, un dato va a la memoria personal y lo que se pide olvidar se quita | 4 |
-| 710 | la repetición se comprueba, no se declara: una habilidad «por repetición» solo entra si ese procedimiento ya estaba en el cuaderno desde otra sesión; si no, se queda de observación, y el cuaderno no crece sin fin | 4 |
-| 711 | un repaso que falla no pierde la sesión: su diario sigue pendiente y se repasa la próxima vez; uno que termina se retira, y repasar dos veces la misma sesión no duplica nada | 5 |
-| 712 | una sesión sin nada que enseñar no llama al modelo: sin una frase de la persona con algo que decir no hay repaso, y se retira sin gastar | 5 |
-| 713 | lo que se le pide al modelo lleva lo que Ü ya sabe y el diario, pide la respuesta con su forma exacta y dice las reglas: la intención de enseñar va directo a habilidad, la repetición sale del cuaderno, y sin cita no hay nada | 4 |
-| 714 | cerrar una sesión que abrió deja su diario y lanza el repaso sin retrasar el cierre, y abrir una repasa lo que quedó pendiente | 5 |
-| 715 | la Memoria enseña lo aprendido: las habilidades enseñadas hablando salen con las demás, y las preferencias tienen su apartado | 6 |
-| 716 | las preferencias le llegan también a quien habla: al confirmarse la apertura la voz recibe las preferencias —no las habilidades, que son de quien actúa—, las más recientes primero y dentro de lo que cabe en un append; sin preferencias no se le manda nada | 7 |
-| 717 | una preferencia se guarda en su sitio: quien actúa tiene preferencia_guardar, que escribe en lo aprendido y no en la memoria personal; sus instrucciones mandan usarla para cómo quiere las cosas la persona y dejan memory_remember para datos y compromisos; y el repaso propone como preferencia la que solo estaba entre los datos | 8 |
+| 760 | lo aprendido se guarda al momento y sobrevive a cerrar y abrir: una habilidad con su nombre, cuándo y pasos, una preferencia y una observación del cuaderno | 1 |
+| 761 | volver a enseñar una habilidad con el mismo nombre la reconstruye entera: queda una sola, sin pasos viejos, aunque el nombre llegue con otras mayúsculas o sin tildes | 1 |
+| 762 | una habilidad sin nombre o sin pasos no se guarda, y la respuesta dice cuál de los dos falta; un archivo que no se puede leer se aparta en vez de pisarse | 1 |
+| 763 | una sesión nueva abre sabiendo lo aprendido: las instrucciones de quien actúa llevan cada preferencia y cada habilidad con su cuándo y sus pasos, y el cuaderno de observaciones no viaja | 2 |
+| 764 | lo aprendido cabe siempre: pasado su presupuesto las habilidades viajan como índice —nombre y cuándo— con la herramienta para leer sus pasos, y el hilo de la conversación cede sitio para que las instrucciones no pasen de lo que el servidor admite | 2 |
+| 765 | quien actúa puede guardar una habilidad en el momento, leerla, olvidarla y preguntar lo que la persona acaba de hacer: las cuatro herramientas están en su catálogo, y sus instrucciones mandan reconstruirla entera a cada corrección y seguirla cuando se pide lo que describe | 2 |
+| 766 | lo que la persona hizo se entrega entero, en orden y una sola vez: N clics con identidad dan N entradas y la consulta siguiente no las repite; un clic sobre la propia Ü o sin identidad no cuenta | 2 |
+| 767 | el diario de la sesión guarda lo que dijo la persona, lo que hizo Ü con cómo salió y lo que la persona tocó, en orden; se escribe en disco al cerrar y se vuelve a leer igual | 3 |
+| 768 | el repaso no guarda nada sin una cita literal de la persona que esté en el diario: una propuesta con una cita inventada, con palabras de Ü o sin cita se descarta, y queda dicho cuál y por qué | 4 |
+| 769 | el repaso aplica lo que el modelo propone: una habilidad enseñada entra a la primera, una corrección reconstruye la que había, una preferencia entra con una vez, un dato va a la memoria personal y lo que se pide olvidar se quita | 4 |
+| 770 | la repetición se comprueba, no se declara: una habilidad «por repetición» solo entra si ese procedimiento ya estaba en el cuaderno desde otra sesión; si no, se queda de observación, y el cuaderno no crece sin fin | 4 |
+| 771 | un repaso que falla no pierde la sesión: su diario sigue pendiente y se repasa la próxima vez; uno que termina se retira, y repasar dos veces la misma sesión no duplica nada | 5 |
+| 772 | una sesión sin nada que enseñar no llama al modelo: sin una frase de la persona con algo que decir no hay repaso, y se retira sin gastar | 5 |
+| 773 | lo que se le pide al modelo lleva lo que Ü ya sabe y el diario, pide la respuesta con su forma exacta y dice las reglas: la intención de enseñar va directo a habilidad, la repetición sale del cuaderno, y sin cita no hay nada | 4 |
+| 774 | cerrar una sesión que abrió deja su diario y lanza el repaso sin retrasar el cierre, y abrir una repasa lo que quedó pendiente | 5 |
+| 775 | la Memoria enseña lo aprendido: las habilidades enseñadas hablando salen con las demás, y las preferencias tienen su apartado | 6 |
+| 776 | las preferencias le llegan también a quien habla: al confirmarse la apertura la voz recibe las preferencias —no las habilidades, que son de quien actúa—, las más recientes primero y dentro de lo que cabe en un append; sin preferencias no se le manda nada | 7 |
+| 777 | una preferencia se guarda en su sitio: quien actúa tiene preferencia_guardar, que escribe en lo aprendido y no en la memoria personal; sus instrucciones mandan usarla para cómo quiere las cosas la persona y dejan memory_remember para datos y compromisos; y el repaso propone como preferencia la que solo estaba entre los datos | 8 |
 
 Y en el contrato de la voz:
 
@@ -127,9 +127,9 @@ Y en el contrato de la voz:
 |---|---|---|
 | 68 | lo que la persona prefiere le llega a quien habla: un session.instructions.append sin delegación con el texto dentro, que nunca pasa de lo que cabe en un append y lo dice si recorta; un protocolo de una sola voz no manda nada | 7 |
 
-**La que cierra el asunto es la 703.** Mientras no exista, se puede guardar lo que se quiera y la sesión
+**La que cierra el asunto es la 763.** Mientras no exista, se puede guardar lo que se quiera y la sesión
 siguiente no lo sabe: es exactamente lo que pasaba con las skills del Learn. **Y la que impide repetir el
-otro fallo es la 708**: sin ella, el repaso es un modelo que se da por bueno a sí mismo.
+otro fallo es la 768**: sin ella, el repaso es un modelo que se da por bueno a sí mismo.
 
 ### Promesa que cambia
 
@@ -138,33 +138,33 @@ La **622** («la Memoria cuenta TODO lo que Ü guarda de ti») pasa de doce apar
 
 ### Con qué se juzga cada una
 
-- **700–702, 710**: el almacén sobre un archivo temporal de la prueba.
-- **703–705**: las instrucciones y el catálogo compuestos a partir de un almacén con contenido; se juzga el
+- **760–762, 770**: el almacén sobre un archivo temporal de la prueba.
+- **763–765**: las instrucciones y el catálogo compuestos a partir de un almacén con contenido; se juzga el
   texto que recibe el modelo, no el archivo.
-- **706**: el rastro alimentado a mano con clics resueltos; sin gancho real y sin pantalla.
-- **707, 711, 712**: el diario y la cola de pendientes sobre una carpeta temporal.
-- **708–709, 713**: el repaso con un modelo de mentira que devuelve lo que la prueba le dicta. El modelo de
+- **766**: el rastro alimentado a mano con clics resueltos; sin gancho real y sin pantalla.
+- **767, 771, 772**: el diario y la cola de pendientes sobre una carpeta temporal.
+- **768–769, 773**: el repaso con un modelo de mentira que devuelve lo que la prueba le dicta. El modelo de
   verdad se mide aparte, con la batería de la sonda: el contrato no puede depender de la red.
-- **714**: cableado, leído de la fuente.
-- **715**: `LoQueUSabe.Leer` sobre carpetas temporales.
-- **716 y la 68 de la voz**: el texto que sale del almacén y el mensaje que arma el protocolo; el cableado,
+- **774**: cableado, leído de la fuente.
+- **775**: `LoQueUSabe.Leer` sobre carpetas temporales.
+- **776 y la 68 de la voz**: el texto que sale del almacén y el mensaje que arma el protocolo; el cableado,
   leído de la fuente. Que la voz lo CUMPLA al hablar solo lo dice una persona oyéndola.
 
 ## Las fases
 
 | Fase | Pone verde | Toca |
 |---|---|---|
-| 1 | 700–702 | nuevo `Voice/LoAprendido.cs` |
-| 2 | 703–706 | `ConversacionEnVivo.cs` (catálogo, despacho, apertura); nuevo `Voice/LoQueHiciste.cs` |
-| 3 | 707 | nuevo `Voice/DiarioDeLaSesion.cs`; `ConversacionEnVivo.cs` |
-| 4 | 708–710, 713 | nuevo `Voice/ElRepaso.cs` |
-| 5 | 711, 712, 714 | `ElRepaso.cs`, `ConversacionEnVivo.cs`, `FaceWindow.xaml.cs` |
-| 6 | 715 | `Memoria/LoQueUSabe.cs` |
-| 7 | 716, y la 68 de la voz | `voz/Realtime/IProtocolo.cs`, `ProtocoloGptLive.cs`, `LoAprendido.cs`, `ConversacionEnVivo.cs` |
+| 1 | 760–762 | nuevo `Voice/LoAprendido.cs` |
+| 2 | 763–766 | `ConversacionEnVivo.cs` (catálogo, despacho, apertura); nuevo `Voice/LoQueHiciste.cs` |
+| 3 | 767 | nuevo `Voice/DiarioDeLaSesion.cs`; `ConversacionEnVivo.cs` |
+| 4 | 768–770, 773 | nuevo `Voice/ElRepaso.cs` |
+| 5 | 771, 772, 774 | `ElRepaso.cs`, `ConversacionEnVivo.cs`, `FaceWindow.xaml.cs` |
+| 6 | 775 | `Memoria/LoQueUSabe.cs` |
+| 7 | 776, y la 68 de la voz | `voz/Realtime/IProtocolo.cs`, `ProtocoloGptLive.cs`, `LoAprendido.cs`, `ConversacionEnVivo.cs` |
 
-| 8 | 717 | `ConversacionEnVivo.cs` (catálogo, despacho, instrucciones), `ElRepaso.cs` |
+| 8 | 777 | `ConversacionEnVivo.cs` (catálogo, despacho, instrucciones), `ElRepaso.cs` |
 
-Las fases 7 y 8 no estaban en el plan. La 8 salió del nivel 4 (ver *Hallazgos*). La 7 salió al cablear la 703. Lo aprendido viaja en las instrucciones de quien
+Las fases 7 y 8 no estaban en el plan. La 8 salió del nivel 4 (ver *Hallazgos*). La 7 salió al cablear la 763. Lo aprendido viaja en las instrucciones de quien
 actúa, y con GPT-Live quien actúa no es quien habla. Una preferencia sobre cómo se habla que solo conoce
 quien no habla es una preferencia que nadie cumple. Sus dos promesas se escribieron y se vieron rojas
 (`⧗ PENDIENTE: «IProtocolo.ParaLaVoz» todavía no existe`) antes que su código.
@@ -176,7 +176,7 @@ quien no habla es una preferencia que nadie cumple. Sus dos promesas se escribie
 - **El aviso de «LECCIÓN PERDIDA» deja de empujar al modelo cuando ya guardó** con `habilidad_escribir`,
   `preferencia_guardar` o `memory_remember`: hoy solo lo callaba `map_esto_es`, y avisaba de un dato que sí
   se había guardado.
-- **`memory_remember` deja de ser el sitio de las preferencias** (717). Sigue siendo el de los datos y los
+- **`memory_remember` deja de ser el sitio de las preferencias** (777). Sigue siendo el de los datos y los
   compromisos.
 
 ## Lo que NO entra
@@ -226,6 +226,27 @@ quien no habla es una preferencia que nadie cumple. Sus dos promesas se escribie
 - **`tecla: Ctrl+A` no selecciona todo en el Bloc de notas en español: abre «Abrir»** (seleccionar todo es
   Ctrl+E). Quien actúa lo usó cinco veces para reemplazar un texto y dejó cuatro diálogos abiertos.
 - **Quien actúa no sabe qué día es**: escribió «2025-02-27» como fecha de hoy, y abrió `cmd` para preguntarla.
+
+## Al mezclar con `main` (2026-10-01)
+
+- **Los números.** Las promesas nacieron como 700–717; `main` tomó del 700 al 743 con «una sola Ü» (PR #157).
+  Son ahora la **760 a la 777**, en el mismo orden.
+- **La 778, nueva: con un médico el repaso no guarda datos por su cuenta.** «Una sola Ü» les quitó a los
+  médicos la memoria automática por palabras (su promesa 740): en consulta, «tengo un paciente de 54 años» es lo
+  más normal del mundo, y lo guardado vuelve en cada sesión, también delante de otro paciente. Esta spec había
+  quitado esos vigilantes para todos y puesto en su lugar el repaso, que también escribe datos en la memoria
+  personal: el mismo fallo volvía por otra puerta, con un modelo leyendo la sesión entera. Con un médico, el
+  esquema ni ofrece «dato», las reglas dicen que nada de un paciente entra en una habilidad ni en una
+  preferencia, y si aun así se propone un dato, el código lo descarta diciendo por qué. Cómo se hace una tarea
+  y cómo quiere las cosas sí se aprende.
+- **La 733 y la 740 de `main` cambian su comprobación.** Las dos juzgaban que el vigilante por palabras
+  («recuerda que…», «tengo un…») siguiera despierto fuera de un modo y con una persona. Ese vigilante ya no
+  existe para nadie (promesas 787 y la retirada de esta spec): la 733 juzga que no vuelva, y la 740, que con un
+  médico tampoco guarde el repaso.
+- **Las instrucciones de las habilidades** van detrás de las de siempre (`LoQueSeAnade`), para las dos voces,
+  y no dentro de la operación de `main`, que tiene su presupuesto (724). `memory_remember` y `map_esto_es`
+  conservan lo que `main` les añadió —los datos de un paciente no van a ninguna— y dejan de ofrecerse para las
+  preferencias, que van a `preferencia_guardar`.
 
 ## Cierre
 

@@ -45,7 +45,7 @@ para quien actúa como para el repaso; y que no quede en el código ni en OpenAI
 | ¿Y se ahorra la vuelta? | **Sí, si sus instrucciones lo dicen.** Sin decírselo llamó igual a `map_what_i_see` (2 vueltas). Diciéndoselo: 1 vuelta, 1,1 s. «Pulsa el botón verde de abajo» → `pulsa: Radicar` en 0,86 s, leído de la foto. |
 | ¿La foto con un texto al lado confunde a la voz? | **No.** 5 s callada tras recibirla; a «hola, ¿cómo estás?» contestó sin delegar. |
 | ¿Se le puede contar a la voz dónde está la persona sin que lo diga? | **No por `thinking.append`**: lo dijo sola a los 0,8 s («Ya estás en el Bloc de notas…»), 2 de 2. **Por `instructions.append` calla**, pero entonces no le llega al delegado, y la voz delega igual todo lo que es de la pantalla. |
-| ¿Las preferencias al abrir (`instructions.append`, promesa 716) hacen hablar sola a la voz? | **No**: 6 s callada. |
+| ¿Las preferencias al abrir (`instructions.append`, promesa 776) hacen hablar sola a la voz? | **No**: 6 s callada. |
 | ¿Cuánto frena llevar fotos acumuladas? | Por vuelta del delegado: 1 foto, 0,9–1,6 s; 8, 1,2–1,4 s; 20, 2,1–2,2 s; 40, 2,3–2,8 s. Unos 30 ms por foto. Cuarenta fotos se aceptaron sin error. |
 | ¿Se puede quitar una foto vieja de la conversación? | No hay con qué: crear un ítem no devuelve su identificador. |
 
@@ -77,16 +77,16 @@ En el contrato del grafo:
 
 | # | Promesa |
 |---|---|
-| 740 | la pantalla solo viaja con el pedido si cambió: dos capturas de la misma pantalla dan la misma huella aunque parpadee el cursor o corra el reloj, y otra ventana da otra; y no viaja si no ha pasado el respiro, si ya van las del tope, o si está apagada |
-| 741 | al empezar a hablar la persona, y al escribir, Ü manda la pantalla de ese momento antes que el pedido; una conexión nueva empieza la cuenta de cero; y las instrucciones del delegado dicen que ya ve la pantalla al empezar, sin que las de la voz única cambien |
-| 742 | lo que la persona muestra se ve: cada clic suyo lleva la foto del instante de pulsar, en su orden; se entregan una sola vez, a lo sumo las del tope, y sin sesión no se toma ninguna |
-| 743 | el diario lleva las fotos de lo que la persona tocó y de lo que a Ü no le salió: las más recientes hasta el tope, numeradas en el texto; se guardan con el diario, se vuelven a leer iguales y se retiran con él |
-| 744 | el repaso ve: lo que se le pide al modelo lleva cada foto del diario como imagen, rotulada con su línea; sin fotos la petición es la de siempre; y se le puede quitar la vista sin quitarle el repaso |
-| 745 | toda copia subida a OpenAI queda apuntada en disco hasta que se borra: un borrado que falla la deja pendiente, un reintento que sale bien la quita, y otra sesión —o la app después de caerse— encuentra lo pendiente |
-| 746 | el álbum automático ya no existe: nada captura la pantalla al cambiar de sitio, map_look_back no está en el catálogo y la Memoria no tiene el apartado «pantalla» |
-| 747 | lo que la persona dice no se guarda crudo por una lista de palabras: cerrar un turno no escribe en la memoria personal |
-| 748 | quien actúa sabe qué día es: las instrucciones con que abre dicen el día de la semana, la fecha y la hora locales |
-| 749 | lo que devuelve el delegado no se cuenta dos veces: con el micrófono abierto lo dice la voz, y solo eso queda como dicho por Ü; en una sesión escrita, que no tiene voz, es la respuesta |
+| 780 | la pantalla solo viaja con el pedido si cambió: dos capturas de la misma pantalla dan la misma huella aunque parpadee el cursor o corra el reloj, y otra ventana da otra; y no viaja si no ha pasado el respiro, si ya van las del tope, o si está apagada |
+| 781 | al empezar a hablar la persona, y al escribir, Ü manda la pantalla de ese momento antes que el pedido; una conexión nueva empieza la cuenta de cero; y las instrucciones del delegado dicen que ya ve la pantalla al empezar, sin que las de la voz única cambien |
+| 782 | lo que la persona muestra se ve: cada clic suyo lleva la foto del instante de pulsar, en su orden; se entregan una sola vez, a lo sumo las del tope, y sin sesión no se toma ninguna |
+| 783 | el diario lleva las fotos de lo que la persona tocó y de lo que a Ü no le salió: las más recientes hasta el tope, numeradas en el texto; se guardan con el diario, se vuelven a leer iguales y se retiran con él |
+| 784 | el repaso ve: lo que se le pide al modelo lleva cada foto del diario como imagen, rotulada con su línea; sin fotos la petición es la de siempre; y se le puede quitar la vista sin quitarle el repaso |
+| 785 | toda copia subida a OpenAI queda apuntada en disco hasta que se borra: un borrado que falla la deja pendiente, un reintento que sale bien la quita, y otra sesión —o la app después de caerse— encuentra lo pendiente |
+| 786 | el álbum automático ya no existe: nada captura la pantalla al cambiar de sitio, map_look_back no está en el catálogo y la Memoria no tiene el apartado «pantalla» |
+| 787 | lo que la persona dice no se guarda crudo por una lista de palabras: cerrar un turno no escribe en la memoria personal |
+| 788 | quien actúa sabe qué día es: las instrucciones con que abre dicen el día de la semana, la fecha y la hora locales |
+| 789 | lo que devuelve el delegado no se cuenta dos veces: con el micrófono abierto lo dice la voz, y solo eso queda como dicho por Ü; en una sesión escrita, que no tiene voz, es la respuesta |
 
 En el contrato de la voz:
 
@@ -113,11 +113,11 @@ En el contrato de la voz:
 
 ### Con qué se juzga cada una
 
-- **740**: funciones puras sobre pantallas de mentira (una función de luminancia), sin pantalla.
-- **741, 746, 747**: cableado leído de la fuente, el catálogo y las instrucciones compuestas.
-- **742, 743, 745**: las clases sobre archivos temporales, con la captura y el borrado inyectados.
-- **744**: el repaso con un modelo de mentira; lo que se juzga es la petición que sale.
-- **748, 749**: funciones puras, y su cableado.
+- **780**: funciones puras sobre pantallas de mentira (una función de luminancia), sin pantalla.
+- **781, 786, 787**: cableado leído de la fuente, el catálogo y las instrucciones compuestas.
+- **782, 783, 785**: las clases sobre archivos temporales, con la captura y el borrado inyectados.
+- **784**: el repaso con un modelo de mentira; lo que se juzga es la petición que sale.
+- **788, 789**: funciones puras, y su cableado.
 - Lo que hace **el servidor** con la foto lo mide la sonda; lo que hace **el modelo** con las fotos del diario,
   la batería de `sondas/DelRepaso`.
 
@@ -125,12 +125,12 @@ En el contrato de la voz:
 
 | Fase | Pone verde | Toca |
 |---|---|---|
-| 1 | 740, 741, y la 69 de la voz | nuevo `Voice/PantallaAlPedir.cs`; `CapturaDePantalla.cs`; `IProtocolo`, `ProtocoloGptLive`; `ConversacionEnVivo.cs` |
-| 2 | 742 | `Voice/LoQueHiciste.cs`; `ConversacionEnVivo.cs` |
-| 3 | 743, 744 | `Voice/DiarioDeLaSesion.cs`, `Voice/ElRepaso.cs`, `ConversacionEnVivo.cs` |
-| 4 | 745 | nuevo `Voice/CopiasPorBorrar.cs`; `Voice/MiradaSubida.cs` |
-| 5 | 746, 747 | se borran `Navigation/AlbumDeMiradas.cs` y `CuandoSeMira.cs`; `MapaVivo.cs`, `LoQueUSabe.cs`, `ConversacionEnVivo.cs`; `ProtocoloGptLive.Fotograma` |
-| 6 | 748, 749, y la 70 de la voz | `ConversacionEnVivo.cs`, `Hecho.cs`, `ProtocoloGptLive.cs` |
+| 1 | 780, 781, y la 69 de la voz | nuevo `Voice/PantallaAlPedir.cs`; `CapturaDePantalla.cs`; `IProtocolo`, `ProtocoloGptLive`; `ConversacionEnVivo.cs` |
+| 2 | 782 | `Voice/LoQueHiciste.cs`; `ConversacionEnVivo.cs` |
+| 3 | 783, 784 | `Voice/DiarioDeLaSesion.cs`, `Voice/ElRepaso.cs`, `ConversacionEnVivo.cs` |
+| 4 | 785 | nuevo `Voice/CopiasPorBorrar.cs`; `Voice/MiradaSubida.cs` |
+| 5 | 786, 787 | se borran `Navigation/AlbumDeMiradas.cs` y `CuandoSeMira.cs`; `MapaVivo.cs`, `LoQueUSabe.cs`, `ConversacionEnVivo.cs`; `ProtocoloGptLive.Fotograma` |
+| 6 | 788, 789, y la 70 de la voz | `ConversacionEnVivo.cs`, `Hecho.cs`, `ProtocoloGptLive.cs` |
 
 ## Lo que NO entra
 
@@ -155,9 +155,9 @@ En el contrato de la voz:
    (`vista-2.log` 13:01:37 → 13:01:39, `vista-3.log`). Lo que mide una sonda con un prompt corto no vale para el
    prompt largo: se mide con el de verdad.
 2. **Dos comprobaciones que no podían fallar**, destapadas por el sabotaje y no por el verde:
-   - 744, «rotulada justo delante»: el texto del diario también dice «[FOTO 1]» y «sin nombre», y es lo que
+   - 784, «rotulada justo delante»: el texto del diario también dice «[FOTO 1]» y «sin nombre», y es lo que
      queda delante de la imagen cuando el rótulo falta. Ahora exige que ese texto sea SOLO el rótulo.
-   - 745, el cableado: `ArrancarAsync … ReintentarLasCopiasPendientes(` casaba con la **declaración** del
+   - 785, el cableado: `ArrancarAsync … ReintentarLasCopiasPendientes(` casaba con la **declaración** del
      método, más abajo en el archivo. Ahora exige la llamada: una línea que empieza por el nombre y acaba en `;`.
 3. **El contrato capturó y subió una pantalla de verdad, una vez.** La 208 corre la conversación con un
    servidor de mentira; al mandar texto, el código nuevo capturó la pantalla real y la subió a OpenAI con la
@@ -168,10 +168,12 @@ En el contrato de la voz:
    control situado en (342, 236)», 3 de 3; con las fotos, «Pulsa «Facturación» · «Radicar cuenta» ·
    «Urgencias Adultos» · «Guardar»», 3 de 3.
 5. **Lo del delegado se contaba dos veces** en el diario y en el hilo cuando había micrófono: una como lo que
-   devolvió y otra como lo que dijo la voz. De ahí la 749 y la 70 de la voz.
+   devolvió y otra como lo que dijo la voz. De ahí la 789 y la 70 de la voz.
 6. **`origin/main` tomó el número 078 y las promesas 700–743 mientras esto se escribía** (PR #157, «una sola
-   Ü»). Esta spec y las 073 y 074 de la rama se renumeran al poner la rama al día; hasta entonces sus números
-   son los de la rama.
+   Ü»). Al poner la rama al día, esta spec pasó a ser la **079** y sus promesas, de 740–749 a **780–789**; las de
+   la voz (69 y 70) no chocaban. `map_look_back` y las dos capturas por palabras, que `main` conservaba, quedan
+   retiradas; el párrafo «YA VES LA PANTALLA AL EMPEZAR» va detrás de las instrucciones de siempre, como lo
+   último de lo que se le añade al delegado.
 
 ### Lo medido al cerrar (2026-10-01)
 

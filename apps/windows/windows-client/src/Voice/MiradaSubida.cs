@@ -45,7 +45,7 @@ public sealed class MiradaSubida
     }
 
     /// <summary>
-    /// Con apuntes en disco (spec 078, promesa 745): cada copia queda apuntada desde que se sube hasta que
+    /// Con apuntes en disco (spec 079, promesa 785): cada copia queda apuntada desde que se sube hasta que
     /// <paramref name="borrar"/> contesta que ya no está. Lo que quede apuntado se reintenta más tarde.
     /// </summary>
     public MiradaSubida(Func<byte[], Task<string>> subir, Func<string, Task<bool>> borrar, CopiasPorBorrar apuntes)
@@ -103,7 +103,7 @@ public sealed class MiradaSubida
         foreach (string id in pendientes)
         {
             lock (EnUso) EnUso.Remove(id);                 // su conversación cerró: ya nadie puede pedirla
-            if (await _borrar(id)) _apuntes?.Quitar(id);   // la que no se pudo borrar sigue apuntada (745)
+            if (await _borrar(id)) _apuntes?.Quitar(id);   // la que no se pudo borrar sigue apuntada (785)
         }
     }
 

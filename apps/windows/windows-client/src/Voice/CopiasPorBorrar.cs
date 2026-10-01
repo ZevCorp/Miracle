@@ -6,7 +6,7 @@ using U.WindowsClient.Diagnostics;
 namespace U.WindowsClient.Voice;
 
 /// <summary>
-/// LAS COPIAS DE FOTOS QUE HAY EN OPENAI Y TODAVÍA NO SE HAN BORRADO, apuntadas en disco (spec 078, promesa 745).
+/// LAS COPIAS DE FOTOS QUE HAY EN OPENAI Y TODAVÍA NO SE HAN BORRADO, apuntadas en disco (spec 079, promesa 785).
 /// </summary>
 /// <remarks>
 /// <para>«QUE NO DUREN MUCHO TIEMPO EN OPENAI» (el dueño, 2026-09-16). La copia de una foto se borra al cerrar la

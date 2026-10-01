@@ -27,7 +27,7 @@ public abstract record Hecho
 
     /// <summary>Un trozo de lo que dice Ü.</summary>
     /// <param name="DelDelegado">
-    /// Lo devolvió quien actúa, no lo dijo la voz (spec 078, promesa 70). Con GPT-Live son dos modelos: el delegado
+    /// Lo devolvió quien actúa, no lo dijo la voz (spec 079, promesa 70). Con GPT-Live son dos modelos: el delegado
     /// devuelve un texto y la voz lo dice después con sus palabras. Contar los dos como dichos por Ü dejaba
     /// «Abrí tu correo en Gmail. Abrí tu correo en Gmail.» en el hilo. Quién lo cuenta lo decide la conversación,
     /// que es quien sabe si hay voz.

@@ -17,13 +17,13 @@ namespace U.WindowsClient.Voice;
 /// Learn por demostración guardaba selectores y un paso por tecla: su skill de Gmail tenía 117 pasos para 6
 /// acciones, exigía «Comprobar» antes de usarse (3 de 16 pasaron, 312 s de mediana) y la voz no la podía
 /// pedir. En el respaldo del 2026-09-30 quedaban 2 skills, ninguna usada.</para>
-/// <para>RECONSTRUIR ES LA ÚNICA OPERACIÓN (701). Quien la escribe la escribe entera, y el almacén la
+/// <para>RECONSTRUIR ES LA ÚNICA OPERACIÓN (761). Quien la escribe la escribe entera, y el almacén la
 /// sustituye por su nombre. No hay «editar el paso 3»: esa operación exige que el modelo y el archivo estén
 /// de acuerdo en qué es el paso 3, y cuando no lo están se corrige el paso equivocado sin que nadie se
 /// entere.</para>
-/// <para>EL CUADERNO NO VIAJA A LA VOZ (703). Lo visto una vez sin enseñarlo no es todavía algo que seguir:
-/// es lo que permite COMPROBAR que algo se repitió, en vez de creérselo a un modelo (710).</para>
-/// <para>UN ARCHIVO ILEGIBLE SE APARTA, NO SE PISA (702). <c>MemoriaPersonal.Leer</c> devuelve un documento
+/// <para>EL CUADERNO NO VIAJA A LA VOZ (763). Lo visto una vez sin enseñarlo no es todavía algo que seguir:
+/// es lo que permite COMPROBAR que algo se repitió, en vez de creérselo a un modelo (770).</para>
+/// <para>UN ARCHIVO ILEGIBLE SE APARTA, NO SE PISA (762). <c>MemoriaPersonal.Leer</c> devuelve un documento
 /// vacío ante un JSON roto y la siguiente escritura lo pisa con él: todo lo enseñado, perdido por un archivo
 /// a medio escribir.</para>
 /// </remarks>
@@ -38,7 +38,7 @@ public sealed class LoAprendido
 
     /// <summary>Cuánto ocupa lo aprendido en las instrucciones de apertura, en caracteres. Las instrucciones de
     /// quien actúa tienen tope (16.384 fichas, y con más la sesión no abre): lo aprendido no puede crecer hasta
-    /// dejar a Ü sin voz. Pasado esto, las habilidades viajan como índice (704).</summary>
+    /// dejar a Ü sin voz. Pasado esto, las habilidades viajan como índice (764).</summary>
     public const int PresupuestoDeApertura = 6_000;
 
     /// <summary>Cuántas observaciones caben en el cuaderno: lo que no se repitió en las últimas 40 no se va a repetir.</summary>
@@ -210,7 +210,7 @@ public sealed class LoAprendido
 
     /// <summary>
     /// Apunta en el cuaderno que este procedimiento se hizo en esta sesión. Devuelve en cuántas sesiones
-    /// DISTINTAS se ha visto ya: 2 o más es una repetición (710).
+    /// DISTINTAS se ha visto ya: 2 o más es una repetición (770).
     /// </summary>
     public int Observar(string nombre, string pasos, string sesion)
     {
@@ -255,7 +255,7 @@ public sealed class LoAprendido
 
     /// <summary>
     /// Lo aprendido como se le da a quien actúa al abrir la sesión: las preferencias y las habilidades. Vacío
-    /// si no hay nada. Nunca pasa de <paramref name="presupuesto"/> (704).
+    /// si no hay nada. Nunca pasa de <paramref name="presupuesto"/> (764).
     /// </summary>
     public string Contexto(int presupuesto = PresupuestoDeApertura)
     {
@@ -287,7 +287,7 @@ public sealed class LoAprendido
     }
 
     /// <summary>
-    /// Las preferencias como se le dicen a QUIEN HABLA cuando no es quien actúa (promesa 716). Vacío si no hay
+    /// Las preferencias como se le dicen a QUIEN HABLA cuando no es quien actúa (promesa 776). Vacío si no hay
     /// ninguna. Solo las preferencias: las habilidades son de quien actúa, y no caben.
     /// </summary>
     /// <param name="tope">Lo que cabe en un mensaje a la voz. Si no caben todas, se quedan las más recientes:

@@ -1,7 +1,7 @@
 namespace U.WindowsClient.Voice;
 
 /// <summary>
-/// CUÁNDO VIAJA LA PANTALLA CON EL PEDIDO (spec 078, promesa 740): la regla, sin pantalla y sin red.
+/// CUÁNDO VIAJA LA PANTALLA CON EL PEDIDO (spec 079, promesa 780): la regla, sin pantalla y sin red.
 /// </summary>
 /// <remarks>
 /// <para>POR QUÉ VIAJA. Medido el 2026-10-01 con la sonda: una foto metida en la conversación antes de que la

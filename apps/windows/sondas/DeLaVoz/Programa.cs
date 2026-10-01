@@ -193,7 +193,7 @@ internal static class Programa
         }
         if (esperaMs > 0)
         {
-            // Con el caño abierto y en silencio: sin audio el servidor no llega a inyectar el contexto (promesa 685).
+            // Con el caño abierto y en silencio: sin audio el servidor no llega a inyectar el contexto (promesa 755).
             var hasta = Reloj.ElapsedMilliseconds + esperaMs;
             while (Reloj.ElapsedMilliseconds < hasta)
             {

@@ -19,10 +19,10 @@ namespace U.WindowsClient.Voice;
 /// <para>LO QUE CAMBIA RESPECTO A CODEX, por decisión del dueño (2026-10-01): allí una skill exige que el
 /// procedimiento se repita; aquí la intención de enseñar va directo a habilidad, y la repetición es el otro
 /// camino, no un requisito.</para>
-/// <para>EL MODELO PROPONE, EL CÓDIGO APLICA (708). Ofrecidos «decir» y «recuerdo» a la voz, el modelo escribió
+/// <para>EL MODELO PROPONE, EL CÓDIGO APLICA (768). Ofrecidos «decir» y «recuerdo» a la voz, el modelo escribió
 /// 79 recuerdos que nadie enseñó y pisó 17 (logs del 18 al 30 de septiembre de 2026). La compuerta es de
 /// código: sin palabras que la persona dijo EN ESA SESIÓN, la propuesta se descarta y queda dicho por qué.</para>
-/// <para>LA REPETICIÓN SE COMPRUEBA (710). Que algo se repitió es un hecho, y un hecho no se le pregunta a un
+/// <para>LA REPETICIÓN SE COMPRUEBA (770). Que algo se repitió es un hecho, y un hecho no se le pregunta a un
 /// modelo: se mira en el cuaderno.</para>
 /// <para>EL PROMPT VIVE AQUÍ, y es deuda dicha: la regla es que el cliente no lleva prompts, y este lo lleva,
 /// como ya los llevan la voz y la lectura cardiológica. En Graph no se podría probar desde una rama.</para>
@@ -59,10 +59,23 @@ public sealed class ElRepaso
     public Func<CancellationToken, Task<string>>? DatosQueYaSabe { get; set; }
 
     /// <summary>
-    /// Si el repaso VE (spec 078, promesa 744): las fotos del diario —lo que la persona tocó, lo que a Ü no le
+    /// Si el repaso VE (spec 079, promesa 784): las fotos del diario —lo que la persona tocó, lo que a Ü no le
     /// salió— viajan como imágenes. Se puede apagar sin apagar el repaso: entonces lee, y no mira.
     /// </summary>
     public bool ConFotos { get; set; } = true;
+
+    /// <summary>
+    /// SI QUIEN HABLA ES UN MÉDICO EN SU TRABAJO (promesa 778, y la 740 de «una sola Ü»). Entonces el repaso no
+    /// guarda datos de la persona por su cuenta, y se le dice al modelo que nada de un paciente entra en lo que se
+    /// aprende.
+    /// </summary>
+    /// <remarks>
+    /// EN CONSULTA, «tengo un paciente de 54 años con dolor torácico» es lo más normal del mundo, y un dato guardado
+    /// vuelve en cada sesión siguiente, también delante de otro paciente. La constitución de Ü dice que los datos de
+    /// un paciente no van a la memoria; con un médico, lo que va a ella lo decide quien actúa con memory_remember,
+    /// en el momento y a la vista. Cómo se hace una tarea y cómo quiere las cosas sí se aprende: no son de nadie más.
+    /// </remarks>
+    public Func<bool>? ConUnMedico { get; set; }
 
     /// <summary>UN REPASO A LA VEZ en todo el proceso: cerrar y volver a abrir en seguida lanza dos sobre la
     /// misma carpeta, y el mismo diario repasado a la par guardaría dos veces cada dato.</summary>
@@ -87,7 +100,7 @@ public sealed class ElRepaso
             if (DatosQueYaSabe != null && await DatosQueYaSabe(ct) is { Length: > 0 } datos)
                 yaSabe += "\n\nDATOS DE LA PERSONA YA GUARDADOS:\n" + datos;
             var fotos = ConFotos ? diario.FotosParaElRepaso() : Array.Empty<DiarioDeLaSesion.FotoDelDiario>();
-            string respuesta = await _modelo(Peticion(yaSabe, diario.Texto(), fotos), ct);
+            string respuesta = await _modelo(Peticion(yaSabe, diario.Texto(), fotos, ConUnMedico?.Invoke() == true), ct);
             propuestas = Leer(respuesta);
         }
         catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
@@ -122,7 +135,7 @@ public sealed class ElRepaso
 
     /// <summary>
     /// Repasa los diarios que esperan en <paramref name="carpeta"/>, del más viejo al más nuevo. El que se repasa
-    /// se retira; el que falla se queda para la próxima vez (711). Devuelve cuántos se retiraron.
+    /// se retira; el que falla se queda para la próxima vez (771). Devuelve cuántos se retiraron.
     /// </summary>
     public async Task<int> PendientesAsync(string carpeta, CancellationToken ct)
     {
@@ -146,7 +159,7 @@ public sealed class ElRepaso
                 }
                 var informe = await RepasarAsync(diario, ct);
                 if (informe.Error.Length > 0) continue;   // sigue pendiente
-                // CON SUS FOTOS (743): un diario repasado no deja en disco fotos de la pantalla de nadie.
+                // CON SUS FOTOS (783): un diario repasado no deja en disco fotos de la pantalla de nadie.
                 try { DiarioDeLaSesion.Retirar(archivo); retirados++; }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException) { _log($"no pude retirar el diario repasado ({archivo}): {e.Message}"); }
             }
@@ -163,7 +176,7 @@ public sealed class ElRepaso
         switch (op.Tipo)
         {
             case "habilidad":
-                // «REPETIDA» SE COMPRUEBA EN EL CUADERNO (710): si no estaba desde otra sesión, es la primera vez
+                // «REPETIDA» SE COMPRUEBA EN EL CUADERNO (770): si no estaba desde otra sesión, es la primera vez
                 // que se ve, y la primera vez es una observación diga lo que diga el modelo.
                 if (op.Motivo == "repetida" && !_aprendido.EstabaObservada(op.Nombre, sesion))
                     return Observar(op, sesion, "dijo «repetida» y no estaba en el cuaderno desde otra sesión");
@@ -179,6 +192,9 @@ public sealed class ElRepaso
 
             case "dato":
                 if (string.IsNullOrWhiteSpace(op.Texto)) return (false, "el dato viene vacío");
+                // AUNQUE EL MODELO LO PROPONGA (778): el esquema ya no se lo ofrece, y esto es lo que no depende de él.
+                if (ConUnMedico?.Invoke() == true)
+                    return (false, "con un médico el repaso no guarda datos por su cuenta: lo dicho en consulta puede ser de un paciente");
                 if (_guardarDato == null) return (false, "no hay memoria personal conectada donde guardarlo");
                 await _guardarDato(op.Texto.Trim(), ct);
                 return (true, "guardado en la memoria personal");
@@ -204,7 +220,7 @@ public sealed class ElRepaso
         string pasos = string.Join("\n", op.Pasos);
         int sesiones = _aprendido.Observar(op.Nombre, pasos, sesion);
         if (sesiones == 0) return (false, "una observación necesita nombre y pasos");
-        // VISTA EN DOS SESIONES DISTINTAS ES UNA HABILIDAD, lo diga el modelo o no (710).
+        // VISTA EN DOS SESIONES DISTINTAS ES UNA HABILIDAD, lo diga el modelo o no (770).
         if (sesiones >= 2)
         {
             var ascendida = _aprendido.EscribirHabilidad(op.Nombre, op.Cuando.Length > 0 ? op.Cuando : $"cuando pida {op.Nombre}", pasos, op.Cita, "repetida");
@@ -251,9 +267,12 @@ public sealed class ElRepaso
 
     // ── Lo que se le pide al modelo, y lo que contesta ───────────────────────
 
-    /// <summary>El cuerpo de la petición a la Responses API (promesa 713).</summary>
-    internal static string Peticion(string loQueYaSabe, string diario, IReadOnlyList<DiarioDeLaSesion.FotoDelDiario>? fotos = null)
+    /// <summary>El cuerpo de la petición a la Responses API (promesa 773).</summary>
+    internal static string Peticion(string loQueYaSabe, string diario, IReadOnlyList<DiarioDeLaSesion.FotoDelDiario>? fotos = null, bool conUnMedico = false)
     {
+        // CON UN MÉDICO, «dato» NI SE OFRECE (778): lo que el esquema no admite, el modelo no lo puede proponer.
+        var tipos = conUnMedico ? new JsonArray("habilidad", "preferencia", "observacion", "olvidar")
+                                : new JsonArray("habilidad", "preferencia", "dato", "observacion", "olvidar");
         var cadena = new JsonObject { ["type"] = "string" };
         var esquema = new JsonObject
         {
@@ -272,7 +291,7 @@ public sealed class ElRepaso
                         ["required"] = new JsonArray("tipo", "motivo", "nombre", "cuando", "pasos", "texto", "cita"),
                         ["properties"] = new JsonObject
                         {
-                            ["tipo"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray("habilidad", "preferencia", "dato", "observacion", "olvidar") },
+                            ["tipo"] = new JsonObject { ["type"] = "string", ["enum"] = tipos },
                             ["motivo"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray("ensenada", "corregida", "repetida", ""), ["description"] = "Solo para una habilidad: por qué lo es. Vacío en lo demás." },
                             ["nombre"] = new JsonObject { ["type"] = "string", ["description"] = "Nombre corto de la habilidad u observación, como lo diría la persona. Vacío en preferencia y dato." },
                             ["cuando"] = new JsonObject { ["type"] = "string", ["description"] = "Cuándo usar la habilidad: qué pedirá la persona. Vacío en lo demás." },
@@ -287,7 +306,7 @@ public sealed class ElRepaso
         var peticion = new JsonObject
         {
             ["model"] = Modelo,
-            ["instructions"] = Instrucciones,
+            ["instructions"] = conUnMedico ? Instrucciones + "\n\n" + ConUnMedicoDelante : Instrucciones,
             ["input"] = Entrada("LO QUE Ü YA SABE DE ESTA PERSONA\n\n" + loQueYaSabe + "\n\n\nEL DIARIO DE LA SESIÓN QUE ACABA DE TERMINAR\n\n" + diario, fotos),
             ["reasoning"] = new JsonObject { ["effort"] = "medium" },
             ["text"] = new JsonObject
@@ -349,6 +368,14 @@ public sealed class ElRepaso
 
     private static string Cadena(JsonElement o, string campo)
         => o.ValueKind == JsonValueKind.Object && o.TryGetProperty(campo, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+
+    /// <summary>Lo que se añade a las reglas cuando quien habla es un médico en su trabajo (778).</summary>
+    internal const string ConUnMedicoDelante = """
+        QUIEN HABLA ES UN MÉDICO EN SU TRABAJO. Lo que diga de un paciente —su nombre, su edad, su cama, lo que
+        tiene, lo que toma— NO es un dato suyo y no entra en nada de lo que propongas: ni en una habilidad, ni en una
+        preferencia, ni en una observación. Una habilidad dice CÓMO se hace la tarea («abre la historia, busca por
+        documento»), nunca con QUIÉN se hizo. En esta sesión no existe el tipo «dato»: no lo propongas.
+        """;
 
     /// <summary>Las reglas de quien repasa. Lo que decide el caso —qué es habilidad y qué preferencia— es criterio
     /// suyo; lo que no puede decidir —si hay cita, si se repitió— lo comprueba el código.</summary>

@@ -126,6 +126,21 @@ public interface IProtocolo
     IEnumerable<string> CambioDeModo(string instrucciones, IReadOnlyList<Utensilio> utensilios, bool soloCuandoSeLePide)
         => Apertura(instrucciones, utensilios, "", soloCuandoSeLePide);
 
+    /// <summary>
+    /// Lo que se manda para VOLVER al modo de siempre tras un modo especial (el aprendiz, la voz prestada), con
+    /// las instrucciones de siempre de ahora —memoria e hilo incluidos— y el catálogo entero.
+    /// </summary>
+    /// <remarks>
+    /// OTRO NOMBRE Y NO UNA SOBRECARGA DE <see cref="CambioDeModo"/>: los contratos lo buscan por nombre con
+    /// GetMethod, y una sobrecarga lo haría ambiguo (promesas 42 y 47 de la voz). Por defecto es cambiar de modo
+    /// a las de siempre, que en Realtime es su apertura reenviada. GPT-Live lo declara: a la voz le devuelve su
+    /// persona sin comparar con la apertura, porque las de siempre con la memoria de ahora casi nunca son
+    /// idénticas a las de entonces (D2 de la spec 078, promesa 56 de la voz). Implementación por defecto porque
+    /// los protocolos de mentira de los contratos implementan esta interfaz y no lo declaran.
+    /// </remarks>
+    IEnumerable<string> VueltaDeModo(string instrucciones, IReadOnlyList<Utensilio> utensilios)
+        => CambioDeModo(instrucciones, utensilios, false);
+
     /// <summary>Un trozo de micrófono, PCM de 16 bits mono al <see cref="RitmoDeEntrada"/>.</summary>
     string Audio(byte[] pcm);
 
@@ -193,7 +208,7 @@ public interface IProtocolo
 
     /// <summary>
     /// La pantalla del momento en que la persona pide algo, para que quien actúa la vea sin gastar una vuelta en
-    /// pedirla (spec 078, promesa 69). Vacío si este protocolo no ve por referencia: una pantalla incrustada no
+    /// pedirla (spec 079, promesa 69). Vacío si este protocolo no ve por referencia: una pantalla incrustada no
     /// le cabe, y a una sola voz que también actúa no se le cuela una foto que nadie pidió.
     /// </summary>
     /// <param name="idDelArchivo">La copia ya subida. Sin ella no hay nada que mandar.</param>

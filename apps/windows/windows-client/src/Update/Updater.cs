@@ -35,10 +35,16 @@ public sealed class Updater
     /// <summary>Cada cuánto se vuelve a mirar el feed. Igual que Android (RELEASING.md): ~30 min.</summary>
     public static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(30);
 
-    private readonly UpdateManager _mgr;
-    private readonly string _feedUrl;
+    private UpdateManager _mgr;
+    private string _feedUrl;
+    /// <summary>Los otros nombres del repositorio que quedan por probar si GitHub dice que éste no existe.</summary>
+    private readonly Queue<string> _otrosNombres;
+    private readonly string _carpetaDelRastro;
+    /// <summary>¿Se le está presentando a GitHub el token embebido? Deja de ser cierto si lo rechaza.</summary>
+    private bool _conToken;
     private VelopackAsset? _ready;
     private ReleaseMessage? _readyMessage;
+    private bool _dijoAlDia;
 
     /// <summary>Se dispara con la versión y el mensaje humano cuando el paquete ya está descargado.</summary>
     public event Action<UpdateReadyInfo>? UpdateReady;
@@ -51,9 +57,16 @@ public sealed class Updater
     /// De dónde se leen las versiones. Si apunta a un repositorio de GitHub se usan sus *releases*;
     /// cualquier otra cosa se trata como una carpeta estática. Ver <see cref="Config.UpdateFeedUrl"/>.
     /// </param>
-    public Updater(string feedUrl)
+    /// <param name="carpetaDelRastro">
+    /// Dónde se anota cada intento de aplicar, fuera de la carpeta que Velopack reemplaza. Ver
+    /// <see cref="RastroDeActualizacion"/>.
+    /// </param>
+    public Updater(string feedUrl, string carpetaDelRastro)
     {
-        _feedUrl = feedUrl.TrimEnd('/');
+        _otrosNombres = new Queue<string>(NombresDelFeed(feedUrl));
+        _feedUrl = _otrosNombres.Dequeue();
+        _carpetaDelRastro = carpetaDelRastro;
+        _conToken = EsRepositorioDeGithub(_feedUrl) && TokenDeLectura() != null;
         // Sin canal explícito a propósito: Velopack usa el mismo con el que se empaquetó ("win"), y
         // pasarle uno distinto haría que pidiera un releases.<canal>.json que no existe → 404.
         //
@@ -66,9 +79,50 @@ public sealed class Updater
         //
         // Se conserva el camino de carpeta estática, y no se sustituye: es el que sirve para
         // publicar en cualquier sitio sin credenciales, y el que usan las pruebas locales.
-        _mgr = EsRepositorioDeGithub(feedUrl)
-            ? new UpdateManager(new Velopack.Sources.GithubSource(feedUrl, TokenDeLectura(), prerelease: false))
-            : new UpdateManager(feedUrl);
+        _mgr = Gestor();
+    }
+
+    /// <summary>El gestor de Velopack para el feed y el token de este momento: los dos pueden cambiar tras un rechazo.</summary>
+    private UpdateManager Gestor() => EsRepositorioDeGithub(_feedUrl)
+        ? new UpdateManager(new Velopack.Sources.GithubSource(_feedUrl, _conToken ? TokenDeLectura() : null, prerelease: false))
+        : new UpdateManager(_feedUrl);
+
+    /// <summary>El repositorio donde se publican las versiones, con el nombre que tiene hoy.</summary>
+    public const string RepoDeHoy = "https://github.com/ZevCorp/Miracle";
+
+    /// <summary>
+    /// Los nombres que el repositorio tuvo antes. Se llamó «U-Windows-App» hasta el 2026-10-01, cuando ya
+    /// era el monorepo de todo Miracle y el nombre decía otra cosa.
+    /// </summary>
+    public static readonly string[] NombresAnteriores = { "https://github.com/ZevCorp/U-Windows-App" };
+
+    /// <summary>
+    /// Por qué nombres se busca un feed, en orden: primero el que se pide, y si es NUESTRO repositorio,
+    /// después sus otros nombres. Una carpeta o un repositorio puesto a mano no tienen otros nombres.
+    /// </summary>
+    /// <remarks>
+    /// GitHub redirige el nombre viejo de un repositorio renombrado, así que con eso bastaría si el
+    /// cambio de nombre y la versión que lo conoce salieran siempre en el mismo orden. No se puede
+    /// prometer: una versión con el nombre nuevo publicada ANTES del cambio preguntaría por un
+    /// repositorio que no existe (404) y dejaría de actualizarse justo ella. Probando los dos nombres,
+    /// el orden da igual — y si un día se deshace el cambio, también.
+    /// </remarks>
+    public static IReadOnlyList<string> NombresDelFeed(string feed)
+    {
+        string pedido = (feed ?? "").Trim().TrimEnd('/');
+        var nuestros = new[] { RepoDeHoy }.Concat(NombresAnteriores).ToList();
+        string? canonico = nuestros.FirstOrDefault(n => n.Equals(pedido, StringComparison.OrdinalIgnoreCase));
+        if (canonico == null) return new[] { pedido };
+        return new[] { canonico }.Concat(nuestros.Where(n => n != canonico)).ToList();
+    }
+
+    /// <summary>¿Dice GitHub que el repositorio no existe? Solo un 404: lo demás no es cosa del nombre.</summary>
+    public static bool SeBuscaPorOtroNombre(Exception e)
+    {
+        for (Exception? x = e; x != null; x = x.InnerException)
+            if (x is HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound })
+                return true;
+        return false;
     }
 
     private static bool EsRepositorioDeGithub(string url) =>
@@ -95,11 +149,46 @@ public sealed class Updater
         catch { return null; }
     }
 
+    /// <summary>
+    /// ¿Hay que repetir la búsqueda sin el token embebido?
+    /// </summary>
+    /// <remarks>
+    /// EL TOKEN VA IGUAL EN TODAS LAS COPIAS, así que el día que se revoque o se le quite el permiso,
+    /// todas reciben un 401 a la vez — y ninguna podría bajarse la versión que trae el token nuevo. El
+    /// repo es público y contesta sin credenciales (60 peticiones/h por IP en vez de 5000): peor cupo,
+    /// pero la flota no se queda sin actualizar para siempre (medido el 2026-09-30 contra el repo real:
+    /// con un token inválido Velopack lanza <c>HttpRequestException</c> con <c>StatusCode = Unauthorized</c>).
+    ///
+    /// Si ya iba sin token no hay nada que quitar: un 403 anónimo es el cupo agotado, y repetirlo sería un bucle.
+    /// </remarks>
+    public static bool SeReintentaSinToken(Exception e, bool ibaConToken)
+    {
+        if (!ibaConToken) return false;
+        for (Exception? x = e; x != null; x = x.InnerException)
+            if (x is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden })
+                return true;
+        return false;
+    }
+
+    /// <summary>
+    /// La versión que Ü dice tener: la instalada, y la del ensamblado solo si no hay instalación.
+    /// </summary>
+    /// <remarks>
+    /// La telemetría mandaba la del ensamblado, que nadie sella: los 36 equipos del panel decían
+    /// <c>1.0.0.0</c> y no había forma de saber a quién le había llegado una release (2026-09-30).
+    /// </remarks>
+    public static string VersionDeclarada(string? instalada, string? ensamblado) =>
+        !string.IsNullOrWhiteSpace(instalada) ? instalada.Trim()
+        : !string.IsNullOrWhiteSpace(ensamblado) ? ensamblado.Trim()
+        : "dev";
+
     /// <summary>False en desarrollo o si se corre la carpeta suelta sin instalar: ahí no hay nada que actualizar.</summary>
     public bool Enabled => _mgr.IsInstalled;
 
     /// <summary>Versión instalada, para mostrar en el panel (soporte: "¿qué versión tenés?").</summary>
-    public string CurrentVersion => _mgr.CurrentVersion?.ToString() ?? "dev";
+    public string CurrentVersion => VersionDeclarada(
+        _mgr.CurrentVersion?.ToString(),
+        System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString());
 
     /// <summary>Arranca el sondeo en segundo plano. No lanza: los fallos de red son normales y se loguean.</summary>
     public void Start()
@@ -109,7 +198,47 @@ public sealed class Updater
             LogBus.Log("update", "auto-update desactivado (no es una instalación Velopack; normal en dotnet run)");
             return;
         }
+        // AQUÍ y no solo en Main: allí todavía no hay telemetría, y esta línea es la que tiene que
+        // llegar al panel — es la que faltaba cuando un equipo volvía en la versión vieja.
+        if (ArranqueDeActualizacion.UltimoVeredicto.Que != ResultadoDelIntento.SinIntento)
+            LogBus.Log("update", ArranqueDeActualizacion.Frase(ArranqueDeActualizacion.UltimoVeredicto));
         _ = PollLoopAsync();
+    }
+
+    /// <summary>Buscar en el feed; si GitHub rechaza el token, sin él, y si dice que el repositorio no existe, por su otro nombre.</summary>
+    private async Task<UpdateInfo?> ComprobarAsync()
+    {
+        // Como mucho un replanteo por cada cosa que se puede replantear: el token y cada nombre.
+        for (int vuelta = 0; ; vuelta++)
+        {
+            try { return await _mgr.CheckForUpdatesAsync(); }
+            catch (Exception e) when (vuelta < 4 && Replantear(e)) { }
+        }
+    }
+
+    /// <summary>
+    /// Tras un rechazo de GitHub, ¿hay otra forma de preguntar? Sin el token, o por otro nombre del
+    /// repositorio. Deja el gestor listo para el reintento y dice qué cambió.
+    /// </summary>
+    private bool Replantear(Exception e)
+    {
+        if (SeReintentaSinToken(e, _conToken))
+        {
+            LogBus.Log("update", "GitHub rechazó el token embebido: de aquí en adelante busco sin token (60 peticiones por hora en vez de 5000)");
+            _conToken = false;
+            _mgr = Gestor();
+            return true;
+        }
+        if (SeBuscaPorOtroNombre(e) && _otrosNombres.Count > 0)
+        {
+            string antes = _feedUrl;
+            _feedUrl = _otrosNombres.Dequeue();
+            _conToken = TokenDeLectura() != null;   // el token es del repositorio, no del nombre: se vuelve a probar con él
+            LogBus.Log("update", $"GitHub dice que {antes} no existe: busco las versiones en {_feedUrl}");
+            _mgr = Gestor();
+            return true;
+        }
+        return false;
     }
 
     private async Task PollLoopAsync()
@@ -134,8 +263,15 @@ public sealed class Updater
 
     private async Task CheckOnceAsync()
     {
-        UpdateInfo? info = await _mgr.CheckForUpdatesAsync();
-        if (info == null) return; // null = estamos al día. No es error.
+        UpdateInfo? info = await ComprobarAsync();
+        if (info == null)
+        {
+            // null = estamos al día. No es error, pero se dice UNA vez por proceso: sin esta línea, «miró y
+            // no había nada» y «nunca llegó a mirar» eran el mismo silencio en el log.
+            if (!_dijoAlDia) LogBus.Log("update", $"al día: no hay nada publicado más nuevo que la {CurrentVersion}. Vuelvo a mirar cada {PollInterval.TotalMinutes:0} min");
+            _dijoAlDia = true;
+            return;
+        }
 
         string version = info.TargetFullRelease.Version.ToString();
         LogBus.Log("update", $"versión nueva disponible: {version} — descargando…");
@@ -176,7 +312,7 @@ public sealed class Updater
 
         try
         {
-            UpdateInfo? info = await _mgr.CheckForUpdatesAsync();
+            UpdateInfo? info = await ComprobarAsync();
             if (info == null)
             {
                 LogBus.Log("update", "búsqueda a mano: ya está en la última versión");
@@ -205,6 +341,9 @@ public sealed class Updater
     {
         if (_ready == null) return;
         LogBus.Log("update", "aplicando actualización y reiniciando");
+        // El rastro ANTES: esta es la última línea que el proceso llega a escribir, y si Update.exe
+        // falla, quien arranca después es la versión vieja y sin él no sabría que venía de un intento.
+        RastroDeActualizacion.Anotar(_carpetaDelRastro, CurrentVersion, _ready.Version.ToString(), "pastilla");
         _mgr.ApplyUpdatesAndRestart(_ready); // no retorna: mata el proceso
     }
 
@@ -218,6 +357,7 @@ public sealed class Updater
         try
         {
             LogBus.Log("update", "aplicando actualización pendiente al salir");
+            RastroDeActualizacion.Anotar(_carpetaDelRastro, CurrentVersion, _ready.Version.ToString(), "al cerrar");
             _mgr.WaitExitThenApplyUpdates(_ready, silent: true, restart: false);
         }
         catch (Exception ex)
@@ -235,7 +375,9 @@ public sealed class Updater
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-            string? token = TokenDeLectura();
+            // El mismo token que la búsqueda, y solo mientras GitHub lo acepte: con uno rechazado el
+            // mensaje daría 401 aunque el archivo sea público.
+            string? token = _conToken ? TokenDeLectura() : null;
             if (!string.IsNullOrWhiteSpace(token))
                 http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
             http.DefaultRequestHeaders.UserAgent.ParseAdd("U-Windows-App/1.0");

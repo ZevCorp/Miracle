@@ -93,7 +93,9 @@ internal sealed class GuardiaDeInstancia : IDisposable
     public static string IdentidadDelProceso()
     {
         string ruta = Process.GetCurrentProcess().MainModule?.FileName ?? AppContext.BaseDirectory;
-        return Path.GetFullPath(ruta).TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant();
+        // La misma identidad con la que el arranque de la actualización decide si hay otra Ü viva: dos
+        // normalizaciones de la misma ruta acaban comparando formas distintas (aprendizaje nº16).
+        return Update.ArranqueDeActualizacion.Identidad(ruta);
     }
 
     private static string NombreDelCandado(string identidad, Guid escritorio)

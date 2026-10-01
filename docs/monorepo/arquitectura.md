@@ -133,20 +133,26 @@ recientes** del repo. Si otro producto publicara releases aquí, bastarían 10 p
 instaladas dejaran de ver actualizaciones, sin ningún error. Mac y Android publican artefactos de
 CI, no releases, y los tags `v<versión>` son de Windows.
 
-## El nombre del repo no cambia todavía
+## El nombre del repo: `ZevCorp/Miracle`
 
-GitHub redirige un repo renombrado (lo medí: la API responde 301 y luego 200), pero hay tres
-problemas:
+Se llamó `U-Windows-App` hasta el 2026-10-01: era el repo de Ü para Windows, y cuando entraron
+Graph, Android, la Mac y el portal siguió con el nombre del primero que llegó. El dueño pidió
+cambiarlo sin romper las actualizaciones ni los despliegues.
 
-- **El token se pierde.** Las Ü instaladas consultan con un token, y .NET lo descarta al seguir una
-  redirección. Con el repo público funciona sin él, pero con el límite de 60 consultas por hora por
-  IP.
-- **El dispatch de Graph.** Es un POST, y recibe un 307.
-- **Vercel.** Enlaza los proyectos a su repo.
+GitHub redirige el nombre viejo de un repo renombrado (la API responde 301 y luego 200), y de eso
+dependen las Ü que ya estaban instaladas. Lo que había que cuidar, y cómo quedó:
 
-Se hace en la fase 3, en este orden: renombrar, publicar enseguida una versión cuyo `Config.cs` ya
-use el nombre nuevo (con la migración de URL que ese archivo ya sabe hacer), y actualizar Graph y
-Vercel.
+- **El token se pierde en la redirección.** Las Ü instaladas consultan con un token, y .NET lo
+  descarta al seguir un 301. Con el repo público contestan igual, pero con el cupo de 60 consultas
+  por hora por IP. Por eso la versión siguiente al cambio trae el nombre nuevo en `Config.cs`, migra
+  el que cada instalación tenía guardado, y busca por los dos nombres si GitHub dice que uno no
+  existe (promesa 645 de Windows): así no importa en qué orden salgan el cambio y la versión.
+- **El dispatch de Graph** es un POST y recibe un 307, que `fetch` sigue conservando el cuerpo. Aun
+  así, `WINDOWS_APP_GITHUB_REPO` en Vercel debe decir el nombre nuevo.
+- **Vercel** enlaza los proyectos al repo por su identificador, no por su nombre.
+- **El nombre viejo no se reutiliza.** Si alguien creara otro repo llamado `U-Windows-App` en
+  `ZevCorp`, la redirección dejaría de existir y las Ü anteriores a la 1.3.7 se quedarían sin
+  actualizaciones.
 
 ## Cómo se hace…
 
@@ -163,7 +169,7 @@ Vercel.
 **Trabajar con un solo proyecto.**
 
 ```bash
-git clone --sparse https://github.com/ZevCorp/U-Windows-App.git && cd U-Windows-App
+git clone --sparse https://github.com/ZevCorp/Miracle.git && cd Miracle
 git sparse-checkout set apps/web
 ```
 

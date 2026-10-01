@@ -462,7 +462,7 @@ public sealed class MapaVivo : IDisposable
     private bool _yaDijeQueEstoyCiego;
 
     // AQUÍ SE GUARDABA UNA FOTO DE LA PANTALLA EN CADA CAMBIO DE SITIO (el álbum de miradas, promesa 257). Se quitó con la
-    // spec 078 (2026-10-01): 3.238 capturas y 592 MB en trece días, y ninguna consulta. Promesa 746.
+    // spec 079 (2026-10-01): 3.238 capturas y 592 MB en trece días, y ninguna consulta. Promesa 786.
 
     /// <summary>
     /// LA MITAD CARA, a su ritmo: qué hay en la pantalla de delante. Cuesta unos 400 ms de lectura

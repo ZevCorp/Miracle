@@ -1,5 +1,5 @@
 """
-La misma batería de seis pedidos sobre el MISMO binario, cambiando solo el delegado por variable (promesa 686).
+La misma batería de seis pedidos sobre el MISMO binario, cambiando solo el delegado por variable (promesa 756).
 
     python calidad.py <U.exe> por-defecto,sol-low [<carpeta de datos>]
     python analizar.py <carpeta de datos> por-defecto,sol-low
