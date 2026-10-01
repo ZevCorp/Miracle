@@ -4,8 +4,10 @@ using System.Text.Json;
 namespace U.WindowsClient;
 
 /// <summary>
-/// Configuración del cliente. Lo ÚNICO que necesita saber: dónde está el backend y (opcional) el token
-/// para hablarle. Ninguna key de modelo, ningún prompt, ningún parámetro del cerebro vive aquí — todo
+/// Configuración del cliente: dónde está el cerebro (Graph), quién es la persona y cómo usa Ü (spec
+/// 071), y sus preferencias. La credencial de Graph no vive aquí sino en graph.json (GraphConfig): el
+/// token del backend viejo que había aquí se fue con él (2026-10-01). Ninguna key de modelo, ningún
+/// prompt, ningún parámetro del cerebro vive aquí — todo
 /// eso es del servidor, incluida la key de Gemini que usa la enseñanza por video (🎓): el backend
 /// firma las subidas y hace las llamadas al modelo, así el usuario no configura nada y no hay ninguna
 /// key que extraer del .exe. Se persiste en %APPDATA%\U\config.json.
@@ -13,9 +15,16 @@ namespace U.WindowsClient;
 public sealed class Config
 {
     /// <summary>
-    /// URL del backend viejo (u-windows-backend). Se conserva como constante porque es la vía de
-    /// emergencia documentada: `set U_BACKEND_URL=https://u-windows-backend.vercel.app` y el cliente
-    /// vuelve al backend viejo (rutas /api/* + Bearer ClientToken) sin recompilar nada.
+    /// El cerebro: Graph, el backend central, que expone el turno y la enseñanza bajo /api/v1 con la
+    /// X-API-Key de <c>graph.json</c> (ver <see cref="Backend.BackendClient"/>).
+    /// </summary>
+    public const string GraphPorDefecto = "https://graph-eight-pied.vercel.app";
+
+    /// <summary>
+    /// La URL del backend viejo (u-windows-backend), que se RETIRA con la spec 071 (2026-10-01): su
+    /// despliegue llevaba muerto desde septiembre y nada del cliente lo necesitaba. Queda la
+    /// constante solo para la migración de <see cref="Load"/>: un config.json que todavía la traiga
+    /// vuelve a Graph.
     /// </summary>
     public const string LegacyBackendUrl = "https://u-windows-backend.vercel.app";
 
@@ -24,19 +33,27 @@ public sealed class Config
         "https://zyvfamlhlmztliexvmej.supabase.co/storage/v1/object/public/windows";
 
     /// <summary>
-    /// El cerebro ya no es el backend dedicado de Windows: es Graph, el backend central, que expone
-    /// las mismas rutas bajo /api/v1 (ver <see cref="Backend.BackendClient"/>). La auth también
-    /// cambia: X-API-Key de Graph (%APPDATA%\U\graph.json o env GRAPH_API_KEY) en vez del Bearer.
-    /// Emergencia: la variable de entorno U_BACKEND_URL pisa este valor (ver <see cref="Load"/>).
+    /// A qué Graph se habla, tal como se GUARDA en config.json. Lo que usa esta ejecución es
+    /// <see cref="BackendUrlEnUso"/>: la variable de entorno U_BACKEND_URL lo pisa solo para este
+    /// proceso (<c>scripts/dev-local.ps1</c> la usa para hablar con un Graph local).
     /// </summary>
-    public string BackendUrl { get; set; } = "https://graph-eight-pied.vercel.app";
+    public string BackendUrl { get; set; } = GraphPorDefecto;
+
+    /// <summary>U_BACKEND_URL de este proceso, si la hay. Campo y no propiedad: no se guarda nunca.</summary>
+    private string? _backendDelEntorno;
 
     /// <summary>
-    /// Token Bearer del backend VIEJO. Contra Graph no se usa (ahí manda la X-API-Key); solo viaja
-    /// cuando U_BACKEND_URL apunta de vuelta a u-windows-backend, para que la vuelta atrás funcione
-    /// sin configurar nada más.
+    /// La URL con la que habla ESTA ejecución: U_BACKEND_URL si está puesta, y si no la de disco.
     /// </summary>
-    public string? ClientToken { get; set; } = "e86d4ec981bba9889aaf69d5ac37a781db288bb2f0d22b0c";
+    /// <remarks>
+    /// APARTE DE <see cref="BackendUrl"/> A PROPÓSITO (promesa 658). Antes la variable pisaba
+    /// <see cref="BackendUrl"/> en memoria y el siguiente <see cref="Save"/> —la posición de la carita
+    /// se guarda con un temporizador— la escribía en disco: después de un <c>dev-local.ps1</c>, la Ü
+    /// de todos los días se quedaba apuntando a localhost para siempre.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string BackendUrlEnUso =>
+        string.IsNullOrWhiteSpace(_backendDelEntorno) ? BackendUrl : _backendDelEntorno;
 
     public string UserId { get; set; } = "anon";
 
@@ -48,6 +65,24 @@ public sealed class Config
     /// </summary>
     public string DisplayName { get; set; } = "";
     public string Email { get; set; } = "";
+
+    /// <summary>
+    /// Quién usa Ü en este equipo: <c>""</c> (todavía no lo dijo) · <c>"medico"</c> · <c>"persona"</c>
+    /// (spec 071). TEXTO y no enum: config.json lo leen personas, y un enum se guardaría como número.
+    /// Se lee siempre a través de <see cref="Cuenta.PerfilDeUso.Normalizar"/>, y quien decide el
+    /// perfil de la sesión es <see cref="Cuenta.PerfilDeUso.Resolver"/>: si hay médico con su cuenta
+    /// Miracle dentro, manda la cuenta.
+    /// </summary>
+    public string Perfil { get; set; } = "";
+
+    /// <summary>
+    /// La especialidad elegida en este equipo, en el formato de <c>profiles.specialty_code</c>
+    /// («cardiologia», «medicina-general»). Solo significa algo con <see cref="Perfil"/> = médico.
+    /// </summary>
+    public string Especialidad { get; set; } = "";
+
+    /// <summary>Su nombre legible («Cardiología»), o lo que se escribió si no está en el catálogo.</summary>
+    public string EspecialidadNombre { get; set; } = "";
 
     /// <summary>
     /// Identificador estable de ESTA instalación (GUID, se genera una sola vez). Un usuario (correo)
@@ -134,10 +169,11 @@ public sealed class Config
         }
 
         // Migración silenciosa a Graph: los config.json guardados antes del cambio traen el backend
-        // viejo persistido, y sin esto ninguna instalación existente se movería sola. Solo se migra
-        // si es EXACTAMENTE el default viejo: una URL puesta a mano en el panel Backend se respeta.
-        if (string.Equals(cfg.BackendUrl?.TrimEnd('/'), LegacyBackendUrl, StringComparison.OrdinalIgnoreCase))
-            cfg.BackendUrl = "https://graph-eight-pied.vercel.app";
+        // viejo persistido, y sin esto ninguna instalación existente se movería sola. Un localhost
+        // guardado también vuelve: nunca lo puso nadie a mano, era la U_BACKEND_URL de un
+        // dev-local.ps1 que se colaba en disco (promesa 658). Una URL puesta a mano se respeta.
+        if (EsBackendQueNoSeGuarda(cfg.BackendUrl))
+            cfg.BackendUrl = GraphPorDefecto;
 
         // Lo mismo con el feed de actualizaciones, y por una razón peor: el bucket de Supabase al
         // que apuntaban las instalaciones viejas NO PUEDE alojar el paquete —tope de 50 MB del plan
@@ -147,12 +183,26 @@ public sealed class Config
         if (string.Equals(cfg.UpdateFeedUrl?.TrimEnd('/'), LegacyUpdateFeedUrl, StringComparison.OrdinalIgnoreCase))
             cfg.UpdateFeedUrl = "https://github.com/ZevCorp/U-Windows-App";
 
-        // Vía de emergencia: si Graph se cae o el port sale mal, `set U_BACKEND_URL=<url>` (p.ej. la
-        // LegacyBackendUrl de arriba) manda sobre lo persistido y sobre la migración, sin tocar disco.
+        // `set U_BACKEND_URL=<url>` (dev-local.ps1: un Graph local) manda en ESTE proceso y no se
+        // escribe nunca en disco: vive en un campo aparte que Save no ve (promesa 658).
         string? fromEnv = Environment.GetEnvironmentVariable("U_BACKEND_URL");
-        if (!string.IsNullOrWhiteSpace(fromEnv)) cfg.BackendUrl = fromEnv.Trim();
+        cfg._backendDelEntorno = string.IsNullOrWhiteSpace(fromEnv) ? null : fromEnv.Trim();
 
         return cfg;
+    }
+
+    /// <summary>
+    /// ¿Es una URL que no tiene que quedar guardada? El backend viejo (borrado) y cualquier
+    /// localhost: los dos solo llegaban a disco por la variable de entorno.
+    /// </summary>
+    private static bool EsBackendQueNoSeGuarda(string? url)
+    {
+        string u = (url ?? "").Trim().TrimEnd('/');
+        if (u.Length == 0) return true;
+        if (string.Equals(u, LegacyBackendUrl, StringComparison.OrdinalIgnoreCase)) return true;
+        if (!Uri.TryCreate(u, UriKind.Absolute, out var uri)) return false;
+        return uri.IsLoopback
+            || uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase);
     }
 
     public void Save()

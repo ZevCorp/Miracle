@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using U.WindowsClient.Backend;
 using U.WindowsClient.Diagnostics;
+using U.WindowsClient.Domain;
 
 namespace U.WindowsClient.Teach;
 
@@ -19,7 +20,7 @@ namespace U.WindowsClient.Teach;
 /// sube directo a Google y a Supabase con URLs firmadas de corta duración, que es lo mejor de los
 /// dos mundos.
 ///
-/// Flujo (rutas sin prefijo: BackendClient antepone /api/v1 contra Graph, /api contra el backend viejo):
+/// Flujo (rutas sin prefijo: BackendClient antepone /api/v1):
 /// 1. /teach/upload-token  → URL de subida a Gemini + URL de archivo (Supabase Storage)
 /// 2. PUT del mp4 directo a Gemini (bytes, sin key) y también al archivo, para que lo veamos después
 /// 3. /teach/file-state en bucle → hasta que Gemini deja el video ACTIVE
@@ -193,6 +194,9 @@ public sealed class TeachSession : IAsyncDisposable
             {
                 FileUri = fileUri,
                 UserId = _userId,
+                // Con quién habla Ü (spec 071, promesa 656): Graph elige con esto el dominio del prompt
+                // —consultas e historias clínicas, o el día a día—. Null sin elegir: no viaja.
+                Profile = _backend.Perfil,
                 // LOS PASOS DE ESTA DEMO Y NADA MÁS (promesa 135). Van como HECHOS: el criterio y
                 // las palabras con las que se le pide viven en Graph, no aquí.
                 Steps = pasos?.Count > 0 ? pasos.Select(x => new StepToRead
@@ -240,6 +244,7 @@ public sealed class TeachSession : IAsyncDisposable
             var res = await backend.PostAsync<InterpretResult>("/teach/interpret-steps", new InterpretRequest
             {
                 StartsAt = dondeEmpieza ?? "",
+                Profile = backend.Perfil,
                 Steps = pasos.Select(x => new StepToRead
                 {
                     Order = x.Orden, Field = x.Campo, Value = x.Valor, Said = x.Dicho,
@@ -377,6 +382,9 @@ public sealed record InterpretRequest
 {
     [JsonPropertyName("startsAt")]
     public string StartsAt { get; set; } = "";
+    /// <summary>Con quién habla Ü (spec 071). Null sin elegir: no viaja.</summary>
+    [JsonPropertyName("profile")]
+    public PerfilEnElCable? Profile { get; set; }
     [JsonPropertyName("steps")]
     public List<StepToRead> Steps { get; set; } = new();
 }
@@ -396,6 +404,9 @@ public sealed record ProcessRequest
     /// <summary>Los pasos de esta demo. Null cuando no hay ninguna: el contrato viejo sigue vivo.</summary>
     [JsonPropertyName("steps")]
     public List<StepToRead>? Steps { get; set; }
+    /// <summary>Con quién habla Ü (spec 071). Null sin elegir: no viaja.</summary>
+    [JsonPropertyName("profile")]
+    public PerfilEnElCable? Profile { get; set; }
 }
 
 public sealed record TeachNote

@@ -48,6 +48,13 @@ public sealed class SesionMiracle
 
     private Credencial? _credencial;
 
+    /// <summary>
+    /// Si ya se intentó, en esta instancia, traer la especialidad al renovar el token. Una vez y no
+    /// en cada renovación: un médico cuya cuenta no la tiene no tiene por qué gastar una llamada
+    /// cada hora para enterarse de lo mismo.
+    /// </summary>
+    private bool _perfilPedidoAlRenovar;
+
     public SesionMiracle(string urlSupabase, string clavePublicable,
         HttpMessageHandler? transporte = null, Func<DateTimeOffset>? ahora = null)
     {
@@ -74,6 +81,16 @@ public sealed class SesionMiracle
     /// <summary>Su nombre para saludarle. Sale de `profiles`, no de lo que teclee nadie.</summary>
     public string MedicoNombre => _credencial?.Nombre ?? "";
 
+    /// <summary>
+    /// Su especialidad, tal como está en `profiles.specialty_code` («cardiologia»). Vacía si la cuenta
+    /// no la tiene. Viaja dentro de sesion.dat para que la carita la sepa SIN RED al arrancar
+    /// (spec 071, promesa 654): <c>FaceWindow.EnsureOnboarded</c> restaura la sesión de disco.
+    /// </summary>
+    public string MedicoEspecialidad => _credencial?.Especialidad ?? "";
+
+    /// <summary>El nombre de la especialidad, de `profiles.specialty_name` («Cardiología»).</summary>
+    public string MedicoEspecialidadNombre => _credencial?.EspecialidadNombre ?? "";
+
     /// <summary>Lo último que salió mal al entrar, ya en castellano. Vacío si no ha fallado nada.</summary>
     public string UltimoFallo { get; private set; } = "";
 
@@ -96,7 +113,7 @@ public sealed class SesionMiracle
             if (respuesta == null) return false;
 
             _credencial = respuesta;
-            await CompletarNombreAsync(ct);
+            await CompletarPerfilAsync(ct);
             Guardar();
 
             // NI EL TOKEN NI EL CORREO EN EL LOG. El correo es dato personal y el token es la
@@ -189,7 +206,7 @@ public sealed class SesionMiracle
             }
 
             _credencial = LeerCredencial(doc.RootElement, access);
-            await CompletarNombreAsync(ct);
+            await CompletarPerfilAsync(ct);
             if (_credencial.Nombre.Length == 0) _credencial = _credencial with { Nombre = nombre.Trim() };
             Guardar();
             LogBus.Log("cuenta", $"cuenta creada y sesión abierta · {_credencial.UsuarioId}");
@@ -234,8 +251,22 @@ public sealed class SesionMiracle
                 return "";
             }
 
-            // El nombre no vuelve a pedirse: renovar es lo mismo de antes con otro token.
-            _credencial = nueva with { Nombre = actual.Nombre };
+            // El perfil no vuelve a pedirse: renovar es lo mismo de antes con otro token. Y se
+            // CONSERVA entero —nombre y especialidad—, porque LeerCredencial los deja vacíos.
+            _credencial = nueva with
+            {
+                Nombre = actual.Nombre,
+                Especialidad = actual.Especialidad,
+                EspecialidadNombre = actual.EspecialidadNombre,
+            };
+
+            // Una sesión guardada antes de la spec 071 no trae la especialidad. Se pide UNA vez al
+            // renovar: así el médico que ya tenía la sesión abierta la recibe sin cerrar sesión.
+            if (string.IsNullOrEmpty(_credencial.Especialidad) && !_perfilPedidoAlRenovar)
+            {
+                _perfilPedidoAlRenovar = true;
+                await CompletarPerfilAsync(ct);
+            }
             Guardar();
             LogBus.Log("cuenta", "token renovado antes de usarse");
             return _credencial.AccessToken;
@@ -500,21 +531,24 @@ public sealed class SesionMiracle
     }
 
     /// <summary>
-    /// Trae el nombre real desde `profiles`. Best-effort: no tenerlo no impide trabajar.
+    /// Trae el nombre real y la especialidad desde `profiles`. Best-effort: no tenerlos no impide
+    /// trabajar.
     /// </summary>
     /// <remarks>
     /// De la BASE y no de lo que teclee el usuario. El popup anterior pedía el nombre y lo guardaba
     /// en config.json, así que dos instalaciones del mismo médico podían llamarle distinto y
-    /// ninguna coincidir con lo que ve en el portal.
+    /// ninguna coincidir con lo que ve en el portal. La especialidad, por lo mismo: es la que el
+    /// médico puso en el portal, y con ella Ü sabe con quién habla (spec 071).
     /// </remarks>
-    private async Task CompletarNombreAsync(CancellationToken ct)
+    private async Task CompletarPerfilAsync(CancellationToken ct)
     {
         var cred = _credencial;
         if (cred == null || cred.UsuarioId.Length == 0) return;
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Get,
-                $"{_urlSupabase}/rest/v1/profiles?id=eq.{Uri.EscapeDataString(cred.UsuarioId)}&select=full_name");
+                $"{_urlSupabase}/rest/v1/profiles?id=eq.{Uri.EscapeDataString(cred.UsuarioId)}"
+                + "&select=full_name,specialty_code,specialty_name");
             req.Headers.Add("apikey", _clavePublicable);
             req.Headers.Add("Authorization", $"Bearer {cred.AccessToken}");
 
@@ -524,10 +558,18 @@ public sealed class SesionMiracle
             using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(ct));
             if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0) return;
 
-            string nombre = Texto(doc.RootElement[0], "full_name");
-            if (nombre.Length > 0) _credencial = cred with { Nombre = nombre };
+            var fila = doc.RootElement[0];
+            string nombre = Texto(fila, "full_name");
+            // La fila de la base manda sobre lo que hubiera: si el médico quitó su especialidad en
+            // el portal, aquí también se va.
+            _credencial = cred with
+            {
+                Nombre = nombre.Length > 0 ? nombre : cred.Nombre,
+                Especialidad = Texto(fila, "specialty_code"),
+                EspecialidadNombre = Texto(fila, "specialty_name"),
+            };
         }
-        catch (Exception e) { LogBus.Log("cuenta", $"sin nombre de perfil: {e.Message}"); }
+        catch (Exception e) { LogBus.Log("cuenta", $"sin perfil de `profiles`: {e.Message}"); }
     }
 
     private void Guardar()
@@ -609,13 +651,20 @@ public enum ResultadoDeAlta
 /// La sesión de un médico, tal como se guarda. Es un `record` para que renovar sea construir una
 /// nueva y no mutar la de al lado a media llamada.
 /// </summary>
+/// <remarks>
+/// <c>Especialidad</c> y <c>EspecialidadNombre</c> llegan con la spec 071 y son OPCIONALES a propósito:
+/// un sesion.dat guardado antes no los trae, y System.Text.Json usa el valor por defecto del
+/// parámetro para lo que falta. Esa sesión sigue sirviendo y la especialidad llega al renovar.
+/// </remarks>
 public sealed record Credencial(
     string AccessToken,
     string RefreshToken,
     DateTimeOffset Caduca,
     string UsuarioId,
     string Email,
-    string Nombre)
+    string Nombre,
+    string Especialidad = "",
+    string EspecialidadNombre = "")
 {
     /// <summary>¿Se muere antes de ese instante? Con el margen ya sumado por quien pregunta.</summary>
     public bool CaducaAntesDe(DateTimeOffset limite) => Caduca <= limite;

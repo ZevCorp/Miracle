@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using U.Graph;
@@ -18,48 +17,51 @@ namespace U.WindowsClient.Backend;
 /// <see cref="GraphConfig"/> (%APPDATA%\U\graph.json o env GRAPH_API_KEY). Una sola fuente a
 /// propósito: dos keys para el mismo backend era justo el lío que el port a Graph vino a eliminar.
 ///
-/// Compatibilidad de emergencia: si <see cref="Config.BackendUrl"/> apunta de vuelta al backend viejo
-/// (u-windows-backend, vía env U_BACKEND_URL o el panel Backend), este cliente vuelve solo al
-/// contrato viejo — prefijo <c>/api</c> sin versionar y <c>Authorization: Bearer ClientToken</c> —
-/// para que la vuelta atrás no requiera recompilar.
+/// UN SOLO CONTRATO (spec 071, promesa 657). Hasta el 2026-10-01 había un modo viejo —prefijo
+/// <c>/api</c> y <c>Authorization: Bearer ClientToken</c>— para volver a u-windows-backend en una
+/// emergencia, y se activaba con cualquier localhost. Ese backend llevaba muerto desde septiembre y
+/// se retira (spec 071); lo que sí rompía el modo viejo era <c>scripts/dev-local.ps1</c>, que levanta GRAPH en
+/// localhost: el cliente le hablaba como al backend viejo y Graph contestaba 401. Hoy cualquier URL
+/// —Graph remoto o local— recibe lo mismo: <c>/api/v1</c> con X-API-Key.
+///
+/// EL PERFIL VIAJA SOLO (spec 071, promesa 655): quien arma el turno no tiene que acordarse.
+/// <see cref="Perfil"/> se pone una vez al crear el puente y va en el primer turno de cada objetivo.
 /// </summary>
 public sealed class BackendClient
 {
+    private const string Prefijo = "/api/v1";
+
     private readonly HttpClient _http;
     private readonly string _baseUrl;
     private readonly string _userId;
-
-    /// <summary>"/api/v1" contra Graph, "/api" contra el backend viejo. Ver comentario de la clase.</summary>
-    private readonly string _apiPrefix;
-    private readonly bool _legacy;
 
     private static readonly JsonSerializerOptions Json = new()
     {
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
     };
 
-    public BackendClient(Config config, GraphConfig graphConfig)
+    /// <summary>
+    /// Con quién habla Ü (<see cref="Cuenta.PerfilDeUso.ParaElCable"/>). Null si nadie lo eligió:
+    /// entonces no viaja y Graph se porta como siempre. Lo leen también las peticiones de la
+    /// enseñanza (<see cref="Teach.TeachSession"/>).
+    /// </summary>
+    public PerfilEnElCable? Perfil { get; set; }
+
+    /// <param name="config">De aquí sale la URL de esta ejecución (<see cref="Config.BackendUrlEnUso"/>).</param>
+    /// <param name="graphConfig">La X-API-Key de Graph.</param>
+    /// <param name="transporte">Para el contrato: un <see cref="HttpMessageHandler"/> que ve lo que
+    /// sale, con el mismo patrón que <see cref="Cuenta.SesionMiracle"/>. Null en la app.</param>
+    public BackendClient(Config config, GraphConfig graphConfig, HttpMessageHandler? transporte = null)
     {
-        _baseUrl = config.BackendUrl.TrimEnd('/');
+        _baseUrl = config.BackendUrlEnUso.TrimEnd('/');
         _userId = config.UserId;
-        _http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        _http = transporte == null
+            ? new HttpClient { Timeout = TimeSpan.FromMinutes(5) }
+            : new HttpClient(transporte, disposeHandler: false) { Timeout = TimeSpan.FromMinutes(5) };
 
-        // La detección por host es deliberadamente tonta: el modo legacy existe SOLO para volver al
-        // backend viejo en emergencia, y ese backend tiene un único dominio conocido.
-        _legacy = EsBackendWindows(_baseUrl);
-        _apiPrefix = _legacy ? "/api" : "/api/v1";
-
-        if (_legacy)
-        {
-            // Contrato viejo: Bearer con el ClientToken de config.json.
-            if (!string.IsNullOrWhiteSpace(config.ClientToken))
-                _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", config.ClientToken);
-        }
-        else if (!string.IsNullOrWhiteSpace(graphConfig.ApiKey))
-        {
-            // Contrato Graph: la misma X-API-Key (miracle_…) que ya usa windows-graph.
+        // La X-API-Key (miracle_…) que ya usa windows-graph.
+        if (!string.IsNullOrWhiteSpace(graphConfig.ApiKey))
             _http.DefaultRequestHeaders.Add("X-API-Key", graphConfig.ApiKey);
-        }
 
         // Atribución del consumo de IA del puente consciente (computer-use).
         // Sin esto, todo el gasto del cerebro quedaría como «sin atribuir» y no
@@ -70,26 +72,15 @@ public sealed class BackendClient
             _http.DefaultRequestHeaders.Add("X-Miracle-User-Email", config.Email);
     }
 
-    /// <summary>
-    /// El backend Windows local conserva el contrato /api del servidor de memoria. Se reconoce por
-    /// localhost para que una sesión de desarrollo pueda probar los cambios reales sin tocar Graph
-    /// remoto; las URLs públicas de Graph siguen usando /api/v1.
-    /// </summary>
-    private static bool EsBackendWindows(string url)
-    {
-        if (url.Contains("u-windows-backend", StringComparison.OrdinalIgnoreCase)) return true;
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
-        return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-            || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
-            || uri.Host.Equals("::1", StringComparison.OrdinalIgnoreCase);
-    }
-
     public async Task<TurnResponse> TurnAsync(TurnRequest req, CancellationToken ct)
     {
         req.UserId = _userId;
+        // El perfil va en el PRIMER turno (sin sesión todavía): Graph lo congela en ella, como la
+        // plataforma. Repetirlo en cada vuelta no le dice nada nuevo.
+        if (req.Session == null) req.Profile ??= Perfil;
         var body = JsonSerializer.Serialize(req, Json);
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
-        using var res = await Send($"{_apiPrefix}/agent/turn", content, ct);
+        using var res = await Send($"{Prefijo}/agent/turn", content, ct);
         var text = await res.Content.ReadAsStringAsync(ct);
         if (IsAuthFailure(res.StatusCode))
             throw new InvalidOperationException(AuthErrorMessage(res.StatusCode));
@@ -102,14 +93,14 @@ public sealed class BackendClient
 
     /// <summary>
     /// POST genérico hacia cualquier endpoint del backend que devuelva JSON tipado. El <paramref name="path"/>
-    /// va SIN el prefijo de API (p.ej. <c>/teach/upload-token</c>): el prefijo lo pone este cliente,
-    /// porque es lo único que cambia entre Graph (/api/v1) y el backend viejo (/api).
+    /// va SIN el prefijo de API (p.ej. <c>/teach/upload-token</c>): el prefijo (/api/v1) lo pone este
+    /// cliente.
     /// </summary>
     public async Task<T?> PostAsync<T>(string path, object req, CancellationToken ct) where T : class
     {
         var body = JsonSerializer.Serialize(req, Json);
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
-        using var res = await Send($"{_apiPrefix}{path}", content, ct);
+        using var res = await Send($"{Prefijo}{path}", content, ct);
         var text = await res.Content.ReadAsStringAsync(ct);
         if (IsAuthFailure(res.StatusCode))
             throw new InvalidOperationException(AuthErrorMessage(res.StatusCode));
@@ -120,7 +111,7 @@ public sealed class BackendClient
 
     public async Task<T?> GetAsync<T>(string path, CancellationToken ct) where T : class
     {
-        using var res = await SendGet($"{_apiPrefix}{path}", ct);
+        using var res = await SendGet($"{Prefijo}{path}", ct);
         var text = await res.Content.ReadAsStringAsync(ct);
         if (IsAuthFailure(res.StatusCode))
             throw new InvalidOperationException(AuthErrorMessage(res.StatusCode));
@@ -133,14 +124,9 @@ public sealed class BackendClient
     /// El POST de esta clase, con el semáforo de conexión anotado. Este es el SEGUNDO embudo hacia
     /// Graph —el primero es <c>GraphClient.SendAsync</c>—, y hay que contarlo: la telemetría hace
     /// POST cada 60 s por aquí, así que es una señal de vida periódica que ya existía y se tiraba.
-    ///
-    /// En modo legacy NO se reporta: el host es otro backend, y anotarlo haría que el punto
-    /// describiera una máquina distinta de la que dice describir.
     /// </summary>
     private async Task<HttpResponseMessage> Send(string path, HttpContent content, CancellationToken ct)
     {
-        if (_legacy) return await _http.PostAsync($"{_baseUrl}{path}", content, ct);
-
         string host = GraphHealth.HostOf(_baseUrl);
         try
         {
@@ -168,7 +154,6 @@ public sealed class BackendClient
 
     private async Task<HttpResponseMessage> SendGet(string path, CancellationToken ct)
     {
-        if (_legacy) return await _http.GetAsync($"{_baseUrl}{path}", ct);
         string host = GraphHealth.HostOf(_baseUrl);
         try
         {
@@ -196,12 +181,11 @@ public sealed class BackendClient
         status == HttpStatusCode.Unauthorized || status == HttpStatusCode.Forbidden;
 
     /// <summary>
-    /// Un 401/403 ya no significa "ClientToken malo": desde el port a Graph, la causa típica es que la
-    /// máquina no tiene la API key de Graph configurada. El mensaje le dice al usuario exactamente
-    /// dónde ponerla, porque "backend HTTP 401" no le daba nada que hacer.
+    /// Un 401/403 contra Graph casi siempre es que la máquina no tiene la API key configurada. El
+    /// mensaje le dice al usuario exactamente dónde ponerla, porque "backend HTTP 401" no le daba
+    /// nada que hacer.
     /// </summary>
-    private string AuthErrorMessage(HttpStatusCode status) => _legacy
-        ? $"el backend rechazó el ClientToken (HTTP {(int)status}). Revisa el token en el panel Backend."
-        : $"falta la API key de Graph o no es válida (HTTP {(int)status}). Configúrala en " +
-          @"%APPDATA%\U\graph.json (campo ApiKey, key miracle_…) o en la variable de entorno GRAPH_API_KEY.";
+    private static string AuthErrorMessage(HttpStatusCode status) =>
+        $"falta la API key de Graph o no es válida (HTTP {(int)status}). Configúrala en " +
+        @"%APPDATA%\U\graph.json (campo ApiKey, key miracle_…) o en la variable de entorno GRAPH_API_KEY.";
 }

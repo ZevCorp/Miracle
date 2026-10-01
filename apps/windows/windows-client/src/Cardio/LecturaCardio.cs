@@ -26,7 +26,7 @@ public static class LecturaCardio
     public const int VueltasDeMemoria = 10;
 
     public const string PromptAnalizar = """
-        Eres el módulo de lectura de estudios de U, el asistente clínico de Miracle AI para médicos en Colombia.
+        Eres el módulo de lectura de estudios de Ü, el asistente clínico de Miracle AI para médicos en Colombia.
 
         Recibes varias imágenes. Antes de cada imagen hay una etiqueta «Imagen n — id: <id>». Devuelve
         EXACTAMENTE un resultado por imagen, con el mismo id de su etiqueta.
@@ -57,7 +57,7 @@ public static class LecturaCardio
         """;
 
     public const string PromptResumir = """
-        Eres U, el asistente clínico de Miracle AI. Recibes las extracciones (en JSON) de estudios
+        Eres Ü, el asistente clínico de Miracle AI. Recibes las extracciones (en JSON) de estudios
         cardiológicos fotografiados por un médico. Escribe un resumen conciso en español, en markdown simple
         (títulos con ##, viñetas con -, negritas con **), con estas secciones y en este orden:
 
@@ -76,7 +76,7 @@ public static class LecturaCardio
         """;
 
     public const string PromptPreguntar = """
-        Eres U, el asistente clínico de Miracle AI. Un médico te pregunta sobre unos estudios cardiológicos
+        Eres Ü, el asistente clínico de Miracle AI. Un médico te pregunta sobre unos estudios cardiológicos
         fotografiados. Tienes SOLO las extracciones de esas fotos (JSON) y el resumen que ya se hizo.
 
         Reglas:
@@ -136,7 +136,7 @@ public static class LecturaCardio
         {
             texto.Append("CONVERSACIÓN PREVIA:\n");
             foreach (var v in ultimas)
-                texto.Append("Médico: ").Append(v.Pregunta.Trim()).Append('\n').Append("U: ").Append(v.Respuesta.Trim()).Append('\n');
+                texto.Append("Médico: ").Append(v.Pregunta.Trim()).Append('\n').Append("Ü: ").Append(v.Respuesta.Trim()).Append('\n');
             texto.Append('\n');
         }
         texto.Append("PREGUNTA DEL MÉDICO:\n").Append(pregunta.Trim());

@@ -25,7 +25,7 @@ public interface IUserChannel
 
 /// <summary>
 /// El bucle de ejecución del lado cliente. Es el gemelo de <c>core/application/Engine.kt</c>, pero
-/// donde aquel llamaba a un <c>Brain</c> local, este hace <c>POST /api/agent/turn</c> al backend.
+/// donde aquel llamaba a un <c>Brain</c> local, este hace <c>POST /api/v1/agent/turn</c> a Graph.
 /// El cliente CONDUCE el bucle (capturar → pedir decisión → ejecutar → repetir) y el cerebro remoto
 /// solo decide. Toda la inteligencia está del otro lado del cable.
 /// </summary>
@@ -283,7 +283,12 @@ public sealed class AgentLoop
         string result = a.Kind switch
         {
             "tap" => InputExecutor.Tap(a.X, a.Y) ? "ok" : "no se pudo ejecutar la acción",
-            "type" => InputExecutor.Type(a.X, a.Y, a.Text ?? "") ? "ok" : "no se pudo ejecutar la acción",
+            // Un `type` sin punto (Graph lo manda con x=-1, y=-1: el `type` de computer-use no lleva
+            // coordenadas) teclea donde ya está el foco. Antes se hacía clic en (-1,-1), que el
+            // sistema lleva a la esquina (0,0): el foco se iba del campo antes de escribir (spec 071).
+            "type" => (TieneDondeTocar(a.X, a.Y)
+                    ? InputExecutor.Type(a.X, a.Y, a.Text ?? "")
+                    : InputExecutor.TypeText(a.Text ?? "")) ? "ok" : "no se pudo ejecutar la acción",
             "scroll" => InputExecutor.Scroll(a.Down) ? "ok" : "no se pudo ejecutar la acción",
             "swipe" => InputExecutor.Swipe(a.X1, a.Y1, a.X2, a.Y2, a.Ms) ? "ok" : "no se pudo ejecutar la acción",
             "key" => InputExecutor.Key(a.Key ?? "") ? "ok" : "no se pudo ejecutar la acción",
@@ -297,6 +302,13 @@ public sealed class AgentLoop
     }
 
     /// <summary>
+    /// ¿Trae la acción un punto de la pantalla donde tocar? Un negativo es «sin punto»: el `type` de
+    /// computer-use llega con x=-1, y=-1 y se teclea donde está el foco (promesa 660). (0,0) sí es un
+    /// punto: la esquina de arriba a la izquierda.
+    /// </summary>
+    internal static bool TieneDondeTocar(int x, int y) => x >= 0 && y >= 0;
+
+    /// <summary>
     /// Una acción en una línea legible. El TEXTO de un `type` se registra recortado: es exactamente el
     /// dato que faltaba para reconstruir el incidente del 2026-07-26 (qué se escribió y dónde). Queda
     /// solo en el log LOCAL (%LOCALAPPDATA%\U\logs), nunca sale hacia Graph.
@@ -304,7 +316,9 @@ public sealed class AgentLoop
     private static string Describe(AgentAction a) => a.Kind switch
     {
         "tap" => $"tap ({a.X},{a.Y})",
-        "type" => $"type ({a.X},{a.Y}) «{Short(a.Text, 40)}»",
+        "type" => TieneDondeTocar(a.X, a.Y)
+            ? $"type ({a.X},{a.Y}) «{Short(a.Text, 40)}»"
+            : $"type (donde está el foco) «{Short(a.Text, 40)}»",
         "key" => $"key «{a.Key}»",
         "scroll" => $"scroll {(a.Down ? "abajo" : "arriba")}",
         "swipe" => $"swipe ({a.X1},{a.Y1})→({a.X2},{a.Y2})",

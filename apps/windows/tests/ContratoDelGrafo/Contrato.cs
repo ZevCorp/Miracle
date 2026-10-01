@@ -947,6 +947,46 @@ internal static class Contrato
         // ya ocupan otras ramas abiertas (hasta la 529). La 600-606 las juzgan Graph y la web.
         Prueba("607. de Soniox, el hablante viaja con el texto hasta el verbatim: una línea «[Hablante N]» cada vez que cambia la voz, numerada por orden de aparición y sin repetirse mientras habla la misma, también en la frase que quedó sin cerrar; sin hablante, el texto de siempre", ElHablanteViajaConElTexto);
         Prueba("609. la vista de voces parte lo oído en turnos: cada línea «[Hablante N]» abre un turno de esa voz, lo que sigue sin etiqueta es de la misma, lo de antes de la primera voz no es de nadie, y la parte de lo dicho de cada voz suma 100", LaVistaDeVocesParteLoOido);
+
+        // Ü SABE CON QUIÉN HABLA (spec 071, 2026-10-01). El dueño: que Ü pregunte al empezar si quien lo
+        // usa es médico —con su especialidad— o lo usa para su día a día, y que cada uno tenga sus
+        // prompts. 650-669 son de la fase W1 (perfil, bienvenida, cable); 670-689, de la W2 (la voz; se
+        // usaron 670-686). La ventana y el menú son nivel 4: aquí va lo puro.
+        Prueba("650. con un médico dentro, Ü es médico y su especialidad es la de su cuenta aunque en este equipo se haya elegido otra cosa; si la cuenta no la tiene vale la elegida como médico, y si tampoco, queda sin especialidad — nunca la que quedó guardada de una persona", ConMedicoDentroMandaLaCuenta);
+        Prueba("651. sin médico dentro manda lo que eligió la persona: «Médico», «médica» y «MEDICO » son médico; una persona va sin especialidad aunque quede una vieja guardada; y lo que nunca se eligió —o un valor que no se conoce— es «sin elegir», no un perfil por defecto, y no viaja a Graph", SinMedicoMandaLoElegido);
+        Prueba("652. el perfil se pregunta una vez: equipo nuevo → bienvenida entera; equipo con correo y sin perfil → solo el perfil; con perfil elegido o con médico dentro → nada; y la 98 sigue igual", ElPerfilSePreguntaUnaVez);
+        Prueba("653. un config.json de antes carga con el perfil vacío sin perder correo, nombre ni posición; el perfil elegido con su especialidad sobrevive a guardar y volver a cargar; y el token del backend viejo no vuelve a escribirse", ElPerfilSeGuardaEnConfig);
+        Prueba("654. la especialidad del médico sale de profiles, viaja en la sesión guardada —restaurar sin red la trae— y sobrevive a renovar el token; una sesión de antes, sin ella, la recibe en su primera renovación sin volver a entrar", LaEspecialidadViajaEnLaSesion);
+        Prueba("655. el primer turno de /api/v1/agent/turn lleva el perfil —profile {kind, specialty, specialtyName}—, los siguientes no lo repiten, y sin perfil el campo no viaja: el contrato de siempre sigue igual", ElPrimerTurnoLlevaElPerfil);
+        Prueba("656. la enseñanza lleva el perfil: interpret-steps lo manda junto a los pasos, process-video lo lleva en su cuerpo, y sin perfil no viaja", LaEnsenanzaLlevaElPerfil);
+        Prueba("657. Ü habla un solo contrato con su cerebro: Graph remoto o en localhost recibe /api/v1/agent/turn con X-API-Key y sin Bearer, y Config ya no guarda el token del backend viejo", UnSoloContratoConGraph);
+        Prueba("658. U_BACKEND_URL vale solo para ese proceso: Ü la usa pero no la escribe en config.json, y un config.json que trae el backend viejo o un localhost vuelve a Graph al cargar; una URL puesta a mano se respeta", LaUrlDelEntornoNoSeGuarda);
+        Prueba("659. el bloque «QUIÉN TE HABLA» sale de la constitución de Ü: el del médico lleva su especialidad («, especialista en Cardiología») o nada, el de la persona no trae vocabulario clínico, la frase de la voz igual («de Cardiología») y cabe en la vuelta de GPT-Live; sin perfil, los dos son vacíos y Ü es la de antes", ElPerfilHablaConLaConstitucion);
+        Prueba("660. un type sin punto —x o y negativos, como lo manda Graph— teclea donde está el foco, sin hacer clic en la esquina (0,0); con punto, toca y teclea como siempre", TeclearSinPuntoNoTocaLaEsquina);
+        Prueba("661. las especialidades son las del portal, en su orden y en kebab-case, y una que no está en la lista vale igual: se busca sin mayúsculas ni tildes y lo escrito a mano da su propio código", LasEspecialidadesSonLasDelPortal);
+        Prueba("662. la plantilla abierta no pide dejar una sección vacía: si no se dijo nada, manda la regla de Graph («No mencionado en la consulta.»), no una instrucción de sección que la contradice", LaPlantillaAbiertaNoPideDejarVacio);
+
+        // LA VOZ (spec 071, fase W2, 2026-10-01). La voz de Windows con la constitución de Ü por perfil, y los
+        // defectos D1-D10 del mapa de la voz: el aprendiz con map_hacer, la vuelta de un modo sin memoria y con un
+        // append que el servidor rechazaba, el decisor fuera de la apertura, el modo que se perdía al reconectar,
+        // guardar fuera de la pregunta de peligro, las notas del sistema en el hilo como dichas por la persona.
+        Prueba("670. las instrucciones de la voz son la constitución de Ü y la operación de Windows: quién es Ü y el pilar de obedecer —el mismo texto que lee Graph— y detrás cómo se opera la pantalla, sin repetir ninguna regla de la constitución y sin nada de la Ü de antes", LasInstruccionesSonLaConstitucion);
+        Prueba("671. cada perfil cumple las mismas reglas: sin elegir, médico con y sin especialidad, y persona, con el decisor encendido y apagado, las instrucciones de siempre dicen lo que exigen la 161, la 206, la 244 y la 263, no dicen nada de lo que prohíben la 161, la 206, la 244 y la 502, y nombran map_decidir solo con el decisor", CadaPerfilCumpleLasReglas);
+        Prueba("672. el bloque «QUIÉN TE HABLA» va justo detrás de quién es Ü y antes de «LO QUE TE PIDEN, LO HACES», una sola vez y con lo demás igual; sin perfil, las instrucciones de siempre son las de antes byte a byte", ElPerfilVaTrasQuienEsU);
+        Prueba("673. el perfil llega a la voz: con GPT-Live la frase de su perfil va detrás de la persona de la voz desde la apertura, con GPT Realtime va en las instrucciones, y la ventana se lo pone al crear la voz y cada vez que cambia", ElPerfilLlegaALaVoz);
+        Prueba("674. la apertura tiene presupuesto: con cualquier perfil y el decisor, las instrucciones de siempre miden como mucho 20.000 caracteres, y el hilo que va en ellas, como mucho 8.000 y siempre lo último", LaAperturaTienePresupuesto);
+        Prueba("675. la apertura lleva el párrafo del decisor si y solo si el catálogo trae map_decidir: se abre con las instrucciones de siempre de la conversación, no con la constante", ElDecisorVaEnLaApertura);
+        Prueba("676. el aprendiz ve y no toca, por lista blanca: con el decisor encendido o apagado, todo lo que tiene es mirar, señalar o callarse —ni map_hacer, ni map_decidir, map_tramo o map_alto, ni map_esto_es, ni memory_remember—, y una herramienta que nazca mañana no le entra por omisión", ElAprendizVeYNoToca);
+        Prueba("677. volver de un modo devuelve la memoria, el hilo y el perfil: con GPT-Live y con GPT Realtime, lo que recibe quien opera al volver del aprendiz lleva el recuerdo, lo último que se habló y con quién habla, con el catálogo entero; y con GPT-Live la voz recibe su persona, no las de operar", VolverDeUnModoTraeLaMemoria);
+        Prueba("678. el botón Jev no le devuelve las manos al aprendiz: en un modo especial, que cambie el catálogo no manda nada y lo aplica la vuelta; en el modo de siempre sí; y ningún sitio de la ventana vuelve de un modo con las instrucciones a secas", ElBotonJevNoDevuelveLasManos);
+        Prueba("679. reconectar en un modo vuelve a ese modo: tras el corte, cuando el servidor confirma la sesión nueva, la voz y el delegado vuelven a las reglas y al catálogo del aprendiz; sin modo no se manda nada; y la frase del corte ya no dice que olvidó lo último", ReconectarVuelveAlModo);
+        Prueba("680. una sola pregunta de peligro: la mano del plan y el decisor le preguntan a TypeSafe con la misma frase, y esa frase nombra guardar, grabar, firmar y finalizar además de enviar, borrar, pagar y cerrar sin guardar", UnaSolaPreguntaDePeligro);
+        Prueba("681. una nota del sistema no es de la persona: sale con su texto y su response.create, pero no entra en el hilo durable ni se pinta «Tú: …»; el saludo de primera vez y la cuenta de un tramo van por ahí", UnaNotaDelSistemaNoEsDeLaPersona);
+        Prueba("682. cambiar de modo espera a que el servidor confirme la sesión: con GPT-Live no sale nada antes de session.started y sale entero en cuanto llega; un protocolo que no confirma no hace esperar", CambiarDeModoEsperaLaConfirmacion);
+        Prueba("683. en un modo especial no hay vigilantes: lo narrado no arma el aviso de lección perdida ni se guarda como memoria personal; fuera de un modo, los dos siguen despiertos", EnUnModoNoHayVigilantes);
+        Prueba("684. los textos que recibe la voz dicen lo que pasa: la voz prestada cita el dictado tal cual le llega, self_update no le contesta en futuro y self_close no le da una segunda despedida", LosTextosDeLaVozDicenLoQuePasa);
+        Prueba("685. el saludo de primera vez sabe con quién habla: al médico le cuenta que le ayuda en sus programas para que le quede más tiempo para sus pacientes, a la persona que le ayuda en su día a día sin hablarle de pacientes ni de SAP, y sin elegir es el de antes; los tres ofrecen mirar el computador con UNA pregunta y dicen que es la excepción", ElSaludoSabeConQuienHabla);
+        Prueba("686. los prompts de cardio llaman a Ü por su nombre, con diéresis: ninguno dice «U»", LosPromptsDeCardioDicenU);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -3134,27 +3174,43 @@ internal static class Contrato
             + "La promesa está escrita y en rojo, que es donde tiene que estar");
         if (t == null || utensilios == null || instrucciones == null) return;
 
-        var todas = (System.Collections.IEnumerable)Cap004("U.WindowsClient.Voice.ConversacionEnVivo")!
-            .GetMethod("Herramientas", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)!
-            .Invoke(null, null)!;
-        var conManos = new List<string>();
-        foreach (var u in todas) conManos.Add((string)u.GetType().GetProperty("Nombre")!.GetValue(u)!);
-        Debe(conManos.Contains("map_take") && conManos.Contains("map_scroll"),
-            "el catálogo normal SÍ tiene manos (map_take, map_scroll): si no, esta promesa no juzga nada");
+        // CON EL DECISOR APAGADO Y ENCENDIDO (spec 071, D1): la lista de manos de aquí no veía map_hacer, y con el
+        // decisor, map_decidir, map_tramo y map_alto —las cuatro movían la pantalla del aprendiz—. Se juzgan los
+        // dos catálogos, como la 500, y el estático se deja como estaba pase lo que pase.
+        var tc138 = Cap004("U.WindowsClient.Voice.ConversacionEnVivo")!;
+        var pCon138 = tc138.GetProperty("ConDecisor", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+        bool antes138 = pCon138 != null && (bool)pCon138.GetValue(null)!;
+        try
+        {
+            foreach (bool conDecisor in new[] { false, true })
+            {
+                pCon138?.SetValue(null, conDecisor);
+                string cual = conDecisor ? "con el decisor" : "sin el decisor";
+                var todas = (System.Collections.IEnumerable)tc138
+                    .GetMethod("Herramientas", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)!
+                    .Invoke(null, null)!;
+                var conManos = new List<string>();
+                foreach (var u in todas) conManos.Add((string)u.GetType().GetProperty("Nombre")!.GetValue(u)!);
+                Debe(conManos.Contains("map_take") && conManos.Contains("map_scroll") && conManos.Contains("map_hacer"),
+                    $"{cual}, el catálogo normal SÍ tiene manos (map_take, map_scroll, map_hacer): si no, esta promesa no juzga nada");
 
-        var sinManos = (System.Collections.IEnumerable)utensilios.Invoke(null, new object[] { todas })!;
-        var nombres = new List<string>();
-        foreach (var u in sinManos) nombres.Add((string)u.GetType().GetProperty("Nombre")!.GetValue(u)!);
+                var sinManos = (System.Collections.IEnumerable)utensilios.Invoke(null, new object[] { todas })!;
+                var nombres = new List<string>();
+                foreach (var u in sinManos) nombres.Add((string)u.GetType().GetProperty("Nombre")!.GetValue(u)!);
 
-        foreach (string mano in new[] { "map_take", "map_type", "map_scroll", "map_go_to", "map_unblock", "map_open_app", "file_open" })
-            Debe(!nombres.Contains(mano),
-                $"«{mano}» mueve la pantalla y NO está en el catálogo del aprendiz: lo que Ü haga con "
-                + "sus manos no es un paso del humano, y lo que narras es para la grabación, no una orden");
-        foreach (string ojo in new[] { "map_pointing_at", "map_where_am_i", "map_what_i_see" })
-            Debe(nombres.Contains(ojo),
-                $"«{ojo}» sí está: un aprendiz mira lo que le señalan, y eso es contexto");
-        Debe(nombres.Count > 0 && nombres.Count < conManos.Count,
-            $"el catálogo del aprendiz es un SUBCONJUNTO ({nombres.Count} de {conManos.Count}), no otro catálogo");
+                foreach (string mano in new[] { "map_take", "map_type", "map_scroll", "map_go_to", "map_unblock", "map_open_app", "file_open",
+                                                "map_hacer", "map_decidir", "map_tramo", "map_alto" })
+                    Debe(!nombres.Contains(mano),
+                        $"{cual}, «{mano}» mueve la pantalla y NO está en el catálogo del aprendiz: lo que Ü haga con "
+                        + "sus manos no es un paso del humano, y lo que narras es para la grabación, no una orden");
+                foreach (string ojo in new[] { "map_pointing_at", "map_where_am_i", "map_what_i_see" })
+                    Debe(nombres.Contains(ojo),
+                        $"{cual}, «{ojo}» sí está: un aprendiz mira lo que le señalan, y eso es contexto");
+                Debe(nombres.Count > 0 && nombres.Count < conManos.Count,
+                    $"{cual}, el catálogo del aprendiz es un SUBCONJUNTO ({nombres.Count} de {conManos.Count}), no otro catálogo");
+            }
+        }
+        finally { pCon138?.SetValue(null, antes138); }
 
         string texto = (string)(instrucciones is PropertyInfo pi ? pi.GetValue(null) : ((FieldInfo)instrucciones).GetValue(null))!;
         Debe(!texto.Contains("Tienes manos", StringComparison.OrdinalIgnoreCase)
@@ -16128,6 +16184,1353 @@ internal static class Contrato
         var releidas = cuerpos.Select(LoQueLleva).SelectMany(x => x.Ids).ToList();
         Debe((bool)(releidas.SequenceEqual(new[] { "f4", "f5", "f6", "f7" })), $"el reintento lee solo lo que faltó: [{string.Join(", ", releidas)}]");
         Debe((bool)(!string.IsNullOrEmpty((string)s.Resumen)), "y ahora sí hay resumen");
+    }
+
+    // ── SPEC 071: Ü SABE CON QUIÉN HABLA (fase W1: perfil, bienvenida, cable) ───────
+    //
+    // Lo puro se juzga aquí; la ventana de bienvenida y el menú son nivel 4. Las capacidades nuevas se
+    // piden por nombre (flujo-sdd.md): sin ellas, cada promesa dice PENDIENTE en vez de «no aplica».
+
+    private static Type? Perfil071() => Capacidad("U.WindowsClient.Cuenta.PerfilDeUso");
+
+    /// <summary>Una propiedad de texto de un objeto que solo se conoce por reflexión; "" si no hay.</summary>
+    private static string Campo071(object? o, string propiedad) =>
+        o?.GetType().GetProperty(propiedad)?.GetValue(o) as string ?? "";
+
+    /// <summary>El BackendClient con el transporte inyectado, o null si todavía no admite uno.</summary>
+    private static U.WindowsClient.Backend.BackendClient? Cliente071(string url, HttpMessageHandler transporte)
+    {
+        var ctor = typeof(U.WindowsClient.Backend.BackendClient).GetConstructor(
+            new[] { typeof(U.WindowsClient.Config), typeof(GraphConfig), typeof(HttpMessageHandler) });
+        if (ctor == null) return null;
+        var cfg = new U.WindowsClient.Config { BackendUrl = url, UserId = "ana@correo.co" };
+        return (U.WindowsClient.Backend.BackendClient)ctor.Invoke(
+            new object?[] { cfg, new GraphConfig { ApiKey = "miracle_prueba" }, transporte });
+    }
+
+    /// <remarks>
+    /// LA REGLA DE LA 98 APLICADA AL PERFIL: si hay médico, manda el médico. La tercera afirmación es
+    /// la que se rompería con el atajo obvio —«si no hay especialidad en la cuenta, usa la guardada»—:
+    /// una especialidad que quedó de cuando el equipo era «persona» no es la de este médico.
+    /// </remarks>
+    private static void ConMedicoDentroMandaLaCuenta()
+    {
+        var resolver = Perfil071()?.GetMethod("Resolver", BindingFlags.Public | BindingFlags.Static);
+        if (resolver == null) { Pendiente("Cuenta.PerfilDeUso.Resolver", "650", "071"); return; }
+        object? R(string espCuenta, string nomCuenta, string elegido, string espElegida, string nomElegida) =>
+            resolver.Invoke(null, new object?[] { true, espCuenta, nomCuenta, elegido, espElegida, nomElegida, "Dra. Ana Ruiz" });
+
+        var a = R("cardiologia", "Cardiología", "persona", "dermatologia", "Dermatología");
+        Debe(Campo071(a, "Tipo") == "medico" && Campo071(a, "Especialidad") == "cardiologia"
+             && Campo071(a, "EspecialidadNombre") == "Cardiología",
+            "con médico dentro manda la cuenta aunque en este equipo se eligiera «persona»: salió "
+            + $"{Campo071(a, "Tipo")} · {Campo071(a, "Especialidad")} · {Campo071(a, "EspecialidadNombre")}");
+        Debe(Campo071(a, "Origen").Contains("cuenta", StringComparison.OrdinalIgnoreCase),
+            $"y el perfil dice que viene de la cuenta, para el log: «{Campo071(a, "Origen")}»");
+
+        var b = R("", "", "medico", "pediatria", "Pediatría");
+        Debe(Campo071(b, "Tipo") == "medico" && Campo071(b, "Especialidad") == "pediatria"
+             && Campo071(b, "EspecialidadNombre") == "Pediatría",
+            $"si la cuenta no tiene especialidad, vale la elegida aquí como médico: salió «{Campo071(b, "Especialidad")}»");
+
+        var c = R("", "", "persona", "dermatologia", "Dermatología");
+        Debe(Campo071(c, "Tipo") == "medico" && Campo071(c, "Especialidad") == "",
+            "y si se eligió «persona», el médico queda sin especialidad: la que quedó guardada de una "
+            + $"persona no es la suya (salió «{Campo071(c, "Especialidad")}»)");
+
+        var d = R("cardiologia", "", "", "", "");
+        Debe(Campo071(d, "EspecialidadNombre") == "Cardiología",
+            $"una cuenta con el código y sin el nombre se nombra con el catálogo: salió «{Campo071(d, "EspecialidadNombre")}»");
+    }
+
+    /// <remarks>
+    /// Las dos últimas son la red de seguridad del despliegue por partes: lo que no se eligió nunca, o
+    /// un valor que esta versión no conoce, es «sin elegir» —la Ü de antes— y no viaja a Graph. Un
+    /// perfil por defecto le hablaría a un médico como a cualquiera, o al revés, sin que nadie lo pidiera.
+    /// </remarks>
+    private static void SinMedicoMandaLoElegido()
+    {
+        var t = Perfil071();
+        var resolver = t?.GetMethod("Resolver", BindingFlags.Public | BindingFlags.Static);
+        var normalizar = t?.GetMethod("Normalizar", BindingFlags.Public | BindingFlags.Static);
+        var cable = t?.GetMethod("ParaElCable");
+        if (resolver == null || normalizar == null || cable == null)
+        {
+            Pendiente("Cuenta.PerfilDeUso.Resolver · Normalizar · ParaElCable", "651", "071");
+            return;
+        }
+        string N(string? s) => (string)normalizar.Invoke(null, new object?[] { s })!;
+        object? R(string elegido, string espElegida, string nomElegida) =>
+            resolver.Invoke(null, new object?[] { false, "", "", elegido, espElegida, nomElegida, "Ana" });
+
+        Debe(N("Médico") == "medico" && N("médica") == "medico" && N(" MEDICO ") == "medico" && N("Persona") == "persona",
+            $"lo escrito se normaliza: «Médico» → «{N("Médico")}», « MEDICO » → «{N(" MEDICO ")}», «Persona» → «{N("Persona")}»");
+        Debe(N("enfermero") == "" && N("") == "" && N(null) == "",
+            "lo que no se conoce no es un perfil: «enfermero», vacío y null son «sin elegir»");
+
+        var p = R("persona", "dermatologia", "Dermatología");
+        Debe(Campo071(p, "Tipo") == "persona" && Campo071(p, "Especialidad") == "" && Campo071(p, "EspecialidadNombre") == "",
+            $"una persona va sin especialidad aunque quede una vieja guardada: salió «{Campo071(p, "Especialidad")}»");
+
+        var m = R("MEDICO ", "pediatria", "");
+        Debe(Campo071(m, "Tipo") == "medico" && Campo071(m, "Especialidad") == "pediatria"
+             && Campo071(m, "EspecialidadNombre") == "Pediatría",
+            $"un médico elegido lleva la suya, nombrada por el catálogo: «{Campo071(m, "EspecialidadNombre")}»");
+
+        foreach (string raro in new[] { "enfermero", "" })
+        {
+            var x = R(raro, "cardiologia", "Cardiología");
+            Debe(Campo071(x, "Tipo") == "" && cable.Invoke(x, null) == null,
+                $"«{raro}» es sin elegir y no viaja a Graph: salió «{Campo071(x, "Tipo")}»");
+        }
+    }
+
+    /// <remarks>
+    /// Se juzga el DECISOR, no la ventana, como en la 98. La segunda combinación es la de los equipos
+    /// que ya existen: tienen correo y nunca dijeron cómo usan Ü, y a esos no se les vuelve a pedir
+    /// nombre y correo. La última prueba que la 98 no se tocó para conseguirlo.
+    /// </remarks>
+    private static void ElPerfilSePreguntaUnaVez()
+    {
+        var t = Capacidad("U.WindowsClient.Cuenta.Identidad");
+        var que = t?.GetMethod("QueBienvenida", BindingFlags.Public | BindingFlags.Static);
+        var hay = t?.GetMethod("HayQuePreguntar", BindingFlags.Public | BindingFlags.Static);
+        if (que == null || hay == null) { Pendiente("Cuenta.Identidad.QueBienvenida", "652", "071"); return; }
+        string Q(bool medico, string correo, string perfil) =>
+            que.Invoke(null, new object?[] { medico, correo, perfil })?.ToString() ?? "";
+
+        Debe(Q(false, "", "") == "Completa", $"equipo nuevo: la bienvenida entera, no «{Q(false, "", "")}»");
+        Debe(Q(false, "", "persona") == "Completa",
+            "sin correo es la entera aunque haya perfil: el correo sigue siendo la identidad de la máquina");
+        Debe(Q(false, "ana@correo.co", "") == "SoloPerfil",
+            $"equipo con correo y sin perfil: solo el perfil, no «{Q(false, "ana@correo.co", "")}»");
+        Debe(Q(false, "ana@correo.co", "algo-raro") == "SoloPerfil",
+            "un perfil que no se conoce cuenta como no contestado: se vuelve a preguntar");
+        Debe(Q(false, "ana@correo.co", "Persona") == "Nada" && Q(false, "ana@correo.co", "medico") == "Nada",
+            "con perfil elegido no se pregunta nada: la pregunta se hace UNA vez");
+        Debe(Q(true, "", "") == "Nada" && Q(true, "medico@miracle.app", "") == "Nada",
+            "con un médico dentro no se pregunta nada: su cuenta ya dice quién es");
+        Debe((bool)hay.Invoke(null, new object?[] { false, "" })! && !(bool)hay.Invoke(null, new object?[] { true, "" })!,
+            "y la 98 sigue igual: HayQuePreguntar no se tocó para conseguirlo");
+    }
+
+    /// <remarks>
+    /// Se mira el ARCHIVO, no la memoria. Un config.json de antes trae el ClientToken del backend
+    /// viejo y no trae perfil: tiene que cargar igual —sin perder lo que ya sabía de la persona— y
+    /// dejar de llevar el token en cuanto se guarde.
+    /// </remarks>
+    private static void ElPerfilSeGuardaEnConfig()
+    {
+        var tCfg = typeof(U.WindowsClient.Config);
+        var perfil = tCfg.GetProperty("Perfil");
+        var esp = tCfg.GetProperty("Especialidad");
+        var nom = tCfg.GetProperty("EspecialidadNombre");
+        if (perfil == null || esp == null || nom == null)
+        {
+            Pendiente("Config.Perfil · Especialidad · EspecialidadNombre", "653", "071");
+            return;
+        }
+
+        string archivo = Path.Combine(UserPaths.Roaming, "U", "config.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivo)!);
+        File.WriteAllText(archivo,
+            "{\"BackendUrl\":\"https://graph-eight-pied.vercel.app\",\"ClientToken\":\"token-viejo\","
+            + "\"UserId\":\"ana@correo.co\",\"DisplayName\":\"Ana Ruiz\",\"Email\":\"ana@correo.co\","
+            + "\"WindowLeft\":120.5,\"WindowTop\":80}");
+
+        var viejo = U.WindowsClient.Config.Load();
+        Debe(viejo.Email == "ana@correo.co" && viejo.DisplayName == "Ana Ruiz"
+             && viejo.WindowLeft == 120.5 && viejo.WindowTop == 80,
+            "un config.json de antes carga sin perder correo, nombre ni posición");
+        Debe((string?)perfil.GetValue(viejo) == "" && (string?)esp.GetValue(viejo) == "",
+            "y carga con el perfil vacío: «sin elegir», que es la Ü de antes");
+
+        perfil.SetValue(viejo, "medico");
+        esp.SetValue(viejo, "cardiologia");
+        nom.SetValue(viejo, "Cardiología");
+        viejo.Save();
+
+        string guardado = File.ReadAllText(archivo);
+        Debe(!guardado.Contains("ClientToken") && !guardado.Contains("token-viejo"),
+            "al guardar, el token del backend viejo no vuelve a escribirse");
+
+        var otra = U.WindowsClient.Config.Load();
+        Debe((string?)perfil.GetValue(otra) == "medico" && (string?)esp.GetValue(otra) == "cardiologia"
+             && (string?)nom.GetValue(otra) == "Cardiología" && otra.Email == "ana@correo.co",
+            "el perfil elegido con su especialidad sobrevive a guardar y volver a cargar");
+    }
+
+    /// <remarks>
+    /// RELOJ FALSO, como la 85: renovar se fuerza moviendo el reloj, no esperando. La cuarta parte es
+    /// la que importa en la carita: EnsureOnboarded restaura la sesión de DISCO, sin red, y con la
+    /// especialidad dentro sabe con quién habla antes de que nazca nada.
+    /// </remarks>
+    private static void LaEspecialidadViajaEnLaSesion()
+    {
+        var t = Capacidad("U.WindowsClient.Cuenta.SesionMiracle");
+        var esp = t?.GetProperty("MedicoEspecialidad");
+        var nom = t?.GetProperty("MedicoEspecialidadNombre");
+        if (t == null || esp == null || nom == null)
+        {
+            Pendiente("SesionMiracle.MedicoEspecialidad · MedicoEspecialidadNombre", "654", "071");
+            return;
+        }
+
+        var t0 = new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
+        var ahora = t0;
+        string fila = "[{\"full_name\":\"Dra. Ana Ruiz\"}]";   // la cuenta todavía sin especialidad
+        var backend = new BackendDeMentira(req =>
+        {
+            string url = req.RequestUri?.ToString() ?? "";
+            if (url.Contains("/rest/v1/profiles"))
+                return fila.Length == 0 ? (HttpStatusCode.InternalServerError, "{}") : (HttpStatusCode.OK, fila);
+            if (url.Contains("refresh_token"))
+                return (HttpStatusCode.OK, RespuestaDeLogin("medico-1", "renovado", 3600));
+            return (HttpStatusCode.OK, RespuestaDeLogin("medico-1", "primero", 300));
+        });
+        var sesion = Activator.CreateInstance(t, "https://supabase.test", "publishable", backend,
+            (Func<DateTimeOffset>)(() => ahora))!;
+        string E(object s) => (string)esp.GetValue(s)!;
+        string NE(object s) => (string)nom.GetValue(s)!;
+        var pedir = t.GetMethod("TokenVigenteAsync")!;
+        void Renovar() =>
+            ((Task<string>)pedir.Invoke(sesion, new object?[] { CancellationToken.None })!).GetAwaiter().GetResult();
+
+        // 1. Entra una cuenta sin especialidad.
+        ((Task<bool>)t.GetMethod("EntrarAsync")!
+            .Invoke(sesion, new object?[] { "medico@miracle.app", "clave", CancellationToken.None })!)
+            .GetAwaiter().GetResult();
+        Debe(E(sesion) == "" && (string)t.GetProperty("MedicoNombre")!.GetValue(sesion)! == "Dra. Ana Ruiz",
+            "una cuenta sin especialidad entra sin ella, y el nombre sigue saliendo de profiles");
+
+        // 2. El médico la pone en el portal; la sesión que ya estaba abierta la recibe al renovar.
+        fila = "[{\"full_name\":\"Dra. Ana Ruiz\",\"specialty_code\":\"cardiologia\",\"specialty_name\":\"Cardiología\"}]";
+        ahora = t0.AddSeconds(250);
+        Renovar();
+        Debe(E(sesion) == "cardiologia" && NE(sesion) == "Cardiología",
+            $"una sesión de antes recibe la especialidad en su primera renovación, sin volver a entrar: «{E(sesion)}»");
+
+        // 3. Otra renovación con profiles caído: lo que ya se sabía no se pierde.
+        fila = "";
+        ahora = t0.AddSeconds(250 + 3600);
+        Renovar();
+        Debe(E(sesion) == "cardiologia" && NE(sesion) == "Cardiología"
+             && (string)t.GetProperty("MedicoNombre")!.GetValue(sesion)! == "Dra. Ana Ruiz",
+            $"la especialidad y el nombre sobreviven a renovar el token: «{E(sesion)}»");
+
+        // 4. Al arrancar, sin red: la sesión guardada la trae.
+        var muerto = new BackendDeMentira(_ => (HttpStatusCode.ServiceUnavailable, "{}"));
+        var otra = Activator.CreateInstance(t, "https://supabase.test", "publishable", muerto,
+            (Func<DateTimeOffset>)(() => ahora))!;
+        bool restaurada = (bool)t.GetMethod("Restaurar")!.Invoke(otra, null)!;
+        Debe(restaurada && E(otra) == "cardiologia" && NE(otra) == "Cardiología" && muerto.Peticiones.Count == 0,
+            $"restaurar sin red trae la especialidad de la sesión guardada: «{E(otra)}», {muerto.Peticiones.Count} petición(es)");
+    }
+
+    /// <remarks>
+    /// Se mira el CUERPO que sale, no el registro en memoria: lo que Graph lee es el JSON. Y se mira
+    /// el segundo turno también, porque «lleva el perfil» se cumpliría mandándolo en todos — que no
+    /// rompe nada, pero no es lo prometido: Graph lo congela en la sesión del primero.
+    /// </remarks>
+    private static void ElPrimerTurnoLlevaElPerfil()
+    {
+        var t = Perfil071();
+        var resolver = t?.GetMethod("Resolver", BindingFlags.Public | BindingFlags.Static);
+        var cable = t?.GetMethod("ParaElCable");
+        var pPerfil = typeof(U.WindowsClient.Backend.BackendClient).GetProperty("Perfil");
+        var cuerpos = new List<string>();
+        var backend = new BackendDeMentira(req =>
+        {
+            cuerpos.Add(req.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? "");
+            return (HttpStatusCode.OK, "{\"session\":\"s-1\",\"actions\":[],\"done\":false,\"text\":\"\"}");
+        });
+        var cliente = Cliente071("https://graph.test", backend);
+        if (resolver == null || cable == null || pPerfil == null || cliente == null)
+        {
+            Pendiente("PerfilDeUso.ParaElCable · BackendClient.Perfil · BackendClient(config, graph, transporte)", "655", "071");
+            return;
+        }
+        object Perfil(string elegido, string esp, string nom) =>
+            resolver.Invoke(null, new object?[] { false, "", "", elegido, esp, nom, "Ana" })!;
+        void Turno(string? sesion) => cliente.TurnAsync(new U.WindowsClient.Domain.TurnRequest
+        {
+            Session = sesion,
+            Goal = sesion == null ? "abre la historia de hoy" : null,
+        }, CancellationToken.None).GetAwaiter().GetResult();
+
+        pPerfil.SetValue(cliente, cable.Invoke(Perfil("medico", "cardiologia", "Cardiología"), null));
+        Turno(null);
+        Turno("s-1");
+        using (var primero = JsonDocument.Parse(cuerpos[0]))
+        {
+            bool lleva = primero.RootElement.TryGetProperty("profile", out var p) && p.ValueKind == JsonValueKind.Object;
+            Debe(lleva && p.GetProperty("kind").GetString() == "medico"
+                 && p.GetProperty("specialty").GetString() == "cardiologia"
+                 && p.GetProperty("specialtyName").GetString() == "Cardiología",
+                $"el primer turno lleva profile {{kind, specialty, specialtyName}} del médico: {cuerpos[0]}");
+        }
+        Debe(cuerpos.Count == 2 && !cuerpos[1].Contains("\"profile\""),
+            "los turnos siguientes no lo repiten: Graph ya lo congeló en la sesión");
+
+        cuerpos.Clear();
+        pPerfil.SetValue(cliente, cable.Invoke(Perfil("persona", "dermatologia", "Dermatología"), null));
+        Turno(null);
+        using (var persona = JsonDocument.Parse(cuerpos[0]))
+        {
+            bool lleva = persona.RootElement.TryGetProperty("profile", out var p) && p.ValueKind == JsonValueKind.Object;
+            Debe(lleva && p.GetProperty("kind").GetString() == "persona" && p.GetProperty("specialty").GetString() == "",
+                $"una persona viaja como persona y sin especialidad: {cuerpos[0]}");
+        }
+
+        cuerpos.Clear();
+        pPerfil.SetValue(cliente, null);
+        Turno(null);
+        Debe(!cuerpos[0].Contains("\"profile\""),
+            $"sin perfil el campo no viaja y el contrato de siempre sigue igual: {cuerpos[0]}");
+    }
+
+    /// <remarks>
+    /// interpret-steps se juzga ENTERO, por la misma puerta que usa la enseñanza (es estática y solo
+    /// necesita el puente). process-video necesita un vídeo subido, así que se juzga su registro por
+    /// el mismo serializador del puente, y que TeachSession se lo ponga, en el código.
+    /// </remarks>
+    private static void LaEnsenanzaLlevaElPerfil()
+    {
+        var t = Perfil071();
+        var resolver = t?.GetMethod("Resolver", BindingFlags.Public | BindingFlags.Static);
+        var cable = t?.GetMethod("ParaElCable");
+        var pPerfil = typeof(U.WindowsClient.Backend.BackendClient).GetProperty("Perfil");
+        var tPaso = Capacidad("U.WindowsClient.Teach.PasoQueSePregunta");
+        var interpretar = Capacidad("U.WindowsClient.Teach.TeachSession")
+            ?.GetMethod("InterpretarPasosAsync", BindingFlags.Public | BindingFlags.Static);
+        var tProceso = Capacidad("U.WindowsClient.Teach.ProcessRequest");
+        var pProfile = tProceso?.GetProperty("Profile");
+        var envios = new List<(string Ruta, string Cuerpo)>();
+        var backend = new BackendDeMentira(req =>
+        {
+            envios.Add((req.RequestUri?.AbsolutePath ?? "", req.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? ""));
+            return (HttpStatusCode.OK, "{\"interpretation\":{\"pasos\":[]}}");
+        });
+        var cliente = Cliente071("https://graph.test", backend);
+        if (resolver == null || cable == null || pPerfil == null || tPaso == null || interpretar == null
+            || tProceso == null || pProfile == null || cliente == null)
+        {
+            Pendiente("ProcessRequest.Profile · InterpretRequest.Profile · BackendClient.Perfil", "656", "071");
+            return;
+        }
+        object perfil = cable.Invoke(resolver.Invoke(null,
+            new object?[] { false, "", "", "medico", "cardiologia", "Cardiología", "Ana" }), null)!;
+        pPerfil.SetValue(cliente, perfil);
+
+        // 1. interpret-steps, de verdad.
+        var pasos = (System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(tPaso))!;
+        pasos.Add(Activator.CreateInstance(tPaso, 1, "Documento", "1036457892", "el documento del paciente"));
+        ((Task<string>)interpretar.Invoke(null, new object?[] { cliente, pasos, "sapgui://QAS", CancellationToken.None })!)
+            .GetAwaiter().GetResult();
+        Debe(envios.Count == 1 && envios[0].Ruta == "/api/v1/teach/interpret-steps",
+            $"la interpretación sin vídeo sale por /api/v1/teach/interpret-steps: {string.Join(", ", envios.Select(e => e.Ruta))}");
+        if (envios.Count == 1)
+        {
+            using var doc = JsonDocument.Parse(envios[0].Cuerpo);
+            bool lleva = doc.RootElement.TryGetProperty("profile", out var p) && p.ValueKind == JsonValueKind.Object;
+            Debe(lleva && p.GetProperty("kind").GetString() == "medico" && p.GetProperty("specialty").GetString() == "cardiologia"
+                 && doc.RootElement.TryGetProperty("steps", out var s) && s.GetArrayLength() == 1,
+                $"interpret-steps lleva el perfil junto a los pasos: {envios[0].Cuerpo}");
+        }
+
+        // 2. process-video: su registro lleva el perfil cuando lo hay, y no lo lleva cuando no.
+        object Proceso(object? conPerfil)
+        {
+            object r = Activator.CreateInstance(tProceso)!;
+            tProceso.GetProperty("FileUri")!.SetValue(r, "https://generativelanguage.test/files/abc");
+            tProceso.GetProperty("UserId")!.SetValue(r, "ana@correo.co");
+            pProfile.SetValue(r, conPerfil);
+            return r;
+        }
+        envios.Clear();
+        cliente.PostAsync<Dictionary<string, object>>("/teach/process-video", Proceso(perfil), CancellationToken.None)
+            .GetAwaiter().GetResult();
+        cliente.PostAsync<Dictionary<string, object>>("/teach/process-video", Proceso(null), CancellationToken.None)
+            .GetAwaiter().GetResult();
+        Debe(envios.Count == 2 && envios[0].Cuerpo.Contains("\"profile\"") && envios[0].Cuerpo.Contains("\"kind\":\"medico\"")
+             && !envios[1].Cuerpo.Contains("\"profile\""),
+            $"process-video lleva el perfil en su cuerpo y sin perfil no viaja: {string.Join(" | ", envios.Select(e => e.Cuerpo))}");
+
+        // [cableado] Y quien arma process-video se lo pone: el registro solo no garantiza que viaje.
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string fuente = Path.Combine(repo, "windows-client", "src", "Teach", "TeachSession.cs");
+        if (!File.Exists(fuente))
+        {
+            _fallos++;
+            Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO no hay TeachSession.cs que mirar.");
+            return;
+        }
+        Debe(File.ReadAllText(fuente).Contains("Profile = _backend.Perfil", StringComparison.Ordinal),
+            "[cableado] TeachSession pone el perfil del puente en process-video");
+    }
+
+    /// <remarks>
+    /// LOCALHOST ES LA PRUEBA QUE IMPORTA. El modo viejo se activaba con cualquier localhost y por eso
+    /// rompía scripts/dev-local.ps1, que levanta GRAPH ahí: el cliente le hablaba con /api y Bearer, y
+    /// Graph contestaba 401. El remoto va de testigo: los dos tienen que recibir exactamente lo mismo.
+    /// </remarks>
+    private static void UnSoloContratoConGraph()
+    {
+        foreach (string url in new[] { "http://localhost:3000", "https://graph-eight-pied.vercel.app" })
+        {
+            var backend = new BackendDeMentira(_ =>
+                (HttpStatusCode.OK, "{\"session\":\"s\",\"actions\":[],\"done\":true,\"text\":\"listo\"}"));
+            var cliente = Cliente071(url, backend);
+            if (cliente == null) { Pendiente("BackendClient(config, graph, transporte)", "657", "071"); return; }
+            cliente.TurnAsync(new U.WindowsClient.Domain.TurnRequest { Goal = "hola" }, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Debe(backend.Peticiones.Count == 1 && backend.Peticiones[0] == "POST /api/v1/agent/turn",
+                $"{url} recibe el turno en /api/v1/agent/turn: {string.Join(", ", backend.Peticiones)}");
+            Debe(backend.UltimasCabeceras.Any(h => h.Key.Equals("X-API-Key", StringComparison.OrdinalIgnoreCase)
+                                                   && h.Value == "miracle_prueba"),
+                $"{url} recibe la X-API-Key de Graph");
+            Debe(!backend.UltimasCabeceras.Keys.Any(k => k.Equals("Authorization", StringComparison.OrdinalIgnoreCase)),
+                $"{url} no recibe un Bearer: el token del backend viejo ya no viaja a ninguna parte");
+        }
+        Debe(typeof(U.WindowsClient.Config).GetProperty("ClientToken") == null,
+            "y Config ya no tiene ClientToken: no queda un token escrito en el código");
+    }
+
+    /// <remarks>
+    /// EL BUG QUE CIERRA: la variable pisaba BackendUrl en memoria y el siguiente Save —la posición de
+    /// la carita se guarda con un temporizador— la escribía en disco. Después de un dev-local.ps1, la
+    /// Ü de todos los días se quedaba apuntando a localhost para siempre. La variable se restaura al
+    /// final pase lo que pase: las promesas que vienen detrás no tienen por qué heredarla.
+    /// </remarks>
+    private static void LaUrlDelEntornoNoSeGuarda()
+    {
+        var enUso = typeof(U.WindowsClient.Config).GetProperty("BackendUrlEnUso");
+        if (enUso == null) { Pendiente("Config.BackendUrlEnUso", "658", "071"); return; }
+        const string graph = "https://graph-eight-pied.vercel.app";
+        string archivo = Path.Combine(UserPaths.Roaming, "U", "config.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivo)!);
+        string? antes = Environment.GetEnvironmentVariable("U_BACKEND_URL");
+        try
+        {
+            Environment.SetEnvironmentVariable("U_BACKEND_URL", "http://localhost:3000");
+            var cfg = U.WindowsClient.Config.Load();
+            Debe((string?)enUso.GetValue(cfg) == "http://localhost:3000",
+                $"con U_BACKEND_URL puesta, este proceso habla con ella: «{enUso.GetValue(cfg)}»");
+            cfg.Save();
+            string guardado = File.ReadAllText(archivo);
+            Debe(!guardado.Contains("localhost"), $"pero no se escribe en config.json: {guardado}");
+
+            Environment.SetEnvironmentVariable("U_BACKEND_URL", null);
+            Debe((string?)enUso.GetValue(U.WindowsClient.Config.Load()) == graph,
+                "y sin la variable, el siguiente arranque vuelve a Graph");
+
+            foreach (string viejo in new[] { "http://localhost:3000", "http://127.0.0.1:3000/", "https://u-windows-backend.vercel.app" })
+            {
+                File.WriteAllText(archivo, $"{{\"BackendUrl\":\"{viejo}\",\"Email\":\"ana@correo.co\"}}");
+                var c = U.WindowsClient.Config.Load();
+                Debe(c.BackendUrl == graph && c.Email == "ana@correo.co",
+                    $"un config.json que trae «{viejo}» vuelve a Graph al cargar, sin perder lo demás: «{c.BackendUrl}»");
+            }
+            File.WriteAllText(archivo, "{\"BackendUrl\":\"https://graph-staging.example.co\"}");
+            Debe(U.WindowsClient.Config.Load().BackendUrl == "https://graph-staging.example.co",
+                "una URL puesta a mano se respeta");
+        }
+        finally { Environment.SetEnvironmentVariable("U_BACKEND_URL", antes); }
+    }
+
+    /// <remarks>
+    /// LA CONSTITUCIÓN ES UNA: el bloque del delegado se compara con el texto de ConstitucionDeU, que
+    /// es la copia que tools/monorepo/constitucion.sh mantiene igual a la de Graph. Si alguien
+    /// escribiera aquí otro «QUIÉN TE HABLA», Windows y Graph le hablarían distinto al mismo médico.
+    /// El tope de la voz es el de la vuelta de GPT-Live (1.700 caracteres con AlVolver y la base): la
+    /// frase con el nombre más largo que se deja escribir no pasa de 300.
+    /// </remarks>
+    private static void ElPerfilHablaConLaConstitucion()
+    {
+        var t = Perfil071();
+        var resolver = t?.GetMethod("Resolver", BindingFlags.Public | BindingFlags.Static);
+        var delegado = t?.GetMethod("ParaElDelegado");
+        var voz = t?.GetMethod("ParaLaVoz");
+        var tCons = Capacidad("U.WindowsClient.Voice.ConstitucionDeU");
+        string? Const(string n) => tCons?.GetField(n, BindingFlags.Public | BindingFlags.Static)?.GetRawConstantValue() as string;
+        string? pm = Const("PerfilMedico"), pp = Const("PerfilPersona"), vm = Const("VozMedico"), vp = Const("VozPersona");
+        if (resolver == null || delegado == null || voz == null || pm == null || pp == null || vm == null || vp == null)
+        {
+            Pendiente("PerfilDeUso.ParaElDelegado · ParaLaVoz · Voice.ConstitucionDeU", "659", "071");
+            return;
+        }
+        object P(string elegido, string esp, string nom) =>
+            resolver.Invoke(null, new object?[] { false, "", "", elegido, esp, nom, "" })!;
+        string D(object p) => (string)delegado.Invoke(p, null)!;
+        string V(object p) => (string)voz.Invoke(p, null)!;
+
+        var cardio = P("medico", "cardiologia", "Cardiología");
+        Debe(D(cardio) == "\n\n" + pm.Replace("{ESPECIALIDAD}", ", especialista en Cardiología"),
+            "el bloque del médico es el de la constitución con su especialidad: "
+            + D(cardio)[..Math.Min(90, D(cardio).Length)]);
+        Debe(D(cardio).StartsWith("\n\nQUIÉN TE HABLA: un médico o una médica, especialista en Cardiología.", StringComparison.Ordinal),
+            "y empieza diciendo con quién habla, con la especialidad en su sitio");
+
+        var sinEsp = P("medico", "", "");
+        Debe(D(sinEsp).StartsWith("\n\nQUIÉN TE HABLA: un médico o una médica. ", StringComparison.Ordinal)
+             && !D(sinEsp).Contains("{ESPECIALIDAD}"),
+            "un médico sin especialidad no arrastra el hueco del molde");
+
+        var persona = P("persona", "", "");
+        string dp = D(persona);
+        Debe(dp == "\n\n" + pp, "el bloque de la persona es el de la constitución");
+        foreach (string clinico in new[] { "paciente", "historia clínica", "triage", "especialista" })
+            Debe(!dp.Contains(clinico, StringComparison.OrdinalIgnoreCase),
+                $"la persona no recibe vocabulario clínico: «{clinico}»");
+
+        Debe(V(cardio) == vm.Replace("{ESPECIALIDAD_CORTA}", " de Cardiología") && V(cardio).StartsWith(" ", StringComparison.Ordinal),
+            $"la frase de la voz del médico lleva «de Cardiología» y va pegada detrás de la base: «{V(cardio)}»");
+        Debe(V(persona) == vp, "la de la persona es la de la constitución");
+
+        var nadie = P("", "", "");
+        Debe(D(nadie) == "" && V(nadie) == "", "sin perfil los dos son vacíos: la apertura y la voz son las de antes");
+
+        int largo = V(P("medico", "", new string('x', 200))).Length;
+        Debe(largo <= 300, $"la frase de la voz con el nombre más largo que se deja escribir cabe en la vuelta: mide {largo}");
+    }
+
+    /// <remarks>
+    /// Graph manda el `type` de computer-use con x=-1, y=-1, porque el de OpenAI no lleva punto. Un
+    /// clic en (-1,-1) Windows lo lleva a la esquina (0,0) y le roba el foco al campo antes de
+    /// escribir. Se juzga la regla y, en el código, que el brazo `type` la use.
+    /// </remarks>
+    private static void TeclearSinPuntoNoTocaLaEsquina()
+    {
+        var tiene = typeof(U.WindowsClient.Agent.AgentLoop)
+            .GetMethod("TieneDondeTocar", BindingFlags.NonPublic | BindingFlags.Static);
+        if (tiene == null) { Pendiente("AgentLoop.TieneDondeTocar", "660", "071"); return; }
+        bool T(int x, int y) => (bool)tiene.Invoke(null, new object[] { x, y })!;
+        Debe(!T(-1, -1) && !T(-1, 40) && !T(40, -1), "x o y negativos es «sin punto»: se teclea donde está el foco");
+        Debe(T(0, 0) && T(683, 242), "(0,0) sí es un punto —la esquina—, y un punto se toca antes de teclear, como siempre");
+
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string archivo = Path.Combine(repo, "windows-client", "src", "Agent", "AgentLoop.cs");
+        if (!File.Exists(archivo))
+        {
+            _fallos++;
+            Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO no hay AgentLoop.cs que mirar.");
+            return;
+        }
+        string fuente = File.ReadAllText(archivo);
+        int brazo = fuente.IndexOf("\"type\" =>", StringComparison.Ordinal);
+        string tramo = brazo < 0 ? "" : fuente.Substring(brazo, Math.Min(300, fuente.Length - brazo));
+        Debe(tramo.Contains("TieneDondeTocar(a.X, a.Y)", StringComparison.Ordinal)
+             && tramo.Contains("InputExecutor.TypeText(", StringComparison.Ordinal),
+            "[cableado] el brazo «type» de AgentLoop teclea sin clic cuando no hay punto");
+    }
+
+    /// <remarks>
+    /// La lista es una COPIA de apps/web/lib/clinical/specialties.ts (regla 2 del monorepo: nada se
+    /// importa de otro proyecto). Se congela su forma: los 49 del portal, en su orden, con el código
+    /// de profiles.specialty_code. Y lo que no está —enfermería, fisioterapia— vale igual.
+    /// </remarks>
+    private static void LasEspecialidadesSonLasDelPortal()
+    {
+        var t = Capacidad("U.WindowsClient.Cuenta.Especialidades");
+        var todas = t?.GetField("Todas", BindingFlags.Public | BindingFlags.Static);
+        var buscar = t?.GetMethod("Buscar", BindingFlags.Public | BindingFlags.Static);
+        if (todas == null || buscar == null) { Pendiente("Cuenta.Especialidades.Todas · Buscar", "661", "071"); return; }
+
+        var lista = ((string Codigo, string Nombre)[])todas.GetValue(null)!;
+        Debe(lista.Length == 49, $"son las 49 del portal, no {lista.Length}");
+        Debe(lista.Length > 0 && lista[0] == ("medicina-general", "Medicina general"), "«Medicina general» va primero, como en el portal");
+        Debe(lista.All(e => System.Text.RegularExpressions.Regex.IsMatch(e.Codigo, "^[a-z0-9]+(-[a-z0-9]+)*$")),
+            "todos los códigos van en kebab-case, el formato de profiles.specialty_code");
+        Debe(lista.Select(e => e.Codigo).Distinct().Count() == lista.Length, "y ninguno se repite");
+
+        (string, string) B(string s) => ((string, string))buscar.Invoke(null, new object?[] { s })!;
+        Debe(B("cardiología ") == ("cardiologia", "Cardiología") && B("CARDIOLOGIA") == ("cardiologia", "Cardiología"),
+            $"se busca sin mayúsculas ni tildes: «CARDIOLOGIA» → {B("CARDIOLOGIA")}");
+        Debe(B("medicina-general") == ("medicina-general", "Medicina general"), "y también por su código");
+        Debe(B("Fisioterapia") == ("fisioterapia", "Fisioterapia")
+             && B("Enfermería oncológica") == ("enfermeria-oncologica", "Enfermería oncológica"),
+            $"lo que no está en la lista vale igual, con su propio código: {B("Enfermería oncológica")}");
+        Debe(B("") == ("", ""), "y vacío es vacío, no «Medicina general» por defecto");
+    }
+
+    /// <remarks>
+    /// Graph decide qué se escribe en una sección sin datos: exactamente «No mencionado en la
+    /// consulta.» (OUTPUT_CONTRACT). Una instrucción de sección que pide dejarla vacía la contradice, y
+    /// el modelo tiene que elegir a cuál de las dos desobedecer.
+    /// </remarks>
+    private static void LaPlantillaAbiertaNoPideDejarVacio()
+    {
+        var secciones = Capacidad("U.WindowsClient.Clinical.PlantillaAbierta")
+            ?.GetMethod("Secciones", BindingFlags.Public | BindingFlags.Static);
+        if (secciones == null) { Pendiente("Clinical.PlantillaAbierta.Secciones", "662", "071"); return; }
+        var trozos = ((System.Collections.IEnumerable)secciones.Invoke(null, null)!)
+            .Cast<object>().Select(x => x?.ToString() ?? "").ToList();
+        foreach (string s in trozos)
+            Debe(!s.Contains("vacía", StringComparison.OrdinalIgnoreCase) && !s.Contains("vacia", StringComparison.OrdinalIgnoreCase),
+                $"ninguna sección pide dejarse vacía: {s}");
+    }
+
+    // ── SPEC 071, FASE W2: LA VOZ (670-686) ─────────────────────────────────────
+    //
+    // Todo sin socket: la conversación se juzga con su puerta de salida sustituida, como la 208 y la 220, y lo que
+    // la fase añade se pide por nombre, para que sin ello cada promesa diga PENDIENTE en vez de «no aplica».
+
+    private const BindingFlags Privado071 = BindingFlags.NonPublic | BindingFlags.Instance;
+    private const BindingFlags Estatico071 = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+
+    /// <summary>La confirmación de GPT-Live tal como la manda su servidor (la de la 220, recortada).</summary>
+    private const string SesionStarted071 = """{"type":"session.started","session":{"id":"live_contrato_071","model":"gpt-live-1","status":"active","input":[]}}""";
+
+    private const string AlCambiarDeModo071 = "CAMBIO DE MODO. Desde ahora mandan estas reglas sobre cuándo y cómo hablas, por encima de las anteriores:\n";
+
+    /// <summary>Una conversación sin socket: lo que manda sale a la lista, y la puerta dice que hay voz.</summary>
+    private static (ConversacionEnVivo Conv, List<string> Mandados) Conversacion071(Voz.Realtime.IProtocolo p)
+    {
+        var conv = new ConversacionEnVivo(new SurfaceMapTools(() => null), p);
+        var mandados = new List<string>();
+        typeof(ConversacionEnVivo).GetField("_puerta", Privado071)!.SetValue(conv,
+            (Func<string, CancellationToken, Task>)((json, _) => { lock (mandados) mandados.Add(json); return Task.CompletedTask; }));
+        typeof(ConversacionEnVivo).GetField("_puertaAbierta", Privado071)!.SetValue(conv, (Func<bool>)(() => true));
+        return (conv, mandados);
+    }
+
+    /// <summary>Lo mandado hasta ahora, y la lista vacía para lo siguiente.</summary>
+    private static List<string> Saca071(List<string> mandados)
+    {
+        lock (mandados) { var l = mandados.ToList(); mandados.Clear(); return l; }
+    }
+
+    private static string Tipos071(IEnumerable<string> l) => string.Join(" · ", l.Select(TipoDelMensaje));
+
+    /// <summary>Un campo de un JSON por su camino, ya decodificado; "" si no está.</summary>
+    private static string Json071(string json, params string[] camino)
+    {
+        try
+        {
+            using var d = JsonDocument.Parse(json);
+            var e = d.RootElement;
+            foreach (string paso in camino)
+            {
+                if (e.ValueKind != JsonValueKind.Object || !e.TryGetProperty(paso, out var siguiente)) return "";
+                e = siguiente;
+            }
+            return e.ValueKind == JsonValueKind.String ? e.GetString() ?? "" : e.GetRawText();
+        }
+        catch (JsonException) { return ""; }
+    }
+
+    private static int Veces071(string texto, string frase)
+    {
+        int n = 0;
+        for (int i = texto.IndexOf(frase, StringComparison.Ordinal); i >= 0; i = texto.IndexOf(frase, i + frase.Length, StringComparison.Ordinal)) n++;
+        return n;
+    }
+
+    /// <summary>Un perfil construido por <c>PerfilDeUso.Resolver</c>, sin médico dentro; null si no existe.</summary>
+    private static object? Perfil071De(string elegido, string especialidad, string nombre)
+        => Perfil071()?.GetMethod("Resolver", BindingFlags.Public | BindingFlags.Static)
+            ?.Invoke(null, new object?[] { false, "", "", elegido, especialidad, nombre, "" });
+
+    private static PropertyInfo? PropiedadDeLaVoz071(string nombre)
+        => typeof(ConversacionEnVivo).GetProperty(nombre, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+    private static PropertyInfo ConDecisor071()
+        => typeof(ConversacionEnVivo).GetProperty("ConDecisor", Estatico071)!;
+
+    private static IReadOnlyList<Voz.Realtime.Utensilio> Herramientas071()
+        => (IReadOnlyList<Voz.Realtime.Utensilio>)typeof(ConversacionEnVivo).GetMethod("Herramientas", Estatico071)!.Invoke(null, null)!;
+
+    /// <summary>Las reglas y el catálogo del aprendiz, tal como los pide la ventana al enseñar.</summary>
+    private static (string Reglas, IReadOnlyList<Voz.Realtime.Utensilio> Utensilios) Aprendiz071()
+    {
+        var t = Cap004("U.WindowsClient.Teach.ModoAprendiz")!;
+        var campo = (MemberInfo?)t.GetProperty("Instrucciones") ?? t.GetField("Instrucciones")!;
+        string reglas = (string)(campo is PropertyInfo pi ? pi.GetValue(null) : ((FieldInfo)campo).GetValue(null))!;
+        var utensilios = (IReadOnlyList<Voz.Realtime.Utensilio>)t.GetMethod("Utensilios")!.Invoke(null, new object[] { Herramientas071() })!;
+        return (reglas, utensilios);
+    }
+
+    /// <summary>Lo de la 206: ante varios candidatos, mirar (map_look) y elegir con which, a menos de 700 caracteres.</summary>
+    private static bool WhichJuntoAMapLook071(string texto)
+    {
+        for (int i = texto.IndexOf("which", StringComparison.Ordinal); i >= 0; i = texto.IndexOf("which", i + 1, StringComparison.Ordinal))
+        {
+            int j = texto.IndexOf("map_look", Math.Max(0, i - 700), StringComparison.Ordinal);
+            if (j >= 0 && Math.Abs(j - i) <= 700) return true;
+        }
+        return false;
+    }
+
+    /// <remarks>
+    /// UNA SOLA Ü. La voz decía «Eres Ü, un asistente que maneja el ordenador…» en 25.096 caracteres, y el cerebro de
+    /// Graph, otra cosa con otra personalidad; la misma voz sonaba a dos personas. El principio lo comparten las dos
+    /// copias de la constitución (tools/monorepo/constitucion.sh), y aquí se juzga que la voz la usa entera, primero,
+    /// y que la operación no vuelve a escribir sus reglas: escritas dos veces, se contradecían.
+    /// </remarks>
+    private static void LasInstruccionesSonLaConstitucion()
+    {
+        var tCons = Capacidad("U.WindowsClient.Voice.ConstitucionDeU");
+        string? C(Type? t, string n) => t?.GetField(n, Estatico071)?.GetRawConstantValue() as string;
+        string? instr = C(typeof(ConversacionEnVivo), "Instrucciones"), operacion = C(typeof(ConversacionEnVivo), "Operacion");
+        string? quien = C(tCons, "Quien"), obedece = C(tCons, "Obedece");
+        if (instr == null || operacion == null || quien == null || obedece == null)
+        { Pendiente("ConversacionEnVivo.Operacion · Voice.ConstitucionDeU.Quien/Obedece", "670", "071"); return; }
+
+        Debe(instr == quien + "\n\n" + obedece + "\n\n" + operacion,
+            "las instrucciones de la voz son la constitución de Ü —quién es y el pilar de obedecer— y detrás la operación de Windows, en ese orden y sin nada más");
+        Debe(instr.StartsWith("Eres Ü, el asistente que vive en el computador", StringComparison.Ordinal),
+            "y empiezan diciendo quién es Ü, con las mismas palabras que el cerebro de Graph");
+        foreach (string viejo in new[] { "ordenador", "Jeff", "NO PIDAS PERMISO", "ELIGE TÚ", "no se puede deshacer" })
+            Debe(!operacion.Contains(viejo, StringComparison.Ordinal),
+                $"la operación no dice «{viejo}»: o es de la Ü de antes, o ya lo dice la constitución");
+        foreach (string viejo in new[] { "PERSONALIDAD viva", "sobre todo SAP", "Jeff" })
+            Debe(!instr.Contains(viejo, StringComparison.Ordinal), $"y en todo el texto no queda «{viejo}»");
+        foreach (string unaVez in new[] { "NO PIDAS PERMISO", "ELIGE TÚ", "no la trocees en preguntas", "NO ANUNCIES LO QUE VAS A HACER" })
+            Debe(Veces071(instr, unaVez) == 1, $"«{unaVez}» se dice UNA vez (van {Veces071(instr, unaVez)})");
+    }
+
+    /// <remarks>
+    /// LAS PROMESAS DEL TEXTO LEÍAN UN SOLO TEXTO, y desde la spec 071 hay uno por perfil. Un bloque de perfil que
+    /// dijera «para siempre» o «más de dos veces», o que se comiera una frase al ir en medio, rompería la 161, la 206 o
+    /// la 502 solo para los médicos, y esas promesas no lo verían: leen el texto sin perfil.
+    /// </remarks>
+    private static void CadaPerfilCumpleLasReglas()
+    {
+        var pDeSiempre = PropiedadDeLaVoz071("InstruccionesDeSiempre");
+        var pPerfil = PropiedadDeLaVoz071("Perfil");
+        var perfiles = new (string Nombre, object? Perfil)[]
+        {
+            ("sin elegir", Perfil071De("", "", "")),
+            ("un médico de Cardiología", Perfil071De("medico", "cardiologia", "Cardiología")),
+            ("un médico sin especialidad", Perfil071De("medico", "", "")),
+            ("una persona", Perfil071De("persona", "", "")),
+        };
+        if (pDeSiempre == null || pPerfil == null || perfiles.Any(x => x.Perfil == null))
+        { Pendiente("ConversacionEnVivo.InstruccionesDeSiempre · Perfil", "671", "071"); return; }
+
+        var pCon = ConDecisor071();
+        bool antes = (bool)pCon.GetValue(null)!;
+        using var conv = new ConversacionEnVivo(new SurfaceMapTools(() => null), new Voz.Realtime.ProtocoloGptLive());
+        try
+        {
+            foreach (bool conDecisor in new[] { false, true })
+                foreach (var (nombre, perfil) in perfiles)
+                {
+                    pCon.SetValue(null, conDecisor);
+                    pPerfil.SetValue(conv, perfil);
+                    string t = (string)pDeSiempre.GetValue(conv)!;
+                    string cual = $"con {nombre}, {(conDecisor ? "con" : "sin")} el decisor";
+                    foreach (string debe in new[] { "NO ANUNCIES LO QUE VAS A HACER", "HABLA EN PASADO", "«voy a…»", "«vamos a…»",
+                                                    "Habla, sin que te lo pidan, SOLO en estos casos", "ELIGE TÚ", "no se puede deshacer",
+                                                    "dilo al terminar", "no la trocees en preguntas", "NO PIDAS PERMISO",
+                                                    "CADA ACTO TE CUENTA LO QUE DEJÓ DELANTE" })
+                        Debe(t.Contains(debe, StringComparison.Ordinal), $"{cual}: dice «{debe}»");
+                    foreach (string no in new[] { "DI LO QUE VAS A HACER", "Ve contando lo que haces mientras lo haces",
+                                                  "pide map_where_am_i primero", "action=«doubleclick»", "más de dos veces",
+                                                  "pregunta por el DATO que te falta, y solo", "acumular RECUERDOS", "para siempre",
+                                                  "lo más frecuente" })
+                        Debe(!t.Contains(no, StringComparison.OrdinalIgnoreCase), $"{cual}: no dice «{no}»");
+                    Debe(t.Contains("map_decidir", StringComparison.Ordinal) == conDecisor, $"{cual}: nombra map_decidir solo con el decisor (284)");
+                    Debe(WhichJuntoAMapLook071(t), $"{cual}: ante varios candidatos manda mirar (map_look) y elegir con which, juntos (206)");
+                }
+        }
+        finally { pCon.SetValue(null, antes); }
+    }
+
+    /// <remarks>
+    /// EN EL MISMO ORDEN QUE EL CEREBRO DE GRAPH: quién eres · quién te habla · lo que te piden, lo haces. «Un dato
+    /// clínico nunca se elige ni se completa» tiene que leerse antes que «ELIGE TÚ la opción más razonable». Y sin
+    /// perfil no puede cambiar ni un byte: es la red para desplegar por partes.
+    /// </remarks>
+    private static void ElPerfilVaTrasQuienEsU()
+    {
+        var pDeSiempre = PropiedadDeLaVoz071("InstruccionesDeSiempre");
+        var pPerfil = PropiedadDeLaVoz071("Perfil");
+        var delegado = Perfil071()?.GetMethod("ParaElDelegado");
+        var tCons = Capacidad("U.WindowsClient.Voice.ConstitucionDeU");
+        string? quien = tCons?.GetField("Quien", Estatico071)?.GetRawConstantValue() as string;
+        string? obedece = tCons?.GetField("Obedece", Estatico071)?.GetRawConstantValue() as string;
+        string? constante = typeof(ConversacionEnVivo).GetField("Instrucciones", BindingFlags.NonPublic | BindingFlags.Static)?.GetRawConstantValue() as string;
+        var nadie = Perfil071De("", "", "");
+        if (pDeSiempre == null || pPerfil == null || delegado == null || quien == null || obedece == null || constante == null || nadie == null)
+        { Pendiente("ConversacionEnVivo.InstruccionesDeSiempre · PerfilDeUso.ParaElDelegado", "672", "071"); return; }
+
+        var pCon = ConDecisor071();
+        bool antes = (bool)pCon.GetValue(null)!;
+        using var conv = new ConversacionEnVivo(new SurfaceMapTools(() => null), new Voz.Realtime.ProtocoloGptLive());
+        try
+        {
+            pCon.SetValue(null, false);
+            pPerfil.SetValue(conv, nadie);
+            string normales = (string)typeof(ConversacionEnVivo).GetProperty("InstruccionesNormales", Estatico071)!.GetValue(null)!;
+            string sinPerfil = (string)pDeSiempre.GetValue(conv)!;
+            Debe(sinPerfil == normales, "sin perfil, las de siempre de la conversación son exactamente las normales");
+            Debe(sinPerfil == constante.ReplaceLineEndings("\n"), "y son la constante Instrucciones, byte a byte (con los saltos en \\n): la Ü de antes");
+
+            string cabeza = (quien + "\n\n" + obedece).ReplaceLineEndings("\n");
+            foreach (var (elegido, especialidad, nombre) in new[] { ("medico", "cardiologia", "Cardiología"), ("persona", "", "") })
+            {
+                var perfil = Perfil071De(elegido, especialidad, nombre)!;
+                pPerfil.SetValue(conv, perfil);
+                string bloque = (string)delegado.Invoke(perfil, null)!;
+                string t = (string)pDeSiempre.GetValue(conv)!;
+                string esperado = (quien + bloque + "\n\n" + obedece).ReplaceLineEndings("\n") + sinPerfil[cabeza.Length..];
+                Debe(bloque.StartsWith("\n\nQUIÉN TE HABLA:", StringComparison.Ordinal) && t == esperado,
+                    $"con {elegido}, el bloque «QUIÉN TE HABLA» va justo detrás de quién es Ü y antes de «LO QUE TE PIDEN, LO HACES», y lo demás es lo de siempre");
+                Debe(Veces071(t, "QUIÉN TE HABLA") == 1, $"con {elegido}, una sola vez");
+            }
+        }
+        finally { pCon.SetValue(null, antes); }
+    }
+
+    /// <remarks>
+    /// LO QUE SE OYE ES LA VOZ: con GPT-Live, el perfil que solo llegara al delegado no cambiaría cómo suena Ü. La frase
+    /// sale de PerfilDeUso.ParaLaVoz (659) y la pone la conversación en el protocolo; la ventana tiene que ponérsela a la
+    /// conversación, o todo lo anterior es un guardia que se cree puesto (aprendizaje nº18).
+    /// </remarks>
+    private static void ElPerfilLlegaALaVoz()
+    {
+        var pPerfil = PropiedadDeLaVoz071("Perfil");
+        var pExtra = typeof(Voz.Realtime.ProtocoloGptLive).GetProperty("PersonaExtra");
+        var voz = Perfil071()?.GetMethod("ParaLaVoz");
+        object? cardio = Perfil071De("medico", "cardiologia", "Cardiología"), persona = Perfil071De("persona", "", ""), nadie = Perfil071De("", "", "");
+        if (pPerfil == null || pExtra == null || voz == null || cardio == null || persona == null || nadie == null)
+        { Pendiente("ConversacionEnVivo.Perfil · ProtocoloGptLive.PersonaExtra", "673", "071"); return; }
+
+        var live = new Voz.Realtime.ProtocoloGptLive();
+        using (var conv = new ConversacionEnVivo(new SurfaceMapTools(() => null), live))
+        {
+            Debe((string)pExtra.GetValue(live)! == "", "una voz recién creada no tiene perfil: su persona es la de antes");
+            foreach (var (nombre, perfil) in new[] { ("el médico", cardio), ("la persona", persona), ("sin elegir", nadie) })
+            {
+                pPerfil.SetValue(conv, perfil);
+                string esperada = (string)voz.Invoke(perfil, null)!;
+                Debe((string)pExtra.GetValue(live)! == esperada, $"con {nombre}, la voz de GPT-Live lleva la frase de su perfil: «{esperada}»");
+            }
+            pPerfil.SetValue(conv, cardio);
+            string apertura = live.Apertura("INSTRUCCIONES DEL DELEGADO", Array.Empty<Voz.Realtime.Utensilio>(), "").First();
+            string conPerfil = (string)voz.Invoke(cardio, null)!;
+            Debe(conPerfil.Contains("de Cardiología", StringComparison.Ordinal)
+                 && Json071(apertura, "session", "instructions").EndsWith(conPerfil, StringComparison.Ordinal),
+                "y la sesión abre con ella: «de Cardiología» se oye");
+        }
+
+        using (var rt = new ConversacionEnVivo(new SurfaceMapTools(() => null), new Voz.Realtime.ProtocoloOpenAI()))
+        {
+            pPerfil.SetValue(rt, cardio);
+            string deSiempre = PropiedadDeLaVoz071("InstruccionesDeSiempre")?.GetValue(rt) as string ?? "";
+            Debe(deSiempre.Contains("especialista en Cardiología", StringComparison.Ordinal),
+                "con GPT Realtime, que no tiene persona aparte, el perfil va en las instrucciones de siempre");
+        }
+
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(cara.Contains("_vivo.Perfil = _perfil;", StringComparison.Ordinal),
+            "[cableado] la ventana le pone el perfil a la voz al crearla");
+        Debe(cara.Contains("if (_vivo != null) _vivo.Perfil = perfil;", StringComparison.Ordinal),
+            "[cableado] y cada vez que cambia, en AplicarElPerfil, el sitio que reparte el perfil a todos");
+    }
+
+    /// <remarks>
+    /// EL PEOR CASO ROZABA EL TOPE: 25.096 + 1.071 de decisor + 40 recuerdos + 18.000 de hilo, y con GPT-Live el mismo
+    /// hilo viaja otra vez como historial de la voz. Con más de 16.384 fichas el servidor no confirma y cierra (medido el
+    /// 2026-09-12). Ahora: las de siempre, con el perfil más largo y el decisor, por debajo de 20.000; y del hilo, en las
+    /// instrucciones, lo último y como mucho 8.000 (D5: quitarlo del todo espera a una sonda).
+    /// </remarks>
+    private static void LaAperturaTienePresupuesto()
+    {
+        var pDeSiempre = PropiedadDeLaVoz071("InstruccionesDeSiempre");
+        var pPerfil = PropiedadDeLaVoz071("Perfil");
+        var conMemoria = typeof(ConversacionEnVivo).GetMethod("InstruccionesConMemoriaAsync", Privado071);
+        object? tope = typeof(ConversacionEnVivo).GetField("TopeDelHiloEnLasInstrucciones", Estatico071)?.GetRawConstantValue();
+        var largo = Perfil071De("medico", "", new string('x', 60));
+        if (pDeSiempre == null || pPerfil == null || conMemoria == null || tope is not int topeDelHilo || largo == null)
+        { Pendiente("ConversacionEnVivo.InstruccionesDeSiempre · TopeDelHiloEnLasInstrucciones", "674", "071"); return; }
+        Debe(topeDelHilo == 8_000, $"del hilo van 8.000 caracteres, no 18.000 (dice {topeDelHilo})");
+
+        var pCon = ConDecisor071();
+        bool antes = (bool)pCon.GetValue(null)!;
+        using var conv = new ConversacionEnVivo(new SurfaceMapTools(() => null), new Voz.Realtime.ProtocoloGptLive());
+        try
+        {
+            pCon.SetValue(null, true);
+            foreach (var (nombre, perfil) in new[] { ("sin elegir", Perfil071De("", "", "")), ("un médico con la especialidad más larga", largo), ("una persona", Perfil071De("persona", "", "")) })
+            {
+                pPerfil.SetValue(conv, perfil);
+                int mide = ((string)pDeSiempre.GetValue(conv)!).Length;
+                Debe(mide <= 20_000, $"con {nombre} y el decisor, las instrucciones de siempre miden {mide} caracteres: como mucho 20.000");
+            }
+
+            pCon.SetValue(null, false);
+            pPerfil.SetValue(conv, Perfil071De("", "", ""));
+            var hilo = new ConversacionPersonal("contrato-674", Path.Combine(_raiz, "674-hilo.json"));
+            for (int i = 0; i < 40; i++) hilo.Agregar(i % 2 == 0 ? "usuario" : "asistente", $"turno {i:D2}: " + new string('x', 900));
+            hilo.Agregar("usuario", "LO ÚLTIMO QUE SE DIJO");
+            conv.Conversacion = hilo;
+            string apertura = ((Task<string>)conMemoria.Invoke(conv, new object[] { CancellationToken.None })!).GetAwaiter().GetResult();
+            string deSiempre = (string)pDeSiempre.GetValue(conv)!;
+            int delHilo = apertura.Length - deSiempre.Length;
+            Debe(apertura.StartsWith(deSiempre, StringComparison.Ordinal) && delHilo > 0 && delHilo <= topeDelHilo + 300,
+                $"el hilo que va en las instrucciones mide como mucho 8.000 caracteres más su cabecera (van {delHilo})");
+            Debe(apertura.EndsWith("LO ÚLTIMO QUE SE DIJO", StringComparison.Ordinal), "y es lo último: se recorta por el principio");
+        }
+        finally { pCon.SetValue(null, antes); }
+    }
+
+    /// <remarks>
+    /// EL CATÁLOGO TRAÍA map_decidir Y LAS INSTRUCCIONES NO DECÍAN CUÁNDO USARLA (D3): la apertura usaba la constante, y
+    /// el decisor se enciende al arrancar la ventana, antes de que exista la voz. El párrafo solo llegaba tras un cambio
+    /// de modo. Se juzga lo que la conversación manda al abrir, sin memoria ni hilo.
+    /// </remarks>
+    private static void ElDecisorVaEnLaApertura()
+    {
+        var conMemoria = typeof(ConversacionEnVivo).GetMethod("InstruccionesConMemoriaAsync", Privado071);
+        var pDeSiempre = PropiedadDeLaVoz071("InstruccionesDeSiempre");
+        if (conMemoria == null || pDeSiempre == null)
+        { Pendiente("ConversacionEnVivo.InstruccionesDeSiempre (la apertura con el decisor)", "675", "071"); return; }
+
+        var pCon = ConDecisor071();
+        bool antes = (bool)pCon.GetValue(null)!;
+        using var conv = new ConversacionEnVivo(new SurfaceMapTools(() => null), new Voz.Realtime.ProtocoloGptLive());
+        try
+        {
+            foreach (bool conDecisor in new[] { false, true })
+            {
+                pCon.SetValue(null, conDecisor);
+                string apertura = ((Task<string>)conMemoria.Invoke(conv, new object[] { CancellationToken.None })!).GetAwaiter().GetResult();
+                bool enElCatalogo = Herramientas071().Any(u => u.Nombre == "map_decidir");
+                Debe(enElCatalogo == conDecisor, $"{(conDecisor ? "con" : "sin")} el decisor, el catálogo {(conDecisor ? "trae" : "no trae")} map_decidir");
+                Debe(apertura.Contains("map_decidir", StringComparison.Ordinal) == enElCatalogo,
+                    $"{(conDecisor ? "con" : "sin")} el decisor, la apertura nombra map_decidir si y solo si el catálogo la trae");
+                Debe(apertura == (string)pDeSiempre.GetValue(conv)!, "y sin memoria ni hilo, la apertura son las instrucciones de siempre de la conversación");
+            }
+        }
+        finally { pCon.SetValue(null, antes); }
+    }
+
+    /// <remarks>
+    /// UNA LISTA NEGRA SE QUEDA ATRÁS CADA VEZ QUE CRECE EL CATÁLOGO (patrón nº5): la del aprendiz se escribió antes de
+    /// la spec 062 y se le colaron map_hacer y, con el decisor, map_decidir, map_tramo y map_alto. Con map_hacer, el
+    /// delegado movía la pantalla mientras le enseñaban. La prueba de que es una lista blanca es la herramienta
+    /// inventada: una lista negra la dejaría pasar.
+    /// </remarks>
+    private static void ElAprendizVeYNoToca()
+    {
+        var t = Cap004("U.WindowsClient.Teach.ModoAprendiz");
+        var utensilios = t?.GetMethod("Utensilios");
+        var ojos = t?.GetField("Ojos", BindingFlags.NonPublic | BindingFlags.Static);
+        if (utensilios == null || ojos == null) { Pendiente("Teach.ModoAprendiz.Ojos (la lista blanca del aprendiz)", "676", "071"); return; }
+        var permitidas = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "map_where_am_i", "map_pointing_at", "map_what_i_see", "map_look", "map_look_back", "map_show",
+            "map_pointed_trail", "map_recuerdos", "file_where", "file_list", "file_find",
+            "memory_recall", "self_mute", "self_hide", "self_close",
+        };
+
+        var pCon = ConDecisor071();
+        bool antes = (bool)pCon.GetValue(null)!;
+        try
+        {
+            foreach (bool conDecisor in new[] { false, true })
+            {
+                pCon.SetValue(null, conDecisor);
+                string cual = conDecisor ? "con el decisor" : "sin el decisor";
+                var delAprendiz = (IReadOnlyList<Voz.Realtime.Utensilio>)utensilios.Invoke(null, new object[] { Herramientas071() })!;
+                var sobran = delAprendiz.Select(u => u.Nombre).Where(n => !permitidas.Contains(n)).ToList();
+                Debe(sobran.Count == 0, $"{cual}, todo lo que tiene el aprendiz es mirar, señalar o callarse (sobra: {string.Join(", ", sobran)})");
+                foreach (string mano in new[] { "map_hacer", "map_decidir", "map_tramo", "map_alto", "map_esto_es", "memory_remember", "scan_computer" })
+                    Debe(delAprendiz.All(u => u.Nombre != mano), $"{cual}, «{mano}» no está en el catálogo del aprendiz");
+                Debe(delAprendiz.Any(u => u.Nombre == "map_pointing_at"), $"{cual}, y mira lo que le señalan: map_pointing_at sí está");
+            }
+        }
+        finally { pCon.SetValue(null, antes); }
+
+        var nueva = new List<Voz.Realtime.Utensilio> { new("map_mano_de_manana", "Una mano que nadie previó", new List<Voz.Realtime.Argumento>()) };
+        var conLaNueva = (IReadOnlyList<Voz.Realtime.Utensilio>)utensilios.Invoke(null, new object[] { nueva })!;
+        Debe(conLaNueva.Count == 0, "una herramienta que nazca mañana no le entra al aprendiz por omisión: es una lista blanca");
+    }
+
+    /// <remarks>
+    /// D2, LA MÁS GRAVE DE LA VOZ: volver del aprendiz, de la voz prestada o del botón Jev mandaba las instrucciones a
+    /// secas. El delegado volvía sin la memoria ni el hilo con los que había abierto, y con GPT-Live la voz recibía un
+    /// append de 25.000 caracteres —no eran las de la apertura— que el servidor rechazaba: se quedaba asintiendo con una
+    /// palabra el resto de la sesión, y solo el log lo contaba. Se juzga lo que sale al volver, con los dos protocolos.
+    /// </remarks>
+    private static void VolverDeUnModoTraeLaMemoria()
+    {
+        var volver = typeof(ConversacionEnVivo).GetMethod("VolverAlModoNormalAsync", BindingFlags.Public | BindingFlags.Instance);
+        var pPerfil = PropiedadDeLaVoz071("Perfil");
+        var persona = Perfil071De("persona", "", "");
+        if (volver == null || pPerfil == null || persona == null)
+        { Pendiente("ConversacionEnVivo.VolverAlModoNormalAsync", "677", "071"); return; }
+        var (reglas, deAprendiz) = Aprendiz071();
+
+        foreach (var (nombre, protocolo) in new (string, Voz.Realtime.IProtocolo)[]
+                 { ("GPT-Live", new Voz.Realtime.ProtocoloGptLive()), ("GPT Realtime", new Voz.Realtime.ProtocoloOpenAI()) })
+        {
+            bool live = protocolo is Voz.Realtime.ProtocoloGptLive;
+            var (conv, mandados) = Conversacion071(protocolo);
+            using (conv)
+            {
+                string sufijo = live ? "live" : "rt";
+                var memoria = new MemoriaPersonal("contrato-677", Path.Combine(_raiz, $"677-memoria-{sufijo}.json"));
+                memoria.EjecutarAsync("recuerda que soy desarrollador de 24 años", CancellationToken.None).GetAwaiter().GetResult();
+                var hilo = new ConversacionPersonal("contrato-677", Path.Combine(_raiz, $"677-hilo-{sufijo}.json"));
+                hilo.Agregar("usuario", "Estamos ordenando las facturas de septiembre.");
+                conv.Memoria = memoria;
+                conv.Conversacion = hilo;
+                pPerfil.SetValue(conv, persona);
+
+                conv.CambiarModoAsync(reglas, deAprendiz).GetAwaiter().GetResult();
+                Saca071(mandados);
+                ((Task)volver.Invoke(conv, null)!).GetAwaiter().GetResult();
+                var vuelta = Saca071(mandados);
+
+                string update = vuelta.FirstOrDefault(m => TipoDelMensaje(m) == "session.update") ?? "";
+                string alDelegado = live
+                    ? Json071(update, "session", "delegation", "responses", "instructions")
+                    : Json071(update, "session", "instructions");
+                Debe(alDelegado.Contains("desarrollador de 24 años", StringComparison.Ordinal),
+                    $"con {nombre}, al volver del aprendiz vuelve la memoria personal (salió: {Tipos071(vuelta)})");
+                Debe(alDelegado.Contains("ordenando las facturas de septiembre", StringComparison.Ordinal),
+                    $"con {nombre}, y el hilo de lo que se venía hablando");
+                Debe(alDelegado.Contains("QUIÉN TE HABLA: una persona", StringComparison.Ordinal),
+                    $"con {nombre}, y con quién habla");
+                Debe(update.Contains("\"map_hacer\"", StringComparison.Ordinal) && update.Contains("\"map_take\"", StringComparison.Ordinal),
+                    $"con {nombre}, y el catálogo entero, con sus manos");
+                if (!live) continue;
+
+                string aLaVoz = Json071(vuelta.FirstOrDefault(m => TipoDelMensaje(m) == "session.instructions.append") ?? "", "content");
+                Debe(aLaVoz.StartsWith("VUELVES A TU MODO DE SIEMPRE", StringComparison.Ordinal)
+                     && aLaVoz.Contains(Voz.Realtime.ProtocoloGptLive.InstruccionesDeLaVoz, StringComparison.Ordinal),
+                    $"con GPT-Live, la voz recibe su persona detrás del prefijo de la vuelta («{Recorta(aLaVoz, 80)}»)");
+                Debe(aLaVoz.Length <= 1_756 && !aLaVoz.Contains("PARA ACTUAR, PLANEA", StringComparison.Ordinal),
+                    $"y no las instrucciones de operar: un append así se rechaza (500 fichas; se mandaron {aLaVoz.Length} caracteres)");
+            }
+        }
+    }
+
+    /// <remarks>
+    /// EL BOTÓN JEV A MITAD DE UNA DEMO (D2): reenviar el catálogo era cambiar de modo a las instrucciones normales, y si
+    /// la voz estaba enseñándose, el aprendiz recuperaba las manos. Y los tres sitios de vuelta de la ventana mandaban las
+    /// instrucciones a secas: se juzga que no vuelva ninguno.
+    /// </remarks>
+    private static void ElBotonJevNoDevuelveLasManos()
+    {
+        var reenviar = typeof(ConversacionEnVivo).GetMethod("ReenviarElCatalogoAsync", BindingFlags.Public | BindingFlags.Instance);
+        var volver = typeof(ConversacionEnVivo).GetMethod("VolverAlModoNormalAsync", BindingFlags.Public | BindingFlags.Instance);
+        if (reenviar == null || volver == null) { Pendiente("ConversacionEnVivo.ReenviarElCatalogoAsync", "678", "071"); return; }
+        var (reglas, deAprendiz) = Aprendiz071();
+
+        var (conv, mandados) = Conversacion071(new Voz.Realtime.ProtocoloGptLive());
+        using (conv)
+        {
+            conv.CambiarModoAsync(reglas, deAprendiz).GetAwaiter().GetResult();
+            Saca071(mandados);
+            ((Task)reenviar.Invoke(conv, null)!).GetAwaiter().GetResult();
+            var enModo = Saca071(mandados);
+            Debe(enModo.Count == 0,
+                $"en modo aprendiz, que cambie el catálogo no le manda nada a la voz: le devolvía las manos a mitad de la demo (mandó: {Tipos071(enModo)})");
+
+            ((Task)volver.Invoke(conv, null)!).GetAwaiter().GetResult();
+            Saca071(mandados);
+            ((Task)reenviar.Invoke(conv, null)!).GetAwaiter().GetResult();
+            var fuera = Saca071(mandados);
+            Debe(fuera.Any(m => TipoDelMensaje(m) == "session.update"),
+                $"y en el modo de siempre sí: el catálogo nuevo llega con la vuelta (mandó: {Tipos071(fuera)})");
+        }
+
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(!cara.Contains("CambiarModoAsync(Voice.ConversacionEnVivo.InstruccionesNormales", StringComparison.Ordinal),
+            "[cableado] ningún sitio de la ventana vuelve de un modo con las instrucciones a secas: perdían la memoria y el hilo");
+        int vueltas = Veces071(cara, "VolverAlModoNormalAsync()");
+        Debe(vueltas >= 2, $"[cableado] terminar de enseñar y devolver la voz prestada vuelven con VolverAlModoNormalAsync (van {vueltas})");
+        Debe(cara.Contains("_vivo.ReenviarElCatalogoAsync()", StringComparison.Ordinal), "[cableado] y el botón Jev, con ReenviarElCatalogoAsync");
+    }
+
+    /// <remarks>
+    /// UN CORTE A MITAD DE UNA DEMO LE DEVOLVÍA LAS MANOS A Ü (D4): la reconexión abría con las instrucciones normales y
+    /// el catálogo entero, sin mirar en qué modo estaba. Se juzga sin socket lo que pasa después de la apertura nueva: la
+    /// conexión empieza sin confirmar, y el modo vuelve cuando el servidor la confirma.
+    /// </remarks>
+    private static void ReconectarVuelveAlModo()
+    {
+        var reaplicar = typeof(ConversacionEnVivo).GetMethod("ReaplicarElModoAsync", Privado071);
+        var conexion = typeof(ConversacionEnVivo).GetMethod("EmpiezaUnaConexion", Privado071);
+        var procesar = typeof(ConversacionEnVivo).GetMethod("Procesar", Privado071);
+        if (reaplicar == null || conexion == null || procesar == null)
+        { Pendiente("ConversacionEnVivo.ReaplicarElModoAsync", "679", "071"); return; }
+        var (reglas, deAprendiz) = Aprendiz071();
+
+        var (conv, mandados) = Conversacion071(new Voz.Realtime.ProtocoloGptLive());
+        using (conv)
+        {
+            conv.CambiarModoAsync(reglas, deAprendiz).GetAwaiter().GetResult();
+            Saca071(mandados);
+            conexion.Invoke(conv, new object[] { "" });   // el corte: una conexión nueva, sin confirmar
+            var tarea = (Task)reaplicar.Invoke(conv, null)!;
+            bool termino = tarea.Wait(TimeSpan.FromMilliseconds(300));   // con margen: un await que solo cede también saldría
+            var antes = Saca071(mandados);
+            Debe(antes.Count == 0 && !termino, $"antes de que el servidor confirme la sesión nueva no se manda el modo (mandó: {Tipos071(antes)})");
+            procesar.Invoke(conv, new object[] { SesionStarted071, CancellationToken.None });
+            Debe(tarea.Wait(TimeSpan.FromSeconds(5)), "y en cuanto la confirma, vuelve al modo");
+            var despues = Saca071(mandados);
+            string anadido = Json071(despues.FirstOrDefault(m => TipoDelMensaje(m) == "session.instructions.append") ?? "", "content");
+            string update = despues.FirstOrDefault(m => TipoDelMensaje(m) == "session.update") ?? "";
+            Debe(anadido == AlCambiarDeModo071 + reglas.ReplaceLineEndings("\n"),
+                $"tras el corte, la voz vuelve a recibir las reglas del aprendiz, enteras (salió: {Tipos071(despues)})");
+            Debe(update.Contains("\"map_pointing_at\"", StringComparison.Ordinal) && !update.Contains("\"map_take\"", StringComparison.Ordinal),
+                "y el delegado vuelve al catálogo del aprendiz: mira, y no tiene manos");
+        }
+
+        var (conv2, mandados2) = Conversacion071(new Voz.Realtime.ProtocoloGptLive());
+        using (conv2)
+        {
+            conexion.Invoke(conv2, new object[] { "" });
+            var tarea = (Task)reaplicar.Invoke(conv2, null)!;
+            procesar.Invoke(conv2, new object[] { SesionStarted071, CancellationToken.None });
+            tarea.Wait(TimeSpan.FromSeconds(5));
+            var sinModo = Saca071(mandados2);
+            Debe(sinModo.Count == 0, $"sin un modo especial, reconectar no manda ningún cambio de modo (mandó: {Tipos071(sinModo)})");
+        }
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        int i = v.IndexOf("private async Task ReconectarAsync()", StringComparison.Ordinal);
+        int j = i < 0 ? -1 : v.IndexOf("private void EmpiezaUnaConexion", i, StringComparison.Ordinal);
+        string cuerpo = i < 0 || j < 0 ? "" : v[i..j];
+        Debe(cuerpo.Contains("ReaplicarElModoAsync()", StringComparison.Ordinal), "[cableado] ReconectarAsync vuelve al modo en que estaba");
+        Debe(cuerpo.Length > 0 && !cuerpo.Contains("olvidé lo último", StringComparison.Ordinal),
+            "[texto] y ya no dice que olvidó lo último: la sesión nueva abre con la memoria y el hilo");
+    }
+
+    /// <remarks>
+    /// HABÍA DOS PREGUNTAS DE PELIGRO A TYPESAFE Y NINGUNA COINCIDÍA (D6): la de la mano del plan no nombraba guardar,
+    /// grabar, firmar ni finalizar, y un objetivo de map_hacer podía pulsar «Grabar» en SAP sin parar; la del decisor sí
+    /// decía «guardar». Una sola frase para las dos, y se juzga en los dos cuerpos que salen de verdad.
+    /// </remarks>
+    private static void UnaSolaPreguntaDePeligro()
+    {
+        string? pregunta = typeof(U.Ciclo.Jev).GetField("PreguntaDePeligro", BindingFlags.Public | BindingFlags.Static)?.GetRawConstantValue() as string;
+        if (pregunta == null) { Pendiente("U.Ciclo.Jev.PreguntaDePeligro", "680", "071"); return; }
+        var ofrecidas = new List<U.Ciclo.Accionable> { new U.Ciclo.Accionable(1, "Grabar", "Button", new U.Ciclo.Caja(10, 10, 80, 24)) };
+        string deLaMano = Json071(U.Ciclo.Jev.Cuerpo("SAP · triage", "grabar el triage", ofrecidas, "jev-latest"),
+            "questions", "peligro", "instructions");
+        string delDecisor = Json071(U.WindowsClient.Decision.PeticionASystemOne.CuerpoDeEleccion(
+            "jev-latest", "Pantalla actual: SAP · triage", "puerta", "¿Qué puerta hay que accionar?", new[] { "Grabar" }),
+            "questions", "peligro", "instructions");
+        Debe(deLaMano.Length > 0 && deLaMano == pregunta && delDecisor == pregunta,
+            $"las dos preguntas de peligro a TypeSafe —la de la mano del plan y la del decisor— son la misma («{deLaMano}» / «{delDecisor}»)");
+        foreach (string accion in new[] { "guardar", "grabar", "firmar", "finalizar", "enviar", "borrar", "pagar", "cerrar sin guardar" })
+            Debe(pregunta.Contains(accion, StringComparison.Ordinal), $"y nombra «{accion}»");
+    }
+
+    /// <remarks>
+    /// EL SALUDO SE PINTABA «Tú: [instrucción del sistema, no la leas en voz alta]…» (D7) y se guardaba en el hilo como
+    /// dicho por la persona: volvía en cada sesión siguiente, en las instrucciones y en el historial. La cuenta de un
+    /// tramo, igual. Una nota del sistema tiene su propia puerta, y lo escrito por la persona sigue en la suya (208).
+    /// </remarks>
+    private static void UnaNotaDelSistemaNoEsDeLaPersona()
+    {
+        var avisar = typeof(ConversacionEnVivo).GetMethod("AvisarAlModeloAsync", BindingFlags.Public | BindingFlags.Instance);
+        if (avisar == null) { Pendiente("ConversacionEnVivo.AvisarAlModeloAsync", "681", "071"); return; }
+        const string nota = "[instrucción del sistema, no la leas en voz alta] Es la PRIMERA vez que te abren en este equipo.";
+
+        foreach (var (nombre, protocolo, tipoDelTexto) in new (string, Voz.Realtime.IProtocolo, string)[]
+                 {
+                     ("GPT-Live", new Voz.Realtime.ProtocoloGptLive(), "response.item.create"),
+                     ("GPT Realtime", new Voz.Realtime.ProtocoloOpenAI(), "conversation.item.create"),
+                 })
+        {
+            var (conv, mandados) = Conversacion071(protocolo);
+            using (conv)
+            {
+                var hilo = new ConversacionPersonal("contrato-681", Path.Combine(_raiz, $"681-hilo-{tipoDelTexto}.json"));
+                conv.Conversacion = hilo;
+                var dichas = new List<string>();
+                conv.Dice += s => { lock (dichas) dichas.Add(s); };
+
+                ((Task)avisar.Invoke(conv, new object[] { nota })!).GetAwaiter().GetResult();
+                var l = Saca071(mandados);
+                Debe(l.Count == 2 && TipoDelMensaje(l[0]) == tipoDelTexto && TipoDelMensaje(l[1]) == "response.create",
+                    $"con {nombre}, la nota sale con su texto y DESPUÉS response.create (salió: {Tipos071(l)})");
+                Debe(hilo.Contexto().Length == 0, $"con {nombre}, y NO entra en el hilo durable como dicha por la persona");
+                lock (dichas)
+                    Debe(!dichas.Any(d => d.StartsWith("Tú:", StringComparison.Ordinal)), $"con {nombre}, ni se pinta «Tú: …» en la carita");
+            }
+        }
+
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(cara.Contains("AvisarAlModeloAsync(Onboarding.Presentacion.Saludo(", StringComparison.Ordinal),
+            "[cableado] el saludo de primera vez va como nota del sistema");
+        Debe(cara.Contains("AvisarAlModeloAsync(\"[el tramo terminó] \"", StringComparison.Ordinal),
+            "[cableado] y la cuenta de un tramo también");
+        Debe(!cara.Contains("EnviarTextoAsync(Onboarding.Presentacion.Saludo(", StringComparison.Ordinal)
+             && !cara.Contains("EnviarTextoAsync(\"[el tramo terminó]", StringComparison.Ordinal),
+            "[cableado] y ninguno de los dos va ya por lo que escribe la persona");
+    }
+
+    /// <remarks>
+    /// ENSEÑAR Y COMPROBAR ABREN LA VOZ Y CAMBIAN DE MODO EN EL MISMO INSTANTE (D8): «Viva» se pone al mandar
+    /// session.start, no al confirmarlo, y con GPT-Live no está medido que un session.update antes de session.started se
+    /// acepte. Cambiar de modo espera la confirmación, con el mismo techo de 15 s que la frase pendiente.
+    /// </remarks>
+    private static void CambiarDeModoEsperaLaConfirmacion()
+    {
+        var conexion = typeof(ConversacionEnVivo).GetMethod("EmpiezaUnaConexion", Privado071);
+        var procesar = typeof(ConversacionEnVivo).GetMethod("Procesar", Privado071);
+        var esperar = typeof(ConversacionEnVivo).GetMethod("EsperarLaConfirmacionAsync", Privado071);
+        if (conexion == null || procesar == null || esperar == null)
+        { Pendiente("ConversacionEnVivo.EsperarLaConfirmacionAsync (cambiar de modo espera la confirmación)", "682", "071"); return; }
+
+        var (conv, mandados) = Conversacion071(new Voz.Realtime.ProtocoloGptLive());
+        using (conv)
+        {
+            conexion.Invoke(conv, new object[] { "" });
+            var cambio = conv.CambiarModoAsync("REGLAS DEL APRENDIZ", Array.Empty<Voz.Realtime.Utensilio>());
+            bool termino = cambio.Wait(TimeSpan.FromMilliseconds(300));   // con margen: un await que solo cede también saldría
+            var antes = Saca071(mandados);
+            Debe(!termino && antes.Count == 0,
+                $"con GPT-Live, cambiar de modo antes de que el servidor confirme la sesión no manda nada todavía (mandó: {Tipos071(antes)})");
+            procesar.Invoke(conv, new object[] { SesionStarted071, CancellationToken.None });
+            Debe(cambio.Wait(TimeSpan.FromSeconds(5)), "y en cuanto la confirma, cambia");
+            var despues = Saca071(mandados);
+            Debe(despues.Count == 2 && TipoDelMensaje(despues[0]) == "session.update" && TipoDelMensaje(despues[1]) == "session.instructions.append",
+                $"entero: el update de la delegación y el append a la voz (salió: {Tipos071(despues)})");
+        }
+
+        var (conv2, _) = Conversacion071(new ProtocoloDeMentira(pideRespuesta: true, marcaLosTurnos: true));
+        using (conv2)
+        {
+            conexion.Invoke(conv2, new object[] { "" });
+            var cambio = conv2.CambiarModoAsync("REGLAS", Array.Empty<Voz.Realtime.Utensilio>());
+            Debe(cambio.IsCompleted, "y un protocolo que no confirma la apertura no hace esperar a nadie");
+        }
+    }
+
+    /// <remarks>
+    /// MIENTRAS SE ENSEÑA, LO QUE SE OYE ES NARRACIÓN PARA LA GRABACIÓN (D9): «esto es el número de factura» armaba el
+    /// aviso de lección perdida, que le pide map_esto_es a un aprendiz que no la tiene, y «tengo un paciente…» se guardaba
+    /// como memoria personal. Fuera de un modo, los dos tienen que seguir despiertos: si no, esta promesa no juzga nada.
+    /// </remarks>
+    private static void EnUnModoNoHayVigilantes()
+    {
+        var vigilar = typeof(ConversacionEnVivo).GetMethod("VigilarLaLeccion", Privado071);
+        var guardar = typeof(ConversacionEnVivo).GetMethod("GuardarPeticionPersonalSiLaPidio", Privado071);
+        var pendiente = typeof(ConversacionEnVivo).GetField("_leccionPendiente", Privado071);
+        var olvidar = typeof(ConversacionEnVivo).GetMethod("LaLeccionSeGuardo", Privado071);
+        var modo = typeof(ConversacionEnVivo).GetField("_modo", Privado071);
+        if (vigilar == null || guardar == null || pendiente == null || modo == null)
+        { Pendiente("ConversacionEnVivo._modo (los vigilantes saben en qué modo está la voz)", "683", "071"); return; }
+
+        foreach (bool enModo in new[] { false, true })
+        {
+            var (conv, _) = Conversacion071(new Voz.Realtime.ProtocoloGptLive());
+            using (conv)
+            {
+                string archivo = Path.Combine(_raiz, $"683-memoria-{(enModo ? "en-modo" : "normal")}.json");
+                conv.Memoria = new MemoriaPersonal("contrato-683", archivo);
+                if (enModo) conv.CambiarModoAsync("REGLAS DEL APRENDIZ", Array.Empty<Voz.Realtime.Utensilio>()).GetAwaiter().GetResult();
+                Debe((modo.GetValue(conv) != null) == enModo, $"la conversación sabe si está en un modo especial ({enModo})");
+
+                vigilar.Invoke(conv, new object[] { "esto es el número de factura" });
+                string vigilada = pendiente.GetValue(conv) as string ?? "";
+                olvidar?.Invoke(conv, null);   // el reloj del aviso no sobrevive a la promesa
+                guardar.Invoke(conv, new object[] { "recuerda que soy desarrollador de 24 años" });
+                string memoria = new MemoriaPersonal("contrato-683", archivo).ContextoAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+                if (enModo)
+                {
+                    Debe(vigilada.Length == 0, "en un modo especial lo narrado no arma el aviso de lección perdida");
+                    Debe(!memoria.Contains("desarrollador", StringComparison.OrdinalIgnoreCase), "ni se guarda como memoria personal");
+                }
+                else
+                {
+                    Debe(vigilada.Length > 0, "fuera de un modo, el vigilante de lecciones sigue despierto");
+                    Debe(memoria.Contains("desarrollador", StringComparison.OrdinalIgnoreCase), "y la memoria automática también");
+                }
+            }
+        }
+    }
+
+    /// <remarks>
+    /// TRES TEXTOS QUE LA VOZ RECIBÍA Y DECÍAN OTRA COSA (D10): la voz prestada citaba «Di exactamente esto: …» y le
+    /// llega «Di exactamente esto, sin añadir nada ni comentarlo: …»; self_update le contestaba «Voy a buscar…», justo el
+    /// futuro que tiene prohibido; self_close, «Cerrándome. Hasta luego.», una segunda despedida.
+    /// </remarks>
+    private static void LosTextosDeLaVozDicenLoQuePasa()
+    {
+        string? prefijo = typeof(ConversacionEnVivo).GetField("PrefijoDelDictado", Estatico071)?.GetRawConstantValue() as string;
+        var tp = Cap004("U.WindowsClient.Piloto.VozPrestada");
+        string prestada = tp?.GetField("Instrucciones")?.GetValue(null) as string ?? "";
+        if (prefijo == null || prestada.Length == 0) { Pendiente("ConversacionEnVivo.PrefijoDelDictado", "684", "071"); return; }
+        Debe(prefijo == "Di exactamente esto, sin añadir nada ni comentarlo: ", $"el dictado sigue diciendo lo de siempre («{prefijo}»)");
+        Debe(prestada.Contains("«" + prefijo + "…»", StringComparison.Ordinal),
+            "la voz prestada cita el dictado tal cual le llega, no «Di exactamente esto: …»");
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        Debe(v.Contains("_protocolo.PedirRespuesta(PrefijoDelDictado + texto.Trim())", StringComparison.Ordinal),
+            "[cableado] y DiEstoAsync dicta con ese mismo prefijo");
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(!cara.Contains("return \"Voy a buscar la actualización", StringComparison.Ordinal),
+            "[texto] self_update ya no le contesta a la voz en futuro: «Voy a buscar…» es lo que tiene prohibido decir");
+        Debe(!cara.Contains("return \"Cerrándome. Hasta luego.\"", StringComparison.Ordinal),
+            "[texto] y self_close no le da una segunda despedida");
+    }
+
+    /// <remarks>
+    /// EL SALUDO LE HABLABA A TODOS IGUAL, y prohibía cualquier otra pregunta en toda la conversación, contra la
+    /// constitución, que sí deja preguntar un dato que solo la persona sabe. Las tres variantes son las del diseño (§5).
+    /// </remarks>
+    private static void ElSaludoSabeConQuienHabla()
+    {
+        var saludo = Cap004("U.WindowsClient.Onboarding.Presentacion")?.GetMethod("Saludo", BindingFlags.Public | BindingFlags.Static);
+        object? cardio = Perfil071De("medico", "cardiologia", "Cardiología"), persona = Perfil071De("persona", "", ""), nadie = Perfil071De("", "", "");
+        if (saludo == null || saludo.GetParameters().Length != 2 || cardio == null || persona == null || nadie == null)
+        { Pendiente("Onboarding.Presentacion.Saludo(nombre, perfil)", "685", "071"); return; }
+        string S(string nombre, object perfil) => (string)saludo.Invoke(null, new object?[] { nombre, perfil })!;
+        string m = S("Ana", cardio), p = S("", persona), n = S("", nadie);
+
+        foreach (var (quien, t) in new[] { ("al médico", m), ("a la persona", p), ("sin elegir", n) })
+        {
+            Debe(t.StartsWith("[instrucción del sistema, no la leas en voz alta] Es la PRIMERA vez", StringComparison.Ordinal),
+                $"{quien}: va marcado como instrucción del sistema");
+            Debe(t.Contains("UNA pregunta", StringComparison.Ordinal) && t.Contains("scan_computer", StringComparison.Ordinal),
+                $"{quien}: ofrece mirar el computador con UNA pregunta");
+            Debe(t.Contains("lo que te pidan después, lo haces sin pedir permiso", StringComparison.Ordinal),
+                $"{quien}: y dice que esa pregunta es la excepción");
+            Debe(!t.Contains("ÚNICA PREGUNTA DE CORTESÍA", StringComparison.Ordinal),
+                $"{quien}: sin la regla que prohibía cualquier otra pregunta");
+        }
+        Debe(m.Contains("y la persona se llama Ana", StringComparison.Ordinal) && !p.Contains("se llama", StringComparison.Ordinal),
+            "con nombre lo dice, y sin nombre no inventa uno");
+        Debe(m.Contains("historias clínicas", StringComparison.Ordinal) && m.Contains("tiempo para sus pacientes", StringComparison.Ordinal),
+            "al médico le cuenta que le ayuda en sus programas para que le quede más tiempo para sus pacientes");
+        Debe(p.Contains("archivos, internet, correos, documentos", StringComparison.Ordinal)
+             && !p.Contains("paciente", StringComparison.OrdinalIgnoreCase) && !p.Contains("SAP", StringComparison.Ordinal),
+            "a la persona, que le ayuda en su día a día, sin pacientes ni SAP");
+        Debe(n.Contains("que trabajas sobre las aplicaciones que ya usa", StringComparison.Ordinal), "y sin elegir, lo de antes");
+    }
+
+    /// <remarks>Los prompts de cardio decían «Eres U» y la conversación previa «U: …». Ü se escribe con diéresis.</remarks>
+    private static void LosPromptsDeCardioDicenU()
+    {
+        foreach (var (tipo, campos) in new[]
+                 {
+                     ("U.WindowsClient.Cardio.LecturaCardio", new[] { "PromptAnalizar", "PromptResumir", "PromptPreguntar" }),
+                     ("U.WindowsClient.Cardio.LecturaDeLaHistoria", new[] { "PromptTranscribir", "PromptMotivo" }),
+                 })
+        {
+            var t = Cap004(tipo);
+            if (t == null) { Debe(false, $"no encuentro «{tipo}»"); continue; }
+            foreach (string campo in campos)
+            {
+                string texto = t.GetField(campo, Estatico071)?.GetValue(null) as string ?? "";
+                Debe(texto.Length > 0, $"«{tipo}.{campo}» existe");
+                Debe(texto.Contains("Ü", StringComparison.Ordinal) && !System.Text.RegularExpressions.Regex.IsMatch(texto, @"\bU\b"),
+                    $"«{campo}» llama a Ü por su nombre, con diéresis");
+            }
+        }
+        if (FuenteDe("windows-client", "src", "Cardio", "LecturaCardio.cs") is not { } c) return;
+        Debe(!c.Contains(".Append(\"U: \")", StringComparison.Ordinal), "[texto] y en la conversación previa habla «Ü:», no «U:»");
     }
 
     private static void Debe(bool condicion, string promesa)

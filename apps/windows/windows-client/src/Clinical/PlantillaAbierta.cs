@@ -84,9 +84,11 @@ public static class PlantillaAbierta
             label = "Hallazgos y datos objetivos",
             order = 2,
             instruction =
+                // SIN «deja la sección vacía» (spec 071, promesa 662): qué se escribe cuando no se
+                // dijo nada lo decide Graph —exactamente «No mencionado en la consulta.»— y una
+                // instrucción de sección que pide otra cosa le obliga al modelo a desobedecer una.
                 "Signos vitales, medidas, resultados y hallazgos del examen que se hayan MENCIONADO, "
-                + "cada uno con su valor tal como se dijo. Si no se mencionó ninguno, deja la "
-                + "sección vacía en vez de rellenarla con frases de cortesía.",
+                + "cada uno con su valor tal como se dijo.",
         },
         new
         {
@@ -94,7 +96,7 @@ public static class PlantillaAbierta
             order = 3,
             instruction =
                 "Lo acordado: medicamentos con su dosis, estudios pedidos, recomendaciones y "
-                + "controles, tal como se dijeron. Si no se acordó nada, deja la sección vacía.",
+                + "controles, tal como se dijeron.",
         },
     };
 }

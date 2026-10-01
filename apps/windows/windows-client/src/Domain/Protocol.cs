@@ -2,8 +2,10 @@ using System.Text.Json.Serialization;
 
 namespace U.WindowsClient.Domain;
 
-// Tipos del contrato con el backend. Espejo EXACTO de backend/src/domain/actions.ts y session.ts.
-// El cliente solo conoce estos tipos del cerebro; nada más cruza la frontera.
+// Tipos del contrato con el cerebro (Graph, POST /api/v1/agent/turn). Su otro lado es
+// services/graph/src/application/use-cases/AgentTurnService.js; el backend viejo de Windows, del que
+// esto era espejo, se retira con la spec 071 (2026-10-01). El cliente solo conoce estos tipos del cerebro;
+// nada más cruza la frontera.
 
 /// <summary>Estado de pantalla que el cliente captura y envía cada turno.</summary>
 public sealed class ScreenState
@@ -26,9 +28,15 @@ public sealed class ScreenState
     [JsonPropertyName("surfacePathname")] public string? SurfacePathname { get; set; }
 }
 
-/// <summary>Petición a POST /api/agent/turn.</summary>
+/// <summary>Petición a POST /api/v1/agent/turn.</summary>
 public sealed class TurnRequest
 {
+    /// <summary>
+    /// Con quién habla Ü (spec 071): solo en el primer turno, porque Graph lo congela en la sesión.
+    /// Null si nadie lo eligió: el campo no viaja y el cerebro se porta como siempre. Lo pone
+    /// <see cref="Backend.BackendClient"/>, no quien arma la petición.
+    /// </summary>
+    [JsonPropertyName("profile")] public PerfilEnElCable? Profile { get; set; }
     /// <summary>Blob opaco del turno anterior. Null en el primer turno.</summary>
     [JsonPropertyName("session")] public string? Session { get; set; }
     /// <summary>Objetivo del usuario. Solo en el primer turno.</summary>
@@ -66,7 +74,21 @@ public sealed class AgentAction
     [JsonPropertyName("args")] public Dictionary<string, string>? Args { get; set; }
 }
 
-/// <summary>Respuesta de POST /api/agent/turn: BrainTurn + la sesión opaca actualizada.</summary>
+/// <summary>
+/// Con quién habla Ü, tal como viaja a Graph: <c>profile: { kind, specialty, specialtyName }</c> en
+/// <c>/api/v1/agent/turn</c>, <c>/teach/process-video</c> y <c>/teach/interpret-steps</c>. Nombres
+/// en inglés porque es el contrato HTTP, como <c>StepToRead</c>. Lo construye
+/// <see cref="Cuenta.PerfilDeUso.ParaElCable"/>.
+/// </summary>
+/// <param name="Kind">«medico» o «persona».</param>
+/// <param name="Specialty">El código, en el formato de <c>profiles.specialty_code</c> («cardiologia»). Vacío para una persona.</param>
+/// <param name="SpecialtyName">El nombre legible. Graph no lo mete en ningún prompt: saca el nombre de su catálogo.</param>
+public sealed record PerfilEnElCable(
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("specialty")] string Specialty,
+    [property: JsonPropertyName("specialtyName")] string SpecialtyName);
+
+/// <summary>Respuesta de POST /api/v1/agent/turn: BrainTurn + la sesión opaca actualizada.</summary>
 public sealed class TurnResponse
 {
     [JsonPropertyName("session")] public string Session { get; set; } = "";

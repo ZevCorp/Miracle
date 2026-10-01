@@ -71,6 +71,15 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private Updater.ReleaseMessage? _mensajeDeActualizacion;
     private AgentLoop _loop = null!;
     private BackendClient? _backend;
+    /// <summary>
+    /// Con quién habla Ü en esta sesión (spec 071): médico con su especialidad, uso personal, o sin
+    /// elegir —la Ü de antes—. Lo decide <see cref="EnsureOnboarded"/> antes de que nazcan el backend
+    /// y la voz, y lo cambia el menú (<see cref="OnCambiarPerfil"/>). Se reparte con
+    /// <see cref="AplicarElPerfil"/>.
+    /// </summary>
+    private Cuenta.PerfilDeUso _perfil = Cuenta.PerfilDeUso.SinElegir;
+    /// <summary>De dónde salió el perfil de la carita: si hay médico con su cuenta, ella manda.</summary>
+    private bool _perfilDeLaCuenta;
     private CancellationTokenSource? _cts;
     private VideoLibraryWindow? _videoWindow;
     private LogWindow? _logWindow;
@@ -487,7 +496,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 {
                     var vivo = _vivo;
                     if (vivo == null) { LogBus.Log("tramo", "sin sesión de voz: la cuenta queda para map_tramo_estado"); return; }
-                    _ = vivo.EnviarTextoAsync("[el tramo terminó] " + cuenta);
+                    // UNA NOTA DEL SISTEMA, NO DE LA PERSONA (spec 071, D7): por EnviarTextoAsync se guardaba en el hilo
+                    // como dicha por el usuario y la carita la pintaba «Tú: [el tramo terminó]…».
+                    _ = vivo.AvisarAlModeloAsync("[el tramo terminó] " + cuenta);
                 };
                 if (cfgDecisor.Quien != "luna") _interruptorDelDecisor.Encender(Credenciales.ClavesDelBackend.DeLaApp);
                 PintarBotonJev();
@@ -507,6 +518,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // ubicación, la verificación de llegadas y los vetos — y duplicar una protección es la
             // forma más segura de que una de las dos copias se quede atrás.
             _vivo = new ConversacionEnVivo(mcp.Map);
+            // CON QUIÉN HABLA (spec 071): el bloque «QUIÉN TE HABLA» del delegado y la frase de la voz de GPT-Live.
+            _vivo.Perfil = _perfil;
             // «Cállate», «ocúltate», «ciérrate»: van al chrome de la ventana, no al mapa de
             // pantallas — por eso se resuelven aquí y no dentro de SurfaceMapTools.
             _vivo.Autocontrol = AtenderAutocontrol;
@@ -1320,6 +1333,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // El backend es Graph: la credencial (X-API-Key) sale del MISMO GraphConfig que usa la
         // ventana de workflows — una sola fuente de key para toda la app.
         _backend = new BackendClient(_config, _graphConfig);
+        AplicarElPerfil(_perfil);   // el perfil viaja en el primer turno y en la enseñanza (spec 071)
         if (_vivo != null)
         {
             var memoriaPersonal = new MemoriaPersonal(_config.UserId);
@@ -1495,11 +1509,17 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     }
 
     /// <summary>
-    /// Asegura la identidad del usuario: genera el InstallId (una vez) y, si aún no hay correo, muestra
-    /// el popup de bienvenida para capturar nombre+correo. El correo es la clave canónica en el backend.
-    /// Si el usuario cierra el popup sin completarlo, se seguirá sin telemetría y se re-preguntará en el
-    /// próximo arranque — nunca bloquea el uso del asistente.
+    /// Asegura la identidad del usuario y con quién habla Ü: genera el InstallId (una vez) y enseña la
+    /// bienvenida que toque (<see cref="Cuenta.Identidad.QueBienvenida"/>): la entera en un equipo
+    /// nuevo —cómo vas a usar Ü, nombre y correo— o solo la pregunta del perfil en un equipo que ya
+    /// tenía correo. Si el usuario la cierra sin completarla, se sigue como antes y se re-pregunta en
+    /// el próximo arranque — nunca bloquea el uso del asistente.
     /// </summary>
+    /// <remarks>
+    /// Corre ANTES de crear el backend y la voz (OnLoaded), así que <see cref="_perfil"/> ya se sabe
+    /// cuando nacen. Quien entró con su cuenta Miracle es médico y no se le pregunta nunca: la cuenta
+    /// manda, como en la promesa 98.
+    /// </remarks>
     private void EnsureOnboarded()
     {
         try
@@ -1514,7 +1534,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // «Te damos la bienvenida» es no haber mirado (promesa 98, 2026-09-01).
             //
             // La sesión se restaura de disco aquí mismo, sin red: es leer un archivo cifrado. La
-            // carita no se queda esperando a nadie.
+            // carita no se queda esperando a nadie. La especialidad del médico viaja en ese archivo
+            // (promesa 654), así que también se sabe sin red.
             var sesion = new Cuenta.SesionMiracle(Cuenta.Nube.SupabaseUrl, Cuenta.Nube.ClavePublicable);
             bool hayMedico = sesion.Restaurar();
 
@@ -1532,26 +1553,124 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     _config.Save();
                     LogBus.Log("onboarding", $"identidad tomada de la sesión del médico · {sesion.MedicoId}");
                 }
+
+                // Quien entró con su cuenta Miracle es médico: no se le pregunta nunca en este
+                // equipo, tampoco cuando cierre sesión. Su especialidad se copia si aquí no había
+                // ninguna, para que siga sabiéndose sin la sesión abierta.
+                if (Cuenta.PerfilDeUso.Normalizar(_config.Perfil).Length == 0)
+                {
+                    _config.Perfil = Cuenta.PerfilDeUso.Medico;
+                    if (string.IsNullOrWhiteSpace(_config.Especialidad) && sesion.MedicoEspecialidad.Length > 0)
+                    {
+                        _config.Especialidad = sesion.MedicoEspecialidad;
+                        _config.EspecialidadNombre = sesion.MedicoEspecialidadNombre;
+                    }
+                    _config.Save();
+                }
             }
 
-            if (!Cuenta.Identidad.HayQuePreguntar(hayMedico, _config.Email))
+            switch (Cuenta.Identidad.QueBienvenida(hayMedico, _config.Email, _config.Perfil))
             {
-                LogBus.Log("onboarding", hayMedico
-                    ? "no pregunto quién eres: ya hay un médico con sesión iniciada"
-                    : "no pregunto quién eres: ya había correo en este equipo");
-                return;
+                case Cuenta.Bienvenida.Completa:
+                {
+                    var win = new OnboardingWindow { Owner = this };
+                    if (win.ShowDialog() == true && !string.IsNullOrWhiteSpace(win.EnteredEmail))
+                    {
+                        _config.DisplayName = win.EnteredName;
+                        _config.Email = win.EnteredEmail;
+                        _config.UserId = win.EnteredEmail; // el scoping de workflows y la telemetría hablan del mismo usuario
+                        GuardarElPerfilElegido(win);
+                        _config.Save();
+                    }
+                    break;
+                }
+                case Cuenta.Bienvenida.SoloPerfil:
+                {
+                    var win = new OnboardingWindow(ModoDeBienvenida.SoloPerfil, _config.DisplayName) { Owner = this };
+                    if (win.ShowDialog() == true && win.PerfilElegido.Length > 0)
+                    {
+                        GuardarElPerfilElegido(win);
+                        _config.Save();
+                    }
+                    break;
+                }
+                default:
+                    LogBus.Log("onboarding", hayMedico
+                        ? "no pregunto quién eres: ya hay un médico con sesión iniciada"
+                        : "no pregunto quién eres: ya había correo y perfil en este equipo");
+                    break;
             }
 
-            var win = new OnboardingWindow { Owner = this };
-            if (win.ShowDialog() == true && !string.IsNullOrWhiteSpace(win.EnteredEmail))
-            {
-                _config.DisplayName = win.EnteredName;
-                _config.Email = win.EnteredEmail;
-                _config.UserId = win.EnteredEmail; // el scoping de workflows y la telemetría hablan del mismo usuario
-                _config.Save();
-            }
+            _perfilDeLaCuenta = hayMedico;
+            _perfil = Cuenta.PerfilDeUso.Resolver(hayMedico,
+                sesion.MedicoEspecialidad, sesion.MedicoEspecialidadNombre,
+                _config.Perfil, _config.Especialidad, _config.EspecialidadNombre,
+                hayMedico && sesion.MedicoNombre.Length > 0 ? sesion.MedicoNombre : _config.DisplayName);
+            LogBus.Log("onboarding", $"perfil: {_perfil.Describir()}");
         }
         catch (Exception ex) { LogBus.Log("onboarding", ex.Message); }
+        PintarElPerfilEnElMenu();
+    }
+
+    /// <summary>Lo que se eligió en la bienvenida, a config.json (sin guardar todavía).</summary>
+    private void GuardarElPerfilElegido(OnboardingWindow win)
+    {
+        if (win.PerfilElegido.Length == 0) return;
+        _config.Perfil = win.PerfilElegido;
+        // Una persona no tiene especialidad: se borra la que hubiera para que no reaparezca si un día
+        // vuelve a elegir salud y la de antes ya no es la suya.
+        _config.Especialidad = win.PerfilElegido == Cuenta.PerfilDeUso.Medico ? win.EspecialidadCodigo : "";
+        _config.EspecialidadNombre = win.PerfilElegido == Cuenta.PerfilDeUso.Medico ? win.EspecialidadNombre : "";
+    }
+
+    /// <summary>
+    /// Reparte el perfil a quien lo usa: el cable de Graph (turno y enseñanza) y el menú. Un solo
+    /// sitio para que un cambio desde el menú no deje a nadie con el perfil viejo.
+    /// </summary>
+    /// <remarks>
+    /// La voz en vivo lo recibe aquí, pero GPT-Live no deja reemplazar la persona a mitad de una sesión:
+    /// con la voz abierta, el cambio vale desde la próxima apertura o la próxima vuelta de un modo.
+    /// </remarks>
+    private void AplicarElPerfil(Cuenta.PerfilDeUso perfil)
+    {
+        _perfil = perfil;
+        if (_backend != null) _backend.Perfil = perfil.ParaElCable();
+        if (_vivo != null) _vivo.Perfil = perfil;
+        PintarElPerfilEnElMenu();
+    }
+
+    /// <summary>La fila del menú dice el perfil de ahora; con la cuenta Miracle dentro no se cambia aquí.</summary>
+    private void PintarElPerfilEnElMenu()
+    {
+        try
+        {
+            PerfilBtn.Content = _perfilDeLaCuenta
+                ? $"{_perfil.ParaElMenu()} · de tu cuenta Miracle"
+                : $"{_perfil.ParaElMenu()} · cambiar";
+            PerfilBtn.IsEnabled = !_perfilDeLaCuenta;
+        }
+        catch (Exception ex) { LogBus.Log("onboarding", $"no se pudo pintar el perfil en el menú: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// Cambiar el perfil desde el menú: la misma bienvenida, solo con las tarjetas y la especialidad,
+    /// con lo de ahora ya marcado. «Lo puedes cambiar cuando quieras desde el menú de Ü» es esto.
+    /// </summary>
+    private void OnCambiarPerfil(object sender, RoutedEventArgs e)
+    {
+        if (_perfilDeLaCuenta) return;
+        try
+        {
+            var win = new OnboardingWindow(ModoDeBienvenida.SoloPerfil, _config.DisplayName,
+                _config.Perfil, _config.EspecialidadNombre) { Owner = this };
+            if (win.ShowDialog() != true || win.PerfilElegido.Length == 0) return;
+            GuardarElPerfilElegido(win);
+            _config.Save();
+            AplicarElPerfil(Cuenta.PerfilDeUso.Resolver(false, "", "",
+                _config.Perfil, _config.Especialidad, _config.EspecialidadNombre, _config.DisplayName));
+            LogBus.Log("onboarding", $"perfil cambiado desde el menú: {_perfil.Describir()}");
+        }
+        catch (Exception ex) { LogBus.Log("onboarding", $"no se pudo cambiar el perfil: {ex.Message}"); }
     }
 
     /// <summary>Arranca la telemetría de "Windows Live" con la identidad actual (no-op sin correo).</summary>
@@ -2887,11 +3006,14 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 var cierre = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
                 cierre.Tick += (_, __) => { cierre.Stop(); Application.Current.Shutdown(); };
                 cierre.Start();
-                return "Cerrándome. Hasta luego.";
+                // LO QUE PASA, NO UNA DESPEDIDA (spec 071, D10): las instrucciones ya piden despedirse ANTES de
+                // llamarla, y «Cerrándome. Hasta luego.» la hacía despedirse dos veces.
+                return "Me cierro en dos segundos. Si todavía no te despediste, hazlo ahora en una frase corta; si ya lo hiciste, no digas nada más.";
 
             case "self_update":
                 _ = AplicarActualizacionConNarrativaAsync();
-                return "Voy a buscar la actualización. Verás el halo morado y te contaré qué trae antes de reiniciarme.";
+                // EN PASADO Y CIERTO (spec 071, D10): «Voy a buscar…» le daba a la voz justo el futuro que tiene prohibido.
+                return "Empecé a buscar la actualización: el halo morado dice que está en marcha, y antes de reiniciarme cuento qué trae.";
 
             // No es autocontrol —no se acciona a sí misma— pero se despacha por aquí porque mira
             // ESTE equipo, y eso lo sabe la ventana y no el mapa de pantallas de otras apps.
@@ -2970,7 +3092,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 }
 
                 LogBus.Log("presentacion", $"voz lista en {crono.ElapsedMilliseconds} ms · mandando el saludo");
-                await _vivo.EnviarTextoAsync(Onboarding.Presentacion.Saludo(_config.DisplayName));
+                // NOTA DEL SISTEMA (spec 071, D7) y según con quién habla: por EnviarTextoAsync quedaba en el hilo
+                // como dicha por la persona, y volvía en cada sesión siguiente.
+                await _vivo.AvisarAlModeloAsync(Onboarding.Presentacion.Saludo(_config.DisplayName, _perfil));
                 LogBus.Log("presentacion", "saludo entregado. Lo que Ü diga a partir de aquí sale en «voz-viva»; "
                     + "si acepta el escaneo, se verá «ejecutando «scan_computer»» y luego el resultado.");
             }
@@ -2985,13 +3109,12 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private Decision.InterruptorDelDecisor? _interruptorDelDecisor;
 
     /// <summary>
-    /// Instrucciones y catálogo, otra vez a la sesión: lo mismo que hace Learn/Work al cambiar de modo. Sin
-    /// sesión de voz no hay nada que re-mandar; la próxima apertura ya lee el catálogo nuevo.
+    /// Instrucciones y catálogo, otra vez a la sesión, con la memoria y el hilo (spec 071, D2). Sin sesión de
+    /// voz no hay nada que re-mandar; la próxima apertura ya lee el catálogo nuevo. Y en un modo especial
+    /// tampoco: encender Jev a mitad de una enseñanza le devolvía las manos al aprendiz; la vuelta lo leerá.
     /// </summary>
     private Task ReenviarCatalogoALaVozAsync() =>
-        _vivo != null
-            ? _vivo.CambiarModoAsync(Voice.ConversacionEnVivo.InstruccionesNormales, Voice.ConversacionEnVivo.Herramientas())
-            : Task.CompletedTask;
+        _vivo != null ? _vivo.ReenviarElCatalogoAsync() : Task.CompletedTask;
 
     /// <summary>
     /// EL BOTÓN «JEV»: enciende y apaga el decisor sin reiniciar. Encender pide Jev; sin clave se queda apagado
@@ -3662,8 +3785,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         {
             try
             {
-                await _vivo.CambiarModoAsync(Voice.ConversacionEnVivo.InstruccionesNormales,
-                    Voice.ConversacionEnVivo.Herramientas());
+                // CON LA MEMORIA Y EL HILO (spec 071, D2): volver con las instrucciones a secas los perdía, y con
+                // GPT-Live dejaba a la voz con las reglas del aprendiz el resto de la sesión.
+                await _vivo.VolverAlModoNormalAsync();
             }
             catch (Exception ex) { LogBus.Log("teach", $"no pude devolver la voz a asistente: {ex.Message}"); }
         }
@@ -5858,7 +5982,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private async Task DevolverLaVozAsync(string etiqueta)
     {
         if (_vivo is not { Viva: true }) return;
-        try { await _vivo.CambiarModoAsync(Voice.ConversacionEnVivo.InstruccionesNormales, Voice.ConversacionEnVivo.Herramientas()); }
+        try { await _vivo.VolverAlModoNormalAsync(); }   // con la memoria y el hilo (spec 071, D2)
         catch (Exception ex) { LogBus.Log(etiqueta, $"no pude devolver la voz: {ex.Message}"); }
     }
 

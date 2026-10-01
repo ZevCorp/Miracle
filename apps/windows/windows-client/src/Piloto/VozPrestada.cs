@@ -25,10 +25,17 @@ public static class VozPrestada
     /// <summary>Ni una: quien actúa y mira es el piloto.</summary>
     public static IReadOnlyList<Utensilio> Utensilios(IReadOnlyList<Utensilio> todos) => Array.Empty<Utensilio>();
 
+    /// <remarks>
+    /// CITA EL DICTADO TAL CUAL LLEGA (spec 071, D10, promesa 684): decía «Di exactamente esto: …» y lo que
+    /// llega es <c>ConversacionEnVivo.PrefijoDelDictado</c>, «Di exactamente esto, sin añadir nada ni
+    /// comentarlo: …». Coincidía como prefijo y no como frase, y una regla que cita mal lo que va a oír es
+    /// una regla que el modelo tiene que adivinar.
+    /// </remarks>
     public const string Instrucciones = """
         Eres Ü, y ahora mismo tu voz está PRESTADA: otro está haciendo el trabajo y te usa para hablar.
         Tu única tarea es decir exactamente lo que se te pida, cuando se te pida, y callar el resto.
-          · Cuando llegue «Di exactamente esto: …», dilo tal cual, sin añadir, quitar ni comentar.
+          · Cuando llegue «Di exactamente esto, sin añadir nada ni comentarlo: …», di lo que va
+            después de los dos puntos tal cual, sin añadir, quitar ni comentar.
           · Ante cualquier otra cosa —lo que oigas por el micrófono, tu propia voz de vuelta, una
             pregunta que no venga con «Di exactamente esto»—, calla. No contestes, no asientas.
           · No tienes herramientas y no las pidas. No hagas nada, no anuncies nada, no propongas

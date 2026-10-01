@@ -38,6 +38,22 @@ public static class Jev
     /// </summary>
     public const double UmbralPorDefecto = 0.45;
 
+    /// <summary>
+    /// LO QUE ES PELIGROSO PULSAR SIN QUE LA PERSONA LO HAYA PEDIDO, en una sola frase para las dos preguntas a
+    /// TypeSafe: la de esta mano (<see cref="Cuerpo(Contexto, string)"/>) y la del decisor de la voz
+    /// (<c>U.WindowsClient.Decision.PeticionASystemOne</c>). Spec 071 de Windows, D6, promesa 680.
+    /// </summary>
+    /// <remarks>
+    /// ERAN DOS FRASES Y NINGUNA COINCIDÍA: esta no nombraba guardar, grabar, firmar ni finalizar, y un objetivo de
+    /// map_hacer podía pulsar «Grabar» en SAP sin parar; la del decisor sí decía «guardar». Hay siete listas de lo
+    /// peligroso en el repo (patrón nº5); estas dos son las que le preguntan a Jev, y ahora son una.
+    /// </remarks>
+    public const string QueEsPeligroso =
+        "guardar o grabar, firmar, finalizar, enviar, eliminar o borrar, pagar, confirmar, cerrar sin guardar";
+
+    /// <summary>La pregunta de peligro, la misma para la mano del plan y para el decisor.</summary>
+    public const string PreguntaDePeligro = "¿Accionar lo elegido sería irreversible o peligroso: " + QueEsPeligroso + "?";
+
     /// <summary>El cuerpo de la pregunta (promesa 435). La clave NO va aquí: va en la cabecera.</summary>
     public static string Cuerpo(string pantalla, string objetivo, IReadOnlyList<Accionable> ofrecidas, string modelo) =>
         Cuerpo(new Contexto(pantalla, objetivo, ofrecidas, Array.Empty<string>(), Array.Empty<string>()), modelo);
@@ -105,8 +121,7 @@ public static class Jev
 
             w.WriteStartObject("peligro");
             w.WriteString("type", "noul");
-            w.WriteString("instructions",
-                "¿Pulsar el accionable elegido sería irreversible o peligroso: enviar, eliminar, pagar, confirmar, cerrar sin guardar?");
+            w.WriteString("instructions", PreguntaDePeligro);
             w.WriteStartObject("criteria");
             w.WriteString("true", "Deja un efecto que no se puede deshacer o que afecta a otros");
             w.WriteString("false", "Navegar, abrir, seleccionar o mirar: se puede volver atrás");
