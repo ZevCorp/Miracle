@@ -199,15 +199,15 @@
              estoy oyendo» es la carita misma. El color lo pone PintarHalo: azul por el collar,
              gris por el micrófono del PC. -->
         <StackPanel x:Name="CollapsedGroup" Orientation="Horizontal" Visibility="Collapsed"
-                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="28"
+                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="17"
                     Background="Transparent"
-                    MouseEnter="OnCollapsedHoverIn" MouseLeave="OnCollapsedHoverOut">
+                    MouseEnter="OnCollapsedHoverIn">
             <!-- EL HALO DE LA VOZ, alrededor de la carita entera. Hasta el 2026-09-02 vivia
                  dentro de la pastilla del microfono, que media 26x26; al morir la pastilla, la
                  senal de «te estoy oyendo» pasa a ser la carita misma. El tamano y el color los
                  pone ReglaDelHalo. -->
             <Grid>
-                <Ellipse x:Name="VoiceHalo" Width="72" Height="72" Opacity="0"
+                <Ellipse x:Name="VoiceHalo" Width="66" Height="66" Opacity="0"
                          IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5">
                     <Ellipse.Fill>
                         <SolidColorBrush x:Name="VoiceHaloColor" Color="#A8A8AE"/>
@@ -216,39 +216,21 @@
                         <ScaleTransform x:Name="VoiceHaloEscala" ScaleX="1" ScaleY="1"/>
                     </Ellipse.RenderTransform>
                 </Ellipse>
-                <ui:FaceControl x:Name="CollapsedFace" Width="72" Height="72" Cursor="Hand">
+                <!-- LA MISMA CARITA QUE LA DEL MENÚ (2026-09-30, lo pidió el dueño comparándolas: la
+                     del muelle «se ve más proporcionada»). Era de 72 px con un halo negro de 24 px al
+                     55 %, y la del menú es de 66 sin halo: el mismo dibujo, pero fuera parecía otra
+                     cosa, más grande y más pesada. Ahora mide lo mismo, y la sombra es Sombra1 del
+                     estudio, la de las tarjetas: la justa para despegarla de un fondo claro. -->
+                <ui:FaceControl x:Name="CollapsedFace" Width="66" Height="66" Cursor="Hand">
                     <ui:FaceControl.Effect>
-                        <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.55" Color="Black"/>
+                        <DropShadowEffect BlurRadius="14" ShadowDepth="3" Direction="270" Opacity="0.10" Color="Black"/>
                     </ui:FaceControl.Effect>
                 </ui:FaceControl>
             </Grid>
 
-            <!-- «ESCRÍBELE…»: la puerta de escribirle, que hasta el 2026-09-06 era la pastilla del
-                 chat. Asoma tras segundo y medio de ratón quieto (ReglaDeLaLinea, promesa 167).
-
-                 EL DISEÑO ES EL ORIGINAL DE LA RAMA 008, pedido así por el dueño tras probar dos
-                 alternativas: cápsula de 30 px, cristal claro al 10 %, texto al 55 % de blanco.
-                 Solo se le quitó una cosa de aquel original: el cartel que llevaba, que hoy no puede existir
-                 (promesa 164). Lo que la línea hace se aprende pulsándola, no leyendo otro cartel.
-
-                 EL AIRE SE ENSANCHÓ el mismo día (12 → 22 px), y en las DOS direcciones aunque solo
-                 una se vea a la vez: GhostPista.Placement se invierte según el lado de la pantalla
-                 (ver ApplyCaritaSide), y un margen asimétrico solo daba aire en uno de los dos casos
-                 — pegada al lado sin margen, la línea habría nacido tocando la carita.
-
-                 Es un Popup y no un hijo del StackPanel a propósito: así aparecer y desaparecer no
-                 cambia el ancho de la ventana ni dispara el reanclaje de OnSizeChanged sobre una
-                 carita que puede estar en pleno vuelo. -->
-            <Popup x:Name="GhostPista" PlacementTarget="{Binding ElementName=CollapsedFace}"
-                   Placement="Left" AllowsTransparency="True" StaysOpen="True">
-                <Border x:Name="GhostBorde" Height="30" MinWidth="150" Cursor="IBeam"
-                        CornerRadius="15" Background="#1AFFFFFF" BorderBrush="#2EFFFFFF"
-                        BorderThickness="1" Padding="12,0" Margin="22,0,22,0"
-                        MouseLeftButtonUp="OnGhostClic">
-                    <TextBlock Text="Escríbele…" Foreground="#8CFFFFFF" FontSize="12"
-                               VerticalAlignment="Center" IsHitTestVisible="False"/>
-                </Border>
-            </Popup>
+            <!-- SIN LÍNEA «ESCRÍBELE…» (2026-09-30, la quitó el dueño: «no nos gusta»). Asomaba
+                 tras segundo y medio de ratón quieto sobre la carita (promesa 167, RETIRADA). Para
+                 escribirle quedan Ctrl+Alt+U y el botón de mensajes del muelle. -->
         </StackPanel>
 
         <!-- Estado NORMAL: menú extendido (arriba) + globo de conversación (izquierda) + barra (derecha).
