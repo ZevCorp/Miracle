@@ -111,6 +111,13 @@ decisión del dueño; su CI se exige igual.
     dónde empezar, y después se lee el código.
   - **Si ya tienes el nombre exacto, busca directo.** Consultar el mapa antes de cada búsqueda no
     ahorra nada: se midió, y sumaba pasos.
+- **La constitución de Ü** (quién es, cómo habla, cuándo obedece sin preguntar y cómo trata a un
+  médico o a una persona) vive en tres copias que deben decir lo mismo:
+  `apps/windows/windows-client/src/Voice/ConstitucionDeU.cs`,
+  `services/graph/src/application/prompts/ConstitucionDeU.js` y
+  `apps/android/core/src/commonMain/kotlin/graph/core/domain/ConstitucionDeU.kt`. Se editan las tres
+  a la vez y lo comprueba `bash tools/monorepo/constitucion.sh` (corre en el CI de la raíz). El mapa
+  de todos los prompts está en `docs/monorepo/prompts-de-u.md`.
 
 ## Este archivo
 

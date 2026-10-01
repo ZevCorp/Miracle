@@ -58,19 +58,53 @@ public sealed class ProtocoloGptLive : IProtocolo
     /// Y LA REGLA DE LA 161, que no viaja sola: las instrucciones de Ü van al delegado, pero quien suena es
     /// la voz. Sin ella, en la sonda del 2026-09-12 dijo «Vale. Dame un momento para revisarlo.» antes de
     /// que el delegado hiciera nada. Promesa 46 de la voz.
+    ///
+    /// AQUÍ VIVE LA PERSONALIDAD QUE SE OYE (spec 078, 2026-10-01): cálida, clara y breve, en español de
+    /// Colombia, humor ligero solo en la charla. Decía «este ordenador, sobre todo SAP»: le hablaba igual a
+    /// un médico de un hospital que a quien ordena sus fotos. Lo que cambia por perfil va aparte, en
+    /// <see cref="PersonaExtra"/>. Mide 1.288 caracteres; con <see cref="AlVolver"/> y la frase del perfil
+    /// más larga cabe en 1.700 (promesa 59), que es el presupuesto de la vuelta.
     /// </remarks>
     public const string InstruccionesDeLaVoz =
-        "Eres Ü, el asistente que ayuda a operar las aplicaciones de este ordenador, sobre todo SAP. "
-        + "Hablas en español, con frases cortas y naturales. Tú no ves la pantalla ni la tocas: todo lo que "
-        + "sea mirar, buscar, pulsar, escribir u operar la pantalla lo delegas siempre, y después cuentas lo "
-        + "que salió. Nunca inventes lo que hay en pantalla."
-        + " SI LA PERSONA QUIERE QUE TÚ DEJES DE HABLAR, DEJES DE ESCUCHARLA O APAGUES LA VOZ, DELEGA "
-        + "ESA PETICIÓN INMEDIATAMENTE: la intención manda aunque la frase sea coloquial o indirecta. "
-        + "No respondas «me callo» ni prometas silencio; delega antes de hablar, porque solo el delegado "
-        + "puede ejecutar la herramienta que apaga el micrófono y la sesión."
-        + " Cuando el delegado confirme que apagó la voz, di únicamente «Mmm.» y después no digas nada más."
-        + " NO ANUNCIES LO QUE VAS A HACER: nada de «voy a…», «vamos a…», «déjame…», «dame un momento», «un momento», «ahora lo miro». Mientras se hace el trabajo, calla."
-        + " CUANDO HABLES, HABLA EN PASADO Y DEL RESULTADO: «estás en SAP Easy Access», «no había ningún informe». Nunca en futuro.";
+        "Eres Ü, el asistente que maneja este computador por la persona. Hablas español de Colombia, cálido, "
+        + "claro y breve, como alguien de confianza: una o dos frases (si te piden leer algo, entero), sin "
+        + "frases de máquina («¡Claro!», «¿algo más?») ni muletillas repetidas. Si te conversan, conversas con "
+        + "gusto y algo de humor ligero; si te piden algo, lo DELEGAS. Tú no ves la pantalla ni la tocas: "
+        + "mirar, buscar, abrir, escribir, operar o recordar, lo delegas siempre. Nunca inventes lo que hay en "
+        + "pantalla, la hora ni lo que no se confirmó. SI LA PERSONA QUIERE QUE TÚ DEJES DE HABLAR, DEJES DE "
+        + "ESCUCHARLA O APAGUES LA VOZ, DELEGA ESA PETICIÓN INMEDIATAMENTE, aunque lo diga con rodeos: no "
+        + "respondas «me callo» ni prometas silencio, porque solo el delegado puede apagar el micrófono. Un "
+        + "«espera» no es eso: calla y escucha. Cuando el delegado confirme que apagó la voz, di únicamente "
+        + "«Mmm.» y nada más. NO ANUNCIES LO QUE VAS A HACER: nada de «voy a…», «vamos a…», «déjame…», «dame un "
+        + "momento». Mientras se hace el trabajo, calla; si la persona corrige o cancela, delégalo ya. Si el "
+        + "delegado pregunta o avisa algo, se lo dices en una frase. CUANDO HABLES, HABLA EN PASADO Y DEL "
+        + "RESULTADO, con sus datos, sin añadir: «quedó abierta Descargas: hay 34 archivos, 12 PDF», «no había "
+        + "ningún informe».";
+
+    /// <summary>
+    /// LO QUE LA VOZ SABE DE CON QUIÉN HABLA: una frase que va pegada detrás de
+    /// <see cref="InstruccionesDeLaVoz"/> («Le hablas a un médico…», «Le hablas a una persona…»), o nada.
+    /// La pone la conversación según el perfil (spec 078). Propiedad y no parámetro del constructor: la
+    /// promesa 208 construye este protocolo con dos parámetros, y el perfil puede cambiar con la voz creada.
+    /// </summary>
+    public string PersonaExtra
+    {
+        get => _personaExtra;
+        set => _personaExtra = value ?? "";
+    }
+
+    private string _personaExtra = "";
+
+    /// <summary>La persona entera de la voz: la base y, detrás, la frase de su perfil. Es lo que abre la sesión y lo que vuelve.</summary>
+    public string Persona => InstruccionesDeLaVoz + PersonaExtra;
+
+    /// <summary>
+    /// EL APPEND MÁS LARGO QUE SE SABE QUE PASA: 1.756 caracteres, el del aprendiz con su prefijo, aceptado el
+    /// 2026-09-12; el mismo texto repetido hasta 1.900 se rechazó («Context append text must not exceed 500
+    /// tokens.»). Ningún append sale de aquí más largo (promesa 57 de la voz): uno rechazado deja la sesión viva y
+    /// a la voz con las reglas que tenía, y solo una línea en el log lo cuenta.
+    /// </summary>
+    public const int TopeDelAppend = 1_756;
 
     public string Quien => "OpenAI GPT-Live";
     public string Modelo { get; }
@@ -162,7 +196,7 @@ public sealed class ProtocoloGptLive : IProtocolo
             session = new
             {
                 model = Modelo,
-                instructions = InstruccionesDeLaVoz,
+                instructions = Persona,
                 audio = new
                 {
                     format = new { type = "audio/pcm", rate = RitmoDeEntrada },
@@ -200,7 +234,7 @@ public sealed class ProtocoloGptLive : IProtocolo
             {
                 model = Modelo,
                 input,
-                instructions = InstruccionesDeLaVoz,
+                instructions = Persona,
                 audio = new
                 {
                     format = new { type = "audio/pcm", rate = RitmoDeEntrada },
@@ -223,6 +257,12 @@ public sealed class ProtocoloGptLive : IProtocolo
     /// las reglas del aprendiz, 3 de 3 asintió con una palabra. Al volver al modo con el que abrió se le da
     /// su persona, no las instrucciones de operar: no las lleva (promesa 40) y no caben — un append de más
     /// de 500 fichas se rechaza. Promesa 47.
+    ///
+    /// Y LO QUE NO CABE EN UN APPEND NO ES UN MODO (spec 078, promesa 57 de la voz): unas instrucciones que con
+    /// el prefijo pasan de <see cref="TopeDelAppend"/> son las de operar —las de siempre con la memoria, que ya
+    /// no son idénticas a las de la apertura—, y a la voz se le devuelve su persona. Hasta el 2026-10-01 se le
+    /// mandaban enteras, 25.000 caracteres, el servidor las rechazaba y la voz se quedaba con las reglas del
+    /// aprendiz el resto de la sesión. Volver de verdad es <see cref="VueltaDeModo"/>.
     /// </remarks>
     public IEnumerable<string> CambioDeModo(string instrucciones, IReadOnlyList<Utensilio> utensilios, bool soloCuandoSeLePide)
     {
@@ -232,13 +272,42 @@ public sealed class ProtocoloGptLive : IProtocolo
             session = new { delegation = Delegacion(instrucciones, utensilios) },
         });
 
-        bool vuelve = _instruccionesDeApertura.Length > 0 && instrucciones == _instruccionesDeApertura;
+        string reglas = AlCambiarDeModo + (instrucciones ?? "");
+        bool vuelve = (_instruccionesDeApertura.Length > 0 && instrucciones == _instruccionesDeApertura)
+                      || reglas.Length > TopeDelAppend;
         yield return JsonSerializer.Serialize(new
         {
             type = "session.instructions.append",
             delegation_id = (string?)null,
-            content = vuelve ? AlVolver + InstruccionesDeLaVoz : AlCambiarDeModo + instrucciones,
+            content = vuelve ? PersonaDeVuelta() : reglas,
         });
+    }
+
+    /// <summary>
+    /// VOLVER AL MODO DE SIEMPRE (D2 de la spec 078, promesa 56 de la voz): la delegación con las instrucciones
+    /// que se le den, ÍNTEGRAS, y a la voz su persona detrás de <see cref="AlVolver"/>. Sin comparar con las de la
+    /// apertura: al volver, las de siempre llevan la memoria y el hilo de ahora, y casi nunca son idénticas.
+    /// </summary>
+    public IEnumerable<string> VueltaDeModo(string instrucciones, IReadOnlyList<Utensilio> utensilios)
+    {
+        yield return JsonSerializer.Serialize(new
+        {
+            type = "session.update",
+            session = new { delegation = Delegacion(instrucciones, utensilios) },
+        });
+        yield return JsonSerializer.Serialize(new
+        {
+            type = "session.instructions.append",
+            delegation_id = (string?)null,
+            content = PersonaDeVuelta(),
+        });
+    }
+
+    /// <summary>La persona detrás del prefijo de la vuelta; si la frase del perfil la hiciera pasar del tope, la base sola.</summary>
+    private string PersonaDeVuelta()
+    {
+        string conPerfil = AlVolver + Persona;
+        return conPerfil.Length <= TopeDelAppend ? conPerfil : AlVolver + InstruccionesDeLaVoz;
     }
 
     private object Delegacion(string instrucciones, IReadOnlyList<Utensilio> utensilios) => new

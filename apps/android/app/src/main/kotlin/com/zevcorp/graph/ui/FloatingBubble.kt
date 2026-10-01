@@ -1028,7 +1028,8 @@ class FloatingBubble(private val service: AccessibilityService) : UserChannel, V
     /** Igual que runPrompt pero SUSPENDE hasta terminar: lo usa el bucle de escucha permanente. */
     suspend fun runPromptAwait(prompt: String) = withContext(Dispatchers.Main) {
         if (app.ui == null) { toast("Activa el servicio de accesibilidad de Ü"); return@withContext }
-        narrate("¡Vamos! $prompt")
+        // Un estado, no un anuncio: ni «¡Vamos!» ni el pedido repetido (spec 009, promesa 908; lo mismo narra el motor).
+        narrate("En marcha.")
         runCatching { withContext(Dispatchers.Default) { app.run(prompt, this@FloatingBubble) } }
             .onSuccess { toast(it) }
             .onFailure { toast(if (it is CancellationException) "Ejecución detenida ✋" else "Error: ${it.message}") }
@@ -1236,7 +1237,7 @@ class FloatingBubble(private val service: AccessibilityService) : UserChannel, V
      */
     fun startExecLive() {
         if (execLive) return
-        narrate("Te sigo escuchando mientras trabajo; tócame para dejar de oírte 👂")
+        narrate("Te sigo escuchando mientras trabajo; tócame para dejar de oírte.")
         LogBus.log("voice", "▶ escucha en vivo durante la ejecución")
         var live = useRealtimeVoice()
         execLiveJob = scope.launch {
@@ -1282,9 +1283,9 @@ class FloatingBubble(private val service: AccessibilityService) : UserChannel, V
         const val GESTURE_WINDOW_MS = 260L
         /** Escala de la carita cuando está asentada al inicio de la barra de texto de la app. */
         const val BAR_SCALE = 0.45f
-        /** Saludos al detectar la palabra de activación (spec 007): amistosos, cortos, uno al azar. */
+        /** Saludos al detectar la palabra de activación (spec 007): amistosos, cortos, uno al azar, sin emojis (spec 009). */
         val SALUDOS = listOf(
-            "¡Hola! Te escucho 👂",
+            "¡Hola! Te escucho.",
             "Dime, aquí estoy",
             "¿En qué te ayudo?",
             "Te escucho, cuéntame",

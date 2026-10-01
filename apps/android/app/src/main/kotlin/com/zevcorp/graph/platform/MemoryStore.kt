@@ -1,5 +1,6 @@
 package com.zevcorp.graph.platform
 
+import graph.core.domain.PromptDelCerebroLocal
 import java.io.File
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -55,20 +56,16 @@ class MemoryStore(
      * Bloque para el system prompt del motor de ejecución (vacío si no hay memoria). Se agrupa por
      * app y las notas de una app NUNCA se recortan: cuando el asistente vaya a usar esa app debe
      * tener su contexto COMPLETO (p.ej. todo lo que sabe de WhatsApp). Solo las notas generales
-     * (sin app) se limitan si fueran muchísimas.
+     * (sin app) se limitan si fueran muchísimas. El formato lo pone el núcleo, el mismo de Graph
+     * («### General», «### <app>», «- nota»): el prompt dice «lo que está bajo General vale siempre»,
+     * y antes las generales iban sueltas, sin ningún General (spec 009, promesa 911).
      */
     fun promptBlock(): String {
         val notes = all()
         if (notes.isEmpty()) return ""
-        val general = notes.filter { it.app.isBlank() }.takeLast(40)
-        val byApp = notes.filter { it.app.isNotBlank() }.groupBy { it.app }
-        return buildString {
-            general.forEach { appendLine("- ${it.note}") }
-            byApp.forEach { (app, ns) ->
-                appendLine("· $app:")
-                ns.forEach { appendLine("   - ${it.note}") }
-            }
-        }.trim()
+        val general = notes.filter { it.app.isBlank() }.takeLast(40).map { it.note }
+        val byApp = notes.filter { it.app.isNotBlank() }.groupBy({ it.app }, { it.note })
+        return PromptDelCerebroLocal.bloqueDeMemoria(general, byApp)
     }
 
     /** Todas las notas de una app concreta, sin recortar (contexto completo al abrir esa app). */

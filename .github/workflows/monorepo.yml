@@ -37,6 +37,9 @@ jobs:
       - name: La raíz sigue en orden
         run: bash tools/monorepo/comprobar-raiz.sh
 
+      - name: La constitución de Ü dice lo mismo en Windows, en Graph y en Android
+        run: bash tools/monorepo/constitucion.sh
+
       - name: Los porteros, los ganchos y los scripts del repo parsean
         run: |
           for f in .githooks/* apps/*/.githooks/* services/*/.githooks/* tools/monorepo/*.sh tools/graphify/*.sh apps/mac/contrato.sh apps/android/scripts/contrato.sh; do

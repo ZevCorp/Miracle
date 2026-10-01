@@ -306,7 +306,7 @@ class Contrato003FrenoYPuerta {
             // «▪» marca una acción ejecutada; la línea del turno lista las decididas y esa sí las nombra.
             assertTrue(bitacora.lineas.none { "▪" in it && ("type(" in it || "go_home" in it) }, promesa(303) + " · ejecutó el resto: ${bitacora.lineas}")
             assertEquals(1, voz.narrado.count { "par" in it.lowercase() }, promesa(303) + " · no narró una sola vez que paró: ${voz.narrado}")
-            assertTrue(voz.narrado.none { "¡Listo!" in it }, promesa(303) + " · celebró una corrida parada: ${voz.narrado}")
+            assertTrue(voz.narrado.none { "listo" in it.lowercase() }, promesa(303) + " · celebró una corrida parada: ${voz.narrado}")
             assertTrue(voz.dicho.isEmpty(), promesa(303) + " · dijo en voz alta un resumen de una corrida parada: ${voz.dicho}")
         }
 
@@ -371,7 +371,7 @@ class Contrato003FrenoYPuerta {
             val dijo = freno.enTarea("pon una alarma") { motor(cerebro, p, freno, voz, Bitacora()).run("pon una alarma", dijoLaPersona = "pon una alarma") }
             assertTrue(dijo.startsWith("paraste:"), promesa(303) + " · un turno done tras el alto no terminó como cancelación: «$dijo»")
             assertTrue(voz.dicho.isEmpty(), promesa(303) + " · dijo el resumen de una corrida parada: ${voz.dicho}")
-            assertTrue(voz.narrado.none { "¡Listo!" in it }, promesa(303) + " · celebró una corrida parada: ${voz.narrado}")
+            assertTrue(voz.narrado.none { "listo" in it.lowercase() }, promesa(303) + " · celebró una corrida parada: ${voz.narrado}")
         }
 
         // (f) Una espera que pide el modelo se corta con el alto: el motor espera con el freno, no de un tirón.
