@@ -14,7 +14,9 @@ Lo que es propio de Claude Code aquí (medido el 2026-09-28 y el 2026-09-30, con
   Claude carga este archivo, las reglas de `.claude/rules/` de la raíz, el `CLAUDE.md` del proyecto
   y sus reglas. Abierta en la raíz, lo de un proyecto solo se carga cuando lees un archivo suyo.
 - **Las skills de la raíz llegan a todas las carpetas**: `/especifica`, `/fases`, `/promesas`,
-  `/implementa`, `/verifica` y `/a-main` son las mismas en todos los proyectos.
+  `/implementa`, `/verifica` y `/a-main` son las mismas en todos los proyectos. Junto a ellas hay
+  skills de oficio (`/numera`, `/sabotea`, `/revisa`, `/lee-el-log`, `/antes-del-push`…), varias con
+  su script probado: el mapa está en `.claude/skills/README.md`.
 - **Los ganchos, los permisos y `.mcp.json` no se heredan**: solo valen los de la carpeta donde se
   abre la sesión. Por eso el gancho del guardia de árboles está repetido en el `settings.json` de la
   raíz y en el de cada proyecto, y `tools/monorepo/comprobar-raiz.sh` comprueba que no falte en
