@@ -215,7 +215,7 @@ case "${1:-estado}" in
     echo "  rama $rama, desde $(git -C "$dir" log -1 --format='%h %s' | cut -c1-80)"
     echo "  Trabaja SOLO ahí, desde la carpeta de tu proyecto:  cd \"$dir/apps/<proyecto>\""
     echo "  Claude Code: entra con la herramienta EnterWorktree (path: $dir)."
-    echo "  Al mergear el PR:  git worktree remove \"$dir\"  y  git branch -d $rama"
+    echo "  Al mergear el PR:  bash tools/monorepo/arbol.sh cerrar $rama"
     ;;
 
   estado)

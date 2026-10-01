@@ -141,7 +141,8 @@ escribir la frase que hoy es falsa y después será verdadera?** Si sí, esa fra
 - **El portero de Graph**, con un sabotaje sin commitear: juzgó el commit en un árbol temporal y dio
   verde, que es lo correcto. Con el sabotaje commiteado dio rojo en la promesa 5.
 - **El juez de Mac**, con un `swift` simulado en Windows: un corredor que sale con 0 sin escribir
-  su `PASS` no cuenta como intacto. La corrida real es la de su CI en macOS.
+  su `PASS` no cuenta como intacto. La corrida real fue la de su CI en macOS, en el PR #142:
+  `CONTRATO INTACTO: 31 promesas.`
 - **El contrato de Android** estaba anotado como rojo en `main` (promesa 246). Lo estaba solo en
   los clones de Windows: el juez leía las fuentes con CRLF. Con las lecturas normalizadas da
   `CONTRATO INTACTO: 171 promesas` en la misma máquina donde daba rojo.
@@ -151,6 +152,16 @@ escribir la frase que hoy es falsa y después será verdadera?** Si sí, esa fra
 - **El contrato de la raíz** nació con veinte promesas en verde, y al sabotear las herramientas
   siete seguían verdes: una comprobación fallida no cortaba la promesa. Corregido el arnés, las
   veinte se vieron en rojo, cada una con su sabotaje.
+- **El primer empuje real falló después de pasar todos los simulados.** Dentro de un gancho, y
+  desde un árbol de trabajo enlazado, git trae `GIT_DIR` puesto, y con él `git rev-parse
+  --show-toplevel` contesta la carpeta actual en vez de la raíz. Los porteros de Windows, Mac y
+  Graph no encontraban el motor, y el de Android buscaba `./gradlew` en la raíz del árbol temporal:
+  cuatro sitios, los cuatro corregidos. La promesa 27 de la raíz lo reproduce con un `git push` de
+  verdad desde un árbol enlazado, que es desde donde empuja cada agente. Un portero no se da por
+  bueno con un empuje simulado.
+- **La compuerta, en su primer PR (#142):** siete trabajos en verde, con los cinco CI llamados
+  porque cambiaba `monorepo.yml`. La raíz, 21 promesas en Linux; Android, 171 promesas y el APK;
+  Graph, 33 y la 22 sin juzgar; Mac, 31 en macOS.
 - **El guardia de los árboles**, con dos sesiones reales de Claude Code en un repo de juguete: la
   segunda quedó detenida al primer `Write`, y una tercera, sin más instrucciones que su tarea, se
   creó su árbol con `arbol.sh nuevo` y trabajó allí.
