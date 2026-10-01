@@ -114,16 +114,20 @@ class Contrato002VozEnVivoDev {
         fun lineas(regex: Regex): List<String> = regex.findAll(soloCodigo).map { linea(it.range.first) }.toList()
     }
 
+    // Las fuentes se leen SIEMPRE con finales LF. En un clon de Windows (core.autocrlf) llegan con
+    // CRLF, y «la expresión llega hasta la primera línea en blanco» no cortaba nunca: la 246 salía
+    // roja solo en esas máquinas. El 2026-09-28 se anotó como «rota en main» y era el arnés. Las siete
+    // lecturas de fuentes del contrato (seis archivos) normalizan igual.
     private fun fuente(ruta: String): Fuente {
         val f = File(raiz, ruta)
         assertTrue(f.isFile, promesa(246) + " · falta $ruta")
-        return Fuente(ruta, f.readText())
+        return Fuente(ruta, f.readText().replace("\r\n", "\n"))
     }
 
     /** Todas las fuentes de `app`: un alias o una llamada pueden vivir en cualquiera. */
     private fun todas(): List<Fuente> = File(raiz, "app/src").walkTopDown()
         .filter { it.isFile && it.extension in setOf("kt", "java", "kts") }
-        .map { Fuente(it.relativeTo(raiz).invariantSeparatorsPath, it.readText()) }
+        .map { Fuente(it.relativeTo(raiz).invariantSeparatorsPath, it.readText().replace("\r\n", "\n")) }
         .toList()
 
     @Test

@@ -90,7 +90,7 @@ class Contrato003LaAppPorLaPuerta {
             .firstOrNull { it.isDirectory }
             ?: fail("no encuentro app/src/main/kotlin subiendo desde $desde")
         val fuentes = raiz.walkTopDown().filter { it.isFile && it.extension == "kt" }
-            .map { Fuente(it.name, it.relativeTo(raiz).path, sinComentarios(it.readText())) }
+            .map { Fuente(it.name, it.relativeTo(raiz).path, sinComentarios(it.readText().replace("\r\n", "\n"))) }
             .toList()
         for (esperado in listOf("GraphApp.kt", "StopReceiver.kt", "FloatingBubble.kt", EJECUCION))
             if (fuentes.none { it.nombre == esperado }) fail("no encuentro $esperado en $raiz: ${fuentes.map { it.nombre }}")
