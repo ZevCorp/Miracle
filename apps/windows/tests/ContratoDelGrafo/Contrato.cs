@@ -935,6 +935,11 @@ internal static class Contrato
         Prueba("528. leer el diálogo de delante tiene plazo: si la app no contesta en 2 s, map_unblock no se congela —dice que no pudo leer el diálogo a tiempo, no que no hay ninguno— y no pulsa nada", LeerElDialogoTienePlazo);
         Prueba("529. saber dónde estoy tampoco se congela leyendo un diálogo: map_where_am_i lee el diálogo por la misma puerta con plazo que map_unblock; las dos lecturas del diálogo son una", DondeEstoyNoSeCongelaConUnDialogo);
         Prueba("520. quien planea es GPT-6 Sol con el pensamiento en bajo y sin pagar de más por velocidad: delegado gpt-6-sol con reasoning.effort = low y sin service_tier priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
+
+        // EL NOTCH SE HACE ESPERAR (spec 063, 2026-09-30). La 260 congela DÓNDE se pide; nada decía
+        // CUÁNDO, y asomaba en el primer sondeo: subir a una pestaña del navegador lo hacía caer encima
+        // de ella. «Que solo aparezca al mantener el mouse allá arriba por 0,5 segs o algo así».
+        Prueba("530. el notch se hace esperar: medio segundo con el cursor quieto en la franja de arriba lo asoma, y una sola vez por visita; pasar por ella, recorrerla de lado como quien busca una pestaña o hacer clic dentro no lo asoman, y tras un clic no vuelve hasta salir de la franja", ElNotchSeHaceEsperar);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -10524,6 +10529,66 @@ internal static class Contrato
             "en el borde de arriba pero lejos del centro —la esquina—: fuera de la franja");
         Debe(!Asoma(libre, pieza, new System.Windows.Point(768, 400)),
             "a media pantalla, aunque esté centrado: fuera de la franja, o cualquier paso del cursor la dispararía");
+    }
+
+    /// <summary>Promesa 530.</summary>
+    private static void ElNotchSeHaceEsperar()
+    {
+        var t = Capacidad("U.WindowsClient.Ui.EsperaDelAsomo");
+        if (t == null) { Pendiente("EsperaDelAsomo", "530", "063"); return; }
+        var dispara = t.GetMethod("Dispara");
+        var esperaMs = t.GetField("EsperaMs")?.GetValue(null);
+        if (dispara == null || esperaMs == null) { Pendiente("EsperaDelAsomo.Dispara/EsperaMs", "530", "063"); return; }
+        int ms = Convert.ToInt32(esperaMs);
+
+        // Una espera nueva por escena: el estado de una no puede ayudar ni estorbar a la siguiente.
+        var t0 = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        var arriba = new System.Windows.Point(768, 0);
+        Func<bool, System.Windows.Point, bool, int, bool> Nueva()
+        {
+            var e = Activator.CreateInstance(t)!;
+            return (dentro, cursor, boton, alMs) =>
+                (bool)dispara.Invoke(e, new object[] { dentro, cursor, boton, t0.AddMilliseconds(alMs) })!;
+        }
+
+        // «O ALGO ASÍ», PERO NO MENOS: por debajo de 0,4 s vuelve a ser tropezar con el borde.
+        Debe(ms >= 400, $"la espera es de verdad: son {ms} ms, y el dueño pidió medio segundo");
+
+        // QUIETO ARRIBA, MEDIO SEGUNDO: asoma, y UNA vez. Quedarse ahí no lo vuelve a pedir en cada
+        // sondeo — si algo lo retira mientras tanto, no reaparece en bucle.
+        var quieto = Nueva();
+        Debe(!quieto(true, arriba, false, 0), "al llegar a la franja no asoma todavía");
+        Debe(!quieto(true, arriba, false, ms - 1), "ni un milisegundo antes de cumplir la espera");
+        Debe(quieto(true, new System.Windows.Point(771, 2), false, ms),
+            "cumplida la espera con el cursor quieto —un temblor de pocos píxeles es quieto—, asoma");
+        Debe(!quieto(true, arriba, false, ms + 150), "y no vuelve a pedirlo mientras siga ahí: una vez por visita");
+        quieto(false, new System.Windows.Point(768, 300), false, ms + 300);
+        Debe(!quieto(true, arriba, false, ms + 400), "al volver, la espera empieza de cero");
+        Debe(quieto(true, arriba, false, 2 * ms + 400), "y cumplida otra vez, vuelve a asomar");
+
+        // PASAR DE LARGO: subir a una pestaña tropieza con el borde y se va.
+        var paso = Nueva();
+        paso(true, arriba, false, 0);
+        paso(true, arriba, false, ms / 3);
+        paso(false, new System.Windows.Point(768, 30), false, ms / 2);
+        Debe(!paso(false, new System.Windows.Point(768, 30), false, ms * 3), "rozar la franja de paso no lo asoma, por mucho que se espere después fuera");
+
+        // RECORRERLA DE LADO: buscando pestaña a ras del borde, el cursor no está quieto.
+        var recorre = Nueva();
+        bool algunaVez = false;
+        for (int i = 0; i <= 20; i++)
+            algunaVez |= recorre(true, new System.Windows.Point(560 + i * 20, 1), false, i * 100);
+        Debe(!algunaVez, "recorrer el borde de lado dos segundos, como quien busca una pestaña, no lo asoma");
+
+        // EL CLIC: lo que cierra el asunto. Un clic en la franja es usar lo de debajo.
+        var clic = Nueva();
+        clic(true, arriba, false, 0);
+        clic(true, arriba, true, ms / 2);
+        clic(true, arriba, false, ms / 2 + 100);
+        Debe(!clic(true, arriba, false, ms * 4), "tras un clic dentro de la franja no asoma, aunque el cursor se quede quieto mucho más");
+        clic(false, new System.Windows.Point(768, 300), false, ms * 5);
+        clic(true, arriba, false, ms * 6);
+        Debe(clic(true, arriba, false, ms * 7), "pero al salir de la franja y volver, el gesto vuelve a funcionar");
     }
 
     private static void LaZonaDelNotchMantieneLaIntencion()
