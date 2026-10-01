@@ -21,6 +21,8 @@ if [ "$(uname -s)" = "Darwin" ]; then
   compilar() { swift build -c release --product U; }
   juzgar()   { ./contrato.sh release; }
 else
+  # El nombre lo dice, para que un «en verde» de aquí no se lea como un contrato juzgado.
+  NOMBRE="Mac (solo el cruce: el contrato lo juzga el CI)"
   VEREDICTO_OK="EL CRUCE CUADRA"
   juzgar()   { bash contrato.sh --cruce; }
 fi
