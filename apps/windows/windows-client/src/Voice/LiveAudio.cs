@@ -31,6 +31,49 @@ public sealed class LiveAudio : IDisposable
     private WaveOutEvent? _altavoz;
     private readonly object _candado = new();
 
+    // ── EL MICRÓFONO DEL COMPUTADOR: lo que se quiere de él, y quién lo pone al día ─────────────
+    //
+    // ABRIRLO TARDABA 320–550 ms (medido el 2026-09-30), y hasta el 2026-10-01 se abría en el hilo que
+    // llamaba —el de la interfaz— y con el mismo candado que usan la boca y el halo para leer el nivel:
+    // medio segundo con la carita congelada en cada encendido. Dos cosas cambian:
+    //
+    //  · PEDIRLO Y SOLTARLO ES INSTANTÁNEO: se apunta lo que se quiere, y el dispositivo lo pone al día
+    //    una tarea aparte, de una en una. Como manda lo que se QUIERE y no el orden en que acaban las
+    //    operaciones, encender y apagar muy seguido deja siempre el dispositivo como dice el último
+    //    gesto (promesa 662).
+    //
+    //  · ESTÁ PREPARADO DE ANTEMANO (MicrofonoPreparado): de esos 320–550 ms, inicializar eran ~450.
+    //    Inicializado y parado no capta ni consta como micrófono en uso; el gesto solo lo arranca,
+    //    ~250 ms. El de siempre (_mic, WaveIn) queda de respaldo por si Windows no deja prepararlo.
+
+    /// <summary>La conversación pidió oír por el micrófono del computador. Sin esto, nada de lo captado se entrega.</summary>
+    private bool _seQuiereElLocal;
+
+    /// <summary>El dispositivo está captando para nosotros, por el preparado o por el de respaldo.</summary>
+    private bool _captandoElLocal;
+
+    /// <summary>El cliente inicializado, captando o parado. Nulo hasta que se prepara, o si no se pudo.</summary>
+    private MicrofonoPreparado? _preparado;
+
+    /// <summary>Guarda lo de arriba, <see cref="_mic"/> y <see cref="_usandoCollar"/>. Nunca se sostiene
+    /// mientras se prepara, se arranca o se cierra el dispositivo.</summary>
+    private readonly object _candadoDelOido = new();
+
+    /// <summary>Una preparación a la vez: quien llegue mientras otra corre espera y se queda con su resultado.</summary>
+    private readonly object _candadoDePreparar = new();
+    private bool _poniendoAlDia;
+    private bool _desechado;
+    private long _noPrepararHastaMs;
+
+    /// <summary>
+    /// El micrófono del computador ya está grabando para la conversación. Llega con <c>true</c> si estaba
+    /// preparado —solo hubo que arrancarlo— y con <c>false</c> si hubo que inicializarlo en el momento.
+    /// </summary>
+    public event Action<bool>? MicrofonoGrabando;
+
+    /// <summary>El dispositivo no abrió. Sin micrófono no hay a quién oír, y quien pidió la voz tiene que saberlo.</summary>
+    public event Action<string>? MicrofonoFallo;
+
     /// <summary>
     /// Sube el ritmo del collar cuando hace falta. Solo existe si <see cref="RitmoEntrada"/> no es
     /// ya 16 kHz — crearlo sin necesidad sería un remuestreador trabajando para no cambiar nada.
@@ -234,49 +277,261 @@ public sealed class LiveAudio : IDisposable
         if (QuiereCollar && !_usandoCollar) _ = Task.Run(AbrirCollarAsync);
     }
 
+    /// <summary>
+    /// Pide el micrófono del computador para la conversación. NO ESPERA al dispositivo: vuelve en el acto
+    /// y <see cref="MicrofonoGrabando"/> avisa cuando graba.
+    /// </summary>
     private void AbrirLocal()
     {
-        lock (_candado)
+        lock (_candadoDelOido)
         {
-            if (_mic != null) return;
-
             // DOS MICRÓFONOS A LA VEZ ES PEOR QUE NINGUNO: se mezclarían dos flujos con relojes
             // distintos y el modelo oiría todo dicho dos veces, desfasado. Pasa de verdad cuando el
             // gesto pide el collar ANTES de que la sesión esté abierta: el collar engancha primero y
             // luego GeminiLive llama aquí como si nada.
             if (_usandoCollar) return;
-            _mic = new WaveInEvent
+            _seQuiereElLocal = true;
+        }
+        PonerElDispositivoAlDia();
+    }
+
+    /// <summary>Deja de oír por el micrófono del computador. Tampoco espera al dispositivo.</summary>
+    private void CerrarLocal()
+    {
+        lock (_candadoDelOido) _seQuiereElLocal = false;
+        PonerElDispositivoAlDia();
+    }
+
+    public void CerrarMicrofono()
+    {
+        lock (_candadoDelOido) _cierres++;
+        CerrarCollar();
+        CerrarLocal();
+    }
+
+    /// <summary>
+    /// Cuántas veces se ha colgado. Lo que estaba a medio abrir cuando se colgó —buscar el collar son hasta
+    /// ocho segundos de rastreo— compara este número al llegar, y si cambió no abre nada.
+    /// </summary>
+    /// <remarks>
+    /// Sin esto, encender y apagar enseguida con el collar pedido y fuera de alcance acababa con el micrófono
+    /// del computador abierto y la voz apagada: el rastreo terminaba sin collar DESPUÉS de colgar, y su salida
+    /// de emergencia —«se abre el local»— no miraba si todavía había conversación.
+    /// </remarks>
+    private int _cierres;
+
+    // ── El dispositivo ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Deja el micrófono del computador PREPARADO: inicializado y parado. No capta, no enciende el
+    /// indicador de Windows, y hace que el próximo encendido solo tenga que arrancarlo. No espera:
+    /// prepara en otra tarea. Se llama al nacer la app; después se mantiene solo.
+    /// </summary>
+    public void Preparar() => _ = Task.Run(() => { ElPreparado(); });
+
+    /// <summary>
+    /// El cliente preparado para el micrófono por defecto DE AHORA, preparándolo si hace falta. Nulo si
+    /// Windows no deja: entonces se oye por la vía de respaldo.
+    /// </summary>
+    private MicrofonoPreparado? ElPreparado()
+    {
+        lock (_candadoDePreparar)
+        {
+            MicrofonoPreparado? hay;
+            lock (_candadoDelOido)
+            {
+                if (_desechado) return null;
+                hay = _preparado;
+                // CAPTANDO NO SE TOCA: mirar si cambió el micrófono por defecto es cosa de cuando se arranca.
+                if (hay != null && _captandoElLocal) return hay;
+            }
+            if (hay != null && hay.EsElDeAhora()) return hay;
+
+            // O no había, o el micrófono por defecto ya es otro (se enchufaron unos audífonos): el de antes sobra.
+            if (hay != null)
+            {
+                lock (_candadoDelOido) _preparado = null;
+                LogBus.Log("voz-viva", $"el micrófono por defecto ya no es «{hay.Nombre}»: se prepara el de ahora");
+                hay.Dispose();
+            }
+            // UN FALLO NO SE REINTENTA EN CADA GESTO: si Windows no dejó, se vuelve a probar al minuto.
+            if (Environment.TickCount64 < _noPrepararHastaMs) return null;
+
+            var reloj = System.Diagnostics.Stopwatch.StartNew();
+            MicrofonoPreparado nuevo;
+            try { nuevo = MicrofonoPreparado.Preparar(RitmoEntrada); }
+            catch (Exception e)
+            {
+                _noPrepararHastaMs = Environment.TickCount64 + 60_000;
+                LogBus.Log("voz-viva", $"el micrófono no queda preparado ({Cadena(e)}): se abrirá en el gesto, por la vía de siempre");
+                return null;
+            }
+            lock (_candadoDelOido)
+            {
+                if (_desechado) { nuevo.Dispose(); return null; }
+                _preparado = nuevo;
+            }
+            LogBus.Log("voz-viva", $"micrófono preparado: «{nuevo.Nombre}» inicializado en {reloj.ElapsedMilliseconds} ms y parado; no capta hasta que se encienda la voz");
+            return nuevo;
+        }
+    }
+
+    /// <summary>La cadena entera de una excepción: el porqué suele estar en la de dentro (patrón nº3).</summary>
+    private static string Cadena(Exception e)
+    {
+        string causa = "";
+        for (Exception? x = e; x != null; x = x.InnerException)
+            causa += (causa.Length > 0 ? " ← " : "") + $"{x.GetType().Name}: {x.Message}";
+        return causa;
+    }
+
+    /// <summary>
+    /// Deja el dispositivo como se quiere AHORA, abriendo o cerrando las veces que haga falta. Una sola
+    /// tarea a la vez: quien llegue mientras trabaja no lanza otra, porque la que hay vuelve a mirar lo
+    /// que se quiere antes de irse.
+    /// </summary>
+    private void PonerElDispositivoAlDia()
+    {
+        lock (_candadoDelOido)
+        {
+            if (_poniendoAlDia) return;
+            _poniendoAlDia = true;
+        }
+        _ = Task.Run(() =>
+        {
+            while (true)
+            {
+                bool abrir;
+                lock (_candadoDelOido)
+                {
+                    bool quiere = _seQuiereElLocal && !_desechado;
+                    if (quiere == _captandoElLocal) { _poniendoAlDia = false; return; }
+                    abrir = quiere;
+                }
+
+                if (abrir) AbrirElDispositivo();
+                else CerrarElDispositivo();
+            }
+        });
+    }
+
+    /// <summary>Un trozo del micrófono del computador, venga del preparado o del de respaldo.</summary>
+    private void Entregar(byte[] trozo)
+    {
+        // SOLO SI SE QUIERE OÍR POR AQUÍ: lo que el dispositivo capte mientras se está cerrando no es de nadie.
+        lock (_candadoDelOido) { if (!_seQuiereElLocal) return; }
+        // El eco se resta AQUÍ, antes de que nadie más lo vea: compuerta, detector y
+        // servidor reciben ya el micrófono limpio (o crudo tal cual, si no hay AEC).
+        if (_aec != null) trozo = _aec.Procesa(trozo);
+        Capturado?.Invoke(trozo);
+    }
+
+    private void AbrirElDispositivo()
+    {
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+
+        // 1. EL PREPARADO: si ya estaba inicializado para el micrófono de ahora, solo se arranca.
+        bool estaba;
+        lock (_candadoDelOido) estaba = _preparado != null;
+        var listo = ElPreparado();
+        if (listo != null)
+        {
+            try
+            {
+                listo.Arrancar(Entregar, SePerdioElMicrofono);
+                lock (_candadoDelOido) _captandoElLocal = true;
+                Anunciar(estaba ? "estaba preparado" : "hubo que inicializarlo", estaba, reloj.ElapsedMilliseconds);
+                return;
+            }
+            catch (Exception e)
+            {
+                // Un cliente preparado puede quedar inválido sin avisar —el equipo durmió, el dispositivo se
+                // reinició—. Se suelta, y esta vez se oye por la vía de siempre; el cierre preparará otro.
+                LogBus.Log("voz-viva", $"el micrófono preparado no arrancó ({Cadena(e)}): se abre por la vía de siempre");
+                lock (_candadoDelOido) { if (ReferenceEquals(_preparado, listo)) _preparado = null; }
+                listo.Dispose();
+            }
+        }
+
+        // 2. EL DE SIEMPRE, de respaldo: abre e inicializa en el mismo paso.
+        WaveInEvent? mic = null;
+        try
+        {
+            mic = new WaveInEvent
             {
                 WaveFormat = new WaveFormat(RitmoEntrada, 16, 1),
                 // Trozos cortos: el modelo interrumpe y responde mientras hablas, así que un buffer
                 // largo no ahorra nada y sí añade retardo a todo lo que venga después.
                 BufferMilliseconds = 100,
             };
-            _mic.DataAvailable += (_, e) =>
+            mic.DataAvailable += (_, e) =>
             {
                 if (e.BytesRecorded <= 0) return;
                 var trozo = new byte[e.BytesRecorded];
                 Buffer.BlockCopy(e.Buffer, 0, trozo, 0, e.BytesRecorded);
-                // El eco se resta AQUÍ, antes de que nadie más lo vea: compuerta, detector y
-                // servidor reciben ya el micrófono limpio (o crudo tal cual, si no hay AEC).
-                if (_aec != null) trozo = _aec.Procesa(trozo);
-                Capturado?.Invoke(trozo);
+                Entregar(trozo);
             };
-            _mic.StartRecording();
-            LogBus.Log("voz-viva", $"micrófono abierto a {RitmoEntrada} Hz");
+            mic.StartRecording();
         }
+        catch (Exception e)
+        {
+            // SIN ESTO SE REINTENTARÍA PARA SIEMPRE: se sigue queriendo el dispositivo y sigue sin abrir.
+            // Se deja de querer, y se dice por qué con la cadena entera (patrón nº3).
+            try { mic?.Dispose(); } catch { }
+            bool seOia;
+            lock (_candadoDelOido) { seOia = _seQuiereElLocal; _seQuiereElLocal = false; }
+            string causa = Cadena(e);
+            LogBus.Log("voz-viva", $"el micrófono del computador no abrió: {causa}");
+            if (seOia) MicrofonoFallo?.Invoke(causa);
+            return;
+        }
+        lock (_candadoDelOido) { _mic = mic; _captandoElLocal = true; }
+        Anunciar("por la vía de siempre", false, reloj.ElapsedMilliseconds);
     }
 
-    public void CerrarMicrofono()
+    private void Anunciar(string como, bool estabaPreparado, long ms)
     {
-        CerrarCollar();
-        lock (_candado)
+        bool seQuiere;
+        lock (_candadoDelOido) seQuiere = _seQuiereElLocal;
+        // Si mientras abría dejó de quererse —apagaron—, no se anuncia: la vuelta siguiente lo cierra, y esa
+        // sí deja su línea.
+        if (!seQuiere) return;
+        LogBus.Log("voz-viva", $"micrófono abierto a {RitmoEntrada} Hz: {como}, {ms} ms");
+        MicrofonoGrabando?.Invoke(estabaPreparado);
+    }
+
+    /// <summary>La captación se cayó sola: el dispositivo desapareció a media conversación.</summary>
+    private void SePerdioElMicrofono(string causa)
+    {
+        MicrofonoPreparado? roto;
+        lock (_candadoDelOido) { roto = _preparado; _preparado = null; _captandoElLocal = false; }
+        LogBus.Log("voz-viva", $"el micrófono dejó de entregar ({causa}): se vuelve a abrir con el que haya ahora");
+        try { roto?.Dispose(); } catch { }
+        PonerElDispositivoAlDia();   // si todavía se quiere oír, con el micrófono por defecto de ahora
+    }
+
+    private void CerrarElDispositivo()
+    {
+        WaveInEvent? mic;
+        MicrofonoPreparado? listo;
+        lock (_candadoDelOido) { mic = _mic; _mic = null; listo = _preparado; _captandoElLocal = false; }
+        if (mic != null)
         {
-            if (_mic == null) return;
-            try { _mic.StopRecording(); _mic.Dispose(); } catch { }
-            _mic = null;
-            LogBus.Log("voz-viva", "micrófono cerrado");
+            try { mic.StopRecording(); mic.Dispose(); }
+            catch (Exception e) { LogBus.Log("voz-viva", $"al cerrar el micrófono: {e.Message}"); }
         }
+        else
+        {
+            try { listo?.Parar(); }
+            catch (Exception e) { LogBus.Log("voz-viva", $"al parar el micrófono: {e.Message}"); }
+        }
+        LogBus.Log("voz-viva", "micrófono cerrado");
+
+        // Y QUEDA PREPARADO PARA LA PRÓXIMA, ahora que nadie espera: si se oyó por la vía de respaldo, o el
+        // micrófono por defecto cambió mientras se hablaba, se inicializa aquí y no dentro del próximo gesto.
+        bool seQuiere;
+        lock (_candadoDelOido) seQuiere = _seQuiereElLocal;
+        if (!seQuiere) ElPreparado();
     }
 
     /// <summary>
@@ -314,16 +569,20 @@ public sealed class LiveAudio : IDisposable
     private async Task AbrirCollarAsync()
     {
         // Una búsqueda a la vez: el gesto se puede repetir mientras dura el rastreo.
-        lock (_candado)
+        int cierres;
+        lock (_candadoDelOido)
         {
             if (_abriendoCollar || _usandoCollar) return;
             _abriendoCollar = true;
+            cierres = _cierres;
         }
 
         try
         {
             if (!CollarPermanente.Conectado && !await CollarPermanente.ConectarAsync())
             {
+                // COLGARON MIENTRAS SE BUSCABA: ya no hay conversación a la que darle un micrófono.
+                lock (_candadoDelOido) { if (_cierres != cierres) return; }
                 // Y SE ABRE EL LOCAL, no se supone que ya estaba: cuando se entra aquí porque el
                 // collar estaba conectado, AbrirMicrofono se lo saltó a propósito. Sin esta línea,
                 // un collar que se cae entre medias deja la conversación sin ningún micrófono.
@@ -332,22 +591,22 @@ public sealed class LiveAudio : IDisposable
                 return;
             }
 
-            CollarPermanente.Capturado += TrozoDelCollar;
-
-            lock (_candado)
+            // El local se cierra DESPUÉS de que el collar esté entregando, no antes: entre cerrar
+            // uno y abrir el otro no puede haber un hueco sin oír a nadie.
+            lock (_candadoDelOido)
             {
-                // El local se cierra DESPUÉS de que el collar esté entregando, no antes: entre cerrar
-                // uno y abrir el otro no puede haber un hueco sin oír a nadie.
-                if (_mic != null) { try { _mic.StopRecording(); _mic.Dispose(); } catch { } _mic = null; }
+                if (_cierres != cierres) return;   // colgaron mientras conectaba: el collar no se engancha a nadie
                 _usandoCollar = true;
                 _relevo = new Relevo(UmbralRelevoMs);
             }
+            CollarPermanente.Capturado += TrozoDelCollar;
+            CerrarLocal();
 
             _vigilante = new Timer(_ => Vigilar(), null, 1000, 1000);
             LogBus.Log("voz-viva", "la voz entra por el collar Omi; el micrófono local queda de reserva");
             FuenteCambio?.Invoke();
         }
-        finally { lock (_candado) _abriendoCollar = false; }
+        finally { lock (_candadoDelOido) _abriendoCollar = false; }
     }
 
     private void TrozoDelCollar(byte[] trozo)
@@ -407,11 +666,8 @@ public sealed class LiveAudio : IDisposable
         {
             // LA PRIMERA TRAMA ES LA QUE MANDA. Aquí sí hay prueba de que el teléfono entrega, y
             // sólo entonces se cierra el micrófono del portátil.
-            lock (_candado)
-            {
-                if (_mic != null) { try { _mic.StopRecording(); _mic.Dispose(); } catch { } _mic = null; }
-                _usandoTelefono = true;
-            }
+            _usandoTelefono = true;
+            CerrarLocal();
             LogBus.Log("voz-viva", "la voz entra por el teléfono; el micrófono local queda de reserva");
             FuenteCambio?.Invoke();
         }
@@ -461,9 +717,13 @@ public sealed class LiveAudio : IDisposable
         // alcance es reversible, y sin reintento la única salida era colgar y volver a pedirlo — que
         // desde fuera no se lee como «se cayó», se lee como «esto es inestable» (2026-08-13).
         if (!UsarCollar) return;
+        int cierres;
+        lock (_candadoDelOido) cierres = _cierres;
         _ = Task.Run(async () =>
         {
             await Task.Delay(ReintentoCollarMs);
+            // Diez segundos después puede no haber conversación: si colgaron, no se vuelve a buscar el collar.
+            lock (_candadoDelOido) { if (_cierres != cierres) return; }
             if (UsarCollar && !_usandoCollar) await AbrirCollarAsync();
         });
     }
@@ -471,7 +731,7 @@ public sealed class LiveAudio : IDisposable
     /// <summary>Deja de oír por el collar. Soltar el ENLACE es cosa de la pantalla, no de colgar.</summary>
     private void CerrarCollar()
     {
-        lock (_candado)
+        lock (_candadoDelOido)
         {
             if (!_usandoCollar) return;
             _usandoCollar = false;
@@ -537,7 +797,17 @@ public sealed class LiveAudio : IDisposable
 
     public void Dispose()
     {
+        lock (_candadoDelOido) _desechado = true;
         CerrarMicrofono();
+        // Que el dispositivo quede cerrado antes de irse, sin colgarse si algo va mal.
+        for (int i = 0; i < 40; i++)
+        {
+            lock (_candadoDelOido) { if (!_poniendoAlDia && !_captandoElLocal) break; }
+            Thread.Sleep(25);
+        }
+        MicrofonoPreparado? preparado;
+        lock (_candadoDelOido) { preparado = _preparado; _preparado = null; }
+        try { preparado?.Dispose(); } catch { }
         lock (_candado)
         {
             try { _altavoz?.Stop(); _altavoz?.Dispose(); } catch { }

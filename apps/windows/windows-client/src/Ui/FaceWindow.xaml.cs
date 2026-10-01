@@ -512,6 +512,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // ubicación, la verificación de llegadas y los vetos — y duplicar una protección es la
             // forma más segura de que una de las dos copias se quede atrás.
             _vivo = new ConversacionEnVivo(mcp.Map);
+            // EL MICRÓFONO, PREPARADO DESDE YA (spec 075): inicializarlo cuesta ~450 ms y arrancarlo ~250.
+            // Lo primero se paga ahora, que nadie espera; el clic solo paga lo segundo. Preparado no capta.
+            _vivo.PrepararElMicrofono();
             // «Cállate», «ocúltate», «ciérrate»: van al chrome de la ventana, no al mapa de
             // pantallas — por eso se resuelven aquí y no dentro de SurfaceMapTools.
             _vivo.Autocontrol = AtenderAutocontrol;
@@ -1201,6 +1204,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 // ratón —con el botón del collar no hay ratón de por medio—. Con las pastillas, quien
                 // lo apagaba era apartar el ratón, y por eso se quedaba encendido para siempre.
                 PintarHalo();
+                // CUÁNDO SE VIO, para la línea «voz-clic» (promesa 666): con prioridad por debajo de la de
+                // pintar, esto corre cuando la estela ya salió hacia la pantalla, no cuando se pidió.
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
+                    () => _vivo?.LaEstelaSePinto(viva));
             });
             // El halo repinta AL MOMENTO en que cambia el origen, y no sólo cuando Ü habla: el
             // temporizador de la boca vive únicamente mientras Ü está hablando, así que encender la
@@ -2776,8 +2783,11 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// es otra cosa — dos notas que SUBEN, escuchar = abrirse.</summary>
     private void StartMicByFace()
     {
-        PlayChime();
+        // PRIMERO LA VOZ, DESPUÉS EL CARRILLÓN (spec 075). OnMic vuelve en cuanto la voz consta encendida o
+        // apagada —la red va detrás—, y el carrillón se deja para cuando la estela ya se pintó: pedirle a
+        // Windows que suene es trabajo del mismo hilo que tiene que pintarla, y iba delante.
         OnMic(this, new RoutedEventArgs());
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, PlayChime);
     }
 
     /// <summary>
@@ -2858,8 +2868,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </summary>
     private async void OnMic(object sender, RoutedEventArgs e)
     {
-
-        if (_vivo != null) { await _vivo.AlternarAsync(); return; }
+        // EL RELOJ EMPIEZA EN EL GESTO: la línea «voz-clic» mide desde aquí cada tramo (promesa 666).
+        long gesto = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (_vivo != null) { await _vivo.AlternarAsync(gesto); return; }
 
         SetStatus("Escuchando…");   // a la píldora, no al globo: ver el comentario de _vivo.Cambio
         string heard = await _voice.ListenOnceAsync(CancellationToken.None);
@@ -3070,11 +3081,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 if (!_vivo.Viva) { LogBus.Log("presentacion", "abriendo la voz para saludar…"); StartMicByFace(); }
                 else LogBus.Log("presentacion", "la voz ya estaba abierta");
 
-                // Abrir la sesión es ir y volver por la red, y no avisa cuando termina. Se le da
-                // margen comprobando, en vez de dormir a ciegas un número redondo: así el saludo
-                // sale en cuanto está lista y no siempre en el peor caso.
-                for (int i = 0; i < 40 && _vivo?.Viva != true; i++) await Task.Delay(250);
-                if (_vivo?.Viva != true)
+                // Abrir la sesión es ir y volver por la red. ENCENDIDA YA NO ES ABIERTA (spec 075): la voz
+                // consta encendida desde el gesto, así que mirar Viva daría por lista una sesión que aún
+                // no confirmó, y el saludo se mandaría a un socket sin conectar. Se espera la confirmación.
+                if (_vivo == null || !await _vivo.EsperarAbiertaAsync(TimeSpan.FromSeconds(10)))
                 {
                     LogBus.Log("presentacion", $"ABORTADO: la voz no abrió en {crono.ElapsedMilliseconds} ms. "
                         + "No hay saludo — mira las líneas «voz-viva» de justo antes para saber por qué.");
