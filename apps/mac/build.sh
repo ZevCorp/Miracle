@@ -41,7 +41,22 @@ make_bundle() {
     if [[ "$signing_mode" == "developer-id" ]]; then
       /usr/bin/codesign --force --options runtime --timestamp --identifier com.zevcorp.u.mac.credential-store --sign "$CODE_SIGN_IDENTITY" "$bundle/Contents/MacOS/UCredentialStore"
     else
-      /usr/bin/codesign --force --keychain "$signing_keychain" --identifier com.zevcorp.u.mac.credential-store --sign "$signing_identity" "$bundle/Contents/MacOS/UCredentialStore"
+      # The Keychain hands a credential only to the exact helper binary the user allowed: with a
+      # local signer (no Team ID) the item remembers the helper's cdhash. Every rebuild, debug or
+      # release, from any session, produced a new cdhash and voice failed with -25293 until the user
+      # allowed it again (measured 2026-09-30). The signed helper is built once per source and
+      # reused, so one "Permitir siempre" lasts until the helper's own code changes.
+      local helper_cache="$HOME/Library/Application Support/U Mac/helper-cache"
+      local helper_key
+      helper_key="$(cat Sources/UCredentialStore/main.swift | shasum -a 256 | cut -c1-16)-$(printf '%s' "$signing_identity" | shasum -a 256 | cut -c1-8)"
+      local cached="$helper_cache/UCredentialStore-$helper_key"
+      if [[ -x "$cached" ]] && /usr/bin/codesign --verify "$cached" 2>/dev/null; then
+        cp "$cached" "$bundle/Contents/MacOS/UCredentialStore"
+      else
+        /usr/bin/codesign --force --keychain "$signing_keychain" --identifier com.zevcorp.u.mac.credential-store --sign "$signing_identity" "$bundle/Contents/MacOS/UCredentialStore"
+        mkdir -p "$helper_cache"
+        cp "$bundle/Contents/MacOS/UCredentialStore" "$cached"
+      fi
     fi
   fi
   cat > "$bundle/Contents/Info.plist" <<PLIST

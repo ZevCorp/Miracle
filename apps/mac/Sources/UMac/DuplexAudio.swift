@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreAudio
 import OSLog
 import UCore
 
@@ -35,16 +36,52 @@ public final class DuplexAudio {
     private var session: UUID?
     private var voiceProcessingWorks = true
     private var restarts: [Date] = []
+    private var lastFailure: String?
+    private static let rejectedKey = "voiceProcessingRejectedAt"
     private let logger = Logger(subsystem: "com.zevcorp.u.mac", category: "Audio")
     public private(set) var voiceProcessingEnabled = false
     public private(set) var restartCount = 0
+    private var lastAudibleEnd = Date.distantPast
+    /// Ü's own voice would come back through the microphone right now (see EchoGuard).
+    public var echoRisk: Bool {
+        EchoGuard.silences(voiceProcessing: voiceProcessingEnabled, openSpeaker: Self.outputIsOpenSpeaker(),
+                           playing: pendingAudibleFrames > 0, sinceLastPlayback: Date().timeIntervalSince(lastAudibleEnd))
+    }
+    /// The default output is the Mac's own speakers (not headphones, AirPods or an external device).
+    /// Unknown counts as open: answering itself is worse than losing the voice interruption.
+    static func outputIsOpenSpeaker() -> Bool {
+        var device = AudioDeviceID(0), size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device) == noErr else { return true }
+        var transport = UInt32(0); size = UInt32(MemoryLayout<UInt32>.size)
+        address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyTransportType, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &transport) == noErr else { return true }
+        guard transport == kAudioDeviceTransportTypeBuiltIn else { return false }
+        var source = UInt32(0); size = UInt32(MemoryLayout<UInt32>.size)
+        address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyDataSource, mScope: kAudioObjectPropertyScopeOutput, mElement: kAudioObjectPropertyElementMain)
+        if AudioObjectGetPropertyData(device, &address, 0, nil, &size, &source) == noErr, source == 0x6864_706E { return false }   // 'hdpn'
+        return true
+    }
     public var onLevel: ((Double) -> Void)?
     public var onSpeaking: ((Bool) -> Void)?
     public init() {}
     public func start(onPCM: @escaping @Sendable (Data) -> Void, onError: @escaping @Sendable (String) -> Void) throws {
         stop()
-        restarts = []; restartCount = 0; voiceProcessingWorks = true
-        try startWithFallback(onPCM: onPCM, onError: onError)
+        restarts = []; restartCount = 0; lastFailure = nil
+        // A Mac that rejected voice processing keeps rejecting it: each attempt costs ~2 s of silence
+        // before the conversation starts (measured 2026-10-01). It is tried again after 12 hours, in
+        // case the route changed (other microphone, a system update).
+        let rejected = UserDefaults.standard.double(forKey: Self.rejectedKey)
+        voiceProcessingWorks = Date().timeIntervalSince1970 - rejected > 12 * 3600
+        // A first start that fails is not the end: right after voice processing is rejected macOS is
+        // still tearing its aggregate device down, and a plain engine started in that instant fails
+        // with -10875 (measured 2026-10-01: 5 ms after the rejection, every time). The watchdog below
+        // starts it again once the device has settled, and only reports if it never does.
+        do { try startWithFallback(onPCM: onPCM, onError: onError) }
+        catch {
+            lastFailure = error.localizedDescription
+            logger.error("audio did not start at once: \(error.localizedDescription, privacy: .public); retrying")
+        }
         let id = UUID(); session = id
         watchdog = Task { [weak self] in
             while !Task.isCancelled {
@@ -65,6 +102,7 @@ public final class DuplexAudio {
             teardown()
             guard shouldRetry else { throw error }
             voiceProcessingWorks = false
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.rejectedKey)
             logger.info("voice processing rejected by this route; continuing without it")
             do { try startEngine(enableVoiceProcessing: false, onPCM: onPCM, onError: onError) }
             catch { teardown(); throw error }
@@ -94,16 +132,19 @@ public final class DuplexAudio {
         restarts = restarts.filter { now.timeIntervalSince($0) < 10 } + [now]
         guard restarts.count <= 8 else {
             logger.error("audio keeps stopping; giving up after \(self.restarts.count) restarts in 10 s")
+            let reason = lastFailure
             stop()
-            onError("El micrófono del Mac se detiene sin parar. Revisa el dispositivo de entrada seleccionado.")
+            onError(reason.map { "No pude iniciar el audio del Mac tras varios intentos. \($0)" }
+                    ?? "El micrófono del Mac se detiene sin parar. Revisa el dispositivo de entrada seleccionado.")
             return
         }
         restartCount += 1
         logger.info("audio \(reason, privacy: .public); restarting the engine (restart \(self.restartCount))")
         teardown()
-        do { try startWithFallback(onPCM: onPCM, onError: onError) }
+        do { try startWithFallback(onPCM: onPCM, onError: onError); lastFailure = nil }
         catch {
             // The watchdog tries again in half a second; the device may still be settling.
+            lastFailure = error.localizedDescription
             logger.error("audio restart failed: \(error.localizedDescription, privacy: .public)")
         }
     }
@@ -170,7 +211,7 @@ public final class DuplexAudio {
                 self.pendingFrames = max(0, self.pendingFrames - frames)
                 if chunk.audible {
                     self.pendingAudibleFrames = max(0, self.pendingAudibleFrames - frames)
-                    if self.pendingAudibleFrames == 0 { self.onSpeaking?(false); self.onLevel?(0) }
+                    if self.pendingAudibleFrames == 0 { self.lastAudibleEnd = Date(); self.onSpeaking?(false); self.onLevel?(0) }
                 }
             }
         }

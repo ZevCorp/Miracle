@@ -28,7 +28,13 @@ public enum Credentials {
     public static func readChecked(_ name: String, allowInteraction: Bool = false) async throws -> String? {
         let result = try await reader.read(name) {
             if let value = ProcessInfo.processInfo.environment[name], !value.isEmpty { return value }
-            return try runStore(name, operation: "read", interactive: allowInteraction)["value"] as? String
+            do { return try runStore(name, operation: "read", interactive: allowInteraction)["value"] as? String }
+            catch StoreRefusal.needsAuthorization(let status) where !allowInteraction {
+                // The Keychain does not recognise this helper (a new build): ask once, with the macOS
+                // dialog, instead of failing with a number. "Permitir siempre" makes it silent again.
+                guard escalation.claim(name) else { throw refusalMessage(status) }
+                return try runStore(name, operation: "read", interactive: true)["value"] as? String
+            }
         }
         try Task.checkCancellation()
         return result
@@ -56,9 +62,27 @@ public enum Credentials {
             throw AgentError.unavailable("No se pudo abrir el almacén seguro de Ü (\(process.terminationStatus)).")
         }
         if status == -25300 { return [:] }
-        guard status == 0 else {
-            throw AgentError.unavailable("El Llavero no autorizó la credencial (\(status)). Usa Comprobar Live 1 en Configuración para autorizarla.")
-        }
+        // errSecAuthFailed / errSecInteractionNotAllowed: the item exists but this helper is not allowed yet.
+        if !interactive && (status == -25293 || status == -25308) { throw StoreRefusal.needsAuthorization(status) }
+        guard status == 0 else { throw refusalMessage(status) }
         return result
     }
+
+    private static let escalation = Escalation()
+}
+
+/// A silent read the Keychain refused because it does not know this helper yet.
+private enum StoreRefusal: Error { case needsAuthorization(Int) }
+
+private func refusalMessage(_ status: Int) -> AgentError {
+    status == -128 || status == -25293
+        ? AgentError.unavailable("No se autorizó el acceso a la credencial en el Llavero. Vuelve a intentarlo y pulsa «Permitir siempre».")
+        : AgentError.unavailable("El Llavero no entregó la credencial (\(status)).")
+}
+
+/// One authorization dialog per credential per launch: a refused dialog is not asked again in a loop.
+private final class Escalation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var asked = Set<String>()
+    func claim(_ name: String) -> Bool { lock.lock(); defer { lock.unlock() }; return asked.insert(name).inserted }
 }

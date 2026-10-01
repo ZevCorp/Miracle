@@ -16,8 +16,16 @@ public enum LiveTools {
         function("launch_app", "Abre una app o la trae al frente, aunque ya esté abierta, por nombre o bundle id. Es la forma de cambiar de app; no uses Jev para eso. Después lee la pantalla.", ["app": "Nombre o bundle id"]),
         function("open_url", "Abre una dirección web en el navegador predeterminado. Después lee la pantalla.", ["url": "Dirección http o https"]),
         function("list_apps", "Lista las aplicaciones instaladas en este Mac.", [:]),
-        function("stop_task", "Detiene la tarea en curso cuando lo pide el usuario.", [:])
+        function("stop_task", "Detiene la tarea en curso cuando lo pide el usuario.", [:]),
+        function("escucha_pasiva", "Pasa Ü a escucha pasiva de fondo, más barata, cuando Ü lo decide tras un rato sin interacción. Cierra la conversación en vivo; vuelve sola si llaman a Ü.", ["motivo": "Por qué, en una frase"])
     ]
+    /// Sol works without Live: no screenshot attached to a voice session, no passive switch.
+    public static var planning: [[String: Any]] {
+        definitions.filter { !["look", "escucha_pasiva"].contains($0["name"] as? String ?? "") }.map { tool in
+            guard tool["name"] as? String == "map_tramo" else { return tool }
+            return function("map_tramo", "Navega con Jev dentro de la app al frente (máximo 15 pasos) y devuelve el desenlace cuando termina.", ["goal": "Objetivo concreto de navegación"])
+        }
+    }
     private static func function(_ name: String, _ description: String, _ properties: [String: String]) -> [String: Any] {
         ["type": "function", "name": name, "description": description,
          "parameters": ["type": "object", "properties": properties.mapValues { ["type": "string", "description": $0] },

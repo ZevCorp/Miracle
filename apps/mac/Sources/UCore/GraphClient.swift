@@ -62,4 +62,27 @@ public final class GraphClient: @unchecked Sendable {
     public func providerKeys() async throws -> ProviderKeys {
         try JSONDecoder().decode(ProviderKeys.self, from: await data(path: "agent/claves"))
     }
+    /// A short-lived Soniox key: Graph keeps the account key, the Mac only opens one socket with it.
+    public struct TranscriptionSession: Decodable, Sendable {
+        public let provider: String?
+        public let access_token: String?
+        public let model: String?
+    }
+    /// Graph cold starts can take one call; passive listening must not die on it.
+    public func transcriptionSession(attempts: Int = 3) async throws -> TranscriptionSession {
+        var failure: Error = AgentError.unavailable("Graph no entregó la sesión de Soniox.")
+        for _ in 0..<max(1, attempts) {
+            do { return try await transcriptionSessionOnce() }
+            catch is CancellationError { throw CancellationError() }
+            catch { failure = error; try await Task.sleep(for: .milliseconds(300)) }
+        }
+        throw failure
+    }
+    private func transcriptionSessionOnce() async throws -> TranscriptionSession {
+        let session = try JSONDecoder().decode(TranscriptionSession.self, from: await data(path: "transcription/session", body: Data("{}".utf8)))
+        guard session.provider == "soniox", let token = session.access_token, !token.isEmpty else {
+            throw AgentError.unavailable("Graph no entrega una sesión de Soniox (proveedor: \(session.provider ?? "ninguno")).")
+        }
+        return session
+    }
 }

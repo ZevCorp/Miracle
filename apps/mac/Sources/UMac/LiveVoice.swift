@@ -10,8 +10,14 @@ public final class LiveVoice {
     public var onText: ((String, Bool) -> Void)?
     public var onSpeaking: ((Bool) -> Void)?
     public var onError: ((String) -> Void)?
+    /// The last failure was the credential itself (no balance, rejected), not the network or the Mac:
+    /// another credential may work where this one did not.
+    public private(set) var credentialRefused = false
     public var onTool: ((String, [String: String]) async throws -> String)?
     public private(set) var connected = false
+    /// While Live weighs an internal question it must not be heard: a stray "hum" breaks the
+    /// promise of silence. The person speaking lifts it (they may be answering Ü).
+    public var muted = false
     private var epoch = UUID()
     private var socket: URLSessionWebSocketTask?
     private var session: URLSession?
@@ -40,6 +46,7 @@ public final class LiveVoice {
     }
     public func start(key: String, model: String = "gpt-live-1", userContext: AssistantContext = .init()) async throws {
         stop()
+        credentialRefused = false
         let id = UUID(); epoch = id
         guard await AVCaptureDevice.requestAccess(for: .audio) else { throw AgentError.permission("Micrófono") }
         guard epoch == id, !Task.isCancelled else { throw CancellationError() }
@@ -64,7 +71,9 @@ public final class LiveVoice {
                 }
             } catch {
                 guard let self, self.epoch == id, !Task.isCancelled else { return }
-                self.fail(LiveProtocol.connectionError(status: (socket.response as? HTTPURLResponse)?.statusCode, code: (error as NSError).code))
+                let status = (socket.response as? HTTPURLResponse)?.statusCode
+                self.credentialRefused = status == 401
+                self.fail(LiveProtocol.connectionError(status: status, code: (error as NSError).code))
             }
         }
         timeout = Task { [weak self] in
@@ -77,6 +86,7 @@ public final class LiveVoice {
         } catch {
             let status = (socket.response as? HTTPURLResponse)?.statusCode
             if epoch == id { stop() }
+            credentialRefused = status == 401
             throw AgentError.unavailable(LiveProtocol.connectionError(status: status, code: (error as NSError).code))
         }
     }
@@ -95,9 +105,13 @@ public final class LiveVoice {
                 guard let self, self.epoch == id, !Task.isCancelled else { return }
                 do {
                     let chunk = try LiveAudioChunk(data)
-                    self.inputLevel = chunk.level
+                    // Without echo cancellation, Ü's own voice from the speakers is not sent back to
+                    // it: the same duration goes as silence, so the stream keeps its timing.
+                    let echo = self.audio.echoRisk
+                    self.inputLevel = echo ? 0 : chunk.level
                     self.onLevel?(max(self.inputLevel, self.outputLevel))
-                    try await self.send(["type": "session.input_audio.append", "audio": data.base64EncodedString()])
+                    let payload = echo ? Data(count: data.count) : data
+                    try await self.send(["type": "session.input_audio.append", "audio": payload.base64EncodedString()])
                 }
                 catch { if self.epoch == id { self.fail("No pude enviar el audio. La conversación se cerró.") }; return }
             }
@@ -110,7 +124,7 @@ public final class LiveVoice {
         }
     }
     public func stop() {
-        epoch = UUID(); connected = false; inputLevel = 0; outputLevel = 0; onLevel?(0)
+        epoch = UUID(); connected = false; muted = false; inputLevel = 0; outputLevel = 0; onLevel?(0)
         frames?.finish(); frames = nil
         sender?.cancel(); sender = nil; receiver?.cancel(); receiver = nil
         timeout?.cancel(); timeout = nil; lifetime?.cancel(); lifetime = nil
@@ -170,11 +184,11 @@ public final class LiveVoice {
             do { try startAudio(epoch: id) }
             catch { fail("Live 1 conectó, pero no pude iniciar el audio del Mac: " + error.localizedDescription) }
         case "session.output_audio.delta":
-            if let value = event["delta"] as? String, let data = Data(base64Encoded: value) { try audio.play(data) }
+            if !muted, let value = event["delta"] as? String, let data = Data(base64Encoded: value) { try audio.play(data) }
         case "session.output_transcript.delta":
-            if let text = event["delta"] as? String { logger.info("assistant: \(text, privacy: .public)"); onText?(text, false) }
+            if !muted, let text = event["delta"] as? String { logger.info("assistant: \(text, privacy: .public)"); onText?(text, false) }
         case "session.input_transcript.delta":
-            if let text = event["delta"] as? String { logger.info("user: \(text, privacy: .public)"); onText?(text, true) }
+            if let text = event["delta"] as? String { muted = false; logger.info("user: \(text, privacy: .public)"); onText?(text, true) }
         case "session.closed": fail("La sesión Live 1 se cerró.")
         case "response.event":
             guard let nested = event["event"] as? [String: Any] else { return }
@@ -227,6 +241,7 @@ public final class LiveVoice {
             // Do not log the raw response: it can include user data or authentication details.
             let code = (event["error"] as? [String: Any])?["code"] as? String ?? "unknown"
             logger.error("live error code=\(code, privacy: .public)")
+            credentialRefused = LiveProtocol.credentialRefused(code: code)
             if code != "response_cancel_not_active" { fail(LiveProtocol.errorMessage(code: code)) }
         default: break
         }

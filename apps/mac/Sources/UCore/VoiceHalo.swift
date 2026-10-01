@@ -14,3 +14,16 @@ public struct VoiceHalo: Sendable {
         opacity = active ? 0.50 + force * 0.42 : 0
     }
 }
+
+/// When macOS refuses voice processing there is no echo cancellation: through open speakers the
+/// microphone hears Ü's own voice and Live answers itself or cuts itself off. While Ü is audibly
+/// speaking, and for a short tail, the microphone is sent as silence. With headphones there is no
+/// echo, so the person can still interrupt by voice. Pure: the audio engine asks this.
+public enum EchoGuard {
+    /// The room keeps ringing a moment after the last sample is played.
+    public static let tail = 0.35
+    public static func silences(voiceProcessing: Bool, openSpeaker: Bool, playing: Bool, sinceLastPlayback: Double) -> Bool {
+        guard !voiceProcessing, openSpeaker else { return false }
+        return playing || sinceLastPlayback < tail
+    }
+}

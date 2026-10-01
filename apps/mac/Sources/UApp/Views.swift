@@ -34,7 +34,6 @@ struct Face: View {
                 }
             } catch { blink = false }
         }
-        .onTapGesture { model.toggleLiveFromFace() }
         .contextMenu {
             Button(model.microphone ? "Cerrar conversación" : "Hablar con Live 1") { model.toggleLiveFromFace() }
             Button("Abrir chat del notch") { model.setNotchExpanded(true) }

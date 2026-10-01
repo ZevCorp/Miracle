@@ -5,7 +5,7 @@ final class MockGraphProtocol: URLProtocol, @unchecked Sendable {
     static var respond: ((URLRequest) -> (Int, Data))?
     static var delay: TimeInterval = 0
     private var delivery: DispatchWorkItem?
-    override class func canInit(with request: URLRequest) -> Bool { ["test.invalid", "api.typesafe.ai"].contains(request.url?.host ?? "") }
+    override class func canInit(with request: URLRequest) -> Bool { ["test.invalid", "api.typesafe.ai", "api.openai.com"].contains(request.url?.host ?? "") }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         guard let respond = Self.respond else { fatalError("Missing HTTP fixture") }
