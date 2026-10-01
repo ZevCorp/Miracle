@@ -9,26 +9,52 @@ sin preguntar.
 <persona>/<que-hace>     jose/puente-portal-clinico · jero/carrera-del-busy · pipe/inventario-accionable
 ```
 
-`jero`, `jose` o `pipe` en minúscula, y después **el resultado** en kebab-case. El prefijo es dueño
-de *la rama*, no del código.
+El nombre de quien la abre, en minúscula, y después **el resultado** en kebab-case. El prefijo es
+dueño de *la rama*, no del código.
 
-- **Nace** siempre desde `main` fresco: `git checkout main && git pull origin main && git checkout -b jose/lo-que-sea`.
-  **Nunca desde la rama anterior.**
+- **Nace** siempre desde `main` fresco, **y en su propio árbol de trabajo**:
+  `bash tools/monorepo/arbol.sh nuevo jose/lo-que-sea`. **Nunca desde la rama anterior**, y nunca
+  con `git checkout -b` en una carpeta que comparten varias sesiones.
 - **Vive** de medio día a tres días. Una vez al día: `git pull --rebase origin main`.
-- **Una rama es una feature — ni media, ni dos.** Al cambiar de feature se cambia de rama, aunque la
-  anterior no esté terminada (`git commit -am "wip: hasta donde llegué"`, push, y la siguiente desde `main`).
-- **Muere** al mergear. `git branch -d` en minúscula: si grita, algo no se integró. No cambiarlo por `-D`.
+- **Una rama es una feature — ni media, ni dos.** Al cambiar de feature se cambia de rama y de
+  árbol, aunque la anterior no esté terminada (`git commit -am "wip: hasta donde llegué"`, push, y
+  la siguiente con `arbol.sh nuevo`).
+- **Muere** al mergear, con su árbol: `bash tools/monorepo/arbol.sh cerrar`. Comprueba que el PR
+  está mergeado y que no queda nada sin commitear, y entonces borra el árbol y la rama. Si algo
+  queda, lo nombra y no lo borra.
 
-**En el flujo SDD: una spec = una rama.** Las fases son commits dentro de ella. Se merge cuando
+**En el método: una spec = una rama.** Las fases son commits dentro de ella. Se mergea cuando
 *todas* sus promesas están verdes, no fase a fase.
+
+## Un agente, un árbol
+
+Dos agentes no comparten árbol de trabajo, igual que dos personas no comparten rama. En una carpeta
+compartida, el `git switch` de uno le cambia la rama al otro debajo de los pies, y un `git add -A`
+se lleva los cambios ajenos a su commit.
+
+- **Antes de la primera edición**, el agente trabaja en un árbol que creó él (`arbol.sh nuevo`) o
+  que le dieron. Claude Code entra con la herramienta `EnterWorktree`, pasándole la ruta.
+- **Un guardia lo hace cumplir.** El árbol es de la primera sesión de agente que escribe en él. Otra
+  sesión que intente editarlo o commitear en él se detiene, con la orden para crear el suyo. Quién
+  está en qué árbol: `bash tools/monorepo/arbol.sh estado`.
+- **Seguir el trabajo de una sesión que ya terminó** es legítimo: `bash tools/monorepo/arbol.sh
+  tomar`. La marca caduca sola a las 4 horas sin actividad.
+- **Al terminar, no se deja nada atrás**: `arbol.sh cerrar` para lo propio, y `arbol.sh limpiar`
+  para barrer todo lo terminado que nadie usa. Ninguno borra trabajo que no esté en `main`.
+- **Por qué `cerrar` y no `git branch -d`:** con squash merge, `-d` protesta siempre, porque los
+  commits de la rama no son los que entraron a `main`. `cerrar` mira el PR, que sí distingue lo
+  mergeado de lo que no. `-D` a mano sigue sin usarse: se salta esa comprobación.
+
+A una persona sola en su clon, el guardia no la toca.
 
 ## `main` no se toca
 
-`main` cambia **solo por merge de un PR**. Si `git status` dice `On branch main` y hay cambios,
-te equivocaste de sitio:
+`main` cambia **solo por merge de un PR**, y GitHub lo hace cumplir: `main` está protegido y exige
+el check `compuerta`. Si `git status` dice `On branch main` y hay cambios, te equivocaste de sitio:
 
 ```
-git stash && git checkout -b jose/lo-que-sea && git stash pop
+git stash -u && bash tools/monorepo/arbol.sh nuevo jose/lo-que-sea
+# y en el árbol nuevo:  git stash pop
 ```
 
 **Squash merge** por defecto. El PR va aunque lo mergees tú mismo cinco minutos después: es donde
@@ -57,7 +83,7 @@ Lo que hace bueno a esos mensajes y hay que imitar:
 - El cuerpo, cuando lo hay, lleva **la medida**: cuántos sitios tenían la clase de error (patrón nº5),
   en cuántas pantallas se probó (aprendizaje nº9), qué promesa pasó a verde.
 
-En el flujo SDD, el commit de una fase cita su promesa:
+En el método, el commit de una fase cita su promesa:
 
 ```
 feat(plata): el mobiliario derivado abre rutas, y se acaba el segundo calculo
@@ -86,3 +112,4 @@ distintas y ninguna rama de más de un día.
 - Commitear o hacer push.
 - Mergear a `main`, ni forzar nada (`push --force`, `-D`, `reset --hard`) sobre trabajo compartido.
 - Abrir una rama paralela con trabajo que otro ya tiene abierto. Se habla.
+- Cambiar de rama, o tomar el árbol, donde está trabajando otra sesión.

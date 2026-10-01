@@ -32,7 +32,11 @@ El rojo de la primera fase es un entregable, no un accidente. Se ve así:
 | 6 | `/a-main` | la rama verificada | PR con evidencia | `main` sigue verde |
 
 Se repiten 4 y 5 por cada fase. 6 se hace una vez, cuando **todas** las promesas de la spec están
-verdes: una rama que llega a `main` con promesas pendientes deja `main` rojo para los tres.
+verdes: una rama que llega a `main` con promesas pendientes deja `main` rojo para todos.
+
+Las skills son las del monorepo (`.claude/skills/` de la raíz) desde el 2026-09-30, cuando el método
+pasó a los demás proyectos. Lo que es propio de Windows —qué medir antes de especificar, cómo se
+escribe una promesa en `Contrato.cs`, con qué se juzga— está en este archivo.
 
 ## Cuándo NO aplica
 
@@ -59,6 +63,58 @@ qué se está arreglando — y ese es el hallazgo.
 - **Los fixtures congelados**: `tests/ContratoDelGrafo/bronce/`. Entradas que tienen que dar el mismo
   resultado en cualquier máquina y para siempre. Distinto de `C:\U-versiones\escenarios\` (mide
   resultado sobre el terreno vivo de *esta* máquina, y por eso no se commitea).
+
+## Antes de especificar: qué se mide en Windows
+
+1. **El log**, no las capturas ni el código: `%LOCALAPPDATA%\U\logs\u-AAAAMMDD.log`.
+2. **El contrato actual**: `tests/ContratoDelGrafo/Contrato.cs`. ¿Cuál es el número más alto? ¿Alguna
+   promesa ya cubre esto? ¿Alguna lo **contradice**?
+3. **El grafo**: `graphify query "<la pregunta>"` antes que grep, si `graphify-out/graph.json` existe.
+4. **La API, si hay COM de por medio**: una sonda de solo lectura contesta en veinte minutos lo que
+   la deducción no cierra en semanas.
+
+El modelo de spec a imitar es [`docs/plan-plata-real.md`](../../docs/plan-plata-real.md), y la
+plantilla, [`docs/specs/PLANTILLA.md`](../../docs/specs/PLANTILLA.md).
+
+## Con qué se juzga una promesa
+
+- **Fixture congelado** (`tests/ContratoDelGrafo/bronce/`) si tiene que dar el mismo resultado en
+  cualquier máquina y para siempre. Se captura una vez, **se le quita todo lo declarado antes de
+  guardarlo** —si no, nace contaminado con lo que estamos quitando— y no se vuelve a tocar salvo
+  para añadir casos.
+- **Escenario de CI local** (`C:\U-versiones\escenarios\`, fuera del repo) si mide resultado sobre el
+  terreno vivo de esta máquina.
+- **Mapa construido a mano** en la propia prueba, como las promesas 1-10.
+
+## Cómo se escribe una promesa en `Contrato.cs`
+
+Se registra con **el enunciado literal de la spec**, en continuación de la numeración:
+
+```csharp
+Prueba("20. <el enunciado tal cual está en la spec>", NombreDelCuerpo);
+```
+
+El cuerpo, sobre un `SurfaceMap` recién nacido (el arnés le da su propio `U_DATA_DIR`):
+
+```csharp
+private static void NombreDelCuerpo(SurfaceMap m)
+{
+    // El caso medido el <fecha>: <el síntoma real, no la hipótesis>.
+    var h = Derivacion(m, "fake.exe");
+    if (h == null) { Pendiente("Plata.Derivar", "1"); return; }   // fase que lo cumplirá
+
+    Debe(<condición>, "<qué queda probado, en la voz de la promesa>");
+}
+```
+
+- **Un `Debe` por afirmación**, con el texto en la voz de la promesa. `Debe(a && b, "...")` da un
+  rojo que no dice cuál de las dos falló.
+- **Nada de `try/catch` en el cuerpo.** El arnés ya imprime la cadena entera de `InnerException`;
+  capturar dentro es el patrón nº3, cometido dentro del arnés que existe para evitarlo.
+- Si hace falta esperar al `MinDwell`, `Thread.Sleep(Dwell)` (1450 ms, con margen para no medir la
+  casualidad).
+- El juez es `.\scripts\contrato-del-grafo.ps1`. Compila en Release: con Debug, en una máquina con
+  Smart App Control, salen diez rojas de golpe (`0x800711C7`) y el veredicto miente.
 
 ## Pedir capacidades que todavía no existen
 
