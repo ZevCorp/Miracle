@@ -64,6 +64,22 @@ function main() {
     }
   });
 
+  // Medido el 2026-09-30 contra gpt-4.1-mini, con el prompt @6 ya desplegado: el
+  // paciente dice «yo tengo gastritis», la acompañante «él es diabético», el médico
+  // no confirma ninguna, y la nota salía «paciente con diagnóstico conocido de
+  // gastritis y diabetes» en 3 corridas de 3. La 601 decía que el médico manda,
+  // pero no decía qué hacer con un diagnóstico que el médico NO tocó.
+  check('610. un diagnóstico que solo dicen el paciente o su acompañante no es un diagnóstico conocido', () => {
+    for (const transcript of [CONVERSACION, 'Paciente refiere dolor abdominal de dos días.']) {
+      const system = systemOf(plan(transcript));
+      assert.ok(/no es un diagn[oó]stico conocido/i.test(system), 'lo dice con esas palabras');
+      assert.ok(/Refiere antecedente de/.test(system), 'y da la forma de escribirlo, con su fuente');
+      assert.ok(/tampoco (se usa como|es) (el )?motivo/i.test(system), 'y prohíbe usarlo para justificar una conducta');
+      assert.ok(!/ya ven[ií]a establecido en la historia\./.test(system),
+        '«ya venía establecido en la historia», a secas, era la puerta por la que entraba lo que dice el paciente');
+    }
+  });
+
   check('602. con una sola voz, el modelo recibe la transcripción sin etiquetas, como antes', () => {
     const dictado = 'Paciente masculino de 45 años con dolor abdominal. Se solicita ecografía.';
     const sinEtiqueta = plan(dictado);

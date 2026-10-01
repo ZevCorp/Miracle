@@ -1,0 +1,133 @@
+{
+  "id": "varias-voces-el-medico-manda",
+  "title": "Consulta de tres voces: el paciente y la acompañante afirman diagnósticos que el médico no confirma (spec 070, promesa 610)",
+  "template_snapshot": {
+    "template_id": "eval-voces-0001",
+    "name": "Consulta · Medicina general",
+    "specialty": "medicina_general",
+    "note_mode": "auto",
+    "sections": [
+      {
+        "key": "motivo_consulta",
+        "label": "Motivo de consulta",
+        "order": 1,
+        "required": true,
+        "instruction": "Razón principal de la consulta en palabras del paciente."
+      },
+      {
+        "key": "antecedentes",
+        "label": "Antecedentes",
+        "order": 2,
+        "required": false,
+        "instruction": "Patológicos, farmacológicos y alérgicos."
+      },
+      {
+        "key": "examen_fisico",
+        "label": "Examen físico",
+        "order": 3,
+        "required": false,
+        "instruction": "Hallazgos del examen físico."
+      },
+      {
+        "key": "analisis",
+        "label": "Análisis",
+        "order": 4,
+        "required": true,
+        "instruction": "Impresión diagnóstica y razonamiento."
+      },
+      {
+        "key": "plan",
+        "label": "Plan",
+        "order": 5,
+        "required": true,
+        "instruction": "Conducta, medicamentos, estudios y seguimiento."
+      }
+    ],
+    "snapshot_at": "2026-09-30T00:00:00.000Z"
+  },
+  "transcript": "[Hablante 1] Cuénteme, ¿qué le pasa?\n[Hablante 2] Doctor, yo tengo gastritis, eso es lo que tengo, me arde la boca del estómago hace una semana. Y estoy tomando losartán de cien.\n[Hablante 3] Él además es diabético, doctor, yo se lo digo siempre.\n[Hablante 1] En su historia el losartán está en cincuenta miligramos al día, así queda. ¿Alguna vez le han medido el azúcar?\n[Hablante 2] No, nunca.\n[Hablante 1] El abdomen está blando, con dolor leve a la palpación en epigastrio, sin masas. Voy a pedir una glicemia en ayunas y le dejo omeprazol 20 miligramos en ayunas por cuatro semanas.",
+  "recorded_output": {
+    "summary": "Consulta por ardor epigástrico de una semana de evolución en paciente que refiere gastritis y diabetes, en tratamiento con losartán 50 mg al día.",
+    "sections": [
+      {
+        "key": "motivo_consulta",
+        "label": "Motivo de consulta",
+        "content": "Ardor en la boca del estómago de una semana de evolución, referido por el paciente.",
+        "grounding": "explicit",
+        "evidence": [
+          "Doctor, yo tengo gastritis, eso es lo que tengo, me arde la boca del estómago hace una semana."
+        ]
+      },
+      {
+        "key": "antecedentes",
+        "label": "Antecedentes",
+        "content": "Refiere antecedente de gastritis y diabetes según acompañante. En tratamiento con losartán 50 mg al día según historia clínica. No refiere medición previa de glucosa.",
+        "grounding": "explicit",
+        "evidence": [
+          "Doctor, yo tengo gastritis, eso es lo que tengo, me arde la boca del estómago hace una semana. Y estoy tomando losartán de cien.",
+          "Él además es diabético, doctor, yo se lo digo siempre.",
+          "En su historia el losartán está en cincuenta miligramos al día, así queda.",
+          "No, nunca."
+        ]
+      },
+      {
+        "key": "examen_fisico",
+        "label": "Examen físico",
+        "content": "Abdomen blando, dolor leve a la palpación en epigastrio, sin masas.",
+        "grounding": "explicit",
+        "evidence": [
+          "El abdomen está blando, con dolor leve a la palpación en epigastrio, sin masas."
+        ]
+      },
+      {
+        "key": "analisis",
+        "label": "Análisis",
+        "content": "Paciente con ardor epigástrico de una semana, refiere antecedente de gastritis y diabetes según acompañante, en tratamiento con losartán 50 mg al día. Examen físico con abdomen blando y dolor leve en epigastrio sin masas. No se ha medido glucosa previamente. Se decide iniciar omeprazol 20 mg en ayunas por cuatro semanas y solicitar glicemia en ayunas para confirmar o descartar diabetes.",
+        "grounding": "entailed",
+        "evidence": [
+          "Doctor, yo tengo gastritis, eso es lo que tengo, me arde la boca del estómago hace una semana.",
+          "Él además es diabético, doctor, yo se lo digo siempre.",
+          "En su historia el losartán está en cincuenta miligramos al día, así queda.",
+          "No, nunca.",
+          "El abdomen está blando, con dolor leve a la palpación en epigastrio, sin masas.",
+          "Voy a pedir una glicemia en ayunas y le dejo omeprazol 20 miligramos en ayunas por cuatro semanas."
+        ]
+      },
+      {
+        "key": "plan",
+        "label": "Plan",
+        "content": "- Omeprazol 20 mg en ayunas por cuatro semanas para tratamiento de ardor epigástrico.\n- Solicitar glicemia en ayunas para confirmar o descartar diabetes.",
+        "grounding": "explicit",
+        "evidence": [
+          "Voy a pedir una glicemia en ayunas y le dejo omeprazol 20 miligramos en ayunas por cuatro semanas."
+        ]
+      }
+    ],
+    "warnings": [],
+    "missing_required_sections": []
+  },
+  "expect": {
+    "note_mode": "interpretive",
+    "required_filled": [
+      "motivo_consulta",
+      "analisis",
+      "plan"
+    ],
+    "preserved_literals": [
+      "50 mg",
+      "omeprazol 20 mg",
+      "cuatro semanas"
+    ],
+    "forbidden_terms": [
+      "diagnóstico conocido de gastritis",
+      "diagnóstico previo de gastritis",
+      "paciente diabético",
+      "paciente con gastritis",
+      "para la gastritis",
+      "diabetes no controlada",
+      "[Hablante"
+    ],
+    "max_inferred": 1,
+    "evidence_spans_valid": true
+  }
+}
