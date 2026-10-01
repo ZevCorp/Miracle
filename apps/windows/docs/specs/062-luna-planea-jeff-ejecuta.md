@@ -52,7 +52,9 @@ plan viejo.
 | 517 | la mano del plan no pulsa sobre una ventana de Ü: mira bajo el punto con la misma regla (510), y tras el clic avisa a la carita | 2 |
 | 518 | Luna piensa en modo rápido: la delegación le pide `reasoning.effort = low` | 3 |
 | 519 | el plan trabaja sobre la misma ventana que el ciclo rápido: la de delante, y si delante está Ü o nada, la de trabajo; sin ninguna de las dos, dice que no hay ventana | 4 |
-| 520 | quien planea es GPT-6 Sol con el pensamiento en bajo y sin pagar de más por velocidad: delegado `gpt-6-sol` con `reasoning.effort = low` y sin `service_tier` priority, al abrir y al cambiar de modo | 5 |
+| 520 | quien planea es GPT-6.1 Sol con el pensamiento en bajo y sin pagar de más por velocidad: delegado `gpt-6.1-sol` con `reasoning.effort = low` y sin `service_tier` priority, al abrir y al cambiar de modo | 5 |
+
+> **Tercera decisión del dueño (2026-09-30):** el planificador pasa de `gpt-6-sol` a **`gpt-6.1-sol`**. Cambia el enunciado de la 520 y lo que comprueban la 40 y la 42 de la voz y la 210 del grafo. La Responses API reconoce el modelo (`gpt-6-1-sol` no existe); **sin medir en vivo**: la clave de OpenAI estaba sin créditos ese día. Las medidas de esta spec son de `gpt-6-sol`.
 
 > **Segunda decisión del dueño (2026-09-29, al cerrar):** sin `priority` —«el costo nos puede salir muy caro»—, con el
 > pensamiento en bajo. El enunciado de la 520 cambió con su número. Coste en tiempo, medido: el primer plan pasa de 1.874 a

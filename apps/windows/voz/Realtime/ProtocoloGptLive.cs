@@ -99,7 +99,7 @@ public sealed class ProtocoloGptLive : IProtocolo
     public bool MarcaLosTurnos => false;
     public bool SabeEsperarTurno => false;
 
-    public ProtocoloGptLive(string modelo = "gpt-live-1", string delegado = "gpt-6-sol")
+    public ProtocoloGptLive(string modelo = "gpt-live-1", string delegado = "gpt-6.1-sol")
     {
         Modelo = modelo;
         Delegado = delegado;
