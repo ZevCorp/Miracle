@@ -1,12 +1,14 @@
 # Plan de implementación: Ü sabe con quién habla
 
-Estado: **fases W1 y W2 escritas, sin compilar** (2026-10-01) · Nace del pedido del dueño del 2026-10-01 · Rama: `claude/wizardly-brown-ld68hq`
+Estado: **fases W1, W2, W3 y W4 escritas; compilan en Linux y sus promesas de texto están verdes** (2026-10-01) · Nace del pedido del dueño del 2026-10-01 · Rama: `claude/wizardly-brown-ld68hq`
 
 > Esta spec cubre la mitad Windows del diseño «los prompts de Ü, ordenados». La otra mitad vive en
 > Graph (`services/graph`), en el mismo PR. **W1** (perfil, bienvenida, cable) usa las promesas
 > **650-669** del contrato del grafo; **W2** (la voz: la constitución en `Instrucciones`, la persona de
 > GPT-Live, el saludo, los defectos D1-D10 del mapa de la voz) usa las **670-686** del grafo y las
-> **56-59** del contrato de la voz.
+> **56-59** del contrato de la voz. **W3** (el delegado, segunda ronda: lo que encontraron las pruebas del
+> delegado con la constitución nueva) usa las **687-691**, y **W4** (dos fallos que encontró la revisión del
+> código de la rama) las **692-693**.
 
 ## Diagnóstico: qué se midió
 
@@ -71,7 +73,13 @@ Los enunciados son los de `tests/ContratoDelGrafo/Contrato.cs`, literalmente.
 | 684 | los textos que recibe la voz dicen lo que pasa: la voz prestada cita el dictado tal cual le llega, self_update no le contesta en futuro y self_close no le da una segunda despedida | W2 |
 | 685 | el saludo de primera vez sabe con quién habla: al médico le cuenta que le ayuda en sus programas para que le quede más tiempo para sus pacientes, a la persona que le ayuda en su día a día sin hablarle de pacientes ni de SAP, y sin elegir es el de antes; los tres ofrecen mirar el computador con UNA pregunta y dicen que es la excepción | W2 |
 | 686 | los prompts de cardio llaman a Ü por su nombre, con diéresis: ninguno dice «U» | W2 |
-| 687-689 | libres dentro de W2: no se usaron. No se reciclan para otra cosa sin decirlo aquí | — |
+| 687 | el delegado sabe cuándo callar, cuándo seguir y cuándo preguntar: un «espera» mientras habla es una interrupción y no apaga la voz, lo que cancela acaba con lo anterior, un diálogo que solo confirma lo pedido se contesta sin preguntar —con `choose`, y si map_unblock no lo pulsa, con map_take— y uno que trae otra decisión se pregunta una vez, dos del mismo nombre que son personas no se eligen —tampoco si la lista llega de map_hacer, ni con el decisor—, en una app de trabajo mira una vez dónde está antes de actuar porque solo eso cuenta lo enseñado, al terminar habla siempre, y tocar archivos es file_list, un map_hacer con pasos y teclas que las manos leen —de uno en uno, volviendo a la carpeta de origen—, y file_list otra vez | W3 |
+| 688 | el catálogo no contradice a las instrucciones: self_mute dice que un «espera» no es apagar la voz, lo que se recuerda de una pantalla y de la persona van a herramientas distintas, ni memory_remember ni map_esto_es guardan datos de un paciente —y memory_remember dice a dónde van si piden anotarlos—, map_where_am_i dice que cuenta lo enseñado y cuándo pedirla, `choose` de map_unblock dice qué pasa sin él y qué no pulsa, `which` de map_take sirve también para la lista de map_hacer, file_list dice que en la ventana el nombre va sin la extensión que Windows esconde, map_hacer nombra todos los pasos que las manos leen y ninguno más, y ninguna descripción dice Jeff, ordenador, «sólo» ni vosotros — en el catálogo de la voz y en el del piloto, con el decisor y sin él | W3 |
+| 689 | una pregunta sin respuesta no es permiso: el bucle del agente le dice al cerebro que la persona no contestó —empezando como el «(sin respuesta)» de Graph— y no «usa tu mejor criterio»; y las frases fijas que el bucle narra o dice no llevan emojis, ni «¡Vamos!», ni «voy a», ni tuteo —le puede estar hablando a un médico—, y «Listo.» se narra solo si no hubo resumen | W3 |
+| 690 | con un médico, la memoria automática no guarda nada por su cuenta: lo dicho en consulta —«recuerda que la de la cama 4 es alérgica a la penicilina», «tengo un paciente de 54 años»— no llega a la memoria personal si no lo decide el modelo con memory_remember; con una persona o sin elegir, sigue guardando como siempre | W3 |
+| 691 | dos del mismo nombre no los elige el plan: si «pulsa: X» encuentra varios «X» a la vista, el paso para con su lista numerada y dice cómo pulsar uno (map_take con which), sin esperar ni pasárselo a Jev; si no hay varios, lo de siempre (516, 524, 525) | W3 |
+| 692 | en un equipo compartido la especialidad de un médico no se le pega al siguiente: al entrar con su cuenta, la carita guarda que en ese equipo se usa Ü como médico, pero no copia a config.json la especialidad de la cuenta; la que queda guardada es solo la que alguien eligió allí (650) | W4 |
+| 693 | una reconexión no deja a nadie esperando a una conexión muerta: si al empezar otra conexión la confirmación de la anterior seguía pendiente, la nueva la hereda, y quien esperaba (volver de un modo, empezar a enseñar, hablar) despierta con la confirmación de la conexión viva en vez de rendirse a los 15 s | W4 |
 | voz 56 | volver de un modo con GPT-Live es su propio mensaje: la delegación con las instrucciones que se le den, íntegras byte a byte aunque no sean las de la apertura, y a la voz su persona detrás del prefijo medido de la vuelta, nunca las de operar; con GPT Realtime volver es su apertura, y un protocolo que no lo declara vuelve con su cambio de modo | W2 |
 | voz 57 | ningún append a la voz de GPT-Live pasa de 1.756 caracteres, el más largo que se midió aceptado: unas reglas que miden justo eso salen enteras, unas instrucciones de operar que no caben le devuelven su persona en vez de mandarse, y una frase de perfil desmedida deja la persona base | W2 |
 | voz 58 | la voz de GPT-Live sabe con quién habla: la frase del perfil va pegada detrás de su persona al abrir y al volver, sin perfil la persona es la base exacta, y con perfil sigue diciendo las reglas de la 46 y la 55 | W2 |
@@ -135,6 +143,19 @@ Sin pantalla y sin red, como la 98:
 - **684, 685, 686** — los textos (`VozPrestada`, `Presentacion.Saludo`, los prompts de cardio) por
   reflexión, y `[texto]`/`[cableado]` sobre las fuentes (necesitan `U_REPO`).
 - **56-59 de la voz** — `ProtocoloGptLive` e `IProtocolo` sin socket, como la 47.
+- **687** — la constante `Operacion` por reflexión (la misma que llega en `InstruccionesNormales`), párrafo a
+  párrafo; los pasos del ejemplo de archivos contra los prefijos que leen `u/Nucleo/Ejecutor.cs` y
+  `ElPlanPorObjetivos.Objetivo`, y cada `tecla:` contra `U.Ciclo.Raton.EventosDeTecla` (fuera de Windows, con su
+  misma gramática).
+- **688** — `Herramientas()` y `HerramientasDelPiloto()` con `ConDecisor` en los dos valores (restaurado en
+  `finally`).
+- **689** — `AgentLoop.SinRespuesta` por reflexión, y `[texto]`/`[cableado]` sobre `AgentLoop.cs` (necesita `U_REPO`).
+- **690** — una `ConversacionEnVivo` sin socket (como la 683), con cada perfil y una `MemoriaPersonal` en un archivo de
+  la promesa: se le dicen dos frases a cada vigilante y se lee lo que quedó.
+- **691** — `ElPlanPorObjetivos.Objetivo` con las manos de mentira de la 516 y `Homonimos` puesto a mano (corre sin
+  pantalla); `[cableado]` sobre `FaceWindow.xaml.cs` (necesita `U_REPO`).
+- **692** — `[texto]` sobre `EnsureOnboarded` en `FaceWindow.xaml.cs` (necesita `U_REPO`): pone el perfil y no copia la especialidad.
+- **693** — `[texto]` sobre `EmpiezaUnaConexion` en `ConversacionEnVivo.cs` (necesita `U_REPO`): hereda la espera pendiente.
 
 La ventana de bienvenida y la fila del menú son **nivel 4**: se prueban a mano en un PC con Windows. Y
 la voz también tiene su nivel 4 (abajo, fase W2).
@@ -187,7 +208,7 @@ Lo que hace, en una línea por pieza:
 
 - **Las instrucciones**: `Instrucciones` = `ConstitucionDeU.Quien` + `Obedece` + `Operacion` (sigue siendo
   `private const string`, por la 263). `Operacion` es el texto de operación de Windows del diseño, tal cual.
-  Medían 25.096 caracteres; ahora 15.818, y con un médico y el decisor, 17.887.
+  Medían 25.096 caracteres; tras W2, 15.818, y con un médico y el decisor, 17.887 (tras W3, ver abajo).
 - **Las de siempre**: `InstruccionesDeSiempre` (instancia) = quién es Ü · «QUIÉN TE HABLA» · obedece ·
   operación · decisor, con los saltos en `\n`. `InstruccionesNormales` (estática) es lo mismo sin perfil.
   Abrir, reconectar y volver usan las de siempre con la memoria y el hilo (D3). Del hilo van 8.000
@@ -216,6 +237,74 @@ cómo saluda; enseñar (🎓) y comprobar que asiente con una palabra y que, al 
 en un plan de `map_hacer` sobre SAP (para en «Grabar» y, si se pidió, pulsa con `map_take`). Pegar en el PR
 las líneas `voz-viva: … el servidor la confirmó`.
 
+### Fase W3 — el delegado, segunda ronda
+
+| | |
+|---|---|
+| **Promesas que pone verdes** | 687-691 |
+| **Qué toca** | `Voice/ConversacionEnVivo.cs` (`Operacion`, `ParrafoDelDecisor` y las descripciones del catálogo), `Agent/AgentLoop.cs`, `Navigation/ElPlanPorObjetivos.cs` y su cableado en `Ui/FaceWindow.xaml.cs` (691) |
+| **¿Núcleo congelado?** | no |
+| **Terminado** | 687-691 verdes y rojas contra el código de antes, 1-686 intactas; las de siempre de un médico con el decisor caben en 20.000 (674) |
+| **Sitios con esta clase de error** | contados con `grep`: **2** sitios mandaban cualquier «deja de hablar» a `self_mute` (la operación y la descripción; el tercero, la persona de la voz, ya lo arregló la constitución); **2** herramientas contestaban «¿qué recuerdas?» (`map_recuerdos`, `memory_recall`); **2** frases empujaban a tocar archivos gesto a gesto (la operación y el comentario de los `file_*`); **2** herramientas con formas de vosotros (`map_look_back` ×3, `map_show` ×1) y **1** con «sólo»; **1** «usa tu mejor criterio» en Windows (el de Android, `core/.../Engine.kt`, es de otra carpeta: ver «Lo que NO entra»); **1** emoji que se oía al comprobar (`¡Listo! 🎉`); **3** caminos a la memoria personal (`GuardarPeticionPersonalSiLaPidio`, `GuardarDetallePersonalSiEsRelevante` y `memory_remember`): los 2 automáticos se apagan con un médico, y el tercero lo decide el modelo con su descripción y la constitución |
+
+Lo que hace, en una línea por pieza (los hallazgos son de las pruebas del 2026-10-01 sobre el delegado con
+la constitución `constitucion-de-u@2026-10-01.2`):
+
+- **Callar no es apagar**: «cállate», «silencio», «apaga la voz», «deja de escucharme» → `self_mute`; un
+  «espera», «para» o «ya, ya» mientras habla es una interrupción: se calla, escucha y hace lo que venga. En la
+  operación y en la descripción de `self_mute`.
+- **Lo que cancela, acaba**: «olvídalo», «no, mejor…» terminan lo anterior; lo que corrige lo mismo sigue con la
+  corrección; lo que es otra cosa se resuelve y después se retoma.
+- **Diálogos**: el que solo confirma lo pedido («¿Eliminar?» tras «bórralo») se contesta en `choose` sin
+  preguntar; el que trae una decisión que el pedido no resolvió («¿Guardar los cambios?» al cerrar), una vez.
+  `map_unblock` veta Eliminar, Borrar, Aceptar, Enviar o Sobrescribir aunque se lo pidan (`SafeToClick.EsDestructivo`):
+  tras su «NO pulso…», lo pedido se pulsa con `map_take`, como en `map_hacer`. Y sin `choose` elige la salida que no
+  compromete (Cancelar, No): lo dice la descripción de `choose`, que antes decía «solo si hay una única salida».
+- **Homónimos**: si son personas o pacientes distintos, no se eligen con `which`: se pregunta una vez con lo que
+  los distingue. En un `map_hacer` no llegaba: el ciclo rápido no pulsaba, el paso pasaba a Jev como «llegar a «X» y
+  pulsarlo» y Jev elegía uno. Ahora el plan para con la lista numerada y dice cómo pulsar uno (`map_take` con
+  `which`) (691); con el decisor encendido, a una persona o un paciente no la elige el decisor.
+- **Llegar**: tras un acto no se pide `map_what_i_see`, pero `map_where_am_i` sí, una vez, al llegar a una app de
+  trabajo y antes de actuar en ella: es lo único que cuenta lo enseñado allí (`SurfaceMapTools.WhereAmI`; los actos
+  traen solo el inventario). Su descripción lo dice, y que para abrir, calcular o configurar no hace falta: sin esa
+  condición chocaba con «no mires antes» de PARA ACTUAR.
+- **Terminar**: al terminar habla siempre, una vez; la lección guardada al actuar se cuenta en una frase; y la
+  lista de cuándo se habla incluye preguntar o avisar (lo irreversible que nadie pidió, lo que no cuadra) y contar
+  recuerdos de uno en uno.
+- **Archivos**: `file_list`, UN `map_hacer` con pasos que existen y `file_list` otra vez. Varios, de uno en uno y
+  volviendo a la carpeta de origen tras cada «tecla: Ctrl+V» (el siguiente no está a la vista en el destino). En
+  «pulsa:» el nombre va como se ve en la ventana, sin la extensión que Windows esconde: `CicloRapido.Buscar` compara
+  el nombre entero, y «enero.pdf» no casa con «enero». Lo dice la descripción de `file_list`. El ejemplo crea
+  «Facturas» y no «Fotos»: «carpeta: Fotos» abre **Imágenes** (`Explorador.PorNombre`). «seleccionar juntos:» y
+  «entrar en:», que proponía el hallazgo, no son pasos: el ejecutor los mandaría a Jev como una frase.
+- **Memoria**: «qué sabes de mí» → `memory_recall` o el hilo; «¿qué recuerdas de aquí?» → `map_recuerdos`; lo que se
+  vio en una pantalla → `map_look_back`. `memory_remember` y `map_esto_es` no guardan datos de un paciente; si piden
+  anotar uno, va donde el médico diga (la historia, una nota), y si no lo dijo, se le pregunta dónde, una vez.
+- **`map_hacer.pasos`** nombra todos los pasos que leen las manos —«abre:», «pulsa:» (a la vista o no),
+  «carpeta:», «escribe:», «tecla:», «desplaza:» con muescas y «esperar»— y ninguno más.
+- **La memoria automática con un médico**: los dos vigilantes que guardaban por palabra clave («recuerda que…»,
+  «tengo un…») no guardan nada con un médico. En consulta, «tengo un paciente de 54 años» es lo normal, y lo
+  guardado vuelve en cada sesión siguiente. Lo que va a la memoria lo decide el modelo con `memory_remember`.
+- **El bucle del agente**: una pregunta sin respuesta viaja como `(sin respuesta: la persona no contestó)`, el
+  mismo comienzo que Graph pone cuando no llega nada; «¡Vamos!» pasa a «En marcha.» y «¡Listo! 🎉» a «Listo.»,
+  porque al comprobar se oyen, y «Listo.» solo se narra si no hubo resumen. Las frases fijas dejan el tú, porque Speak
+  sale por la voz viva y puede estar hablándole de usted a un médico: «El cerebro no respondió y tuve que parar.» y
+  «No entendí qué hacer. ¿Cómo sería con otras palabras?».
+- **El presupuesto (674)**: lo nuevo se pagó quitando lo que repetían las descripciones —el párrafo del decisor
+  (1.071 → 619 caracteres, sin «Jev» ni «TypeSafe»), la viñeta de `sobre` de map_esto_es, la de map_pointing_at
+  dentro de VARIAS COSAS, la de map_exclude— y «Se te mide por lo que dejas hecho», que empujaba a callar al final.
+  En la revisión de la W3 se fueron también la alarma de «TOMO NOTA» y «no te asustes si la pantalla no cambia», que
+  ya dicen `memory_remember` y `map_take`. Con la constitución de este día, las de siempre miden 17.547 (sin perfil) y
+  19.831 (médico de Cardiología con el decisor). La 674 juzga el peor caso —un médico con una especialidad de 60
+  caracteres, y el decisor—: 19.880 de 20.000, **120 de holgura**. Lo que crezca la constitución sale de ahí.
+
+Pruebas de la W3, en Linux con `-p:EnableWindowsTargeting=true`: U.exe y los dos contratos compilan con 0 errores;
+el contrato de la voz, entero en verde; el del grafo, 687-689 verdes (la 690 necesita WPF/UIA, como la 683) y ninguna promesa cambia de estado frente a la
+rama antes de la W3 (las rojas son las de siempre: WPF/UIA no cargan en Linux); el arnés de la W2 (670-684 con el
+`ConversacionEnVivo.cs` real) en verde, 671 y 674 incluidas, y con la 690 añadida, verde. Sabotajes: «seleccionar juntos:» y «Ctrl+Equis» en el
+ejemplo de archivos → ✘ 687; «¡Listo! 🎉» de vuelta → ✘ 689; sin `_perfil.EsMedico` en cualquiera de los dos vigilantes → ✘ 690; el código de
+antes → ✘ 687, 688 y 689.
+
 ## Lo que NO entra
 
 - **La telemetría con el perfil** (`Telemetry.cs`, `RegisterPayload`): opcional, para que Provider
@@ -235,6 +324,24 @@ las líneas `voz-viva: … el servidor la confirmó`.
   voz) espera a una sonda que diga si el delegado ve el historial de la voz. Hoy solo se recorta a 8.000.
 - **Las otras cinco listas de «lo peligroso»** (`PuertasPeligrosas`, `SafeToClick`, el prompt,
   `ElEncargoDeComprobar`, `u/Nucleo/ProtocoloVivo`): no preguntan a TypeSafe y no se tocaron.
+- **W3: «usa tu mejor criterio» en Android** (`apps/android/core/src/commonMain/kotlin/graph/core/application/Engine.kt`,
+  con su «¡Vamos!» y su «¡Listo! 🎉»): es la misma clase de error, pero de otra carpeta y con su propia spec (la
+  006 de Android cita la frase). Va en una rama de Android.
+- **W3: la persona de la voz con un paciente delante** (`ConstitucionDeU.VozMedico`: «Con un paciente delante,
+  solo lo que pida»): puede leerse como callar el aviso que pasa el delegado. Es de la constitución, que tiene sus
+  dos copias; no se tocó desde aquí.
+- **W3: el hilo durable con un médico** (`ConversacionPersonal`): guarda la conversación de la consulta y la
+  devuelve en las instrucciones de la sesión siguiente. No es la memoria de la constitución, pero lleva lo mismo.
+  Es una decisión de producto (qué se guarda de una consulta y cuánto dura); se anota para el dueño.
+- **W3: los «✓»/«✗» que narra `WorkflowMcpRunner`**: al comprobar se oyen. No son emojis de dos unidades y no los
+  juzga la 689.
+- **W3: lo que el bucle narra y viene de Graph** (`resp.Narration`, `resp.Intents`, `resp.Speech`): al comprobar se
+  oye, y si anuncia, lo arregla el prompt del cerebro en Graph. La 689 juzga solo las frases fijas del bucle.
+  `$"En marcha: {goal}"` tampoco se oye en la práctica: al comprobar, el encargo pasa de 90 caracteres y se narra
+  «En marcha.»; fuera de la comprobación, lo narrado solo se escribe en el notch.
+- **W3: `SurfaceMapTools.Desbloquear` sigue vetando lo destructivo aunque se lo pidan** (y con él, el «Aceptar» de un
+  diálogo informativo de una sola salida). No se tocó el veto: la salida para lo que sí se pidió es `map_take`, como en
+  `map_hacer`, y la operación y la descripción de `choose` lo dicen.
 - **Un médico que entra por la ventana de consulta con la carita abierta**: la carita no se entera
   hasta el próximo arranque (`EnsureOnboarded` usa una `SesionMiracle` propia que se descarta). Se
   acepta.
@@ -261,3 +368,23 @@ las líneas `voz-viva: … el servidor la confirmó`.
 - [ ] Probado en ≥2 pantallas, con nombre: la bienvenida en equipo nuevo, en equipo con correo, y
       desde el menú; un médico con sesión Miracle (sin pregunta, fila del menú «de tu cuenta Miracle»)
 - [ ] Estado de este documento: **implementado** (AAAA-MM-DD)
+
+### Fase W4 — dos fallos de la revisión del código
+
+| | |
+|---|---|
+| **Promesas que pone verdes** | 692-693 |
+| **Qué toca** | `Ui/FaceWindow.xaml.cs` (`EnsureOnboarded`), `Voice/ConversacionEnVivo.cs` (`EmpiezaUnaConexion`) |
+| **¿Núcleo congelado?** | no |
+| **Terminado** | 692-693 verdes y rojas contra el código de antes (corrida en Linux del 2026-10-01: 106 rojas → 104, las mismas 104 de siempre sin WPF ni UIA) |
+| **Sitios con esta clase de error** | **1** copia de la especialidad de la cuenta a `config.json` (`EnsureOnboarded`); **1** sitio que crea la espera de la apertura (`EmpiezaUnaConexion`), del que cuelgan **3** que la esperan (`VolverAlModoNormalAsync`, `CambiarModoAsync`, `HablarConVozVivaAsync`) |
+
+- **La especialidad es de la cuenta, no del equipo.** `EnsureOnboarded` copiaba la especialidad de la cuenta a
+  `config.json` al poner el perfil médico. En un PC de hospital, la Dra. A (Cardiología) entraba y salía, y al
+  Dr. B —sin especialidad en su cuenta— el delegado le decía «especialista en Cardiología», porque `Resolver` usa
+  la guardada como respaldo. Ahora solo se guarda el perfil; la especialidad del médico viaja en su sesión (654).
+- **Una reconexión no deja esperas huérfanas.** Si una conexión moría antes de `session.started` sin mandar error
+  y se reconectaba, la espera de la anterior no la resolvía nadie: volver de un modo se rendía a los 15 s y el
+  aprendiz quedaba puesto al terminar de enseñar. Ahora la conexión nueva hereda la espera pendiente.
+- **Nivel 4:** en un PC con Windows, entrar con una cuenta con especialidad, salir, entrar con otra sin ella y
+  mirar en el log `onboarding`/el bloque del delegado que no dice la especialidad de la primera.

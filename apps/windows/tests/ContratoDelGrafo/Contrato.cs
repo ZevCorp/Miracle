@@ -951,7 +951,7 @@ internal static class Contrato
         // Ü SABE CON QUIÉN HABLA (spec 071, 2026-10-01). El dueño: que Ü pregunte al empezar si quien lo
         // usa es médico —con su especialidad— o lo usa para su día a día, y que cada uno tenga sus
         // prompts. 650-669 son de la fase W1 (perfil, bienvenida, cable); 670-689, de la W2 (la voz; se
-        // usaron 670-686). La ventana y el menú son nivel 4: aquí va lo puro.
+        // usaron 670-686), y 687-691 de la W3 (el delegado). La ventana y el menú son nivel 4: aquí va lo puro.
         Prueba("650. con un médico dentro, Ü es médico y su especialidad es la de su cuenta aunque en este equipo se haya elegido otra cosa; si la cuenta no la tiene vale la elegida como médico, y si tampoco, queda sin especialidad — nunca la que quedó guardada de una persona", ConMedicoDentroMandaLaCuenta);
         Prueba("651. sin médico dentro manda lo que eligió la persona: «Médico», «médica» y «MEDICO » son médico; una persona va sin especialidad aunque quede una vieja guardada; y lo que nunca se eligió —o un valor que no se conoce— es «sin elegir», no un perfil por defecto, y no viaja a Graph", SinMedicoMandaLoElegido);
         Prueba("652. el perfil se pregunta una vez: equipo nuevo → bienvenida entera; equipo con correo y sin perfil → solo el perfil; con perfil elegido o con médico dentro → nada; y la 98 sigue igual", ElPerfilSePreguntaUnaVez);
@@ -987,6 +987,18 @@ internal static class Contrato
         Prueba("684. los textos que recibe la voz dicen lo que pasa: la voz prestada cita el dictado tal cual le llega, self_update no le contesta en futuro y self_close no le da una segunda despedida", LosTextosDeLaVozDicenLoQuePasa);
         Prueba("685. el saludo de primera vez sabe con quién habla: al médico le cuenta que le ayuda en sus programas para que le quede más tiempo para sus pacientes, a la persona que le ayuda en su día a día sin hablarle de pacientes ni de SAP, y sin elegir es el de antes; los tres ofrecen mirar el computador con UNA pregunta y dicen que es la excepción", ElSaludoSabeConQuienHabla);
         Prueba("686. los prompts de cardio llaman a Ü por su nombre, con diéresis: ninguno dice «U»", LosPromptsDeCardioDicenU);
+
+        // EL DELEGADO, SEGUNDA RONDA (spec 071, 2026-10-01). Lo que encontraron las pruebas del delegado con la constitución
+        // nueva delante: un «espera» que apagaba la voz, lo cancelado que se retomaba, un «¿Eliminar?» que se preguntaba
+        // aunque ya estaba pedido, archivos tocados gesto a gesto con un atajo inventado, descripciones de herramienta que
+        // decían lo contrario que las instrucciones, y «usa tu mejor criterio» cuando nadie contestaba.
+        Prueba("687. el delegado sabe cuándo callar, cuándo seguir y cuándo preguntar: un «espera» mientras habla es una interrupción y no apaga la voz, lo que cancela acaba con lo anterior, un diálogo que solo confirma lo pedido se contesta sin preguntar —con `choose`, y si map_unblock no lo pulsa, con map_take— y uno que trae otra decisión se pregunta una vez, dos del mismo nombre que son personas no se eligen —tampoco si la lista llega de map_hacer, ni con el decisor—, en una app de trabajo mira una vez dónde está antes de actuar porque solo eso cuenta lo enseñado, al terminar habla siempre, y tocar archivos es file_list, un map_hacer con pasos y teclas que las manos leen —de uno en uno, volviendo a la carpeta de origen—, y file_list otra vez", ElDelegadoSabeCuandoCallarSeguirYPreguntar);
+        Prueba("688. el catálogo no contradice a las instrucciones: self_mute dice que un «espera» no es apagar la voz, lo que se recuerda de una pantalla y de la persona van a herramientas distintas, ni memory_remember ni map_esto_es guardan datos de un paciente —y memory_remember dice a dónde van si piden anotarlos—, map_where_am_i dice que cuenta lo enseñado y cuándo pedirla, `choose` de map_unblock dice qué pasa sin él y qué no pulsa, `which` de map_take sirve también para la lista de map_hacer, file_list dice que en la ventana el nombre va sin la extensión que Windows esconde, map_hacer nombra todos los pasos que las manos leen y ninguno más, y ninguna descripción dice Jeff, ordenador, «sólo» ni vosotros — en el catálogo de la voz y en el del piloto, con el decisor y sin él", ElCatalogoNoContradiceALasInstrucciones);
+        Prueba("689. una pregunta sin respuesta no es permiso: el bucle del agente le dice al cerebro que la persona no contestó —empezando como el «(sin respuesta)» de Graph— y no «usa tu mejor criterio»; y las frases fijas que el bucle narra o dice no llevan emojis, ni «¡Vamos!», ni «voy a», ni tuteo —le puede estar hablando a un médico—, y «Listo.» se narra solo si no hubo resumen", UnaPreguntaSinRespuestaNoEsPermiso);
+        Prueba("690. con un médico, la memoria automática no guarda nada por su cuenta: lo dicho en consulta —«recuerda que la de la cama 4 es alérgica a la penicilina», «tengo un paciente de 54 años»— no llega a la memoria personal si no lo decide el modelo con memory_remember; con una persona o sin elegir, sigue guardando como siempre", ConUnMedicoLaMemoriaAutomaticaNoGuardaLaConsulta);
+        Prueba("691. dos del mismo nombre no los elige el plan: si «pulsa: X» encuentra varios «X» a la vista, el paso para con su lista numerada y dice cómo pulsar uno (map_take con which), sin esperar ni pasárselo a Jev; si no hay varios, lo de siempre (516, 524, 525)", DosDelMismoNombreNoLosEligeElPlan);
+        Prueba("692. en un equipo compartido la especialidad de un médico no se le pega al siguiente: al entrar con su cuenta, la carita guarda que en ese equipo se usa Ü como médico, pero no copia a config.json la especialidad de la cuenta; la que queda guardada es solo la que alguien eligió allí (650)", LaEspecialidadDeUnaCuentaNoSeQuedaEnElEquipo);
+        Prueba("693. una reconexión no deja a nadie esperando a una conexión muerta: si al empezar otra conexión la confirmación de la anterior seguía pendiente, la nueva la hereda, y quien esperaba (volver de un modo, empezar a enseñar, hablar) despierta con la confirmación de la conexión viva en vez de rendirse a los 15 s", LaReconexionNoDejaEsperasHuerfanas);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -1065,6 +1077,62 @@ internal static class Contrato
             .GetAwaiter().GetResult();
         Debe(guardado.Ok && guardado.ReminderDueAt.HasValue,
             "«en dos minutos» se entiende aunque el usuario lo diga con palabras");
+    }
+
+    /// <remarks>
+    /// EL FALLO (revisión del 2026-10-01): EnsureOnboarded copiaba a config.json la especialidad de la cuenta del
+    /// médico que entraba. config.json es del EQUIPO, no de la cuenta: en un PC de hospital, la Dra. A (Cardiología)
+    /// entraba, cerraba sesión, y al Dr. B —cuya cuenta no tiene especialidad— el delegado le decía «especialista en
+    /// Cardiología», porque PerfilDeUso.Resolver usa la especialidad guardada como respaldo. Se juzga en la fuente,
+    /// como la 340: EnsureOnboarded es de la carita (WPF) y no corre fuera de Windows.
+    /// </remarks>
+    private static void LaEspecialidadDeUnaCuentaNoSeQuedaEnElEquipo()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string archivo = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(archivo))
+        {
+            Console.WriteLine("   ⚠ NO PUDE JUZGARLA: falta U_REPO para leer FaceWindow.xaml.cs");
+            return;
+        }
+        string fuente = File.ReadAllText(archivo);
+        int desde = fuente.IndexOf("private void EnsureOnboarded()", StringComparison.Ordinal);
+        int hasta = desde < 0 ? -1 : fuente.IndexOf("switch (Cuenta.Identidad.QueBienvenida(", desde, StringComparison.Ordinal);
+        if (desde < 0 || hasta < 0) { Pendiente("FaceWindow.EnsureOnboarded", "692", "071"); return; }
+        string conMedico = fuente[desde..hasta];
+        Debe(conMedico.Contains("_config.Perfil = Cuenta.PerfilDeUso.Medico;", StringComparison.Ordinal),
+            "con un médico dentro, el equipo queda como de uso médico (no se le vuelve a preguntar)");
+        Debe(!conMedico.Contains("sesion.MedicoEspecialidad", StringComparison.Ordinal)
+             && !conMedico.Contains("_config.Especialidad =", StringComparison.Ordinal)
+             && !conMedico.Contains("_config.EspecialidadNombre =", StringComparison.Ordinal),
+            "y la especialidad de la cuenta no se copia al equipo: la del médico viaja en su sesión (654), y la guardada es solo la que se eligió aquí");
+    }
+
+    /// <remarks>
+    /// EL FALLO (revisión del 2026-10-01): EmpiezaUnaConexion creaba otra TaskCompletionSource sin resolver la de la
+    /// conexión anterior. Si una conexión moría antes de session.started sin mandar error y se reconectaba, quien
+    /// esperaba la vieja —VolverAlModoNormalAsync, CambiarModoAsync, HablarConVozVivaAsync— se quedaba 15 s y
+    /// recibía false aunque la nueva ya estuviera confirmada: el aprendiz quedaba puesto al terminar de enseñar. Se
+    /// juzga en la fuente, como la 341 (la apertura serializada), porque el arnés necesita el servidor.
+    /// </remarks>
+    private static void LaReconexionNoDejaEsperasHuerfanas()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string archivo = Path.Combine(repo, "windows-client", "src", "Voice", "ConversacionEnVivo.cs");
+        if (!File.Exists(archivo))
+        {
+            Console.WriteLine("   ⚠ NO PUDE JUZGARLA: falta U_REPO para leer ConversacionEnVivo.cs");
+            return;
+        }
+        string fuente = File.ReadAllText(archivo);
+        int desde = fuente.IndexOf("private void EmpiezaUnaConexion(", StringComparison.Ordinal);
+        int hasta = desde < 0 ? -1 : fuente.IndexOf("_fallaAntesDeAbrir = \"\";", desde, StringComparison.Ordinal);
+        if (desde < 0 || hasta < 0) { Pendiente("ConversacionEnVivo.EmpiezaUnaConexion", "693", "voz"); return; }
+        string empieza = fuente[desde..hasta];
+        Debe(empieza.Contains("_aperturaConfirmada is { Task.IsCompleted: false }", StringComparison.Ordinal),
+            "la confirmación pendiente de la conexión anterior pasa a la nueva en vez de quedar huérfana");
+        Debe(empieza.Contains("if (_confirmada) _aperturaConfirmada.TrySetResult(true);", StringComparison.Ordinal),
+            "y un protocolo que no confirma la deja resuelta en el acto, como siempre");
     }
 
     private static void LaSalidaHabladaUsaSoloVozViva()
@@ -17531,6 +17599,369 @@ internal static class Contrato
         }
         if (FuenteDe("windows-client", "src", "Cardio", "LecturaCardio.cs") is not { } c) return;
         Debe(!c.Contains(".Append(\"U: \")", StringComparison.Ordinal), "[texto] y en la conversación previa habla «Ü:», no «U:»");
+    }
+
+    // ── SPEC 071, SEGUNDA RONDA: EL DELEGADO (687-689) ─────────────────────────────────
+    //
+    // Se juzga el texto, que es lo único que se puede juzgar sin pantalla: si la regla vuelve a su forma vieja, vuelve el
+    // fallo que las pruebas midieron. El nivel 4 (la voz de verdad en un PC con Windows) sigue siendo de la fase.
+
+    /// <summary>
+    /// Los pasos con prefijo que leen las manos del plan: «abre:», «escribe:», «tecla:» y «desplaza:» los lee
+    /// <c>u/Nucleo/Ejecutor.cs</c>; «pulsa:» y «carpeta:», <c>ElPlanPorObjetivos.Objetivo</c>. «esperar» no lleva dos
+    /// puntos. Cualquier otra frase es un objetivo para Jev: un «seleccionar juntos:» no es un paso, es una frase.
+    /// </summary>
+    private static readonly string[] PrefijosDelPlan071 = { "abre:", "pulsa:", "carpeta:", "escribe:", "tecla:", "desplaza:" };
+
+    /// <summary>El párrafo que empieza por <paramref name="cabeza"/>, hasta la línea en blanco; "" si no está.</summary>
+    private static string Parrafo071(string texto, string cabeza)
+    {
+        int i = texto.IndexOf(cabeza, StringComparison.Ordinal);
+        if (i < 0) return "";
+        int j = texto.IndexOf("\n\n", i, StringComparison.Ordinal);
+        return j < 0 ? texto[i..] : texto[i..j];
+    }
+
+    /// <summary>La línea que contiene <paramref name="marca"/>; "" si no está.</summary>
+    private static string Linea071(string texto, string marca)
+    {
+        int i = texto.IndexOf(marca, StringComparison.Ordinal);
+        if (i < 0) return "";
+        int ini = texto.LastIndexOf('\n', i) + 1, fin = texto.IndexOf('\n', i);
+        return fin < 0 ? texto[ini..] : texto[ini..fin];
+    }
+
+    /// <summary>Los pasos de ejemplo de un texto: cada «prefijo: resto» entre comillas latinas, también con un prefijo de
+    /// varias palabras («seleccionar juntos: …»), que es justo el que no existe.</summary>
+    private static List<(string Prefijo, string Resto)> PasosDeEjemplo071(string texto)
+        => System.Text.RegularExpressions.Regex.Matches(texto, @"«([a-záéíóúñ][a-záéíóúñ ]*):\s*([^»]*)»")
+            .Select(m => (m.Groups[1].Value + ":", m.Groups[2].Value.Trim())).ToList();
+
+    /// <summary>
+    /// ¿Saben las manos mandar esta tecla? En Windows se le pregunta a <c>U.Ciclo.Raton</c>, que es quien la manda. Fuera
+    /// de Windows no hay user32 que preguntar, y se juzga con la misma gramática de <c>Raton.Eventos</c>: nombres de tecla,
+    /// una letra o cifra, o F1-F12, unidos por «+».
+    /// </summary>
+    private static bool TeclaQueSeManda071(string tecla)
+    {
+        if (OperatingSystem.IsWindows()) return U.Ciclo.Raton.EventosDeTecla(tecla).Count > 0;
+        var nombres = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "enter", "intro", "escape", "esc", "tab", "espacio", "space", "borrar", "backspace", "suprimir", "delete", "abajo",
+            "down", "arriba", "up", "izquierda", "left", "derecha", "right", "ctrl", "control", "alt", "shift", "mayus", "win",
+            "inicio", "home", "fin", "end",
+        };
+        var partes = tecla.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return partes.Length > 0 && partes.All(p => nombres.Contains(p) || (p.Length == 1 && char.IsLetterOrDigit(p[0]))
+            || (p.Length >= 2 && (p[0] is 'F' or 'f') && int.TryParse(p[1..], out int f) && f is >= 1 and <= 12));
+    }
+
+    /// <remarks>
+    /// LO QUE ENCONTRARON LAS PRUEBAS DEL DELEGADO (2026-10-01), con la constitución nueva delante:
+    ///   · «espera», «para» o «ya, ya» caían en self_mute por «que dejes de hablar»: la sesión se cerraba y lo que la
+    ///     persona iba a pedir se perdía;
+    ///   · «olvídalo, mejor ábreme el correo» obligaba a retomar lo cancelado («la petición ORIGINAL sigue en pie»);
+    ///   · el «¿Eliminar?» de Windows después de «bórralo» se preguntaba: el diálogo tiene dos salidas y eso era «una
+    ///     decisión de verdad»;
+    ///   · dos «Juan Pérez» se elegían por intuición, que con pacientes es el peor error posible;
+    ///   · lo enseñado en una pantalla no llegaba: solo map_where_am_i lo cuenta y se prohibía pedirlo tras un acto;
+    ///   · mover fotos se hacía en seis llamadas, gesto a gesto con map_take, y con un «Ctrl+Shift+X» que no existe;
+    ///   · y al terminar, «silencio, o una confirmación mínima».
+    /// </remarks>
+    private static void ElDelegadoSabeCuandoCallarSeguirYPreguntar()
+    {
+        string? op = typeof(ConversacionEnVivo).GetField("Operacion", Estatico071)?.GetRawConstantValue() as string;
+        string normales = typeof(ConversacionEnVivo).GetProperty("InstruccionesNormales", Estatico071)?.GetValue(null) as string ?? "";
+        if (op == null || normales.Length == 0) { Pendiente("ConversacionEnVivo.Operacion · InstruccionesNormales", "687", "071"); return; }
+        op = op.ReplaceLineEndings("\n");
+        Debe(normales.ReplaceLineEndings("\n").Contains(op, StringComparison.Ordinal), "la operación que se juzga es la que le llega al delegado");
+
+        // CALLAR: apagar la voz no es que lo interrumpan.
+        string tu = Parrafo071(op, "TÚ MISMO:");
+        Debe(tu.Contains("self_mute INMEDIATAMENTE", StringComparison.Ordinal) && tu.Contains("«cállate»", StringComparison.Ordinal)
+             && tu.Contains("«apaga la voz»", StringComparison.Ordinal),
+            "«cállate» o «apaga la voz» siguen siendo self_mute, de inmediato");
+        Debe(tu.Contains("«espera»", StringComparison.Ordinal) && tu.Contains("interrupción", StringComparison.Ordinal),
+            "y un «espera» mientras habla es una interrupción, no self_mute: callarse no es cerrar la sesión");
+        Debe(!tu.Contains("dejes de hablar", StringComparison.Ordinal),
+            "«que dejes de hablar» ya no manda a self_mute: era la frase que metía cada interrupción en el apagado");
+
+        // SEGUIR: lo que cancela acaba con lo anterior; lo que no lo anula, lo deja en pie.
+        string corrigen = Parrafo071(op, "SI TE CORRIGEN O TE INTERRUMPEN");
+        Debe(corrigen.Contains("cancela o reemplaza", StringComparison.Ordinal) && corrigen.Contains("lo anterior se acaba", StringComparison.Ordinal),
+            "si lo nuevo cancela o reemplaza lo anterior, lo anterior se acaba");
+        Debe(corrigen.Contains("DESPUÉS retomas", StringComparison.Ordinal) && !op.Contains("la petición ORIGINAL sigue en pie", StringComparison.Ordinal),
+            "y solo lo que no lo anula se retoma después: «la petición ORIGINAL sigue en pie» obligaba a volver a lo cancelado");
+
+        // PREGUNTAR: un diálogo que confirma lo pedido no se pregunta; uno que trae otra decisión, sí, una vez.
+        string desbloquear = Linea071(op, "Si algo se bloquea, map_unblock");
+        Debe(desbloquear.Contains("solo confirma", StringComparison.Ordinal) && desbloquear.Contains("`choose`", StringComparison.Ordinal)
+             && desbloquear.Contains("sin preguntar", StringComparison.Ordinal),
+            "un diálogo que solo confirma lo que pidieron se contesta con choose, sin preguntar");
+        Debe(desbloquear.Contains("pregúntala una vez", StringComparison.Ordinal) && !op.Contains("Si te ofrece una decisión de verdad", StringComparison.Ordinal),
+            "y uno que trae una decisión que el pedido no resolvió se pregunta una vez");
+        // map_unblock veta Eliminar, Borrar, Aceptar o Enviar aunque se lo pidan (SafeToClick.EsDestructivo): sin la salida
+        // de map_take, la regla de arriba acababa en una pregunta, y tras el sí, en otro «NO pulso».
+        Debe(desbloquear.Contains("«NO pulso", StringComparison.Ordinal) && desbloquear.Contains("map_take", StringComparison.Ordinal),
+            "y si map_unblock no pulsa lo que confirma lo pedido («NO pulso…»), se pulsa con map_take, como en map_hacer");
+        string homonimos = Linea071(op, "VARIOS CON EL MISMO NOMBRE");
+        Debe(homonimos.Contains("personas o pacientes distintos", StringComparison.Ordinal) && homonimos.Contains("una vez", StringComparison.Ordinal),
+            "dos del mismo nombre que son personas o pacientes distintos no se eligen: se preguntan una vez");
+        Debe(homonimos.Contains("map_hacer", StringComparison.Ordinal),
+            "y la lista numerada también puede llegar de un paso de map_hacer (691): la regla no es solo de map_take");
+        string? decisor = typeof(ConversacionEnVivo).GetField("ParrafoDelDecisor", Estatico071)?.GetRawConstantValue() as string;
+        Debe(decisor != null && decisor.Contains("paciente", StringComparison.Ordinal) && decisor.Contains("dos del mismo nombre", StringComparison.Ordinal),
+            "y con el decisor encendido, a una persona o a un paciente tampoco la elige él: map_take, que avisa si hay dos del mismo nombre");
+
+        // LLEGAR: lo enseñado en una pantalla solo lo cuenta map_where_am_i.
+        string acto = Linea071(op, "CADA ACTO TE CUENTA LO QUE DEJÓ DELANTE");
+        Debe(acto.Contains("map_where_am_i sí, una vez", StringComparison.Ordinal) && !acto.Contains("ni a map_where_am_i", StringComparison.Ordinal),
+            "tras un acto no se pide map_what_i_see, pero map_where_am_i sí, una vez al llegar: es lo único que cuenta lo enseñado allí");
+        Debe(acto.Contains("app de trabajo", StringComparison.Ordinal) && acto.Contains("antes de actuar", StringComparison.Ordinal),
+            "y con su condición delante —al llegar a una app de trabajo, antes de actuar en ella—: sin ella chocaba con «no mires antes» y el modelo miraba en cada plan");
+
+        // TERMINAR: se habla siempre, y la lección se confirma.
+        Debe(op.Contains("al terminar habla SIEMPRE", StringComparison.Ordinal), "al terminar se habla siempre, una vez: callar al final no vale");
+        Debe(op.Contains("«Aprendí que", StringComparison.Ordinal), "y la lección que se guardó al actuar se cuenta en una frase");
+        string cuando = Linea071(op, "Habla, sin que te lo pidan, SOLO en estos casos");
+        Debe(cuando.Contains("no cuadra", StringComparison.Ordinal) && cuando.Contains("map_recuerdos", StringComparison.Ordinal),
+            "entre los casos en que se habla están avisar de lo que no cuadra y contar los recuerdos de uno en uno");
+
+        // ARCHIVOS: el disco, un plan, el disco otra vez; y solo pasos y teclas que las manos leen.
+        string explorador = Parrafo071(op, "EL EXPLORADOR DE ARCHIVOS ES DISTINTO");
+        string tocar = Linea071(explorador, "Para TOCAR archivos");
+        Debe(!explorador.Contains("se usa map_take", StringComparison.Ordinal),
+            "tocar archivos ya no se manda hacer con map_take: empujaba a un gesto por llamada");
+        Debe(Veces071(tocar, "file_list") >= 2 && tocar.Contains("map_hacer", StringComparison.Ordinal),
+            "tocar archivos es file_list antes, un map_hacer y file_list después para comprobar");
+        var pasos = PasosDeEjemplo071(tocar);
+        Debe(pasos.Count >= 5, $"y trae un ejemplo con sus pasos ({pasos.Count})");
+        // Tras «tecla: Ctrl+V» el Explorador queda en el destino, y el siguiente «pulsa:» ya no está a la vista: acababa en Jev.
+        Debe(pasos.Count(x => x.Prefijo == "carpeta:") >= 2 && tocar.Contains("origen", StringComparison.Ordinal),
+            "varios archivos van de uno en uno, volviendo a la carpeta de origen tras pegar cada uno");
+        foreach (var (prefijo, resto) in pasos)
+        {
+            Debe(PrefijosDelPlan071.Contains(prefijo), $"«{prefijo}» es un paso que las manos leen");
+            if (prefijo == "tecla:") Debe(TeclaQueSeManda071(resto), $"«{resto}» es una tecla que las manos saben mandar");
+        }
+    }
+
+    /// <remarks>
+    /// UNA DESCRIPCIÓN DE HERRAMIENTA TAMBIÉN ES INSTRUCCIÓN, y es la que el modelo tiene más cerca al llamar. Las pruebas del
+    /// 2026-10-01 la encontraron diciendo lo contrario que las instrucciones: self_mute para cualquier «deja de hablar»;
+    /// «¿qué recuerdas?» en map_recuerdos y en memory_recall a la vez; memory_remember para «cualquier cosa», también lo de
+    /// un paciente; map_hacer sin «carpeta:» y con «pulsa:» limitado a lo que ya se ve; y «sólo» y formas de vosotros que el
+    /// modelo copia al hablar.
+    /// </remarks>
+    private static void ElCatalogoNoContradiceALasInstrucciones()
+    {
+        var mPiloto = typeof(ConversacionEnVivo).GetMethod("HerramientasDelPiloto", Estatico071);
+        if (mPiloto == null) { Pendiente("ConversacionEnVivo.HerramientasDelPiloto", "688", "071"); return; }
+        var vosotros = new System.Text.RegularExpressions.Regex(@"\b(vosotros|vuestr[oa]s?|pasasteis|hicisteis|estabais|miráis|tenéis|podéis|queréis)\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var pCon = ConDecisor071();
+        bool antes = (bool)pCon.GetValue(null)!;
+        try
+        {
+            foreach (bool conDecisor in new[] { false, true })
+            {
+                pCon.SetValue(null, conDecisor);
+                foreach (var (cual, catalogo) in new[]
+                         {
+                             ("de la voz", Herramientas071()),
+                             ("del piloto", (IReadOnlyList<Voz.Realtime.Utensilio>)mPiloto.Invoke(null, null)!),
+                         })
+                {
+                    string donde = $"en el catálogo {cual}, {(conDecisor ? "con" : "sin")} el decisor";
+                    string D(string n) => catalogo.FirstOrDefault(u => u.Nombre == n)?.Descripcion ?? "";
+                    string A(string n, string a) => catalogo.FirstOrDefault(u => u.Nombre == n)?.Args.FirstOrDefault(x => x.Nombre == a)?.Que ?? "";
+
+                    foreach (var u in catalogo)
+                        foreach (string texto in u.Args.Select(a => a.Que).Prepend(u.Descripcion))
+                        {
+                            foreach (string resto in new[] { "Jeff", "ordenador", "sólo", "Sólo" })
+                                Debe(!texto.Contains(resto, StringComparison.Ordinal), $"{donde}, «{u.Nombre}» no dice «{resto}»");
+                            Debe(!vosotros.IsMatch(texto), $"{donde}, «{u.Nombre}» no habla de vosotros («{vosotros.Match(texto).Value}»)");
+                        }
+
+                    string mute = D("self_mute");
+                    Debe(mute.Contains("«cállate»", StringComparison.Ordinal) && mute.Contains("«apaga la voz»", StringComparison.Ordinal),
+                        $"{donde}, self_mute sigue siendo para «cállate» y «apaga la voz»");
+                    Debe(mute.Contains("«espera»", StringComparison.Ordinal) && mute.Contains("interrupción", StringComparison.Ordinal),
+                        $"{donde}, y dice que un «espera» es una interrupción, no apagar la voz");
+
+                    string recuerdos = D("map_recuerdos"), recall = D("memory_recall");
+                    Debe(recuerdos.Contains("«¿qué recuerdas de aquí?»", StringComparison.Ordinal) && !recuerdos.Contains("«¿qué recuerdas?»", StringComparison.Ordinal),
+                        $"{donde}, map_recuerdos es «¿qué recuerdas de aquí?», lo de una pantalla");
+                    Debe(recall.Contains("«qué recuerdas de mí»", StringComparison.Ordinal) && !recall.Contains("«qué recuerdas»", StringComparison.Ordinal)
+                         && recall.Contains("map_look_back", StringComparison.Ordinal),
+                        $"{donde}, memory_recall es «qué recuerdas de mí», y lo que se vio en una pantalla lo manda a map_look_back");
+
+                    Debe(D("memory_remember").Contains("datos clínicos de un paciente no se guardan", StringComparison.Ordinal),
+                        $"{donde}, memory_remember no guarda los datos clínicos de un paciente");
+                    // «Toma nota: la de la cama 4 es alérgica…»: «TOMO NOTA NO ES TOMAR NOTA» prohíbe decir que se guardó, y
+                    // memory_remember prohíbe guardarlo. Sin decir a dónde va, el modelo no tenía salida.
+                    Debe(D("memory_remember").Contains("donde el médico diga", StringComparison.Ordinal) && D("memory_remember").Contains("pregúntale dónde", StringComparison.Ordinal),
+                        $"{donde}, y dice a dónde va si piden anotarlo: donde el médico diga, y si no lo dijo, se le pregunta dónde");
+                    Debe(D("map_esto_es").Contains("datos de un paciente", StringComparison.Ordinal),
+                        $"{donde}, ni map_esto_es");
+                    Debe(D("map_where_am_i").Contains("te enseñaron", StringComparison.Ordinal),
+                        $"{donde}, map_where_am_i dice que cuenta lo que te enseñaron allí");
+                    Debe(D("map_where_am_i").Contains("antes de actuar", StringComparison.Ordinal) && D("map_where_am_i").Contains("no hace falta", StringComparison.Ordinal),
+                        $"{donde}, y cuándo pedirla: al llegar a una app de trabajo antes de actuar, y no para abrir, calcular o configurar");
+
+                    // Sin `choose`, map_unblock pulsa la salida que no compromete: el borrado pedido se cancelaba en silencio. Y lo
+                    // destructivo no lo pulsa aunque se lo pidan (SafeToClick.EsDestructivo): eso va con map_take.
+                    string elegir = A("map_unblock", "choose");
+                    Debe(elegir.Contains("Cancelar", StringComparison.Ordinal) && elegir.Contains("no se hace", StringComparison.Ordinal),
+                        $"{donde}, `choose` de map_unblock dice que sin él se elige la salida que no compromete, y lo pedido no se hace («{elegir}»)");
+                    Debe(elegir.Contains("Eliminar", StringComparison.Ordinal) && elegir.Contains("Aceptar", StringComparison.Ordinal) && elegir.Contains("map_take", StringComparison.Ordinal),
+                        $"{donde}, y que Eliminar o Aceptar no los pulsa map_unblock: si son lo pedido, map_take");
+                    Debe(A("map_take", "which").Contains("map_hacer", StringComparison.Ordinal),
+                        $"{donde}, `which` de map_take sirve también para la lista que devuelve un paso de map_hacer (691)");
+
+                    // «pulsa:» compara el nombre entero (CicloRapido.Buscar): «enero.pdf» no casa con el «enero» que muestra la
+                    // ventana cuando Windows esconde la extensión, y el paso acababa en Jev.
+                    Debe(D("file_list").Contains("sin la extensión", StringComparison.Ordinal) && D("file_list").Contains("«enero», no «enero.pdf»", StringComparison.Ordinal),
+                        $"{donde}, file_list dice que para pulsar en la ventana el nombre va como se ve, sin la extensión que Windows esconde");
+
+                    string pasos = A("map_hacer", "pasos");
+                    var prefijos = PasosDeEjemplo071(pasos).Select(x => x.Prefijo).ToList();
+                    foreach (string prefijo in PrefijosDelPlan071)
+                        Debe(prefijos.Contains(prefijo), $"{donde}, map_hacer nombra el paso «{prefijo}»");
+                    Debe(prefijos.Count > 0 && prefijos.All(PrefijosDelPlan071.Contains),
+                        $"{donde}, y ninguno que las manos no lean ({string.Join(", ", prefijos)})");
+                    Debe(pasos.Contains("«esperar»", StringComparison.Ordinal), $"{donde}, y tampoco se calla «esperar»");
+                }
+            }
+        }
+        finally { pCon.SetValue(null, antes); }
+    }
+
+    /// <remarks>
+    /// «USA TU MEJOR CRITERIO» ERA UN PERMISO QUE NADIE DIO. Si el cerebro pregunta, es por un dato que solo sabe la persona
+    /// o por algo irreversible que nadie pidió; cuando la pregunta se quedaba sin respuesta, el bucle contestaba por ella
+    /// que decidiera solo, y la constitución dice lo contrario. Y lo que el bucle narra se oye al comprobar (142):
+    /// «¡Vamos!» anunciaba, y «¡Listo! 🎉» llevaba un emoji a la voz.
+    /// </remarks>
+    private static void UnaPreguntaSinRespuestaNoEsPermiso()
+    {
+        string? sin = typeof(U.WindowsClient.Agent.AgentLoop).GetField("SinRespuesta", Estatico071)?.GetRawConstantValue() as string;
+        if (sin == null) { Pendiente("AgentLoop.SinRespuesta", "689", "071"); return; }
+        Debe(sin.StartsWith("(sin respuesta", StringComparison.Ordinal) && !sin.Contains("criterio", StringComparison.OrdinalIgnoreCase),
+            $"sin respuesta, el cerebro recibe el hecho —como el «(sin respuesta)» de Graph— y no un permiso para decidir («{sin}»)");
+        if (FuenteDe("windows-client", "src", "Agent", "AgentLoop.cs") is not { } fuente) return;
+        Debe(!fuente.Contains("mejor criterio", StringComparison.Ordinal), "[texto] AgentLoop ya no le dice al cerebro «usa tu mejor criterio»");
+        Debe(fuente.Contains("? SinRespuesta : answer", StringComparison.Ordinal), "[cableado] una respuesta vacía viaja como SinRespuesta");
+        // Las frases fijas: lo que va dentro de Narrate y Speak, y lo que se guarda en `summary` para decirlo después.
+        var dichas = fuente.Split('\n')
+            .Where(l => l.Contains("_voice.Narrate(", StringComparison.Ordinal) || l.Contains("_voice.Speak(", StringComparison.Ordinal)
+                     || l.Contains("summary = \"", StringComparison.Ordinal)).ToList();
+        Debe(dichas.Count >= 4, $"[texto] encuentro lo que el bucle narra y dice ({dichas.Count} líneas)");
+        // DE TÚ NO: AgentLoop corre en el puente clínico y en la comprobación, y Speak sale por la voz viva. «¿Me lo dices de
+        // otra forma?» o «Revisa la conexión» le hablaban de tú a un médico, que se trata de usted (PerfilMedico).
+        var tuteo = new System.Text.RegularExpressions.Regex(@"\b(te|tú|tu|ti|haberte|entenderte|dices|dime|revisa|mira|quieres|puedes|tienes)\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        foreach (string l in dichas)
+        {
+            Debe(!l.Any(char.IsSurrogate), $"[texto] lo que el bucle narra o dice no lleva emojis: {l.Trim()}");
+            string fijo = string.Join(" ", System.Text.RegularExpressions.Regex.Matches(l, "\"((?:[^\"\\\\]|\\\\.)*)\"").Select(m => m.Groups[1].Value));
+            Debe(!fijo.Contains("¡Vamos", StringComparison.Ordinal) && !fijo.Contains("voy a", StringComparison.OrdinalIgnoreCase)
+                 && !fijo.Contains("vamos a", StringComparison.OrdinalIgnoreCase), $"[texto] ni anuncia lo que va a hacer: {l.Trim()}");
+            Debe(!tuteo.IsMatch(fijo), $"[texto] ni habla de tú («{tuteo.Match(fijo).Value}»): {l.Trim()}");
+        }
+        // «Listo.» tras el resumen era decir dos veces que terminó, y al comprobar se oían las dos (142).
+        Debe(Veces071(fuente, "_voice.Narrate(\"Listo.\")") == 1
+             && System.Text.RegularExpressions.Regex.IsMatch(fuente, @"else\s+_voice\.Narrate\(""Listo\.""\);"),
+            "[cableado] «Listo.» se narra una vez, y solo en la rama en que no hubo resumen que decir");
+    }
+
+    /// <remarks>
+    /// DOS «JUAN PÉREZ» NO LOS ELIGE NADIE POR LA PERSONA (spec 071, 2026-10-01). Con map_take, el ciclo rápido contesta con la
+    /// lista numerada y Ü elige por el tipo, mira, o —si son personas distintas— pregunta. En un map_hacer no llegaba: el
+    /// ciclo no pulsaba, el paso pasaba a Jev como «llegar a «Juan Pérez» y pulsarlo», y Jev elegía uno con su umbral. Con
+    /// pacientes, es equivocarse de paciente sin que nadie se entere.
+    /// </remarks>
+    private static void DosDelMismoNombreNoLosEligeElPlan()
+    {
+        var t = PlanT();
+        var pVarios = t?.GetProperty("Homonimos");
+        var pEsperar = t?.GetProperty("EsperarQuieta");
+        if (t?.GetMethod("Objetivo") == null || pVarios == null || pEsperar == null)
+        { Pendiente("ElPlanPorObjetivos.Homonimos (lo que contestó el ciclo cuando había varios)", "691", "071"); return; }
+        const string lista = "hay 2 «Juan Pérez» a la vista: 1) «Juan Pérez» (ListItem); 2) «Juan Pérez» (ListItem). Repite con which=N para pulsar ese.";
+        int esperas = 0;
+        var (plan, hecho) = PlanDeMentira(_ => false, _ => true);
+        pEsperar.SetValue(plan, new Func<bool>(() => { esperas++; return true; }));
+        pVarios.SetValue(plan, new Func<string, string?>(nombre => nombre == "Juan Pérez" ? lista : null));
+        U.Ciclo.Recorrido O(string paso) => (U.Ciclo.Recorrido)t.GetMethod("Objetivo")!.Invoke(plan, new object[] { paso, Array.Empty<string>() })!;
+
+        var r = O("pulsa: Juan Pérez");
+        Debe(!r.Cumplido && hecho.SequenceEqual(new[] { "pulsa:Juan Pérez" }) && esperas == 0,
+            $"con dos «Juan Pérez» a la vista el paso no paró ahí: {string.Join(", ", hecho)} · {esperas} espera(s) · cumplido={r.Cumplido}");
+        Debe(r.PorQueParo.Contains("1) «Juan Pérez» (ListItem); 2) «Juan Pérez» (ListItem)", StringComparison.Ordinal)
+             && r.PorQueParo.Contains("map_take", StringComparison.Ordinal) && r.PorQueParo.Contains("which", StringComparison.Ordinal),
+            $"y al parar no da la lista ni cómo pulsar uno («{r.PorQueParo}»)");
+
+        // Control: sin varios, lo de siempre — una espera, otra búsqueda y, si tampoco, a Jev para llegar (524, 525).
+        hecho.Clear(); esperas = 0;
+        var r2 = O("pulsa: Diez");
+        Debe(r2.Cumplido && esperas == 1 && hecho.Count(h => h == "pulsa:Diez") == 2 && hecho.Any(h => h.StartsWith("jev:llegar a «Diez»", StringComparison.Ordinal)),
+            $"sin varios, un «pulsa:» que no está ya no hace lo de siempre: {string.Join(", ", hecho)} · {esperas} espera(s)");
+
+        // [cableado] La cara le cuenta al plan lo que contestó el ciclo, con la misma marca con que map_take reconoce la lista.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"Homonimos\s*=\s*nombre\s*=>") && cara.Contains("Texto.Contains(\"which=N\")", StringComparison.Ordinal),
+            "[cableado] el plan de la cara no se entera de cuándo el ciclo encontró varios con ese nombre");
+    }
+
+    /// <remarks>
+    /// LA CONSTITUCIÓN DICE QUE LOS DATOS DE UN PACIENTE NO VAN A LA MEMORIA, y dos vigilantes de la voz los guardaban
+    /// sin preguntarle al modelo: uno por «recuerda que…» y otro por «tengo un…». En consulta, «tengo un paciente de 54
+    /// años» es lo más normal del mundo, y lo guardado vuelve en cada sesión siguiente, también delante de otro
+    /// paciente. Con un médico, lo que va a la memoria lo decide el modelo con memory_remember (2026-10-01).
+    /// </remarks>
+    private static void ConUnMedicoLaMemoriaAutomaticaNoGuardaLaConsulta()
+    {
+        var peticion = typeof(ConversacionEnVivo).GetMethod("GuardarPeticionPersonalSiLaPidio", Privado071);
+        var detalle = typeof(ConversacionEnVivo).GetMethod("GuardarDetallePersonalSiEsRelevante", Privado071);
+        var pPerfil = PropiedadDeLaVoz071("Perfil");
+        var perfiles = new (string Nombre, object? Perfil, bool Guarda)[]
+        {
+            ("un médico de Cardiología", Perfil071De("medico", "cardiologia", "Cardiología"), false),
+            ("un médico sin especialidad", Perfil071De("medico", "", ""), false),
+            ("una persona", Perfil071De("persona", "", ""), true),
+            ("sin elegir", Perfil071De("", "", ""), true),
+        };
+        if (peticion == null || detalle == null || pPerfil == null || perfiles.Any(x => x.Perfil == null))
+        { Pendiente("ConversacionEnVivo.Perfil · los vigilantes de la memoria", "690", "071"); return; }
+
+        foreach (var (nombre, perfil, guarda) in perfiles)
+        {
+            var (conv, _) = Conversacion071(new Voz.Realtime.ProtocoloGptLive());
+            using (conv)
+            {
+                string archivo = Path.Combine(_raiz, $"690-memoria-{nombre.Replace(' ', '-')}.json");
+                conv.Memoria = new MemoriaPersonal("contrato-690", archivo);
+                pPerfil.SetValue(conv, perfil);
+                foreach (string dicho in new[] { "recuerda que la de la cama 4 es alérgica a la penicilina", "recuerda que soy desarrollador de 24 años" })
+                    peticion.Invoke(conv, new object[] { dicho });
+                foreach (string dicho in new[] { "tengo un paciente de 54 años con dolor torácico", "trabajo en una agencia de diseño" })
+                    detalle.Invoke(conv, new object[] { dicho });
+                string memoria = new MemoriaPersonal("contrato-690", archivo).ContextoAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+                if (guarda)
+                    Debe(memoria.Contains("desarrollador", StringComparison.OrdinalIgnoreCase) && memoria.Contains("agencia", StringComparison.OrdinalIgnoreCase),
+                        $"con {nombre}, la memoria automática sigue guardando lo que la persona cuenta de sí");
+                else
+                {
+                    Debe(!memoria.Contains("penicilina", StringComparison.OrdinalIgnoreCase) && !memoria.Contains("paciente", StringComparison.OrdinalIgnoreCase),
+                        $"con {nombre}, lo dicho en consulta no llega a la memoria personal por una palabra clave");
+                    Debe(!memoria.Contains("desarrollador", StringComparison.OrdinalIgnoreCase) && !memoria.Contains("agencia", StringComparison.OrdinalIgnoreCase),
+                        $"con {nombre}, ni nada más: lo decide el modelo con memory_remember, no un vigilante");
+                }
+            }
+        }
     }
 
     private static void Debe(bool condicion, string promesa)

@@ -913,9 +913,17 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 // gestos van por las manos de u/, «pulsa:» por este mismo ciclo, y los objetivos por el motor de u/ con Jev.
                 var manosDelPlan = new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero);
                 var mapaDelPlan = mcp.Map;
+                // DOS DEL MISMO NOMBRE (promesa 691): lo que contestó el ciclo cuando no pulsó porque había varios —la marca
+                // es la misma con que map_take reconoce su lista—, para que el plan pare con ella en vez de dársela a Jev.
+                string? variosDelPlan = null;
                 var planDeLuna = new Navigation.ElPlanPorObjetivos(
                     manosDelPlan.Abrir, manosDelPlan.Escribir, manosDelPlan.Tecla,
-                    nombre => mapaDelPlan.CicloRapido?.Invoke(nombre, 0, null) is { Cambio: not null },
+                    nombre =>
+                    {
+                        var r = mapaDelPlan.CicloRapido?.Invoke(nombre, 0, null);
+                        variosDelPlan = r is { Cambio: null } sinPulsar && sinPulsar.Texto.Contains("which=N") ? sinPulsar.Texto : null;
+                        return r is { Cambio: not null };
+                    },
                     ObjetivoConJev,
                     () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
                     () => mapaDelPlan.LoQueVeoRapido?.Invoke() ?? "",
@@ -924,6 +932,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     Desplazar = manosDelPlan.Desplazar, EsperarQuieta = manosDelPlan.EsperarQuieta, AlTerminarPaso = l => LogBus.Log("plan", "   " + l),
                     // «carpeta:» por el disco, con la misma regla que file_open (promesa 526).
                     AbrirCarpeta = ruta => SystemApi.Explorador.Navegar(SystemApi.Explorador.Expandir(ruta)).Length > 0,
+                    Homonimos = nombre => variosDelPlan is { } v && v.Contains($"«{nombre}»") ? v : null,
                 };
                 mapaDelPlan.Hacer = planDeLuna.Hacer;
                 _ = Task.Run(() => { if (JevDelPlan() is { } jev) LogBus.Log("plan", $"Jev caliente en {jev.Calentar()} ms"); });
@@ -1555,16 +1564,13 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 }
 
                 // Quien entró con su cuenta Miracle es médico: no se le pregunta nunca en este
-                // equipo, tampoco cuando cierre sesión. Su especialidad se copia si aquí no había
-                // ninguna, para que siga sabiéndose sin la sesión abierta.
+                // equipo, tampoco cuando cierre sesión. Su especialidad NO se copia (promesa 692):
+                // config.json es del equipo y no de la cuenta, y en un PC compartido la de la Dra. A
+                // se le aplicaba al Dr. B. La del médico viaja en su sesión (654); la guardada aquí
+                // es solo la que alguien eligió en este equipo.
                 if (Cuenta.PerfilDeUso.Normalizar(_config.Perfil).Length == 0)
                 {
                     _config.Perfil = Cuenta.PerfilDeUso.Medico;
-                    if (string.IsNullOrWhiteSpace(_config.Especialidad) && sesion.MedicoEspecialidad.Length > 0)
-                    {
-                        _config.Especialidad = sesion.MedicoEspecialidad;
-                        _config.EspecialidadNombre = sesion.MedicoEspecialidadNombre;
-                    }
                     _config.Save();
                 }
             }

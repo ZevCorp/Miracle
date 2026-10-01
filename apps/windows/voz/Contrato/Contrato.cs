@@ -1250,9 +1250,10 @@ internal static class Contrato
     }
 
     /// <summary>
-    /// UNAS INSTRUCCIONES DEL TAMAÑO DE LAS DE Ü, no un marcador. Las de Ü miden 15.818 caracteres desde
-    /// la spec 071 de Windows (16.398 bytes UTF-8, 2026-10-01: la constitución de Ü y la operación), y las
-    /// de siempre de un médico con el decisor, 17.887; antes medían 20.694 (2026-09-12) y llegaron a 25.096.
+    /// UNAS INSTRUCCIONES DEL TAMAÑO DE LAS DE Ü, no un marcador. Las de Ü miden 17.547 caracteres desde
+    /// la spec 071 de Windows (18.230 bytes UTF-8, 2026-10-01: la constitución de Ü y la operación), y las
+    /// de siempre de un médico de Cardiología con el decisor, 19.831 (19.880 en el peor caso que juzga la
+    /// 674 del grafo); antes medían 20.694 (2026-09-12) y llegaron a 25.096.
     /// Comprobarlas con Contains de una frase de 46 dejaba en verde recortarlas: el sabotaje V2 de la
     /// revisión —cortar a 4.000, una defensa verosímil ante el tope de 16.384 fichas— salió VOZ ÍNTEGRA.
     /// Estas miden más que las de Ü (unos 24.100), llevan lo que JSON escapa (tildes, Ü, comillas, barra
@@ -1591,7 +1592,7 @@ internal static class Contrato
     ///
     /// Al volver NO se le pasan las instrucciones de operar: la voz no las lleva (40), y el servidor
     /// rechaza un append de más de 500 fichas («Context append text must not exceed 500 tokens.», medido
-    /// con 2.400 caracteres; las de Ü eran 20.694 entonces y son 15.818 desde la spec 071 de Windows).
+    /// con 2.400 caracteres; las de Ü eran 20.694 entonces y son 17.547 desde la spec 071 de Windows).
     /// </remarks>
     private static void CambiarDeModoCambiaLaVoz()
     {
