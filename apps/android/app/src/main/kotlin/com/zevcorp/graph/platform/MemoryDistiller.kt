@@ -1,5 +1,7 @@
 package com.zevcorp.graph.platform
 
+import graph.core.domain.PerfilDeUso
+import graph.core.domain.PromptsDeU
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.booleanOrNull
@@ -14,26 +16,36 @@ import kotlinx.serialization.json.jsonPrimitive
 class MemoryDistiller(
     private val apiKey: () -> String,
     private val model: () -> String,
+    /**
+     * Con quién habla Ü (spec 010). Su bloque va en los dos destiladores porque la constitución tiene una regla de memoria
+     * para el médico: «Los datos de un paciente no van a tu memoria. Un pendiente del médico sí…, sin datos clínicos».
+     */
+    private val perfil: () -> PerfilDeUso = { PerfilDeUso.SIN_ELEGIR },
 ) {
 
     /** Devuelve la nota a recordar, o null si el input era solo una orden puntual. */
     suspend fun capture(input: String): MemoryNote? = withContext(Dispatchers.IO) {
-        val prompt = """
-            Eres la memoria de Ü, un asistente que controla el teléfono Android del usuario.
-            Analiza este input del usuario y decide si contiene CONOCIMIENTO DURABLE que Ü deba
-            recordar para el futuro: reglas ("cada vez que te pida X haz Y"), preferencias, rutinas,
-            o cómo usa una app concreta ("cuando uses Spotify, conéctate a mi parlante").
+        // El perfil va entre el papel y el criterio, y manda sobre el criterio (spec 010, promesa 1010).
+        val prompt = PromptsDeU.paraLaMemoria(
+            perfil(),
+            papel = """
+                Eres la memoria de Ü, un asistente que controla el teléfono Android del usuario.
+                Analiza este input del usuario y decide si contiene CONOCIMIENTO DURABLE que Ü deba
+                recordar para el futuro: reglas ("cada vez que te pida X haz Y"), preferencias, rutinas,
+                o cómo usa una app concreta ("cuando uses Spotify, conéctate a mi parlante").
+            """.trimIndent(),
+            criterio = """
+                Input del usuario: "$input"
 
-            Input del usuario: "$input"
-
-            Criterio ESTRICTO:
-            - Una orden puntual ("abre Spotify", "pon una alarma a las 7") NO es memoria: remember=false.
-            - Solo recuerda si el usuario está ENSEÑANDO algo reutilizable, con certeza alta.
-            - note: la regla destilada en UNA frase imperativa, completa y auto-contenida (con apps,
-              nombres y condiciones). Sin relleno ni contexto conversacional.
-            - app: el nombre de la app a la que aplica (p.ej. "Spotify"), o "" si es general.
-            Responde SOLO JSON: {"remember": true/false, "app": "", "note": ""}
-        """.trimIndent()
+                Criterio ESTRICTO:
+                - Una orden puntual ("abre Spotify", "pon una alarma a las 7") NO es memoria: remember=false.
+                - Solo recuerda si el usuario está ENSEÑANDO algo reutilizable, con certeza alta.
+                - note: la regla destilada en UNA frase imperativa, completa y auto-contenida (con apps,
+                  nombres y condiciones). Sin relleno ni contexto conversacional.
+                - app: el nombre de la app a la que aplica (p.ej. "Spotify"), o "" si es general.
+                Responde SOLO JSON: {"remember": true/false, "app": "", "note": ""}
+            """.trimIndent(),
+        )
         runCatching {
             val o = GeminiJson.ask(apiKey(), model(), prompt, tag = "memory")
             if (o["remember"]?.jsonPrimitive?.booleanOrNull != true) null
@@ -50,18 +62,23 @@ class MemoryDistiller(
      * respuesta no responde la pregunta o no aporta nada reutilizable.
      */
     suspend fun captureAnswer(app: String, question: String, answer: String): MemoryNote? = withContext(Dispatchers.IO) {
-        val prompt = """
-            Ü (asistente que controla el Android del usuario) le preguntó algo por voz mientras
-            lo observaba usar una app, y el usuario respondió. Destila una regla o preferencia
-            DURABLE y auto-contenida que Ü deba recordar para hacer bien las tareas en esa app.
-            UNA frase imperativa, con los nombres/datos concretos, sin relleno. Si el mensaje del
-            usuario NO responde la pregunta (era otra orden) o no aporta nada reutilizable, worth=false.
-
-            App (paquete Android): $app
-            Pregunta de Ü: "$question"
-            Mensaje del usuario: "$answer"
-            Responde SOLO JSON: {"worth": true/false, "app": "nombre de la app o ''", "note": "regla en una frase"}
-        """.trimIndent()
+        // El perfil va entre el papel y el criterio, y manda sobre el criterio (spec 010, promesa 1010).
+        val prompt = PromptsDeU.paraLaMemoria(
+            perfil(),
+            papel = """
+                Ü (asistente que controla el Android del usuario) le preguntó algo por voz mientras
+                lo observaba usar una app, y el usuario respondió. Destila una regla o preferencia
+                DURABLE y auto-contenida que Ü deba recordar para hacer bien las tareas en esa app.
+                UNA frase imperativa, con los nombres/datos concretos, sin relleno. Si el mensaje del
+                usuario NO responde la pregunta (era otra orden) o no aporta nada reutilizable, worth=false.
+            """.trimIndent(),
+            criterio = """
+                App (paquete Android): $app
+                Pregunta de Ü: "$question"
+                Mensaje del usuario: "$answer"
+                Responde SOLO JSON: {"worth": true/false, "app": "nombre de la app o ''", "note": "regla en una frase"}
+            """.trimIndent(),
+        )
         runCatching {
             val o = GeminiJson.ask(apiKey(), model(), prompt, tag = "memory")
             if (o["worth"]?.jsonPrimitive?.booleanOrNull != true) null

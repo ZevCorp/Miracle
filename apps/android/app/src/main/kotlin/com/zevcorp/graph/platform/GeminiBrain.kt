@@ -79,6 +79,8 @@ class GeminiBrain(
     private val listApps: () -> String,
     /** Memoria del usuario (reglas/preferencias destiladas): se inyecta en el system prompt. */
     private val memory: () -> String = { "" },
+    /** Con quién habla Ü (spec 010): su bloque va en el prompt del hilo, después de quién es Ü. */
+    private val perfil: () -> PerfilDeUso = { PerfilDeUso.SIN_ELEGIR },
 ) : ThreadedBrain {
 
     private val mcpNames = tools.map { it.name }.toSet()
@@ -231,7 +233,7 @@ class GeminiBrain(
 
     /** El primer turno de un hilo: el prompt entero, armado en el núcleo, la pantalla y, si la hay, la captura. */
     private fun primerTurno(state: ScreenState): List<JsonElement> = buildList {
-        add(textItem(PromptDelCerebroLocal.goalPrompt(goal, tools, memory(), PromptDelCerebroLocal.Proveedor.GEMINI) + "\n\n" + PromptDelCerebroLocal.estado(state)))
+        add(textItem(PromptDelCerebroLocal.goalPrompt(goal, tools, memory(), PromptDelCerebroLocal.Proveedor.GEMINI, perfil()) + "\n\n" + PromptDelCerebroLocal.estado(state)))
         state.screenshotPng?.let { add(image(it)) }
     }
 

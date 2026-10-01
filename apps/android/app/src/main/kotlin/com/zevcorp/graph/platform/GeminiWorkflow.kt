@@ -62,8 +62,9 @@ class GeminiWorkflow(
         val catalogBlock = if (relevantTools.isEmpty()) "(ninguno todavía)"
         else relevantTools.joinToString("\n") { "- [${it.app}] ${it.elements.joinToString(" | ")}" }
 
+        // «Eres Ü» y no «Eres Graph» (2026-10-01, spec 010): Graph es el servidor; quien aprende y habla es Ü.
         val prompt = """
-            Eres Graph, un asistente que controla el teléfono Android del usuario. Tu modo de enseñanza
+            Eres Ü, un asistente que controla el teléfono Android del usuario. Tu modo de enseñanza
             $mode acaba de terminar. Viste explícitamente el paso a paso de una tarea y lo grabaste como
             traza cruda de clics (la unidad de un step es el CLIC sobre un elemento del árbol de UI).
             Tu trabajo AHORA es el POST-PROCESAMIENTO: decidir si esa traza es un WORKFLOW reutilizable
@@ -141,8 +142,9 @@ class GeminiWorkflow(
             "${i + 1}. [${s.app}] ${s.action} · vía: $via" + (if (s.note.isNotBlank()) " · nota: ${s.note}" else "")
         }.joinToString("\n")
 
+        // «Eres Ü» y no «Eres Graph» (2026-10-01, spec 010), como arriba.
         val prompt = """
-            Eres Graph, un asistente en APRENDIZAJE CONTINUO: tus workflows y tus MCPs (mapas del árbol
+            Eres Ü, un asistente en APRENDIZAJE CONTINUO: tus workflows y tus MCPs (mapas del árbol
             de UI) se crean y refinan constantemente, en cualquier orden. Acabas de aprender/refinar el
             mapa MCP de una app, y este workflow que ya existía usa esa app. Tu trabajo: RECONECTARLOS.
 

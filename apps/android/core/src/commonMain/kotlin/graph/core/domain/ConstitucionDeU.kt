@@ -4,13 +4,15 @@ package graph.core.domain
  * LA CONSTITUCIÓN DE Ü: quién es, cómo habla, qué hace cuando le piden algo y cómo trata a un médico o a una persona
  * que lo usa en su día a día. Un solo texto para todo lo que piensa en nombre de Ü (spec 009).
  *
- * HAY TRES COPIAS Y TIENEN QUE SER LA MISMA, palabra por palabra, porque la leen tres programas que no comparten código:
+ * HAY CUATRO COPIAS Y TIENEN QUE SER LA MISMA, palabra por palabra, porque la leen cuatro programas que no comparten
+ * código:
  *   apps/windows/windows-client/src/Voice/ConstitucionDeU.cs    (la voz de Ü en Windows)
  *   services/graph/src/application/prompts/ConstitucionDeU.js   (el cerebro de Ü en Graph)
  *   apps/android/core/…/domain/ConstitucionDeU.kt               (esta: el cerebro local de Android)
- * `tools/monorepo/constitucion.sh` compara los cuatro textos de las tres tal como los ve cada programa (este, después de
- * `trimIndent()`), con la sangría de las viñetas incluida, y el CI de la raíz falla si difieren. Si cambias un texto aquí,
- * cámbialo en las otras dos en el mismo PR.
+ *   apps/mac/Sources/UCore/ConstitucionDeU.swift                (la voz y Luna en el Mac, desde el 2026-10-01)
+ * `tools/monorepo/constitucion.sh` compara los cuatro textos de las cuatro tal como los ve cada programa (este, después
+ * de `trimIndent()`), con la sangría de las viñetas incluida, y el CI de la raíz falla si difieren. Si cambias un texto
+ * aquí, cámbialo en las otras tres en el mismo PR.
  *
  * Reglas de esta copia, para que el script la pueda leer:
  *   - cada texto es una raw string ("""…""".trimIndent()) SIN interpolar: ni un signo de dólar, que en Kotlin
@@ -18,8 +20,8 @@ package graph.core.domain
  *   - la línea anterior a cada val es su marca de sincronía, y esa marca no se escribe en ningún otro sitio de este
  *     archivo (aquí arriba se nombra sin los dos puntos para no contar como marca).
  *
- * {ESPECIALIDAD} en PERFIL_MEDICO lo sustituye quien arma el prompt por ", especialista en <Nombre>" o por "". Android
- * todavía no pregunta el perfil, así que hoy el prompt local va sin «QUIÉN TE HABLA» (spec 009, «Lo que NO entra»).
+ * {ESPECIALIDAD} en PERFIL_MEDICO lo sustituye quien arma el prompt por ", especialista en <Nombre>" o por "". En Android
+ * lo hace `PerfilDeUso.bloqueDelPrompt`, con el nombre del catálogo de especialidades (spec 010, 2026-10-01).
  */
 object ConstitucionDeU {
     /** La misma que VERSION en la copia de Graph y Version en la de Windows. */

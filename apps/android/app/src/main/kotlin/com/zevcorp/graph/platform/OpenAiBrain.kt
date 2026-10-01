@@ -83,6 +83,8 @@ class OpenAiBrain(
      * optimiza velocidad y coste sin bajar de tier. Es la palanca de LATENCIA por turno.
      */
     private val effort: () -> String = { "low" },
+    /** Con quién habla Ü (spec 010): su bloque va en el prompt del hilo, después de quién es Ü. */
+    private val perfil: () -> PerfilDeUso = { PerfilDeUso.SIN_ELEGIR },
 ) : ThreadedBrain {
 
     private val mcpNames = tools.map { it.name }.toSet()
@@ -225,7 +227,7 @@ class OpenAiBrain(
     /** El primer turno de un hilo: el prompt entero, armado en el núcleo, y la pantalla. */
     private fun primerTurno(state: ScreenState): List<JsonElement> = listOf(
         userMessage(
-            PromptDelCerebroLocal.goalPrompt(goal, tools, memory(), PromptDelCerebroLocal.Proveedor.OPENAI) + "\n\n" +
+            PromptDelCerebroLocal.goalPrompt(goal, tools, memory(), PromptDelCerebroLocal.Proveedor.OPENAI, perfil()) + "\n\n" +
                 PromptDelCerebroLocal.estado(state),
             state.screenshotPng,
         ),

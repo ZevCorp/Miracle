@@ -3,6 +3,7 @@ package com.zevcorp.graph.platform
 import android.content.Intent
 import com.zevcorp.graph.GraphApp
 import com.zevcorp.graph.ui.ScreenTeachActivity
+import graph.core.domain.PromptsDeU
 import graph.core.domain.Voice
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -119,18 +120,26 @@ class ActiveLearning(
         }
     }
 
-    /** Convierte una pregunta de seguimiento y su respuesta en una nota durable por app. */
+    /**
+     * Convierte una pregunta de seguimiento y su respuesta en una nota durable por app. Lo que sale va a la memoria, así
+     * que lleva el perfil como los destiladores de `MemoryDistiller`: con un médico, los datos de un paciente no se
+     * guardan (spec 010, promesa 1010).
+     */
     private fun distill(question: String, answer: String): MemoryNote? {
-        val prompt = """
-            Durante el aprendizaje activo, Ü le preguntó al usuario y este respondió por voz.
-            Destila una regla o preferencia DURABLE y auto-contenida que Ü deba recordar para operar
-            bien esa app después. UNA frase imperativa, con los nombres/datos concretos, sin relleno.
-            Si la respuesta no aporta nada reutilizable, worth=false.
-
-            Pregunta de Ü: "$question"
-            Respuesta del usuario: "$answer"
-            Responde SOLO JSON: {"worth": true/false, "app": "nombre de la app o ''", "note": "regla en una frase"}
-        """.trimIndent()
+        val prompt = PromptsDeU.paraLaMemoria(
+            app.perfil(),
+            papel = """
+                Durante el aprendizaje activo, Ü le preguntó al usuario y este respondió por voz.
+                Destila una regla o preferencia DURABLE y auto-contenida que Ü deba recordar para operar
+                bien esa app después. UNA frase imperativa, con los nombres/datos concretos, sin relleno.
+                Si la respuesta no aporta nada reutilizable, worth=false.
+            """.trimIndent(),
+            criterio = """
+                Pregunta de Ü: "$question"
+                Respuesta del usuario: "$answer"
+                Responde SOLO JSON: {"worth": true/false, "app": "nombre de la app o ''", "note": "regla en una frase"}
+            """.trimIndent(),
+        )
         return runCatching {
             val o = GeminiJson.ask(apiKey(), model(), prompt, tag = "teach")
             if (o["worth"]?.jsonPrimitive?.booleanOrNull != true) null
