@@ -512,6 +512,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // ubicación, la verificación de llegadas y los vetos — y duplicar una protección es la
             // forma más segura de que una de las dos copias se quede atrás.
             _vivo = new ConversacionEnVivo(mcp.Map);
+            // EL MICRÓFONO, PREPARADO DESDE YA (spec 075): inicializarlo cuesta ~450 ms y arrancarlo ~250.
+            // Lo primero se paga ahora, que nadie espera; el clic solo paga lo segundo. Preparado no capta.
+            _vivo.PrepararElMicrofono();
             // «Cállate», «ocúltate», «ciérrate»: van al chrome de la ventana, no al mapa de
             // pantallas — por eso se resuelven aquí y no dentro de SurfaceMapTools.
             _vivo.Autocontrol = AtenderAutocontrol;
@@ -2666,44 +2669,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // barra abierta el scroll es del menú, y robárselo sería quitarle una función que sí tiene.
         _ = new LanzarConScroll(this, () => _collapsed,
             (vx, vy) => EdgeSnap.Aplicar(this, vx, vy, OnWindowMoved));
-
-        GuardiaAlAcercarse(CollapsedGroup);
-        GuardiaAlAcercarse(Face);
     }
-
-    /// <summary>
-    /// EL MICRÓFONO SE PONE EN GUARDIA AL ACERCAR EL RATÓN A LA CARITA (spec 075, promesa 665).
-    /// </summary>
-    /// <remarks>
-    /// El dispositivo tarda 320–550 ms en abrir él solo (medido el 2026-09-30), así que para estar captando
-    /// al medio segundo del clic tiene que empezar a abrirse antes. Lo que capte en guardia no se entrega a
-    /// nadie; al apartar el ratón se suelta, y un ratón aparcado encima la deja caducar.
-    ///
-    /// SE ESPERA A QUE EL RATÓN SE POSE, no a que pase: cruzar la carita de camino a otra cosa no enciende
-    /// el indicador de micrófono de Windows. El botón pulsado no espera: quien ya está pulsando va a hablar.
-    /// </remarks>
-    private void GuardiaAlAcercarse(UIElement donde)
-    {
-        var posado = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PosadoMs) };
-        posado.Tick += (_, __) => { posado.Stop(); _vivo?.PrepararElOido(); };
-        donde.MouseEnter += (_, __) => posado.Start();
-        // Con el ratón ya posado, moverlo renueva la guardia: quien duda encima de la carita no la deja caducar.
-        // MOVERLO DE VERDAD: WPF también avisa de «movimiento» cuando lo que cambia es el dibujo de debajo
-        // —la carita parpadea—, y con eso un ratón aparcado renovaría la guardia para siempre.
-        Point ultimo = default;
-        donde.MouseMove += (_, ev) =>
-        {
-            var ahora = ev.GetPosition(this);
-            if (ahora == ultimo) return;
-            ultimo = ahora;
-            if (!posado.IsEnabled) _vivo?.PrepararElOido();
-        };
-        donde.PreviewMouseLeftButtonDown += (_, __) => { posado.Stop(); _vivo?.PrepararElOido(); };
-        donde.MouseLeave += (_, __) => { posado.Stop(); _vivo?.SoltarElOido(); };
-    }
-
-    /// <summary>Cuánto tiene que quedarse el ratón sobre la carita para contar como acercarse, y no como pasar.</summary>
-    private const int PosadoMs = 80;
 
     /// <summary>Un clic en la carita = micrófono (spec 010; era el doble clic hasta el 2026-09-05).
     /// Suena el carrillón y no el tick: el tick acompañaba a abrir la barra, y abrir la conversación

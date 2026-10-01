@@ -52,7 +52,7 @@ public sealed class ConversacionEnVivo : IDisposable
         _audio = new LiveAudio(_protocolo.RitmoDeEntrada);
         _compuerta = new CompuertaDeEco(GraciaEcoMs, _protocolo.RitmoDeEntrada);
         _preEscucha = new PreEscucha(_protocolo.RitmoDeEntrada);
-        _audio.MicrofonoGrabando += yaEstaba => _relojDeEncender?.Marca("micrófono", yaEstaba ? "ya estaba en guardia" : "");
+        _audio.MicrofonoGrabando += preparado => _relojDeEncender?.Marca("micrófono", preparado ? "estaba preparado" : "hubo que inicializarlo");
         _audio.MicrofonoFallo += ElMicrofonoNoAbrio;
         EmpezarLosTurnosDeLaSesion();
 
@@ -433,13 +433,10 @@ public sealed class ConversacionEnVivo : IDisposable
         => Viva ? ApagarAsync(gesto) : ArrancarAsync(conMicrofono: true, gesto: gesto);
 
     /// <summary>
-    /// EL MICRÓFONO SE ADELANTA AL CLIC (promesa 665): quien ve acercarse el ratón avisa aquí, y el
-    /// dispositivo —que tarda 320–550 ms en abrir— empieza a abrirse. Lo que capte hasta el clic no se entrega.
+    /// DEJA EL MICRÓFONO PREPARADO para el próximo encendido: inicializado y parado, sin captar. Lo llama
+    /// quien monta la voz, una vez; después de cada conversación se mantiene solo (promesa 665).
     /// </summary>
-    public void PrepararElOido() { if (!Viva && _elMicro == null) _audio.PonerEnGuardia(); }
-
-    /// <summary>El ratón se fue sin pulsar. Con la voz encendida no suelta nada.</summary>
-    public void SoltarElOido() { if (_elMicro == null) _audio.SoltarLaGuardia(); }
+    public void PrepararElMicrofono() { if (_elMicro == null) _audio.Preparar(); }
 
     /// <summary>
     /// La interfaz ya pintó la estela (encendida o apagada). Solo es una marca en el reloj del gesto: quien
