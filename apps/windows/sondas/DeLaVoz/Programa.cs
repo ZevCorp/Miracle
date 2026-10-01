@@ -213,7 +213,18 @@ internal static class Programa
             _finDeLaPeticion = Reloj.ElapsedMilliseconds;
             Anotar("usuario", "(escribió) " + frase);
         }
-        var microfono = escrita ? Task.CompletedTask : Task.Run(async () =>
+        // LO ESCRITO, CON EL CAÑO ABIERTO (--con-silencio): ¿caduca igual la sesión a los 30 s si le llega silencio?
+        // Medido el 2026-10-01 en la Ü de pruebas: una orden escrita, sin un solo trozo de audio, murió a los 30 s
+        // exactos de abrir («sesión cerrada: expired») con el delegado a mitad del trabajo.
+        bool conSilencio = args.Contains("--con-silencio");
+        var microfono = escrita && !conSilencio ? Task.CompletedTask : escrita ? Task.Run(async () =>
+        {
+            while (!fin.IsCancellationRequested && _ws.State == WebSocketState.Open)
+            {
+                await MandarAsync(new { type = "session.input_audio.append", audio = Convert.ToBase64String(new byte[4800]) }, fin.Token);
+                await Task.Delay(100, fin.Token);
+            }
+        }) : Task.Run(async () =>
         {
             var ritmo = Stopwatch.StartNew();
             long enviados = 0;
