@@ -118,7 +118,10 @@ No se arreglaron en la fase 1, porque no eran de orden. Están por urgencia.
   workflow exige (`WindowsAppReleaseService.js:124`). Las 5 últimas releases salieron bien, pero
   todas con `request_id` de persona (`jose-…`, `claude-…`), así que se lanzaron a mano. Desde
   Provider Studio fallarían, porque GitHub rechaza un dispatch al que le falta un input obligatorio.
-- El contrato de Android está rojo en su propio `main` (promesa 246), desde antes del monorepo.
+- ~~El contrato de Android está rojo en su propio `main` (promesa 246), desde antes del monorepo.~~
+  No era el código: el juez leía las fuentes con los finales de línea del disco, y en un clon de
+  Windows (CRLF) la 246 no encontraba «la primera línea en blanco». Corregido el 2026-09-30 en las
+  siete lecturas del contrato: 171 promesas intactas también en Windows.
 - `backend/` de Windows se llama «legacy», pero recibió 7 commits en septiembre (memoria,
   recordatorios). Hay que decidir si se queda o se absorbe en Graph.
 

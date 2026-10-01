@@ -142,5 +142,17 @@ escribir la frase que hoy es falsa y después será verdadera?** Si sí, esa fra
   verde, que es lo correcto. Con el sabotaje commiteado dio rojo en la promesa 5.
 - **El juez de Mac**, con un `swift` simulado en Windows: un corredor que sale con 0 sin escribir
   su `PASS` no cuenta como intacto. La corrida real es la de su CI en macOS.
+- **El contrato de Android** estaba anotado como rojo en `main` (promesa 246). Lo estaba solo en
+  los clones de Windows: el juez leía las fuentes con CRLF. Con las lecturas normalizadas da
+  `CONTRATO INTACTO: 171 promesas` en la misma máquina donde daba rojo.
+- **El portero de Windows** sobre el motor: 111 s con el árbol limpio y 114 s sacando el commit a
+  un árbol temporal. Con el juez de la voz borrado sin commitear dio verde (juzga el commit), y con
+  el borrado commiteado, rojo.
+- **El contrato de la raíz** nació con veinte promesas en verde, y al sabotear las herramientas
+  siete seguían verdes: una comprobación fallida no cortaba la promesa. Corregido el arnés, las
+  veinte se vieron en rojo, cada una con su sabotaje.
+- **El guardia de los árboles**, con dos sesiones reales de Claude Code en un repo de juguete: la
+  segunda quedó detenida al primer `Write`, y una tercera, sin más instrucciones que su tarea, se
+  creó su árbol con `arbol.sh nuevo` y trabajó allí.
 - **Las skills de la raíz** cargan en una sesión abierta en cualquier subcarpeta. Los ganchos no:
   solo los de la carpeta donde se abre la sesión. Medido con Claude Code 2.1.276.
