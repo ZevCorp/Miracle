@@ -1,5 +1,7 @@
 package com.zevcorp.graph.platform
 
+import graph.core.domain.PerfilDeUso
+import graph.core.domain.PromptsDeU
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.contentOrNull
@@ -39,10 +41,13 @@ const val WORTH_THRESHOLD = 0.30
 class Anticipation(
     private val apiKey: () -> String,
     private val model: () -> String,
+    /** Con quién habla Ü (spec 010): la propuesta se le dice a esa persona, de tú o de usted. */
+    private val perfil: () -> PerfilDeUso = { PerfilDeUso.SIN_ELEGIR },
 ) {
     suspend fun consider(request: String, done: String, tools: String): Foresight? = withContext(Dispatchers.IO) {
-        val prompt = """
-            Eres Ü. Acabas de completar lo que el usuario pidió. Antes de callarte, piensa UNA cosa:
+        // Quién es Ü y con quién habla van primero y fuera de la raw string (spec 010): antes decía su propio «Eres Ü.».
+        val prompt = PromptsDeU.cabecera(perfil()) + "\n\n" + """
+            Acabas de completar lo que el usuario pidió. Antes de callarte, piensa UNA cosa:
             ¿hay UNA acción DIRECTA —el siguiente eslabón natural de lo que acabas de hacer— que le
             ahorraría al usuario el próximo paso y que puedes ofrecerte a hacer TÚ mismo ya?
 
@@ -79,6 +84,9 @@ class Anticipation(
             reserva worth alto SOLO para el siguiente paso obvio y útil; si dudas, worth bajo. Un
             filtro externo descarta todo lo que no llegue al umbral, así que la mayoría de las veces
             esto termina en silencio.
+
+            Lo que va en "question" lo oye la persona: va como dicen las reglas de arriba (frases cortas,
+            sin emojis, y de usted si arriba lo dice). Los ejemplos de aquí van de tú.
 
             Responde SOLO JSON:
             {"reasoning": "una frase", "worth": 0.0, "action": "offer|task|none", "question": "propuesta hablada o vacío", "task": "instrucción imperativa o vacío", "app": "app implicada o vacío"}

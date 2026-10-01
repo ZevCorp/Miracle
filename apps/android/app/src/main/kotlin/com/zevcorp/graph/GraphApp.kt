@@ -40,6 +40,7 @@ import graph.core.application.WorkflowRecorder
 import graph.core.domain.ExecutionMode
 import graph.core.domain.LearnedTool
 import graph.core.domain.Mcp
+import graph.core.domain.PerfilDeUso
 import graph.core.domain.Phone
 import graph.core.domain.ThreadedBrain
 import graph.core.domain.UserChannel
@@ -183,7 +184,7 @@ class GraphApp : Application() {
      */
     val passive by lazy {
         PassiveLearning(GeminiLearning(apiKey, model), learnedTools, voice, LogBus,
-            inquirer = LearningInquiry(apiKey, model, memories, scope,
+            inquirer = LearningInquiry(apiKey, model, memories, scope, perfil = { perfil() },
                 busy = { executing || bubble?.voiceBusy == true || activeLearning.busy },
                 speak = { bubble?.speak(it) },
                 pending = ::notePendingVoice),
@@ -243,7 +244,7 @@ class GraphApp : Application() {
      * capa MCP (memoria durable). Fase 1: sin árbol de UI, solo texto de cómo usar las apps.
      */
     val activeLearning by lazy {
-        ActiveLearning(this, GeminiVideo(apiKey, model), memories, voice,
+        ActiveLearning(this, GeminiVideo(apiKey, model) { perfil() }, memories, voice,
             // Pregunta de seguimiento: se dice por voz y se responde en el popup de la burbuja
             // (texto o su micrófono) — el micrófono sticky flotante ya no existe.
             askAloud = { q -> bubble?.let { b -> b.speak(q); b.ask(q) } ?: "" },
@@ -262,7 +263,7 @@ class GraphApp : Application() {
             scope.launch(Dispatchers.IO) { CloudSync.pushMemory(note) }
         }
     }
-    private val memoryDistiller by lazy { MemoryDistiller(apiKey, model) }
+    private val memoryDistiller by lazy { MemoryDistiller(apiKey, model) { perfil() } }
 
     /** El doctor de clics: diagnostica con el LLM los fallos de ID ambiguo detectados en tiempo real. */
     private val clickDoctor by lazy { GeminiClickDoctor(apiKey, model) }
@@ -289,7 +290,7 @@ class GraphApp : Application() {
     val intentDistiller by lazy { IntentDistiller(apiKey, model) }
 
     /** El cerebro del modo reunión (escucha por esquinas): nota · construye · interviene al cierre. */
-    val meetingBrain by lazy { com.zevcorp.graph.voice.MeetingBrain(apiKey, model) }
+    val meetingBrain by lazy { com.zevcorp.graph.voice.MeetingBrain(apiKey, model) { perfil() } }
 
     /** Pausa entre steps MCP enviados juntos, ajustable con la barra de velocidad de la app. */
     val stepDelay = { prefs.getInt("stepDelayMs", 350).toLong() }
@@ -344,8 +345,8 @@ class GraphApp : Application() {
         val listApps = { apps().joinToString(", ") }
         val mem = { memories.promptBlock() }
         return when (provider()) {
-            Provider.OPENAI -> OpenAiBrain(openAiKey, openAiModel, mcp.tools, listApps, mem, openAiEffort)
-            Provider.GEMINI -> GeminiBrain(apiKey, model, mcp.tools, listApps, memory = mem)
+            Provider.OPENAI -> OpenAiBrain(openAiKey, openAiModel, mcp.tools, listApps, mem, openAiEffort, perfil = { perfil() })
+            Provider.GEMINI -> GeminiBrain(apiKey, model, mcp.tools, listApps, memory = mem, perfil = { perfil() })
             // El cerebro remoto: sin prompt, sin catálogo, sin memoria local. Graph pone todo eso.
             Provider.GRAPH -> GraphBrain(
                 transport = graphTransport,
@@ -355,12 +356,13 @@ class GraphApp : Application() {
                 email = { auth.email.ifBlank { null } },
                 deviceId = { deviceId },
                 listApps = { withContext(Dispatchers.IO) { installedApps() } },
+                perfil = { perfil() },
                 log = LogBus,
             )
         }
     }
 
-    private val anticipation by lazy { Anticipation(apiKey, model) }
+    private val anticipation by lazy { Anticipation(apiKey, model) { perfil() } }
 
     /** Prompts que componen el objetivo vivo: crecen si llega un audio nuevo durante la ejecución. */
     private val goalPrompts = mutableListOf<String>()
@@ -375,6 +377,49 @@ class GraphApp : Application() {
         private set
     @Volatile private var conversationTokens = 0
     private val maxContextTokens = 400_000
+
+    /**
+     * Cuántas veces cambió el perfil desde que arrancó la app. Una corrida que empezó con otro perfil no deja su hilo como
+     * el compartido al terminar: el hilo abierto con el perfil viejo llevaría su «QUIÉN TE HABLA» (spec 010).
+     */
+    @Volatile private var cambiosDePerfil = 0
+
+    /**
+     * Con qué [cambiosDePerfil] se abrió el hilo guardado en [conversationId]. `run()` puede correr en otro hilo que la
+     * pantalla (desde la burbuja va en `Dispatchers.Default`): si el perfil cambia entre la comprobación y el guardado, se
+     * re-guarda el hilo viejo después de que `cambiaElPerfil` lo olvidó. Por eso `newSession` reanuda solo si el hilo se
+     * abrió con el perfil de ahora (revisión del 2026-10-01, spec 010, promesa 1008).
+     */
+    @Volatile private var perfilDelHiloGuardado = 0
+
+    /**
+     * CON QUIÉN HABLA Ü (spec 010), leído cada vez de las preferencias con las claves del núcleo: lo eligió la persona en
+     * la bienvenida o en «Cómo me usas». Sin elegir es la Ü de antes. Lo leen los tres cerebros y los prompts de la app.
+     */
+    fun perfil(): PerfilDeUso {
+        return PerfilDeUso.desdeGuardado(
+            prefs.getString(PerfilDeUso.CLAVE_PERFIL, ""),
+            prefs.getString(PerfilDeUso.CLAVE_ESPECIALIDAD, ""),
+            prefs.getString(PerfilDeUso.CLAVE_ESPECIALIDAD_NOMBRE, ""),
+        )
+    }
+
+    /**
+     * Guarda el perfil que eligió la persona. Si es otro, se olvida el hilo de la conversación: OpenAI y Gemini mandan su
+     * prompt —y con él «QUIÉN TE HABLA»— una sola vez, al abrir el hilo, así que reanudar el de antes seguiría hablándole
+     * al perfil viejo. Con el hilo olvidado, el siguiente turno es primero y lleva el perfil nuevo; Graph ya abre un hilo
+     * por corrida (promesa 12) y lo lleva en ese primer turno (promesa 1005).
+     */
+    fun cambiaElPerfil(nuevo: PerfilDeUso) {
+        val antes = perfil()
+        prefs.edit().apply { nuevo.guardado().forEach { (clave, valor) -> putString(clave, valor) } }.apply()
+        if (nuevo != antes) {
+            cambiosDePerfil++
+            conversationId = ""
+            conversationTokens = 0
+            LogBus.log("perfil", "con quién hablo: ${nuevo.describir()} (antes ${antes.describir()}); el próximo pedido abre un hilo nuevo")
+        }
+    }
 
     /**
      * Crea un motor y su cerebro. Con `resume`, OpenAI y Gemini CONTINÚAN el hilo compartido (no
@@ -413,7 +458,7 @@ class GraphApp : Application() {
             // Con las apps instaladas la compuerta sabe si un nombre de app es ambiguo (spec 006, promesa 602).
             apps = { withContext(Dispatchers.IO) { installedApps() } },
         )
-        if (resume) sesion.cerebro.resume(conversationId)
+        if (resume && perfilDelHiloGuardado == cambiosDePerfil) sesion.cerebro.resume(conversationId)
         return sesion.motor to sesion.cerebro
     }
 
@@ -554,6 +599,7 @@ class GraphApp : Application() {
                     // El permiso de esta corrida se lee UNA vez y viaja: al motor y, si dispara un workflow, a su paso
                     // consciente (spec 006, promesas 611 y 619).
                     val dijoLaPersona = dichoPorLaPersona()
+                    val perfilDelHilo = cambiosDePerfil
                     val (engine, brain) = newSession(service, user, resume = true, dijoLaPersona = dijoLaPersona)
                     val holder = arrayOf("")
                     val announce = round == 0 // en reencaminados no narra el objetivo largo
@@ -576,9 +622,15 @@ class GraphApp : Application() {
                         LogBus.log("run", "🧵 hilo con llamadas sin responder; la próxima activación arranca fresca")
                         conversationId = ""
                         conversationTokens = 0
+                    } else if (perfilDelHilo != cambiosDePerfil) {
+                        // El perfil cambió mientras corría: este hilo se abrió con el de antes (spec 010).
+                        LogBus.log("run", "🧵 el perfil cambió durante la corrida; la próxima activación arranca fresca")
+                        conversationId = ""
+                        conversationTokens = 0
                     } else {
                         conversationId = brain.interactionId
                         conversationTokens = brain.totalTokens
+                        perfilDelHiloGuardado = perfilDelHilo
                     }
                     // Lo paraste: el motor ya devolvió «paraste: …». Ni se reencamina ni se anticipa nada.
                     Ejecucion.sigue()

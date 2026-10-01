@@ -49,6 +49,15 @@ struct ContractRunner {
         try tests.testMemoryNeverTurnsRememberedIntoLive()
         try tests.testMemoryRoutesOnlyThroughObservedEdges()
         try await tests.testMemoryPersistenceAndCorruptionAreExplicit()
-        print("PASS: 31 contracts, \(checks) assertions. No network, microphone or desktop access.")
+        // Spec 001 — Ü sabe con quién habla (2026-10-01).
+        try tests.testPerfilDeUsoSeNormalizaYSinElegirEsLoDeAntes()
+        try tests.testEspecialidadesSonLasDelCatalogoDeGraph()
+        try await tests.testElPerfilViajaSoloEnElPrimerTurno()
+        try tests.testLaConstitucionEsLaDeGraph()
+        try tests.testElBloqueDelPerfilSaleDeLaConstitucion()
+        try tests.testLaVozYLunaEmpiezanPorLaConstitucion()
+        try tests.testLosCriteriosDelMacNoContradicenALaConstitucion()
+        try tests.testElPerfilElegidoSeGuardaYLoNuncaElegidoSePregunta()
+        print("PASS: 39 contracts, \(checks) assertions. No network, microphone or desktop access.")
     }
 }

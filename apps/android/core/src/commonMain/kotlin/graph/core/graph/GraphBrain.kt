@@ -2,6 +2,7 @@ package graph.core.graph
 
 import graph.core.domain.BrainTurn
 import graph.core.domain.GraphLog
+import graph.core.domain.PerfilDeUso
 import graph.core.domain.ScreenState
 import graph.core.domain.ThreadedBrain
 import kotlinx.coroutines.delay
@@ -18,6 +19,7 @@ private val NO_LOG = GraphLog { _, _ -> }
  *
  * Reglas del bucle, copiadas de Windows (docs/specs/001):
  *  - el objetivo viaja en el primer turno; después viaja el `session` opaco que devolvió Graph;
+ *  - con quién habla Ü (`profile`, spec 010) viaja con el objetivo, en el primer turno y solo si se eligió;
  *  - cada objetivo abre un hilo nuevo: el primer turno de cada corrida viaja sin `session`
  *    (`AgentLoop.cs:96`), aunque haya uno de la corrida anterior o uno reanudado (promesa 12);
  *  - `results` van en el mismo orden que las acciones; la respuesta a una pregunta va en `inform`,
@@ -46,6 +48,8 @@ class GraphBrain(
     private val deviceId: () -> String?,
     /** Las apps instaladas. `suspend` para que la app la saque del hilo principal; se llama una vez por corrida. */
     private val listApps: suspend () -> List<String>,
+    /** Con quién habla Ü. Se lee en el primer turno de cada corrida: un cambio a mitad de corrida llega en la siguiente. */
+    private val perfil: () -> PerfilDeUso = { PerfilDeUso.SIN_ELEGIR },
     private val log: GraphLog = NO_LOG,
     /** Espera entre reintentos; inyectable para que el contrato no duerma. */
     private val sleep: suspend (Long) -> Unit = { delay(it) },
@@ -100,6 +104,8 @@ class GraphBrain(
             // El objetivo va una sola vez: en el primer turno de la corrida, que siempre abre hilo.
             // Repetirlo abriría una conversación nueva en cada turno.
             goal = if (firstTurn) goal else null,
+            // Graph guarda el perfil en la sesión firmada del primer turno: repetirlo no cambiaría nada (spec 010).
+            profile = if (firstTurn) perfil().toTurnProfile() else null,
             userId = userId()?.ifBlank { null },
             state = state.toTurnState(
                 apps = installed.ifEmpty { null },

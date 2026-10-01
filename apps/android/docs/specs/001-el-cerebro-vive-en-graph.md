@@ -61,7 +61,7 @@ método `promesaNN`); si cambia uno, cambia el otro en el mismo commit.
 | 4 | Cada acción de Graph se traduce a la acción local equivalente (tap, type, scroll, swipe, key, wait, mcp); una acción desconocida no rompe la corrida: su resultado es "acción desconocida: <kind>". | A |
 | 5 | `done`, `question`, `text`, `narration`, `speech` e `intents` de Graph llegan al motor tal cual. | A |
 | 6 | Un HTTP transitorio (0, 408, 429, 502, 503, 504) se reintenta hasta 3 veces con espera creciente; 401 o 403 no se reintenta y dice que la key de Graph no vale; un `error` en el cuerpo termina el turno con ese texto. | A |
-| 7 | El cliente no manda modelo, prompt ni catálogo de herramientas: el request solo tiene session, goal, userId, state, results e inform. | A |
+| 7 | El cliente no manda modelo, prompt ni catálogo de herramientas: el request solo tiene session, goal, userId, state, results e inform, y en el primer turno, si se eligió, profile con kind, specialty y specialtyName. | A · enmendada 2026-10-01 (spec 010) |
 | 8 | Cada request lleva `X-API-Key`, `X-Miracle-App: android_app` y `X-Miracle-Feature: conscious_bridge`; el email y el id de dispositivo viajan solo si existen. | A |
 | 9 | La key de Graph se resuelve prefs sobre compilada; sin key, el proveedor GRAPH no llama a nadie y dice en una línea qué falta. | A |
 | 10 | La superficie se deriva del paquete y la pantalla: origin `android://<paquete>`, pathname `/<pantalla>`, id = origin + pathname. | A |
@@ -74,6 +74,16 @@ método `promesaNN`); si cambia uno, cambia el otro en el mismo commit.
 **La que cierra el asunto es la 7.** Mientras el cliente mande prompt o catálogo, no es tonto: es
 el cerebro viejo con otro transporte. Las otras diez protegen el camino; la 7 es la que define qué
 es este proveedor.
+
+**La 7 se enmendó el 2026-10-01** (spec 010, «Ü sabe con quién habla»). Graph acepta desde el PR #157
+un campo opcional, `profile: {kind, specialty, specialtyName}`, en el primer turno de una conversación:
+con quién habla Ü, un médico con su especialidad o una persona en su día a día. Decía «el request solo
+tiene session, goal, userId, state, results e inform», y su test fijaba ese conjunto, así que el campo
+nuevo no cabía sin cambiarla. Se cambió lo mínimo: `profile` solo puede ir en el primer turno, solo con
+esas tres claves, y sin perfil elegido no viaja (la 1005 juzga que entonces la petición es byte a byte
+la de antes). No es prompt ni catálogo: `kind` es `medico` o `persona`, la especialidad sale del
+catálogo de Graph, y Graph no usa `specialtyName` como texto: solo lo busca en su catálogo
+(`services/graph/src/domain/agent/profile.js`). Lo que la 7 protege no cambió.
 
 **La 12 nació de medir, no de leer** (Nivel 4, corrida 2): con `session` reanudado + `goal` nuevo,
 Graph siguió el hilo viejo y reabrió la calculadora en vez de los ajustes. Se espeja Windows
@@ -104,7 +114,7 @@ Ninguna toca red, Android ni disco.
 | 4 | Un response con las siete `kind` conocidas (y `scroll` en los dos sentidos: `down:false` sube) produce sus `AgentAction` con sus campos; un `kind:"teleport"` corrido por el `ExecutionEngine` real (con teléfono y MCP falsos) devuelve en el request siguiente `results:["acción desconocida: teleport"]` |
 | 5 | Un response con los seis campos cargados → el `BrainTurn` los tiene idénticos |
 | 6 | Guion `503, 0, 200` → 3 requests y esperas `[800, 1600]`; cada transitorio solo y primero, seguido de `200` → 2 requests; guion `504, 502, 408, 429` → falla tras 4 requests (el 504 abre: al final pasaba aunque no fuera transitorio); `503×4` con `error` en el cuerpo → el mensaje final lo trae; `429` con `Retry-After` 4 y 120 → esperas `[4000, 10000]`; un transporte que lanza «no protocol» → el mensaje trae la causa y no la key; `"actions":null` y `"args":{"hour":7}` con HTTP 200 → el mensaje dice `$.actions` / `$.actions[0].args` y trae el cuerpo; `401` → 1 request y mensaje "la key de graph no vale"; `200` con `error:"sin cupo"` → excepción "sin cupo" |
-| 7 | El conjunto de claves del request es subconjunto de `{session, goal, userId, state, results, inform}`, y las de `state` lo son de las nueve de `ScreenState` en `Protocol.cs`: `{screen, uiContext, width, height, screenshot, apps, surfaceId, surfaceOrigin, surfacePathname}` |
+| 7 | El conjunto de claves del request es subconjunto de `{session, goal, userId, state, results, inform}`, y las de `state` lo son de las nueve de `ScreenState` en `Protocol.cs`: `{screen, uiContext, width, height, screenshot, apps, surfaceId, surfaceOrigin, surfacePathname}`. Desde la enmienda (2026-10-01), lo mismo con un perfil elegido: el primer request puede llevar además `profile`, con claves de `{kind, specialty, specialtyName}`, y el segundo vuelve a ser `{session, userId, state, results, inform}` |
 | 8 | `GraphHeaders.build` con y sin email/deviceId; y el request grabado lleva esas cabeceras |
 | 9 | `GraphCredentials.resolve` con prefs, con compilada, con ambas y con ninguna; un `GraphBrain` sin key no hace ningún request y falla con la línea que dice qué falta |
 | 10 | `AndroidSurface.from("com.miui.calculator · Calculadora")` y sin título; `"com.android.settings · 设置"` no queda en `/` y su pathname, decodificado, vuelve a `设置`; `"Configurações"` decodificado conserva todas sus letras; los dos son segmentos de URL válidos |

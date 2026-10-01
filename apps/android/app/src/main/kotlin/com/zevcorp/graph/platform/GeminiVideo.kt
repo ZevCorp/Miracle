@@ -1,5 +1,7 @@
 package com.zevcorp.graph.platform
 
+import graph.core.domain.PerfilDeUso
+import graph.core.domain.PromptsDeU
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -20,6 +22,8 @@ import kotlinx.serialization.json.*
 class GeminiVideo(
     private val apiKey: () -> String,
     private val model: () -> String,
+    /** Con quién habla Ü (spec 010): lo que entendió se le dice a esa persona, y con un médico los datos de un paciente no son memoria. */
+    private val perfil: () -> PerfilDeUso = { PerfilDeUso.SIN_ELEGIR },
 ) {
     class Result(val notes: List<MemoryNote>, val questions: List<String>, val summary: String)
 
@@ -125,11 +129,14 @@ class GeminiVideo(
     /* ---------- Estructuración: video → JSON de notas por app ---------- */
 
     private fun generate(fileUri: String): JsonObject {
-        val prompt = """
-            Eres Ü, un asistente que controla el teléfono Android del usuario. El usuario acaba de
-            COMPARTIR SU PANTALLA y enseñarte, con su voz, cosas sobre cómo usa sus apps: te mostró
-            datos, contactos, preferencias o formas de hacer las cosas que quiere que RECUERDES para
-            cuando tú operes el teléfono por él.
+        // Quién es Ü y con quién habla van primero y fuera de la raw string (spec 010): antes decía su propio «Eres Ü, …».
+        // Las notas van a la memoria y el criterio pide «datos CONCRETOS»: con un perfil elegido, lo que su bloque dice de la
+        // memoria manda sobre ese criterio (promesa 1010). El perfil se lee una vez: cabecera y frase hablan del mismo.
+        val p = perfil()
+        val prompt = PromptsDeU.componer(PromptsDeU.cabecera(p), if (p.elegido) PromptsDeU.PRECEDENCIA_DE_LA_MEMORIA else "") + "\n\n" + """
+            El usuario acaba de COMPARTIR SU PANTALLA y enseñarte, con su voz, cosas sobre cómo usa sus
+            apps: te mostró datos, contactos, preferencias o formas de hacer las cosas que quiere que
+            RECUERDES para cuando tú operes el teléfono por él.
 
             Mira TODO el video (imagen + audio) y extrae CONOCIMIENTO TEXTUAL durable y reutilizable,
             organizado POR APP. Ejemplos del tipo de nota que buscamos:
@@ -152,6 +159,8 @@ class GeminiVideo(
             cálido, de lo que ENTENDISTE del video, para decírselo al usuario en voz alta (p.ej.
             "Entendí que a tu mamá la tienes en WhatsApp como 'Ale' y que le escribes por las mañanas").
             Es lo que le explicarás de lo aprendido; si no aprendiste nada, dilo con naturalidad.
+            Lo que va en "summary" y en "questions" lo oye la persona: va como dicen las reglas de arriba
+            (frases cortas, sin emojis, y de usted si arriba lo dice). Los ejemplos de aquí van de tú.
 
             Responde SOLO JSON:
             {"summary": "...", "items": [{"app": "WhatsApp", "note": "..."}], "questions": ["..."]}

@@ -4,10 +4,10 @@ package graph.core.domain
  * EL PROMPT DEL CEREBRO LOCAL DE ANDROID (spec 009): lo que Ü sabe y cómo se porta cuando el teléfono le habla directo a
  * OpenAI (`OpenAiBrain`) o a Gemini (`GeminiBrain`), sin pasar por Graph. Es el proveedor por defecto de la app.
  *
- * UNA SOLA Ü. La estructura y el texto son los del cerebro de Graph para Android sin perfil
+ * UNA SOLA Ü. La estructura y el texto son los del cerebro de Graph para Android
  * (`services/graph/src/infrastructure/conscious-brain/prompt.js` con `platform: 'android'`):
  *
- *   QUIEN · EN ESTE TURNO · Objetivo del usuario · OBEDECE · CÓMO VES LA PANTALLA · CÓMO ACTÚAS ·
+ *   QUIEN · [QUIÉN TE HABLA] · EN ESTE TURNO · Objetivo del usuario · OBEDECE · CÓMO VES LA PANTALLA · CÓMO ACTÚAS ·
  *   [HERRAMIENTAS APRENDIDAS] · [WORKFLOWS APRENDIDOS] · CUÁNDO PREGUNTAS Y CUÁNDO HABLAS · [MEMORIA] · PERSISTENCIA ·
  *   LA INTERFAZ DE Ü · [COMPUTER-USE EN GEMINI]
  *
@@ -18,7 +18,9 @@ package graph.core.domain
  * (Graph ya no las tiene) y, para Gemini, su toque largo (`long_press`, que su entorno `mobile` sí tiene) y cómo pedir la
  * captura con `take_screenshot` (el `look()` de Graph).
  *
- * Sin perfil todavía: Android no pregunta si es médico o persona, así que no hay «QUIÉN TE HABLA» (iría después de QUIEN).
+ * QUIÉN TE HABLA es el bloque del perfil que la persona eligió en la bienvenida ([PerfilDeUso.bloqueDelPrompt], spec 010),
+ * después de QUIEN como en Graph. Sin elegir no hay bloque y el prompt es el de siempre. Como el cerebro local manda su
+ * prompt una sola vez, al abrir el hilo, la app olvida el hilo cuando cambia el perfil.
  *
  * Los bloques se unen como `composePrompt` de Graph: cada uno sin blancos a los lados, los vacíos fuera, y una línea en
  * blanco entre ellos. Cada texto es una raw string con su `trimIndent()` propio y NUNCA interpola un texto de varias
@@ -126,10 +128,17 @@ object PromptDelCerebroLocal {
     /**
      * El prompt de UN objetivo. [tools] son las del MCP del teléfono (sistema, gestos, aprendidas y workflows): sus nombres
      * no se listan, ya van declarados; solo deciden si aparecen los bloques de aprendidas y de workflows. [memory] es la
-     * memoria del usuario agrupada por app, o "" si no hay.
+     * memoria del usuario agrupada por app, o "" si no hay. [perfil] es con quién habla Ü; sin elegir, el prompt de siempre.
      */
-    fun goalPrompt(goal: String, tools: List<McpTool>, memory: String, proveedor: Proveedor): String = componer(
+    fun goalPrompt(
+        goal: String,
+        tools: List<McpTool>,
+        memory: String,
+        proveedor: Proveedor,
+        perfil: PerfilDeUso = PerfilDeUso.SIN_ELEGIR,
+    ): String = componer(
         ConstitucionDeU.QUIEN,
+        perfil.bloqueDelPrompt(),
         TURNO,
         "Objetivo del usuario: ${goal.trim()}",
         ConstitucionDeU.OBEDECE,

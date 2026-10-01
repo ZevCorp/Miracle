@@ -2,6 +2,8 @@ package com.zevcorp.graph.voice
 
 import com.zevcorp.graph.platform.GeminiJson
 import com.zevcorp.graph.platform.LogBus
+import graph.core.domain.PerfilDeUso
+import graph.core.domain.PromptsDeU
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.booleanOrNull
@@ -27,6 +29,8 @@ data class MeetingMove(
 class MeetingBrain(
     private val apiKey: () -> String,
     private val model: () -> String,
+    /** Con quién habla Ü (spec 010): quien la puso a escuchar, de tú o de usted. */
+    private val perfil: () -> PerfilDeUso = { PerfilDeUso.SIN_ELEGIR },
 ) {
 
     suspend fun consider(
@@ -36,9 +40,11 @@ class MeetingBrain(
         elapsedMin: Long,
         closingDone: Boolean,
     ): MeetingMove? = withContext(Dispatchers.IO) {
-        val prompt = """
-            Eres Ü, un asistente con voz propia que participa EN VIVO en una conversación, escuchando por el
-            micrófono de un teléfono Android que además sabes usar (tienes un motor que ejecuta tareas en él).
+        // Quién es Ü y con quién habla van primero y fuera de la raw string (spec 010): antes decía su propio «Eres Ü, …».
+        val p = perfil()
+        val cuerpo = """
+            AHORA PARTICIPAS EN VIVO, con tu voz, en una conversación que escuchas por el micrófono de un
+            teléfono Android que además sabes usar (tienes un motor que ejecuta tareas en él).
             Puede ser UNA persona dándote instrucciones, o DOS O MÁS personas desarrollando ideas en una reunión.
 
             Tu papel: el integrante encargado de (1) tomar nota de lo importante, (2) construir EN PARALELO la
@@ -65,7 +71,7 @@ class MeetingBrain(
               Habla solo si te hablan directamente a ti, o en tu intervención de cierre.
             - "closing": true SOLO cuando detectes que la reunión llega a su fin (despedidas, "bueno, entonces
               quedamos así", recapitulación, silencio de cierre). Entonces tomas la palabra como un integrante
-              más: en "say" interviene ("Chicos, antes de terminar, les muestro lo que hice…"): resume en pocas
+              más: en "say" interviene ("Antes de terminar, les muestro lo que hice…"): resume en pocas
               frases las notas clave y lo que construiste. Y en "task" pon la DEMO: abrir lo construido y
               recorrerlo explicando EN VOZ ALTA (con speak) cómo cada parte refleja lo que pidieron — "esta es
               la sección de fotos que mencionaron, aquí van las reviews…" — e invitar a pedir cambios de una vez.
@@ -76,11 +82,24 @@ class MeetingBrain(
             - Tareas lanzadas: ${if (tasks.isEmpty()) "(ninguna)" else tasks.joinToString(" | ")}
             - ¿Ya hiciste tu intervención de cierre?: ${if (closingDone) "SÍ: no la repitas; solo anota los cambios que pidan y lánzalos como tasks de seguimiento" else "no"}
 
-            FRAGMENTO NUEVO: "$segment"
+            Lo que va en "say" se oye en voz alta: va como dicen las reglas de arriba (frases cortas, sin
+            emojis, y de usted si arriba lo dice).
 
+            FRAGMENTO NUEVO: "$segment"
+        """.trimIndent()
+        val respuesta = """
             Responde SOLO JSON:
             {"notes": ["…"], "task": "", "say": "", "closing": false}
         """.trimIndent()
+        // Con un médico, la reunión puede ser una consulta: el bloque del médico dice que con un paciente delante habla solo si
+        // le hablan, y el cierre y las tareas por iniciativa propia lo contradecían (revisión del 2026-10-01, promesa 1010).
+        // Sin médico, el prompt es el de antes.
+        val prompt = PromptsDeU.componer(
+            PromptsDeU.cabecera(p),
+            cuerpo,
+            if (p.esMedico) CON_UN_PACIENTE_DELANTE else "",
+            respuesta,
+        )
         runCatching {
             val o = GeminiJson.ask(apiKey(), model(), prompt, tag = "meeting")
             MeetingMove(
@@ -90,5 +109,11 @@ class MeetingBrain(
                 closing = o["closing"]?.jsonPrimitive?.booleanOrNull == true,
             )
         }.getOrElse { LogBus.log("meeting", "cerebro de reunión falló: ${it.message}"); null }
+    }
+
+    private companion object {
+        /** Lo que el bloque del médico manda en una reunión que puede ser una consulta (spec 010, promesa 1010). */
+        const val CON_UN_PACIENTE_DELANTE =
+            "Si hay un paciente delante, manda QUIÉN TE HABLA: sin intervención de cierre ni tareas que no te pidan."
     }
 }
