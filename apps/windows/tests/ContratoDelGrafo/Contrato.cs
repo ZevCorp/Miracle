@@ -933,6 +933,10 @@ internal static class Contrato
         Prueba("527. el notch se aparta como la carita: si bajo el punto de un clic de Ü está el notch, se vuelve transparente al ratón un momento, se mira otra vez y se pulsa lo de debajo; cualquier otra ventana de Ü sigue sin pulsarse y se dice cuál", ElNotchSeApartaComoLaCarita);
         Prueba("528. leer el diálogo de delante tiene plazo: si la app no contesta en 2 s, map_unblock no se congela —dice que no pudo leer el diálogo a tiempo, no que no hay ninguno— y no pulsa nada", LeerElDialogoTienePlazo);
         Prueba("529. saber dónde estoy tampoco se congela leyendo un diálogo: map_where_am_i lee el diálogo por la misma puerta con plazo que map_unblock; las dos lecturas del diálogo son una", DondeEstoyNoSeCongelaConUnDialogo);
+        // Ü NO ESTORBA EN ALT+TAB (spec 064, 2026-09-30). De 9 piezas flotantes solo 5 se sacaban de ahí, cada una
+        // por su cuenta; la carita y el muelle no, y salían dos «Ü» en cada cambio de ventana. La 530 es de otra
+        // rama sin mergear (el notch se hace esperar): no se recicla.
+        Prueba("531. las piezas flotantes de Ü —la carita, el muelle, el notch, el carrusel, las tarjetas y las superposiciones— no salen en Alt+Tab: su estilo lleva TOOLWINDOW y nunca APPWINDOW sin perder lo que ya tenía; las ventanas de trabajo siguen saliendo; y toda ventana de Ü está declarada flotante o de trabajo, así que una nueva no se cuela sin decirlo", UNoEstorbaEnAltTab);
         Prueba("520. quien planea es GPT-6.1 Sol con el pensamiento en bajo y sin pagar de más por velocidad: delegado gpt-6.1-sol con reasoning.effort = low y sin service_tier priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
 
         // EL NOTCH SE HACE ESPERAR (spec 063, 2026-09-30). La 260 congela DÓNDE se pide; nada decía
@@ -10564,6 +10568,51 @@ internal static class Contrato
         clic(false, new System.Windows.Point(768, 300), false, ms * 5);
         clic(true, arriba, false, ms * 6);
         Debe(clic(true, arriba, false, ms * 7), "pero al salir de la franja y volver, el gesto vuelve a funcionar");
+
+    /// <summary>Promesa 531.</summary>
+    private static void UNoEstorbaEnAltTab()
+    {
+        var t = Capacidad("U.WindowsClient.Ui.FueraDelAltTab");
+        if (t == null) { Pendiente("FueraDelAltTab", "531", "064"); return; }
+        var estilo = t.GetMethod("Estilo", new[] { typeof(int) });
+        var esFlotante = t.GetMethod("EsFlotante", new[] { typeof(Type) });
+        var esDeTrabajo = t.GetMethod("EsDeTrabajo", new[] { typeof(Type) });
+        if (estilo == null || esFlotante == null || esDeTrabajo == null)
+        { Pendiente("FueraDelAltTab.Estilo/EsFlotante/EsDeTrabajo", "531", "064"); return; }
+        int Estilo(int ex) => (int)estilo.Invoke(null, new object[] { ex })!;
+        bool Flotante(Type v) => (bool)esFlotante.Invoke(null, new object[] { v })!;
+        bool DeTrabajo(Type v) => (bool)esDeTrabajo.Invoke(null, new object[] { v })!;
+
+        // EL ESTILO. Windows lista en Alt+Tab toda ventana visible que no sea de herramienta, y APPWINDOW la
+        // fuerza a salir aunque lo sea: hacen falta las dos cosas, poner una y quitar la otra.
+        const int TOOLWINDOW = 0x80, APPWINDOW = 0x40000, LAYERED = 0x80000, TRANSPARENT = 0x20, TOPMOST = 0x8;
+        Debe((Estilo(0) & TOOLWINDOW) != 0, "una ventana sin nada puesto queda como ventana de herramienta");
+        Debe((Estilo(APPWINDOW) & APPWINDOW) == 0 && (Estilo(APPWINDOW) & TOOLWINDOW) != 0,
+            "y si traía APPWINDOW se le quita: con él saldría en Alt+Tab aunque fuera de herramienta");
+        int rica = LAYERED | TRANSPARENT | TOPMOST;
+        Debe((Estilo(rica) & rica) == rica,
+            "sin perder lo que ya tenía: en capas, transparente al ratón (la carita fantasma, promesa 505) y siempre encima");
+        Debe(Estilo(Estilo(rica | APPWINDOW)) == Estilo(rica | APPWINDOW), "y aplicarlo dos veces deja lo mismo que una");
+
+        // LA DECLARACIÓN. Todas las clases del cliente que heredan de Window, sin excepción: la clase de error
+        // era que cada ventana se acordaba —o no— de salirse de Alt+Tab por su cuenta.
+        Type[] todos;
+        try { todos = Cliente.GetTypes(); }
+        catch (ReflectionTypeLoadException e) { todos = e.Types.Where(x => x != null).ToArray()!; }
+        var ventanas = todos.Where(x => typeof(System.Windows.Window).IsAssignableFrom(x) && !x.IsAbstract).ToList();
+        Debe(ventanas.Count >= 16, $"se miran las ventanas de verdad: hay {ventanas.Count} clases de ventana en el cliente, y eran 16 al escribir esto");
+        var sinDeclarar = ventanas.Where(v => !Flotante(v) && !DeTrabajo(v)).Select(v => v.Name).OrderBy(n => n).ToList();
+        Debe(sinDeclarar.Count == 0,
+            "toda ventana de Ü está declarada flotante o de trabajo" + (sinDeclarar.Count == 0 ? "" : $" — faltan: {string.Join(", ", sinDeclarar)}"));
+        var lasDos = ventanas.Where(v => Flotante(v) && DeTrabajo(v)).Select(v => v.Name).ToList();
+        Debe(lasDos.Count == 0, "y ninguna es las dos cosas a la vez" + (lasDos.Count == 0 ? "" : $" — {string.Join(", ", lasDos)}"));
+
+        // LAS QUE SE VEN SIEMPRE, por nombre: son las dos «Ü» de las fotos del dueño, más el notch.
+        Type? V(string nombre) => ventanas.FirstOrDefault(v => v.Name == nombre);
+        foreach (string nombre in new[] { "FaceWindow", "Muelle", "PanelDeAcciones", "CarruselDeApps", "TarjetaDeRecuerdo" })
+            Debe(V(nombre) is Type v && Flotante(v), $"«{nombre}» es una pieza flotante: no sale en Alt+Tab");
+        foreach (string nombre in new[] { "ConsultaWindow", "EstudiosWindow", "LoginWindow" })
+            Debe(V(nombre) is Type v && DeTrabajo(v), $"«{nombre}» es una ventana de trabajo: sigue saliendo en Alt+Tab, que es donde se la busca");
     }
 
     private static void LaZonaDelNotchMantieneLaIntencion()
