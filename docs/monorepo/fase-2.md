@@ -153,7 +153,7 @@ No se arreglaron en la fase 1, porque no eran de orden. Están por urgencia.
   los puede archivar Joseph.
 - ~~**Renombrar el repo**~~. Hecho el 2026-10-01: es `ZevCorp/Miracle`. Lo que se cuidó está en
   «El nombre del repo» de la arquitectura. Queda poner el nombre nuevo en `WINDOWS_APP_GITHUB_REPO`
-  de los proyectos de Vercel.
+  de los proyectos de Vercel cuando Graph se despliegue desde aquí (hoy esa variable solo existe en la producción vieja, que sigue funcionando por la redirección).
 
 ## Orden propuesto para la fase 2
 

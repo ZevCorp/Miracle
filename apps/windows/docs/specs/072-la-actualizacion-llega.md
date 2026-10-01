@@ -231,11 +231,53 @@ dibujo de la pestaña, 5 px de ancho, porque el resto de la ventana es transpare
 barriendo de 2 en 2 px. Y el primer guion elegía la ventana por un nombre con «Ü» en un `.ps1` sin
 BOM: no casaba nunca.
 
+## La release de verdad (2026-10-01, después del merge)
+
+En este orden: el PR 148 entró a `main` (`ff880743`), el repo pasó a llamarse `ZevCorp/Miracle`, y se
+publicó la **1.3.7** desde `main` (run 36825983147): paquete completo de 79,5 MB, delta de 5,8 MB,
+instalador, portable y el mensaje. La pre-release del ensayo se borró.
+
+**El nombre viejo redirige**: `api.github.com/repos/ZevCorp/U-Windows-App/releases` contesta 301 y
+luego 200, y los enlaces de descarga de la web, igual.
+
+**Una 1.3.6 de verdad, intacta** (otro portable de su release, que pregunta por el nombre viejo porque
+es el que lleva escrito, y pierde el token en la redirección):
+
+```
+(tras el cambio de nombre, antes de publicar)
+No updates, remote version (1.3.6) is not newer than current version (1.3.6)
+
+(publicada la 1.3.7)
+[01:59:51] update: versión nueva disponible: 1.3.7 — descargando…
+[02:00:02] update: versión 1.3.7 descargada y lista para aplicar            (79,5 MB en 10 s)
+            (se mata el proceso y se reabre)
+Auto apply is true, so restarting to apply update...
+Package version 1.3.7 applied successfully.
+[02:00:13] update: carpeta de trabajo: de «C:\U-banco\portable136b\current» a «C:\Users\felip», …
+[02:00:24] update: al día: no hay nada publicado más nuevo que la 1.3.7. Vuelvo a mirar cada 30 min
+U.exe: 1.3.7+ff880743
+```
+
+**El código nuevo contra el feed real** (la `1.3.7-ensayo.1`, que busca por el nombre nuevo y con su
+token): es el camino de todas las versiones de aquí en adelante.
+
+```
+[02:01:09] update: versión nueva disponible: 1.3.7 — descargando…
+Patch error: Delta error: Restored data doesn't match checksum                ← el delta es de la 1.3.6, no del ensayo
+Unable to apply delta updates, falling back to full update.                   ← y cae solo al completo
+[02:01:28] update: versión 1.3.7 descargada y lista para aplicar
+            (se mata el proceso y se reabre)
+[02:01:31] update: al arrancar: la 1.3.7 está descargada y no hay otra Ü trabajando; se aplica
+[02:01:46] update: actualización aplicada: 1.3.7-ensayo.1 → 1.3.7 (al arrancar)
+[02:01:58] update: al día: no hay nada publicado más nuevo que la 1.3.7. Vuelvo a mirar cada 30 min
+```
+
 ### Lo que NO se probó, dicho como tal
 
-- **La release de verdad tras el cambio de nombre del repo.** Va después del merge: renombrar,
-  publicar la 1.3.7 y verla llegar a una 1.3.6 que pregunta por el nombre viejo. Lo que salga se
-  anota en el PR y en `RELEASING-WINDOWS.md`, no aquí: esta spec ya está en `main` para entonces.
+- **El delta bajado de GitHub y aplicado.** Lo recibe quien tiene instalada la versión anterior con su
+  paquete base, que es lo que deja el instalador; las dos copias de prueba no lo tenían (un portable
+  no trae paquete base, y la del ensayo tenía otro). El delta se aplica bien en el banco, con el feed
+  local; con el de GitHub se vio bajar, fallar la suma por la base equivocada y caer al completo.
 - **La transición desde la 1.3.6 con un programa abierto por ella.** La 1.3.6 aplica con SU código,
   que es el modo viejo: llega si no hay un programa abierto por ella, y si lo hay, en el primer
   arranque sin él.
@@ -249,5 +291,6 @@ BOM: no casaba nunca.
 - [x] Los once escenarios del banco en verde con la sonda; tres caminos con la carita
 - [x] El botón pulsado en la carita de verdad, en reposo y con una versión lista
 - [x] Un paquete construido por GitHub recibido y aplicado por la 1.3.6 de verdad
-- [ ] La 1.3.7 publicada tras el cambio de nombre y recibida por el feed real (después del merge)
+- [x] La 1.3.7 publicada tras el cambio de nombre y recibida por el feed real: por una 1.3.6 de
+      verdad que pregunta por el nombre viejo, y por el código nuevo
 - [x] Estado de este documento: **implementado** (2026-10-01)
