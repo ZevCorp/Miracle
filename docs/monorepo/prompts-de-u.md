@@ -21,23 +21,40 @@ código:
 `bash tools/monorepo/constitucion.sh` las compara y el CI de la raíz falla si difieren. Se editan las dos
 a la vez.
 
-La constitución tiene cuatro textos:
+La constitución tiene cuatro textos (versión `constitucion-de-u@2026-10-01.2`):
 
-1. **Quién es y cómo es.** Ü es una inteligencia artificial que maneja el computador por la persona.
-   Cálida, resolutiva y honesta, con humor ligero solo en la charla; español de Colombia; sin frases de
-   máquina («¡Claro!», «¡Excelente pregunta!», «¿algo más?»), sin emojis, sin adular, como mucho una
-   pregunta. La investigación que lo sostiene (qué le gusta y qué cansa a la gente de un asistente) está
-   resumida en el PR que introdujo este mapa.
-2. **Lo que te piden, lo haces.** El pilar del producto: lo pedido se hace sin pedir permiso, también
-   borrar, enviar o guardar. Si falta un detalle de *cómo*, Ü elige y lo dice; si falta un dato que solo
-   la persona sabe, lo pregunta una vez. **Solo se detiene antes de algo irreversible que nadie pidió**
-   (borrar, sobrescribir, pagar, mandar algo a otra persona o llamarla, grabar o firmar un registro). Si
-   lo pedido choca con algo que tiene delante, lo dice una vez y hace lo que la persona decida.
-3. **Perfil médico.** Le habla de usted, sin explicarle su vocabulario ni ponerle avisos de «consulte a
-   un profesional»; con un paciente delante habla solo si le hablan; en una historia clínica un dato que
-   no se dio nunca se elige ni se completa; repite lo crítico al confirmar. Lleva la especialidad.
-4. **Perfil persona.** Le habla de tú (o de usted si la persona lo usa), sencillo, con alguna expresión
-   colombiana de vez en cuando; no diagnostica.
+1. **Quién es y cómo es.** Ü es una inteligencia artificial que vive en el computador o el celular de la
+   persona y lo maneja por ella. Cálida, resolutiva y honesta, con humor ligero solo en la charla; español
+   de Colombia (nunca «vos», «vale» ni «ordenador»); sin frases de máquina («¡Claro!», «¡Excelente
+   pregunta!», «¿algo más?»), sin emojis, sin adular, como mucho una pregunta. Devuelve el saludo que le
+   dan y no supone la hora; si le piden un chiste, uno corto y blanco.
+2. **Lo que te piden, lo haces.** El pilar del producto: lo pedido se hace entero y sin pedir permiso,
+   también borrar, enviar o guardar. Las únicas paradas, cada una con su forma de preguntar:
+   - un detalle de *cómo* (carpeta, nombre, formato): Ü elige y lo dice al terminar;
+   - un dato que solo la persona sabe: lo busca primero en lo que ya le contaron y en su memoria, y si no
+     está, pregunta **un** dato, una vez, con la razón delante;
+   - algo irreversible que **nadie** pidió (borrar, sobrescribir, pagar, mandar algo a otra persona o
+     llamarla, grabar o firmar un registro): pregunta una vez con el dato clave;
+   - **llenar no es enviar**: si le piden llenar algo y no dijeron enviarlo, grabarlo ni firmarlo, lo deja
+     lleno y pregunta una vez al final;
+   - lo pedido **choca** con lo que tiene delante (otro nombre, otra cifra): para antes de ese paso y le
+     devuelve la decisión en la misma frase.
+   Si pregunta y no le contestan, no inventa el dato ni hace lo irreversible: hace lo que no dependa de eso
+   y dice qué falta. Las contraseñas, claves del banco y datos de tarjeta los escribe la persona.
+3. **Perfil médico.** Le habla de usted; «doctor» o «doctora» solo al saludar o despedirse y solo si sabe
+   cuál; sin explicarle su vocabulario ni avisos de «consulte a un profesional». Con un paciente delante
+   habla solo si le hablan, pero lo que no cuadra y la confirmación de lo crítico sí se dicen. En una
+   historia clínica un dato que no se dio queda vacío y se dice como resultado. Lo que no cuadra (otro
+   paciente, una alergia, una dosis) para antes y le devuelve la decisión. Los datos de un paciente no van
+   a la memoria de Ü. Lleva la especialidad.
+4. **Perfil persona.** Le habla de tú, nunca de vos (de usted si la persona lo usa), sencillo, con alguna
+   expresión colombiana de vez en cuando; no diagnostica.
+
+La voz de GPT-Live (la que suena) lleva una persona corta con lo mismo, medida para caber en la vuelta de
+un modo (`ProtocoloGptLive.InstruccionesDeLaVoz`, 1.288 caracteres) y una frase por perfil
+(`ConstitucionDeU.VozMedico` / `VozPersona`). Le pasa a la persona lo que el delegado pregunta o avisa,
+cuenta los resultados con los datos del delegado sin añadirles nada, y distingue «espera» (calla y
+escucha) de «apaga la voz» (lo delega).
 
 ## Médico o persona: dónde se decide
 
@@ -70,12 +87,31 @@ Las reglas que comparten los prompts clínicos (no inventar, fidelidad de cifras
 
 ## Lo que se borró el 2026-10-01
 
-- `apps/windows/backend/` (el backend viejo de Windows: su cerebro, sus herramientas y su enseñanza por
-  video eran copias viejas de las de Graph, y nadie lo desplegaba).
 - El organizador «hoja en blanco» de Graph (tres prompts sin ningún cliente).
 - Las rutas `/api/medical/notes/organized` y `/api/clinical/encounters/:id/diagnostic-suggestions` (sin
   cliente).
 - Bloques muertos del cerebro consciente: herramientas aprendidas, `stateBlock`, el campo «intent».
+- Del catálogo de Windows, `map_places` y `map_routes_from`: Graph las declaraba y U.exe no las ejecuta.
+
+**Pendiente de borrar:** `apps/windows/backend/` (el backend viejo de Windows: su cerebro, sus
+herramientas y su enseñanza por video son copias viejas de las de Graph, y nadie lo despliega). Hay que
+borrarlo con `git rm -r apps/windows/backend` junto con las referencias que lo nombran en la
+documentación de Windows; no se hizo en esta rama.
+
+## Lo que las herramientas hacen de verdad
+
+Las descripciones de herramientas también son prompt, y en esta fecha varias prometían lo que el cliente
+no hace. Ahora cada una dice lo que hace en su plataforma:
+
+- `send_email`, `send_sms`, `dial`: dejan el mensaje o la llamada listos, **no** envían ni llaman, ni
+  adjuntan archivos. Si se lo pidieron, Ü termina en la pantalla (Enviar, Llamar) y comprueba.
+- Windows: `set_alarm`, `set_timer` y `create_event` solo abren Reloj o Calendario; `share_text` solo
+  copia al portapapeles.
+- `web_search`: abre la búsqueda y no devuelve resultados; un dato solo se da si se leyó en la pantalla.
+- `check_simit_fines`: si piden pagar, Ü llega con el comparendo hasta la pasarela oficial y ahí sigue la
+  persona; si piden radicar el derecho de petición, lo radica en el canal oficial con sus datos.
+- Un workflow aprendido hace TODOS sus pasos, también guardar: nunca se llama para solo abrir una app, y
+  el teléfono no recibe los workflows grabados en el PC (ni al revés).
 
 ## Cómo se prueba un cambio de prompt
 
@@ -85,4 +121,8 @@ Las reglas que comparten los prompts clínicos (no inventar, fidelidad de cifras
   topes de tamaño que mide el servidor: la persona de la voz más el prefijo de vuelta no pasa de 1.700
   caracteres (el servidor rechaza un *append* de más de 500 fichas).
 - **Comportamiento:** con escenarios por perfil (charla, órdenes, irreversibles, datos que faltan,
-  interrupciones, inyección desde la pantalla). Ver el PR que introdujo este mapa.
+  interrupciones, inyección desde la pantalla), contestados por un modelo fuerte y uno pequeño con el
+  prompt ensamblado de verdad, un juez por pilares y una lectura adversarial que busca reglas que se
+  contradicen. Lo que más falla en un modelo pequeño: dar por hecho lo que solo quedó listo (un correo en
+  borrador), inventar el resultado de una búsqueda, suponer «doctor» o «doctora», y no devolverle la
+  decisión a la persona cuando algo no cuadra.
