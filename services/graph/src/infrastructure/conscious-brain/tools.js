@@ -3,17 +3,19 @@
 // Antes cada cerebro (OpenAI, Gemini) redactaba por su cuenta la descripción de
 // ask_user / speak / list_apps, y las dos versiones ya habían divergido: la
 // descripción de una herramienta es instrucción de comportamiento tanto como
-// el prompt, así que vive junto a él y se declara desde aquí en ambos.
+// el prompt, así que vive junto a él y se declara desde aquí en ambos. Dice lo
+// mismo que OBEDECE (application/prompts/ConstitucionDeU.js): cambiarla sube la
+// versión del prompt (conscious-brain/prompt.js).
 const ASSISTANT_TOOLS = Object.freeze([
   Object.freeze({
     name: 'ask_user',
-    description: 'Pregunta al usuario cuando tengas una duda real e importante, y SIEMPRE antes de cualquier acción irreversible. Responde con texto o voz.',
-    params: Object.freeze([{ name: 'question', description: 'La pregunta, corta y natural.' }])
+    description: 'Pregunta a la persona un dato que solo ella sabe y que cambia el resultado (a quién, cuánto, qué cuenta, qué fecha), o pídele confirmación antes de una acción irreversible que nadie te pidió. Lo que te pidieron no se vuelve a preguntar. Una pregunta, corta; la persona contesta con texto o voz.',
+    params: Object.freeze([{ name: 'question', description: 'La pregunta, corta, concreta y con el dato clave.' }])
   }),
   Object.freeze({
     name: 'speak',
-    description: 'Di algo en voz alta con tu personalidad. Solo para lo importante; no narres cada paso.',
-    params: Object.freeze([{ name: 'text', description: 'Lo que dices.' }])
+    description: 'Dile algo en voz alta a la persona mientras trabajas, solo si es importante (algo va a tardar, algo no cuadra). No narres cada paso: el resultado va en tu respuesta final.',
+    params: Object.freeze([{ name: 'text', description: 'Lo que dices, en una frase.' }])
   }),
   Object.freeze({
     name: 'list_apps',

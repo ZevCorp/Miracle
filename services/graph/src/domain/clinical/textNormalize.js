@@ -36,10 +36,42 @@ const NUMBER_WORDS = Object.freeze({
   cien: '100', mil: '1000'
 });
 
+// Unidades que MEDIDAS DICTADAS abrevia («centímetros» → «cm»). Se igualan en
+// los dos lados para que «3 x 4 cm» cuente como salido del dictado «tres por
+// cuatro centímetros»: sin esto una casilla corta («0.6 cm») caía bajo el 85 %
+// y recibía «no coincide con el dictado» por cumplir la regla.
+const UNIT_WORDS = Object.freeze({
+  centimetro: 'cm', centimetros: 'cm', milimetro: 'mm', milimetros: 'mm',
+  metro: 'm', metros: 'm', kilogramo: 'kg', kilogramos: 'kg', kilo: 'kg', kilos: 'kg',
+  gramo: 'g', gramos: 'g', gr: 'g', miligramo: 'mg', miligramos: 'mg',
+  microgramo: 'mcg', microgramos: 'mcg', ug: 'mcg', mililitro: 'ml', mililitros: 'ml', cc: 'ml',
+  litro: 'l', litros: 'l'
+});
+
+// Cifras seguidas se comparan como UN solo número en los dos lados: el STT parte
+// un documento o un teléfono en grupos («1036 457 892», «uno cero tres seis…»)
+// y la nota lo escribe corrido («1036457892»), como manda la excepción de la
+// fidelidad. Sin esto la casilla de identificación de una plantilla literal
+// recibía «no coincide con el dictado» por cumplir la regla. Una cifra cambiada
+// sigue siendo otro número.
+function joinDigitRuns(tokens) {
+  const joined = [];
+  for (const token of tokens) {
+    const previous = joined[joined.length - 1];
+    if (/^\d+$/.test(token) && previous !== undefined && /^\d+$/.test(previous)) {
+      joined[joined.length - 1] = previous + token;
+    } else {
+      joined.push(token);
+    }
+  }
+  return joined;
+}
+
 /**
  * Normalización más agresiva para comprobar que una sección LITERAL sale del
  * dictado: sin signos de puntuación, sin las palabras de puntuación dictadas,
- * «por» y «x» entre cifras equivalentes, números en palabra pasados a cifra.
+ * «por» y «x» entre cifras equivalentes, números en palabra pasados a cifra,
+ * unidades abreviadas y cifras seguidas unidas en un solo número.
  */
 function normalizeForVerbatim(value = '') {
   let text = normalizeComparable(value);
@@ -50,10 +82,11 @@ function normalizeForVerbatim(value = '') {
   text = text.replace(/\s+/g, ' ').trim();
   const tokens = text.split(' ').filter(Boolean).map((token) => {
     if (NUMBER_WORDS[token]) return NUMBER_WORDS[token];
+    if (UNIT_WORDS[token]) return UNIT_WORDS[token];
     if (token === 'x' || token === 'por') return 'x';
     return token;
   });
-  return tokens.join(' ');
+  return joinDigitRuns(tokens).join(' ');
 }
 
 /**

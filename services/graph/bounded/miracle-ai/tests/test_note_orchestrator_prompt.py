@@ -28,3 +28,38 @@ def test_prompt_has_shared_clauses_and_provisional_label() -> None:
 def test_clauses_version_matches_javascript_source_of_truth() -> None:
     js = (GRAPH_ROOT / "src" / "application" / "prompts" / "PromptClauses.js").read_text(encoding="utf-8")
     assert f"const CLAUSES_VERSION = '{prompt_clauses.CLAUSES_VERSION}';" in js
+
+
+def test_markers_rule_only_when_the_request_carries_markers() -> None:
+    from miracle_agent.integrations.product_llm.models import ProductLLMOrchestratorInput, VoiceTranscriptSegment
+
+    def req(text: str) -> ProductLLMOrchestratorInput:
+        seg = VoiceTranscriptSegment(segment_id="s", kind="final", transcript=text)
+        return ProductLLMOrchestratorInput(
+            voice_session_id="v", note_path=None, note_title="n", note_content="",
+            last_applied_note_block=None, transcript_history=[text], segment=seg,
+        )
+
+    assert "PRIVACY:" in _build_orchestrator_instructions(req("Paciente [PACIENTE_NOMBRE_1] con tos"))
+    assert "PRIVACY:" not in _build_orchestrator_instructions(req("Paciente con tos"))
+    # Ninguna cláusula pide warnings: el schema no los tiene.
+    assert "warning" not in _build_orchestrator_instructions(req("x")).lower()
+
+
+def test_truncated_output_degrades_instead_of_failing() -> None:
+    from miracle_agent.integrations.product_llm.config import ProductLLMSettings
+    from miracle_agent.integrations.product_llm.models import ProductLLMOrchestratorInput, VoiceTranscriptSegment
+    from miracle_agent.integrations.product_llm.note_orchestrator_adapter import ProductLLMOrchestratorAdapter
+
+    adapter = ProductLLMOrchestratorAdapter(ProductLLMSettings(provider="openai", base_url="https://x", api_key="k", model="m"))
+    adapter._planner._client.call_responses_api = lambda payload: {  # type: ignore[attr-defined]
+        "status": "incomplete",
+        "output": [{"content": [{"type": "output_text", "text": '{"note_updates":[{"content":"## Motivo'}]}],
+    }
+    seg = VoiceTranscriptSegment(segment_id="s", kind="final", transcript="dolor torácico")
+    out = adapter.orchestrate(ProductLLMOrchestratorInput(
+        voice_session_id="v", note_path=None, note_title="n", note_content="",
+        last_applied_note_block=None, transcript_history=["dolor torácico"], segment=seg,
+    ))
+    assert out.backend_status.startswith("heuristic-fallback")
+    assert ProductLLMSettings().max_output_tokens == 2000

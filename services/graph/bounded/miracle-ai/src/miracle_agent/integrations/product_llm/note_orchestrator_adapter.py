@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import replace
 from typing import Protocol
 
 from .client import OpenAICompatibleProductLLMClient, ProductLLMClientError
 from .config import ProductLLMSettings
-from .prompt_clauses import IDENTIFIER_FIDELITY_EN, NO_INVENTION_EN, ROLE_BOUNDARY_EN
+from .prompt_clauses import IDENTIFIER_FIDELITY_EN, NO_INVENTION_EN, PRIVACY_MARKERS_EN, ROLE_BOUNDARY_EN
 from .models import (
     ProductLLMAgentTask,
     ProductLLMNoteUpdate,
@@ -57,6 +58,13 @@ class ProductLLMOrchestratorAdapter:
                     backend_status=f"heuristic-fallback:{exc.status_code}",
                 )
             raise ProductLLMAdapterError(str(exc), status_code=exc.status_code) from exc
+        except ProductLLMAdapterError as exc:
+            # Respuesta truncada (max_output_tokens) o JSON inválido: antes la
+            # consulta FALLABA aquí en vez de degradar como ante un 429/5xx.
+            if self._uses_remote_llm:
+                fallback = _HeuristicPlanner(self._settings).orchestrate(request)
+                return replace(fallback, backend_status=f"heuristic-fallback:{exc.status_code}")
+            raise
 
     def _planner_from_settings(self, settings: ProductLLMSettings) -> ProductLLMPlanner:
         if settings.provider == "openai" and settings.is_configured:
@@ -112,7 +120,7 @@ class _OpenAICompatiblePlanner:
     def _build_payload(self, request: ProductLLMOrchestratorInput) -> dict[str, object]:
         payload: dict[str, object] = {
             "input": _build_orchestrator_input(request),
-            "instructions": _build_orchestrator_instructions(),
+            "instructions": _build_orchestrator_instructions(request),
             "text": {
                 "format": {
                     "type": "json_schema",
@@ -161,7 +169,7 @@ class _GeminiChatPlanner:
     def _build_payload(self, request: ProductLLMOrchestratorInput) -> dict[str, object]:
         payload: dict[str, object] = {
             "messages": [
-                {"role": "system", "content": _build_orchestrator_instructions()},
+                {"role": "system", "content": _build_orchestrator_instructions(request)},
                 {"role": "user", "content": _build_orchestrator_input(request)},
             ],
             "response_format": {
@@ -199,7 +207,20 @@ def _build_orchestrator_input(request: ProductLLMOrchestratorInput) -> str:
     return json.dumps({"request": request.to_dict()}, ensure_ascii=False)
 
 
-def _build_orchestrator_instructions() -> str:
+_MARKER_RE = re.compile(
+    r"\[\s*(?:PACIENTE[ _-]?NOMBRE|DOCUMENTO|TEL[ÉE]FONO|CORREO|DIRECCI[ÓO]N|N[ÚU]MERO)[ _-]?\d{1,4}(?:[ _.-]\d{1,3})?\s*\]",
+    re.IGNORECASE,
+)
+
+
+def _carries_privacy_markers(request: ProductLLMOrchestratorInput | None) -> bool:
+    if request is None:
+        return False
+    texts = [request.note_content or "", request.last_applied_note_block or "", *request.transcript_history]
+    return any(_MARKER_RE.search(text) for text in texts)
+
+
+def _build_orchestrator_instructions(request: ProductLLMOrchestratorInput | None = None) -> str:
     # Estructura PROVISIONAL del bloque de sesión de voz. Este orquestador NO
     # produce la nota clínica: sigue al médico mientras habla y mantiene un
     # bloque consolidado en el editor. La nota final la produce el motor de
@@ -244,7 +265,6 @@ def _build_orchestrator_instructions() -> str:
             "Write the note block in concise Markdown that is easy to scan in a few seconds.",
             "Prefer short headings, short paragraphs, and bullets where that improves clarity.",
             "Omit empty sections instead of keeping placeholders.",
-            "Do not invent facts. Only include information grounded in the transcript or already-established session block.",
             "When new information changes an existing section, merge it into the right section instead of repeating the same fact elsewhere.",
             "If important information does not fit the default structure, create a short custom section with a clear title and place the information there.",
             "If the content is clearly non-medical but the speaker explicitly wants it written, still structure it cleanly with a concise custom heading.",
@@ -256,9 +276,11 @@ def _build_orchestrator_instructions() -> str:
             "Use `execute_if_enabled` when the speaker is clearly asking to perform a direct computer action now, such as opening an application, navigating, searching, or reviewing something on the computer.",
             "Use `planned_only` for suggestions, background follow-up ideas, or tasks that should be queued rather than executed immediately.",
             "Use `requires_confirmation` for sensitive, ambiguous, or potentially disruptive actions.",
+            "Write the block content in Spanish, the clinician's language.",
             "Return only content that is appropriate for the structured schema.",
+            PRIVACY_MARKERS_EN if _carries_privacy_markers(request) else "",
         ]
-    )
+    ).rstrip()
 
 
 def _decode_structured_text(text: str | None) -> dict[str, object]:

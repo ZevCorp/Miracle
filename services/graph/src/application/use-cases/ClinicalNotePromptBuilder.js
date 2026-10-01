@@ -10,8 +10,10 @@
 //   Una plantilla puede mezclar los dos: NoteModeResolver decide por sección.
 //
 // Estructura del prompt (política → tarea → contrato):
-//   system = cláusulas compartidas + tarea del modo + puntuación + grounding +
-//            preferencia de longitud + contrato de salida
+//   system = límite de rol + reglas duras (no invención, fidelidad) + hablantes
+//            + tarea del modo (interpretativa: prioridad del médico y
+//            razonamiento; literal) + dictado (puntuación y medidas) +
+//            grounding + preferencia de longitud + contrato de salida
 //   user   = <plantilla>…</plantilla> + <transcripcion>…</transcripcion>
 // Las secciones de la plantilla YA NO van en el system prompt: las escribe el
 // médico (o un seed), y lo que escribe el usuario es contexto, no política.
@@ -23,11 +25,23 @@ const speakerLabels = require('../../domain/clinical/speakerLabels');
 
 // 6: hablantes etiquetados y prioridad del médico (spec 070).
 // 7: lo que sólo dice el paciente no es un diagnóstico conocido (promesa 610).
-const PROMPT_VERSION = clauses.promptVersion('clinical-note', '7');
+// 8: frase prudente única (manda sobre la instrucción de sección), medidas
+//    dictadas y documento/teléfono partido por el STT como excepciones
+//    explícitas de la fidelidad, límite de rol con solo las etiquetas que se usan.
+const PROMPT_VERSION = clauses.promptVersion('clinical-note', '8');
 // Vocabulario de la columna user_preferences.note_detail en producción
 // (concisa | estandar | detallada). 'estandar' no emite nada.
 const NOTE_DETAILS = Object.freeze(['concisa', 'estandar', 'detallada']);
-const MISSING_PHRASE = 'No mencionado en la consulta.';
+const MISSING_PHRASE = clauses.MISSING_PHRASE;
+
+// Las ÚNICAS dos cosas que cambian de forma respecto a la fuente, nombradas
+// dentro de la fidelidad para que ninguna regla la contradiga en silencio. La
+// segunda vuelve coherente la casilla de identificación de la web, que pide el
+// documento «en una sola cifra corrida» aunque el STT lo traiga en grupos.
+const FIDELITY_EXCEPTIONS = Object.freeze([
+  'Excepción explícita: las medidas y dosis dictadas se escriben en cifras con su unidad abreviada, como manda MEDIDAS DICTADAS (abajo).',
+  'Excepción explícita: un número de documento o de teléfono que el reconocimiento de voz partió en grupos ("1036 457 892", "uno cero tres seis, cuatro cinco siete…") se escribe corrido, mismas cifras, mismo orden: "1036457892".'
+]);
 
 const IDENTITY = [
   'Eres Miracle Clinical Note Generator: conviertes la transcripción de una consulta médica en una nota clínica estructurada en español.',
@@ -111,24 +125,6 @@ const CLINICAL_REASONING = [
   'CONTRADICCIONES: si dos datos de la consulta se contradicen (p. ej. un informe dice "hipertensión pulmonar" y otro "baja probabilidad de hipertensión pulmonar"), consigna ambos con su fuente y añade un warning. No elijas uno. Esto vale entre dos fuentes del mismo peso (dos informes, dos afirmaciones del médico). Entre lo que dice el paciente y lo que dice el médico no hay empate: aplica la PRIORIDAD DEL MÉDICO.'
 ].join('\n');
 
-const PUNCTUATION_RULES = [
-  'PUNTUACIÓN DICTADA (cuando el médico dicta signos como palabras):',
-  '- "coma", "punto", "punto y seguido", "punto y aparte", "punto final", "dos puntos", "punto y coma", "abre paréntesis" / "entre paréntesis" … "cierra paréntesis", "abre comillas" … "cierra comillas", "guion", "signo de interrogación".',
-  '- Cuando reconozcas una de estas palabras usada como COMANDO (no como término clínico), no la transcribas: aplica el signo. "punto y aparte" cierra la oración y abre párrafo; "punto y seguido" o "punto" sólo cierran la oración.',
-  '- Usa el contexto para distinguir el comando del término real ("coma" como estado de conciencia, "punto" en "punto de sutura"): en ese caso se conserva como texto.',
-  '- Si tras aplicar la puntuación una frase queda ambigua, prioriza la interpretación clínica y añade un warning.'
-].join('\n');
-
-// «por → x» vivía dentro de puntuación, que el modo literal declaraba como la
-// única transformación permitida: en el modo más estricto el modelo seguía
-// autorizado a tocar una cifra. Ahora es su propia regla, con salida a la duda.
-const MEASURE_RULES = [
-  'MEDIDAS DICTADAS:',
-  '- "por" entre dos cantidades o medidas es el signo de multiplicación: "una masa de tres por cuatro centímetros" → "3 x 4 cm"; "dos por dos por uno" → "2 x 2 x 1 cm".',
-  '- "por" como preposición se transcribe tal cual: "consulta por dolor abdominal", "tratado por 5 días", "por vía oral", "por antecedente de…".',
-  '- Si el contexto no deja claro cuál de los dos es, transcribe "por" tal cual y añade un warning. Nunca alteres una cifra por conjetura.'
-].join('\n');
-
 function verbatimTask(modes, sections) {
   const scope = modes.allVerbatim
     ? 'TODAS las secciones de esta plantilla son LITERALES.'
@@ -144,13 +140,13 @@ function verbatimTask(modes, sections) {
     scope,
     'En una sección literal el dictado del médico ES la nota. Tu único trabajo es decidir a qué sección pertenece cada parte del dictado y aplicar la puntuación dictada. Además de las reglas anteriores, aquí:',
     '- Cero paráfrasis y cero "mejoras" de estilo, aunque la frase quede coja: no completes frases incompletas ni corrijas concordancia u ortografía de términos técnicos.',
-    '- Conserva tal como se dictaron cifras, decimales, unidades, medidas, porcentajes, rótulos, códigos de muestra, números de bloque/lámina/estudio y toda nomenclatura técnica (CIE, TNM, Bethesda, Gleason, BI-RADS, HGVS, inmunohistoquímica).',
-    '- No normalices formatos: no cambies "3,5" por "3.5", no expandas ni abrevies unidades, no reformatees rótulos tipo "26-3456", no cambies mayúsculas de siglas ni de marcadores.',
+    '- Conserva el valor exacto de cifras, decimales, porcentajes, rótulos, códigos de muestra, números de bloque/lámina/estudio y toda nomenclatura técnica (CIE, TNM, Bethesda, Gleason, BI-RADS, HGVS, inmunohistoquímica). Las medidas dictadas se escriben como manda MEDIDAS DICTADAS, y un documento o teléfono que el reconocimiento de voz partió en grupos se escribe corrido (FIDELIDAD DE DATOS CRÍTICOS); es lo único que cambia de forma.',
+    '- No normalices formatos: no cambies "3,5" por "3.5", no reformatees rótulos tipo "26-3456", no cambies mayúsculas de siglas ni de marcadores, y no expandas ni abrevies ninguna unidad que no sea la de una medida dictada.',
     '- No reordenes enumeraciones ni listas: mismo número de elementos, mismo orden, misma redacción.',
     '- No muevas datos entre secciones para acomodarlos: si se dictó dentro de una casilla, se queda en esa casilla.',
     '- La instrucción de cada sección sirve para saber QUÉ va ahí, nunca para reescribir el contenido.',
     '- Ante la duda entre respetar el dictado y mejorar la nota: respeta el dictado y añade un warning.',
-    '- Una sección literal no dictada va a la frase prudente, nunca rellenada con datos de otra sección.',
+    `- Una sección literal no dictada lleva "${MISSING_PHRASE}", nunca datos de otra sección.`,
     '- En una sección literal, "evidence" es el propio fragmento dictado y "grounding" es "explicit".',
     modes.allVerbatim
       ? '- "summary" describe el tipo de estudio y la muestra, nunca el hallazgo ni el diagnóstico. Si dudas, déjalo vacío.'
@@ -168,8 +164,8 @@ const OUTPUT_CONTRACT = [
   clauses.JSON_ONLY,
   '{"summary": string, "sections": [{"key": string, "label": string, "content": string, "grounding": "explicit"|"entailed"|"inferred"|"absent", "evidence": [string]}], "warnings": [string], "missing_required_sections": [string]}',
   '- "sections" contiene EXACTAMENTE las secciones de la plantilla: mismas keys, mismos labels, mismo orden. Ni una de más ni una de menos.',
-  `- "content": el texto de la sección. Si no hay información, la frase prudente ("${MISSING_PHRASE}") con grounding "absent" y evidence [].`,
-  '- "evidence": uno o más fragmentos TEXTUALES de la transcripción, copiados carácter a carácter, de los que sale el contenido. Si no puedes citar un fragmento literal, la sección no está soportada: frase prudente, grounding "absent", evidence [].',
+  `- "content": el texto de la sección. Si no hay información, exactamente "${MISSING_PHRASE}" con grounding "absent" y evidence [], aunque la instrucción de la sección pida dejarla vacía o usar otra frase. Nunca una sección vacía. Lo mismo dentro de una sección: un dato que no se mencionó lleva "${MISSING_PHRASE}", aunque la instrucción de la sección proponga otra frase. Esta frase manda sobre cualquier instrucción de sección.`,
+  `- "evidence": uno o más fragmentos TEXTUALES de la transcripción, copiados carácter a carácter, de los que sale el contenido. Si no puedes citar un fragmento literal, la sección no está soportada: "${MISSING_PHRASE}", grounding "absent", evidence [].`,
   '- "summary": una o dos frases sobre de qué trató la consulta. Es el ÚNICO campo donde se permite resumir, y no puede contener datos que no estén ya en alguna sección.',
   '- "warnings": problemas reales: transcripción insuficiente, datos contradictorios, dudas de puntuación, nombres o cifras que el médico deba confirmar.',
   '- "missing_required_sections": keys de secciones OBLIGATORIAS que quedaron sin información.',
@@ -268,17 +264,16 @@ class ClinicalNotePromptBuilder {
     const hasVerbatim = modes.verbatimKeys.length > 0;
     return clauses.composePrompt(
       IDENTITY,
-      clauses.ROLE_BOUNDARY,
+      clauses.roleBoundary({ tags: [clauses.TAGS.TRANSCRIPT, clauses.TAGS.TEMPLATE] }),
       '═══ REGLAS DURAS — incumplir una es un fallo del sistema ═══',
       clauses.NO_INVENTION_CLINICAL,
-      clauses.IDENTIFIER_FIDELITY,
+      clauses.identifierFidelity({ exception: FIDELITY_EXCEPTIONS }),
       '═══ TAREA ═══',
       speakers >= 2 ? SPEAKER_LABELS : '',
       hasInterpretive ? INTERPRETIVE_TASK : '',
       hasInterpretive ? DOCTOR_PRIORITY : '',
       hasInterpretive ? CLINICAL_REASONING : '',
-      PUNCTUATION_RULES,
-      MEASURE_RULES,
+      clauses.DICTATION_FORMAT,
       hasVerbatim ? verbatimTask(modes, sections) : '',
       clauses.GROUNDING_SCALE,
       hasInterpretive ? (NOTE_DETAIL_DIRECTIVES[noteDetail] || '') : '',
@@ -304,7 +299,7 @@ class ClinicalNotePromptBuilder {
       modes.allVerbatim
         ? 'Genera la nota clínica estructurada de esta consulta respetando el dictado palabra por palabra.'
         : 'Genera la nota clínica estructurada de esta consulta.',
-      clauses.wrapTag(clauses.TAGS.TEMPLATE, JSON.stringify(template, null, 2)),
+      clauses.wrapTag(clauses.TAGS.TEMPLATE, JSON.stringify(template)),
       clauses.wrapTag(clauses.TAGS.TRANSCRIPT, `${transcript || ''}`)
     ].join('\n\n');
   }

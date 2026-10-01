@@ -8,8 +8,9 @@
 // origin y pathname, y los campos VACÍOS del workflow no restringen (un workflow
 // sin source grabado aplica en cualquier parte).
 //
-// Sin superficie => []. Así un cliente viejo que aún no manda superficie se
-// comporta igual que con el stub (ningún workflow), nunca peor.
+// La superficie solo ORDENA: los workflows del lugar donde está parado van
+// primero y los demás detrás, anotados con su app. Lo que de verdad acota es el
+// acceso de la API key que llama: sin dueño no se declara ningún workflow.
 const MAX_WORKFLOW_TOOLS = 30;
 
 class AgentWorkflowStore {
@@ -21,15 +22,9 @@ class AgentWorkflowStore {
     this.catalogService = deps.catalogService;
   }
 
-  // Las herramientas aprendidas (árbol de UI) siguen sin captación: ver TODO en
-  // domain/agent/learning.js. Este store solo enchufa los workflows.
-  async learnedTools() {
-    return [];
-  }
-
   /**
    * Workflows que el cerebro declara este turno, en el shape que espera workflowToMcp
-   * ({name, description, steps[{action, app, subconscious}]}) más el id real para que
+   * ({name, description, steps[{action, app}]}) más el id real para que
    * AgentTurnService pueda inyectarlo en la llamada MCP.
    *
    * Se declaran TODOS los workflows (los de la superficie actual PRIMERO, el resto anotado
@@ -84,8 +79,7 @@ class AgentWorkflowStore {
     const app = `${wf.sourceOrigin || ''}`.replace(/^[a-z]+:\/\//i, '').split('/')[0];
     const steps = (Array.isArray(wf.steps) ? wf.steps : []).map((step) => ({
       action: `${step.explanation || step.label || step.actionType || 'paso'}`.slice(0, 80),
-      app,
-      subconscious: true
+      app
     }));
     return {
       id: wf.id,

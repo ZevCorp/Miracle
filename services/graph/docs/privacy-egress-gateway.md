@@ -140,9 +140,16 @@ En `/api/v1/pipeline` un fallo del escudo no llega al cliente Windows como 503:
   `variables.consultationId`) para sembrar desde `consultations` y `patients`. Sin
   él, las líneas de identidad de la propia nota y los campos con etiqueta de
   identidad bastan.
-- La etapa `note` del pipeline y `/api/medical/notes/organized` se tapan en el
-  salto Node → runtime Python (`callMiracleRuntime`): el runtime no tiene otra
-  fuente de datos, así que taparlo ahí equivale a taparlo antes del proveedor.
+- La etapa `note` del pipeline y el proxy `POST /api/voice/orchestrator/events`
+  (el editor de la extensión y `web/public/miracle`) se tapan en el salto Node →
+  runtime Python (`callMiracleRuntime`): el runtime no tiene otra fuente de
+  datos, así que taparlo ahí equivale a taparlo antes del proveedor. Lo que
+  vuelve (`resolved_note_content`, `note_updates[].content`, los textos de
+  `agent_tasks`) se rehidrata antes de llegar al editor. Ojo: el runtime guarda
+  entre segmentos el bloque de sesión *tapado* y el mapa es por llamada; si los
+  marcadores de una llamada no coinciden con los de la anterior, el runtime no
+  encuentra el bloque previo y añade uno nuevo (el pipeline convive con el
+  mismo riesgo). `/api/medical/notes/organized` se borró el 2026-10-01.
 - **Guarda de marcadores:** `NoteFieldMatcher.normalizeResult` y
   `DynamicValueResolver.resolve` descartan cualquier valor que traiga un marcador
   sin resolver. El cliente Windows escribe en SAP lo que recibe sin mirarlo, lo

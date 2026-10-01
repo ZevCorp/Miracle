@@ -1,18 +1,17 @@
-// Aprendizaje del agente de escritorio: herramientas aprendidas del árbol de UI
-// y workflows (el puente consciente ↔ subconsciente). Port de
+// Aprendizaje del agente de escritorio: los workflows (el puente consciente ↔
+// subconsciente) declarados como herramientas del modelo. Port de
 // Android/backend/src/learning/workflows.ts.
 //
-// Primera construcción (igual que el backend original): tipos + store en
-// memoria + puntos de extensión claramente marcados. El cerebro ya sabe
-// declarar estas herramientas al modelo (ver conscious-brain/prompt.js).
+// Las «herramientas aprendidas del árbol de UI» (una secuencia de `taps` por app)
+// se borraron el 2026-10-01: nunca hubo quien las captara y el store siempre las
+// devolvía vacías, pero el prompt y el catálogo seguían cargando su regla. Los
+// clientes conservan su soporte de `taps`, que es inofensivo.
 //
-// TODO(stub): la CAPTACIÓN de aprendizajes (post-procesamiento LLM de la traza,
-// reconexión MCP↔workflow, proyección al grafo de Neo4j) no existía en el
-// backend viejo y sigue sin existir aquí. Cuando llegue, se enchufa aquí (p.ej.
-// un SupabaseAgentLearningRepository o una proyección a Neo4jWorkflowRepository)
-// sin tocar el cliente ni el contrato de acciones.
+// El store real de workflows es application/use-cases/AgentWorkflowStore.js
+// (catálogo de Neo4j). El de aquí, en memoria, es el de los tests y el de un
+// arranque sin catálogo.
 
-const { LEARNED_VIA, WORKFLOW_VIA } = require('./mcpCatalog');
+const { WORKFLOW_VIA } = require('./mcpCatalog');
 
 // Nombres de herramienta seguros para function-calling (solo [a-z0-9_]).
 function sanitize(value) {
@@ -26,58 +25,40 @@ function sanitize(value) {
   return cleaned || 'learned_tool';
 }
 
-/** Declara una herramienta aprendida como McpTool (el modelo compone la secuencia de `taps`). */
-function learnedToMcp(learnedTool) {
-  const appNote = learnedTool.app ? `[app: ${learnedTool.app}] ` : '';
-  return {
-    name: sanitize(learnedTool.name),
-    description: `${appNote}${learnedTool.description} Elementos disponibles (etiquetas exactas): ${(learnedTool.elements || []).join(', ')}.`,
-    params: [{ name: 'taps', description: 'Etiquetas a tocar EN ORDEN, separadas por comas (usa solo las disponibles)' }],
-    via: LEARNED_VIA
-  };
-}
+const MAX_STEPS_IN_DESCRIPTION = 8;
 
-/** Declara un workflow como McpTool `workflow_*` (el modelo lo invoca entero con `context`). */
+/**
+ * Declara un workflow como McpTool `workflow_*` (el modelo lo invoca entero con `context`).
+ * La descripción lleva la app y los primeros pasos: es lo que el modelo necesita para saber si el
+ * objetivo coincide. Cuántos pasos son «subconscientes» no le dice nada y se quitó.
+ */
 function workflowToMcp(workflow) {
   const steps = workflow.steps || [];
-  const sub = steps.filter((step) => step.subconscious).length;
   const apps = [...new Set(steps.map((step) => step.app).filter(Boolean))];
   const appNote = apps.length ? `[app: ${apps.join(', ')}] ` : '';
+  const shown = steps.slice(0, MAX_STEPS_IN_DESCRIPTION).map((step) => step.action).join(' → ');
+  const more = steps.length > MAX_STEPS_IN_DESCRIPTION ? ' …' : '';
   return {
     name: `workflow_${sanitize(workflow.name)}`,
-    description:
-      `${appNote}${workflow.description} Steps: ${steps.map((step) => step.action).join(' → ')} `
-      + `(${sub} de ${steps.length} subconscientes).`,
-    params: [{ name: 'context', description: 'Datos variables de ESTA ejecución (nombres, textos, cantidades); "" si no aplica' }],
+    description: `${appNote}${workflow.description}${shown ? ` Pasos: ${shown}${more}.` : ''}`,
+    params: [{ name: 'context', description: 'Los datos de ESTA vez (nombres, textos, cantidades) que el workflow necesita; "" si no necesita ninguno' }],
     via: WORKFLOW_VIA
   };
 }
 
 /**
- * Store de aprendizajes por app. En memoria (se pierde entre cold starts),
- * exactamente como la primera construcción del backend original: hoy siempre
- * devuelve listas vacías salvo que algo llame a addLearned/addWorkflow en el
- * mismo proceso. Es el punto de enchufe para la persistencia futura.
+ * Store de workflows en memoria (se pierde entre cold starts). Devuelve lo que
+ * se le haya añadido con addWorkflow en el mismo proceso.
  */
 class InMemoryAgentLearningStore {
   constructor() {
-    this.learned = [];
     this.wf = [];
   }
 
-  // Los parámetros (userId, apps) existen para que una implementación real
-  // pueda filtrar por usuario y por apps visibles; aquí se ignoran a propósito.
-  async learnedTools() {
-    return this.learned;
-  }
-
+  // Los parámetros (userId, apps, surface, access) existen para que el store real
+  // pueda filtrar; aquí se ignoran a propósito.
   async workflows() {
     return this.wf;
-  }
-
-  // Puntos de extensión para el post-procesamiento (pasivo/activo).
-  addLearned(tool) {
-    this.learned.push(tool);
   }
 
   addWorkflow(workflow) {
@@ -85,4 +66,4 @@ class InMemoryAgentLearningStore {
   }
 }
 
-module.exports = { sanitize, learnedToMcp, workflowToMcp, InMemoryAgentLearningStore };
+module.exports = { sanitize, workflowToMcp, InMemoryAgentLearningStore };

@@ -7,17 +7,21 @@
 // local` (gesto de Windows / acción de sistema). Así los prompts, descripciones
 // y la lógica del catálogo — la innovación — nunca salen del servidor.
 //
-// Hay un catálogo por plataforma (ver domain/agent/platform.js): el de Windows y
-// el de la app Android. Cada uno declara SOLO lo que ese cliente sabe ejecutar;
-// declararle a un teléfono `switch_window` o el mapa UIA sería invitar al modelo
-// a pedir algo que del otro lado no existe.
+// Hay un catálogo por plataforma (ver domain/agent/platform.js): el de Windows,
+// el de la app Android y el del Mac. Cada uno declara SOLO lo que ese cliente
+// sabe ejecutar; declararle a un teléfono `switch_window` o el mapa UIA sería
+// invitar al modelo a pedir algo que del otro lado no existe.
+//
+// UNA DESCRIPCIÓN DE HERRAMIENTA ES INSTRUCCIÓN, igual que el prompt: cambiar este
+// archivo sube la versión del prompt de la plataforma afectada
+// (conscious-brain/prompt.js). Un parámetro que el cliente tolera ausente lleva
+// `optional: true` y no se declara como obligatorio.
 
 const { PLATFORMS } = require('./platform');
 
 const GESTURE = 'gesto de Windows';
 const SYSTEM = 'API/acción del sistema (sin navegar la UI)';
 const WORKFLOW_VIA = 'workflow (subconsciente ↔ consciente)';
-const LEARNED_VIA = 'aprendido (árbol de UI)';
 
 /**
  * Gestos de navegación de Windows, análogos a los gestos de accesibilidad de
@@ -58,7 +62,7 @@ const systemTools = [
     params: [
       { name: 'hour', description: 'Hora 0-23' },
       { name: 'minute', description: 'Minuto 0-59' },
-      { name: 'message', description: 'Etiqueta (opcional)' }
+      { name: 'message', description: 'Etiqueta (opcional)', optional: true }
     ]
   },
   {
@@ -66,7 +70,7 @@ const systemTools = [
     description: 'Inicia un temporizador.',
     params: [
       { name: 'seconds', description: 'Duración en segundos' },
-      { name: 'message', description: 'Etiqueta (opcional)' }
+      { name: 'message', description: 'Etiqueta (opcional)', optional: true }
     ]
   },
   {
@@ -74,8 +78,8 @@ const systemTools = [
     description: 'Crea un evento de calendario (protocolo del calendario / Outlook).',
     params: [
       { name: 'title', description: 'Título del evento' },
-      { name: 'start', description: 'Inicio ISO-8601 local, p.ej. 2026-07-06T15:00 (opcional)' },
-      { name: 'location', description: 'Lugar (opcional)' }
+      { name: 'start', description: 'Inicio ISO-8601 local, p.ej. 2026-07-06T15:00 (opcional)', optional: true },
+      { name: 'location', description: 'Lugar (opcional)', optional: true }
     ]
   },
   {
@@ -88,16 +92,16 @@ const systemTools = [
     description: 'Abre un SMS prellenado (protocolo sms:) — el usuario confirma el envío.',
     params: [
       { name: 'number', description: 'Destinatario' },
-      { name: 'message', description: 'Texto (opcional)' }
+      { name: 'message', description: 'Texto (opcional)', optional: true }
     ]
   },
   {
     name: 'send_email', via: SYSTEM,
     description: 'Abre un correo prellenado (mailto:).',
     params: [
-      { name: 'to', description: 'Destinatario (opcional)' },
-      { name: 'subject', description: 'Asunto (opcional)' },
-      { name: 'body', description: 'Cuerpo (opcional)' }
+      { name: 'to', description: 'Destinatario (opcional)', optional: true },
+      { name: 'subject', description: 'Asunto (opcional)', optional: true },
+      { name: 'body', description: 'Cuerpo (opcional)', optional: true }
     ]
   },
   {
@@ -195,7 +199,7 @@ const androidSystemTools = [
     params: [
       { name: 'hour', description: 'Hora 0-23' },
       { name: 'minute', description: 'Minuto 0-59' },
-      { name: 'message', description: 'Etiqueta (opcional)' }
+      { name: 'message', description: 'Etiqueta (opcional)', optional: true }
     ]
   },
   {
@@ -203,7 +207,7 @@ const androidSystemTools = [
     description: 'Inicia un temporizador vía AlarmClock, sin UI.',
     params: [
       { name: 'seconds', description: 'Duración en segundos' },
-      { name: 'message', description: 'Etiqueta (opcional)' }
+      { name: 'message', description: 'Etiqueta (opcional)', optional: true }
     ]
   },
   { name: 'show_alarms', via: ANDROID_SYSTEM, params: [], description: 'Abre la lista de alarmas del reloj.' },
@@ -212,8 +216,8 @@ const androidSystemTools = [
     description: 'Crea un evento de calendario vía Intent (prellenado).',
     params: [
       { name: 'title', description: 'Título del evento' },
-      { name: 'start', description: 'Inicio ISO-8601 local, p.ej. 2026-07-06T15:00 (opcional)' },
-      { name: 'location', description: 'Lugar (opcional)' }
+      { name: 'start', description: 'Inicio ISO-8601 local, p.ej. 2026-07-06T15:00 (opcional)', optional: true },
+      { name: 'location', description: 'Lugar (opcional)', optional: true }
     ]
   },
   {
@@ -231,16 +235,16 @@ const androidSystemTools = [
     description: 'Abre un SMS prellenado a un número (el usuario confirma el envío).',
     params: [
       { name: 'number', description: 'Destinatario' },
-      { name: 'message', description: 'Texto (opcional)' }
+      { name: 'message', description: 'Texto (opcional)', optional: true }
     ]
   },
   {
     name: 'send_email', via: ANDROID_SYSTEM,
     description: 'Abre un correo prellenado.',
     params: [
-      { name: 'to', description: 'Destinatario (opcional)' },
-      { name: 'subject', description: 'Asunto (opcional)' },
-      { name: 'body', description: 'Cuerpo (opcional)' }
+      { name: 'to', description: 'Destinatario (opcional)', optional: true },
+      { name: 'subject', description: 'Asunto (opcional)', optional: true },
+      { name: 'body', description: 'Cuerpo (opcional)', optional: true }
     ]
   },
   {
@@ -296,20 +300,129 @@ const androidSystemTools = [
 ];
 
 /**
- * El catálogo MCP base: gestos + acciones de sistema. Las herramientas
- * APRENDIDAS y los WORKFLOWS se añaden encima en runtime desde los stores de
- * aprendizaje (ver learning.js), sin tocar esto — igual en las dos plataformas.
+ * Lo que el cliente Mac sabe ejecutar (apps/mac/Sources/UMac/Desktop.swift, `execute` y `tool`),
+ * con los nombres y parámetros EXACTOS que lee. Opera la app al frente por sus controles de
+ * accesibilidad (AX): pulsar por id o etiqueta no depende de coordenadas, así que va primero.
  *
- * Sin plataforma, o con cualquiera que no sea Android, es el de Windows de
+ * No se declara lo que el Mac no tiene o hace a medias: alarmas, temporizadores, calendario,
+ * notificaciones, volumen, `share_text` (copia al portapapeles, no comparte), `dial`, la cámara, el
+ * mapa del computador de Windows (`map_places`, `map_routes_from`, `map_take`, `map_go_to`) ni las
+ * lecturas (`map_where_am_i`, `read_screen`), que sobran: cada turno ya trae la pantalla. Tampoco
+ * hay workflows: los grabados son de Windows y el Mac no tiene quien los reproduzca.
+ */
+const MAC_AX = 'control de accesibilidad (AX) de macOS';
+const MAC_SYSTEM = 'acción de macOS (sin navegar la pantalla)';
+
+const macTools = [
+  {
+    name: 'map_click', via: MAC_AX,
+    description: 'Pulsa un control de la app al frente (AXPress). Es lo más fiable: no depende de coordenadas. Usa el id de la ÚLTIMA lectura de la pantalla o la etiqueta exacta del control.',
+    params: [{ name: 'exit', description: 'Id del control en la última lectura, o su etiqueta exacta' }]
+  },
+  {
+    name: 'map_type', via: MAC_AX,
+    description: 'Escribe texto. Con exit deja ese texto completo en ese campo; sin exit teclea donde esté el foco.',
+    params: [
+      { name: 'exit', description: 'Id o etiqueta exacta del campo; vacío para teclear en el foco', optional: true },
+      { name: 'text', description: 'El texto completo' }
+    ]
+  },
+  {
+    name: 'map_key', via: MAC_AX,
+    description: 'Pulsa una tecla o un atajo de Mac, con Command y no Control: enter, tab, esc, space, backspace, delete, left, right, up, down, cmd+l, cmd+a, cmd+c, cmd+v, cmd+s, cmd+w.',
+    params: [{ name: 'key', description: 'La tecla o el atajo, p. ej. "enter" o "cmd+l"' }]
+  },
+  {
+    name: 'map_scroll', via: MAC_AX,
+    description: 'Desplaza la app al frente: arriba, abajo, al principio o al final.',
+    params: [{ name: 'direction', description: 'Hacia dónde', options: ['up', 'down', 'home', 'end'] }]
+  },
+  {
+    name: 'map_look', via: MAC_AX, params: [],
+    description: 'Pide una captura de la pantalla en la próxima lectura, para ver imágenes, colores o lo que los controles no muestran.'
+  },
+  {
+    name: 'map_show', via: MAC_AX,
+    description: 'Señala un control en la pantalla sin pulsarlo. Sirve cuando la persona pregunta dónde está algo.',
+    params: [{ name: 'exit', description: 'Id o etiqueta exacta del control' }]
+  },
+  {
+    name: 'launch_app', via: MAC_SYSTEM,
+    description: 'Abre o trae al frente una aplicación por su nombre visible o su bundle id.',
+    params: [{ name: 'app', description: 'Nombre visible (p. ej. "Notas") o bundle id (p. ej. "com.apple.Notes")' }]
+  },
+  {
+    name: 'open_url', via: MAC_SYSTEM,
+    description: 'Abre una URL en el navegador.',
+    params: [{ name: 'url', description: 'URL http(s)' }]
+  },
+  {
+    name: 'web_search', via: MAC_SYSTEM,
+    description: 'Busca en la web en el navegador.',
+    params: [{ name: 'query', description: 'Qué buscar' }]
+  },
+  {
+    name: 'open_maps', via: MAC_SYSTEM,
+    description: 'Abre un lugar o una búsqueda en Mapas.',
+    params: [{ name: 'query', description: 'Lugar o búsqueda' }]
+  },
+  {
+    name: 'directions', via: MAC_SYSTEM,
+    description: 'Abre en Mapas la ruta hacia un destino.',
+    params: [{ name: 'destination', description: 'Destino' }]
+  },
+  {
+    name: 'send_email', via: MAC_SYSTEM,
+    description: 'Abre un borrador en Mail con lo que le pases. No lo envía: el envío se hace en la ventana de Mail.',
+    params: [
+      { name: 'to', description: 'Destinatario', optional: true },
+      { name: 'subject', description: 'Asunto', optional: true },
+      { name: 'body', description: 'Cuerpo', optional: true }
+    ]
+  },
+  {
+    name: 'send_sms', via: MAC_SYSTEM,
+    description: 'Abre un borrador en Mensajes con el número y el texto. No lo envía.',
+    params: [
+      { name: 'number', description: 'Número del destinatario' },
+      { name: 'message', description: 'Texto', optional: true }
+    ]
+  },
+  {
+    name: 'set_clipboard', via: MAC_SYSTEM,
+    description: 'Copia un texto al portapapeles.',
+    params: [{ name: 'text', description: 'Texto a copiar' }]
+  },
+  {
+    name: 'file_go', via: MAC_SYSTEM,
+    description: 'Muestra un archivo o una carpeta en el Finder.',
+    params: [{ name: 'path', description: 'Ruta; "~" es la carpeta de la persona' }]
+  },
+  {
+    name: 'switch_window', via: MAC_SYSTEM,
+    description: 'Cambia a la app siguiente o a la anterior (Command+Tab).',
+    params: [{ name: 'direction', description: 'Hacia qué app moverse', options: ['next', 'previous'] }]
+  },
+  { name: 'go_home', via: MAC_SYSTEM, params: [], description: 'Muestra el escritorio.' },
+  { name: 'open_settings', via: MAC_SYSTEM, params: [], description: 'Abre Configuración del Sistema.' },
+  { name: 'open_app_drawer', via: MAC_SYSTEM, params: [], description: 'Abre la carpeta Aplicaciones en el Finder.' }
+];
+
+/**
+ * El catálogo MCP base de cada plataforma. Los WORKFLOWS se añaden encima en
+ * runtime desde el store de aprendizaje (ver learning.js), sin tocar esto, en
+ * Windows y en Android; el Mac no los lleva.
+ *
+ * Sin plataforma, o con una que no sea Android ni Mac, es el de Windows de
  * siempre. Android no lleva el mapa del computador (map_*: es un grafo de
  * superficies UIA) ni switch_window (Alt+Tab no existe en un teléfono).
  */
 function baseCatalog(platform = PLATFORMS.WINDOWS) {
   if (platform === PLATFORMS.ANDROID) return [...androidGestureTools, ...androidSystemTools];
+  if (platform === PLATFORMS.MAC) return [...macTools];
   return [...gestureTools, ...systemTools, ...mapTools];
 }
 
-/** Nombres de las herramientas (para distinguir llamadas MCP vs funciones custom). */
 /**
  * EL MAPA DEL COMPUTADOR. El cliente construye pasivamente un grafo de las pantallas que ha visto
  * —nodos= superficies, aristas= transiciones con la acción que las provoca— mientras el usuario
@@ -335,12 +448,12 @@ const mapTools = [
   {
     name: 'map_places', via: MAP_VIA,
     description: 'Lista las pantallas que el mapa conoce, las más visitadas primero. Útil para saber a dónde se PUEDE ir antes de intentarlo.',
-    params: [{ name: 'app', description: 'Filtrar por app o dominio (opcional), p.ej. "explorer.exe" o "github.com"' }]
+    params: [{ name: 'app', description: 'Filtrar por app o dominio (opcional), p.ej. "explorer.exe" o "github.com"', optional: true }]
   },
   {
     name: 'map_routes_from', via: MAP_VIA,
     description: 'Salidas conocidas de una pantalla y con qué elemento se recorre cada una. Indica explícitamente las que se observaron pero cuya acción se desconoce.',
-    params: [{ name: 'surface', description: 'Id de superficie; si se omite, la pantalla actual' }]
+    params: [{ name: 'surface', description: 'Id de superficie; si se omite, la pantalla actual', optional: true }]
   },
   {
     name: 'map_take', via: MAP_VIA,
@@ -354,8 +467,12 @@ const mapTools = [
   }
 ];
 
+/** Nombres de las herramientas (para distinguir llamadas MCP de las funciones propias). */
 function catalogNames(tools) {
   return new Set(tools.map((tool) => tool.name));
 }
 
-module.exports = { baseCatalog, catalogNames, WORKFLOW_VIA, LEARNED_VIA };
+/** Los nombres del catálogo del Mac, en su orden (los fija verify-agent-platform.js). */
+const MAC_TOOLS = Object.freeze(macTools.map((tool) => tool.name));
+
+module.exports = { baseCatalog, catalogNames, WORKFLOW_VIA, MAC_TOOLS };

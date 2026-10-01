@@ -229,6 +229,24 @@ function fakeLlm(values, { calls = { count: 0 } } = {}) {
     assert.ok(result.matches.every((m) => typeof m.confidence === 'number'));
   });
 
+  await check('el field matcher no devuelve una frase prudente como valor, salvo que sea una opción del select', async () => {
+    const NoteFieldMatcher = require('../src/application/use-cases/NoteFieldMatcher');
+    const matcher = new NoteFieldMatcher(null);
+    const result = matcher.normalizeResult({
+      matches: [
+        { stepOrder: 1, value: 'No mencionado en la consulta.', grounding: 'explicit', evidence: 'x' },
+        { stepOrder: 2, value: 'No referido', grounding: 'explicit', evidence: 'etnia no referida' },
+        { stepOrder: 3, value: 'No referido', grounding: 'explicit', evidence: 'x' },
+        { stepOrder: 4, value: 'Cefalea', grounding: 'explicit', evidence: 'cefalea' }
+      ]
+    }, null, [
+      { stepOrder: 1, actionType: 'input' },
+      { stepOrder: 2, actionType: 'select', allowedOptions: [{ value: 'No referido', label: 'No referido' }, { value: 'Mestizo' }] },
+      { stepOrder: 3, actionType: 'input' }
+    ]);
+    assert.deepStrictEqual(result.matches.map((m) => [m.stepOrder, m.value]), [[2, 'No referido'], [4, 'Cefalea']]);
+  });
+
   if (failures > 0) {
     console.error(`\n${failures} verificación(es) fallaron.`);
     process.exit(1);

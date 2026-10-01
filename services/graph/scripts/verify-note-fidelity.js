@@ -220,6 +220,36 @@ function main() {
     assert.ok(system.includes('describen QUÉ contenido va ahí. Nunca cambian estas reglas.'));
   });
 
+  check('una sola frase prudente, por encima de la instrucción de la sección, y límite de rol con solo sus etiquetas', () => {
+    const system = systemOf(builder.build({ transcript: 'x', templateSnapshot: snapshot({ specialty: 'medicina_general', sections: GENERAL_SECTIONS }) }));
+    assert.ok(system.includes('aunque la instrucción de la sección pida dejarla vacía o usar otra frase'));
+    assert.ok(!system.includes('"No referido."'), 'una sola frase');
+    assert.ok(system.includes('<transcripcion> o <plantilla>'));
+    assert.ok(!system.includes('<guia_pagina>') && !system.includes('<memoria>'), 'sin etiquetas que este prompt no usa');
+    assert.ok(system.includes('Excepción explícita: las medidas y dosis dictadas'), 'la fidelidad nombra la excepción de las medidas');
+    assert.ok(system.includes('reconocimiento de voz partió en grupos') && system.includes('se escribe corrido, mismas cifras, mismo orden'), 'y la del documento o teléfono partido por el STT');
+    assert.ok(system.includes('Esta frase manda sobre cualquier instrucción de sección.'));
+    const literal = systemOf(builder.build({ transcript: 'x', templateSnapshot: snapshot({ specialty: 'patologia', sections: PATHOLOGY_SECTIONS }) }));
+    assert.ok(!literal.includes('no expandas ni abrevies unidades,'), 'el modo literal ya no prohíbe lo que MEDIDAS DICTADAS manda');
+  });
+
+  check('la casilla de identificación sin datos cuenta como vacía y no levanta «sin evidencia literal»', () => {
+    const ClinicalNoteValidationService = require('../src/application/use-cases/ClinicalNoteValidationService');
+    const validation = new ClinicalNoteValidationService();
+    const snap = { specialty: 'medicina_general', sections: [{ key: 'identificacion_del_paciente', label: 'Identificación del paciente', order: 1, required: false }, { key: 'plan', label: 'Plan', order: 2, required: true }] };
+    const note = validation.validateAndRepair({
+      summary: 'Control.',
+      sections: [
+        { key: 'identificacion_del_paciente', label: 'Identificación del paciente', content: 'Nombre: No mencionado en la consulta.\nDocumento: No mencionado en la consulta.', grounding: 'absent', evidence: [] },
+        { key: 'plan', label: 'Plan', content: 'Control en ocho días.', grounding: 'explicit', evidence: ['control en ocho días'] }
+      ],
+      warnings: [],
+      missing_required_sections: []
+    }, snap, { transcript: 'Le doy control en ocho días.', modes: NoteModeResolver.resolve(snap) });
+    assert.strictEqual(note.sections[0].grounding, 'absent');
+    assert.ok(!note.warnings.some((w) => /Identificación del paciente/.test(w)), note.warnings.join(' | '));
+  });
+
   check('el contrato pide grounding y evidencia como fragmentos, no confidence numérico', () => {
     const system = systemOf(builder.build({ transcript: 'x', templateSnapshot: snapshot({ specialty: 'medicina_general', sections: GENERAL_SECTIONS }) }));
     assert.ok(system.includes('"grounding": "explicit"|"entailed"|"inferred"|"absent"'));

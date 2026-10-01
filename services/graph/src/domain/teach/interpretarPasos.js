@@ -5,7 +5,8 @@
 //
 //   · CON VIDEO — GeminiVideoClient, pegado al prompt clínico, en la misma llamada que ya mira el
 //     mp4. Es el mejor: el modelo ve la pantalla además de leer los pasos.
-//   · SIN VIDEO — TeachStepsInterpreter, solo texto, por el proveedor del cerebro. Nació el
+//   · SIN VIDEO — TeachStepsInterpreter, solo texto, por el proveedor de texto de Graph
+//     (GRAPH_LLM_*, el LLMProvider por defecto; no el del cerebro consciente). Nació el
 //     2026-09-03, cuando la cuenta de Gemini se quedó sin saldo («429: Your prepayment credits are
 //     depleted») y con ella se cayó una interpretación que en realidad NO necesita ver la pantalla:
 //     distinguir «nwp1 es cómo se llega» de «70 es el peso de este paciente» se hace con los pasos
@@ -32,6 +33,10 @@
 // cliente descarta cualquier campo que no esté en ella antes de tocar la skill. Sin esa separación
 // una alucinación escribiría un valor en un campo que nadie eligió, y eso no daría error: daría un
 // número plausible en el sitio equivocado.
+//
+// VERSIÓN. Estas reglas viajan dentro de dos prompts (TEACH-VIDEO y TEACH-STEPS) y los dos la
+// reportan al ledger de uso: cambiar este archivo sube INTERPRETACION_VERSION.
+const INTERPRETACION_VERSION = '2026-10-01.1';
 
 /** Los pasos, en el formato compacto que el modelo lee mejor que un JSON. */
 function listaDePasos(steps) {
@@ -79,7 +84,8 @@ REGLAS, y son estrictas:
 - "significado" es CORTO: unas pocas palabras que nombran qué va ahí ("el peso en kilos", "el código
   de transacción"). Nunca una frase larga ni una transcripción de lo que se dijo.
 - "recuerdos" sí es opcional y va solo donde tengas algo útil que decir sobre CÓMO se usa ese
-  elemento. Un elemento que no entiendas, fuera.
+  elemento. Un elemento que no entiendas, fuera (solo en "recuerdos"; en "campos" no se omite ningún
+  paso tecleado).
 - No metas en "significado" ni en "recuerdos" ningún valor concreto que aparezca en pantalla: los
   campos se describen por lo que SON, no por lo que tenían ese día.
 `.trim();
@@ -92,8 +98,9 @@ const FORMA_DE_LA_RESPUESTA = `
 `.trim();
 
 /**
- * El bloque que se AÑADE al prompt del video: llega detrás del prompt clínico, así que pide sus dos
- * claves sobre el mismo objeto JSON en vez de definir uno nuevo.
+ * El bloque que se AÑADE al pedido del video: llega detrás del prompt de enseñanza, que ya dice cuál
+ * es la forma de la respuesta (un schema). Aquí solo se nombran las dos claves que el schema añade
+ * cuando hay pasos: un solo contrato de salida, no dos.
  */
 function promptParaElVideo(steps) {
   return `
@@ -101,7 +108,7 @@ ADEMÁS, interpreta la DEMOSTRACIÓN paso a paso.
 
 ${reglasDeInterpretacion(steps)}
 
-Añade estas dos claves al MISMO objeto JSON de la respuesta:
+El esquema de esta respuesta incluye además "campos" y "recuerdos":
 ${FORMA_DE_LA_RESPUESTA}
 `.trim();
 }
@@ -119,7 +126,8 @@ la identidad del elemento que se tocó. Tu trabajo es interpretar ese registro p
 pueda repetir la tarea después CON OTROS DATOS.
 
 No has visto la pantalla, y no hace falta: lo que se te pregunta se decide con los pasos y con lo
-que la persona iba diciendo. Si algo no se puede decidir con eso, déjalo fuera.
+que la persona iba diciendo. Si un paso no se puede decidir con eso, sigue la regla de abajo: se
+contesta igual, con "esDato": true.
 ${dondeEmpieza ? `\nLa tarea empieza en: ${dondeEmpieza}\n` : ''}
 ${reglasDeInterpretacion(steps)}
 
@@ -157,4 +165,4 @@ function respuesta(parsed) {
   };
 }
 
-module.exports = { promptParaElVideo, promptSinVideo, saneaPasos, respuesta };
+module.exports = { promptParaElVideo, promptSinVideo, saneaPasos, respuesta, INTERPRETACION_VERSION };

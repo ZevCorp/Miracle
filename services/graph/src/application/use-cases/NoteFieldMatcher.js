@@ -9,6 +9,7 @@ const {
   buildNoteFieldMatchingResponseFormat
 } = require('./NoteFieldMatchingPolicy');
 const grounding = require('../../domain/clinical/grounding');
+const { isPrudentEmptyContent } = require('./ClinicalNoteValidationService');
 
 // Umbral heredado para salidas sin `grounding` (proveedores que ignoran el
 // json_schema y devuelven el contrato antiguo con `confidence`).
@@ -55,8 +56,16 @@ class NoteFieldMatcher {
 
   // `confidence` numérico sigue en el contrato público; se deriva del
   // grounding cuando el modelo lo devuelve y se acepta el legado si no.
-  normalizeResult(parsed = {}, usage = null) {
+  normalizeResult(parsed = {}, usage = null, fields = []) {
     const matches = Array.isArray(parsed.matches) ? parsed.matches : [];
+    // Opciones permitidas por paso: un select puede tener de verdad una opción
+    // «No referido», y esa sí es un valor.
+    const optionsByStep = new Map((Array.isArray(fields) ? fields : []).map((field) => [
+      Number(field?.stepOrder),
+      new Set((Array.isArray(field?.allowedOptions) ? field.allowedOptions : [])
+        .map((option) => `${option && typeof option === 'object' ? option.value ?? '' : option ?? ''}`))
+    ]));
+    const isAllowedOption = (m) => Boolean(optionsByStep.get(m.stepOrder)?.has(m.value));
     let withToken = 0;
     const clean = matches
       .map((m) => {
@@ -73,7 +82,11 @@ class NoteFieldMatcher {
           accepted: level ? grounding.isGroundedForAutofill(level) : confidence >= LEGACY_CONFIDENCE_THRESHOLD
         };
       })
-      .filter((m) => Number.isFinite(m.stepOrder) && m.value !== '' && m.accepted)
+      // Una frase prudente no es un valor: escribirla en SAP pondría «No
+      // mencionado en la consulta.» en la historia clínica como si fuera el
+      // dato. Salvo que sea, literalmente, una opción del select de ese paso.
+      .filter((m) => Number.isFinite(m.stepOrder) && m.value !== '' && m.accepted
+        && (!isPrudentEmptyContent(m.value) || isAllowedOption(m)))
       // GUARDA DE MARCADORES: un valor con `[PACIENTE_NOMBRE_1]` que no se
       // pudo rehidratar NUNCA se devuelve. El cliente Windows escribe lo que
       // recibe en SAP sin mirarlo (RellenadorSap.cs), lo relee no vacío y lo
@@ -137,7 +150,7 @@ class NoteFieldMatcher {
         outputTokens: Number(response.usage?.completion_tokens) || 0,
         totalTokens: Number(response.usage?.total_tokens) || 0
       } : null;
-      return { ...this.normalizeResult(parsed, usage), privacy: privacy || null };
+      return { ...this.normalizeResult(parsed, usage, payload.fields), privacy: privacy || null };
     } catch (error) {
       return {
         ...this.emptyResult(),
