@@ -3,5 +3,18 @@
     "allow": [
       "PowerShell(Get-Process -Name U -ErrorAction SilentlyContinue)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$(git rev-parse --show-toplevel 2>/dev/null)/tools/monorepo/arbol.sh\"; if [ -f \"$f\" ]; then bash \"$f\" guardia; fi"
+          }
+        ]
+      }
+    ]
   }
 }

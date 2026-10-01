@@ -308,7 +308,7 @@ class Contrato007SostenerParaApagar {
             ?: fail("no encuentro $raizRelativa subiendo desde $desde")
         val archivo = raiz.walkTopDown().firstOrNull { it.isFile && it.name == nombre }
             ?: fail("no encuentro $nombre en $raiz")
-        return archivo.readText()
+        return archivo.readText().replace("\r\n", "\n")
     }
 
     /** Descarta líneas comentadas (`//`) antes de buscar un patrón: un comentario que solo MENCIONA

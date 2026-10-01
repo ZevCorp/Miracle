@@ -5,6 +5,11 @@
 .env
 .env.*
 *.local
+# …menos el ejemplo, que es documentación: dice qué variables existen, sin valores.
+!.env.example
+
+# Los árboles de trabajo que la app de Claude crea dentro del clon (uno por sesión).
+.claude/worktrees/
 
 # Dependencias y enlaces de Vercel, en cualquier proyecto
 node_modules/

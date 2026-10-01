@@ -1,0 +1,10 @@
+# Los scripts de shell y los ganchos de git se guardan y se sacan SIEMPRE con finales LF.
+#
+# Sin esto, un clon de Windows con core.autocrlf=true los saca con CRLF. El bash de Git para Windows
+# lo tolera, y por eso no se había notado; el de WSL, y cualquier herramienta que los lea desde ese
+# disco, falla en la primera línea con «\r: command not found» (medido el 2026-09-30: los 10 scripts
+# del repo estaban con CRLF en el árbol de trabajo).
+*.sh            text eol=lf
+.githooks/*     text eol=lf
+**/.githooks/*  text eol=lf
+gradlew         text eol=lf

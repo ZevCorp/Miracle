@@ -11,9 +11,8 @@ on:
     paths: ['apps/web/**', '.github/workflows/web-ci.yml', '.github/workflows/vercel-desplegar.yml']
   # Redesplegar a mano (por ejemplo, tras cambiar una variable en Vercel): Actions → Web · CI → Run.
   workflow_dispatch:
-  pull_request:
-    branches: [main]
-    paths: ['apps/web/**', '.github/workflows/web-ci.yml']
+  # En un PR lo llama la compuerta (monorepo.yml) cuando el PR toca el portal.
+  workflow_call:
 
 jobs:
   build-and-test:

@@ -11,14 +11,15 @@
 Esto es lo único que hay que recordar. Todo lo demás de este archivo explica el porqué.
 
 ```
-1.  git switch main && git pull            ← SIEMPRE desde main fresco, nunca desde tu rama anterior
-2.  git switch -c jose/lo-que-sea          ← una rama = UNA cosa
+1.  bash ../../tools/monorepo/arbol.sh nuevo jose/lo-que-sea   ← la rama, desde main fresco, EN SU PROPIO ÁRBOL
+2.  cd <ese árbol>/apps/windows            ← una rama = UNA cosa, y un agente = un árbol
 3.  escribe la PROMESA primero             ← en tests/ContratoDelGrafo/Contrato.cs, y compruébala ROJA
 4.  escribe el código hasta que salga verde
 5.  ROMPE el código a propósito            ← si la promesa no se pone roja, no vale nada
 6.  pruébalo sobre el PC real              ← el contrato no puede tocar la pantalla; tú sí
 7.  git push                               ← el portero decide (~60 s)
-8.  PR con la evidencia → squash merge → borra la rama
+8.  PR con la evidencia → squash merge
+9.  bash ../../tools/monorepo/arbol.sh cerrar   ← borra el árbol y la rama, ya mergeados
 ```
 
 **El portero** (`.githooks/pre-push` de esta carpeta, al que llama el despachador de la raíz cuando
@@ -129,7 +130,10 @@ vez por clon, con una línea:**
 git config core.hooksPath .githooks
 ```
 
-Tarda ~60 s y comprueba cuatro cosas:
+Tarda ~60-120 s y comprueba cuatro cosas, **sobre el commit que se empuja**: si el árbol tiene
+cambios sin commitear que tocan el veredicto, saca el commit a un árbol temporal y lo juzga allí
+(tarda más; para el camino rápido, commitea o `git stash -u`). Las cuatro comprobaciones son las
+del motor común (`tools/monorepo/portero.sh`):
 
 | | qué exige |
 |---|---|
@@ -146,74 +150,17 @@ Los escenarios (nivel 3 de la compuerta) **no** están en el portero a propósit
 toda la app y el 2026-08-21 se quedó trece minutos colgado. Un paso obligatorio que nadie corre no
 protege nada y enseña a saltarse el resto. Vuelve cuando sea fiable.
 
-## Ramas: `<persona>/<que-hace>`
+## Ramas y árboles
 
-Somos tres. Cada rama lleva delante el nombre de quien la abre — `jero`, `jose` o `pipe`, en
-minúscula — y después **el resultado**, en kebab-case:
+La regla es de todo el monorepo y vive en
+[`.claude/rules/ramas-y-commits.md`](../../.claude/rules/ramas-y-commits.md), que se carga sola:
+ramas `<persona>/<que-hace>` que duran de medio día a tres días, una rama por feature, `main` solo
+por PR con squash merge, y **un agente, un árbol**: la rama nace con `arbol.sh nuevo` y muere con
+`arbol.sh cerrar`. Hasta el 2026-09-30 esta sección decía «`git checkout -b`»; con varias sesiones
+abiertas en la misma carpeta, esa orden le cambiaba la rama a las demás.
 
-```
-jose/puente-portal-clinico
-jero/carrera-del-busy
-pipe/inventario-accionable
-```
-
-El prefijo es dueño de *la rama*, no del código: si necesitas tocar algo que otro tiene abierto, se
-habla — no se abre una rama paralela con el mismo trabajo.
-
-Lo que el prefijo compra: `git branch -r --list 'origin/jero/*'` lista lo de Jero y nada más, y el
-buscador de ramas de GitHub filtra igual escribiendo `jero/`.
-
-### Nace, vive corto, muere
-
-Una rama dura **de medio día a tres días**. Ese es el punto de todo el esquema: si dura dos semanas,
-el merge deja de ser un merge y pasa a ser una negociación.
-
-| | |
-|---|---|
-| **Nacer** | `git checkout main && git pull origin main && git checkout -b jose/lo-que-sea` — siempre desde `main` fresco, nunca desde tu rama anterior. |
-| **Vivir** | Una vez al día: `git pull --rebase origin main`. Con `--rebase` tus commits se reescriben *encima* de lo nuevo; la historia queda lineal y los conflictos llegan de a uno, del tamaño de un día. Es seguro porque nadie más trabaja sobre tu rama. |
-| **Integrar** | `git push -u origin jose/lo-que-sea` y PR. |
-| **Morir** | Al mergear, aceptar el borrado que ofrece GitHub. Local: `git branch -d jose/lo-que-sea`. |
-
-El `-d` en minúscula solo borra si está mergeada. Si te grita, algo no se integró — es una red, no un
-estorbo. No lo cambies por `-D`.
-
-### Una rama es una feature — ni media, ni dos
-
-`jose/` no es un sitio donde Jose trabaja: es el prefijo de *esta* feature de Jose. **Al cambiar de
-feature se cambia de rama, aunque la anterior no esté terminada.** Si metes dos features en la misma
-rama quedan casadas: no puedes mergear una sin arrastrar la otra a medio hacer, y el PR deja de poder
-revisarse.
-
-Dejar algo aparcado y arrancar otra cosa: commitea lo que llevas (aunque sea `wip:`), súbelo para no
-depender de tu disco, y abre la siguiente **desde `main`**, nunca desde la que aparcaste.
-
-```
-git commit -am "wip: hasta donde llegué"
-git push -u origin jero/carrera-del-busy
-git checkout main && git pull origin main && git checkout -b jero/otra-cosa
-```
-
-Volver es `git checkout jero/carrera-del-busy` y un `git pull --rebase origin main` para ponerte al día.
-
-### `main` no se toca
-
-`main` cambia **solo por merge de un PR**. Nadie commitea encima. Esto no es ceremonia: el repo llegó
-hasta aquí con cero PRs y todo entrando por merge directo, que con una persona da igual y con tres
-significa que `main` roto bloquea a los tres.
-
-Si `git status` dice `On branch main` y tienes cambios, te equivocaste de sitio:
-`git stash && git checkout -b jose/lo-que-sea && git stash pop`.
-
-El PR va aunque lo mergees tú mismo cinco minutos después — es donde queda escrito qué entró y por
-qué, y donde el CI puede correr. **Squash merge** por defecto: tus doce commits de `wip` entran a
-`main` como uno con mensaje limpio. Mergear tú mismo está bien si nadie más tocó esos archivos; si el
-PR cruza territorio ajeno, se pide ojo antes.
-
-### El reparto que de verdad evita choques
-
-Una rama por persona evita pisarse la rama, no el archivo. Lo que evita el conflicto es repartir por
-superficie:
+Lo que es de Windows es el reparto. Una rama por persona evita pisarse la rama, no el archivo; lo
+que evita el conflicto es repartir por superficie:
 
 | Zona | Riesgo de choque |
 |---|---|

@@ -28,6 +28,11 @@ gris()  { printf '\033[90m%s\033[0m\n' "$*"; }
 # Se ubica por su propia ruta, no por la raíz del repo: dentro del monorepo el proyecto está en
 # apps/android/, y si algún día vuelve a estar solo, en la raíz. $pro es esa carpeta relativa a la
 # raíz («apps/android», o vacía), y $p la misma con la barra para armar rutas («apps/android/»).
+# Antes de preguntarle nada a git: desde un árbol de trabajo enlazado, git le exporta GIT_DIR al
+# gancho, y con él `rev-parse --show-toplevel` contesta la carpeta actual, no la raíz. $pro salía
+# vacío y el portero buscaba ./gradlew en la raíz del árbol temporal (2026-09-30). Dentro del árbol
+# temporal, además, GIT_DIR apuntaría al repo de afuera.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 dir_propio="$(cd "$(dirname "$0")/.." && pwd)"
 raiz="$(git -C "$dir_propio" rev-parse --show-toplevel)"
 pro="$(git -C "$dir_propio" rev-parse --show-prefix)"; pro="${pro%/}"
@@ -59,8 +64,6 @@ limpiar() {
 trap limpiar EXIT
 trap 'exit 130' INT TERM HUP
 
-# Git exporta GIT_DIR y compañía a los hooks; dentro del worktree temporal apuntarían al repo de afuera.
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 
 a_main() {
   rojo "  ✘  a main no se empuja directo"
@@ -183,6 +186,17 @@ else
     echo "  $rama ← ${local_sha:0:9}"
     if [[ "$local_sha" =~ ^0+$ ]]; then
       gris "  ·  borrado de la rama remota: no hay nada que compilar"
+      echo
+      continue
+    fi
+    # Un empuje que solo trae documentación o reglas para agentes no cambia lo que se compila ni lo
+    # que se juzga, y no tiene por qué exigir el SDK de Android: en el monorepo, quien corrige un .md
+    # de aquí puede no tenerlo (2026-09-30). El CI tampoco compila por un .md. Si git no puede
+    # comparar, no se salta nada.
+    if git rev-parse -q --verify origin/main > /dev/null \
+       && cambia="$(git diff --name-only "origin/main...$local_sha" -- "${pro:-.}" ":(exclude)${p}*.md" ":(exclude)${p}.claude" 2> /dev/null)" \
+       && [ -z "$cambia" ]; then
+      gris "  ·  no toca nada que se compile ni se juzgue en Android (solo documentación o reglas)"
       echo
       continue
     fi

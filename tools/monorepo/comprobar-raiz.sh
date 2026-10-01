@@ -15,7 +15,7 @@ rojo() { printf '\033[31m%s\033[0m\n' "$*"; }
 
 # Lo que puede vivir en la raíz, y los proyectos que puede haber. Un proyecto nuevo se añade aquí y
 # en PROYECTOS de .githooks/pre-push; una carpeta nueva en la raíz se discute antes.
-RAIZ=".claude .githooks .github .gitignore AGENTS.md README.md apps docs services tools"
+RAIZ=".claude .gitattributes .githooks .github .gitignore AGENTS.md README.md apps docs services tools"
 APPS="android mac web windows"
 SERVICES="graph"
 DOCS="herramientas monorepo"
@@ -62,5 +62,17 @@ fuera_de "docs/"     "$DOCS"     $(versionado docs | cut -d/ -f2 | sort -u)
 if ! bash tools/monorepo/agentes.sh --comprobar; then
   fallos=$((fallos+1))
 fi
+
+# El guardia de los árboles (un agente, un árbol) llega a Claude Code por un gancho, y Claude no
+# hereda ganchos entre carpetas (se midió el 2026-09-30): tiene que estar en el settings.json de la
+# raíz y en el de cada proyecto. Uno que falte deja a las sesiones abiertas en esa carpeta sin
+# guardia, y nadie lo nota.
+for carpeta in . $(printf 'apps/%s ' $APPS) $(printf 'services/%s ' $SERVICES); do
+  if ! grep -qs 'tools/monorepo/arbol.sh' "$carpeta/.claude/settings.json"; then
+    rojo "  ✘  ${carpeta#./}/.claude/settings.json no trae el gancho del guardia de árboles"
+    echo "     Cópialo del .claude/settings.json de la raíz (hooks → PreToolUse)."
+    fallos=$((fallos+1))
+  fi
+done
 
 [ "$fallos" -eq 0 ]

@@ -5,6 +5,26 @@ decide qué reglas y qué arquitectura comparten, para que trabajar en cualquier
 igual y los proyectos encajen entre sí. Lo de abajo sale de leer los cinco proyectos ese día; cada
 afirmación lleva el archivo que la sostiene.
 
+## Estado al 2026-09-30
+
+El método común ya está aplicado: ver [`metodo.md`](metodo.md). De la lista de «Qué llevar a todos»:
+
+| # | Qué | Estado |
+|---|---|---|
+| 1 | Un CI que juzgue las promesas, y una compuerta única | **hecho**: el contrato de Android corre en su CI, y `main` exige `compuerta` |
+| 2 | Secretos fuera del repo | **pendiente**, y es del dueño: hay que rotar (ver «Deudas») |
+| 3 | Un juez con los tres veredictos | **hecho** en Graph y Mac; Windows y Android ya lo tenían. El portal queda fuera por decisión del dueño |
+| 4 | Un portero que juzgue lo que se empuja | **hecho**: `tools/monorepo/portero.sh`, en Windows, Mac y Graph. Android sigue con su copia |
+| 5 | Evidencia en cada PR | **a medias**: la plantilla la pide; solo Windows produce su tabla sola (`verificar.ps1`) |
+| 6 | Decisiones y estado medido en cada proyecto | pendiente |
+| 7 | La misma guía para agentes | **hecho**: `AGENTS.md` y `CLAUDE.md` en cada proyecto. El `CLAUDE.md` de Windows sigue largo |
+| 8 | Las skills del flujo, generalizadas | **hecho**: viven en `.claude/skills/` de la raíz |
+
+Y dos cosas que no estaban en la lista: **un agente, un árbol** (`tools/monorepo/arbol.sh`, con su
+guardia), y el contrato de las herramientas de la raíz (`tools/monorepo/contrato.sh`).
+
+Lo de abajo es la foto del 2026-09-28, tal como se escribió.
+
 ## Dónde está cada proyecto
 
 | | Windows | Android | Mac | web | Graph |
@@ -98,7 +118,10 @@ No se arreglaron en la fase 1, porque no eran de orden. Están por urgencia.
   workflow exige (`WindowsAppReleaseService.js:124`). Las 5 últimas releases salieron bien, pero
   todas con `request_id` de persona (`jose-…`, `claude-…`), así que se lanzaron a mano. Desde
   Provider Studio fallarían, porque GitHub rechaza un dispatch al que le falta un input obligatorio.
-- El contrato de Android está rojo en su propio `main` (promesa 246), desde antes del monorepo.
+- ~~El contrato de Android está rojo en su propio `main` (promesa 246), desde antes del monorepo.~~
+  No era el código: el juez leía las fuentes con los finales de línea del disco, y en un clon de
+  Windows (CRLF) la 246 no encontraba «la primera línea en blanco». Corregido el 2026-09-30 en las
+  siete lecturas del contrato: 171 promesas intactas también en Windows.
 - `backend/` de Windows se llama «legacy», pero recibió 7 commits en septiembre (memoria,
   recordatorios). Hay que decidir si se queda o se absorbe en Graph.
 
@@ -107,13 +130,16 @@ No se arreglaron en la fase 1, porque no eran de orden. Están por urgencia.
 - **Documentos viejos**: `WINDOWS.md`, `PRODUCTION.md`, `CONTEXTO.md` y los `MIRACLE_*.md` de web,
   y el README de Graph, que aún describe el motor de workflows original.
 - **Referencias muertas**: `docs/como-trabajamos.md` en Windows, `scripts/ci-local.ps1`,
-  `tests/ContratoDelGrafo/bronce/`, y 3 enlaces de `plan-plata-real.md`.
+  `tests/ContratoDelGrafo/bronce/`, y 3 enlaces de `plan-plata-real.md`. (2026-09-30: corregidas
+  las de las reglas y el CI; quedan las de `docs/graphify.md` y `plan-plata-real.md`, que son
+  historia.)
 - **Código dormido que se despliega** en Graph: `chrome-extension-src`, `web/public/plugin`,
   `web/public/miracle` y `vision-live`.
 - **Configuración que se contradice**:
-  - «Somos tres» en las reglas, cuando hay 8 personas con escritura.
+  - ~~«Somos tres» en las reglas, cuando hay 8 personas con escritura.~~ Corregido el 2026-09-30.
   - La URL de Supabase escrita a mano en 6 archivos de Android.
-  - El `.gitignore` de Graph ignora su propio `.env.example`.
+  - ~~El `.gitignore` de Graph ignora su propio `.env.example`.~~ Corregido el 2026-09-30, y
+    también en el de la raíz.
   - `verify.py` de la Mac falla en Windows si no se corre en modo UTF-8.
 
 ## Fase 3: despliegues

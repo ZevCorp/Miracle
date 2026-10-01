@@ -14,12 +14,14 @@ apps/
 services/
   graph/          Graph, el cerebro: API, LLM, memoria, Provider Studio (Node · Python · Vercel)
 docs/
-  monorepo/       este documento y el plan de la fase 2
+  monorepo/       este documento, el método común y el plan de la fase 2
   herramientas/   graphify
-tools/monorepo/   importar, ponerse al día, comprobar la raíz, la copia de reglas para Claude
-.github/          un workflow por proyecto, monorepo.yml y la plantilla de PR
-.githooks/        el portero del monorepo: un despachador
-.claude/          lo común para Claude: CLAUDE.md y las reglas comunes
+tools/monorepo/   el guardia de los árboles, el motor de los porteros y su contrato; importar,
+                  ponerse al día, comprobar la raíz, la copia de reglas para Claude
+.github/          un workflow por proyecto, la compuerta (monorepo.yml) y la plantilla de PR
+.githooks/        el portero del monorepo (un despachador) y los ganchos del guardia de árboles
+.claude/          lo común para Claude: CLAUDE.md, las reglas comunes, las skills del método y el
+                  gancho del guardia
 AGENTS.md         el mapa y las reglas comunes
 README.md         el mapa para personas
 ```
@@ -71,8 +73,9 @@ nuevos de una rama a la carpeta nueva si la vieja deja de existir en `main`:
 | El mapa y las reglas comunes | `AGENTS.md`, con una copia en `.claude/rules/monorepo.md` | Codex lee los `AGENTS.md` desde la raíz hasta su carpeta. Claude carga `.claude/rules/` de la raíz desde cualquier carpeta |
 | Reglas comunes largas | `.claude/rules/` de la raíz: ramas y commits, qué toca cada máquina | igual, desde cualquier carpeta |
 | Reglas de un proyecto | su `CLAUDE.md`, su `AGENTS.md` y su `.claude/rules/` | al abrir la sesión en su carpeta, o al leer un archivo suyo |
-| Skills | `.claude/skills/` de cada proyecto | al abrir ahí o al tocar un archivo suyo |
-| Hooks, permisos, MCP | `<proyecto>/.claude/settings.json`, `.mcp.json` | **solo** si la sesión se abre en esa carpeta |
+| Skills del método | `.claude/skills/` de la raíz: `/especifica`, `/fases`, `/promesas`, `/implementa`, `/verifica`, `/a-main` | desde cualquier carpeta (medido el 2026-09-30) |
+| Skills de un proyecto | su `.claude/skills/`, si las tiene | al abrir ahí o al tocar un archivo suyo |
+| Hooks, permisos, MCP | `.claude/settings.json` de la raíz y de cada proyecto, `.mcp.json` | **solo** los de la carpeta donde se abre la sesión |
 
 Lo midió un experimento el 2026-09-28, con Claude Code 2.1.276. En un repo de juguete puse un
 marcador distinto en cada sitio y abrí Claude desde una subcarpeta. Cargó el `.claude/CLAUDE.md` y
@@ -83,8 +86,11 @@ import, y el CI falla si la copia y `AGENTS.md` difieren.
 
 Dos límites que conviene saber:
 
-- Claude Code **no hereda hooks ni `settings.json` entre carpetas**. Un hook de
-  `apps/windows/.claude/settings.json` no corre en una sesión abierta en la raíz.
+- Claude Code **no hereda hooks ni `settings.json` entre carpetas**, en ningún sentido. Un hook de
+  `apps/windows/.claude/settings.json` no corre en una sesión abierta en la raíz, y uno de la raíz
+  no corre en una sesión abierta en `apps/windows` (medido el 2026-09-30 con un gancho que dejaba
+  una marca). Por eso el gancho del guardia de árboles está repetido en la raíz y en cada proyecto,
+  y `comprobar-raiz.sh` falla si falta en alguno. Las skills sí llegan de la raíz a las subcarpetas.
 - Codex reparte **32 KiB** entre todos los `AGENTS.md` que junta. El `CLAUDE.md` de Windows ronda
   las 490 líneas; si algún día pasa a `AGENTS.md`, hay que partirlo (fase 2).
 
@@ -92,26 +98,33 @@ Dos límites que conviene saber:
 
 **El portero es un despachador** (`.githooks/pre-push`). Bloquea el push a `main` mirando la ref
 remota, averigua qué proyectos tocan los commits empujados y llama al portero de cada uno
-(`<proyecto>/.githooks/pre-push`), con sus reglas tal como venían. Cada portero se ubica por su
-propia ruta, así que funciona igual si el proyecto se saca del monorepo. El de Windows da rojo si
-falta un contrato; antes lo saltaba, y tras el movimiento lo habría saltado sin avisar.
+(`<proyecto>/.githooks/pre-push`). Cada portero se ubica por su propia ruta.
 
-**Un CI por proyecto**, que corre desde su carpeta y solo cuando esa carpeta cambia:
+Los de Windows, Mac y Graph solo declaran lo suyo —qué es código, qué es una promesa, cómo se
+compila y cómo se juzga— y cargan **el motor común** (`tools/monorepo/portero.sh`), que hace las
+cuatro comprobaciones y juzga el commit que se empuja, no el árbol de trabajo. El motor salió del
+portero de Android, que ya lo hacía; el de Android sigue con su propia copia, porque desde una
+máquina sin su SDK no se podía verificar el cambio. El método entero está en
+[`metodo.md`](metodo.md).
+
+**Un CI por proyecto, y una compuerta.** En `main`, cada workflow se dispara solo, por sus rutas. En
+un PR los llama `monorepo.yml`, que mira qué proyectos toca el PR:
 
 | Workflow | Proyecto | Qué juzga |
 |---|---|---|
+| `monorepo.yml` | todos | **la compuerta**: la raíz en orden, el contrato de sus herramientas, y el CI de cada proyecto que el PR toca |
 | `windows-contrato.yml` | Windows | el contrato del grafo y el de la voz |
 | `windows-release.yml` | Windows | la release; lo dispara Graph **por este nombre**, que no se cambia |
-| `mac-build.yml` | Mac | contratos, app empaquetada, binario universal |
-| `android-apk.yml` | Android | el APK release |
+| `mac-build.yml` | Mac | su contrato, la app empaquetada y el binario universal |
+| `android-apk.yml` | Android | su contrato y el APK release |
 | `web-ci.yml` | web | lint, typecheck, tests y build |
-| `graph-ci.yml` | Graph | sus 33 verificaciones offline (`npm test`) |
-| `monorepo.yml` | la raíz | la raíz en orden, las reglas sin deriva, los porteros parsean |
+| `graph-ci.yml` | Graph | su contrato (`npm test`) |
 | `vercel-desplegar.yml` | Graph y web | el despliegue a Vercel tras los tests, con prueba de humo y rollback (ver `despliegue.md`) |
 
-Si algún día se protege `main` con checks obligatorios, hay una trampa: un workflow con filtro de
-rutas que no llega a correr deja su check «pendiente» para siempre y bloquea el merge. La solución
-es una compuerta única que corra siempre y mire qué cambió; `monorepo.yml` es su sitio natural.
+`main` está protegido y exige un solo check: `compuerta`. Es uno solo por una trampa de GitHub: un
+workflow con filtro de rutas que no llega a correr deja su check «pendiente» para siempre, y eso
+bloquearía cualquier PR que no toque ese proyecto. La compuerta corre siempre y decide ella a quién
+llamar; un proyecto que el PR no toca sale «skipped», que cuenta como verde.
 
 ## Releases: solo Windows
 
@@ -138,10 +151,14 @@ Vercel.
 ## Cómo se hace…
 
 **Añadir un proyecto.**
-1. Su carpeta en `apps/` o en `services/`, con su README y su `AGENTS.md`.
-2. Su workflow `<proyecto>-*.yml`, con `paths` y `working-directory`.
+1. Su carpeta en `apps/` o en `services/`, con su README, su `AGENTS.md` y un `CLAUDE.md` cuya
+   primera línea sea `@AGENTS.md`.
+2. Su workflow `<proyecto>-*.yml`, con `workflow_call`, `push` a `main` con sus `paths`, y
+   `working-directory`; y su trabajo en la compuerta (`monorepo.yml`).
 3. Darlo de alta en `tools/monorepo/comprobar-raiz.sh` y en `PROYECTOS` de `.githooks/pre-push`.
-4. Si tiene portero local, ponerlo en `<proyecto>/.githooks/pre-push`.
+4. Su portero en `<proyecto>/.githooks/pre-push` y su juez: ver «Añadir el método a un proyecto
+   nuevo» en [`metodo.md`](metodo.md).
+5. Su `.claude/settings.json`, con el gancho del guardia de árboles.
 
 **Trabajar con un solo proyecto.**
 
@@ -179,4 +196,5 @@ archiven.
 - **La Mac:** `verify.py` lee sus 41 capacidades, 51 specs y 35 herramientas de Windows desde las
   rutas nuevas.
 - **Ü desde cero:** los cuatro proyectos de `u/` compilan en `apps/windows/u`.
-- **Graph:** su `npm test` pasa tal cual, 33 verificaciones en 1 min 21 s.
+- **Graph:** su `npm test` pasa tal cual, 33 verificaciones en 1 min 21 s. (Desde el 2026-09-30
+  `npm test` es su contrato y las corre cuatro a la vez: 34 en ~5 s.)

@@ -102,7 +102,7 @@ class Contrato005CableadoDeTelemetria {
 
     private fun todas(): List<Fuente> = File(raiz, "app/src").walkTopDown()
         .filter { it.isFile && it.extension in setOf("kt", "java", "kts") }
-        .map { Fuente(it.relativeTo(raiz).invariantSeparatorsPath, it.readText()) }
+        .map { Fuente(it.relativeTo(raiz).invariantSeparatorsPath, it.readText().replace("\r\n", "\n")) }
         .toList()
 
     @Test
