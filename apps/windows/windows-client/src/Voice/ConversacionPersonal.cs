@@ -79,18 +79,48 @@ public sealed class ConversacionPersonal
         }
     }
 
+    /// <summary>
+    /// CUÁNTO PESA, COMO MUCHO, LA HISTORIA QUE SE MANDA AL ABRIR LA VOZ (promesa 667).
+    /// </summary>
+    /// <remarks>
+    /// GPT-Live rechaza la apertura entera con «Initial items must not exceed 8192 tokens», y sin tope de tamaño eso
+    /// pasaba en cuanto la conversación crecía: 14 aperturas rechazadas entre el 29 y el 30 de septiembre de 2026,
+    /// la del 30 con 34.564 caracteres. A ~4 caracteres por ficha el límite ronda los 32.000; con 20.000 abrió
+    /// (medido ese día recortando el archivo a mano). El margen es para lo que no se cuenta aquí: lo que ocupa cada
+    /// turno además de su texto, y que un texto con muchos acentos o símbolos gasta más fichas por carácter.
+    /// </remarks>
+    public const int CaracteresDeHistoria = 20_000;
+
     /// <summary>Turnos de texto para reconstruir la misma ventana de conversación al abrir la voz.</summary>
-    public IReadOnlyList<(string Role, string Text)> Historial(int maxTurnos = 56)
+    /// <remarks>
+    /// Los más recientes que quepan, ENTEROS y en orden: se llena desde el último hacia atrás y se para en el primero
+    /// que ya no entra. Un turno partido por la mitad le llega al modelo como una frase que nadie dijo. La única
+    /// excepción es que ni el más reciente quepa: entonces va su final, que es lo último que se dijo.
+    /// </remarks>
+    public IReadOnlyList<(string Role, string Text)> Historial(int maxTurnos = 56, int maxCaracteres = CaracteresDeHistoria)
     {
         lock (Candado)
         {
-            return Leer().Turnos
+            var recientes = Leer().Turnos
                 .Where(x => x.UserId == _userId)
                 .OrderByDescending(x => x.CreatedAt)
-                .Take(Math.Max(1, maxTurnos))
-                .Reverse()
-                .Select(x => (x.Role, x.Text))
-                .ToArray();
+                .Take(Math.Max(1, maxTurnos));
+
+            int queda = Math.Max(1, maxCaracteres);
+            var caben = new List<(string Role, string Text)>();
+            foreach (var turno in recientes)
+            {
+                string texto = turno.Text ?? "";
+                if (texto.Length > queda)
+                {
+                    if (caben.Count == 0) caben.Add((turno.Role, texto[^queda..]));
+                    break;
+                }
+                caben.Add((turno.Role, texto));
+                queda -= texto.Length;
+            }
+            caben.Reverse();
+            return caben;
         }
     }
 
