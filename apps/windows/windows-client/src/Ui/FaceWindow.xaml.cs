@@ -1201,6 +1201,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 // ratón —con el botón del collar no hay ratón de por medio—. Con las pastillas, quien
                 // lo apagaba era apartar el ratón, y por eso se quedaba encendido para siempre.
                 PintarHalo();
+                // CUÁNDO SE VIO, para la línea «voz-clic» (promesa 666): con prioridad por debajo de la de
+                // pintar, esto corre cuando la estela ya salió hacia la pantalla, no cuando se pidió.
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
+                    () => _vivo?.LaEstelaSePinto(viva));
             });
             // El halo repinta AL MOMENTO en que cambia el origen, y no sólo cuando Ü habla: el
             // temporizador de la boca vive únicamente mientras Ü está hablando, así que encender la
@@ -2662,15 +2666,55 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // barra abierta el scroll es del menú, y robárselo sería quitarle una función que sí tiene.
         _ = new LanzarConScroll(this, () => _collapsed,
             (vx, vy) => EdgeSnap.Aplicar(this, vx, vy, OnWindowMoved));
+
+        GuardiaAlAcercarse(CollapsedGroup);
+        GuardiaAlAcercarse(Face);
     }
+
+    /// <summary>
+    /// EL MICRÓFONO SE PONE EN GUARDIA AL ACERCAR EL RATÓN A LA CARITA (spec 075, promesa 665).
+    /// </summary>
+    /// <remarks>
+    /// El dispositivo tarda 320–550 ms en abrir él solo (medido el 2026-09-30), así que para estar captando
+    /// al medio segundo del clic tiene que empezar a abrirse antes. Lo que capte en guardia no se entrega a
+    /// nadie; al apartar el ratón se suelta, y un ratón aparcado encima la deja caducar.
+    ///
+    /// SE ESPERA A QUE EL RATÓN SE POSE, no a que pase: cruzar la carita de camino a otra cosa no enciende
+    /// el indicador de micrófono de Windows. El botón pulsado no espera: quien ya está pulsando va a hablar.
+    /// </remarks>
+    private void GuardiaAlAcercarse(UIElement donde)
+    {
+        var posado = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PosadoMs) };
+        posado.Tick += (_, __) => { posado.Stop(); _vivo?.PrepararElOido(); };
+        donde.MouseEnter += (_, __) => posado.Start();
+        // Con el ratón ya posado, moverlo renueva la guardia: quien duda encima de la carita no la deja caducar.
+        // MOVERLO DE VERDAD: WPF también avisa de «movimiento» cuando lo que cambia es el dibujo de debajo
+        // —la carita parpadea—, y con eso un ratón aparcado renovaría la guardia para siempre.
+        Point ultimo = default;
+        donde.MouseMove += (_, ev) =>
+        {
+            var ahora = ev.GetPosition(this);
+            if (ahora == ultimo) return;
+            ultimo = ahora;
+            if (!posado.IsEnabled) _vivo?.PrepararElOido();
+        };
+        donde.PreviewMouseLeftButtonDown += (_, __) => { posado.Stop(); _vivo?.PrepararElOido(); };
+        donde.MouseLeave += (_, __) => { posado.Stop(); _vivo?.SoltarElOido(); };
+    }
+
+    /// <summary>Cuánto tiene que quedarse el ratón sobre la carita para contar como acercarse, y no como pasar.</summary>
+    private const int PosadoMs = 80;
 
     /// <summary>Un clic en la carita = micrófono (spec 010; era el doble clic hasta el 2026-09-05).
     /// Suena el carrillón y no el tick: el tick acompañaba a abrir la barra, y abrir la conversación
     /// es otra cosa — dos notas que SUBEN, escuchar = abrirse.</summary>
     private void StartMicByFace()
     {
-        PlayChime();
+        // PRIMERO LA VOZ, DESPUÉS EL CARRILLÓN (spec 075). OnMic vuelve en cuanto la voz consta encendida o
+        // apagada —la red va detrás—, y el carrillón se deja para cuando la estela ya se pintó: pedirle a
+        // Windows que suene es trabajo del mismo hilo que tiene que pintarla, y iba delante.
         OnMic(this, new RoutedEventArgs());
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, PlayChime);
     }
 
     /// <summary>
@@ -2751,8 +2795,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </summary>
     private async void OnMic(object sender, RoutedEventArgs e)
     {
-
-        if (_vivo != null) { await _vivo.AlternarAsync(); return; }
+        // EL RELOJ EMPIEZA EN EL GESTO: la línea «voz-clic» mide desde aquí cada tramo (promesa 666).
+        long gesto = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (_vivo != null) { await _vivo.AlternarAsync(gesto); return; }
 
         SetStatus("Escuchando…");   // a la píldora, no al globo: ver el comentario de _vivo.Cambio
         string heard = await _voice.ListenOnceAsync(CancellationToken.None);
@@ -2963,11 +3008,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 if (!_vivo.Viva) { LogBus.Log("presentacion", "abriendo la voz para saludar…"); StartMicByFace(); }
                 else LogBus.Log("presentacion", "la voz ya estaba abierta");
 
-                // Abrir la sesión es ir y volver por la red, y no avisa cuando termina. Se le da
-                // margen comprobando, en vez de dormir a ciegas un número redondo: así el saludo
-                // sale en cuanto está lista y no siempre en el peor caso.
-                for (int i = 0; i < 40 && _vivo?.Viva != true; i++) await Task.Delay(250);
-                if (_vivo?.Viva != true)
+                // Abrir la sesión es ir y volver por la red. ENCENDIDA YA NO ES ABIERTA (spec 075): la voz
+                // consta encendida desde el gesto, así que mirar Viva daría por lista una sesión que aún
+                // no confirmó, y el saludo se mandaría a un socket sin conectar. Se espera la confirmación.
+                if (_vivo == null || !await _vivo.EsperarAbiertaAsync(TimeSpan.FromSeconds(10)))
                 {
                     LogBus.Log("presentacion", $"ABORTADO: la voz no abrió en {crono.ElapsedMilliseconds} ms. "
                         + "No hay saludo — mira las líneas «voz-viva» de justo antes para saber por qué.");
