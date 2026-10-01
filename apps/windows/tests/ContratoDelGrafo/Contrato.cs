@@ -16825,6 +16825,9 @@ internal static class Contrato
         if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
         Debe(cara.Contains("PrepararElOido()", StringComparison.Ordinal) && cara.Contains("SoltarElOido()", StringComparison.Ordinal),
             "[cableado] la carita no pone el micrófono en guardia al acercarse ni lo suelta al alejarse");
+        // Y ENGANCHADO A LA CARITA SUELTA, que es la que se pulsa: una guardia escrita y sin colgar de nadie no adelanta nada.
+        Debe(cara.Contains("GuardiaAlAcercarse(CollapsedGroup);", StringComparison.Ordinal),
+            "[cableado] la guardia existe pero no cuelga de la carita suelta: acercarse a ella no abre nada");
     }
 
     /// <summary>Promesa 666.</summary>
