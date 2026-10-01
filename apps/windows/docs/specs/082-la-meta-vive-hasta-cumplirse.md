@@ -76,6 +76,7 @@ En el contrato de la voz:
 | # | Promesa |
 |---|---|
 | 72 | lo que quien actúa tiene que saber y la persona no dijo viaja como un mensaje en la conversación, sin pedir turno; vacío no se manda nada, y un protocolo de una sola voz no manda nada |
+| 73 | la pantalla del pedido dice para quién es: es de quien actúa, y quien habla no la comenta ni ofrece nada por lo que se ve en ella |
 
 ### Con qué se juzga cada una
 
@@ -149,8 +150,11 @@ está dicho aquí porque es lo contrario de la regla.
 
 ## Cierre
 
-- [x] Todas las promesas verdes
-- [ ] Sabotaje comprobado, promesa por promesa
+- [x] Todas las promesas verdes: grafo 498, voz 64 y `u/` 45, sin rojas ni pendientes
+- [x] Sabotaje comprobado sobre el commit `7b4674da`, en dos rondas y con cada cambio visto aplicado: rota la
+      lógica de `LaMeta`, el catálogo y el protocolo, rojas 795–800 y las 72 y 73 de la voz, y ninguna más; roto el
+      cableado (bloquear a la primera, el relato sin lo pulsado, nadie continúa la meta, la meta no viaja al hablar,
+      el hilo con el título viejo), rojas 796–801, cada una por la comprobación que tocaba
 - [x] El banco: la continuación medida contra el servidor, y 6 metas logradas de 9 en tres corridas (las 3 que no, sin red)
 - [ ] La investigación en Google, entera, tres corridas
 - [ ] Estado de este documento: **implementado** (AAAA-MM-DD)

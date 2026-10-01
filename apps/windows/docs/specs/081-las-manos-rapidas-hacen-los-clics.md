@@ -1,6 +1,6 @@
 # Plan de implementación: las manos rápidas hacen los clics — quien planea deja de pagar por pulsar
 
-Estado: **en curso** · Nace de la petición del dueño del 2026-10-01 · Rama: `jose/la-voz-conversa-y-aprende`
+Estado: **implementado** (2026-10-01) · Nace de la petición del dueño del 2026-10-01 · Rama: `jose/la-voz-conversa-y-aprende`
 · Sobre la 062 (el plan por objetivos), la 054 (el ciclo rápido) y la 073 (el delegado `gpt-6-luna`)
 
 > «Le pedí que fuera a hacer una investigación en Google […] lo hizo fluido, pero no a la máxima velocidad que
@@ -75,7 +75,7 @@ En el contrato del grafo:
 | 791 | un «pulsa:» cuyo nombre no está se resuelve de un tiro: las manos eligen una vez sobre la lectura que ya se hizo, pulsan y el paso queda cumplido, sin esperar a la pantalla ni buscar otra vez; si no se atreven, el paso pasa a ser el objetivo de llegar hasta él; y varios con ese nombre siguen parando el plan con su lista |
 | 792 | una dirección va en un paso: un plan que trae la tecla de la barra de direcciones, una dirección escrita y Enter se ejecuta como «abre:» esa dirección; lo que se escribe y no es una dirección no se toca, y el plan dice lo que hizo de verdad |
 | 793 | quien planea sabe cuándo es «pulsa:» y cuándo un objetivo: sus instrucciones dicen que «pulsa:» va con un nombre leído en pantalla y que sin él va un objetivo por intención, que una dirección va por «abre:», y ya no dicen que con «pulsa:» nunca se pierde nada |
-| 794 | un «pulsa:» que no encontró su nombre deja dicho en el log qué buscaba, cuántos accionables había y quién lo resolvió |
+| 794 | un «pulsa:» que no encontró su nombre deja dicho qué buscaba, cuántos accionables había y quién lo resolvió; y cuando las manos no lo resuelven, por qué |
 | 802 | varios gestos pegados en un paso son varios pasos: «pulsa: A; pulsa: B» se ejecuta como dos, en su orden; lo que se escribe conserva sus puntos y comas, y la barra de direcciones se busca también en la ventana dueña de la de delante |
 | 803 | «abre: calculadora nueva», «abre: una calculadora» y «abre: otra calculadora» abren la calculadora: el artículo y el adjetivo no son parte del nombre de la app; una dirección y un nombre que no los lleva quedan como vienen |
 
@@ -158,7 +158,10 @@ objetivo entero, cada clic paga una decisión. En Configuración lo que manda es
 
 ## Cierre
 
-- [x] Todas las promesas verdes (los dos contratos)
-- [ ] Sabotaje comprobado, promesa por promesa
+- [x] Todas las promesas verdes: grafo 498, voz 64 y `u/` 45, sin rojas ni pendientes
+- [x] Sabotaje comprobado sobre el commit `7b4674da`, en dos rondas y con cada cambio visto aplicado: rota la
+      lógica, rojas 790–794, 802, 803 y la 71 de la voz, y ninguna más; roto el cableado (el bucle del caño, la
+      lectura quieta, la barra por su clase, el log del plan, el foco de la barra, la otra copia), rojas 790, 791,
+      792, 794, 802 y 803, cada una por la comprobación que tocaba
 - [x] Medido sobre la Ü real, con el log: Calculadora, Configuración, Explorador y Edge (4 pantallas)
-- [ ] Estado de este documento: **implementado** (AAAA-MM-DD)
+- [x] Estado de este documento: **implementado** (2026-10-01), con lo que queda dicho en «Lo que NO se arregló»
