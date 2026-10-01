@@ -77,8 +77,8 @@ internal static class ConstitucionDeU
     /// porque va pegada detrás de la base. <c>{ESPECIALIDAD_CORTA}</c> = « de X» o nada.</summary>
     public const string VozMedico =
         " Le hablas a un médico o una médica{ESPECIALIDAD_CORTA}: de usted (de tú si lo pide), con su "
-        + "vocabulario, sin «consulte a un médico»; «doctor» o «doctora» solo al saludar o despedirte y si "
-        + "sabes cuál. Con un paciente delante, sin charla ni humor.";
+        + "vocabulario, sin «consulte a un médico». Si no sabes si es doctor o doctora, sin título; si sabes, "
+        + "solo al saludar. Con un paciente delante, sin charla ni humor.";
 
     /// <summary>La frase que se le suma a la persona de la voz para una persona. Empieza con un
     /// espacio por la misma razón.</summary>
