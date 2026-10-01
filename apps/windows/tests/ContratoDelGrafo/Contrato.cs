@@ -1047,6 +1047,7 @@ internal static class Contrato
         Prueba("686. los seis clientes HTTP que hablan con Graph llevan el sello de la instalación: ninguno se queda sin él", LosSeisClientesLlevanElSello);
         Prueba("687. unas claves negadas porque la instalación espera aprobación se dicen como espera y no como clave que falta, y se vuelven a pedir cuando hacen falta en vez de darse por perdidas", LasClavesNegadasPorEsperaSeVuelvenAPedir);
         Prueba("688. el instalador no lleva embebida ninguna clave de terceros: en el binario solo viajan la clave para presentarse y el token de actualizaciones", ElInstaladorNoLlevaClavesDeTerceros);
+        Prueba("689. encender la voz sin clave se la vuelve a pedir a Graph en ese mismo gesto: si la instalación sigue esperando lo dice con su código y no enciende, y si ya la aprobaron enciende sin reiniciar Ü", EncenderSinClaveLaVuelveAPedir);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -19017,6 +19018,81 @@ internal static class Contrato
         Traer(c4); Traer(c4);
         Debe(caidas() == 1, $"un backend caído NO se reintenta en cada llamada: {caidas()} intento(s)");
         Debe(!string.Join(" ", log).Contains(SecretoVoz), "y ninguna clave en el log");
+    }
+
+    /// <summary>Promesa 689.</summary>
+    /// <remarks>
+    /// POR QUÉ EXISTE (2026-10-01). La 687 juzga a <c>ClavesDelBackend</c>; que la VOZ vuelva a pedirlas al
+    /// encender no lo juzgaba nadie, y ese camino se reescribió al poner esta spec sobre la 075: el encendido
+    /// pasó a ser síncrono y lo que antes era un <c>await</c> en medio dejó de compilar. Un camino reescrito y
+    /// sin juez es justo el que se rompe en silencio: la voz diría «falta la clave» a una instalación que
+    /// aprobaron hace un minuto, hasta reiniciar Ü.
+    /// </remarks>
+    private static void EncenderSinClaveLaVuelveAPedir()
+    {
+        var t = Capacidad("U.WindowsClient.Credenciales.ClavesDelBackend");
+        var tNiega = DeLaInstalacion("GraphNiegaLaInstalacion");
+        var tCred = DeLaInstalacion("CredencialDeInstalacion");
+        var ctorNiega = tNiega?.GetConstructor(new[] { typeof(string), typeof(string) });
+        var ctor = t?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 3);
+        var clavesVivas = t?.GetProperty("Viva", BindingFlags.Public | BindingFlags.Static);
+        var instalacionViva = tCred?.GetProperty("Viva", BindingFlags.Public | BindingFlags.Static);
+        var inst = InstalacionDePrueba.Nueva();
+        if (ctor == null || ctorNiega == null || clavesVivas == null || instalacionViva == null || inst == null)
+        { Pendiente("ConversacionEnVivo que pide las claves al encender sin ellas (ClavesDelBackend.Viva + CredencialDeInstalacion.Viva)", "689", "076"); return; }
+
+        // Una instalación que se presentó y espera: es lo que la voz tiene que saber decir.
+        inst.AlPreguntar = _ => (200, InstalacionDePrueba.Respuesta("pendiente"));
+        inst.Presentarse(new Dictionary<string, string> { ["email"] = "medico@hospital.test" });
+        inst.Preguntar();
+        Debe(inst.Situacion == "pendiente", $"[preparación] la instalación de prueba espera aprobación (está «{inst.Situacion}»)");
+
+        // Un backend SIN nada en el entorno, que niega las claves mientras la instalación espera.
+        int peticiones = 0;
+        bool aprobada = false;
+        Func<CancellationToken, Task<string>> pedir = _ =>
+        {
+            peticiones++;
+            if (!aprobada) throw (Exception)ctorNiega.Invoke(new object[] { "instalacion_pendiente", CodigoDelContrato });
+            return Task.FromResult("{\"openai\":\"sk-del-backend-del-contrato\",\"typesafe\":\"ts-del-contrato\"}");
+        };
+        object claves = ctor.Invoke(new object[] { (Func<string, string?>)(_ => null), pedir, (Action<string>)(_ => { }) });
+
+        object? clavesDeAntes = clavesVivas.GetValue(null), instalacionDeAntes = instalacionViva.GetValue(null);
+        try
+        {
+            using var v = VozDePrueba.Nueva("689");
+            if (v == null) return;
+            clavesVivas.SetValue(null, claves);
+            instalacionViva.SetValue(null, inst.Objeto);
+
+            // 1. ESPERANDO: el gesto pregunta, y lo que dice es la espera, con el código.
+            v.Alterna().Wait(3000);
+            string[] dichos; lock (v.Dichos) dichos = v.Dichos.ToArray();
+            Debe(peticiones == 1, $"sin clave, el gesto se la pide a Graph: {peticiones} petición(es)");
+            Debe(!v.Viva && v.Conexiones == 0, $"y con la instalación esperando la voz no enciende ni abre cable (viva: {v.Viva}, conexiones: {v.Conexiones})");
+            Debe(dichos.Any(d => d.Contains("aprobación", StringComparison.Ordinal) && d.Contains(CodigoDelContrato, StringComparison.Ordinal)),
+                $"dice que espera aprobación, con el código que hay que dictarle al administrador (dijo: «{string.Join(" | ", dichos)}»)");
+            Debe(!dichos.Any(d => d.Contains("setx", StringComparison.Ordinal)),
+                $"y no le pide a una persona en un hospital que ponga una variable de entorno (dijo: «{string.Join(" | ", dichos)}»)");
+
+            // 2. APROBADA: el siguiente gesto vuelve a preguntar y enciende, sin reiniciar nada.
+            aprobada = true;
+            var clic = v.Alterna();
+            Debe(Espera(() => v.Viva, 3000), "aprobada después, el siguiente gesto enciende la voz sin reiniciar Ü");
+            Debe(peticiones == 2 && v.Conexiones == 1, $"pidiendo las claves otra vez y abriendo su cable ({peticiones} petición(es), {v.Conexiones} conexión(es))");
+            Debe(v.LosAvisos().SequenceEqual(new[] { true }), $"y avisó una vez de que encendió (avisos: {Lista(v.LosAvisos())})");
+
+            // 3. CON LA CLAVE YA EN LA MANO no se vuelve a preguntar: el encendido de siempre no espera a la red.
+            v.Alterna().Wait(3000);
+            v.Alterna();
+            Debe(v.Viva && peticiones == 2, $"con la clave ya traída, apagar y encender no la vuelve a pedir ({peticiones} petición(es))");
+        }
+        finally
+        {
+            clavesVivas.SetValue(null, clavesDeAntes);
+            instalacionViva.SetValue(null, instalacionDeAntes);
+        }
     }
 
     private static void ElInstaladorNoLlevaClavesDeTerceros()
