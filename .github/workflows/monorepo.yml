@@ -24,7 +24,7 @@ jobs:
       - name: La raíz sigue en orden
         run: bash tools/monorepo/comprobar-raiz.sh
 
-      - name: La constitución de Ü dice lo mismo en Windows y en Graph
+      - name: La constitución de Ü dice lo mismo en Windows, en Graph y en Android
         run: bash tools/monorepo/constitucion.sh
 
       - name: Los porteros y los scripts del repo parsean

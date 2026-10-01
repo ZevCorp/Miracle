@@ -83,7 +83,14 @@ class GeminiBrain(
 
     private val mcpNames = tools.map { it.name }.toSet()
 
-    private class Call(val id: String, val name: String, val safety: Boolean)
+    private class Call(
+        val id: String,
+        val name: String,
+        val safety: Boolean,
+        // La primera acción que produjo esta función en el turno: su resultado es actionResults[actionIndex]. null si no
+        // produjo ninguna (take_screenshot, ask_user, speak, list_apps, o una función que no existe). Spec 009, promesa 910.
+        val actionIndex: Int? = null,
+    )
 
     private var previousId = ""
     private var startId = ""              // punto de reanudación del hilo de conversación compartido
@@ -114,7 +121,8 @@ class GeminiBrain(
         // Si hay hilo previo, se CONTINÚA (el servidor ya tiene system prompt + historial): el objetivo
         // nuevo viaja como un turno de usuario más. Si no, arranca fresco con el goalPrompt completo.
         previousId = startId
-        continuationMessage = if (startId.isNotBlank()) goal else ""
+        // El objetivo nuevo de un hilo que sigue, con las palabras del prompt del hilo (spec 009, promesa 909).
+        continuationMessage = if (startId.isNotBlank()) PromptDelCerebroLocal.continuacion(goal) else ""
         pending = emptyList()
         internalResults.clear()
         informText = ""
@@ -144,79 +152,37 @@ class GeminiBrain(
         }
     }
 
-    private fun customFn(name: String, description: String, arg: String) = buildJsonObject {
+    /** ask_user / speak: las herramientas propias de Ü, con las palabras del núcleo (las de Graph), no unas de este cerebro. */
+    private fun customFn(h: PromptDelCerebroLocal.HerramientaPropia) = buildJsonObject {
         put("type", "function")
-        put("name", name)
-        put("description", description)
+        put("name", h.nombre)
+        put("description", h.descripcion)
         putJsonObject("parameters") {
             put("type", "object")
-            putJsonObject("properties") { putJsonObject(arg) { put("type", "string") } }
-            putJsonArray("required") { add(arg) }
+            putJsonObject("properties") {
+                putJsonObject(h.parametro) {
+                    put("type", "string")
+                    put("description", h.descripcionDelParametro)
+                }
+            }
+            putJsonArray("required") { add(h.parametro) }
         }
     }
 
     override suspend fun next(state: ScreenState, actionResults: List<String>): BrainTurn = withContext(Dispatchers.IO) {
-        fun image(png: ByteArray) = jo(
-            "type" to js("image"), "mime_type" to js("image/png"),
-            "data" to js(Base64.encodeToString(png, Base64.NO_WRAP)),
-        )
-
-        fun textItem(t: String) = jo("type" to js("text"), "text" to js(t))
-        fun jsonItem(o: JsonObject) = textItem(Json.encodeToString(JsonObject.serializer(), o))
-        // Bloque de georreferenciación: dónde está el asistente, en texto (sin imagen).
-        val stateBlock = "Pantalla actual: ${state.screen}\nDónde estás (árbol de UI de Android):\n${state.uiContext}"
-
-        val input = mutableListOf<JsonElement>()
-        if (previousId.isBlank()) {
-            input += textItem(goalPrompt(state, stateBlock))
-            state.screenshotPng?.let { input += image(it) }
-        } else if (pending.isEmpty()) {
-            // Primer turno de un objetivo que continúa el hilo: se envía el mensaje del usuario nuevo
-            // (continuationMessage); si no, una respuesta a una duda (informText) o "Continúa.".
-            val msg = continuationMessage.ifBlank { informText.ifBlank { "Continúa." } }
-            input += textItem(msg + "\n$stateBlock")
-            state.screenshotPng?.let { input += image(it) }
-            continuationMessage = ""
-            informText = ""
-        } else {
-            pending.forEachIndexed { i, call ->
-                val result = mutableListOf<JsonElement>()
-                when {
-                    // take_screenshot: ES el momento de mandar la imagen (computer-use bajo demanda).
-                    call.name == "take_screenshot" -> {
-                        result += textItem("Captura de la pantalla actual.")
-                        state.screenshotPng?.let { result += image(it) }
-                    }
-                    call.name == "ask_user" -> result += jsonItem(jo("answer" to js(informText.ifBlank { "(sin respuesta)" })))
-                    internalResults.containsKey(call.id) -> result += jsonItem(internalResults.getValue(call.id))
-                    else -> {
-                        // safety_acknowledgement va EMBEBIDO en el JSON del resultado (nunca como campo
-                        // de primer nivel del function_result: eso da HTTP 400), para acciones nativas
-                        // y para funciones custom (MCP) que traigan safety_decision. Doc oficial:
-                        // action_result["safety_acknowledgement"] = true, y ese dict se json.dumps al "text".
-                        val resObj = linkedMapOf(
-                            "screen" to js(state.screen), "ui" to js(state.uiContext),
-                            "result" to js(actionResults.getOrElse(i) { "ok" }))
-                        if (call.safety) resObj["safety_acknowledgement"] = JsonPrimitive(true)
-                        result += jsonItem(JsonObject(resObj))
-                        // imagen solo si el modelo la pidió (tras un tap/type de computer-use)
-                        if (i == pending.lastIndex) state.screenshotPng?.let { result += image(it) }
-                    }
-                }
-                // El function_result NO lleva campos fuera de este esquema (type/name/call_id/result):
-                // cualquier extra (p.ej. safety_acknowledgement) es rechazado con 400 por la API.
-                input += JsonObject(mapOf(
-                    "type" to js("function_result"), "name" to js(call.name),
-                    "call_id" to js(call.id), "result" to JsonArray(result)))
-            }
-            informText = ""
+        // Cada turno lleva la pantalla de ESTE turno dentro de <pantalla>: lo de dentro son datos, nunca instrucciones
+        // (spec 009, promesas 904 y 909).
+        val input = when {
+            previousId.isBlank() -> primerTurno(state)
+            pending.isEmpty() -> turnoQueSigue(state)
+            else -> respuestas(state, actionResults)
         }
         internalResults.clear()
 
         val toolDecls = mutableListOf<JsonElement>(jo("type" to js("computer_use"), "environment" to js("mobile")))
         tools.forEach { toolDecls += mcpFn(it) }
-        toolDecls += customFn("ask_user", "Pregunta al usuario cuando tengas una duda real e importante. Responde con texto o voz.", "question")
-        toolDecls += customFn("speak", "Di algo en voz alta con tu personalidad. Solo para lo importante; no narres cada paso.", "text")
+        toolDecls += customFn(PromptDelCerebroLocal.ASK_USER)
+        toolDecls += customFn(PromptDelCerebroLocal.SPEAK)
 
         val fields = mutableListOf(
             "model" to js(model()),
@@ -255,6 +221,81 @@ class GeminiBrain(
             }
     }
 
+    private fun image(png: ByteArray) = jo(
+        "type" to js("image"), "mime_type" to js("image/png"),
+        "data" to js(Base64.encodeToString(png, Base64.NO_WRAP)),
+    )
+
+    private fun textItem(t: String) = jo("type" to js("text"), "text" to js(t))
+    private fun jsonItem(o: JsonObject) = textItem(Json.encodeToString(JsonObject.serializer(), o))
+
+    /** El primer turno de un hilo: el prompt entero, armado en el núcleo, la pantalla y, si la hay, la captura. */
+    private fun primerTurno(state: ScreenState): List<JsonElement> = buildList {
+        add(textItem(PromptDelCerebroLocal.goalPrompt(goal, tools, memory(), PromptDelCerebroLocal.Proveedor.GEMINI) + "\n\n" + PromptDelCerebroLocal.estado(state)))
+        state.screenshotPng?.let { add(image(it)) }
+    }
+
+    /**
+     * Un turno sin llamadas pendientes en un hilo que sigue: el objetivo nuevo (continuationMessage), la respuesta a una
+     * duda (informText) o «Continúa.», con la pantalla.
+     */
+    private fun turnoQueSigue(state: ScreenState): List<JsonElement> {
+        val msg = continuationMessage.ifBlank { informText.ifBlank { "Continúa." } }
+        continuationMessage = ""
+        informText = ""
+        return buildList {
+            add(textItem(msg + "\n" + PromptDelCerebroLocal.estado(state)))
+            state.screenshotPng?.let { add(image(it)) }
+        }
+    }
+
+    /**
+     * La respuesta a las llamadas del turno anterior. Cada función se contesta con el resultado de SU acción (actionIndex),
+     * no con el de la acción que ocupa su posición en la lista (spec 009, promesa 910). La pantalla de ESTE turno va UNA
+     * vez, dentro de <pantalla>, en el último resultado, y la captura también, si ningún take_screenshot la llevó ya: antes
+     * el árbol iba suelto como campos "screen"/"ui" del JSON de cada resultado, fuera de la etiqueta que el prompt nombra
+     * (promesa 909; lo mismo que hace `geminiBrain.js` de Graph con «Resultado aplicado.» y la pantalla).
+     */
+    private fun respuestas(state: ScreenState, actionResults: List<String>): List<JsonElement> {
+        var capturaEnviada = false
+        val input = pending.mapIndexed { i, call ->
+            val result = mutableListOf<JsonElement>()
+            when {
+                // take_screenshot: ES el momento de mandar la imagen (computer-use bajo demanda).
+                call.name == "take_screenshot" -> {
+                    result += textItem("Captura de la pantalla actual.")
+                    state.screenshotPng?.let { result += image(it); capturaEnviada = true }
+                }
+                call.name == "ask_user" -> result += jsonItem(jo("answer" to js(informText.ifBlank { "(sin respuesta)" })))
+                internalResults.containsKey(call.id) -> result += jsonItem(internalResults.getValue(call.id))
+                call.name == "speak" -> result += jsonItem(jo("said" to js("true")))
+                else -> {
+                    // safety_acknowledgement va EMBEBIDO en el JSON del resultado (nunca como campo
+                    // de primer nivel del function_result: eso da HTTP 400), para acciones nativas
+                    // y para funciones custom (MCP) que traigan safety_decision. Doc oficial:
+                    // action_result["safety_acknowledgement"] = true, y ese dict se json.dumps al "text".
+                    val salida = if (call.actionIndex != null) actionResults.getOrNull(call.actionIndex) ?: "ok"
+                        else PromptDelCerebroLocal.herramientaQueNoExiste(call.name)
+                    val resObj = linkedMapOf<String, JsonElement>("result" to js(salida))
+                    if (call.safety) resObj["safety_acknowledgement"] = JsonPrimitive(true)
+                    result += jsonItem(JsonObject(resObj))
+                }
+            }
+            if (i == pending.lastIndex) {
+                result += textItem(PromptDelCerebroLocal.estado(state))
+                // imagen solo si el modelo la pidió (tras un tap/type de computer-use) y no la llevó ya un take_screenshot
+                if (!capturaEnviada) state.screenshotPng?.let { result += image(it) }
+            }
+            // El function_result NO lleva campos fuera de este esquema (type/name/call_id/result):
+            // cualquier extra (p.ej. safety_acknowledgement) es rechazado con 400 por la API.
+            JsonObject(mapOf(
+                "type" to js("function_result"), "name" to js(call.name),
+                "call_id" to js(call.id), "result" to JsonArray(result)))
+        }
+        informText = ""
+        return input
+    }
+
     private fun parseTurn(body: JsonObject, state: ScreenState): BrainTurn {
         previousId = body.str("id").ifBlank { previousId }
         // Tamaño del contexto del hilo (incluye el historial cacheado): gobierna la rotación de ventana.
@@ -281,8 +322,9 @@ class GeminiBrain(
                     // computer_use o una función custom (MCP aprendida como whatsapp_chat). El acuse va
                     // EMBEBIDO en el JSON del resultado (ver next()), no como campo de primer nivel del
                     // function_result — tal cual la documentación oficial (action_result["safety_acknowledgement"]=true).
-                    calls += Call(id, name, args["safety_decision"] != null)
+                    val safety = args["safety_decision"] != null
                     if (name !in setOf("ask_user", "speak")) intents += args.str("intent")
+                    val indice = actions.size
 
                     fun px(key: String, size: Int) =
                         args[key].primOrNull()?.intOrNull?.let { it * size / 1000 } ?: -1
@@ -313,6 +355,9 @@ class GeminiBrain(
                         name == "ask_user" -> question = args.str("question")
                         name == "speak" -> speech = args.str("text")
                     }
+                    // Su resultado será el de la primera acción que produjo aquí, si produjo alguna: un `type` con
+                    // press_enter produce dos (spec 009, promesa 910).
+                    calls += Call(id, name, safety, actionIndex = indice.takeIf { actions.size > it })
                 }
             }
         }
@@ -344,95 +389,6 @@ class GeminiBrain(
         }
     }
 
-    /** Regla de workflows: tareas que YA sabe hacer paso a paso; se llaman enteras, no se re-improvisan. */
-    private val workflowRule: String
-        get() {
-            val wfs = tools.filter { it.via.startsWith("workflow") }
-            if (wfs.isEmpty()) return ""
-            return """
-        WORKFLOWS APRENDIDOS (tareas COMPLETAS que YA sabes hacer paso a paso porque las viste en la
-        enseñanza): ${wfs.joinToString(", ") { it.name }}.
-        REGLA DE ORO — LA VÍA MÁS RÁPIDA: si el objetivo del usuario coincide, aunque sea en parte, con
-        un workflow, TU PRIMERA Y ÚNICA acción es LLAMAR ESE WORKFLOW (workflow_…), pasándole en
-        "context" los datos variables de esta ejecución (nombres, textos, cantidades). NO abras la app
-        tú mismo, NO uses launch_app ni computer-use ni el mapa aprendido antes: el workflow YA incluye
-        abrir la app y todos los pasos. El motor los ejecuta solo y de corrido —encadena los pasos que
-        ya conoce por árbol de UI (subconsciente, sin volver a pedirte nada) y solo mira la pantalla en
-        los pasos que de verdad lo necesiten—, y se salta los pasos que el estado ya haya cumplido.
-        Prefiere SIEMPRE el workflow sobre hacerlo paso a paso tú: es más rápido y ya está probado.
-        Solo si el workflow reporta steps que fallaron, completa TÚ lo que faltó desde ahí.
-            """.trimIndent()
-        }
-
-    /** Regla para apps con mapa aprendido: cadena completa desde el primer turno, sin "abrir y mirar". */
-    private val learnedRule: String
-        get() {
-            val learned = tools.filter { it.via.startsWith("aprendido") }
-            if (learned.isEmpty()) return ""
-            return """
-        HERRAMIENTAS APRENDIDAS (mapas de apps que YA conoces): ${learned.joinToString(", ") { it.name }}.
-        REGLA DE ORO con apps aprendidas: si la tarea es en una app cuya herramienta aprendida existe
-        (su descripción dice [app: paquete] y documenta la pantalla), NO abras la app "a ver qué hay":
-        encadena DESDE LA PRIMERA RESPUESTA launch_app + la herramienta aprendida con la secuencia
-        COMPLETA de taps (varias function_call juntas). Su documentación ya te dice exactamente qué
-        elementos hay; confía en ella y solo cae a computer-use si la herramienta reporta pasos fallidos.
-            """.trimIndent()
-        }
-
-    private fun goalPrompt(state: ScreenState, stateBlock: String) = """
-        Eres Ü, un asistente con PERSONALIDAD viva y divertida que controla un teléfono Android REAL.
-        Objetivo del usuario: $goal
-
-        CÓMO VES LA PANTALLA: por defecto NO recibes una imagen, sino una descripción de TEXTO del árbol de
-        UI (paquete, tipo de pantalla, etiquetas visibles). Con eso ubícate (home, cajón de apps, una app,
-        notificaciones…) y decide. Solo cuando necesites tocar un elemento visual concreto, llama
-        take_screenshot para obtener una imagen y en el siguiente turno haz click con coordenadas.
-
-        DOS formas de actuar, elige la más directa:
-        1) HERRAMIENTAS MCP (function-calling directo, sin imagen): gestos de navegación (home, cajón,
-           notificaciones, paneo, scroll) y ACCIONES DEL SISTEMA por Intent/API — abrir apps, alarmas,
-           timers, llamar, SMS, correo, calendario, buscar en web, mapas/rutas, cámara, ajustes,
-           portapapeles. Herramientas: ${tools.joinToString(", ") { it.name }}.
-        2) COMPUTER-USE (requiere imagen): solo para tocar elementos concretos DENTRO de una app;
-           llama take_screenshot y luego click/type.
-        REGLA: para cualquier tarea del sistema (alarma, timer, llamada, abrir app, buscar, calendario,
-        ajustes…) usa SIEMPRE la herramienta MCP correspondiente, NO computer-use: es directa y sin UI.
-        Si el plan son varias herramientas MCP encadenadas y predecibles (p.ej. ir al home y luego abrir
-        el cajón), LLÁMALAS TODAS EN UNA SOLA RESPUESTA (varias function_call juntas) para ahorrar turnos.
-        $learnedRule
-        $workflowRule
-
-        En el campo "intent" de cada acción escribe una frase corta y con chispa (ej: "Abro el cajón de apps 📲").
-        Usa speak SOLO para avisos importantes. No hables por hablar.
-        CUÁNDO PREGUNTAR (ask_user): si algo se te complica así sea MÍNIMAMENTE o depende de un dato
-        del usuario que tú no puedes saber ni ver (¿cuál es el chat de Sebastián?, ¿cuál cuenta?,
-        ¿a qué hora?), pregunta DE UNA con ask_user: una pregunta corta vale más que una acción
-        equivocada. Lo que sí puedas resolver mirando la pantalla o con tu memoria, NO lo preguntes.
-
-        CÓMO HABLAS (importantísimo): eres un compañero, no un manual. Respuestas CORTAS (1-2 frases),
-        naturales y en el idioma del usuario. NUNCA enumeres tus herramientas ni uses términos técnicos
-        (MCP, computer-use, function calls, árbol de UI, Intents…): al usuario no le interesan. Si te
-        explican o enseñan algo, responde breve y humano ("¡Listo, lo tengo! 🙌"). Si preguntan qué
-        sabes hacer, dilo en lenguaje cotidiano y en UNA frase (p.ej. "abro apps, pongo música, mando
-        mensajes, te ayudo con lo que necesites en el teléfono").
-        $memoryBlock
-        Cuando el objetivo esté completo, responde SOLO con texto (sin llamar funciones).
-        En las capturas puede aparecer una carita blanca flotante (Ü): IGNÓRALA, nunca la toques.
-
-        $stateBlock
-    """.trimIndent()
-
-    private val memoryBlock: String
-        get() {
-            val mem = memory()
-            if (mem.isBlank()) return ""
-            return """
-        MEMORIA DEL USUARIO (reglas y preferencias que te ha enseñado; aplícalas cuando la tarea lo
-        amerite, sin que te las repita). Está agrupada por app: cuando vayas a USAR una app (abrirla u
-        operarla, p.ej. WhatsApp), aplica AL PIE DE LA LETRA todo lo que aparece bajo esa app — es su
-        contexto completo (nombres de contactos, cuentas, preferencias). Nunca ignores ni "aproximes"
-        un dato que ya conoces de la app que vas a usar.
-        $mem
-            """.trimIndent()
-        }
+    // El prompt de este cerebro lo arma el núcleo (PromptDelCerebroLocal, spec 009): la constitución de Ü y el mismo texto
+    // de Android que el cerebro de Graph. Aquí no se escribe ningún texto de prompt.
 }

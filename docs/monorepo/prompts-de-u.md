@@ -10,16 +10,17 @@ clínica). Antes de esta fecha cada camino tenía su propia idea de quién era �
 permiso» y Graph «pregunta siempre antes»; una Ü era «viva y divertida» con emojis y la otra «sin
 relleno». La misma persona oía a dos asistentes según por dónde hablara.
 
-Ahora hay **una constitución**, en dos copias idénticas porque la leen dos programas que no comparten
+Ahora hay **una constitución**, en tres copias idénticas porque la leen tres programas que no comparten
 código:
 
 | Copia | La usa |
 |---|---|
 | `apps/windows/windows-client/src/Voice/ConstitucionDeU.cs` | la voz de Ü en Windows (delegado de GPT-Live o Realtime) |
 | `services/graph/src/application/prompts/ConstitucionDeU.js` | el cerebro consciente de Graph (Windows, Mac y Android) |
+| `apps/android/core/src/commonMain/kotlin/graph/core/domain/ConstitucionDeU.kt` | el cerebro local de Android (OpenAI o Gemini desde el teléfono, el proveedor por defecto de la app) |
 
-`bash tools/monorepo/constitucion.sh` las compara y el CI de la raíz falla si difieren. Se editan las dos
-a la vez.
+`bash tools/monorepo/constitucion.sh` compara las de Windows y Android con la de Graph, y el CI de la raíz
+falla si difieren. Se editan las tres a la vez.
 
 La constitución tiene cuatro textos (versión `constitucion-de-u@2026-10-01.2`):
 
@@ -72,6 +73,7 @@ la constitución sin el bloque «QUIÉN TE HABLA».
 |---|---|---|
 | Ü opera el computador por voz (Windows) | persona de la voz (la que habla) + instrucciones del delegado | `voz/Realtime/ProtocoloGptLive.cs` · `windows-client/src/Voice/ConversacionEnVivo.cs` |
 | Ü opera el computador por texto, puente o comprobar (Windows, Mac, Android) | cerebro consciente, un builder con texto por plataforma | `services/graph/src/infrastructure/conscious-brain/prompt.js` |
+| Ü opera el teléfono sin pasar por Graph (Android, proveedor OpenAI o Gemini) | el mismo texto de Android que Graph, copiado; más las herramientas aprendidas, que solo existen en local, y el toque largo de Gemini (`long_press`), que solo tiene el entorno `mobile` | `apps/android/core/src/commonMain/kotlin/graph/core/domain/PromptDelCerebroLocal.kt` (spec 009 de Android) |
 | Manos rápidas (Jev) | una pregunta de peligro, la misma en Windows y Graph | `u/Nucleo/Jev.cs` · `Decision/PeticionASystemOne.cs` · `services/graph/src/domain/decisor/peticionSystemOne.js` |
 | Enseñar una tarea | video (Gemini) e interpretación de pasos, con un mismo desempate: ante la duda, es dato de la corrida | `services/graph/src/infrastructure/teach/GeminiVideoClient.js` · `src/domain/teach/interpretarPasos.js` |
 | Título y modos de un workflow | WF-DESCRIBE, mismo desempate | `services/graph/src/application/use-cases/WorkflowExecutionGuideBuilder.js` |
@@ -117,6 +119,10 @@ no hace. Ahora cada una dice lo que hace en su plataforma:
 
 - **Graph:** `npm test` en `services/graph` (los builders se prueban sin red) y `python -m pytest` en
   `services/graph/bounded/miracle-ai`.
+- **Android:** el contrato de `apps/android` (`scripts/contrato.sh`, promesas 901-911) juzga la constitución del
+  núcleo, el orden y las prohibiciones del prompt local, que cada turno lleve `<pantalla>`, que cada llamada reciba el
+  resultado de su acción, el formato de la memoria y lo que el motor narra o informa. Los bloques de Android
+  del prompt local se copian de `prompt.js` a mano: si Graph los cambia, se vuelven a copiar.
 - **Windows:** el contrato (`windows-contrato.yml`) fija las frases que la voz no puede perder y los
   topes de tamaño que mide el servidor: la persona de la voz más el prefijo de vuelta no pasa de 1.700
   caracteres (el servidor rechaza un *append* de más de 500 fichas).

@@ -60,11 +60,12 @@ todas ellas. El porqué de cada decisión está en `docs/monorepo/arquitectura.m
   `tools/monorepo/importar.sh`
 - El grafo del código: `graphify` (guía en `docs/herramientas/`). `graphify-out/` no se versiona.
 - **La constitución de Ü** (quién es, cómo habla, cuándo obedece sin preguntar y cómo trata a un
-  médico o a una persona) vive en dos copias que deben decir lo mismo:
-  `apps/windows/windows-client/src/Voice/ConstitucionDeU.cs` y
-  `services/graph/src/application/prompts/ConstitucionDeU.js`. Se editan las dos a la vez y lo
-  comprueba `bash tools/monorepo/constitucion.sh` (corre en el CI de la raíz). El mapa de todos los
-  prompts está en `docs/monorepo/prompts-de-u.md`.
+  médico o a una persona) vive en tres copias que deben decir lo mismo:
+  `apps/windows/windows-client/src/Voice/ConstitucionDeU.cs`,
+  `services/graph/src/application/prompts/ConstitucionDeU.js` y
+  `apps/android/core/src/commonMain/kotlin/graph/core/domain/ConstitucionDeU.kt`. Se editan las tres
+  a la vez y lo comprueba `bash tools/monorepo/constitucion.sh` (corre en el CI de la raíz). El mapa
+  de todos los prompts está en `docs/monorepo/prompts-de-u.md`.
 
 ## Este archivo
 

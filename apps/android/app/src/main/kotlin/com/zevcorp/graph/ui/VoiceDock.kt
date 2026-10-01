@@ -156,7 +156,7 @@ class VoiceDock(
         muted = false
         MicService.start(service)
         LogBus.log("meeting", "▶ MODO REUNIÓN en la esquina ${if (dockLeft) "izquierda" else "derecha"}")
-        narrate("Estoy en la reunión 👂 tomo notas y construyo lo que decidan")
+        narrate("Estoy en la reunión: tomo notas y construyo lo que decidan.")
         loopJob = app.scope.launch {
             try {
                 listenLoop()
@@ -177,7 +177,7 @@ class VoiceDock(
         meeting?.persist()
         LogBus.log("meeting", "■ reunión terminada (burbuja fuera de la esquina) · " +
             "${meeting?.notes()?.size ?: 0} notas guardadas en files/meetings/")
-        narrate("Listo, salgo de la reunión 👋 las notas quedaron guardadas")
+        narrate("Listo, salgo de la reunión; las notas quedaron guardadas.")
         if (!listening) { hideBadge(); setThinking(false) }
     }
 
