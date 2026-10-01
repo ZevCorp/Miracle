@@ -22,7 +22,7 @@ así: sus promesas llevan número propio y el juez las imprime una por una (ver
 | 8 | El texto clínico se normaliza, y cada fragmento de la nota se localiza en la transcripción de la que salió | `verify-clinical-text.js` |
 | 9 | El flujo clínico completo funciona por las rutas reales: plantilla, encounter, transcripción, nota generada y nota editada | `verify-clinical-workflow.js` |
 | 10 | Publicar la consulta en el historial se hace en el servidor y no pisa el estado, la firma ni el paciente que puso el médico | `verify-consultation-mirror.js` |
-| 11 | Con varias voces el prompt explica las etiquetas de hablante y lo del médico manda; con una sola, la transcripción llega como antes (promesas 600-603 de la spec 070 de Windows) | `verify-diarizacion.js` |
+| 11 | Con varias voces el prompt explica las etiquetas de hablante, lo del médico manda y un diagnóstico que solo dice el paciente no cuenta como conocido; con una sola voz, la transcripción llega como antes (promesas 600-603 y 610 de la spec 070 de Windows) | `verify-diarizacion.js` |
 | 12 | El `context` que manda el agente reemplaza los valores grabados de los pasos dinámicos al construir el plan | `verify-dynamic-values.js` |
 | 13 | Ningún archivo de Graph habla con un proveedor de IA fuera de los transportes conocidos, y los que llevan texto clínico pasan por el escudo | `verify-egress-gateway.js` |
 | 14 | Los `valueMode` y `bindTo` que trae un paso se guardan tal cual, y el clasificador solo rellena los que vienen sin modo | `verify-explicit-modes.js` |
