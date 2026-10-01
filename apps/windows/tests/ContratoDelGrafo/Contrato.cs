@@ -18693,8 +18693,12 @@ internal static class Contrato
         }
 
         if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
-        Debe(cara.Contains("AvisarAlModeloAsync(Onboarding.Presentacion.Saludo(", StringComparison.Ordinal),
-            "[cableado] el saludo de primera vez va como nota del sistema");
+        // DESDE LA SPEC 080 la primera vez la saluda el primer encuentro, que la voz DICTA (session.commentary.append):
+        // tampoco entra como texto de la persona. Vale el camino viejo o el nuevo, lo que no vale es ninguno.
+        string encuentro = FuenteDe("windows-client", "src", "Ui", "FaceWindow.Encuentro.cs") ?? "";
+        Debe(cara.Contains("AvisarAlModeloAsync(Onboarding.Presentacion.Saludo(", StringComparison.Ordinal)
+             || encuentro.Contains("DecirTalCualAsync(", StringComparison.Ordinal),
+            "[cableado] el saludo de primera vez va como nota del sistema, o lo dicta el primer encuentro");
         Debe(cara.Contains("AvisarAlModeloAsync(\"[el tramo terminó] \"", StringComparison.Ordinal),
             "[cableado] y la cuenta de un tramo también");
         Debe(!cara.Contains("EnviarTextoAsync(Onboarding.Presentacion.Saludo(", StringComparison.Ordinal)

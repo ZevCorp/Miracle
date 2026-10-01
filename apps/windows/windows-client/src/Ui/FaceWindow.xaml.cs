@@ -1612,8 +1612,22 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             }
 
             // LA BIENVENIDA YA NO ES UNA VENTANA (spec 080): quién eres lo pregunta el primer encuentro, hablando,
-            // y su rol —estudiante o médico— llena el perfil de uso de abajo (ver AlTerminarElEncuentro).
-            // El menú «cambiar perfil» de la spec 078 sigue usando OnboardingWindow, solo con las tarjetas.
+            // y su rol —estudiante o médico— llena el perfil de uso (ver AlTerminarElEncuentro). El switch se queda
+            // porque la promesa 742 juzga lo que pasa ANTES de él, pero ya no abre nada: solo deja dicho qué hay.
+            switch (Cuenta.Identidad.QueBienvenida(hayMedico, _config.Email, _config.Perfil))
+            {
+                case Cuenta.Bienvenida.Completa:
+                    LogBus.Log("onboarding", "equipo nuevo: lo conoce el primer encuentro, no una ventana");
+                    break;
+                case Cuenta.Bienvenida.SoloPerfil:
+                    LogBus.Log("onboarding", "falta el perfil: lo dice el rol del primer encuentro, o el menú «cambiar perfil»");
+                    break;
+                default:
+                    LogBus.Log("onboarding", hayMedico
+                        ? "no pregunto quién eres: ya hay un médico con sesión iniciada"
+                        : "no pregunto quién eres: ya había correo y perfil en este equipo");
+                    break;
+            }
 
             _perfilDeLaCuenta = hayMedico;
             _perfil = Cuenta.PerfilDeUso.Resolver(hayMedico,
