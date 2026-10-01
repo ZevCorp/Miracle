@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# UN AGENTE, UN ÁRBOL: si una sesión de agente cambia de rama en el árbol que usa otra, se le dice
+# cómo deshacerlo. Git no deja frenar un cambio de rama antes de hacerlo; por eso la regla es nacer
+# con árbol propio (tools/monorepo/arbol.sh nuevo) y no con `git switch -c`.
+#
+# $3 = 1 en un cambio de rama; 0 al sacar archivos sueltos, que no interesa.
+[ "${3:-0}" = "1" ] || exit 0
+guardia="$(git rev-parse --show-toplevel)/tools/monorepo/arbol.sh"
+[ -f "$guardia" ] || exit 0
+exec bash "$guardia" guardia --cambio

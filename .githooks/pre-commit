@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# UN AGENTE, UN ÁRBOL: una sesión de agente no commitea en el árbol de trabajo que está usando otra.
+# El porqué y las reglas están en tools/monorepo/arbol.sh, que es quien decide. A una persona en su
+# terminal no la toca.
+guardia="$(git rev-parse --show-toplevel)/tools/monorepo/arbol.sh"
+[ -f "$guardia" ] || exit 0
+exec bash "$guardia" guardia --commit
