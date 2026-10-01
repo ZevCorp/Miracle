@@ -184,6 +184,13 @@ public interface IProtocolo
     /// </summary>
     string Avance(string texto) => "";
 
+    /// <summary>
+    /// Algo que quien habla tiene que tener presente toda la sesión —cómo quiere la persona que le hablen—
+    /// cuando quien habla no es quien lleva las instrucciones de operar. Vacío si es el mismo modelo
+    /// (<see cref="ActuaUnDelegado"/> falso): ya lo lleva en sus instrucciones.
+    /// </summary>
+    string ParaLaVoz(string texto) => "";
+
     /// <summary>Qué está diciendo el servidor, en hechos. Vacío si no dice nada que nos toque.</summary>
     IReadOnlyList<Hecho> Leer(JsonElement mensaje);
 }

@@ -460,6 +460,30 @@ public sealed class ProtocoloGptLive : IProtocolo
             content = texto.Trim(),
         });
 
+    /// <summary>
+    /// LO QUE LA PERSONA PREFIERE, PARA QUIEN HABLA: <c>session.instructions.append</c> (spec 074, promesa 68).
+    /// </summary>
+    /// <remarks>
+    /// La persona de la voz es fija y lo aprendido viaja en las instrucciones del delegado, que no habla:
+    /// «háblame más corto» se guardaba y nadie lo cumplía. Va como instrucción y no como avance —un avance
+    /// es algo que pasó, esto es cómo hablar—, por el mismo evento con que ya se le cambia el modo.
+    /// NUNCA PASA DEL TOPE: un append de más de 500 fichas se rechaza y la sesión sigue viva, con solo una
+    /// línea en el log (ver <see cref="TopeDeUnAppend"/>); lo que no cabe se recorta y se dice.
+    /// </remarks>
+    public string ParaLaVoz(string texto)
+    {
+        string t = (texto ?? "").Trim();
+        if (t.Length == 0) return "";
+        const string cola = "\n[recortado: no cabe todo]";
+        if (t.Length > TopeDeUnAppend) t = t[..(TopeDeUnAppend - cola.Length)] + cola;
+        return JsonSerializer.Serialize(new
+        {
+            type = "session.instructions.append",
+            delegation_id = (string?)null,
+            content = t,
+        });
+    }
+
     public IReadOnlyList<Hecho> Leer(JsonElement m)
     {
         var hechos = new List<Hecho>();

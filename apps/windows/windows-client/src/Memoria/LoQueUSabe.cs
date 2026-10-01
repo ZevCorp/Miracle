@@ -32,7 +32,7 @@ public sealed record Apartado(string Clave, string Titulo, string Resumen, Estad
     int Cuenta, IReadOnlyList<Entrada> Entradas);
 
 /// <summary>Dónde está en disco cada cosa que Ü guarda de la persona.</summary>
-public sealed record Fuentes(string UserId, string Config, string Memoria, string Conversacion, string Skills,
+public sealed record Fuentes(string UserId, string Config, string Memoria, string Conversacion, string Aprendido, string Skills,
     string Lecciones, string Miradas, string Fotos, string TitulosWeb, string Collar, string NombresDeDispositivos,
     string Logs, bool ElRegistroSeCopia)
 {
@@ -47,7 +47,7 @@ public sealed record Fuentes(string UserId, string Config, string Memoria, strin
     /// </remarks>
     public static Fuentes DeLaApp(string userId, bool elRegistroSeCopia) => new(
         Limpio(userId), U.WindowsClient.Config.Archivo, MemoriaPersonal.ArchivoPorDefecto,
-        ConversacionPersonal.ArchivoPorDefecto, SkillEnsenada.CarpetaPorDefecto, LeccionEnDisco.CarpetaRaiz,
+        ConversacionPersonal.ArchivoPorDefecto, LoAprendido.ArchivoPorDefecto, SkillEnsenada.CarpetaPorDefecto, LeccionEnDisco.CarpetaRaiz,
         AlbumDeMiradas.CarpetaDelUsuario, FotosDeLosRecuerdos.Carpeta, PestanasAbiertas.Archivo,
         CollarPermanente.Archivo, U.WindowsClient.Voice.NombresDeDispositivos.Archivo, LogBus.Carpeta, elRegistroSeCopia);
 
@@ -56,7 +56,8 @@ public sealed record Fuentes(string UserId, string Config, string Memoria, strin
     {
         string r = Path.Combine(roaming, "U"), l = Path.Combine(local, "U");
         return new(Limpio(userId), Path.Combine(r, "config.json"), Path.Combine(r, "memoria-personal.json"),
-            Path.Combine(r, "conversacion-personal.json"), Path.Combine(l, "skills"), Path.Combine(l, "lecciones"),
+            Path.Combine(r, "conversacion-personal.json"), Path.Combine(r, "aprendido.json"), Path.Combine(l, "skills"),
+            Path.Combine(l, "lecciones"),
             Path.Combine(l, "recuerdos", "miradas"), Path.Combine(l, "recuerdos", "fotos"),
             Path.Combine(l, "titulos-web.json"), Path.Combine(l, "collar.json"),
             Path.Combine(l, "nombres-de-dispositivos.json"), Path.Combine(l, "logs"), ElRegistroSeCopia: true);
@@ -71,7 +72,7 @@ public sealed record Fuentes(string UserId, string Config, string Memoria, strin
 /// (spec 071), y no decide nada más: no escribe, no borra, no corrige.
 /// </summary>
 /// <remarks>
-/// EL PLAN ES EL DENOMINADOR (promesa 622). Los doce apartados salen siempre, haya algo o no: uno que
+/// EL PLAN ES EL DENOMINADOR (promesa 622). Los trece apartados salen siempre, haya algo o no: uno que
 /// desapareciera al estar vacío no se distinguiría de uno que nadie escribió, y «esto es todo lo que
 /// sé de ti» pasaría a ser cierto solo de lo que se acordó de enseñar (aprendizaje nº10).
 ///
@@ -96,7 +97,7 @@ public static class LoQueUSabe
     /// <summary>Los apartados, en el orden en que se leen: de la persona hacia fuera.</summary>
     public static readonly IReadOnlyList<string> Plan = new[]
     {
-        "quien", "datos", "recordatorios", "conversacion", "habilidades", "lecciones",
+        "quien", "datos", "preferencias", "recordatorios", "conversacion", "habilidades", "lecciones",
         "pantalla", "sitios", "explicado", "aparatos", "registro", "fuera",
     };
 
@@ -105,13 +106,16 @@ public static class LoQueUSabe
         // El archivo de la memoria alimenta dos apartados: se lee UNA vez, para que los dos digan lo
         // mismo de él aunque alguien lo esté reescribiendo en ese instante.
         using var memoria = Json(f.Memoria);
+        // Y el de lo aprendido (spec 074), otros dos: las preferencias y las habilidades enseñadas hablando.
+        using var aprendido = Json(f.Aprendido);
         return new[]
         {
             Quien(f),
             Datos(memoria, f.UserId, ahora),
+            Preferencias(aprendido, ahora),
             Recordatorios(memoria, f.UserId, ahora),
             Conversacion(f, ahora),
-            Habilidades(f),
+            Habilidades(f, aprendido),
             Lecciones(f, ahora),
             Pantalla(f, ahora),
             Sitios(f),
@@ -157,6 +161,30 @@ public static class LoQueUSabe
             ? Vacio(clave, titulo, nada)
             : new Apartado(clave, titulo, Cuantas(entradas.Count, "cosa que me pediste recordar", "cosas que me pediste recordar")
                 + " Las tengo presentes cada vez que hablamos.", EstadoDelApartado.ConDatos, entradas.Count, entradas);
+    }
+
+    /// <summary>
+    /// Cómo quiere las cosas (spec 074, promesa 715). Lo escribe <c>LoAprendido</c>; aquí se lee el archivo
+    /// sin pasar por él, porque él APARTA un archivo ilegible —lo mueve—, y mirar no puede cambiar lo mirado (626).
+    /// </summary>
+    private static Apartado Preferencias(Lectura aprendido, DateTimeOffset ahora)
+    {
+        const string clave = "preferencias", titulo = "Cómo quieres las cosas";
+        const string nada = "Todavía no me has dicho cómo prefieres las cosas.";
+        if (aprendido.Como == Como.NoHay) return Vacio(clave, titulo, nada);
+        if (aprendido.Doc == null) return NoPude(clave, titulo, aprendido.Como);
+        if (aprendido.Doc.RootElement.ValueKind != JsonValueKind.Object) return NoPude(clave, titulo, Como.Danado);
+        // Un archivo que solo tiene habilidades no trae la lista, y eso no es estar dañado.
+        Lista(aprendido.Doc.RootElement, "preferencias", out var guardadas);
+
+        var entradas = guardadas.Where(p => Texto(p, "texto").Length > 0)
+            .OrderByDescending(p => Fecha(p, "actualizada"))
+            .Select(p => new Entrada(Texto(p, "texto"), "Me lo dijiste " + Fechas.Dicha(Fecha(p, "actualizada"), ahora)))
+            .ToList();
+        return entradas.Count == 0
+            ? Vacio(clave, titulo, nada)
+            : new Apartado(clave, titulo, Cuantas(entradas.Count, "preferencia tuya", "preferencias tuyas")
+                + " Las cumplo sin que me las repitas, al hablar y al trabajar.", EstadoDelApartado.ConDatos, entradas.Count, entradas);
     }
 
     private static Apartado Recordatorios(Lectura memoria, string userId, DateTimeOffset ahora)
@@ -206,7 +234,7 @@ public static class LoQueUSabe
         return new Apartado(clave, titulo, resumen, EstadoDelApartado.ConDatos, mios.Count, entradas);
     }
 
-    private static Apartado Habilidades(Fuentes f)
+    private static Apartado Habilidades(Fuentes f, Lectura aprendido)
     {
         const string clave = "habilidades", titulo = "Lo que me has enseñado a hacer";
         const string nada = "Todavía no me has enseñado ninguna tarea.";
@@ -215,6 +243,27 @@ public static class LoQueUSabe
 
         var entradas = new List<Entrada>();
         int rotas = 0;
+
+        // LAS ENSEÑADAS HABLANDO (spec 074), con las demás: para la persona son lo mismo —algo que Ü sabe hacer
+        // porque ella se lo enseñó—, vengan de una demostración o de una frase.
+        // Y si ese archivo no se pudo leer, se dice POR QUÉ, aparte: «ocupado» no es «dañado» (aprendizaje nº2).
+        Como? noHabladas = null;
+        if (aprendido.Como != Como.NoHay)
+        {
+            if (aprendido.Doc?.RootElement.ValueKind != JsonValueKind.Object)
+                noHabladas = aprendido.Doc == null ? aprendido.Como : Como.Danado;
+            else if (Lista(aprendido.Doc.RootElement, "habilidades", out var habladas))
+                foreach (var h in habladas)
+                {
+                    string nombre = Texto(h, "nombre");
+                    if (nombre.Length == 0) { rotas++; continue; }
+                    string cuando = Texto(h, "cuando");
+                    int pasos = Lista(h, "pasos", out var lista) ? lista.Count : 0;
+                    entradas.Add(new Entrada(nombre, (cuando.Length > 0 ? Mayuscula(cuando).TrimEnd('.') + ". " : "")
+                        + $"{Numero(pasos)} {(pasos == 1 ? "paso" : "pasos")}. Me la enseñaste hablando."));
+                }
+        }
+
         foreach (string archivo in archivos)
         {
             using var leido = Json(archivo);
@@ -225,9 +274,11 @@ public static class LoQueUSabe
             entradas.Add(new Entrada(nombre, (paraQue.Length > 0 ? paraQue.TrimEnd('.') + ". " : "")
                 + (repasada ? "Ya la repasamos juntos." : "Falta repasarla contigo antes de usarla por mi cuenta.")));
         }
-        string noLeidas = rotas == 0 ? "" : $" No pude leer {Numero(rotas)} más: lo guardado está dañado.";
+        string noLeidas = (rotas == 0 ? "" : $" No pude leer {Numero(rotas)} más: lo guardado está dañado.")
+            + (noHabladas is { } porQue ? $" No pude leer las que me enseñaste hablando: {Motivo(porQue)}." : "");
         if (entradas.Count == 0)
-            return rotas == 0 ? Vacio(clave, titulo, nada) : NoPude(clave, titulo, Como.Danado);
+            return noHabladas is { } motivo ? NoPude(clave, titulo, motivo)
+                : rotas == 0 ? Vacio(clave, titulo, nada) : NoPude(clave, titulo, Como.Danado);
         entradas.Sort((a, b) => string.Compare(a.Texto, b.Texto, StringComparison.CurrentCultureIgnoreCase));
         return new Apartado(clave, titulo, Cuantas(entradas.Count, "tarea que sé hacer porque me la enseñaste",
             "tareas que sé hacer porque me las enseñaste") + noLeidas, EstadoDelApartado.ConDatos, entradas.Count, entradas);

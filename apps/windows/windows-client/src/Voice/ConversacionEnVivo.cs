@@ -40,6 +40,14 @@ public sealed class ConversacionEnVivo : IDisposable
     public MemoriaPersonal? Memoria { get; set; }
     /// <summary>Hilo durable que une sesiones de voz sucesivas del mismo usuario.</summary>
     public ConversacionPersonal? Conversacion { get; set; }
+    /// <summary>Lo que la persona le ha enseñado: habilidades y preferencias (spec 074). Sin él, la voz funciona y no aprende.</summary>
+    public LoAprendido? Aprendido { get; set; }
+    /// <summary>Quien repasa el diario de la sesión al cerrar. Sin él, el diario queda pendiente en disco.</summary>
+    public ElRepaso? Repaso { get; set; }
+    /// <summary>Dónde esperan los diarios por repasar. Se puede cambiar para probar sin tocar los de la persona.</summary>
+    public string CarpetaDeDiarios { get; set; } = DiarioDeLaSesion.CarpetaPorDefecto;
+    /// <summary>Lo que va pasando en ESTA sesión, de que abre a que cierra; las reconexiones no lo parten.</summary>
+    private DiarioDeLaSesion? _diario;
     private ClientWebSocket? _ws;
     private CancellationTokenSource? _cts;
     private readonly SemaphoreSlim _envio = new(1, 1);
@@ -501,6 +509,8 @@ public sealed class ConversacionEnVivo : IDisposable
             _segundosDeLaConexion = _segundosDeConexionesAnteriores = 0;
             _sesionId = Guid.NewGuid().ToString("n");
             _inicioSesion = DateTime.UtcNow;
+            EmpiezaElDiario();
+            RepasarLoPendiente();   // lo que la sesión anterior no llegó a repasar (promesa 711)
 
             Viva = true;
             Cambio?.Invoke(true);
@@ -650,8 +660,11 @@ public sealed class ConversacionEnVivo : IDisposable
         // guarda estas frases en CierraElTurno; aquí solo quedan las que aún no alcanzaron ese evento.
         Conversacion?.Agregar("usuario", _fraseUsuario.ToString());
         Conversacion?.Agregar("asistente", _fraseU.ToString());
+        _diario?.Persona(_fraseUsuario.ToString());
+        _diario?.U(_fraseU.ToString());
         _fraseUsuario.Clear();
         _fraseU.Clear();
+        RepasarLaSesion();   // deja el diario en disco y lanza el repaso; no espera (promesa 714)
         ReportarConsumo();
         Viva = false;
         _aperturaConfirmada?.TrySetResult(false);
@@ -672,6 +685,111 @@ public sealed class ConversacionEnVivo : IDisposable
         string? ultimaMedida = _cuenta.Cerrar();   // el último turno también deja su línea (spec 017)
         if (ultimaMedida != null) LogBus.Log("voz-turno", ultimaMedida);
         LogBus.Log("voz-viva", "sesión cerrada");
+    }
+
+    // ── El diario de la sesión y su repaso (spec 074) ────────────────────────
+
+    private Action<string>? _alTocarLaPersona;
+
+    private void EmpiezaElDiario()
+    {
+        _diario = new DiarioDeLaSesion(_sesionId);
+        // LO QUE LA PERSONA TOCA ENTRA AL DIARIO en su sitio, entre lo que dice y lo que Ü hace: «mira, se hace
+        // así» seguido de cuatro clics solo se entiende con los cuatro clics.
+        if (_alTocarLaPersona == null)
+        {
+            _alTocarLaPersona = linea => _diario?.Toco(linea);
+            LoQueHiciste.DeLaPersona.Anotado += _alTocarLaPersona;
+        }
+    }
+
+    /// <summary>
+    /// AL CERRAR: el diario a disco, y el repaso en segundo plano (promesa 714).
+    /// </summary>
+    /// <remarks>
+    /// PRIMERO SE ESCRIBE, DESPUÉS SE REPASA. Si la app se cierra a mitad, o no hay red, el diario sigue en
+    /// disco y lo repasa la sesión siguiente (711). Y NO SE ESPERA: quien apaga la voz no tiene por qué notar
+    /// que detrás hay un modelo leyendo lo que pasó.
+    /// </remarks>
+    private void RepasarLaSesion()
+    {
+        var diario = _diario;
+        _diario = null;
+        if (_alTocarLaPersona != null)
+        {
+            LoQueHiciste.DeLaPersona.Anotado -= _alTocarLaPersona;
+            _alTocarLaPersona = null;
+        }
+        if (diario == null) return;
+        // TerminarAsync corre también para una sesión que nunca abrió —sin clave, sin crédito—: esa no tiene
+        // diario que dejar, y no se dice nada de ella.
+        if (!_confirmada && diario.Entradas.Count == 0) return;
+        if (!diario.TieneQueRepasar)
+        {
+            LogBus.Log("repaso", $"sesión {diario.Sesion}: la persona no dijo nada que repasar; no se guarda diario ni se llama al modelo");
+            return;
+        }
+
+        string carpeta = CarpetaDeDiarios;
+        try { diario.Guardar(carpeta); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            LogBus.Log("repaso", $"no pude escribir el diario de la sesión {diario.Sesion} en «{carpeta}»: {e.GetType().Name}: {e.Message}. Esta sesión no se repasará");
+            return;
+        }
+        string cuando = $"al cerrar la sesión {diario.Sesion}";
+        _ = Task.Run(() => RepasarLaCarpetaAsync(carpeta, cuando));
+    }
+
+    /// <summary>
+    /// AL ABRIR —la voz, y la app—: lo que quedó sin repasar de antes —se cerró la app, no había red— se repasa
+    /// ahora (711). Al arrancar la app importa: cerrar Ü corta el repaso de la última sesión, y repasarla al
+    /// abrir la voz llegaría tarde para las instrucciones de esa misma sesión.
+    /// </summary>
+    public void RepasarLoPendiente()
+    {
+        string carpeta = CarpetaDeDiarios;
+        _ = Task.Run(() => RepasarLaCarpetaAsync(carpeta, "al abrir"));
+    }
+
+    /// <summary>
+    /// LO QUE LA PERSONA PREFIERE, TAMBIÉN A QUIEN HABLA (promesa 716). Con GPT-Live lo aprendido va en las
+    /// instrucciones del delegado, que no habla; «háblame más corto» es para la voz, que tiene su propia persona.
+    /// </summary>
+    private void ContarleLasPreferenciasALaVoz()
+    {
+        string msg;
+        try { msg = _protocolo.ParaLaVoz(Aprendido?.ParaLaVoz(ProtocoloGptLive.TopeDeUnAppend) ?? ""); }
+        catch (Exception e) { LogBus.Log("aprendido", $"no pude leer las preferencias para la voz: {e.GetType().Name}: {e.Message}"); return; }
+        if (msg.Length == 0) return;
+        LogBus.Log("voz-viva", "preferencias de la persona, a la voz");
+        _ = Task.Run(async () =>
+        {
+            try { await EnviarAsync(msg, _cts?.Token ?? CancellationToken.None); }
+            catch (Exception e) { LogBus.Log("voz-viva", $"no pude contarle las preferencias a la voz: {e.Message}"); }
+        });
+    }
+
+    private async Task RepasarLaCarpetaAsync(string carpeta, string cuando)
+    {
+        try
+        {
+            var repaso = Repaso;
+            if (repaso == null)
+            {
+                if (Directory.Exists(carpeta) && Directory.EnumerateFiles(carpeta, "*.json").Any())
+                    LogBus.Log("repaso", $"hay diarios por repasar en «{carpeta}» y nadie conectó el repaso: siguen pendientes");
+                return;
+            }
+            int repasadas = await repaso.PendientesAsync(carpeta, CancellationToken.None);
+            if (repasadas > 0) LogBus.Log("repaso", $"{repasadas} sesión(es) repasada(s) {cuando}");
+        }
+        catch (Exception e)
+        {
+            // LA CADENA ENTERA (patrón nº3): un repaso que revienta en silencio es una sesión que no enseñó nada.
+            for (var x = e; x != null; x = x.InnerException)
+                LogBus.Log("repaso", $"el repaso {cuando} reventó: {x.GetType().Name}: {x.Message}");
+        }
     }
 
     // ── Lo que se le dice al modelo al empezar ───────────────────────────────
@@ -829,8 +947,10 @@ public sealed class ConversacionEnVivo : IDisposable
             seguidos sin que se encendiera nada (2026-08-24)—. Es la misma razón por la que «sí, lo
             veo» no vale sin map_show: quien pregunta qué sabes está comprobando que lo que
             aprendiste es lo que él tiene delante, y eso solo se comprueba VIÉNDOLO marcado.
-          · «TOMO NOTA» NO ES TOMAR NOTA. Si es un dato PERSONAL, una preferencia o un compromiso del
-            usuario, llama a memory_remember y espera su resultado antes de decir que lo guardaste.
+          · «TOMO NOTA» NO ES TOMAR NOTA. Si es un dato PERSONAL o un compromiso del usuario, llama a
+            memory_remember y espera su resultado antes de decir que lo guardaste. Si es CÓMO QUIERE LAS
+            COSAS —«háblame más corto», «no me preguntes antes de guardar», «siempre en Chrome»—, eso es
+            una preferencia y va con preferencia_guardar: es lo que hace que la cumpla también la voz.
             Si incluye «mañana», «hoy», una hora o «en X minutos» (también «en dos minutos» o «dentro de dos minutos»), usa memory_remember y conserva el
             compromiso completo, incluyendo la referencia temporal. No afirmes que sonará una alarma
             a menos que exista una alarma confirmada. Si vas a decir que lo recuerdas, GUÁRDALO PRIMERO
@@ -852,8 +972,9 @@ public sealed class ConversacionEnVivo : IDisposable
             número de factura, nunca el nombre» enseña más que «número de factura». Y AQUÍ SÍ TE
             LLEGA UNA FOTO —del instante en que se creó el recuerdo, no de cuando señalaste— así que
             además VES lo que rodeaba el elemento.
-          · LOS IMPERATIVOS SE DIVIDEN EN DOS. «Recuerda que soy desarrollador», una preferencia,
-            una fecha o un compromiso personal → memory_remember. «Recuerda que en este botón se hace
+          · LOS IMPERATIVOS SE DIVIDEN EN TRES. «Recuerda que soy desarrollador», una fecha o un
+            compromiso personal → memory_remember. «De ahora en adelante hazlo así», «no me gusta que…»,
+            un valor por defecto → preferencia_guardar. «Recuerda que en este botón se hace
             clic para…» → map_esto_es porque enseña una pantalla. Nunca uses map_esto_es para guardar
             datos personales: necesita un elemento visible y los rechazará sin uno.
           · SI TE ENSEÑAN ALGO QUE NO ESTÁN SEÑALANDO —«recuerda que para iniciar sesión se hace
@@ -884,6 +1005,26 @@ public sealed class ConversacionEnVivo : IDisposable
           · ENSEÑAR Y ACTUAR PUEDEN IR EN LA MISMA FRASE. «Esto es donde se radican los pacientes,
             entra» son dos cosas a la vez: crea el recuerdo CON map_esto_es Y entra con map_take o
             map_go_to. No elijas solo una de las dos.
+
+        LAS HABILIDADES: CÓMO SE HACE ALGO, A LA MANERA DE ESTA PERSONA. Un recuerdo (map_esto_es) dice qué ES
+        algo en una pantalla; una habilidad dice CÓMO SE HACE una tarea, paso a paso, y vale en cualquier parte.
+
+          · SI TE ENSEÑAN CÓMO SE HACE ALGO —«te voy a enseñar a…», «se hace así», «cuando te pida X, haz Y»,
+            «apréndete esto»— guárdalo EN ESE MOMENTO con habilidad_escribir: un nombre corto como lo diría
+            la persona, cuándo usarla, y los pasos en orden, uno por línea, con el nombre exacto de cada botón
+            o campo. No esperes a que se repita ni a que termine la sesión: con una vez basta.
+          · SI TE LO MUESTRAN EN VEZ DE DECIRLO —«mira cómo lo hago», «fíjate», y la persona lo hace con su
+            ratón— llama a habilidad_lo_que_hice: te devuelve lo que acaba de pulsar, en orden y con el nombre
+            con que map_take lo encuentra. Con eso y con lo que te dijo, escribe los pasos.
+          · SI TE CORRIGEN una habilidad —«no, primero…», «te faltó…», «ese paso ya no»— RECONSTRÚYELA ENTERA:
+            llama otra vez a habilidad_escribir con el MISMO nombre y TODOS los pasos, los que siguen valiendo
+            y los corregidos. Lo que mandes sustituye a lo que había: no existe «cambiar el paso 3».
+          · SI TE PIDEN ALGO QUE UNA HABILIDAD DESCRIBE, SIGUE SUS PASOS, en su orden, en vez de improvisar: es
+            la manera de esta persona, y por eso te la enseñó. Las que tienes vienen al final de estas
+            instrucciones; si solo viene su nombre, lee sus pasos con habilidad_leer antes de empezar. Si un
+            paso ya no funciona, resuélvelo como sepas, termina, y cuenta qué cambió.
+          · «Olvida cómo se hace X», «ya no lo hagas así» → habilidad_olvidar.
+          · DI QUE LA GUARDASTE solo cuando la herramienta lo confirme, y con su nombre.
 
         SEÑALAR ANTES QUE AFIRMAR. Si te preguntan «¿ves X?» o «¿dónde está X?», usa map_show: dice
         si está y además lo marca en pantalla y lleva la carita a su lado. Contestar «sí, lo veo» sin
@@ -1250,8 +1391,8 @@ public sealed class ConversacionEnVivo : IDisposable
             ("cual", "Cuál contar, empezando en 1. Vacío = el primero.")),
         Fn("map_esto_es", "CREA UN RECUERDO DE PANTALLA con lo que el usuario te está ENSEÑANDO. "
             + "Úsala solo cuando explique qué es un elemento visible o para qué sirve: «esto es X», "
-            + "«aquí va X cuando Y», «este botón sirve para…». Los datos personales, preferencias y "
-            + "compromisos van SIEMPRE a memory_remember, aunque la frase empiece por «recuerda que». "
+            + "«aquí va X cuando Y», «este botón sirve para…». Los datos personales y los compromisos van "
+            + "SIEMPRE a memory_remember, y las preferencias a preferencia_guardar, aunque la frase empiece por «recuerda que». "
             + "Queda pegado a ese elemento en esa pantalla, CON UNA FOTO del instante, y "
             + "map_where_am_i te lo recordará cuando vuelvas. Nunca para describir lo que tú vas a "
             + "pulsar o escribir: un recuerdo es lo que te enseñan, no una nota tuya.",
@@ -1317,9 +1458,9 @@ public sealed class ConversacionEnVivo : IDisposable
             ("query", "Parte del nombre que buscas."),
              ("path", "Dónde buscar. Vacío = la carpeta abierta ahora.")),
 
-        Fn("memory_remember", "GUARDA UN DATO PERSONAL, una preferencia o un compromiso del usuario. Úsala "
+        Fn("memory_remember", "GUARDA UN DATO PERSONAL o un compromiso del usuario. Úsala "
             + "para «recuerda que soy…», «no olvides…», «toma nota de…» y cualquier cosa que deba sobrevivir "
-            + "al cierre de la voz. Si lleva «mañana», «hoy», una hora o «en X minutos» (incluidos números escritos como «dos»), conserva el "
+            + "al cierre de la voz. CÓMO QUIERE LAS COSAS no va aquí: va con preferencia_guardar. Si lleva «mañana», «hoy», una hora o «en X minutos» (incluidos números escritos como «dos»), conserva el "
             + "compromiso completo con esa referencia temporal. No anuncies una alarma programada sin una "
             + "confirmación explícita del sistema. ESPERA el resultado antes de afirmar que quedó guardado.",
             ("text", "El dato o compromiso completo, sin resumirlo.")),
@@ -1331,6 +1472,36 @@ public sealed class ConversacionEnVivo : IDisposable
             + "el resultado: nunca digas que no recuerdas como respuesta provisional. No la uses para recuerdos "
             + "ligados a una pantalla: para esos está map_recuerdos.",
             ("query", "Qué quieres recordar. Vacío = contexto personal disponible.")),
+
+        // LAS HABILIDADES (spec 074): cómo se hace algo, en texto. No son del mapa —no accionan nada— ni de la
+        // memoria personal: las despacha esta clase contra LoAprendido. Reconstruir es la única operación de
+        // escritura: una herramienta para «editar el paso 3» exige que el modelo y el archivo estén de acuerdo
+        // en cuál es el paso 3.
+        Fn("habilidad_escribir", "GUARDA CÓMO SE HACE ALGO, tal como te lo acaban de enseñar o corregir: «te voy a "
+            + "enseñar a…», «se hace así», «cuando te pida X, haz Y», «no, primero…». Queda guardada EN ESTE "
+            + "MOMENTO y la tendrás en todas las sesiones siguientes. Si ya existe una con ese nombre, la "
+            + "SUSTITUYE ENTERA: para corregir un paso, manda otra vez el mismo nombre con TODOS los pasos. "
+            + "ESPERA el resultado antes de decir que la guardaste.",
+            ("nombre", "Nombre corto de la tarea, como lo diría la persona: «buscar artículos», «radicar una cuenta»."),
+            ("cuando", "Cuándo usarla: qué pedirá la persona para que toque. Una frase."),
+            ("pasos", "TODOS los pasos, en orden, UNO POR LÍNEA, con el nombre exacto de cada botón, campo o "
+                    + "aplicación. Lo que cambia cada vez se nombra («el tema», «el destinatario»), no se copia.")),
+        Fn("habilidad_leer", "LEE LOS PASOS de una habilidad guardada. Úsala cuando en tus instrucciones solo venga "
+            + "su nombre, o antes de corregirla, para reconstruirla sin perder los pasos que siguen valiendo.",
+            ("nombre", "El nombre de la habilidad, como lo diga la persona.")),
+        Fn("habilidad_olvidar", "OLVIDA una habilidad: «olvida cómo se hace X», «ya no lo hagas así». No la uses para "
+            + "corregirla: para eso se vuelve a escribir entera.",
+            ("nombre", "El nombre de la habilidad.")),
+        Fn("preferencia_guardar", "GUARDA CÓMO QUIERE LAS COSAS ESTA PERSONA: cómo quiere que le hablen, qué elegir "
+            + "cuando hay duda, qué no hacer nunca. «Háblame más corto», «no me preguntes antes de guardar», "
+            + "«siempre en Chrome», «de ahora en adelante…». Vale desde ahora y en todas las sesiones, y la "
+            + "cumple también la voz. No es para un dato de la persona (memory_remember) ni para cómo se hace "
+            + "una tarea (habilidad_escribir). ESPERA el resultado antes de decir que la guardaste.",
+            ("texto", "La preferencia, corta y con sus palabras: «habla más corto», «no preguntes antes de guardar».")),
+        Fn("habilidad_lo_que_hice", "LO QUE LA PERSONA ACABA DE HACER CON SU RATÓN, en orden y con el nombre con que "
+            + "map_take lo encuentra. Úsala cuando te MUESTRE cómo se hace algo en vez de decírtelo —«mira cómo "
+            + "lo hago», «fíjate»—, justo después de que termine. Se entrega una sola vez: la llamada siguiente "
+            + "solo trae lo nuevo. No trae lo que tecleó: eso se lee de la pantalla o se le pregunta."),
 
         // SOBRE Ü MISMO, no sobre lo que hay en pantalla. Van aparte de las map_*/file_* —esas
         // accionan OTRAS aplicaciones; estas te accionan a TI— y por eso las ejecuta quien tiene la
@@ -1364,6 +1535,10 @@ public sealed class ConversacionEnVivo : IDisposable
     /// herramientas del mapa en el despacho — esas van a <see cref="_mapa"/>, estas a <see cref="Autocontrol"/>.</summary>
     private static readonly HashSet<string> HerramientasDeAutocontrol =
         new(StringComparer.Ordinal) { "self_mute", "self_hide", "self_close", "self_update", "scan_computer" };
+
+    /// <summary>Las de las habilidades (spec 074): tampoco son del mapa; las atiende <see cref="Aprendido"/>.</summary>
+    private static readonly HashSet<string> HerramientasDeHabilidad =
+        new(StringComparer.Ordinal) { "habilidad_escribir", "habilidad_leer", "habilidad_olvidar", "habilidad_lo_que_hice", "preferencia_guardar" };
 
     /// <summary>
     /// Quien atiende «self_mute»/«self_hide»/«self_close». Se inyecta desde la ventana, porque
@@ -1654,6 +1829,7 @@ public sealed class ConversacionEnVivo : IDisposable
         if (soloTexto) _respuestaDeTexto = true;
         EmpiezaUnTurnoDelUsuario("texto");   // escribir también es pedir algo nuevo (spec 017)
         Conversacion?.Agregar("usuario", texto);
+        _diario?.Persona(texto);   // lo escrito enseña igual que lo dicho (spec 074)
         Dice?.Invoke($"Tú: {texto}");
         var ct = _cts?.Token ?? CancellationToken.None;
         foreach (string msg in MensajesDeTexto(_protocolo, texto))   // promesa 208: lo escrito pide respuesta
@@ -2105,9 +2281,10 @@ public sealed class ConversacionEnVivo : IDisposable
                 if (_fraseU.Length > 0) LogBus.Log("voz-viva", $"Ü dijo: {_fraseU}");
                 if (_fraseUsuario.Length > 0) LogBus.Log("voz-viva", $"usuario dijo: {_fraseUsuario}");
                 GuardarPeticionPersonalSiLaPidio(_fraseUsuario.ToString());
-                GuardarDetallePersonalSiEsRelevante(_fraseUsuario.ToString());
                 Conversacion?.Agregar("usuario", _fraseUsuario.ToString());
                 Conversacion?.Agregar("asistente", _fraseU.ToString());
+                _diario?.Persona(_fraseUsuario.ToString());
+                _diario?.U(_fraseU.ToString());
                 // LO QUE EL HUMANO DIJO, PARA QUIEN ESTÉ APRENDIENDO. Mientras se enseña con 🎓,
                 // cada frase completa del operador es candidata a explicar el paso que estaba
                 // dando: la frase se entrega al oyente y él la ancla por tiempo (promesa 105). Se
@@ -2195,6 +2372,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 _aperturaConfirmada?.TrySetResult(true);
                 LogBus.Log("voz-viva", $"sesión abierta con {QuienAbre}: el servidor la confirmó");   // la única que lo afirma (220)
                 if (_alConfirmar.Length > 0) { Dice?.Invoke(_alConfirmar); _alConfirmar = ""; }
+                ContarleLasPreferenciasALaVoz();   // en cada conexión: al reconectar la voz es otra (promesa 716)
                 break;
         }
     }
@@ -2232,53 +2410,12 @@ public sealed class ConversacionEnVivo : IDisposable
         }
     }
 
+    // AQUÍ ESTABA GuardarDetallePersonalSiEsRelevante, y se quitó con la spec 074 (2026-10-01): una lista de
+    // palabras —«me gusta», «soy », «tengo un »— que guardaba la frase cruda en la memoria personal. De las 16
+    // entradas del dueño al 30 de septiembre, 7 eran ruido suyo («soy yo otra vez, ábreme…»). Lo que hacía lo
+    // hace ElRepaso al cerrar la sesión: con criterio, en limpio, y solo con una cita de la persona.
+
     /// <summary>
-    /// Guarda detalles personales de alta confianza aunque no lleven el verbo «recordar»: gustos,
-    /// preferencias, sueños, relaciones de trabajo y datos que el usuario cuenta espontáneamente.
-    /// El modelo puede enriquecerlos después, pero la captura inicial no depende de que decida llamar
-    /// una herramienta a tiempo.
-    /// </summary>
-    private void GuardarDetallePersonalSiEsRelevante(string texto)
-    {
-        if (Memoria == null || string.IsNullOrWhiteSpace(texto)) return;
-        string bajo = texto.Trim().ToLowerInvariant();
-        if (bajo.Length < 12 || bajo.Length > 900) return;
-        if (bajo.Contains("recuerda", StringComparison.Ordinal)
-            || bajo.Contains("recuérd", StringComparison.Ordinal)
-            || bajo.Contains("busca en memoria", StringComparison.Ordinal)
-            || bajo.Contains("¿", StringComparison.Ordinal)
-            || bajo.StartsWith("qué ", StringComparison.Ordinal)
-            || bajo.StartsWith("como ", StringComparison.Ordinal)
-            || bajo.StartsWith("cómo ", StringComparison.Ordinal)) return;
-
-        bool datoPersonal = bajo.Contains("me gusta", StringComparison.Ordinal)
-            || bajo.Contains("me encant", StringComparison.Ordinal)
-            || bajo.Contains("prefiero", StringComparison.Ordinal)
-            || bajo.Contains("mi sueño", StringComparison.Ordinal)
-            || bajo.Contains("quisiera comprar", StringComparison.Ordinal)
-            || bajo.Contains("quiero comprar", StringComparison.Ordinal)
-            || bajo.Contains("tengo un ", StringComparison.Ordinal)
-            || bajo.Contains("tengo una ", StringComparison.Ordinal)
-            || bajo.Contains("tengo dos ", StringComparison.Ordinal)
-            || bajo.Contains("soy ", StringComparison.Ordinal)
-            || bajo.Contains("vivo en ", StringComparison.Ordinal)
-            || bajo.Contains("trabajo en ", StringComparison.Ordinal)
-            || bajo.Contains("mi equipo", StringComparison.Ordinal)
-            || bajo.Contains("mi empresa", StringComparison.Ordinal)
-            || bajo.Contains("mi agencia", StringComparison.Ordinal);
-        if (!datoPersonal) return;
-
-        try
-        {
-            var resultado = Memoria.EjecutarAsync(texto.Trim(), CancellationToken.None).GetAwaiter().GetResult();
-            LogBus.Log("memoria", $"voz: {(resultado.Ok ? "detalle automático guardado" : "detalle no guardado")} · {resultado.Kind} · {resultado.Response}");
-        }
-        catch (Exception e)
-        {
-            LogBus.Log("memoria", $"voz: no pude guardar el detalle personal automático: {e.Message}");
-        }
-    }
-
     /// Corta la entrada local cuando el modelo entiende una orden inequívoca de apagar la voz.
     /// Deja un respiro breve para que la confirmación mínima del modelo («Mmm.») pueda sonar;
     /// después termina la sesión y la salida que quedara encolada.
@@ -2414,7 +2551,7 @@ public sealed class ConversacionEnVivo : IDisposable
     {
         "map_what_i_see", "map_where_am_i", "map_look", "map_look_back", "map_pointing_at", "map_pointed_trail",
         "map_show", "map_recuerdos", "map_tramo_estado", "file_where", "file_list", "file_find", "memory_recall",
-        "scan_computer",
+        "scan_computer", "habilidad_leer", "habilidad_lo_que_hice",
     };
 
     /// <summary>
@@ -2700,7 +2837,9 @@ public sealed class ConversacionEnVivo : IDisposable
                     "[aviso del sistema] Lo último que te dijeron sonaba a una lección y no llamaste "
                     + "a map_esto_es, así que no se guardó nada. Si de verdad era un dato personal, "
                     + "guárdalo AHORA con memory_remember. Si era una explicación de algo visible, "
-                    + "usa map_esto_es con `sobre` si no te lo señalaron. Si no lo era, sigue sin decir nada de esto.");
+                    + "usa map_esto_es con `sobre` si no te lo señalaron. Si te enseñaban CÓMO se hace una "
+                    + "tarea, guárdala con habilidad_escribir; si era cómo quiere las cosas, con "
+                    + "preferencia_guardar. Si no lo era, sigue sin decir nada de esto.");
             }
             catch (Exception e) { LogBus.Log("recuerdo", $"no pude avisar al modelo: {e.Message}"); }
         });
@@ -2728,7 +2867,11 @@ public sealed class ConversacionEnVivo : IDisposable
         // LAS QUE LE TOCAN A QUIEN ACTÚA (promesa 681). Antes salían de la constante de la voz única, sin
         // el párrafo del decisor: con él encendido, la sesión abría con map_decidir y sin saber usarlo.
         string deBase = InstruccionesPara(_protocolo);
-        if (memoria == null && conversacion == null) return deBase;
+        if (memoria == null && conversacion == null && Aprendido == null) return deBase;
+        // LO APRENDIDO SE LEE APARTE de la memoria personal: si ella falla, las habilidades viajan igual.
+        string aprendido = "";
+        try { aprendido = Aprendido?.Contexto() ?? ""; }
+        catch (Exception e) { LogBus.Log("aprendido", $"no pude leer lo aprendido al abrir la voz: {e.GetType().Name}: {e.Message}"); }
         try
         {
             using var limite = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -2737,18 +2880,75 @@ public sealed class ConversacionEnVivo : IDisposable
             limite.CancelAfter(TimeSpan.FromSeconds(10));
             string contexto = memoria == null ? "" : await memoria.ContextoAsync(limite.Token);
             string hilo = conversacion?.Contexto() ?? "";
-            string instrucciones = deBase;
-            if (!string.IsNullOrWhiteSpace(contexto))
-                instrucciones += "\n\nMEMORIA PERSONAL DISPONIBLE (úsala solo si es pertinente; no inventes). Los [recordatorio ...] pendientes son compromisos activos y debes reconocerlos si el usuario pregunta por el hilo: \n" + contexto;
-            if (!string.IsNullOrWhiteSpace(hilo))
-                instrucciones += "\n\nHILO CONVERSACIONAL DURABLE (continúa naturalmente desde aquí, incluso después de apagar y volver a encender el micrófono; no pidas al usuario que te repita esto):\n" + hilo;
-            return instrucciones;
+            string compuestas = InstruccionesDeApertura(deBase, contexto, hilo, aprendido);
+            // CON QUÉ ABRE, EN NÚMEROS: «no usó la habilidad» se empieza a diagnosticar sabiendo si le llegó.
+            LogBus.Log("voz-viva", $"instrucciones de quien actúa: {compuestas.Length} car. de {TopeDeInstrucciones} "
+                + $"({deBase.Length} de operar, {aprendido.Length} de lo aprendido, {contexto.Length} de memoria, {hilo.Length} de hilo antes de ceder)");
+            return compuestas;
         }
         catch (Exception e)
         {
             LogBus.Log("memoria", $"no pude cargar la memoria personal al abrir la voz: {e.Message}");
-            return deBase;
+            return InstruccionesDeApertura(deBase, "", "", aprendido);
         }
+    }
+
+    /// <summary>
+    /// Cuánto pueden ocupar las instrucciones de quien actúa, en caracteres. El servidor las mide en fichas
+    /// —16.384, y con más la sesión NO ABRE (medido el 2026-09-12)— y aquí no hay tokenizador: el español de
+    /// estas instrucciones sale a unos 3,7 caracteres por ficha, así que 48.000 son unas 13.000, con margen.
+    /// </summary>
+    internal const int TopeDeInstrucciones = 48_000;
+
+    /// <summary>
+    /// LAS INSTRUCCIONES CON QUE ABRE UNA SESIÓN: las de operar, lo aprendido, la memoria personal y el hilo,
+    /// en ese orden, y sin pasar de <paramref name="tope"/> (promesas 703 y 704).
+    /// </summary>
+    /// <remarks>
+    /// QUIEN CEDE ES EL HILO. Hasta la spec 074 se sumaba todo sin mirar el total: con el hilo lleno rondaban
+    /// las 12.000 fichas de 16.384, y lo aprendido solo puede crecer si algo le hace sitio. El hilo es lo que
+    /// menos se pierde: ya viaja aparte como historial de la voz, y de él se queda lo más reciente. La memoria
+    /// cede después, y las de operar y lo aprendido no ceden nunca: sin ellas Ü no sabe trabajar, o no sabe
+    /// trabajar a la manera de esta persona.
+    /// </remarks>
+    internal static string InstruccionesDeApertura(string deBase, string memoria, string hilo, string aprendido, int tope = TopeDeInstrucciones)
+    {
+        const string tituloDeLoAprendido = "\n\nLO QUE ESTA PERSONA TE HA ENSEÑADO (es su manera de hacer las cosas: manda sobre tu criterio, y no hace falta que te lo repita):\n";
+        const string tituloDeLaMemoria = "\n\nMEMORIA PERSONAL DISPONIBLE (úsala solo si es pertinente; no inventes). Los [recordatorio ...] pendientes son compromisos activos y debes reconocerlos si el usuario pregunta por el hilo: \n";
+        const string tituloDelHilo = "\n\nHILO CONVERSACIONAL DURABLE (continúa naturalmente desde aquí, incluso después de apagar y volver a encender el micrófono; no pidas al usuario que te repita esto):\n";
+
+        var sb = new StringBuilder(deBase ?? "");
+        if (!string.IsNullOrWhiteSpace(aprendido)) sb.Append(tituloDeLoAprendido).Append(aprendido);
+
+        if (!string.IsNullOrWhiteSpace(memoria))
+        {
+            int cabe = tope - sb.Length - tituloDeLaMemoria.Length;
+            if (memoria.Length <= cabe) sb.Append(tituloDeLaMemoria).Append(memoria);
+            else if (cabe > 200)
+            {
+                // LO QUE NO VIAJA SE DICE (patrón nº10), aquí y en el propio texto: quien actúa tiene memory_recall.
+                const string cola = "\n[recortado: no cabe toda la memoria; el resto se consulta con memory_recall]";
+                sb.Append(tituloDeLaMemoria).Append(memoria[..(cabe - cola.Length)]).Append(cola);
+                LogBus.Log("voz-viva", $"la memoria personal no cabe entera en las instrucciones: viajan {cabe - cola.Length} de {memoria.Length} car.");
+            }
+            else LogBus.Log("voz-viva", $"la memoria personal no viaja en las instrucciones: no queda sitio ({memoria.Length} car.)");
+        }
+
+        if (!string.IsNullOrWhiteSpace(hilo))
+        {
+            int cabe = tope - sb.Length - tituloDelHilo.Length;
+            if (hilo.Length <= cabe) sb.Append(tituloDelHilo).Append(hilo);
+            else
+            {
+                // LO MÁS RECIENTE, y por líneas enteras: medio turno al principio es peor que no tenerlo.
+                var lineas = hilo.Split('\n');
+                int desde = lineas.Length, largo = 0;
+                while (desde > 0 && largo + lineas[desde - 1].Length + 1 <= cabe) { largo += lineas[desde - 1].Length + 1; desde--; }
+                if (desde < lineas.Length) sb.Append(tituloDelHilo).Append(string.Join("\n", lineas[desde..]));
+                LogBus.Log("voz-viva", $"el hilo cede sitio en las instrucciones: viajan sus últimas {lineas.Length - desde} de {lineas.Length} líneas");
+            }
+        }
+        return sb.ToString();
     }
 
     private async Task EjecutarNucleoAsync(IReadOnlyList<Llamada> llamadas, CancellationToken ct)
@@ -2811,6 +3011,57 @@ public sealed class ConversacionEnVivo : IDisposable
                 relojPersonal.Stop();
                 Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, relojPersonal.ElapsedMilliseconds), true);
                 ContarALaVoz(AvanceDe(f.Nombre, resultado, null));
+                // GUARDÓ: el vigilante de lecciones se calla. Hasta la spec 074 solo lo callaba map_esto_es, y
+                // empujaba al modelo a guardar otra vez un dato que acababa de guardar.
+                if (f.Nombre == HerramientaMemoriaGuardar) LaLeccionSeGuardo();
+            }
+            else if (HerramientasDeHabilidad.Contains(f.Nombre))
+            {
+                // LAS HABILIDADES (spec 074, promesa 705): texto contra LoAprendido, sin tocar la pantalla.
+                Accion?.Invoke(EnCurso(f.Nombre, f.Args), false);
+                var relojHabilidad = System.Diagnostics.Stopwatch.StartNew();
+                string Arg(string k) => f.Args.TryGetValue(k, out var v) ? v ?? "" : "";
+                bool? guardo = null;
+                if (Aprendido == null) resultado = "No puedo: lo aprendido todavía no está conectado.";
+                else if (f.Nombre == "habilidad_escribir")
+                {
+                    var escrita = Aprendido.EscribirHabilidad(Arg("nombre"), Arg("cuando"), Arg("pasos"));
+                    resultado = escrita.Mensaje;
+                    guardo = escrita.Ok;
+                    if (escrita.Ok) LaLeccionSeGuardo();
+                }
+                else if (f.Nombre == "preferencia_guardar")
+                {
+                    // EN LO APRENDIDO, NO EN LA MEMORIA PERSONAL (promesa 717): allí sería un dato más, que ni
+                    // le llega a quien habla ni sale en «Cómo quieres las cosas».
+                    var preferida = Aprendido.GuardarPreferencia(Arg("texto"));
+                    resultado = preferida.Mensaje;
+                    guardo = preferida.Ok;
+                    if (preferida.Ok)
+                    {
+                        LaLeccionSeGuardo();
+                        ContarleLasPreferenciasALaVoz();   // vale desde ahora, no desde la sesión siguiente
+                    }
+                }
+                else if (f.Nombre == "habilidad_leer") resultado = Aprendido.LeerHabilidad(Arg("nombre")).Mensaje;
+                else if (f.Nombre == "habilidad_olvidar")
+                {
+                    var olvidada = Aprendido.OlvidarHabilidad(Arg("nombre"));
+                    resultado = olvidada.Mensaje;
+                    guardo = olvidada.Ok;
+                }
+                else
+                {
+                    var hecho = LoQueHiciste.DeLaPersona.Tomar();
+                    resultado = hecho.Count == 0
+                        ? "Nada nuevo: la persona no ha pulsado nada desde la última vez que lo pregunté. Si lo está "
+                          + "mostrando ahora, espera a que termine y vuelve a preguntar; si lo dijo de palabra, usa lo que dijo."
+                        : $"La persona hizo esto, en este orden ({hecho.Count}):\n" + string.Join("\n", hecho.Select((h, i) => $"{i + 1}. {h}"));
+                }
+                relojHabilidad.Stop();
+                Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, relojHabilidad.ElapsedMilliseconds), true);
+                Apuntar(f.Nombre, f.Args, resultado, relojHabilidad.ElapsedMilliseconds);
+                ContarALaVoz(AvanceDe(f.Nombre, resultado, guardo));
             }
             else if (HerramientasDeAutocontrol.Contains(f.Nombre))
             {
@@ -2900,6 +3151,11 @@ public sealed class ConversacionEnVivo : IDisposable
             }
 
             hechas.Add((f.Id, f.Nombre, resultado));
+            // AL DIARIO, con cómo salió (promesa 707). Lo que solo mira no enseña nada de cómo se hace una tarea
+            // y llenaría el diario: una sesión de diez pedidos son cuarenta lecturas de pantalla.
+            if (!SoloMiran.Contains(f.Nombre))
+                _diario?.Hizo(f.Nombre, string.Join(" · ", f.Args.Where(a => !string.IsNullOrWhiteSpace(a.Value)).Select(a => $"{a.Key}={a.Value}")),
+                    resultado, SalioMal(resultado));
         }
 
         // LO QUE QUEDÓ GUARDADO SALE AL ACABAR LA TANDA (promesa 64): la voz no se queda sin el último paso.

@@ -1331,6 +1331,18 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             var memoriaPersonal = new MemoriaPersonal(_config.UserId);
             _vivo.Memoria = memoriaPersonal;
             _vivo.Conversacion = new ConversacionPersonal(_config.UserId);
+            // LO QUE Ü APRENDE DE CADA SESIÓN (spec 074): el almacén de habilidades y preferencias, y quien
+            // repasa el diario al cerrar. El repaso va por la misma puerta a OpenAI que la lectura cardiológica,
+            // con la clave que ya usa la voz; un dato de la persona va a la memoria personal, que ya existía.
+            var aprendido = new LoAprendido();
+            _vivo.Aprendido = aprendido;
+            _vivo.Repaso = new ElRepaso(aprendido, Cardio.ClienteCardio.EnviarAOpenAIAsync,
+                async (dato, ct) => await memoriaPersonal.EjecutarAsync(dato, ct),
+                linea => LogBus.Log("repaso", linea))
+            {
+                DatosQueYaSabe = ct => memoriaPersonal.ContextoAsync(ct),
+            };
+            _vivo.RepasarLoPendiente();   // la última sesión antes de cerrar Ü: su repaso quedó a medias
             _recordatorios = new RecordatoriosEnVivo(memoriaPersonal, AvisarRecordatorio);
         }
         // "Windows Live": registra al usuario y empieza a emitir telemetría (pulsos consciente/

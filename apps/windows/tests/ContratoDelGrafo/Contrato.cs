@@ -1013,6 +1013,33 @@ internal static class Contrato
         // «La velocidad es extremadamente importante para nosotros» (el dueño, 2026-10-01). Qué delegado piensa y con
         // qué prisa se decide midiendo, y medir sobre la app de verdad no puede costar un instalador por combinación.
         Prueba("686. el delegado, su prisa y cuánto piensa se cambian sin recompilar: U_DELEGADO elige el modelo, U_DELEGADO_PRISA la quita con 0 y la pide con 1, y U_DELEGADO_ESFUERZO dice el esfuerzo; en blanco, ausentes o con otro valor queda lo de por defecto", ElDelegadoSeCambiaSinRecompilar);
+
+        // ── Spec 074: Ü aprende de cada sesión — habilidades y preferencias (2026-10-01) ──
+        // 700-719 reservadas. La 046 (enseñar hablando) reservó 400-407 en una rama que nunca entró a main; esta
+        // spec la recoge entera y no reutiliza sus números. «Él al final de esa ejecución debe analizar toda su
+        // ejecución durante la sesión y crear skills a partir de las correcciones que le hice y lo que le enseñé».
+        // Lo que había: 2 skills del Learn, ninguna usable por la voz; 40 «LECCIÓN PERDIDA» en trece días; y una
+        // memoria personal donde 7 de 16 entradas eran frases crudas. Lo que se juzga no es lo que el modelo dice
+        // que aprendió: es el archivo, las instrucciones de la sesión siguiente y la cita que justifica cada cosa.
+        Console.WriteLine();
+        Prueba("700. lo aprendido se guarda al momento y sobrevive a cerrar y abrir: una habilidad con su nombre, cuándo y pasos, una preferencia y una observación del cuaderno", LoAprendidoSobreviveALaSesion);
+        Prueba("701. volver a enseñar una habilidad con el mismo nombre la reconstruye entera: queda una sola, sin pasos viejos, aunque el nombre llegue con otras mayúsculas o sin tildes", EnsenarOtraVezReconstruye);
+        Prueba("702. una habilidad sin nombre o sin pasos no se guarda, y la respuesta dice cuál de los dos falta; un archivo que no se puede leer se aparta en vez de pisarse", UnaHabilidadIncompletaNoSeGuarda);
+        Prueba("703. una sesión nueva abre sabiendo lo aprendido: las instrucciones de quien actúa llevan cada preferencia y cada habilidad con su cuándo y sus pasos, y el cuaderno de observaciones no viaja", UnaSesionNuevaAbreSabiendoLoAprendido);
+        Prueba("704. lo aprendido cabe siempre: pasado su presupuesto las habilidades viajan como índice —nombre y cuándo— con la herramienta para leer sus pasos, y el hilo de la conversación cede sitio para que las instrucciones no pasen de lo que el servidor admite", LoAprendidoCabeSiempre);
+        Prueba("705. quien actúa puede guardar una habilidad en el momento, leerla, olvidarla y preguntar lo que la persona acaba de hacer: las cuatro herramientas están en su catálogo, y sus instrucciones mandan reconstruirla entera a cada corrección y seguirla cuando se pide lo que describe", QuienActuaPuedeEnsenarse);
+        Prueba("706. lo que la persona hizo se entrega entero, en orden y una sola vez: N clics con identidad dan N entradas y la consulta siguiente no las repite; un clic sobre la propia Ü o sin identidad no cuenta", LoQueLaPersonaHizoSeEntregaUnaVez);
+        Prueba("707. el diario de la sesión guarda lo que dijo la persona, lo que hizo Ü con cómo salió y lo que la persona tocó, en orden; se escribe en disco al cerrar y se vuelve a leer igual", ElDiarioGuardaLaSesion);
+        Prueba("708. el repaso no guarda nada sin una cita literal de la persona que esté en el diario: una propuesta con una cita inventada, con palabras de Ü o sin cita se descarta, y queda dicho cuál y por qué", SinCitaNoSeGuardaNada);
+        Prueba("709. el repaso aplica lo que el modelo propone: una habilidad enseñada entra a la primera, una corrección reconstruye la que había, una preferencia entra con una vez, un dato va a la memoria personal y lo que se pide olvidar se quita", ElRepasoAplicaLoQueSeDecide);
+        Prueba("710. la repetición se comprueba, no se declara: una habilidad «por repetición» solo entra si ese procedimiento ya estaba en el cuaderno desde otra sesión; si no, se queda de observación, y el cuaderno no crece sin fin", LaRepeticionSeComprueba);
+        Prueba("711. un repaso que falla no pierde la sesión: su diario sigue pendiente y se repasa la próxima vez; uno que termina se retira, y repasar dos veces la misma sesión no duplica nada", UnRepasoQueFallaNoPierdeLaSesion);
+        Prueba("712. una sesión sin nada que enseñar no llama al modelo: sin una frase de la persona con algo que decir no hay repaso, y se retira sin gastar", SinNadaQueEnsenarNoSeLlamaAlModelo);
+        Prueba("713. lo que se le pide al modelo lleva lo que Ü ya sabe y el diario, pide la respuesta con su forma exacta y dice las reglas: la intención de enseñar va directo a habilidad, la repetición sale del cuaderno, y sin cita no hay nada", LoQueSeLePideAlModelo);
+        Prueba("714. cerrar una sesión que abrió deja su diario y lanza el repaso sin retrasar el cierre, y abrir una repasa lo que quedó pendiente", CerrarLaSesionLanzaElRepaso);
+        Prueba("715. la Memoria enseña lo aprendido: las habilidades enseñadas hablando salen con las demás, y las preferencias tienen su apartado", LaMemoriaEnsenaLoAprendido);
+        Prueba("716. las preferencias le llegan también a quien habla: al confirmarse la apertura la voz recibe las preferencias —no las habilidades, que son de quien actúa—, las más recientes primero y dentro de lo que cabe en un append; sin preferencias no se le manda nada", LasPreferenciasLleganAQuienHabla);
+        Prueba("717. una preferencia se guarda en su sitio: quien actúa tiene preferencia_guardar, que escribe en lo aprendido y no en la memoria personal; sus instrucciones mandan usarla para cómo quiere las cosas la persona y dejan memory_remember para datos y compromisos; y el repaso propone como preferencia la que solo estaba entre los datos", UnaPreferenciaSeGuardaEnSuSitio);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -12278,7 +12305,7 @@ internal static class Contrato
     /// entera por el plan —que es quien lo perdió— sino por esta lista.</summary>
     private static readonly string[] ApartadosDeLaMemoria =
     {
-        "quien", "datos", "recordatorios", "conversacion", "habilidades", "lecciones",
+        "quien", "datos", "preferencias", "recordatorios", "conversacion", "habilidades", "lecciones",
         "pantalla", "sitios", "explicado", "aparatos", "registro", "fuera",
     };
 
@@ -12544,6 +12571,10 @@ internal static class Contrato
         cfg.InstallId = "inst-999-zzz";
         cfg.Save();
 
+        // Lo aprendido (spec 074): una preferencia, para que su apartado tenga algo que enseñar.
+        dynamic? aprendido = NuevoAprendido(Path.Combine(roaming, "aprendido.json"));
+        if (aprendido != null) aprendido.GuardarPreferencia("no me preguntes antes de guardar", "");
+
         string archivoMemoria = Path.Combine(roaming, "memoria-personal.json");
         var memoria = new MemoriaPersonal(UsuarioDeLaMemoria, archivoMemoria);
         memoria.EjecutarAsync("recuerda que soy alérgica a la penicilina", default).Wait();
@@ -12597,7 +12628,7 @@ internal static class Contrato
         // un apartado que desaparece cuando está vacío no se distingue de uno que nadie escribió.
         var claves = vacia.Select(a => (string)a.Clave).ToList();
         Debe(claves.SequenceEqual(ApartadosDeLaMemoria),
-            $"sin nada guardado se cuentan los doce apartados, en su orden: {string.Join(", ", claves)}");
+            $"sin nada guardado se cuentan los trece apartados, en su orden: {string.Join(", ", claves)}");
         foreach (var a in vacia.Where(a => (string)a.Clave != "fuera"))
         {
             string clave = (string)a.Clave, estado = a.Estado.ToString(), resumen = (string)a.Resumen;
@@ -12616,7 +12647,7 @@ internal static class Contrato
         int Cuenta(string clave) => (int)(Apartado(llena, clave)?.Cuenta ?? -1);
         string Estado(string clave) => Apartado(llena, clave)?.Estado.ToString() ?? "(no está)";
 
-        Debe(llena.Select(a => (string)a.Clave).SequenceEqual(ApartadosDeLaMemoria), "con todo guardado siguen siendo los mismos doce");
+        Debe(llena.Select(a => (string)a.Clave).SequenceEqual(ApartadosDeLaMemoria), "con todo guardado siguen siendo los mismos trece");
         foreach (string clave in ApartadosDeLaMemoria)
             Debe(Estado(clave) == "ConDatos", $"«{clave}» tiene datos y lo dice: {Estado(clave)}");
 
@@ -16204,6 +16235,654 @@ internal static class Contrato
         if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
         Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"private async Task EjecutarNucleoAsync\([\s\S]*?VaConFoto\(f\.Nombre\)"),
             "[cableado] la tanda no pregunta si la herramienta va con foto: la regla existe y nadie la usa");
+    }
+
+    // ── Spec 074: Ü aprende de cada sesión — habilidades y preferencias ───────────────────────────
+
+    private static Type? Aprendido => Cap004("U.WindowsClient.Voice.LoAprendido");
+
+    /// <summary>Un almacén de lo aprendido sobre un archivo de la prueba. Null si la clase aún no existe.</summary>
+    private static dynamic? NuevoAprendido(string archivo)
+        => Aprendido == null ? null : Activator.CreateInstance(Aprendido, new object?[] { archivo });
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: «parece que aprendió». El 2026-09-22 la voz contestó «Te tengo… la guardo» sin
+    /// haber guardado nada. Lo que se juzga es el archivo leído por OTRA instancia, que es lo que tiene una
+    /// sesión nueva: lo que una instancia recuerda en memoria no prueba nada.
+    /// </remarks>
+    private static void LoAprendidoSobreviveALaSesion()
+    {
+        string archivo = Path.Combine(_raiz, "aprendido-700.json");
+        dynamic? primera = NuevoAprendido(archivo);
+        if (primera == null) { Pendiente("Voice.LoAprendido", "700", "074"); return; }
+
+        var h = primera.EscribirHabilidad("buscar en Scholar", "cuando pida buscar artículos", "abre Google Scholar\nescribe el tema\npulsa Buscar", "te voy a enseñar a buscar artículos", "ensenada");
+        var p = primera.GuardarPreferencia("háblame más corto", "háblame más corto, por favor");
+        primera.Observar("abrir el correo de Sara", "abre Gmail\nbusca from:Sara", "sesion-1");
+        Debe((bool)h.Ok && (bool)p.Ok, $"guardar confirma que guardó («{(string)h.Mensaje}», «{(string)p.Mensaje}»)");
+        Debe(File.Exists(archivo), "y lo deja en disco en el momento, no al cerrar");
+
+        dynamic segunda = NuevoAprendido(archivo)!;
+        var habilidades = ((System.Collections.IEnumerable)segunda.Habilidades()).Cast<dynamic>().ToList();
+        Debe(habilidades.Count == 1 && (string)habilidades[0].Nombre == "buscar en Scholar",
+            $"otra instancia —una sesión nueva— encuentra la habilidad ({habilidades.Count})");
+        if (habilidades.Count == 1)
+        {
+            var pasos = ((IEnumerable<string>)habilidades[0].Pasos).ToList();
+            Debe((string)habilidades[0].Cuando == "cuando pida buscar artículos", "con su cuándo");
+            Debe(pasos.SequenceEqual(new[] { "abre Google Scholar", "escribe el tema", "pulsa Buscar" }),
+                $"y sus pasos enteros y en orden: {string.Join(" | ", pasos)}");
+            Debe((string)habilidades[0].Cita == "te voy a enseñar a buscar artículos", "y la cita que la justifica");
+        }
+        var preferencias = ((System.Collections.IEnumerable)segunda.Preferencias()).Cast<dynamic>().ToList();
+        Debe(preferencias.Count == 1 && (string)preferencias[0].Texto == "háblame más corto", $"y la preferencia ({preferencias.Count})");
+        var cuaderno = ((System.Collections.IEnumerable)segunda.Observaciones()).Cast<dynamic>().ToList();
+        Debe(cuaderno.Count == 1 && (string)cuaderno[0].Nombre == "abrir el correo de Sara", $"y la observación del cuaderno ({cuaderno.Count})");
+    }
+
+    private static void EnsenarOtraVezReconstruye()
+    {
+        dynamic? a = NuevoAprendido(Path.Combine(_raiz, "aprendido-701.json"));
+        if (a == null) { Pendiente("Voice.LoAprendido", "701", "074"); return; }
+
+        a.EscribirHabilidad("Buscar en Scholar", "cuando pida artículos", "abre Scholar\nescribe el tema\npulsa Buscar", "", "ensenada");
+        var r = a.EscribirHabilidad("  buscar en  SCHÓLAR ", "cuando pida artículos o papers", "abre Scholar\nescribe el tema\npulsa Enter\nabre el primer resultado", "", "corregida");
+        var todas = ((System.Collections.IEnumerable)a.Habilidades()).Cast<dynamic>().ToList();
+        Debe(todas.Count == 1, $"queda UNA habilidad, aunque el nombre llegue con otras mayúsculas, tildes y espacios (quedan {todas.Count})");
+        if (todas.Count != 1) return;
+        var pasos = ((IEnumerable<string>)todas[0].Pasos).ToList();
+        Debe(pasos.Count == 4 && !pasos.Contains("pulsa Buscar") && pasos.Contains("abre el primer resultado"),
+            $"reconstruida entera: los pasos de ahora y ninguno de los viejos ({string.Join(" | ", pasos)})");
+        Debe((string)todas[0].Cuando == "cuando pida artículos o papers", "con el cuándo de ahora");
+        Debe(((string)r.Mensaje).Contains("econstru", StringComparison.Ordinal), $"y la respuesta dice que la reconstruyó, no que es nueva («{(string)r.Mensaje}»)");
+
+        // Con numeración o viñetas en los pasos, que es como los escribe un modelo: se quitan.
+        a.EscribirHabilidad("radicar", "", "1. abre SAP\n2) escribe NWP1\n- pulsa Enter", "", "ensenada");
+        var radicar = ((System.Collections.IEnumerable)a.Habilidades()).Cast<dynamic>().First(x => (string)x.Nombre == "radicar");
+        Debe(((IEnumerable<string>)radicar.Pasos).SequenceEqual(new[] { "abre SAP", "escribe NWP1", "pulsa Enter" }),
+            $"la numeración que traigan los pasos no se guarda: {string.Join(" | ", (IEnumerable<string>)radicar.Pasos)}");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: perder todo lo enseñado por un archivo a medio escribir. MemoriaPersonal.Leer
+    /// devuelve un documento vacío ante un JSON roto, y la siguiente escritura pisa el archivo con él (hallazgo
+    /// del 2026-09-23). Y un «no se pudo guardar» sin decir qué falta manda al modelo a reintentar lo mismo.
+    /// </remarks>
+    private static void UnaHabilidadIncompletaNoSeGuarda()
+    {
+        string archivo = Path.Combine(_raiz, "aprendido-702.json");
+        dynamic? a = NuevoAprendido(archivo);
+        if (a == null) { Pendiente("Voice.LoAprendido", "702", "074"); return; }
+
+        var sinNombre = a.EscribirHabilidad("   ", "cuando sea", "un paso", "", "ensenada");
+        Debe(!(bool)sinNombre.Ok && ((string)sinNombre.Mensaje).Contains("nombre", StringComparison.OrdinalIgnoreCase),
+            $"sin nombre no se guarda, y dice que falta el nombre («{(string)sinNombre.Mensaje}»)");
+        var sinPasos = a.EscribirHabilidad("radicar", "cuando sea", " \n  \n", "", "ensenada");
+        Debe(!(bool)sinPasos.Ok && ((string)sinPasos.Mensaje).Contains("paso", StringComparison.OrdinalIgnoreCase),
+            $"sin pasos no se guarda, y dice que faltan los pasos («{(string)sinPasos.Mensaje}»)");
+        Debe(((System.Collections.IEnumerable)a.Habilidades()).Cast<dynamic>().Count() == 0, "y no queda nada a medias");
+        var sinTexto = a.GuardarPreferencia("  ", "");
+        Debe(!(bool)sinTexto.Ok, "una preferencia vacía tampoco");
+
+        File.WriteAllText(archivo, "{ \"habilidades\": [ { \"nombre\": \"a medio escri");
+        dynamic rota = NuevoAprendido(archivo)!;
+        Debe(((System.Collections.IEnumerable)rota.Habilidades()).Cast<dynamic>().Count() == 0, "un archivo que no se puede leer se lee como sin nada…");
+        rota.EscribirHabilidad("nueva", "", "un paso", "", "ensenada");
+        var apartados = Directory.GetFiles(_raiz, "aprendido-702.json.*.ilegible");
+        Debe(apartados.Length == 1 && File.ReadAllText(apartados[0]).Contains("a medio escri", StringComparison.Ordinal),
+            $"…pero NO se pisa: queda apartado con otro nombre, entero ({apartados.Length} apartado(s))");
+    }
+
+    /// <summary>Las instrucciones de apertura compuestas con lo aprendido, pedidas por nombre.</summary>
+    private static string? InstruccionesConLoAprendido(string deBase, string memoria, string hilo, string aprendido, int? tope = null)
+    {
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        var m = Cap004("U.WindowsClient.Voice.ConversacionEnVivo")?.GetMethod("InstruccionesDeApertura", f);
+        if (m == null) return null;
+        var p = m.GetParameters();
+        return (string)m.Invoke(null, new object[] { deBase, memoria, hilo, aprendido, tope ?? (int)p[4].DefaultValue! })!;
+    }
+
+    /// <remarks>
+    /// LA QUE CIERRA EL ASUNTO. El 2026-09-23 a las 15:23:36 se guardó la skill de Gmail; a las 15:24:15 el dueño
+    /// pidió ese correo y Ü improvisó desde cero: lo guardado no llegaba al modelo que actúa. Se juzga el TEXTO
+    /// que recibe ese modelo al abrir, no el archivo.
+    /// </remarks>
+    private static void UnaSesionNuevaAbreSabiendoLoAprendido()
+    {
+        dynamic? a = NuevoAprendido(Path.Combine(_raiz, "aprendido-703.json"));
+        if (a == null) { Pendiente("Voice.LoAprendido", "703", "074"); return; }
+        a.EscribirHabilidad("buscar en Scholar", "cuando pida buscar artículos", "abre Google Scholar\nescribe el tema\npulsa Buscar", "te voy a enseñar", "ensenada");
+        a.GuardarPreferencia("no me preguntes antes de guardar", "no me preguntes antes de guardar");
+        a.Observar("abrir el correo de Sara", "abre Gmail\nbusca from:Sara", "sesion-1");
+
+        string contexto = (string)a.Contexto();
+        string? abre = InstruccionesConLoAprendido("INSTRUCCIONES DE OPERAR", "", "", contexto);
+        if (abre == null) { Pendiente("ConversacionEnVivo.InstruccionesDeApertura(base, memoria, hilo, aprendido, tope)", "703", "074"); return; }
+
+        Debe(abre.StartsWith("INSTRUCCIONES DE OPERAR", StringComparison.Ordinal), "las instrucciones de operar van delante, enteras");
+        foreach (string dicho in new[] { "buscar en Scholar", "cuando pida buscar artículos", "abre Google Scholar", "escribe el tema", "pulsa Buscar", "no me preguntes antes de guardar" })
+            Debe(abre.Contains(dicho, StringComparison.Ordinal), $"y detrás lo aprendido: falta «{dicho}»");
+        Debe(abre.IndexOf("abre Google Scholar", StringComparison.Ordinal) < abre.IndexOf("escribe el tema", StringComparison.Ordinal)
+             && abre.IndexOf("escribe el tema", StringComparison.Ordinal) < abre.IndexOf("pulsa Buscar", StringComparison.Ordinal),
+            "los pasos, en su orden");
+        Debe(!abre.Contains("abrir el correo de Sara", StringComparison.Ordinal),
+            "el cuaderno de observaciones NO viaja: lo visto una vez sin enseñarlo no es todavía algo que seguir");
+        Debe(InstruccionesConLoAprendido("BASE", "", "", "") == "BASE", "y sin nada aprendido las instrucciones quedan como estaban, sin un título vacío");
+
+        // [cableado] La apertura compone con lo aprendido.
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        var componer = System.Text.RegularExpressions.Regex.Match(v, @"private async Task<string> ComponerInstruccionesAsync\([\s\S]*?\n    }");
+        Debe(componer.Success && componer.Value.Contains("InstruccionesDeApertura(", StringComparison.Ordinal) && componer.Value.Contains("Aprendido", StringComparison.Ordinal),
+            "[cableado] la apertura de la sesión no compone sus instrucciones con lo aprendido");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: aprender hasta no poder abrir. Con unas instrucciones de más de 16.384 fichas el
+    /// servidor no abre la sesión (medido el 2026-09-12), y las de hoy ya rondan las 12.000 con el hilo lleno. Lo
+    /// aprendido solo puede crecer si algo cede: cede el hilo, que además ya viaja aparte como historial.
+    /// </remarks>
+    private static void LoAprendidoCabeSiempre()
+    {
+        dynamic? a = NuevoAprendido(Path.Combine(_raiz, "aprendido-704.json"));
+        if (a == null) { Pendiente("Voice.LoAprendido", "704", "074"); return; }
+        if (Aprendido!.GetField("PresupuestoDeApertura")?.GetRawConstantValue() is not int presupuesto) { Pendiente("LoAprendido.PresupuestoDeApertura", "704", "074"); return; }
+
+        for (int i = 0; i < 60; i++)
+            a.EscribirHabilidad($"tarea número {i:00}", $"cuando pida la tarea {i:00}", string.Join("\n", Enumerable.Range(1, 8).Select(k => $"paso {k} de la tarea {i:00}, que es largo a propósito")), "", "ensenada");
+        string contexto = (string)a.Contexto();
+        Debe(contexto.Length <= presupuesto, $"sesenta habilidades largas viajan dentro del presupuesto: {contexto.Length} de {presupuesto} caracteres");
+        Debe(contexto.Contains("tarea número 00", StringComparison.Ordinal) && contexto.Contains("tarea número 59", StringComparison.Ordinal),
+            "y ninguna desaparece: todas siguen nombradas, con su cuándo");
+        Debe(contexto.Contains("habilidad_leer", StringComparison.Ordinal),
+            "las que no caben enteras dicen cómo leer sus pasos: con habilidad_leer");
+        var leida = a.LeerHabilidad("Tarea Numero 37");
+        Debe((bool)leida.Ok && ((string)leida.Mensaje).Contains("paso 8 de la tarea 37", StringComparison.Ordinal),
+            $"y leerla devuelve sus pasos enteros, pedida como la diría una persona («{((string)leida.Mensaje).Split('\n')[0]}»)");
+
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        var tope = Cap004("U.WindowsClient.Voice.ConversacionEnVivo")?.GetField("TopeDeInstrucciones", f)?.GetRawConstantValue();
+        if (tope is not int topeDeInstrucciones) { Pendiente("ConversacionEnVivo.TopeDeInstrucciones", "704", "074"); return; }
+        Debe(topeDeInstrucciones <= 50_000, $"el tope de las instrucciones deja margen bajo las 16.384 fichas del servidor ({topeDeInstrucciones} caracteres)");
+        string deBase = new string('b', 25_000), memoria = new string('m', 2_000), hilo = string.Join("\n", Enumerable.Range(0, 400).Select(i => $"- usuario: turno {i:000} del hilo, con algo de texto"));
+        string abre = InstruccionesConLoAprendido(deBase, memoria, hilo, contexto)!;
+        Debe(abre.Length <= topeDeInstrucciones, $"base + memoria + lo aprendido + un hilo enorme no pasan del tope: {abre.Length} de {topeDeInstrucciones}");
+        Debe(abre.Contains(deBase, StringComparison.Ordinal) && abre.Contains(memoria, StringComparison.Ordinal) && abre.Contains("tarea número 59", StringComparison.Ordinal),
+            "quien cede es el hilo: la base, la memoria y lo aprendido van enteros");
+        Debe(abre.Contains("turno 399", StringComparison.Ordinal) && !abre.Contains("turno 000", StringComparison.Ordinal),
+            "y del hilo se queda lo más reciente");
+    }
+
+    private static void QuienActuaPuedeEnsenarse()
+    {
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+        var herramientas = ((IReadOnlyList<Voz.Realtime.Utensilio>)t!.GetMethod("Herramientas", f)!.Invoke(null, null)!);
+        var nombres = herramientas.Select(u => u.Nombre).ToList();
+        if (!nombres.Contains("habilidad_escribir")) { Pendiente("habilidad_escribir en el catálogo de quien actúa", "705", "074"); return; }
+
+        foreach (string herramienta in new[] { "habilidad_escribir", "habilidad_leer", "habilidad_olvidar", "habilidad_lo_que_hice" })
+            Debe(nombres.Contains(herramienta), $"«{herramienta}» está en el catálogo");
+        var escribir = herramientas.First(u => u.Nombre == "habilidad_escribir");
+        Debe(escribir.Args.Select(x => x.Nombre).SequenceEqual(new[] { "nombre", "cuando", "pasos" }),
+            $"guardar una habilidad pide su nombre, cuándo y pasos ({string.Join(", ", escribir.Args.Select(x => x.Nombre))})");
+
+        foreach (string cual in new[] { "InstruccionesDelDelegado", "InstruccionesNormales" })
+        {
+            string texto = (string)t.GetProperty(cual, f)!.GetValue(null)!;
+            Debe(texto.Contains("RECONSTRÚYELA ENTERA", StringComparison.Ordinal), $"{cual} manda reconstruirla entera a cada corrección");
+            Debe(texto.Contains("SIGUE SUS PASOS", StringComparison.Ordinal), $"{cual} manda seguir sus pasos cuando se pide lo que describe, en vez de improvisar");
+            Debe(texto.Contains("habilidad_lo_que_hice", StringComparison.Ordinal), $"{cual} dice qué hacer cuando se lo MUESTRAN en vez de decirlo");
+            Debe(texto.Contains("«te voy a enseñar a…»", StringComparison.Ordinal), $"{cual} nombra cómo suena la intención de enseñar");
+        }
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"private async Task EjecutarNucleoAsync\([\s\S]*?Aprendido\.EscribirHabilidad\("),
+            "[cableado] la herramienta existe y nadie la despacha: el modelo creería que guardó");
+    }
+
+    private static void LoQueLaPersonaHizoSeEntregaUnaVez()
+    {
+        var t = Cap004("U.WindowsClient.Voice.LoQueHiciste");
+        if (t == null) { Pendiente("Voice.LoQueHiciste", "706", "074"); return; }
+        dynamic r = Activator.CreateInstance(t)!;
+
+        r.Anotar("uia:name=Search;ct=Edit", "Search", "Edit", "chrome");
+        r.Anotar("uia:name=Buscar;ct=Button", "Buscar", "Button", "chrome");
+        r.Anotar("", "", "", "propio");                              // tocar la carita no es algo que la persona haga en su app
+        r.Anotar("", "  ", "Pane", "chrome");                        // sin identidad: no se puede nombrar
+        r.Anotar("uia:aid=Guardar", "", "Button", "notepad");        // sin etiqueta pero con selector: sirve
+        var hecho = ((IEnumerable<string>)r.Tomar()).ToList();
+        Debe(hecho.Count == 3, $"tres clics con identidad dan tres entradas: ni el de la propia Ü ni el que no se puede nombrar cuentan (salieron {hecho.Count})");
+        if (hecho.Count == 3)
+        {
+            Debe(hecho[0].Contains("«Search»", StringComparison.Ordinal) && hecho[1].Contains("«Buscar»", StringComparison.Ordinal) && hecho[2].Contains("uia:aid=Guardar", StringComparison.Ordinal),
+                $"en orden, con el nombre con que se pueden volver a pulsar: {string.Join(" | ", hecho)}");
+            Debe(hecho[0].Contains("chrome", StringComparison.Ordinal), "y en qué aplicación fue");
+        }
+        Debe(((IEnumerable<string>)r.Tomar()).Count() == 0, "la consulta siguiente no los repite: si los repitiera, el paso entraría dos veces en la habilidad");
+
+        int tope = (int)t.GetField("Tope")!.GetRawConstantValue()!;
+        for (int i = 0; i < tope + 25; i++) r.Anotar("", $"botón {i}", "Button", "chrome");
+        var muchos = ((IEnumerable<string>)r.Tomar()).ToList();
+        Debe(muchos.Count == tope && muchos[^1].Contains($"botón {tope + 24}", StringComparison.Ordinal),
+            $"y no crece sin fin: se quedan los últimos {tope} (hay {muchos.Count})");
+    }
+
+    private static Type? Diario => Cap004("U.WindowsClient.Voice.DiarioDeLaSesion");
+
+    private static dynamic? NuevoDiario(string sesion)
+        => Diario == null ? null : Activator.CreateInstance(Diario, new object?[] { sesion, null });
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: repasar una sesión de la que solo queda la mitad. Hasta esta spec lo único que
+    /// se guardaba de una sesión era el texto de los turnos: ni las herramientas, ni cómo salieron, ni lo que la
+    /// persona tocó, ni a qué sesión pertenecía cada cosa. Un repaso sobre eso no distingue «lo pidió y salió»
+    /// de «lo pidió, falló, y lo corrigió».
+    /// </remarks>
+    private static void ElDiarioGuardaLaSesion()
+    {
+        dynamic? d = NuevoDiario("sesion-707");
+        if (d == null) { Pendiente("Voice.DiarioDeLaSesion", "707", "074"); return; }
+
+        d.Persona("te voy a enseñar a buscar artículos en Scholar");
+        d.U("Vale, te sigo.");
+        d.Hizo("map_open_app", "app=chrome", "abrí Chrome", false);
+        d.Toco("pulsó «Search» (Edit) en chrome");
+        d.Hizo("map_take", "exit=Guardar", "«Guardar» no está a la vista: no pulsé nada.\n\nEN PANTALLA AHORA, en «Chrome» (63 elemento(s))", true);
+        d.Persona("   ");                                             // un turno en blanco no es un turno
+        d.Persona("no, así no: primero escribe el tema y luego pulsa Enter");
+
+        string texto = (string)d.Texto();
+        int i1 = texto.IndexOf("te voy a enseñar a buscar", StringComparison.Ordinal), i2 = texto.IndexOf("abrí Chrome", StringComparison.Ordinal),
+            i3 = texto.IndexOf("pulsó «Search»", StringComparison.Ordinal), i4 = texto.IndexOf("no está a la vista", StringComparison.Ordinal),
+            i5 = texto.IndexOf("primero escribe el tema", StringComparison.Ordinal);
+        Debe(i1 >= 0 && i2 > i1 && i3 > i2 && i4 > i3 && i5 > i4, $"lo dicho, lo hecho y lo tocado, en el orden en que pasó:\n{texto}");
+        Debe(texto.Contains("PERSONA", StringComparison.Ordinal) && texto.Contains("map_take", StringComparison.Ordinal),
+            "dice quién habló y qué herramienta fue");
+        Debe(texto.Contains("NO SALIÓ", StringComparison.Ordinal), "y cómo salió: lo que falló va marcado, que es lo que da sentido a la corrección de después");
+        Debe(!texto.Contains("EN PANTALLA AHORA", StringComparison.Ordinal), "del resultado de una herramienta va la primera línea, no el inventario de la pantalla");
+        var dicho = ((IEnumerable<string>)d.DichoPorLaPersona).ToList();
+        Debe(dicho.Count == 2, $"lo que dijo la persona se puede pedir aparte, sin lo de Ü: {dicho.Count} frases");
+        Debe((bool)d.TieneQueRepasar, "con dos frases que dicen algo, hay qué repasar");
+
+        string carpeta = Path.Combine(_raiz, "por-repasar-707");
+        string archivo = (string)d.Guardar(carpeta);
+        Debe(File.Exists(archivo) && Path.GetFileName(archivo).Contains("sesion-707", StringComparison.Ordinal), "se escribe en disco con el nombre de su sesión");
+        dynamic? leido = Diario!.GetMethod("Leer")!.Invoke(null, new object[] { archivo });
+        Debe(leido != null && (string)leido!.Sesion == "sesion-707" && (string)leido.Texto() == texto,
+            "y se vuelve a leer igual: la misma sesión y el mismo diario, letra por letra");
+    }
+
+    /// <summary>Un repaso con un modelo de mentira que devuelve lo que la prueba le dicta, y que ANOTA lo que se le pidió.</summary>
+    private static (dynamic Repaso, List<string> Pedidos, List<string> Datos)? NuevoRepaso(object aprendido, Func<string, string> modelo)
+    {
+        var t = Cap004("U.WindowsClient.Voice.ElRepaso");
+        if (t == null) return null;
+        var pedidos = new List<string>();
+        var datos = new List<string>();
+        Func<string, CancellationToken, Task<string>> llamar = (cuerpo, _) => { pedidos.Add(cuerpo); return Task.FromResult(modelo(cuerpo)); };
+        Func<string, CancellationToken, Task> guardarDato = (texto, _) => { datos.Add(texto); return Task.CompletedTask; };
+        object repaso = Activator.CreateInstance(t, new object?[] { aprendido, llamar, guardarDato, null })!;
+        return (repaso, pedidos, datos);
+    }
+
+    /// <summary>Lo que contesta la Responses API cuando el modelo propone estas operaciones.</summary>
+    private static string RespuestaDelModelo(params object[] operaciones)
+    {
+        string propuesta = JsonSerializer.Serialize(new { operaciones });
+        return JsonSerializer.Serialize(new { output = new object[] { new { type = "message", content = new object[] { new { type = "output_text", text = propuesta } } } } });
+    }
+
+    /// <remarks>
+    /// LA QUE IMPIDE REPETIR EL OTRO FALLO. Ofrecidos «decir» y «recuerdo» a la voz, el modelo escribió 79
+    /// recuerdos que nadie enseñó y pisó 17 (logs del 18 al 30 de septiembre). Un repaso hecho por un modelo es
+    /// el mismo riesgo con más alcance. La compuerta es de código y no de prompt: lo que el modelo propone
+    /// entra solo si trae palabras que LA PERSONA dijo en esa sesión.
+    /// </remarks>
+    private static void SinCitaNoSeGuardaNada()
+    {
+        dynamic? aprendido = NuevoAprendido(Path.Combine(_raiz, "aprendido-708.json"));
+        dynamic? diario = NuevoDiario("sesion-708");
+        if (aprendido == null || diario == null) { Pendiente("Voice.LoAprendido y Voice.DiarioDeLaSesion", "708", "074"); return; }
+        diario.Persona("abre mi correo y busca los de Sara, por favor");
+        diario.U("Te recomiendo guardar siempre los adjuntos en Descargas.");
+        diario.Hizo("map_hacer", "pasos=abre: gmail", "1 de 1 hechos", false);
+        diario.Persona("Háblame más corto, que me mareas.");
+
+        var montado = NuevoRepaso((object)aprendido, _ => RespuestaDelModelo(
+            new { tipo = "preferencia", motivo = "", nombre = "", cuando = "", pasos = Array.Empty<string>(), texto = "habla más corto", cita = "hablame MAS corto que me mareas" },
+            new { tipo = "preferencia", motivo = "", nombre = "", cuando = "", pasos = Array.Empty<string>(), texto = "guardar los adjuntos en Descargas", cita = "guardar siempre los adjuntos en Descargas" },
+            new { tipo = "preferencia", motivo = "", nombre = "", cuando = "", pasos = Array.Empty<string>(), texto = "prefiere el modo oscuro", cita = "siempre uso el modo oscuro" },
+            new { tipo = "habilidad", motivo = "ensenada", nombre = "abrir el correo", cuando = "cuando lo pida", pasos = new[] { "abre gmail" }, texto = "", cita = "" },
+            new { tipo = "preferencia", motivo = "", nombre = "", cuando = "", pasos = Array.Empty<string>(), texto = "dice por favor", cita = "por favor" }));
+        if (montado is not { } m) { Pendiente("Voice.ElRepaso", "708", "074"); return; }
+
+        dynamic informe = m.Repaso.RepasarAsync(diario, CancellationToken.None).GetAwaiter().GetResult();
+        var preferencias = ((System.Collections.IEnumerable)aprendido.Preferencias()).Cast<dynamic>().Select(x => (string)x.Texto).ToList();
+        Debe(preferencias.SequenceEqual(new[] { "habla más corto" }),
+            $"entra la única que cita a la persona —aunque la cita llegue sin tildes, sin comas y con otras mayúsculas—: {string.Join(" | ", preferencias)}");
+        Debe(((System.Collections.IEnumerable)aprendido.Habilidades()).Cast<dynamic>().Count() == 0, "una habilidad sin cita no entra");
+        var descartadas = ((IEnumerable<string>)informe.Descartadas).ToList();
+        Debe(descartadas.Count == 4, $"las otras cuatro quedan descartadas y contadas: {descartadas.Count}");
+        Debe(descartadas.Any(x => x.Contains("guardar los adjuntos", StringComparison.Ordinal) && x.Contains("no la dijo la persona", StringComparison.Ordinal)),
+            $"lo que dijo Ü no vale de cita, y se dice cuál se descartó y por qué: {string.Join(" || ", descartadas)}");
+        Debe(descartadas.Any(x => x.Contains("modo oscuro", StringComparison.Ordinal)), "una cita inventada, tampoco");
+        Debe(descartadas.Any(x => x.Contains("dice por favor", StringComparison.Ordinal) && x.Contains("corta", StringComparison.Ordinal)),
+            "ni una cita de dos palabras, que casaría con cualquier cosa");
+        Debe((int)informe.Propuestas == 5 && ((IEnumerable<string>)informe.Aplicadas).Count() == 1, "el informe cuenta sobre lo PROPUESTO: 5 propuestas, 1 aplicada (patrón nº10)");
+    }
+
+    private static void ElRepasoAplicaLoQueSeDecide()
+    {
+        dynamic? aprendido = NuevoAprendido(Path.Combine(_raiz, "aprendido-709.json"));
+        dynamic? diario = NuevoDiario("sesion-709");
+        if (aprendido == null || diario == null) { Pendiente("Voice.LoAprendido y Voice.DiarioDeLaSesion", "709", "074"); return; }
+        aprendido.EscribirHabilidad("radicar una cuenta", "cuando pida radicar", "abre SAP\nescribe NWP1", "", "ensenada");
+        aprendido.GuardarPreferencia("confirma antes de enviar un correo", "");
+        diario.Persona("te voy a enseñar a buscar artículos: abres Scholar, escribes el tema y pulsas Enter");
+        diario.Persona("no, para radicar primero entras a NWP1 y después abres Urgencias Adultos");
+        diario.Persona("y no me preguntes antes de guardar, guarda y ya");
+        diario.Persona("soy cardióloga del Hospital General");
+        diario.Persona("lo de confirmar antes de enviar un correo ya no hace falta, olvídalo");
+
+        var montado = NuevoRepaso((object)aprendido, _ => RespuestaDelModelo(
+            new { tipo = "habilidad", motivo = "ensenada", nombre = "buscar artículos", cuando = "cuando pida buscar artículos", pasos = new[] { "abre Scholar", "escribe el tema", "pulsa Enter" }, texto = "", cita = "te voy a enseñar a buscar artículos" },
+            new { tipo = "habilidad", motivo = "corregida", nombre = "Radicar una cuenta", cuando = "cuando pida radicar", pasos = new[] { "abre SAP", "entra a NWP1", "abre Urgencias Adultos" }, texto = "", cita = "para radicar primero entras a NWP1 y después abres Urgencias Adultos" },
+            new { tipo = "preferencia", motivo = "", nombre = "", cuando = "", pasos = Array.Empty<string>(), texto = "no preguntes antes de guardar", cita = "no me preguntes antes de guardar" },
+            new { tipo = "dato", motivo = "", nombre = "", cuando = "", pasos = Array.Empty<string>(), texto = "La persona es cardióloga del Hospital General.", cita = "soy cardióloga del Hospital General" },
+            new { tipo = "olvidar", motivo = "", nombre = "", cuando = "", pasos = Array.Empty<string>(), texto = "confirma antes de enviar un correo", cita = "confirmar antes de enviar un correo ya no hace falta" }));
+        if (montado is not { } m) { Pendiente("Voice.ElRepaso", "709", "074"); return; }
+        dynamic informe = m.Repaso.RepasarAsync(diario, CancellationToken.None).GetAwaiter().GetResult();
+
+        var habilidades = ((System.Collections.IEnumerable)aprendido.Habilidades()).Cast<dynamic>().ToList();
+        Debe(habilidades.Count == 2, $"la enseñada entra a la primera y la corregida no se duplica: {habilidades.Count} habilidades");
+        var radicar = habilidades.FirstOrDefault(x => ((string)x.Nombre).Contains("adicar", StringComparison.Ordinal));
+        Debe(radicar != null && ((IEnumerable<string>)radicar!.Pasos).SequenceEqual(new[] { "abre SAP", "entra a NWP1", "abre Urgencias Adultos" }),
+            "la corrección reconstruye la que había: sus pasos son los de ahora");
+        var preferencias = ((System.Collections.IEnumerable)aprendido.Preferencias()).Cast<dynamic>().Select(x => (string)x.Texto).ToList();
+        Debe(preferencias.SequenceEqual(new[] { "no preguntes antes de guardar" }),
+            $"la preferencia entra con una vez, y la que pidió olvidar ya no está: {string.Join(" | ", preferencias)}");
+        Debe(m.Datos.SequenceEqual(new[] { "La persona es cardióloga del Hospital General." }), $"el dato va a la memoria personal, limpio: {string.Join(" | ", m.Datos)}");
+        Debe(((IEnumerable<string>)informe.Aplicadas).Count() == 5 && ((IEnumerable<string>)informe.Descartadas).Count() == 0,
+            $"cinco propuestas con su cita, cinco aplicadas ({((IEnumerable<string>)informe.Aplicadas).Count()})");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: una repetición declarada. «Si solo hay repetición sin una intención explícita,
+    /// también pasa a skill» (el dueño, 2026-10-01) — pero que algo se repitió es un hecho, y un hecho no se le
+    /// pregunta a un modelo: se mira en el cuaderno. Sin esto, cualquier cosa hecha una vez entra como habilidad
+    /// con solo decir «repetida», que es una skill por ejecución con otro nombre.
+    /// </remarks>
+    private static void LaRepeticionSeComprueba()
+    {
+        dynamic? aprendido = NuevoAprendido(Path.Combine(_raiz, "aprendido-710.json"));
+        if (aprendido == null || Diario == null) { Pendiente("Voice.LoAprendido y Voice.DiarioDeLaSesion", "710", "074"); return; }
+        object Propuesta(string tipo, string motivo) => new { tipo, motivo, nombre = "abrir el correo de Sara", cuando = "cuando pida el correo de Sara", pasos = new[] { "abre Gmail", "busca from:Sara" }, texto = "", cita = "abre mi correo y busca los de Sara" };
+
+        dynamic lunes = NuevoDiario("sesion-lunes")!;
+        lunes.Persona("abre mi correo y busca los de Sara");
+        var declarada = NuevoRepaso((object)aprendido, _ => RespuestaDelModelo(Propuesta("habilidad", "repetida")));
+        if (declarada is not { } m1) { Pendiente("Voice.ElRepaso", "710", "074"); return; }
+        m1.Repaso.RepasarAsync(lunes, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(((System.Collections.IEnumerable)aprendido.Habilidades()).Cast<dynamic>().Count() == 0,
+            "una habilidad «repetida» que no estaba en el cuaderno NO entra: que se repitió no lo dice el modelo");
+        Debe(((System.Collections.IEnumerable)aprendido.Observaciones()).Cast<dynamic>().Count() == 1,
+            "se queda de observación, que es lo que es la primera vez");
+
+        // La misma sesión repasada otra vez no es una repetición.
+        m1.Repaso.RepasarAsync(lunes, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(((System.Collections.IEnumerable)aprendido.Habilidades()).Cast<dynamic>().Count() == 0, "repasar dos veces la MISMA sesión no cuenta como haberlo hecho dos veces");
+
+        dynamic martes = NuevoDiario("sesion-martes")!;
+        martes.Persona("abre mi correo y busca los de Sara");
+        m1.Repaso.RepasarAsync(martes, CancellationToken.None).GetAwaiter().GetResult();
+        var habilidades = ((System.Collections.IEnumerable)aprendido.Habilidades()).Cast<dynamic>().ToList();
+        Debe(habilidades.Count == 1 && (string)habilidades[0].Nombre == "abrir el correo de Sara", $"otra sesión, el mismo procedimiento: ahora sí es una habilidad ({habilidades.Count})");
+        Debe(((System.Collections.IEnumerable)aprendido.Observaciones()).Cast<dynamic>().Count() == 0, "y sale del cuaderno: no está en los dos sitios");
+
+        // Y si el modelo la propone como observación otra vez, el código la asciende igual: visto dos veces es habilidad.
+        dynamic otro = NuevoAprendido(Path.Combine(_raiz, "aprendido-710b.json"))!;
+        var comoObservacion = NuevoRepaso((object)otro, _ => RespuestaDelModelo(Propuesta("observacion", "")))!.Value;
+        comoObservacion.Repaso.RepasarAsync(lunes, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(((System.Collections.IEnumerable)otro.Habilidades()).Cast<dynamic>().Count() == 0, "una observación, la primera vez, es una observación");
+        comoObservacion.Repaso.RepasarAsync(martes, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(((System.Collections.IEnumerable)otro.Habilidades()).Cast<dynamic>().Count() == 1, "y observada en dos sesiones distintas pasa a habilidad sin que el modelo tenga que decirlo");
+
+        int tope = (int)Aprendido!.GetField("TopeDelCuaderno")!.GetRawConstantValue()!;
+        for (int i = 0; i < tope + 15; i++) otro.Observar($"cosa suelta {i}", "un paso\notro paso", $"sesion-{i}");
+        Debe(((System.Collections.IEnumerable)otro.Observaciones()).Cast<dynamic>().Count() == tope, $"el cuaderno no crece sin fin: se queda con las {tope} más recientes");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: perder lo enseñado porque falló la red al cerrar. El repaso corre en segundo
+    /// plano cuando la persona ya colgó; si no hay red, o la app se cierra a mitad, la sesión no puede darse por
+    /// repasada. Y al revés: repasarla dos veces no puede dejar dos de cada cosa.
+    /// </remarks>
+    private static void UnRepasoQueFallaNoPierdeLaSesion()
+    {
+        dynamic? aprendido = NuevoAprendido(Path.Combine(_raiz, "aprendido-711.json"));
+        dynamic? diario = NuevoDiario("sesion-711");
+        if (aprendido == null || diario == null) { Pendiente("Voice.LoAprendido y Voice.DiarioDeLaSesion", "711", "074"); return; }
+        diario.Persona("no me preguntes antes de guardar, guarda y ya");
+        string carpeta = Path.Combine(_raiz, "por-repasar-711");
+        string archivo = (string)diario.Guardar(carpeta);
+
+        bool sinRed = true;
+        var montado = NuevoRepaso((object)aprendido, _ => sinRed
+            ? throw new HttpRequestException("no hay red")
+            : RespuestaDelModelo(new { tipo = "preferencia", motivo = "", nombre = "", cuando = "", pasos = Array.Empty<string>(), texto = "no preguntes antes de guardar", cita = "no me preguntes antes de guardar" }));
+        if (montado is not { } m) { Pendiente("Voice.ElRepaso", "711", "074"); return; }
+
+        int repasadas = (int)m.Repaso.PendientesAsync(carpeta, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(repasadas == 0 && File.Exists(archivo), "sin red el repaso no termina, y el diario SIGUE pendiente en disco");
+        Debe(((System.Collections.IEnumerable)aprendido.Preferencias()).Cast<dynamic>().Count() == 0, "sin haber guardado nada a medias");
+
+        sinRed = false;
+        repasadas = (int)m.Repaso.PendientesAsync(carpeta, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(repasadas == 1 && !File.Exists(archivo), "con red, la próxima vez se repasa y el diario se retira");
+        Debe(((System.Collections.IEnumerable)aprendido.Preferencias()).Cast<dynamic>().Count() == 1, "con lo que enseñaba guardado");
+
+        diario.Guardar(carpeta);   // la misma sesión, otra vez en la cola
+        m.Repaso.PendientesAsync(carpeta, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(((System.Collections.IEnumerable)aprendido.Preferencias()).Cast<dynamic>().Count() == 1, "y repasar dos veces la misma sesión no deja dos de cada cosa");
+
+        File.WriteAllText(Path.Combine(carpeta, "roto.json"), "{ esto no es un diario");
+        repasadas = (int)m.Repaso.PendientesAsync(carpeta, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(repasadas == 0 && !File.Exists(Path.Combine(carpeta, "roto.json")) && Directory.GetFiles(carpeta, "roto.json.*.ilegible").Length == 1,
+            "un diario que no se puede leer no atasca la cola para siempre: se aparta con otro nombre");
+    }
+
+    private static void SinNadaQueEnsenarNoSeLlamaAlModelo()
+    {
+        dynamic? aprendido = NuevoAprendido(Path.Combine(_raiz, "aprendido-712.json"));
+        if (aprendido == null || Diario == null) { Pendiente("Voice.LoAprendido y Voice.DiarioDeLaSesion", "712", "074"); return; }
+        var montado = NuevoRepaso((object)aprendido, _ => RespuestaDelModelo());
+        if (montado is not { } m) { Pendiente("Voice.ElRepaso", "712", "074"); return; }
+
+        dynamic vacia = NuevoDiario("sesion-vacia")!;
+        vacia.U("Te escucho.");
+        dynamic saludo = NuevoDiario("sesion-saludo")!;
+        saludo.Persona("hola");
+        saludo.Persona("gracias, chao");
+        Debe(!(bool)vacia.TieneQueRepasar && !(bool)saludo.TieneQueRepasar, "una sesión sin frases de la persona, o solo con un saludo, no tiene qué repasar");
+        dynamic i1 = m.Repaso.RepasarAsync(vacia, CancellationToken.None).GetAwaiter().GetResult();
+        dynamic i2 = m.Repaso.RepasarAsync(saludo, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(m.Pedidos.Count == 0 && !(bool)i1.LlamoAlModelo && !(bool)i2.LlamoAlModelo, $"y no se llama al modelo: ni un pedido ({m.Pedidos.Count})");
+
+        string carpeta = Path.Combine(_raiz, "por-repasar-712");
+        string archivo = (string)saludo.Guardar(carpeta);
+        m.Repaso.PendientesAsync(carpeta, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(!File.Exists(archivo) && m.Pedidos.Count == 0, "en la cola se retira sin gastar: no se queda pendiente para siempre");
+
+        dynamic conAlgo = NuevoDiario("sesion-con-algo")!;
+        conAlgo.Persona("abre la calculadora y calcula doce por doce");
+        Debe((bool)conAlgo.TieneQueRepasar, "una petición de verdad sí se repasa");
+        m.Repaso.RepasarAsync(conAlgo, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(m.Pedidos.Count == 1, "y esa sí llama al modelo, una vez");
+    }
+
+    private static void LoQueSeLePideAlModelo()
+    {
+        dynamic? aprendido = NuevoAprendido(Path.Combine(_raiz, "aprendido-713.json"));
+        dynamic? diario = NuevoDiario("sesion-713");
+        if (aprendido == null || diario == null) { Pendiente("Voice.LoAprendido y Voice.DiarioDeLaSesion", "713", "074"); return; }
+        aprendido.EscribirHabilidad("radicar una cuenta", "cuando pida radicar", "abre SAP\nescribe NWP1", "", "ensenada");
+        aprendido.GuardarPreferencia("háblame corto", "");
+        aprendido.Observar("abrir el correo de Sara", "abre Gmail\nbusca from:Sara", "sesion-de-ayer");
+        diario.Persona("abre mi correo y busca los de Sara, por favor");
+        diario.Hizo("map_hacer", "pasos=abre: gmail", "1 de 1 hechos", false);
+
+        var montado = NuevoRepaso((object)aprendido, _ => RespuestaDelModelo());
+        if (montado is not { } m) { Pendiente("Voice.ElRepaso", "713", "074"); return; }
+        m.Repaso.RepasarAsync(diario, CancellationToken.None).GetAwaiter().GetResult();
+        Debe(m.Pedidos.Count == 1, "un repaso es un pedido al modelo");
+        if (m.Pedidos.Count != 1) return;
+        using var pedido = JsonDocument.Parse(m.Pedidos[0]);
+        var raiz = pedido.RootElement;
+        string modelo = raiz.TryGetProperty("model", out var mo) ? mo.GetString() ?? "" : "";
+        string reglas = raiz.TryGetProperty("instructions", out var ins) ? ins.GetString() ?? "" : "";
+        string entrada = raiz.TryGetProperty("input", out var inp) ? inp.ToString() : "";
+        Debe(modelo == "gpt-6-luna", $"lo repasa gpt-6-luna (pide «{modelo}»)");
+        foreach (string sabe in new[] { "radicar una cuenta", "háblame corto", "abrir el correo de Sara", "sesion-de-ayer" })
+            Debe(entrada.Contains(sabe, StringComparison.Ordinal), $"le llega lo que Ü ya sabe, con el cuaderno: falta «{sabe}»");
+        Debe(entrada.Contains("busca los de Sara, por favor", StringComparison.Ordinal) && entrada.Contains("map_hacer", StringComparison.Ordinal), "y el diario de la sesión");
+        Debe(raiz.TryGetProperty("text", out var text) && text.ToString().Contains("json_schema", StringComparison.Ordinal) && text.ToString().Contains("operaciones", StringComparison.Ordinal),
+            "pide la respuesta con su forma exacta: un esquema con «operaciones»");
+        foreach (string regla in new[] { "sin esperar a que se repita", "MISMO nombre", "cita", "lista vacía" })
+            Debe(reglas.Contains(regla, StringComparison.Ordinal), $"y las reglas dicen lo que decide el caso: falta «{regla}»");
+        foreach (string tipo in new[] { "habilidad", "preferencia", "dato", "observacion", "olvidar" })
+            Debe(text.ToString().Contains($"\"{tipo}\"", StringComparison.Ordinal), $"el esquema admite «{tipo}»");
+    }
+
+    private static void CerrarLaSesionLanzaElRepaso()
+    {
+        if (Cap004("U.WindowsClient.Voice.ElRepaso") == null) { Pendiente("Voice.ElRepaso", "714", "074"); return; }
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        var terminar = System.Text.RegularExpressions.Regex.Match(v, @"public async Task TerminarAsync\(\)[\s\S]*?\n    }");
+        Debe(terminar.Success && terminar.Value.Contains("RepasarLaSesion(", StringComparison.Ordinal),
+            "[cableado] cerrar la sesión no deja su diario ni lanza el repaso");
+        var repasar = System.Text.RegularExpressions.Regex.Match(v, @"private void RepasarLaSesion\([\s\S]*?\n    }");
+        Debe(repasar.Success && repasar.Value.Contains(".Guardar(", StringComparison.Ordinal) && repasar.Value.Contains("Task.Run", StringComparison.Ordinal),
+            "[cableado] el diario se escribe ANTES de repasar, y el repaso va en segundo plano: no retrasa el cierre");
+        Debe(repasar.Success && repasar.Value.Contains("_confirmada", StringComparison.Ordinal),
+            "[cableado] y solo de una sesión que abrió de verdad: TerminarAsync corre también para las que nunca abrieron");
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"public async Task ArrancarAsync\([\s\S]*?RepasarLoPendiente\("),
+            "[cableado] abrir una sesión no repasa lo que quedó pendiente de la anterior");
+        foreach (string anota in new[] { "_diario?.Persona(", "_diario?.U(", "_diario?.Hizo(" })
+            Debe(v.Contains(anota, StringComparison.Ordinal), $"[cableado] la conversación no anota en el diario: falta {anota}…)");
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(cara.Contains("_vivo.Aprendido =", StringComparison.Ordinal) && cara.Contains("_vivo.Repaso =", StringComparison.Ordinal),
+            "[cableado] la ventana no le da a la conversación ni el almacén ni el repaso: nada de esto correría en la app");
+    }
+
+    private static void LaMemoriaEnsenaLoAprendido()
+    {
+        dynamic? a = NuevoAprendido(Path.Combine(UserPaths.Roaming, "U", "aprendido.json"));
+        if (a == null) { Pendiente("Voice.LoAprendido", "715", "074"); return; }
+        var vacia = LeerLaMemoria(DateTimeOffset.Now);
+        if (vacia == null || Apartado(vacia, "preferencias") == null) { Pendiente("el apartado «preferencias» de la Memoria", "715", "074"); return; }
+        Debe(Apartado(vacia, "preferencias")!.Estado.ToString() == "Vacio", "sin nada aprendido, «preferencias» dice que todavía nada");
+
+        a.EscribirHabilidad("buscar en Scholar", "cuando pida buscar artículos", "abre Google Scholar\nescribe el tema", "te voy a enseñar", "ensenada");
+        a.GuardarPreferencia("no me preguntes antes de guardar", "no me preguntes antes de guardar");
+        a.Observar("abrir el correo de Sara", "abre Gmail", "sesion-1");
+        var llena = LeerLaMemoria(DateTimeOffset.Now)!;
+        var textos = TextosDe(llena);
+        Debe((int)Apartado(llena, "habilidades")!.Cuenta == 1 && textos.Any(t => t.Contains("buscar en Scholar", StringComparison.Ordinal)),
+            "la habilidad enseñada hablando sale en «Lo que me has enseñado a hacer»");
+        Debe((int)Apartado(llena, "preferencias")!.Cuenta == 1 && textos.Any(t => t.Contains("no me preguntes antes de guardar", StringComparison.Ordinal)),
+            "y la preferencia, en su apartado");
+        Debe(!textos.Any(t => t.Contains("abrir el correo de Sara", StringComparison.Ordinal)),
+            "el cuaderno no se enseña como algo que Ü sabe hacer: todavía no lo es");
+
+        File.WriteAllText(Path.Combine(UserPaths.Roaming, "U", "aprendido.json"), "{ roto");
+        var rota = LeerLaMemoria(DateTimeOffset.Now)!;
+        Debe(Apartado(rota, "preferencias")!.Estado.ToString() == "NoSePudoLeer", "y si el archivo está dañado lo dice, no lo enseña como vacío (623)");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: guardar «háblame más corto» y que la voz siga hablando largo. Con GPT-Live lo
+    /// aprendido viaja en las instrucciones del delegado, que no habla; la voz tiene su propia persona. Una
+    /// preferencia sobre cómo se habla que solo conoce quien no habla es una preferencia que nadie cumple.
+    /// </remarks>
+    private static void LasPreferenciasLleganAQuienHabla()
+    {
+        dynamic? a = NuevoAprendido(Path.Combine(_raiz, "aprendido-716.json"));
+        if (a == null) { Pendiente("Voice.LoAprendido", "716", "074"); return; }
+        if (Aprendido!.GetMethod("ParaLaVoz") == null) { Pendiente("LoAprendido.ParaLaVoz", "716", "074"); return; }
+        int tope = Voz.Realtime.ProtocoloGptLive.TopeDeUnAppend;
+
+        Debe((string)a.ParaLaVoz(tope) == "", "sin preferencias no hay nada que decirle a la voz");
+        a.EscribirHabilidad("buscar en Scholar", "cuando pida buscar artículos", "abre Google Scholar\nescribe el tema", "", "ensenada");
+        Debe((string)a.ParaLaVoz(tope) == "", "las habilidades no van a la voz: son de quien actúa, y no caben");
+
+        a.GuardarPreferencia("háblame más corto", "");
+        a.GuardarPreferencia("no me digas «listo» al terminar", "");
+        string dos = (string)a.ParaLaVoz(tope);
+        Debe(dos.Contains("háblame más corto", StringComparison.Ordinal) && dos.Contains("no me digas «listo» al terminar", StringComparison.Ordinal),
+            $"con dos preferencias, van las dos: {dos}");
+        Debe(!dos.Contains("Scholar", StringComparison.Ordinal), "y solo ellas");
+
+        for (int i = 0; i < 30; i++) a.GuardarPreferencia($"preferencia número {i:00}, que es larga a propósito para que entre todas no quepan en un solo append", "");
+        string muchas = (string)a.ParaLaVoz(tope);
+        Debe(muchas.Length <= tope, $"muchas preferencias no pasan de lo que cabe en un append: {muchas.Length} de {tope}");
+        Debe(muchas.Contains("preferencia número 29", StringComparison.Ordinal) && !muchas.Contains("háblame más corto", StringComparison.Ordinal),
+            "y cuando no caben todas, se quedan las más recientes: lo último que pidió es lo que más pesa");
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        var abierta = System.Text.RegularExpressions.Regex.Match(v, @"case Hecho\.Abierta:[\s\S]*?break;");
+        Debe(abierta.Success && abierta.Value.Contains("ContarleLasPreferenciasALaVoz(", StringComparison.Ordinal),
+            "[cableado] al confirmarse la apertura nadie le cuenta las preferencias a la voz");
+        var contar = System.Text.RegularExpressions.Regex.Match(v, @"private void ContarleLasPreferenciasALaVoz\([\s\S]*?\n    }");
+        Debe(contar.Success && contar.Value.Contains(".ParaLaVoz(", StringComparison.Ordinal) && contar.Value.Contains("Aprendido", StringComparison.Ordinal),
+            "[cableado] lo que se le cuenta no sale de lo aprendido, o no pasa por el protocolo");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE, medido el 2026-10-01 sobre la Ü de pruebas: a «de ahora en adelante dime solo
+    /// el resultado, sin explicaciones» quien actúa llamó a memory_remember —sus instrucciones se lo mandaban—,
+    /// la frase quedó como un dato en la memoria personal, y el repaso, que la vio ya guardada, no propuso nada:
+    /// 0 preferencias. Un dato no le llega a quien habla (716) ni sale en «Cómo quieres las cosas» (715).
+    /// </remarks>
+    private static void UnaPreferenciaSeGuardaEnSuSitio()
+    {
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+        var herramientas = ((IReadOnlyList<Voz.Realtime.Utensilio>)t!.GetMethod("Herramientas", f)!.Invoke(null, null)!);
+        var guardar = herramientas.FirstOrDefault(u => u.Nombre == "preferencia_guardar");
+        if (guardar == null) { Pendiente("preferencia_guardar en el catálogo de quien actúa", "717", "074"); return; }
+
+        Debe(guardar.Args.Select(x => x.Nombre).SequenceEqual(new[] { "texto" }), $"guardar una preferencia pide su texto ({string.Join(", ", guardar.Args.Select(x => x.Nombre))})");
+        var recordar = herramientas.First(u => u.Nombre == "memory_remember");
+        Debe(recordar.Descripcion.Contains("preferencia_guardar", StringComparison.Ordinal),
+            "memory_remember dice a dónde van las preferencias: a preferencia_guardar");
+        Debe(!recordar.Descripcion.Contains("una preferencia o un compromiso", StringComparison.Ordinal),
+            "y ya no se ofrece para guardarlas: dos herramientas que se ofrecen para lo mismo son una moneda al aire");
+        foreach (string cual in new[] { "InstruccionesDelDelegado", "InstruccionesNormales" })
+        {
+            string texto = (string)t.GetProperty(cual, f)!.GetValue(null)!;
+            Debe(texto.Contains("preferencia_guardar", StringComparison.Ordinal), $"{cual} manda guardar las preferencias con preferencia_guardar");
+            Debe(!System.Text.RegularExpressions.Regex.IsMatch(texto, @"una preferencia[^.→]{0,90}→ memory_remember")
+                 && !System.Text.RegularExpressions.Regex.IsMatch(texto, @"una preferencia o un compromiso[^.]{0,60}memory_remember"),
+                $"{cual} ya no manda las preferencias a memory_remember");
+        }
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is { } v)
+            Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"private async Task EjecutarNucleoAsync\([\s\S]*?Aprendido\.GuardarPreferencia\("),
+                "[cableado] la herramienta existe y nadie la despacha contra lo aprendido");
+
+        // Y lo que ya estaba guardado como dato —lo de antes de esta promesa— no tapa a la preferencia.
+        dynamic? aprendido = NuevoAprendido(Path.Combine(_raiz, "aprendido-717.json"));
+        dynamic? diario = NuevoDiario("sesion-717");
+        if (aprendido == null || diario == null) { Pendiente("Voice.LoAprendido y Voice.DiarioDeLaSesion", "717", "074"); return; }
+        diario.Persona("de ahora en adelante dime solo el resultado, sin explicaciones");
+        var montado = NuevoRepaso((object)aprendido, _ => RespuestaDelModelo());
+        if (montado is not { } m) { Pendiente("Voice.ElRepaso", "717", "074"); return; }
+        m.Repaso.RepasarAsync(diario, CancellationToken.None).GetAwaiter().GetResult();
+        string reglas = m.Pedidos.Count == 1 && JsonDocument.Parse(m.Pedidos[0]).RootElement.TryGetProperty("instructions", out var ins) ? ins.GetString() ?? "" : "";
+        Debe(reglas.Contains("solo está entre los DATOS", StringComparison.Ordinal),
+            "las reglas del repaso dicen que una preferencia que solo está entre los datos se propone como preferencia");
     }
 
     private static void ElDelegadoSeCambiaSinRecompilar()

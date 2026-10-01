@@ -214,6 +214,8 @@ internal static class Contrato
         Prueba("65. un fallo no espera: sale al momento aunque no se haya cumplido el espacio, con lo guardado delante, y dice que no se pudo", UnFalloNoEspera);
         Prueba("66. un avance nunca pasa de lo que cabe en un append: lo que sobra se recorta diciéndolo, y volver al modo normal sigue cabiendo con la persona nueva", UnAvanceCabeSiempre);
         Prueba("67. la prisa del delegado y cuánto piensa se eligen al construir: sin prisa la delegación no lleva service_tier, ni al abrir ni al cambiar de modo, y el esfuerzo pedido es el que viaja", LaPrisaSeElige);
+        // Spec 074: lo que la persona prefiere es, casi siempre, sobre cómo le hablan — y quien habla es la voz.
+        Prueba("68. lo que la persona prefiere le llega a quien habla: un session.instructions.append sin delegación con el texto dentro, que nunca pasa de lo que cabe en un append y lo dice si recorta; un protocolo de una sola voz no manda nada", LasPreferenciasLleganALaVoz);
 
         Console.WriteLine();
         if (_pendientes > 0)
@@ -1618,6 +1620,40 @@ internal static class Contrato
             "y el cambio de modo igual: el update reemplaza la delegación entera, y lo elegido se perdería al primer cambio");
         Debe(Esfuerzo(Mensaje(GptLive("gpt-live-1", "gpt-6-luna", true, "   ")!.Apertura("reglas", new List<Utensilio>(), "").First())) == Esfuerzo(Mensaje(GptLive()!.Apertura("reglas", new List<Utensilio>(), "").First())),
             "un esfuerzo en blanco es el de por defecto: uno vacío lo rechazaría el servidor (patrón nº9)");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: una preferencia que solo conoce quien no habla. «Háblame más corto» es sobre
+    /// la voz; lo aprendido viaja en las instrucciones del delegado, y la voz de GPT-Live tiene su propia
+    /// persona, que no las lleva (promesa 40). Sin esto la preferencia se guardaba y nadie la cumplía.
+    /// Va como instrucción y no como avance: un avance es algo que pasó; esto es cómo tiene que hablar.
+    /// </remarks>
+    private static void LasPreferenciasLleganALaVoz()
+    {
+        var p = GptLive();
+        var paraLaVoz = typeof(IProtocolo).GetMethod("ParaLaVoz");
+        if (p == null || paraLaVoz == null) { Pendiente("IProtocolo.ParaLaVoz", "spec 074"); return; }
+        string Manda(IProtocolo a, string texto) => paraLaVoz.Invoke(a, new object[] { texto }) as string ?? "";
+
+        string json = Manda(p, "LO QUE ESTA PERSONA TE HA PEDIDO:\n- háblame más corto");
+        Debe(json.Length > 0, "GPT-Live le manda las preferencias a la voz");
+        if (json.Length == 0) return;
+        var m = Mensaje(json);
+        Debe(Campo(m, "type") == "session.instructions.append",
+            $"como instrucción añadida: session.instructions.append (es «{Campo(m, "type")}»)");
+        Debe(Nodo(m, "delegation_id") is { ValueKind: JsonValueKind.Null }, "con delegation_id nulo: es para la voz, no para el delegado");
+        Debe(Campo(m, "content").Contains("háblame más corto", StringComparison.Ordinal), "y con el texto dentro");
+
+        var tope = Realtime.GetType("Voz.Realtime.ProtocoloGptLive")?.GetField("TopeDeUnAppend")?.GetRawConstantValue();
+        if (tope is not int topeDelAppend) { Pendiente("ProtocoloGptLive.TopeDeUnAppend", "spec 074"); return; }
+        string enorme = Campo(Mensaje(Manda(p, new string('x', 5_000))), "content");
+        Debe(enorme.Length > 0 && enorme.Length <= topeDelAppend,
+            $"un texto enorme sale dentro de lo que cabe en un append: {enorme.Length} de {topeDelAppend} — rechazado, la voz se queda sin saber y sin error");
+        Debe(enorme.Contains("recortado", StringComparison.Ordinal), "y dice que se recortó: lo no mandado deja rastro (patrón nº10)");
+
+        Debe(Manda(p, "   ").Length == 0, "sin nada que decir no se manda nada");
+        Debe(Manda(new ProtocoloOpenAI(), "LO QUE ESTA PERSONA TE HA PEDIDO:\n- háblame más corto").Length == 0,
+            "y GPT Realtime no manda nada: allí quien habla es quien actúa, y ya lo lleva en sus instrucciones");
     }
 
     /// <remarks>
