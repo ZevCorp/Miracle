@@ -9,11 +9,15 @@ name: Android · APK
 # toca apps/android/ puede no tener el SDK: aquí es donde se ve antes de main, no después. El
 # contrato (scripts/contrato.sh) corre aquí desde el 2026-09-30; hasta entonces el CI solo compilaba.
 #
-# La OpenAI API key (y las demás) se hornean desde SECRETS del repo, nunca desde git. Configúralos en
-# Settings → Secrets and variables → Actions:  OPENAI_KEY, GEMINI_KEY, DEEPGRAM_KEY (todos opcionales;
-# lo que falte se puede escribir dentro de la app). Sin OPENAI_KEY, el switch a OpenAI sigue disponible
-# introduciendo la key en el panel de Desarrollador. OJO: el repo es público y los artefactos también;
-# un APK con claves horneadas las publica.
+# La OpenAI API key se hornea desde el secreto OPENAI_KEY del repo, nunca desde git (opcional: lo que
+# falte se escribe dentro de la app, en el panel de Desarrollador). OJO: el repo es público y los
+# artefactos también; un APK con claves horneadas las publica.
+#
+# Las de Gemini y Deepgram ya NO se hornean (2026-10-01, a pedido del dueño; promesa 45 de la raíz). La
+# app las toma de lo que el usuario escriba o de la config que distribuye el backend (RemoteConfig), y
+# sin ninguna el dictado cae al reconocedor del sistema. Los secretos GEMINI_KEY y DEEPGRAM_KEY quedan
+# sin uso: se borran en Settings → Secrets and variables → Actions, y como ya viajaron en APKs
+# publicados, se rotan en Google AI Studio y en Deepgram.
 
 on:
   workflow_dispatch:
@@ -46,12 +50,10 @@ jobs:
         with:
           packages: platform-tools
 
-      - name: Bake API keys (desde secrets, fuera de git)
+      - name: Bake API key de OpenAI (desde secrets, fuera de git)
         run: |
           {
             echo "openaiKey=${{ secrets.OPENAI_KEY }}"
-            echo "apiKey=${{ secrets.GEMINI_KEY }}"
-            echo "deepgramKey=${{ secrets.DEEPGRAM_KEY }}"
           } > apikey.properties
 
       # El mismo juez que corre el portero local. Su última línea es el veredicto.
