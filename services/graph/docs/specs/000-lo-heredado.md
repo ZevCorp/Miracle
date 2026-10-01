@@ -37,7 +37,7 @@ así: sus promesas llevan número propio y el juez las imprime una por una (ver
 | 23 | Cada sección de la nota se interpreta o se copia literal según la precedencia sección, plantilla, especialidad, y el prompt lo refleja | `verify-note-fidelity.js` |
 | 24 | El rescate de consultas a medias rescata lo que debe, no toca lo que el propietario pidió dejar quieto, y dos ejecuciones no pelean por el mismo trabajo | `verify-note-rescue.js` |
 | 25 | Graph calcula el mismo hash de firma que Miracle Notes sobre el vector compartido | `verify-note-signature-hash.js` |
-| 26 | Quien no es médico configura su perfil por voz, lo consulta, le enseña capturas nuevas y organiza una transcripción con él | `verify-organizer-profiles.js` |
+| 26 | ~~Quien no es médico configura su perfil por voz, lo consulta, le enseña capturas nuevas y organiza una transcripción con él~~ (retirada el 2026-10-01: el organizador no tenía ningún cliente y se borró, spec 005) | `verify-organizer-profiles.js` |
 | 27 | Por el cable, ningún identificador del paciente sale hacia el proveedor de IA, y la nota vuelve con los datos reales y sin marcadores | `verify-privacy-gateway-e2e.js` |
 | 28 | El escudo de privacidad detecta el corpus dorado, restaura exacto, no fuga y aísla una consulta de otra | `verify-privacy-shield.js` |
 | 29 | Las cláusulas compartidas de los prompts existen, no están vacías, y el espejo de Python lleva la misma versión | `verify-prompt-clauses.js` |

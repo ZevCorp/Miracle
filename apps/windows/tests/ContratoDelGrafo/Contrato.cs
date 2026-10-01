@@ -13066,9 +13066,14 @@ internal static class Contrato
         cfg.DisplayName = "Ana Restrepo";
         cfg.Email = UsuarioDeLaMemoria;
         cfg.UserId = UsuarioDeLaMemoria;
-        cfg.ClientToken = "tok-secreto-123";
         cfg.InstallId = "inst-999-zzz";
         cfg.Save();
+        // EL TOKEN DEL BACKEND VIEJO, como lo deja en el archivo una Ü de antes: Config ya no lo tiene
+        // (spec 078, promesa 707), pero un config.json escrito antes de esa versión todavía lo trae hasta
+        // el próximo guardado, y la Memoria lee el archivo, no la clase.
+        var conToken = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(U.WindowsClient.Config.Archivo))!.AsObject();
+        conToken["ClientToken"] = "tok-secreto-123";
+        File.WriteAllText(U.WindowsClient.Config.Archivo, conToken.ToJsonString());
 
         string archivoMemoria = Path.Combine(roaming, "memoria-personal.json");
         var memoria = new MemoriaPersonal(UsuarioDeLaMemoria, archivoMemoria);
@@ -19185,6 +19190,8 @@ internal static class Contrato
                         $"con {nombre}, ni nada más: lo decide el modelo con memory_remember, no un vigilante");
                 }
             }
+        }
+    }
 
     // ── LA VOZ AL PRIMER CLIC (spec 075) ────────────────────────────────────────────────────────────────
 
