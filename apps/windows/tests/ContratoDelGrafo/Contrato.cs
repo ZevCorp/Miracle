@@ -1100,7 +1100,9 @@ internal static class Contrato
         Prueba("445. la carita blanca es casi blanca sin ser blanca: su cuerpo no llega al blanco puro en ningún punto ni se apaga —el centro no baja de 240 de 255, y arriba, abajo y a los lados no baja de 225—, y conserva el volumen", LaCaritaBlancaEsCasiBlanca);
         Prueba("446. cuando Ü pulsa algo, la carita lo presiona con la mano: saca solo la mano de ese lado, la empuja hacia fuera y la esconde sola en menos de un segundo, por detrás de la cara; la mano no se sale del aire que la ventana de la carita le deja, tampoco al saludar; y solo presiona cuando el pulso es de Ü: señalar no saca la mano", LaCaritaPresionaLoQueUPulsa);
         Prueba("447. los gestos responden a lo que pasa: tocar la carita la hace rebotar, y al ir junto a lo que Ü toca gira la cabeza hacia ello y la sigue teniendo girada aunque cambie de estado", LosGestosRespondenALoQuePasa);
-        Prueba("448. al hablar la boca no se abre: es una línea en todos los estados, sin relleno ni lengua; hablar se ve en la sonrisa, que se ensancha poco a poco al empezar una frase y se relaja al callar, sin parpadear en cada frase", AlHablarLaBocaNoSeAbre);
+        // La 448 cambió el 2026-10-01 (spec 078): decía «hablar se ve en la sonrisa, que se ensancha poco a poco al empezar
+        // una frase y se relaja al callar». El dueño, al verlo: «no me gusta cómo sonríe cuando habla».
+        Prueba("448. al hablar la boca no se abre ni la cara cambia: es una línea en todos los estados, sin relleno ni lengua, y hablando es la misma cara que en reposo; de una expresión a otra se llega poco a poco", AlHablarLaBocaNoSeAbre);
 
         // ── Spec 076: cada instalación tiene su credencial ──────────────────────────────────────
         // Nacieron el 2026-09-30 como 640-648 en una rama que no llegó a commitearse; al entrar a main ya estaban
@@ -1160,7 +1162,9 @@ internal static class Contrato
         // quién saludar.
         Console.WriteLine();
         Prueba("690. la carita saluda cuando vuelves: al abrir Ü, al desbloquear el computador, al volver a tocarlo tras cinco minutos sin hacerlo y al acercarle el ratón tras diez minutos sin tratarla; y sola, cada 20 a 40 minutos; nunca dos veces en menos de minuto y medio, ni en mitad de una conversación o de un trabajo", LaCaritaSaludaCuandoVuelves);
-        Prueba("691. mientras conversas con ella y te escucha, la carita atiende: pone la cara quieta y de boca pequeña de cuando graba, distinta de la del reposo; y al hablar sonríe ancho, como siempre", MientrasConversaLaCaritaAtiende);
+        // La 691 cambió el mismo día que nació (spec 078): decía que mientras te escucha pone la cara de grabar. El dueño:
+        // «me gusta, pero que entre y salga, que no se quede pegado».
+        Prueba("691. mientras conversas con ella la carita sonríe como en reposo: la cara de atender —quieta y de boca pequeña, la de cuando graba— es un gesto que entra y sale, no una cara que se queda", MientrasConversaLaCaritaAtiende);
         Prueba("692. hay un solo reloj del saludo y vive en la ventana: el dibujo de la carita, solo, únicamente parpadea", HayUnSoloRelojDelSaludo);
         // ── Spec 073: la voz conversa mientras el delegado trabaja (2026-10-01) ──
         // 751-756. Nacieron como 680-686 en la rama; al mezclar con main (2026-10-01) esos números ya eran de la spec
@@ -1276,6 +1280,18 @@ internal static class Contrato
         Prueba("823. el ✓ de una sección es un gatillo sobre lo aprendido: la carita va junto a la sección y se pregunta qué acción quiere la persona con esa información contrastándola con sus habilidades, propone UNA acción, y solo al aprobarla la ejecuta quien tiene las manos; «Ejecutar todo» es lo mismo con toda la información y una acción en común; el ✓ ya no lleva nada a SAP y el botón de grabar dice «Escuchar»", ElCheckEsUnGatilloSobreLoAprendido);
         Prueba("824. lo que Ü aprende se ve: al cerrar la voz el indicador carga mientras repasa y al terminar despliega todo lo aprendido en la sesión, cada cosa una vez; si no hubo nada lo dice; y lo guardado durante la clase se enseña en el acto", LoQueAprendeSeVe);
         Prueba("825. el ✓ y el botón de aprobar se prueban sin ventana por el mismo puente —u_nota y u_aprobar—, y solo existen con U_ORDENES_DE_PRUEBA=1", ElCheckSePruebaPorElMcp);
+
+        // ── Spec 078: la carita expresa lo que Ü hace, y lo que le pasa ──────────────────────────
+        // «Trabajando» y «esperando» llevaban meses dibujadas y sin verse: con la voz viva, la cara se decidía
+        // antes de mirar si Ü ejecutaba. Aquí cada fila de «cuando pasa X, la carita hace Y» tiene su promesa.
+        Console.WriteLine();
+        Prueba("693. la cara de la carita sale de lo que pasa: mientras Ü ejecuta trabaja, aunque haya conversación; si te preguntó y espera, espera; recién prendida la voz escucha, y a los 25 segundos se calma; y cuando Ü habla no cambia de cara", LaCaraSaleDeLoQuePasa);
+        Prueba("694. los gestos entran y salen: atender, entender, alegrarse y sorprenderse duran menos de dos segundos, se ven mientras duran y la carita vuelve sola a la cara de su estado", LosGestosEntranYSalen);
+        Prueba("695. mientras le hablas la carita te sigue: al empezar pone un momento la cara de atender, y si sigues hablando alterna la de entender y la de atender cada 3,5 a 5,5 segundos; como mucho medio minuto, y en cuanto Ü contesta o ejecuta deja de hacerlo", MientrasLeHablasLaCaritaTeSigue);
+        Prueba("696. lo que Ü pulsa lo pulsa con expresión: de un pulso al siguiente la carita alterna la cara de atender y la de entender", LoQueUPulsaLoPulsaConExpresion);
+        Prueba("697. cuando Ü desplaza la pantalla la carita la desliza: se pone dentro de la ventana, junto a su borde, apoya la mano y se mueve con el contenido —sube si el contenido sube, baja si baja— sin salirse de la pantalla, y la mano aguanta apoyada mientras se mueve", CuandoUDesplazaLaCaritaDesliza);
+        Prueba("698. cuando Ü escribe la carita teclea: saca las dos manos y las mueve alternándolas mientras dura lo escrito —más cuanto más largo, entre uno y tres segundos—, y no vuelve a casa hasta que termina", CuandoUEscribeLaCaritaTeclea);
+        Prueba("699. la carita reacciona a lo que le pasa: al terminar bien un trabajo se alegra, al agarrarla se sorprende y al soltarla rebota, y al colgar una conversación de más de veinte segundos se despide con la mano", LaCaritaReaccionaALoQueLePasa);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -22801,29 +22817,26 @@ internal static class Contrato
                     $"{estado} en tema {tema}: la boca es una línea — mide {ancho} de ancho y su tinta no pasa de 9 de alto (da {alto})");
             }
 
-        // SE LLEGA A LA SONRISA DE HABLAR, NO SE SALTA A ELLA.
+        // AL HABLAR, NADA. La sonrisa que se ensanchaba se vio un día y no gustó: el halo ya dice que habla.
+        byte[] Pinta(string estado) => Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); Poner(c, "Mood", estado); }));
+        var enReposo = Pinta("Reposo"); var alHablar = Pinta("Hablando");
+        int cambia = 0;
+        for (int i = 0; i < enReposo.Length; i++) if (enReposo[i] != alHablar[i]) cambia++;
+        Debe(cambia == 0, $"hablando es la misma cara que en reposo ({cambia} byte(s) distintos)");
+
+        // A UNA EXPRESIÓN SE LLEGA, NO SE SALTA. Se mira con la de grabar, que encoge la boca.
         int Ancho(double llegada) => TintaDeLaBoca(Pintar(NuevaCara(c =>
         {
             Poner(c, "Theme", "Light");
-            Poner(c, "Mood", "Hablando");     // viene del reposo
+            Poner(c, "Mood", "Grabando");     // viene del reposo
             Poner(c, "Llegada", llegada);
         })), false).Ancho;
-        int reposo = Ancho(0), medio = Ancho(0.5), hablando = Ancho(1);
-        Debe(reposo < medio && medio < hablando, $"al empezar a hablar la sonrisa se ensancha poco a poco ({reposo} → {medio} → {hablando} de ancho)");
-        Debe(hablando - reposo >= 3, $"y se nota: hablando es más ancha que en reposo ({hablando} contra {reposo})");
+        int reposo = Ancho(0), medio = Ancho(0.5), grabando = Ancho(1);
+        Debe(reposo > medio && medio > grabando, $"de una cara a otra se llega poco a poco ({reposo} → {medio} → {grabando} de ancho de boca)");
 
         int Ms(string desde, string hasta) => Convert.ToInt32(tarda.Invoke(null, new[] { Enum.Parse(estados, desde), Enum.Parse(estados, hasta) }));
-        bool P(string desde, string hasta) => (bool)parpadea.Invoke(null, new[] { Enum.Parse(estados, desde), Enum.Parse(estados, hasta) })!;
-        int abre = Ms("Conversando", "Hablando"), relaja = Ms("Hablando", "Conversando");
-        Debe(abre >= 200 && abre <= 400, $"ensancharse lleva un cuarto de segundo largo, a ritmo de frase y no de sílaba ({abre} ms)");
-        Debe(relaja > abre * 2 && relaja <= 1200, $"y relajarse es más lento que ensancharse ({relaja} ms contra {abre})");
-        foreach (var (desde, hasta) in new[] { ("Reposo", "Trabajando"), ("Trabajando", "Fallo"), ("Reposo", "Esperando"), ("Esperando", "Reposo") })
-            Debe(Ms(desde, hasta) >= 150 && Ms(desde, hasta) <= 600, $"de {desde} a {hasta} tampoco salta: tarda entre 150 y 600 ms ({Ms(desde, hasta)})");
-
-        Debe(!P("Conversando", "Hablando") && !P("Hablando", "Conversando"),
-            "entre hablar y callar no parpadea: en una conversación eso pasa cada pocos segundos");
-        Debe(P("Reposo", "Trabajando") && P("Trabajando", "Fallo") && P("Reposo", "Hablando"),
-            "los demás cambios de estado sí llevan su parpadeo");
+        foreach (var (desde, hasta) in new[] { ("Reposo", "Trabajando"), ("Trabajando", "Fallo"), ("Reposo", "Esperando"), ("Escuchando", "Conversando"), ("Conversando", "Trabajando") })
+            Debe(Ms(desde, hasta) >= 150 && Ms(desde, hasta) <= 600, $"de {desde} a {hasta} no salta: tarda entre 150 y 600 ms ({Ms(desde, hasta)})");
     }
 
     // ── Spec 076: cada instalación tiene su credencial ───────────────────────────────────────────
@@ -24389,23 +24402,23 @@ internal static class Contrato
 
     private static void MientrasConversaLaCaritaAtiende()
     {
-        // «QUE CUANDO ESTEMOS HABLANDO TENGA ALGÚN TIPO DE GESTO […] EL QUE DICE GRABANDO, JUSTAMENTE» (el
-        // dueño, 2026-10-01). Desde agosto, conversar era «casi el reposo» a propósito: la alternativa de
-        // entonces eran los ojos como platos y un jadeo continuo. La cara de grabar es quieta.
-        if (Cara == null) { Pendiente("Ui.FaceControl", "691", "077"); return; }
-        byte[] Pinta(string estado) => Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); Poner(c, "Mood", estado); }));
-        int Boca(string estado) => TintaDeLaBoca(Pinta(estado), false).Ancho;
+        // «LA DE TE ESCUCHA ME GUSTA, PERO QUE ENTRE Y SALGA» (el dueño, 2026-10-01). Por la mañana se
+        // puso fija toda la conversación; por la tarde, de gesto: un momento, y de vuelta a sonreír.
+        if (Cara?.GetProperty("Gesto") == null || Cara.GetProperty("Expresion") == null)
+        {
+            Pendiente("FaceControl.Gesto y FaceControl.Expresion", "691", "078");
+            return;
+        }
+        byte[] Pinta(Action<object> ajustar) => Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); ajustar(c); }));
+        int Distintos(byte[] a, byte[] b) { int n = 0; for (int i = 0; i < a.Length; i += 4) if (a[i] != b[i] || a[i + 1] != b[i + 1] || a[i + 2] != b[i + 2] || a[i + 3] != b[i + 3]) n++; return n; }
 
-        int reposo = Boca("Reposo"), conversando = Boca("Conversando"), grabando = Boca("Grabando"), hablando = Boca("Hablando");
-        Debe(conversando == grabando, $"conversando pone la boca de cuando graba ({conversando} contra {grabando} de ancho)");
-        Debe(conversando <= reposo - 8, $"distinta de la del reposo: bastante más pequeña ({conversando} contra {reposo})");
-        Debe(hablando >= conversando + 12, $"y al hablar sonríe ancho ({hablando} contra {conversando})");
-
-        var a = Pinta("Conversando"); var b = Pinta("Grabando");
-        int distintos = 0;
-        for (int i = 0; i < a.Length; i += 4)
-            if (a[i] != b[i] || a[i + 1] != b[i + 1] || a[i + 2] != b[i + 2] || a[i + 3] != b[i + 3]) distintos++;
-        Debe(distintos == 0, $"es la misma cara entera, no solo la boca: cejas y ojos también ({distintos} píxel(es) distintos)");
+        var reposo = Pinta(_ => { });
+        Debe(Distintos(Pinta(c => Poner(c, "Mood", "Conversando")), reposo) == 0, "conversando sonríe como en reposo: es la misma cara");
+        var atendiendo = Pinta(c => { Poner(c, "Mood", "Conversando"); Poner(c, "Gesto", "Atenta"); Poner(c, "Expresion", 1.0); });
+        Debe(Distintos(atendiendo, Pinta(c => Poner(c, "Mood", "Grabando"))) == 0, "la cara de atender, puesta del todo, es la de cuando graba");
+        Debe(TintaDeLaBoca(atendiendo, false).Ancho <= TintaDeLaBoca(reposo, false).Ancho - 8, "y se distingue de la del reposo: la boca, bastante más pequeña");
+        Debe(Distintos(Pinta(c => { Poner(c, "Mood", "Conversando"); Poner(c, "Gesto", "Atenta"); Poner(c, "Expresion", 0.0); }), reposo) == 0,
+            "cuando el gesto sale, la carita vuelve a la sonrisa: no se queda puesta");
     }
 
     private static void HayUnSoloRelojDelSaludo()
@@ -24428,6 +24441,359 @@ internal static class Contrato
             Debe(saludar.Contains("Face.Saludar()") && saludar.Contains("CollapsedFace.Saludar()") && llamadas == 2,
                 $"[cableado] la ventana saluda desde un solo sitio, y a las dos caritas a la vez ({llamadas} llamada(s) a Saludar())");
             Debe(saludar.Contains("_saludo.Toca("), "[cableado] y ese sitio le pregunta a la regla antes de saludar");
+        }
+    }
+
+    // ── La carita expresa lo que Ü hace (spec 078) ─────────────────────────────────────────
+
+    private static double CampoDeTupla(object tupla, string campo) => Convert.ToDouble(tupla.GetType().GetField(campo)!.GetValue(tupla));
+
+    /// <summary>Cuántos píxeles pintados quedan fuera del cuerpo de la carita, a su izquierda y a su derecha, y cuántos de los que el cuerpo tapa cambiaron.</summary>
+    private static (int Izquierda, int Derecha, int TapadoCambia) FueraDelCuerpo(byte[] sin, byte[] con)
+    {
+        int x0 = LadoPintado, x1 = 0, izq = 0, der = 0, tapado = 0;
+        for (int i = 0; i < sin.Length; i += 4)
+            if (sin[i + 3] == 255) { int x = (i / 4) % LadoPintado; x0 = Math.Min(x0, x); x1 = Math.Max(x1, x); }
+        for (int i = 0; i < sin.Length; i += 4)
+        {
+            int x = (i / 4) % LadoPintado;
+            if (sin[i + 3] == 255 && (sin[i] != con[i] || sin[i + 3] != con[i + 3])) tapado++;
+            if (con[i + 3] > 128 && x > x1 + 2) der++;
+            if (con[i + 3] > 128 && x < x0 - 2) izq++;
+        }
+        return (izq, der, tapado);
+    }
+
+    /// <summary>Hasta dónde puede llegar una mano sin salirse de la ventana de la carita suelta, en radios de la cara.</summary>
+    private static double AireDeLaVentanaEnRadios()
+    {
+        var regla = Capacidad("U.WindowsClient.Ui.ReglaDelHalo")!;
+        double carita = Convert.ToDouble(regla.GetField("CaritaPx")!.GetValue(null)), aire = Convert.ToDouble(regla.GetField("AirePx")!.GetValue(null));
+        return (carita / 2 + aire) / (carita / 2 - carita / 150);
+    }
+
+    private static void LaCaraSaleDeLoQuePasa()
+    {
+        // POR QUÉ NO SE VEÍAN «TRABAJANDO» NI «ESPERANDO»: con la voz viva, la cara se decidía —hablando o
+        // conversando— antes de mirar si Ü ejecutaba o esperaba, y casi todo lo que Ü ejecuta lo ejecuta en
+        // una conversación. El dueño, el 2026-10-01: «no veo la expresión de esperando en acción, tampoco la de
+        // trabajando: intégralas dentro de todas las ejecuciones».
+        var regla = Capacidad("U.WindowsClient.Ui.ReglaDelAnimo");
+        var tipo = Capacidad("U.WindowsClient.Ui.LoQuePasa");
+        var cual = regla?.GetMethod("Cual");
+        var ejecutando = regla?.GetMethod("EjecutandoAhora");
+        var espera = regla?.GetMethod("EsperaTuRespuesta");
+        if (tipo == null || cual == null || ejecutando == null || espera == null)
+        {
+            Pendiente("Ui.ReglaDelAnimo (Cual, EjecutandoAhora, EsperaTuRespuesta) y Ui.LoQuePasa", "693", "078");
+            return;
+        }
+        string Animo(params (string Que, object Vale)[] pasa)
+        {
+            var p = Activator.CreateInstance(tipo)!;
+            foreach (var (que, vale) in pasa) Poner(p, que, vale);
+            return cual.Invoke(null, new[] { p })!.ToString()!;
+        }
+        var voz = ("VozViva", (object)true);
+
+        Debe(Animo() == "Reposo", $"sin nada, reposo ({Animo()})");
+        Debe(Animo(voz, ("SegundosConLaVoz", 2.0)) == "Escuchando", "recién prendida la voz, escucha");
+        Debe(Animo(voz, ("SegundosConLaVoz", 24.9)) == "Escuchando" && Animo(voz, ("SegundosConLaVoz", 25.0)) == "Conversando",
+            $"a los 25 segundos se calma: no se queda respirando toda la conversación ({Animo(voz, ("SegundosConLaVoz", 25.0))})");
+        Debe(Animo(voz, ("SegundosConLaVoz", 300.0), ("UHabla", true)) == "Conversando" && Animo(voz, ("SegundosConLaVoz", 5.0), ("UHabla", true)) == "Escuchando",
+            "cuando Ü habla no cambia de cara: sigue con la que tenía");
+        Debe(Animo(voz, ("SegundosConLaVoz", 300.0), ("Ejecutando", true)) == "Trabajando" && Animo(voz, ("SegundosConLaVoz", 2.0), ("Ejecutando", true), ("UHabla", true)) == "Trabajando",
+            "mientras Ü ejecuta trabaja, aunque haya conversación, aunque acabe de prenderse la voz y aunque hable");
+        Debe(Animo(voz, ("SegundosConLaVoz", 300.0), ("EsperaRespuesta", true)) == "Esperando", "si te preguntó y espera, espera");
+        Debe(Animo(voz, ("SegundosConLaVoz", 300.0), ("EsperaRespuesta", true), ("Ejecutando", true)) == "Esperando",
+            "y preguntar por voz es una herramienta en curso: aun así, espera");
+        Debe(Animo(("Ejecutando", true)) == "Trabajando" && Animo(("EsperaRespuesta", true)) == "Esperando" && Animo(("Dictando", true)) == "Escuchando"
+            && Animo(("Ensenando", true)) == "Grabando" && Animo(("Fallo", true)) == "Fallo" && Animo(("Detenido", true)) == "Detenido",
+            "sin voz, lo de siempre: trabajando, esperando, escuchando el dictado, grabando, fallo y detenido");
+
+        bool E(int enCurso, long ms) => (bool)ejecutando.Invoke(null, new object[] { enCurso, ms })!;
+        Debe(E(1, 99999) && E(2, 0), "con una herramienta en curso, ejecuta");
+        Debe(E(0, 500) && !E(0, 1200) && !E(0, 60000), "y lo sostiene 1,2 s tras la última, para no ir y venir entre dos seguidas; después, ya no");
+
+        bool Q(string frase, double seg, bool despues) => (bool)espera.Invoke(null, new object[] { frase, seg, despues })!;
+        Debe(Q("¿Lo guardo en Descargas?", 3, false) && Q("Listo. ¿Sigo? ", 1, false), "si lo último que dijo Ü acaba en pregunta, espera tu respuesta");
+        Debe(!Q("Listo, ya lo guardé.", 3, false) && !Q("", 3, false), "si no preguntó, no espera nada");
+        Debe(!Q("¿Lo guardo?", 3, true), "en cuanto contestas —o Ü hace otra cosa— deja de esperar");
+        Debe(!Q("¿Lo guardo?", 20, false), "y no espera para siempre: a los 20 segundos vuelve a su cara");
+
+        if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } ventana)
+        {
+            string animo = CuerpoDe(ventana, "private FaceMood ResolveMood()");
+            Debe(animo.Contains("ReglaDelAnimo.Cual(") && animo.Contains("ReglaDelAnimo.EjecutandoAhora(") && animo.Contains("ReglaDelAnimo.EsperaTuRespuesta("),
+                "[cableado] la ventana decide la cara preguntándole a la regla (ResolveMood → ReglaDelAnimo)");
+            Debe(ventana.Contains("_accionesEnCurso++") && ventana.Contains("_accionesEnCurso--"),
+                "[cableado] y cuenta las herramientas que empiezan y terminan en la conversación (_vivo.Accion)");
+        }
+    }
+
+    private static void LosGestosEntranYSalen()
+    {
+        // «QUE ENTRE Y SALGA, QUE NO SE QUEDE PEGADO» (el dueño, 2026-10-01). Un gesto es una cara pasajera
+        // encima de la del estado: entra, se sostiene un momento y sale sola.
+        var gestos = Capacidad("U.WindowsClient.Ui.ExpresionesDeLaCarita");
+        var cuales = Capacidad("U.WindowsClient.Ui.ExpresionDeLaCarita");
+        var dura = gestos?.GetMethod("DuracionMs");
+        if (cuales == null || dura == null || Cara?.GetProperty("Gesto") == null || Cara.GetProperty("Expresion") == null || Cara.GetMethod("Expresar") == null)
+        {
+            Pendiente("Ui.ExpresionesDeLaCarita (DuracionMs), Ui.ExpresionDeLaCarita y FaceControl.Gesto/Expresion/Expresar", "694", "078");
+            return;
+        }
+        byte[] Pinta(Action<object> ajustar) => Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); ajustar(c); }));
+        int Distintos(byte[] a, byte[] b) { int n = 0; for (int i = 0; i < a.Length; i += 4) if (a[i] != b[i] || a[i + 1] != b[i + 1] || a[i + 2] != b[i + 2] || a[i + 3] != b[i + 3]) n++; return n; }
+        var reposo = Pinta(_ => { });
+
+        foreach (var g in new[] { "Atenta", "Entiende", "Contenta", "Sorprendida" })
+        {
+            int ms = Convert.ToInt32(dura.Invoke(null, new[] { Enum.Parse(cuales, g) }));
+            Debe(ms >= 700 && ms < 2000, $"«{g}» entra y sale en menos de dos segundos, y dura lo bastante para verse ({ms} ms)");
+            var puesta = Pinta(c => { Poner(c, "Gesto", g); Poner(c, "Expresion", 1.0); });
+            var aMedias = Pinta(c => { Poner(c, "Gesto", g); Poner(c, "Expresion", 0.5); });
+            var fuera = Pinta(c => { Poner(c, "Gesto", g); Poner(c, "Expresion", 0.0); });
+            Debe(Distintos(puesta, reposo) > 60, $"«{g}» se ve: puesta del todo cambia la cara ({Distintos(puesta, reposo)} píxeles)");
+            Debe(Distintos(aMedias, reposo) > 0 && Distintos(aMedias, puesta) > 0, $"«{g}» entra poco a poco: a medias no es ni la del estado ni la del gesto");
+            Debe(Distintos(fuera, reposo) == 0, $"«{g}», al salir, deja la cara de su estado tal cual ({Distintos(fuera, reposo)} píxeles distintos)");
+        }
+
+        var cara = NuevaCara();
+        Cara.GetMethod("Expresar")!.Invoke(cara, new[] { Enum.Parse(cuales, "Atenta") });
+        Debe(Cara.GetProperty("Gesto")!.GetValue(cara)!.ToString() == "Atenta" && (bool)(Cara.GetProperty("Animando")?.GetValue(cara) ?? false),
+            "expresar pone el gesto y lo echa a andar");
+    }
+
+    private static void MientrasLeHablasLaCaritaTeSigue()
+    {
+        // «QUE MIENTRAS LE ESTOY HABLANDO A VECES PONGA LA CARA DE ESPERANDO, QUE SE SIENTA QUE ME ESTÁ
+        // ENTENDIENDO» (el dueño, 2026-10-01). El servidor avisa de que la persona EMPEZÓ a hablar y no de
+        // que acabó: los gestos van por reloj, pero solo mientras se le habla.
+        var oir = Capacidad("U.WindowsClient.Ui.GestosAlOir");
+        var proximo = oir?.GetMethod("ProximoMs");
+        var cual = oir?.GetMethod("Cual");
+        var sigue = oir?.GetMethod("Sigue");
+        if (proximo == null || cual == null || sigue == null) { Pendiente("Ui.GestosAlOir (ProximoMs, Cual, Sigue)", "695", "078"); return; }
+        double P(double d) => Convert.ToDouble(proximo.Invoke(null, new object[] { d }));
+        string C(int n) => cual.Invoke(null, new object[] { n })!.ToString()!;
+        bool S(double seg, bool uActua) => (bool)sigue.Invoke(null, new object[] { seg, uActua })!;
+
+        Debe(C(0) == "Atenta", $"al empezar a hablarle, la cara de atender ({C(0)})");
+        Debe(C(1) == "Entiende" && C(2) == "Atenta" && C(3) == "Entiende", $"y después alterna entender y atender ({C(1)}, {C(2)}, {C(3)})");
+        var dados = Enumerable.Range(0, 1000).Select(i => i / 1000.0).ToList();
+        Debe(dados.All(d => P(d) >= 3500 && P(d) <= 5500), $"cada 3,5 a 5,5 segundos ({dados.Min(P):0}-{dados.Max(P):0} ms)");
+        Debe(S(0, false) && S(29, false), "mientras le hablas, sigue");
+        Debe(!S(30, false), "como mucho medio minuto: no se sabe cuándo acabaste de hablar");
+        Debe(!S(3, true), "y en cuanto Ü contesta o ejecuta, deja de hacerlo");
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is { } voz)
+            Debe(voz.Contains("LaPersonaEmpezoAHablar?.Invoke("), "[cableado] la conversación avisa de que la persona empezó a hablar (speech_started)");
+        if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } ventana)
+            Debe(ventana.Contains("LaPersonaEmpezoAHablar +=") && ventana.Contains("GestosAlOir.Cual(") && ventana.Contains("GestosAlOir.Sigue("),
+                "[cableado] y la ventana lo atiende preguntándole a la regla qué gesto toca y hasta cuándo");
+    }
+
+    private static void LoQueUPulsaLoPulsaConExpresion()
+    {
+        // «ME GUSTÓ MUCHO LA COMBINACIÓN ENTRE GRABANDO Y QUE PULSE ALGO […] O ESPERANDO Y PULSA: YA NO PULSA
+        // RECTO» (el dueño, 2026-10-01, probando botones en la vitrina).
+        var gestos = Capacidad("U.WindowsClient.Ui.ExpresionesDeLaCarita");
+        var alPulsar = gestos?.GetMethod("AlPulsar");
+        if (alPulsar == null) { Pendiente("Ui.ExpresionesDeLaCarita.AlPulsar", "696", "078"); return; }
+        string A(int n) => alPulsar.Invoke(null, new object[] { n })!.ToString()!;
+        var dos = new[] { "Atenta", "Entiende" };
+        Debe(dos.Contains(A(0)) && dos.Contains(A(1)), $"al pulsar pone la cara de atender o la de entender ({A(0)}, {A(1)})");
+        Debe(Enumerable.Range(0, 12).All(n => A(n) != A(n + 1)), "y de un pulso al siguiente cambia: nunca dos iguales seguidas");
+        if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } ventana)
+            Debe(CuerpoDe(ventana, "private void Visitar(").Contains(".Expresar(ExpresionesDeLaCarita.AlPulsar("),
+                "[cableado] la visita de un pulso lleva su expresión (Visitar → Expresar)");
+    }
+
+    private static void CuandoUDesplazaLaCaritaDesliza()
+    {
+        // «CUANDO HAGA SCROLL, QUE SAQUE LA MANO, COMO QUE PRESIONE LA PANTALLA Y SE MUEVA CON LA PANTALLA,
+        // COMO SI ÉL LA ESTUVIERA DESLIZANDO» (el dueño, 2026-10-01).
+        var visita = Capacidad("U.WindowsClient.Ui.ReglaDeLaVisita")?.GetMethod("Desliz");
+        var manos = Capacidad("U.WindowsClient.Ui.ManosDeLaCarita");
+        var desliz = manos?.GetMethod("Desliz");
+        var estancia = Capacidad("U.WindowsClient.Ui.EstanciaDeLaCarita");
+        var avisos = Capacidad("U.WindowsClient.Ui.LoQueUHace");
+        if (visita == null || desliz == null || estancia?.GetMethod("IrA") == null || estancia.GetMethod("Quedarse") == null
+            || avisos?.GetMethod("AvisarDeQueDesplaza") == null || Cara?.GetProperty("Desliz") == null || Cara.GetMethod("Deslizar") == null)
+        {
+            Pendiente("ReglaDeLaVisita.Desliz, ManosDeLaCarita.Desliz, EstanciaDeLaCarita.IrA/Quedarse, LoQueUHace y FaceControl.Desliz/Deslizar", "697", "078");
+            return;
+        }
+
+        // DÓNDE SE PONE Y HACIA DÓNDE VA. Rueda abajo (muescas < 0): el contenido sube, y la carita con él.
+        var carita = new System.Windows.Size(100, 100);
+        var area = new System.Windows.Rect(0, 0, 1536, 816);
+        (System.Windows.Point Desde, System.Windows.Point Hasta)? Camino(System.Windows.Rect ventana, int muescas)
+        {
+            var r = visita.Invoke(null, new object[] { ventana, carita, area, muescas });
+            if (r == null) return null;
+            return ((System.Windows.Point)r.GetType().GetField("Item1")!.GetValue(r)!, (System.Windows.Point)r.GetType().GetField("Item2")!.GetValue(r)!);
+        }
+        var v = new System.Windows.Rect(200, 100, 900, 600);
+        var abajo = Camino(v, -3); var arriba = Camino(v, 3);
+        Debe(abajo != null && arriba != null, "con una ventana delante, hay por dónde deslizar");
+        if (abajo is { } ab && arriba is { } ar)
+        {
+            Debe(ab.Hasta.Y < ab.Desde.Y, $"rueda abajo: el contenido sube y la carita sube con él ({ab.Desde.Y:0} → {ab.Hasta.Y:0})");
+            Debe(ar.Hasta.Y > ar.Desde.Y, $"rueda arriba: baja ({ar.Desde.Y:0} → {ar.Hasta.Y:0})");
+            Debe(Math.Abs(ab.Hasta.X - ab.Desde.X) < 0.5, "y solo se mueve en vertical");
+            double tramo = Math.Abs(ab.Hasta.Y - ab.Desde.Y);
+            Debe(tramo >= 40 && tramo <= 140, $"lo bastante para verse y no tanto que se pierda ({tramo:0} px)");
+            Debe(ab.Desde.X >= v.Left && ab.Desde.X + carita.Width <= v.Right && ab.Desde.X + carita.Width >= v.Right - 60,
+                $"dentro de la ventana, junto a su borde derecho (x {ab.Desde.X:0}, la ventana acaba en {v.Right:0})");
+        }
+        foreach (var ventana in new[] { new System.Windows.Rect(0, 0, 1536, 816), new System.Windows.Rect(-200, -100, 2000, 1200), new System.Windows.Rect(1300, 700, 400, 300), new System.Windows.Rect(10, 10, 160, 120) })
+            foreach (int m in new[] { -9, -1, 1, 9 })
+                if (Camino(ventana, m) is { } c)
+                    foreach (var pt in new[] { c.Desde, c.Hasta })
+                        Debe(pt.X >= area.Left && pt.Y >= area.Top && pt.X + carita.Width <= area.Right && pt.Y + carita.Height <= area.Bottom,
+                            $"no se sale de la pantalla: ventana {ventana.Width:0}x{ventana.Height:0} en {ventana.Left:0},{ventana.Top:0}, {m} muescas → {pt.X:0},{pt.Y:0}");
+        Debe(Camino(v, 0) == null, "sin desplazamiento no hay nada que deslizar");
+
+        // LA MANO AGUANTA APOYADA MIENTRAS SE MUEVE.
+        (double X, double Asomo) M(double t, int lado, double cuanto)
+        {
+            var r = desliz.Invoke(null, new object[] { t, lado, cuanto })!;
+            return (CampoDeTupla(r, "Item1"), CampoDeTupla(r, "Item4"));
+        }
+        double D(double cuanto) => Convert.ToDouble(manos!.GetMethod("DuracionDelDesliz")!.Invoke(null, new object[] { cuanto }));
+        double ancho = Convert.ToDouble(manos!.GetField("Ancho")!.GetValue(null));
+        Debe(M(0, 1, 0.4).Asomo == 0 && M(D(0.4), 1, 0.4).Asomo == 0, "antes y después de deslizar la mano no se ve");
+        var apoyada = Enumerable.Range(0, 200).Select(i => D(0.4) * i / 200).Where(t => M(t, 1, 0.4).Asomo > 0.99).ToList();
+        Debe(apoyada.Count > 0 && apoyada.Max() - apoyada.Min() >= 0.4, $"aguanta apoyada lo que dura el desliz ({(apoyada.Count > 0 ? apoyada.Max() - apoyada.Min() : 0):0.##} s de 0,40)");
+        Debe(D(1.0) - D(0.4) > 0.55, "y un desliz más largo la tiene apoyada más rato");
+        Debe(Enumerable.Range(0, 100).All(i => Math.Abs(M(D(0.4) * i / 100, 1, 0.4).X + M(D(0.4) * i / 100, -1, 0.4).X) < 1e-9), "a la izquierda es el espejo de la derecha");
+        double lejos = Enumerable.Range(0, 200).Max(i => Math.Abs(M(D(0.4) * i / 200, 1, 0.4).X) + ancho * M(D(0.4) * i / 200, 1, 0.4).Asomo) + 0.03;
+        Debe(lejos <= AireDeLaVentanaEnRadios(), $"y cabe en el aire de la ventana de la carita ({lejos:0.###} de {AireDeLaVentanaEnRadios():0.###} radios)");
+
+        var sin = Pintar(NuevaCara());
+        var (izq, der, tapado) = FueraDelCuerpo(sin, Pintar(NuevaCara(c => Poner(c, "Desliz", -0.3))));
+        Debe(izq > 40 && der == 0 && tapado == 0, $"deslizando a la izquierda, una mano, por ese lado y por detrás ({izq} px a la izquierda, {der} a la derecha, {tapado} tapados que cambian)");
+
+        // LA ESTANCIA: va a un punto como fantasma, y se queda mientras dura lo que hace.
+        long ahora = 5_000;
+        var vuelos = new List<System.Windows.Point>();
+        bool fantasma = false;
+        var e = Activator.CreateInstance(estancia, new object[] {
+            (Action<bool>)(f => fantasma = f),
+            (Action<System.Windows.Point, TimeSpan, Action<System.Windows.Point>?>)((pt, _, _) => vuelos.Add(pt)),
+            (Func<long>)(() => ahora) })!;
+        Poner(e, "Casa", (System.Windows.Point?)new System.Windows.Point(1400, 700));
+        estancia.GetMethod("IrA")!.Invoke(e, new object[] { new System.Windows.Point(700, 300), new System.Windows.Point(1400, 700) });
+        Debe(fantasma && vuelos.Count == 1 && vuelos[0] == new System.Windows.Point(700, 300), "ir a deslizar la saca de casa como fantasma y la lleva al punto");
+        estancia.GetMethod("Quedarse")!.Invoke(e, new object[] { 3000 });
+        int quietud = Convert.ToInt32(estancia.GetField("QuietudMs")!.GetValue(null));
+        ahora += quietud + 500;
+        estancia.GetMethod("Latido")!.Invoke(e, new object[] { new System.Windows.Point(700, 300), false });
+        Debe(vuelos.Count == 1, "mientras dura lo que está haciendo, el latido no la manda a casa");
+        ahora += 3000;
+        estancia.GetMethod("Latido")!.Invoke(e, new object[] { new System.Windows.Point(700, 300), false });
+        Debe(vuelos.Count == 2 && vuelos[1] == new System.Windows.Point(1400, 700), "y al terminar, pasado el rato de siempre, vuelve sola a casa");
+
+        // QUIÉN AVISA: los tres sitios que desplazan.
+        foreach (var (ruta, que) in new[] { (new[] { "windows-client", "src", "Navigation", "ManosDelPlan.cs" }, "el plan"),
+                                            (new[] { "windows-client", "src", "Uia", "Desplazamiento.cs" }, "map_scroll"),
+                                            (new[] { "windows-client", "src", "Actions", "InputExecutor.cs" }, "la rueda suelta") })
+            if (FuenteDe(ruta) is { } fuente)
+                Debe(fuente.Contains("LoQueUHace.AvisarDeQueDesplaza("), $"[cableado] {que} avisa de que desplazó ({ruta[^1]})");
+        if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } w)
+            Debe(w.Contains("LoQueUHace.Desplaza +=") && w.Contains("ReglaDeLaVisita.Desliz(") && w.Contains(".Deslizar("),
+                "[cableado] y la ventana lo atiende: pregunta el camino y desliza");
+    }
+
+    private static void CuandoUEscribeLaCaritaTeclea()
+    {
+        // «CUANDO ESTÉ ESCRIBIENDO, COMO MOVIENDO LAS DOS MANITOS, TACA TACA TACA, AHÍ AL LADO DEL TEXTO; QUE
+        // NO SE VAYA A SU ZONA, QUE SE QUEDE AHÍ ESCRIBIENDO» (el dueño, 2026-10-01).
+        var manos = Capacidad("U.WindowsClient.Ui.ManosDeLaCarita");
+        var tecleo = manos?.GetMethod("Tecleo");
+        var cuanto = manos?.GetMethod("CuantoTeclea");
+        var avisos = Capacidad("U.WindowsClient.Ui.LoQueUHace");
+        if (tecleo == null || cuanto == null || avisos?.GetMethod("AvisarDeQueEscribe") == null || Cara?.GetProperty("Tecleo") == null || Cara.GetMethod("Teclear") == null)
+        {
+            Pendiente("ManosDeLaCarita.Tecleo/CuantoTeclea, LoQueUHace.AvisarDeQueEscribe y FaceControl.Tecleo/Teclear", "698", "078");
+            return;
+        }
+        double Q(int caracteres) => Convert.ToDouble(cuanto.Invoke(null, new object[] { caracteres }));
+        Debe(Q(1) >= 1 && Q(2000) <= 3, $"teclea entre uno y tres segundos ({Q(1):0.##} s por una letra, {Q(2000):0.##} s por dos mil)");
+        Debe(Q(4) < Q(40) && Q(40) <= Q(400), $"más cuanto más largo ({Q(4):0.##}, {Q(40):0.##}, {Q(400):0.##})");
+
+        (double X, double Y, double Asomo) M(double t, int lado, double dura)
+        {
+            var r = tecleo.Invoke(null, new object[] { t, lado, dura })!;
+            return (CampoDeTupla(r, "Item1"), CampoDeTupla(r, "Item2"), CampoDeTupla(r, "Item4"));
+        }
+        const double dura = 1.5;
+        Debe(M(0, 1, dura).Asomo == 0 && M(dura, 1, dura).Asomo == 0 && M(dura + 5, -1, dura).Asomo == 0, "antes y después de teclear las manos no se ven");
+        Debe(M(dura / 2, 1, dura).Asomo > 0.99 && M(dura / 2, -1, dura).Asomo > 0.99, "tecleando, las DOS están fuera");
+        Debe(M(dura / 2, 1, dura).X > 0 && M(dura / 2, -1, dura).X < 0, "una a cada lado");
+        int relevos = 0; double? antes = null;
+        for (double t = 0.3; t <= dura - 0.3; t += 0.005)
+        {
+            double d = M(t, 1, dura).Y - M(t, -1, dura).Y;
+            if (antes is double a && Math.Sign(a) != Math.Sign(d) && d != 0) relevos++;
+            antes = d;
+        }
+        Debe(relevos >= 4, $"y se alternan —taca, taca—: la que está arriba cambia {relevos} veces en un segundo escaso");
+        double ancho = Convert.ToDouble(manos!.GetField("Ancho")!.GetValue(null));
+        double lejos = Enumerable.Range(0, 300).Max(i => Math.Max(Math.Abs(M(dura * i / 300, 1, dura).X), Math.Abs(M(dura * i / 300, -1, dura).X)) + ancho) + 0.03;
+        Debe(lejos <= AireDeLaVentanaEnRadios(), $"y caben en el aire de la ventana de la carita ({lejos:0.###} de {AireDeLaVentanaEnRadios():0.###} radios)");
+
+        var sin = Pintar(NuevaCara());
+        var (izq, der, tapado) = FueraDelCuerpo(sin, Pintar(NuevaCara(c => Poner(c, "Tecleo", 0.6))));
+        Debe(izq > 40 && der > 40 && tapado == 0, $"pintadas: una mano a cada lado, y por detrás ({izq} px a la izquierda, {der} a la derecha, {tapado} tapados que cambian)");
+
+        foreach (var (ruta, que) in new[] { (new[] { "windows-client", "src", "Navigation", "ManosDelPlan.cs" }, "el plan"),
+                                            (new[] { "windows-client", "src", "Mcp", "SurfaceMapTools.cs" }, "map_type") })
+            if (FuenteDe(ruta) is { } fuente)
+                Debe(fuente.Contains("LoQueUHace.AvisarDeQueEscribe("), $"[cableado] {que} avisa de que escribió ({ruta[^1]})");
+        if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } w)
+            Debe(w.Contains("LoQueUHace.Escribe +=") && w.Contains(".Teclear(") && w.Contains("_visita.Quedarse("),
+                "[cableado] y la ventana lo atiende: teclea, y se queda donde está mientras dura");
+    }
+
+    private static void LaCaritaReaccionaALoQueLePasa()
+    {
+        var animo = Capacidad("U.WindowsClient.Ui.ReglaDelAnimo");
+        var seAlegra = animo?.GetMethod("SeAlegra");
+        var saludo = Capacidad("U.WindowsClient.Ui.ReglaDelSaludo");
+        var seDespide = saludo?.GetMethod("SeDespide");
+        var motivos = Capacidad("U.WindowsClient.Ui.MotivoDelSaludo");
+        var estados = Cara?.GetProperty("Mood")?.PropertyType;
+        if (seAlegra == null || seDespide == null || motivos == null || estados == null || !Enum.GetNames(motivos).Contains("Despedida"))
+        {
+            Pendiente("ReglaDelAnimo.SeAlegra, ReglaDelSaludo.SeDespide y MotivoDelSaludo.Despedida", "699", "078");
+            return;
+        }
+        bool A(string antes, string ahora) => (bool)seAlegra.Invoke(null, new[] { Enum.Parse(estados, antes), Enum.Parse(estados, ahora) })!;
+        Debe(A("Trabajando", "Reposo") && A("Trabajando", "Conversando") && A("Trabajando", "Escuchando"), "al terminar bien un trabajo, se alegra");
+        Debe(!A("Trabajando", "Fallo") && !A("Trabajando", "Detenido"), "si acabó mal o lo pararon, no");
+        Debe(!A("Trabajando", "Esperando"), "ni si lo que sigue es una pregunta: todavía no ha terminado");
+        Debe(!A("Reposo", "Conversando") && !A("Conversando", "Reposo") && !A("Trabajando", "Trabajando"), "y solo al salir de trabajar");
+
+        bool D(double segundos) => (bool)seDespide.Invoke(null, new object[] { segundos })!;
+        Debe(D(20) && D(600), "al colgar una conversación de veinte segundos o más, se despide");
+        Debe(!D(0) && !D(2) && !D(19.9), "prenderla y apagarla en dos segundos no es despedirse de nadie");
+        long ahora = 1_000;
+        var r = Activator.CreateInstance(saludo!, new object[] { (Func<long>)(() => ahora) })!;
+        bool Toca(string m) => (bool)saludo!.GetMethod("Toca")!.Invoke(r, new[] { Enum.Parse(motivos, m), (object)true })!;
+        Debe(Toca("Despedida"), "la despedida es un saludo más");
+        ahora += 10_000;
+        Debe(!Toca("Arranque") && !Toca("Despedida"), "y respeta la misma guarda: nunca dos en menos de minuto y medio");
+
+        if (FuenteDeLaInterfaz("FaceGestures.cs") is { } gestos)
+            Debe(gestos.Contains("Agarrada?.Invoke("), "[cableado] los gestos avisan de que la agarraron (FaceGestures.Agarrada)");
+        if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } w)
+        {
+            Debe(w.Contains("Agarrada = ") && w.Contains("Expresar(ExpresionDeLaCarita.Sorprendida)"), "[cableado] al agarrarla, se sorprende");
+            Debe(w.Contains("ReglaDelAnimo.SeAlegra(") && w.Contains("Expresar(ExpresionDeLaCarita.Contenta)"), "[cableado] al terminar bien, se alegra");
+            Debe(w.Contains("ReglaDelSaludo.SeDespide(") && w.Contains("MotivoDelSaludo.Despedida"), "[cableado] y al colgar, se despide por la regla del saludo");
         }
     }
 

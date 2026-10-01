@@ -55,6 +55,16 @@ public static class Desplazamiento
     /// <summary>Desplaza y cuenta qué pasó, en castellano y para quien preguntó.</summary>
     public static string Mover(Hacia hacia)
     {
+        string relato = Desplazar(hacia);
+        // La carita lo desliza (spec 078, promesa 697). DESPUÉS de desplazar, saliera por el patrón o por el teclado, y
+        // sin esperarla. Arriba e Inicio suben como la rueda hacia arriba; lo demás baja.
+        if (Ui.LoQueUHace.AvisarDeQueDesplaza(hacia is Hacia.Arriba or Hacia.Inicio ? 3 : -3) is { } no)
+            LogBus.Log("scroll", "el aviso de que desplacé reventó: " + no);
+        return relato;
+    }
+
+    private static string Desplazar(Hacia hacia)
+    {
         var ventana = GetForegroundWindow();
         var hallado = BuscarScroll(ventana);
         Anotar(hallado?.Quien);

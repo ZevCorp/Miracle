@@ -411,6 +411,12 @@ public sealed class ConversacionEnVivo : IDisposable
     public event Action? TurnoCerrado;
 
     /// <summary>
+    /// La persona EMPEZÓ a hablar (el <c>speech_started</c> del servidor). La carita lo escucha para poner la cara de
+    /// atender (spec 078, promesa 695). Que ACABÓ no lo avisa nadie: quien lo use tiene que ponerse su propio tope.
+    /// </summary>
+    public event Action? LaPersonaEmpezoAHablar;
+
+    /// <summary>
     /// Una frase COMPLETA del humano, para quien esté aprendiendo de ella. La usa la sesión de
     /// enseñanza para anclar lo dicho a cada paso; nadie más debería necesitarla.
     /// </summary>
@@ -3019,6 +3025,8 @@ public sealed class ConversacionEnVivo : IDisposable
                 // DESPUÉS de callar, y no antes (crítico de la rama, 2026-09-11): cuando alguien habla
                 // encima, lo primero es callarse; contar el turno puede esperar un instante.
                 EmpiezaUnTurnoDelUsuario("speech_started");
+                try { LaPersonaEmpezoAHablar?.Invoke(); }
+                catch (Exception e) { LogBus.Log("voz-viva", $"el aviso de que empezaste a hablar reventó: {e.GetType().Name}: {e.Message}"); }
                 break;
 
             case Hecho.Pide p:

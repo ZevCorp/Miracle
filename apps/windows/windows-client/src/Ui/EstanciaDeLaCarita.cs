@@ -54,6 +54,31 @@ public sealed class EstanciaDeLaCarita
         return true;
     }
 
+    /// <summary>
+    /// Va a un PUNTO, de visita: transparente y DESPUÉS vuela (spec 078). Para lo que no se hace junto a un elemento sino
+    /// dentro de una ventana —deslizar— o dentro de un campo grande —teclear—. Devuelve lo que tarda en llegar; cero, y
+    /// nada se toca, si no hay casa a la que volver.
+    /// </summary>
+    public TimeSpan IrA(Point destino, Point desde)
+    {
+        if (Casa == null) return TimeSpan.Zero;
+        Salir();
+        var tarda = CuantoTarda(desde, destino);
+        _volar(destino, tarda, null);
+        return tarda;
+    }
+
+    /// <summary>
+    /// SE QUEDA donde está mientras dura lo que está haciendo: el rato fuera empieza a contar cuando termine. Sin esto,
+    /// teclear tres segundos junto a un campo la mandaba a casa a los dos, a mitad de frase («que no se vaya a su zona,
+    /// que se quede ahí escribiendo»).
+    /// </summary>
+    public void Quedarse(int ms)
+    {
+        if (Tocable) return;
+        _ultimaSalida = Math.Max(_ultimaSalida, _reloj() + ms);
+    }
+
     /// <summary>Sale de casa sin vuelo propio (el recorrido de varias lo pone quien lo dibuja): transparente, y el rato empieza.</summary>
     public void Salir()
     {

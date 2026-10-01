@@ -115,6 +115,57 @@ public static class ManosDeLaCarita
         return (s * x, Altura, 0, asomo);
     }
 
+    // ── Deslizar ──────────────────────────────────────────────────────────────────────────────
+    //
+    // «Cuando haga scroll, que saque la mano, como que presione la pantalla y se mueva con la pantalla» (el dueño,
+    // 2026-10-01; promesa 697). Es la mano que presiona, que en vez de soltar enseguida AGUANTA apoyada mientras la
+    // carita se mueve con el contenido.
+
+    /// <summary>Lo que tarda la mano en quedar apoyada desde que empieza a salir, en segundos.</summary>
+    public const double TardaEnApoyarse = Empuja;
+
+    /// <summary>Lo que dura el gesto entero para un desliz de <paramref name="cuanto"/> segundos: apoyar, aguantar y esconder.</summary>
+    public static double DuracionDelDesliz(double cuanto) => Empuja + Math.Max(0, cuanto) + (DuracionDePresionar - Aguanta);
+
+    /// <summary>La mano que desliza en el instante <paramref name="t"/>: como la que presiona, pero apoyada <paramref name="cuanto"/> segundos.</summary>
+    public static (double X, double Y, double Angulo, double Asomo) Desliz(double t, int lado, double cuanto)
+    {
+        cuanto = Math.Max(0, cuanto);
+        int s = Math.Sign(lado);
+        if (t <= 0 || t >= DuracionDelDesliz(cuanto)) return (s * Dentro, Altura, 0, 0);
+        if (t < Empuja) return Presion(t, lado);
+        if (t < Empuja + cuanto) return (s * Alcance, Altura, 0, 1);
+        return Presion(Aguanta + (t - Empuja - cuanto), lado);
+    }
+
+    // ── Teclear ───────────────────────────────────────────────────────────────────────────────
+    //
+    // «Cuando esté escribiendo, como moviendo las dos manitos, taca taca taca» (el dueño, 2026-10-01; promesa 698).
+    // Las dos manos fuera, abajo a los lados, golpeando por turnos: cuando una sube la otra cae.
+
+    /// <summary>Golpes por segundo de cada mano; entre las dos, el doble.</summary>
+    private const double Golpes = 4.5;
+
+    /// <summary>
+    /// Cuánto teclea para <paramref name="caracteres"/> caracteres, en segundos: más cuanto más largo, entre uno y tres.
+    /// No es lo que tarda Ü en escribir —que casi siempre es un instante—: es lo que hace falta para que se VEA.
+    /// </summary>
+    public static double CuantoTeclea(int caracteres) => Math.Clamp(0.8 + 0.03 * Math.Max(0, caracteres), 1.0, 3.0);
+
+    /// <summary>Dónde está la mano <paramref name="lado"/> en el instante <paramref name="t"/> de un tecleo que dura <paramref name="duracion"/>.</summary>
+    public static (double X, double Y, double Angulo, double Asomo) Tecleo(double t, int lado, double duracion)
+    {
+        int s = Math.Sign(lado);
+        if (t <= 0 || t >= duracion) return (s * Dentro, 0.62, 0, 0);
+        double asomo = t < Sale ? Frenando(t / Sale)
+            : t > duracion - Entra ? Math.Pow((duracion - t) / Entra, 2)
+            : 1;
+        // La izquierda va medio golpe detrás de la derecha: se relevan.
+        double fase = 2 * Math.PI * Golpes * t + (s > 0 ? 0 : Math.PI);
+        double golpe = Math.Max(0, Math.Sin(fase));
+        return (s * (Dentro + 0.22 * asomo + 0.04 * Math.Sin(fase)), 0.66 - 0.16 * golpe * asomo, s * 0.18 * golpe, asomo);
+    }
+
     /// <summary>Sale con prisa y frena al llegar.</summary>
     private static double Frenando(double p) => 1 - Math.Pow(1 - Math.Clamp(p, 0, 1), 3);
 }

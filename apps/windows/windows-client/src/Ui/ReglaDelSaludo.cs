@@ -15,6 +15,8 @@ public enum MotivoDelSaludo
     Acercarse,
     /// <summary>Sola, pasado el rato.</summary>
     Rato,
+    /// <summary>Se colgó una conversación de verdad: se despide (spec 078, promesa 699).</summary>
+    Despedida,
 }
 
 /// <summary>
@@ -51,6 +53,12 @@ public sealed class ReglaDelSaludo
     private bool _ausente;
 
     public ReglaDelSaludo(Func<long> relojMs) => _relojMs = relojMs;
+
+    /// <summary>Una conversación de menos de esto no es una conversación: prenderla y apagarla no es despedirse.</summary>
+    public const int ConversacionDeVerdadSeg = 20;
+
+    /// <summary>¿Se despide al colgar? Solo si la conversación duró (promesa 699).</summary>
+    public static bool SeDespide(double segundosDeConversacion) => segundosDeConversacion >= ConversacionDeVerdadSeg;
 
     /// <summary>Segundos hasta el próximo saludo espontáneo, para un dado en [0, 1): de 20 a 40 minutos.</summary>
     public static double ProximoEspontaneo(double dado) => (20 + 20 * Math.Clamp(dado, 0, 1)) * 60;

@@ -36,20 +36,14 @@ public static class GestosDeLaCarita
 
     // ── Cambiar de cara ───────────────────────────────────────────────────────────────────────
     //
-    // La carita no salta de una expresión a otra: llega. Y hablar es el caso que manda, porque la boca
-    // no se abre (promesa 448): lo que se ve es la sonrisa ensanchándose mientras dice una frase y
-    // relajándose al callar. Los tiempos son los de la envolvente que el dueño eligió para el halo el
-    // 2026-09-06 —«a ritmo de sílaba da la sensación de una persona ansiosa»—: va a ritmo de frase.
+    // La carita no salta de una expresión a otra: llega. Hasta el 2026-10-01 hablar era el caso que mandaba —la sonrisa
+    // se ensanchaba en 260 ms y se relajaba en 900—, y el dueño lo vio y no le gustó («no me gusta cómo sonríe cuando
+    // habla»). Al hablar ya no cambia de cara (spec 078), y a todas las demás se llega en el mismo tiempo.
 
-    public const int EnsancharMs = 260;
-    public const int RelajarMs = 900;
     public const int CambiarMs = 320;
 
     /// <summary>Milisegundos que tarda en llegar a la cara de <paramref name="hasta"/> viniendo de <paramref name="desde"/>.</summary>
-    public static int CuantoTardaEnLlegar(FaceMood desde, FaceMood hasta) =>
-        hasta == FaceMood.Hablando ? EnsancharMs
-        : desde == FaceMood.Hablando ? RelajarMs
-        : CambiarMs;
+    public static int CuantoTardaEnLlegar(FaceMood desde, FaceMood hasta) => CambiarMs;
 
     /// <summary>
     /// ¿Parpadea al cambiar de estado? Sí —cambiar de estado es un pensamiento nuevo—, salvo entre
