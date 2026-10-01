@@ -205,7 +205,7 @@ public sealed class Updater
         _ = PollLoopAsync();
     }
 
-    /// <summary>Buscar en el feed, y si GitHub rechaza el token, otra vez sin él.</summary>
+    /// <summary>Buscar en el feed; si GitHub rechaza el token, sin él, y si dice que el repositorio no existe, por su otro nombre.</summary>
     private async Task<UpdateInfo?> ComprobarAsync()
     {
         // Como mucho un replanteo por cada cosa que se puede replantear: el token y cada nombre.
