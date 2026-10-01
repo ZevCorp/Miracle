@@ -40,6 +40,7 @@ struct Face: View {
             Button("Abrir chat del notch") { model.setNotchExpanded(true) }
             Button("Detener tarea") { model.stop() }
             Toggle("Carita oscura", isOn: $dark)
+            Button("Cómo me usas…") { model.eligiendoPerfil = true; model.showWindow?() }
             Button("Configuración") { model.selectedTab = 1; model.showWindow?() }
             Divider()
             Button("Salir de Ü") { NSApp.terminate(nil) }
@@ -65,14 +66,19 @@ struct MainView: View {
                 Spacer()
                 Button { model.stop() } label: { Label("Detener", systemImage: "stop.fill") }.disabled(!model.busy && !model.microphone)
             }.padding(20)
-            Picker("Sección", selection: $model.selectedTab) {
-                Text("Conversación").tag(0)
-                Text("Configuración").tag(1)
-                Text("Memoria").tag(2)
-            }.pickerStyle(.segmented).padding(.horizontal, 20).padding(.bottom, 16)
-            if model.selectedTab == 0 { conversation }
-            else if model.selectedTab == 2 { MemoryView(memory: model.desktop.memory) }
-            else { configuration }
+            // Spec 001: la bienvenida que pregunta con quién habla Ü ocupa la ventana hasta que se elige o se aplaza.
+            if model.eligiendoPerfil {
+                PerfilDeUsoView(model: model)
+            } else {
+                Picker("Sección", selection: $model.selectedTab) {
+                    Text("Conversación").tag(0)
+                    Text("Configuración").tag(1)
+                    Text("Memoria").tag(2)
+                }.pickerStyle(.segmented).padding(.horizontal, 20).padding(.bottom, 16)
+                if model.selectedTab == 0 { conversation }
+                else if model.selectedTab == 2 { MemoryView(memory: model.desktop.memory) }
+                else { configuration }
+            }
         }.frame(minWidth: 480, minHeight: 550)
     }
     var conversation: some View { ConversationView(model: model) }
@@ -105,6 +111,14 @@ struct MainView: View {
                 }
                 if !model.voiceCheckMessage.isEmpty { Text(model.voiceCheckMessage).font(.caption).textSelection(.enabled) }
                 Text("La comprobación abre una sesión breve con el proveedor; no usa el micrófono ni controla el Mac.").font(.caption).foregroundStyle(.secondary)
+                Divider()
+                Text("Cómo me usas").font(.headline)
+                HStack {
+                    Text(model.perfil.paraElMenu)
+                    Spacer()
+                    Button("Cambiar…") { model.eligiendoPerfil = true }
+                }
+                Text("A quien trabaja en salud, Ü le habla de usted y con su vocabulario; a quien lo usa en su día a día, de tú y sencillo. Viaja a Graph al empezar cada tarea.").font(.caption).foregroundStyle(.secondary)
                 Divider()
                 Text("Cómo debe ayudarte Ü").font(.headline)
                 TextEditor(text: $model.assistantContext)

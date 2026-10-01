@@ -105,6 +105,16 @@ actualiza siempre con `./apps/mac/instalar.sh`.
 
 En Configuración pega la API key de Graph y pulsa **Guardar**. Se guarda en el Llavero de macOS, no en archivos del proyecto. El token de GitHub no sirve para Graph.
 
+## Cómo me usas: salud o día a día
+
+La primera vez que se abre, Ü pregunta para qué se va a usar: **Trabajo en salud** (con la especialidad, del
+catálogo de Graph) o **Uso personal**. A quien trabaja en salud le habla de usted y con su vocabulario; a quien
+lo usa en su día a día, de tú y sencillo. Se cambia cuando se quiera desde **Cómo me usas…** en el menú de Ü
+(barra de estado o carita) o en Configuración. Se guarda en este Mac (`defaults read com.zevcorp.u.mac perfilDeUso`)
+y viaja a Graph en el primer turno de cada tarea; sin elegir, Ü se porta como antes. La voz que ya está abierta
+sigue como empezó: el cambio vale desde la próxima conversación. El detalle está en
+[`docs/specs/001-u-sabe-con-quien-habla.md`](docs/specs/001-u-sabe-con-quien-habla.md).
+
 ## Prueba local de AX
 
 Para probar la lectura y acción sin red ni Graph, compila la app de fixture:

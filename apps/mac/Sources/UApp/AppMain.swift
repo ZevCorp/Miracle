@@ -123,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "Ü"
         let menu = NSMenu()
-        for (title, action, key) in [("Abrir Ü", #selector(show), ""), ("Abrir chat del notch", #selector(showChat), ""), ("Hablar / silenciar", #selector(toggleVoice), ""), ("Detener tarea", #selector(stop), ""), ("Configuración…", #selector(settings), ","), ("Salir de Ü", #selector(quit), "q")] {
+        for (title, action, key) in [("Abrir Ü", #selector(show), ""), ("Abrir chat del notch", #selector(showChat), ""), ("Hablar / silenciar", #selector(toggleVoice), ""), ("Detener tarea", #selector(stop), ""), ("Cómo me usas…", #selector(howYouUseMe), ""), ("Configuración…", #selector(settings), ","), ("Salir de Ü", #selector(quit), "q")] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: key); item.target = self; menu.addItem(item)
         }
         statusItem.menu = menu
@@ -143,6 +143,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         if let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() { model.lastExternalApp = app }
         if !model.permissions.snapshot.canControlComputer { model.selectedTab = 1; show() }
+        // Spec 001 (2026-10-01): mientras no haya un perfil que esta versión entienda, Ü pregunta al empezar
+        // para qué se usa (lo decide PerfilDeUso, y lo juzga la promesa 108). Va DESPUÉS de elegir la pestaña:
+        // cambiar de pestaña cierra la bienvenida (AppModel.selectedTab), y al elegir, la ventana sigue en la
+        // que tocaba (Configuración si faltan permisos).
+        if PerfilDeUso.hayQuePreguntar(en: .standard) { model.eligiendoPerfil = true; show() }
         model.startWakeListening()
     }
     private func terminateOlderCopies() {
@@ -163,6 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     @objc func showChat() { model.setNotchExpanded(true) }
     @objc func settings() { model.selectedTab = 1; show() }
+    @objc func howYouUseMe() { model.eligiendoPerfil = true; show() }
     @objc func toggleVoice() { model.toggleMicrophone() }
     @objc func stop() { model.stop() }
     @objc func quit() { NSApp.terminate(nil) }

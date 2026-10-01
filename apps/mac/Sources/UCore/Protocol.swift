@@ -40,8 +40,24 @@ public struct TurnRequest: Codable, Sendable {
     public var results: [String]
     public var inform: String?
     public var userContext: String?
-    public init(session: String?, goal: String?, userId: String? = nil, state: ScreenState, results: [String] = [], inform: String? = nil, userContext: String? = nil) {
-        self.session = session; self.goal = goal; self.userId = userId; self.state = state; self.results = results; self.inform = inform; self.userContext = userContext
+    /// Con quién habla Ü (spec 001, 2026-10-01). Solo en el primer turno de una tarea: Graph lo congela en su
+    /// sesión firmada. nil no se codifica, y entonces el cuerpo es el de antes de que existiera.
+    public var profile: PerfilEnElCable?
+    public init(session: String?, goal: String?, userId: String? = nil, state: ScreenState, results: [String] = [], inform: String? = nil, userContext: String? = nil, profile: PerfilEnElCable? = nil) {
+        self.session = session; self.goal = goal; self.userId = userId; self.state = state; self.results = results; self.inform = inform; self.userContext = userContext; self.profile = profile
+    }
+}
+
+/// El perfil tal como lo lee Graph en `POST /api/v1/agent/turn`: `profile: {kind, specialty, specialtyName}`
+/// (`services/graph/src/domain/agent/profile.js`). `kind` es «medico» o «persona»; `specialty`, un código del
+/// catálogo, y vacío para una persona. Graph no mete `specialtyName` en ningún prompt: saca el nombre de su
+/// catálogo. Lo arma `PerfilDeUso.paraElCable`.
+public struct PerfilEnElCable: Codable, Sendable, Equatable {
+    public var kind: String
+    public var specialty: String
+    public var specialtyName: String
+    public init(kind: String, specialty: String, specialtyName: String) {
+        self.kind = kind; self.specialty = specialty; self.specialtyName = specialtyName
     }
 }
 
