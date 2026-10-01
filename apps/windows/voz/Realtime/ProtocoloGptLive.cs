@@ -106,6 +106,23 @@ public sealed class ProtocoloGptLive : IProtocolo
     /// </summary>
     public const int TopeDelAppend = 1_756;
 
+    /// <summary>
+    /// LA PERSONA CON LA QUE ABRE LA VOZ en la próxima sesión. Null o vacío, la de siempre
+    /// (<see cref="InstruccionesDeLaVoz"/>).
+    /// </summary>
+    /// <remarks>
+    /// EXISTE POR EL PRIMER ENCUENTRO (spec 080, promesa 765 del grafo). La voz decide sola cuándo le pasa
+    /// el trabajo al delegado, y con la persona de siempre —«ayudas a operar las aplicaciones»— a quien
+    /// acaba de instalar y solo dice su nombre no se lo pasa nunca: medido el 2026-10-01 con audio, 0
+    /// delegaciones en 5 frases; con una persona que dice «delega todo lo que la persona diga», 5 de 5.
+    ///
+    /// SOLO AL ABRIR. La sesión es inmutable salvo la delegación (ver arriba): cambiarla a mitad no cambia
+    /// a quien ya está sonando. Vacío no es una persona (patrón nº9).
+    /// </remarks>
+    public string? PersonaDeLaVoz { get; set; }
+
+    private string PersonaDeAhora => string.IsNullOrWhiteSpace(PersonaDeLaVoz) ? Persona : PersonaDeLaVoz!;
+
     public string Quien => "OpenAI GPT-Live";
     public string Modelo { get; }
 
@@ -196,7 +213,7 @@ public sealed class ProtocoloGptLive : IProtocolo
             session = new
             {
                 model = Modelo,
-                instructions = Persona,
+                instructions = PersonaDeAhora,
                 audio = new
                 {
                     format = new { type = "audio/pcm", rate = RitmoDeEntrada },
@@ -234,7 +251,7 @@ public sealed class ProtocoloGptLive : IProtocolo
             {
                 model = Modelo,
                 input,
-                instructions = Persona,
+                instructions = PersonaDeAhora,
                 audio = new
                 {
                     format = new { type = "audio/pcm", rate = RitmoDeEntrada },

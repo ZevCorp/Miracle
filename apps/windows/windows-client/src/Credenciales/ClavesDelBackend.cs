@@ -52,7 +52,17 @@ public sealed class ClavesDelBackend
     private readonly Action<string> _log;
     private readonly Dictionary<string, string> _traidas = new(StringComparer.Ordinal);
     private readonly object _candado = new();
-    private bool _yaSePidio;
+
+    /// <summary>
+    /// LA petición, en vuelo o terminada. Quien pide mientras vuela espera ESTA (promesa 760).
+    /// </summary>
+    /// <remarks>
+    /// Era un booleano, «ya se pidió», y por eso quien llegaba con la petición en vuelo volvía al
+    /// instante con cero claves: el arranque la lanza sin esperar, y el saludo de la primera vez abría
+    /// la voz dos segundos después. En una copia instalada —sin claves en el entorno— eso era «no hay
+    /// voz en vivo» en el primer minuto de vida de la app, y no volvía a intentarlo (2026-10-01).
+    /// </remarks>
+    private Task<int>? _peticion;
 
     /// <param name="entorno">De dónde sale una variable de entorno. Manda sobre el backend.</param>
     /// <param name="pedir">Cómo se le piden las claves a Graph. Devuelve el cuerpo JSON tal cual.</param>
@@ -80,14 +90,32 @@ public sealed class ClavesDelBackend
     /// LA EXCEPCIÓN ES UNA ESPERA, NO UN FALLO (promesa 687): si Graph niega la INSTALACIÓN —espera
     /// aprobación— la siguiente llamada vuelve a pedir, porque entre una y otra la pueden haber aprobado.
     /// </remarks>
-    public async Task<int> TraerAsync(CancellationToken ct = default)
+    public Task<int> TraerAsync(CancellationToken ct = default)
     {
         lock (_candado)
         {
-            if (_yaSePidio) return _traidas.Count;
-            _yaSePidio = true;
+            // UNA ESPERA TERMINADA NO SE GUARDA (promesa 687): si la petición anterior acabó negada por
+            // la instalación, esta llamada pide de nuevo. Mientras VUELA sí es la de todos (promesa 760).
+            if (_peticion is { IsCompleted: true } && _laInstalacionEsperaba) _peticion = null;
+            if (_peticion != null) return _peticion;
+            _laInstalacionEsperaba = false;
+            return _peticion = TraerUnaVezAsync(ct);
         }
+    }
 
+    /// <summary>
+    /// La última petición terminó porque Graph negó la INSTALACIÓN, no las claves.
+    /// </summary>
+    /// <remarks>
+    /// ES UNA MARCA Y NO «_peticion = null» DESDE DENTRO, y se midió (2026-10-01): cuando quien pide
+    /// contesta en el acto, <see cref="TraerUnaVezAsync"/> termina ANTES de que <see cref="TraerAsync"/>
+    /// guarde la tarea, así que el null se escribía primero y la tarea ya terminada encima. La 687 y
+    /// la 689 lo vieron: «aprobada después» seguía con 1 petición.
+    /// </remarks>
+    private bool _laInstalacionEsperaba;
+
+    private async Task<int> TraerUnaVezAsync(CancellationToken ct)
+    {
         string cuerpo;
         try
         {
@@ -100,7 +128,8 @@ public sealed class ClavesDelBackend
             // perdido: «una vez, también cuando falla» dejaría la voz muerta hasta reiniciar Ü aunque
             // la aprobaran al minuto. La próxima vez que hagan falta se piden otra vez — una petición
             // por necesidad, no un bucle.
-            lock (_candado) _yaSePidio = false;
+            // Quien ya esperaba ESTA petición recibe su cero; la siguiente llamada arranca una nueva.
+            lock (_candado) _laInstalacionEsperaba = true;
             Estado = "sin claves: " + e.Message;
             _log("claves: " + Estado);
             return 0;
@@ -161,7 +190,11 @@ public sealed class ClavesDelBackend
         }
         if (!falta)
         {
-            lock (_candado) _yaSePidio = true;   // que un TraerAsync posterior tampoco vaya
+            lock (_candado)
+            {
+                if (_peticion != null) return _peticion;   // ya había una, en vuelo o hecha: es esa
+                _peticion = Task.FromResult(0);            // que un TraerAsync posterior tampoco vaya
+            }
             Estado = "no hizo falta pedir nada: el entorno ya las tiene todas";
             return Task.FromResult(0);
         }

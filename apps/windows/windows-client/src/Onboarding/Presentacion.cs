@@ -1,5 +1,6 @@
 using U.WindowsClient.Cuenta;
 using U.WindowsClient.Diagnostics;
+using U.WindowsClient.Persona;
 using U.WindowsClient.SystemApi;
 
 namespace U.WindowsClient.Onboarding;
@@ -27,32 +28,43 @@ public static class Presentacion
     ///
     /// Se nombra por proceso y no por el nombre visible del menú Inicio, porque ese cambia con el
     /// idioma y la versión («Google Chrome» vs «Chrome»), y el ejecutable no.
+    ///
+    /// CADA UNA DICE DE QUIÉN ES (spec 080). SAP es de médicos: a un estudiante que lo tenga instalado
+    /// no se le promete abrir una historia clínica. Las demás son de cualquiera.
     /// </summary>
-    private static readonly (string Proceso, string Nombre, string Puedo)[] LoQueSeConducir =
+    private static readonly (string Proceso, string Nombre, string Puedo, Capacidad? Pide)[] LoQueSeConducir =
     {
         ("saplogon", "SAP",
-            "abrir una historia clínica, navegar hasta triage y llenar sus campos desde la consulta web"),
+            "abrir una historia clínica, navegar hasta triage y llenar sus campos desde la consulta web",
+            Capacidad.EscribirEnSap),
         ("chrome", "Chrome",
-            "moverme por páginas web, rellenar formularios y traerte datos de una pestaña a otra"),
+            "moverme por páginas web, rellenar formularios y traerte datos de una pestaña a otra", null),
         ("msedge", "Edge",
-            "moverme por páginas web y rellenar formularios"),
+            "moverme por páginas web y rellenar formularios", null),
         ("explorer", "el explorador de archivos",
-            "buscar carpetas, mover archivos y ordenarte cosas sin que abras nada"),
+            "buscar carpetas, mover archivos y ordenarte cosas sin que abras nada", null),
         ("excel", "Excel",
-            "leer y escribir celdas, y pasar datos de otra aplicación a una hoja"),
+            "leer y escribir celdas, y pasar datos de otra aplicación a una hoja", null),
         ("winword", "Word",
-            "escribir y editar documentos al dictado"),
+            "escribir y editar documentos al dictado", null),
         ("outlook", "Outlook",
-            "leerte el correo y redactar respuestas"),
+            "leerte el correo y redactar respuestas", null),
         ("notepad", "el Bloc de notas",
-            "escribir al dictado"),
+            "escribir al dictado", null),
     };
+
+    /// <summary>Lo que se puede prometer a alguien de este rol, tenga o no la aplicación (promesa 755).</summary>
+    public static IReadOnlyList<string> FrasesPara(Rol rol) =>
+        ParaElRol(rol).Select(x => $"{x.Nombre}: {x.Puedo}").ToList();
+
+    private static IEnumerable<(string Proceso, string Nombre, string Puedo, Capacidad? Pide)> ParaElRol(Rol rol) =>
+        LoQueSeConducir.Where(x => x.Pide is not { } c || ReglaDelRol.Puede(rol, c));
 
     /// <summary>
     /// El resumen que Ü lee en voz alta. Va en texto llano y en segunda persona porque lo que sale de
     /// aquí no se pinta: se dice.
     /// </summary>
-    public static string Escanear()
+    public static string Escanear(Rol rol)
     {
         var partes = new List<string>();
 
@@ -77,7 +89,7 @@ public static class Presentacion
         }
         catch (Exception e) { LogBus.Log("presentacion", $"no se pudo mirar lo abierto: {e.Message}"); }
 
-        var reconocidas = LoQueSeConducir
+        var reconocidas = ParaElRol(rol)
             .Where(x => abiertas.Contains(x.Proceso)
                      || instaladas.Any(a => a.Nombre.Contains(x.Nombre, StringComparison.OrdinalIgnoreCase))
                      || instaladas.Any(a => a.Lnk.Contains(x.Proceso, StringComparison.OrdinalIgnoreCase)))

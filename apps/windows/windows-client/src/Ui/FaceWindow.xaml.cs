@@ -165,9 +165,11 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        // Identidad del usuario (nombre+correo) al instalar. Debe ir ANTES de crear el backend para que
-        // la telemetría de "Windows Live" arranque con el usuario correcto.
-        EnsureOnboarded();
+        // QUIÉN USA ESTA INSTALACIÓN, sin preguntar nada (spec 080): su id, su perfil y su rol. Va ANTES de
+        // crear el backend para que la telemetría arranque con la identidad correcta, y antes de todo lo
+        // demás porque el rol decide qué se enciende. Aquí estaba el popup de nombre y correo.
+        EnsureOnboarded();         // el perfil de uso de la spec 078, sin ventana
+        PrepararLaIdentidad();     // y quién es la persona, la spec 080
 
         // LA CREDENCIAL DE ESTA INSTALACIÓN (spec 076). Aquí y no más abajo: tiene que estar puesta ANTES
         // de la primera petición a Graph, y después del correo, que es con lo que se presenta.
@@ -482,9 +484,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 _ = Credenciales.ClavesDelBackend.Viva.TraerSiFaltaAlgunaAsync();
 
                 // LAS FOTOS DE ESTUDIOS CADUCAN SOLAS (spec 046, promesa 354): al abrir Ü y cada 10
-                // minutos, con el panel abierto o cerrado. Sin esto, unas fotos cargadas y olvidadas
-                // seguirían en disco hasta que alguien volviera a pulsar «Subir».
-                Cardio.VigiaCardio.Arrancar();
+                // minutos, con el panel abierto o cerrado. El vigía es de médicos: lo enciende
+                // EncenderLoDelRol, más abajo, y no aquí (promesa 755).
 
                 var cfgDecisor = Decision.ConfiguracionDelDecisor.DelSistema();
                 LogBus.Log("decisor", cfgDecisor.Porque);
@@ -535,6 +536,14 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // «Cállate», «ocúltate», «ciérrate»: van al chrome de la ventana, no al mapa de
             // pantallas — por eso se resuelven aquí y no dentro de SurfaceMapTools.
             _vivo.Autocontrol = AtenderAutocontrol;
+            // LO DE LA PERSONA (spec 080): conocerse y sus clases las atiende la ventana, que tiene el
+            // perfil y el cuaderno; y lo que la voz sabe de ella se pregunta al abrir cada sesión.
+            _vivo.DeLaPersona = AtenderLoDeLaPersona;
+            ConversacionEnVivo.ContextoDeLaPersona = ContextoDeLaPersona;
+            // «Volver a presentarnos», en la Memoria: es un evento ESTÁTICO, así que se suelta al cerrar.
+            Action alPedirlo = () => Dispatcher.BeginInvoke(VolverAPresentarse);
+            MemoriaWindow.PidioVolverAPresentarse += alPedirlo;
+            Closed += (_, __) => MemoriaWindow.PidioVolverAPresentarse -= alPedirlo;
 
             // EL MAPA VIVO: el nodo donde estás rodeado de lo alcanzable, publicado en Neo4j para
             // poder mirarlo mientras ocurre. Lee las MISMAS fuentes que todo lo demás —el mapa y la
@@ -1196,17 +1205,23 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             _vivo.Transcribe += (texto, esDeU) => Dispatcher.BeginInvoke(() =>
             {
                 if (_vivo?.Viva != true) return;
+                // Durante el primer encuentro la conversación se lee en la escena, no en el notch (spec 080).
+                if (LaEscenaOye(texto, esDeU)) return;
                 _acciones ??= new PanelDeAcciones();
                 _acciones.Habla(texto, esDeU);
             });
+            // Lo que Ü dice, limpio, para la escena del primer encuentro (promesa 768).
+            _vivo.LeeU += texto => Dispatcher.BeginInvoke(() => LaEscenaLee(texto));
             _vivo.TurnoCerrado += () => Dispatcher.BeginInvoke(() =>
             {
                 if (_vivo?.Viva != true) return;
+                if (AlCerrarUnTurnoEnLaEscena()) return;
                 _acciones?.CierraTurno();
             });
             _vivo.Accion += (texto, listo) => Dispatcher.BeginInvoke(() =>
             {
                 if (_vivo?.Viva != true) return;
+                if (_escena != null) return;   // «anotando lo que me cuentas…» ya se ve: son las piezas de la escena
                 _acciones ??= new PanelDeAcciones();
                 if (listo) _acciones.Termina(texto, !texto.StartsWith("✋"));
                 else { _acciones.Empieza(texto); SetStatus(texto); }
@@ -1214,6 +1229,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             _vivo.Cambio += viva => Dispatcher.Invoke(() =>
             {
                 if (!viva) _acciones?.Limpiar();
+                SiLaVozSeFueDelEncuentro(viva);   // a mitad del primer encuentro, sigue escrito (promesa 753)
                 // HABLAR POR VOZ NO ABRE EL CHAT (petición del dueño, 2026-09-05: «se me abre un
                 // chat que es superestorboso»). Abrir la conversación por voz es justo el momento
                 // en que NO hace falta leer nada: quien habla está mirando su trabajo, no el globo.
@@ -1446,20 +1462,23 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             return "";
         };
         // EL ✓ DE LA CONSULTA LLEGA POR AQUÍ (spec 008): la ventana de consulta nace antes que la
-        // carita y no ve las manos; se le cuelga esta función y ella la llama al pulsar ✓.
-        Clinical.PuenteASap.Enviar = EnviarEncargoAsync;
+        // carita y no ve las manos; se le cuelga EnviarEncargoAsync y ella la llama al pulsar ✓.
         // Y EL DE LOS APRENDIZAJES (promesa 225): el panel de la consulta pide «muéstrame esto» y
         // las manos están aquí. Sin colgarlo, el botón «Mostrar» sale gris y dice por qué.
-        Clinical.PuenteDeAprendizajes.Mostrar = MostrarAprendizajeAsync;
+        // LOS DOS PUENTES SON DE MÉDICOS: los cuelga EncenderLoDelRol, unas líneas más abajo (promesa 755).
         _rellenador.Cuenta += m => Dispatcher.Invoke(() => SetStatus("🩺 " + m));
 
         // EL EJECUTOR DE EXPORTACIONES. Pregunta al backend si el médico pulsó «Exportar a HC» y,
         // cuando lo hizo, navega y llena la historia clínica. Va encendido desde el arranque y sin
         // botón: el operador no tiene que acordarse de activarlo para que su compañero pueda
         // exportar desde la web. Sin trabajo no hace nada más que una petición cada tres segundos.
+        //
+        // SOLO PARA UN MÉDICO (promesa 755). Aquí se construye; quien lo arranca es EncenderLoDelRol,
+        // que es también quien enciende el vigía de cardiología y cuelga los puentes a SAP. En el
+        // computador de un estudiante nada de esto corre: no es un botón escondido, es no sondear.
         _exportador = new EjecutorDeExportaciones(_graphConfig, _rellenador, Dispatcher);
         _exportador.Cuenta += m => Dispatcher.Invoke(() => { SetStatus(m); MostrarConversacion(MotivoDelGlobo.SoloEsProgreso); });
-        _exportador.Arrancar();
+        EncenderLoDelRol();
         Closed += (_, __) => _exportador?.Dispose();
         // La superficie se PREGUNTA, igual que en el camino del mapa. Aquí se quedó el valor
         // cacheado —que se refresca cada 800 ms— porque este código es anterior a que existiera
@@ -1592,31 +1611,17 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 }
             }
 
+            // LA BIENVENIDA YA NO ES UNA VENTANA (spec 080): quién eres lo pregunta el primer encuentro, hablando,
+            // y su rol —estudiante o médico— llena el perfil de uso (ver AlTerminarElEncuentro). El switch se queda
+            // porque la promesa 742 juzga lo que pasa ANTES de él, pero ya no abre nada: solo deja dicho qué hay.
             switch (Cuenta.Identidad.QueBienvenida(hayMedico, _config.Email, _config.Perfil))
             {
                 case Cuenta.Bienvenida.Completa:
-                {
-                    var win = new OnboardingWindow { Owner = this };
-                    if (win.ShowDialog() == true && !string.IsNullOrWhiteSpace(win.EnteredEmail))
-                    {
-                        _config.DisplayName = win.EnteredName;
-                        _config.Email = win.EnteredEmail;
-                        _config.UserId = win.EnteredEmail; // el scoping de workflows y la telemetría hablan del mismo usuario
-                        GuardarElPerfilElegido(win);
-                        _config.Save();
-                    }
+                    LogBus.Log("onboarding", "equipo nuevo: lo conoce el primer encuentro, no una ventana");
                     break;
-                }
                 case Cuenta.Bienvenida.SoloPerfil:
-                {
-                    var win = new OnboardingWindow(ModoDeBienvenida.SoloPerfil, _config.DisplayName) { Owner = this };
-                    if (win.ShowDialog() == true && win.PerfilElegido.Length > 0)
-                    {
-                        GuardarElPerfilElegido(win);
-                        _config.Save();
-                    }
+                    LogBus.Log("onboarding", "falta el perfil: lo dice el rol del primer encuentro, o el menú «cambiar perfil»");
                     break;
-                }
                 default:
                     LogBus.Log("onboarding", hayMedico
                         ? "no pregunto quién eres: ya hay un médico con sesión iniciada"
@@ -1747,7 +1752,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         var datos = new Dictionary<string, string>
         {
             ["email"] = _config.Email ?? "",
-            ["display_name"] = _config.DisplayName ?? "",
+            // El nombre con que se presentó hablando (spec 080) si no hay otro: es lo que el administrador
+            // ve en el panel para saber de quién es la fila. Vacío no es ausente (patrón nº9).
+            ["display_name"] = string.IsNullOrWhiteSpace(_config.DisplayName) ? _laPersona.Nombre : _config.DisplayName,
             ["install_id"] = _config.InstallId ?? "",
             ["machine_name"] = Environment.MachineName,
             ["os_version"] = Environment.OSVersion.VersionString,
@@ -2803,6 +2810,11 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </remarks>
     private void OnAbrirConsulta(object sender, RoutedEventArgs e)
     {
+        // QUIEN TODAVÍA NO HA DICHO QUÉ ES no tiene ni consultas ni clases: el collar le abre el
+        // encuentro que lo pregunta (promesa 755). Con rol, la misma ventana abre lo suyo —la consulta
+        // o las clases— y eso lo decide App.AbrirLaConsulta.
+        if (AbrirElPanelDeGrabarSiNoEsDeMedico()) return;
+
         var abierta = Application.Current.Windows.OfType<ConsultaWindow>().FirstOrDefault();
 
         // AL FRENTE es «se ve Y tiene el foco». Minimizada NO es oculta para Windows —IsVisible
@@ -3330,89 +3342,12 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // No es autocontrol —no se acciona a sí misma— pero se despacha por aquí porque mira
             // ESTE equipo, y eso lo sabe la ventana y no el mapa de pantallas de otras apps.
             case "scan_computer":
-                return Onboarding.Presentacion.Escanear();
+                return Onboarding.Presentacion.Escanear(_rol);
 
             default:
                 return $"«{herramienta}» no es una herramienta de autocontrol conocida";
         }
     });
-
-    /// <summary>
-    /// Que la primera vez se presente ELLA, en voz alta, y ofrezca mirar el equipo.
-    ///
-    /// POR QUÉ. Recién instalada aparecía una carita en la esquina y nadie decía para qué servía:
-    /// quien la recibe tiene que adivinar que se le habla y qué se le puede pedir. Presentarse es la
-    /// diferencia entre un icono raro y una herramienta (2026-08-16, pedido por el usuario).
-    ///
-    /// SE MARCA ANTES DE HABLAR, NO DESPUÉS. Si se marcara al terminar, cualquier fallo a mitad
-    /// —sin red, sin micrófono— dejaría el saludo pendiente y volvería a soltarlo en cada arranque,
-    /// que es peor que no haberlo dado: una presentación repetida dice que no te recuerda.
-    /// </summary>
-    private void OfrecerElPrimerEncuentro()
-    {
-        // SE DICE SIEMPRE POR QUÉ, TAMBIÉN CUANDO NO PASA NADA. Un camino que solo escribe en el log
-        // cuando funciona es indistinguible de uno que no existe: al probar la primera experiencia
-        // no había NI UNA línea sobre ella, y la explicación —que ya se había dado por hecha en una
-        // prueba anterior— no estaba escrita en ningún sitio (2026-08-16, lo pidió el usuario:
-        // «aquí no veo la ejecución que hizo»). Callar el caso normal es lo que deja a oscuras el
-        // caso raro, porque son el mismo silencio.
-        if (!_config.Onboarded)
-        {
-            LogBus.Log("presentacion", "no me presento: todavía no hay correo (onboarding sin terminar)");
-            return;
-        }
-        if (_config.PresentacionHecha)
-        {
-            LogBus.Log("presentacion", "no me presento: ya lo hice en este equipo. "
-                + @"Para volver a verlo: cierra Ü, pon ""PresentacionHecha"": false en "
-                + @"%APPDATA%\U\config.json y vuelve a abrir.");
-            return;
-        }
-
-        LogBus.Log("presentacion", $"PRIMER ENCUENTRO: es la primera vez en este equipo"
-            + (string.IsNullOrWhiteSpace(_config.DisplayName) ? "" : $" · usuario «{_config.DisplayName}»"));
-        _config.PresentacionHecha = true;
-        _config.Save();
-
-        // Se espera a que la ventana esté puesta: hablarle a alguien que todavía no te ha visto
-        // aparecer es una voz saliendo de ningún sitio.
-        var arranque = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        arranque.Tick += async (_, __) =>
-        {
-            arranque.Stop();
-            var crono = System.Diagnostics.Stopwatch.StartNew();
-            try
-            {
-                if (_vivo is null)
-                {
-                    LogBus.Log("presentacion", "ABORTADO: no hay capa de voz montada, así que no hay con qué hablar");
-                    return;
-                }
-
-                if (!_vivo.Viva) { LogBus.Log("presentacion", "abriendo la voz para saludar…"); StartMicByFace(); }
-                else LogBus.Log("presentacion", "la voz ya estaba abierta");
-
-                // Abrir la sesión es ir y volver por la red. ENCENDIDA YA NO ES ABIERTA (spec 075): la voz
-                // consta encendida desde el gesto, así que mirar Viva daría por lista una sesión que aún
-                // no confirmó, y el saludo se mandaría a un socket sin conectar. Se espera la confirmación.
-                if (_vivo == null || !await _vivo.EsperarAbiertaAsync(TimeSpan.FromSeconds(10)))
-                {
-                    LogBus.Log("presentacion", $"ABORTADO: la voz no abrió en {crono.ElapsedMilliseconds} ms. "
-                        + "No hay saludo — mira las líneas «voz-viva» de justo antes para saber por qué.");
-                    return;
-                }
-
-                LogBus.Log("presentacion", $"voz lista en {crono.ElapsedMilliseconds} ms · mandando el saludo");
-                // NOTA DEL SISTEMA (spec 078, D7) y según con quién habla: por EnviarTextoAsync quedaba en el hilo
-                // como dicha por la persona, y volvía en cada sesión siguiente.
-                await _vivo.AvisarAlModeloAsync(Onboarding.Presentacion.Saludo(_config.DisplayName, _perfil));
-                LogBus.Log("presentacion", "saludo entregado. Lo que Ü diga a partir de aquí sale en «voz-viva»; "
-                    + "si acepta el escaneo, se verá «ejecutando «scan_computer»» y luego el resultado.");
-            }
-            catch (Exception ex) { LogBus.Log("presentacion", $"ABORTADO por excepción: {ex.Message}"); }
-        };
-        arranque.Start();
-    }
 
     // --- Enseñanza activa (grabar pantalla+voz) ---
 
@@ -5455,7 +5390,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
     private void SetStatus(string s) => Dispatcher.Invoke(() =>
     {
-        if (!string.IsNullOrWhiteSpace(s)) _acciones?.Avisar(s);
+        // Durante el primer encuentro lo que se dice se lee en la escena: el notch repetiría la misma
+        // frase arriba de la pantalla, encima del telón (visto en la primera captura, 2026-10-01).
+        if (!string.IsNullOrWhiteSpace(s) && _escena == null) _acciones?.Avisar(s);
         UpdateChip(_mood);
     });
 
@@ -5513,6 +5450,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         _mood = mood;
         Face.Mood = mood;
         CollapsedFace.Mood = mood;
+        _escena?.Animo(mood);   // la carita de la escena es esta misma, en grande
         UpdateChip(mood);
         ActualizarElPulsoDeLaVoz();
     });
