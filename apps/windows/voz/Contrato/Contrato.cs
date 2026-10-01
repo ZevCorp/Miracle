@@ -1218,8 +1218,8 @@ internal static class Contrato
             "la VOZ no lleva herramientas: el servidor no las acepta ahí, y ponerlas es perderlas");
         Debe(Campo(m, "session", "delegation", "type") == "responses", "hay delegación, de tipo responses");
         // DECISIÓN DEL DUEÑO (2026-09-29, spec 062, promesa 520 del grafo): el delegado es GPT-6 Sol. Era gpt-5.6-luna.
-        Debe(Campo(m, "session", "delegation", "responses", "model") == "gpt-6-sol",
-            $"con gpt-6-sol por defecto como delegado (pide «{Campo(m, "session", "delegation", "responses", "model")}»)");
+        Debe(Campo(m, "session", "delegation", "responses", "model") == "gpt-6.1-sol",
+            $"con gpt-6.1-sol por defecto como delegado (pide «{Campo(m, "session", "delegation", "responses", "model")}»)");
 
         var tools = Nodo(m, "session", "delegation", "responses", "tools");
         Debe(tools is { ValueKind: JsonValueKind.Array } t && t.GetArrayLength() == 1
@@ -1441,7 +1441,7 @@ internal static class Contrato
         Debe(Campo(upd, "session", "delegation", "type") == "responses"
              && toolsNuevas is { ValueKind: JsonValueKind.Array } tn && tn.GetArrayLength() == 1
              && Campo(tn[0], "name") == "map_where_am_i" && Campo(tn[0], "parameters", "properties", "detalle", "type") == "string"
-             && Campo(upd, "session", "delegation", "responses", "model") == "gpt-6-sol",
+             && Campo(upd, "session", "delegation", "responses", "model") == "gpt-6.1-sol",
             "el session.update lleva la delegación entera: su modelo y las herramientas nuevas");
         string nuevasAlDelegado = Campo(upd, "session", "delegation", "responses", "instructions");
         Debe(MismosBytes(nuevasAlDelegado, otroModo),
