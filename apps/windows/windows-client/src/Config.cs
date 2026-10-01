@@ -98,6 +98,13 @@ public sealed class Config
     public double? SavedWorkAreaHeight { get; set; }
 
     /// <summary>
+    /// En qué borde de la pantalla vive el panel: «derecha» o «izquierda» (promesa 629). Lo cambia el
+    /// botón de lado del propio panel. Se guarda como texto y lo lee
+    /// <c>Ui.ReglaDelMuelle.LadoDe</c>, que da la derecha ante cualquier valor que no entienda.
+    /// </summary>
+    public string LadoDelMuelle { get; set; } = "derecha";
+
+    /// <summary>
     /// De dónde baja la carita sus propias actualizaciones (ver <see cref="Update.Updater"/> y
     /// RELEASING-WINDOWS.md). Son las *releases* de este repositorio.
     ///
@@ -118,6 +125,9 @@ public sealed class Config
 
     private static string Path =>
         System.IO.Path.Combine(U.Graph.UserPaths.Roaming, "U", "config.json");
+
+    /// <summary>Dónde vive este archivo, para quien tenga que contarlo sin cargarlo (la Memoria, spec 071).</summary>
+    public static string Archivo => Path;
 
     public static Config Load()
     {

@@ -29,7 +29,7 @@ public static class CollarPermanente
     private static bool _reconectando;
 
     /// <summary>Dónde se recuerda la decisión. Al lado de los logs, que es donde vive lo de esta app.</summary>
-    private static string Archivo => Path.Combine(
+    internal static string Archivo => Path.Combine(
         U.Graph.UserPaths.Local, "U", "collar.json");
 
     /// <summary>Audio del collar, en el mismo formato que el micrófono local.</summary>

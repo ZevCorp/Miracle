@@ -39,4 +39,33 @@ public static class ReglaDeLaVentana
         if (!existe) return QueHacerConLaVentana.Abrir;
         return alFrente ? QueHacerConLaVentana.Ocultar : QueHacerConLaVentana.TraerAlFrente;
     }
+
+    /// <summary>
+    /// Cuánto puede pasar entre que la ventana pierde el foco y el toque en su botón para decir que
+    /// se lo quitó ESE toque. Windows activa la ventana del botón y entrega el clic en mensajes
+    /// seguidos —milésimas—; un cambio de ventana hecho por la persona tarda mucho más que esto.
+    /// </summary>
+    public const long MargenDelToqueMs = 250;
+
+    /// <summary>
+    /// ¿ERA LA VENTANA CON LA QUE LA PERSONA TRABAJABA CUANDO TOCÓ EL BOTÓN? Promesa 628.
+    /// </summary>
+    /// <remarks>
+    /// POR QUÉ NO BASTA CON PREGUNTAR SI TIENE EL FOCO (medido el 2026-09-30, spec 071). El botón vive
+    /// en OTRA ventana —el óvalo—, y tocar una ventana la activa: cuando el clic llega al manejador, la
+    /// ventana que se quería quitar ya perdió el foco, por el propio toque. Preguntando «¿tiene el
+    /// foco?» la respuesta era siempre no, y <see cref="AlPulsarSuBoton"/> contestaba siempre «tráela»:
+    /// el botón no la quitaba nunca. Con el óvalo en una ventana como el muelle, visible=True tras el
+    /// segundo toque, las dos veces.
+    ///
+    /// Lo que distingue «me lo quitó este toque» de «ya estaba detrás» es CUÁNDO lo perdió.
+    /// </remarks>
+    /// <param name="seVe">Visible y sin minimizar.</param>
+    /// <param name="activa">Tiene el foco ahora.</param>
+    /// <param name="msEntrePerderElFocoYElToque">
+    /// Del instante en que perdió el foco al de apoyar el ratón en el botón. Negativo si nunca lo
+    /// perdió o lo perdió después.
+    /// </param>
+    public static bool EstabaAlFrente(bool seVe, bool activa, long msEntrePerderElFocoYElToque) =>
+        seVe && (activa || msEntrePerderElFocoYElToque is >= 0 and <= MargenDelToqueMs);
 }

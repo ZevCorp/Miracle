@@ -953,11 +953,36 @@ internal static class Contrato
         // un notch recién arrancado: «Ü» en el centro, el de mensajes a la derecha y NADA a la izquierda. El dibujo
         // solo se ponía al CAMBIAR de estado, y un notch nace en el estado en que ya está.
         Prueba("541. el icono del notch es siempre el del estado que toca: recién nacido enseña la onda —no un hueco—, y al retirarse vuelve a la onda quieta, no se queda con el dibujo ni con el giro del último paso", ElIconoDelNotchEsElDelEstado);
+        // Y PULSARLA NO LE QUITA EL TECLADO A NADIE (spec 066, 2026-09-30). Medido el día que la onda se hizo
+        // botón: tras el clic, la ventana de delante pasaba de la app en uso a «Ü Acciones», y había que volver
+        // a hacer clic en la app para seguir escribiendo. «Arregla lo del teclado».
+        Prueba("542. pulsar el notch compacto no le quita el teclado a la app de delante: el clic llega —la onda sigue alternando la voz— pero no activa la ventana del notch; con el chat abierto sí la activa, porque ahí se escribe, y abrirlo con su botón se lo sigue dando", ElNotchNoQuitaElTeclado);
 
         // 600-609 reservadas el 2026-09-29 para la spec 070 (quién dijo qué), por encima de lo que
         // ya ocupan otras ramas abiertas (hasta la 529). La 600-606 las juzgan Graph y la web.
         Prueba("607. de Soniox, el hablante viaja con el texto hasta el verbatim: una línea «[Hablante N]» cada vez que cambia la voz, numerada por orden de aparición y sin repetirse mientras habla la misma, también en la frase que quedó sin cerrar; sin hablante, el texto de siempre", ElHablanteViajaConElTexto);
         Prueba("609. la vista de voces parte lo oído en turnos: cada línea «[Hablante N]» abre un turno de esa voz, lo que sigue sin etiqueta es de la misma, lo de antes de la primera voz no es de nadie, y la parte de lo dicho de cada voz suma 100", LaVistaDeVocesParteLoOido);
+        // ── Spec 071: el panel se queda con Memoria, el collar y de qué lado vive; Memoria abre todo lo que Ü sabe de ti ──
+        // 620-629 reservadas el 2026-09-30: main va por la 423 y hay ramas vivas hasta la 609 (spec 070).
+        // Una ventana que dice «esto es todo lo que sé de ti» puede ser falsa de tres formas sin que nada
+        // falle: callarse un almacén, enseñar como vacío uno que no pudo leer, o enseñar la clave que vive
+        // en el mismo archivo que el nombre. Por eso lo que se juzga es lo que la ventana va a pintar.
+        Console.WriteLine();
+        Prueba("620. el panel en reposo ofrece tres botones y nada más: «Memoria», el collar y el de cambiar de lado; Learn, Work, Subir y Jev ya no están en él", ElPanelTieneTresBotones);
+        Prueba("621. lo que salió del panel no se pierde: subir estudios y encender Jev siguen teniendo su puerta en el panel de desarrollo, con el mismo manejador", LoQueSalioDelPanelNoSePierde);
+        Prueba("622. la Memoria cuenta TODO lo que Ü guarda de ti: cada almacén tiene su apartado con su cuenta, y un almacén sin nada dice «todavía nada» en vez de desaparecer", LaMemoriaCuentaTodoLoGuardado);
+        Prueba("623. un almacén que no se pudo leer dice que no se pudo leer y por qué; no se enseña como vacío", LoQueNoSePudoLeerSeDice);
+        Prueba("624. la Memoria habla como una persona: ni rutas, ni nombres de archivo, ni identificadores, ni direcciones internas; las fechas se dicen «hoy», «ayer» o con día y mes", LaMemoriaHablaComoUnaPersona);
+        Prueba("625. lo secreto no se enseña: ni la clave del cliente, ni el identificador de la instalación, ni el código del teléfono", LoSecretoNoSeEnsena);
+        Prueba("626. abrir la Memoria no cambia nada de lo guardado: los archivos quedan byte a byte como estaban", AbrirLaMemoriaNoCambiaNada);
+        Prueba("627. el botón «Memoria» abre su ventana, y volver a pulsarlo la trae al frente o la quita, con la misma regla que el del collar", ElBotonMemoriaAbreYQuitaSuVentana);
+        // La 627 salió verde y el segundo clic NO quitaba la ventana (medido el 2026-09-30 con el óvalo en una
+        // ventana como el muelle): tocar el óvalo le da el foco al óvalo, así que al llegar el clic la Memoria
+        // ya «no estaba delante» y la regla contestaba «tráela». La regla estaba bien; lo que se le decía, no.
+        Prueba("628. tocar el botón desde otra ventana no cuenta como haber dejado la Memoria: si perdió el foco por ese mismo toque sigue estando al frente y el botón la quita; si lo había perdido antes, la trae", TocarElBotonNoEsDejarLaVentana);
+        // Pedido por el dueño el 2026-09-30, al probarlo: un botón en el panel para tenerlo a la izquierda o a
+        // la derecha de la pantalla. Hasta ese día el muelle vivía clavado al borde derecho.
+        Prueba("629. el panel se puede mandar al otro lado de la pantalla: a la izquierda queda a la misma distancia de su borde que tenía del derecho y entra desde ese borde; el lado elegido es el que se encuentra al volver a abrir Ü, y un lado guardado que no se entiende es la derecha", ElPanelCambiaDeLado);
 
         // LA VOZ AL PRIMER CLIC (spec 075, 2026-10-01). «Se demora varios segundos en aparecer la estela y muchos
         // más en que me escuche… la cliqueo para cerrarla y no se cierra, me toca volver a hacer clic». Medido en
@@ -10891,6 +10916,60 @@ internal static class Contrato
         finally { notch.Close(); }
     }
 
+    /// <summary>Promesa 542.</summary>
+    private static void ElNotchNoQuitaElTeclado()
+    {
+        var t = Capacidad("U.WindowsClient.Ui.PanelDeAcciones");
+        var estilo = t?.GetMethod("EstiloSegunElChat", BindingFlags.Public | BindingFlags.Static);
+        if (t == null || estilo == null) { Pendiente("PanelDeAcciones.EstiloSegunElChat (el estilo de la ventana del notch, con el chat abierto y sin él)", "542", "066"); return; }
+        int Estilo(int ex, bool chatAbierto) => (int)estilo.Invoke(null, new object[] { ex, chatAbierto })!;
+
+        // EL ESTILO, Y NO LA RESPUESTA AL CLIC. La primera versión contestaba MA_NOACTIVATE a WM_MOUSEACTIVATE, el
+        // contrato la dio por buena y el PC la desmintió (2026-09-30, 23:40): tras pulsar la onda, delante no quedaba
+        // el notch… ni la app: quedaba una ventana sin título, o ninguna (la sonda de esa pasada no las distinguía). Con
+        // WS_EX_NOACTIVATE en la ventana, medido tres minutos después, las letras caen en la app de delante.
+        const int NOACTIVATE = 0x08000000, LAYERED = 0x80000, TOOLWINDOW = 0x80, TOPMOST = 0x8, TRANSPARENT = 0x20;
+        int deSiempre = LAYERED | TOOLWINDOW | TOPMOST;   // 0x80088: el que trae el notch, leído de su log
+
+        int compacto = Estilo(deSiempre, false);
+        Debe((compacto & NOACTIVATE) != 0, $"compacto, la ventana del notch no se activa al pulsarla: lleva WS_EX_NOACTIVATE (quedó en 0x{compacto:X})");
+        Debe((compacto & deSiempre) == deSiempre, $"sin perder lo que ya llevaba: en capas, de herramienta y siempre encima (quedó en 0x{compacto:X})");
+        Debe(Estilo(compacto, false) == compacto, "y ponerlo dos veces deja lo mismo que una");
+
+        int conChat = Estilo(compacto, true);
+        Debe((conChat & NOACTIVATE) == 0, $"con el chat abierto se le quita: ahí se escribe, y una ventana que no se activa no recibe el teclado (quedó en 0x{conChat:X})");
+        Debe(conChat == deSiempre, $"y solo se le quita eso (quedó en 0x{conChat:X}, se esperaba 0x{deSiempre:X})");
+        Debe(Estilo(conChat, false) == compacto, "al cerrar el chat vuelve a no activarse");
+
+        // EL NOTCH APARTADO (promesa 527) es otro bit sobre la misma ventana: ninguno de los dos pisa al otro.
+        Debe((Estilo(deSiempre | TRANSPARENT, false) & TRANSPARENT) != 0 && (Estilo(compacto | TRANSPARENT, true) & TRANSPARENT) != 0,
+            "ni al ponerlo ni al quitarlo se lleva por delante el bit del notch apartado");
+
+        // [cableado] El estilo se ajusta en los TRES momentos en que cambia la respuesta: al nacer la ventana, al
+        // abrir el chat y al cerrarlo. Y abrir el chat sigue pidiendo el teclado A MANO, porque el clic que lo
+        // abre cae en una ventana que no se activa.
+        if (FuenteDe("windows-client", "src", "Ui", "PanelDeAcciones.cs") is not { } panel) return;
+        string Metodo(string firma) => System.Text.RegularExpressions.Regex.Match(panel, System.Text.RegularExpressions.Regex.Escape(firma) + @"[\s\S]*?\r?\n    }\r?\n").Value;
+        bool Despues(string metodo, string primero, string luego)
+        {
+            int i = metodo.IndexOf(primero, StringComparison.Ordinal);
+            return i >= 0 && metodo.IndexOf(luego, i, StringComparison.Ordinal) > i;
+        }
+        Debe(Metodo("private void AjustarActivacion()").Contains("EstiloSegunElChat(", StringComparison.Ordinal)
+             && Metodo("private void AjustarActivacion()").Contains("ChatAbierto", StringComparison.Ordinal),
+            "[cableado] quien ajusta el estilo de la ventana no pregunta a la regla con el estado vivo del chat");
+        Debe(Metodo("protected override void OnSourceInitialized(EventArgs e)").Contains("AjustarActivacion();", StringComparison.Ordinal),
+            "[cableado] al nacer la ventana del notch no se le pone el estilo: el primer clic le quitaría el teclado a la app");
+        Debe(Despues(Metodo("public void AbrirChat(bool enfocar)"), "ChatAbierto = true;", "AjustarActivacion();"),
+            "[cableado] al abrir el chat no se le quita el estilo: se abriría una caja de texto en una ventana que no recibe el teclado");
+        Debe(Despues(Metodo("public void CerrarChat()"), "ChatAbierto = false;", "AjustarActivacion();"),
+            "[cableado] al cerrar el chat no se le vuelve a poner el estilo: el notch compacto volvería a quitar el teclado");
+        Debe(Metodo("private void EnfocarEntrada()").Contains("Activate();", StringComparison.Ordinal),
+            "[cableado] abrir el chat ya no pide el teclado a mano: el clic que lo abre cae en el notch compacto y no lo trae");
+        Debe(!panel.Contains("GanchoDeActivacion", StringComparison.Ordinal) && !panel.Contains("AlPreguntarSiActiva", StringComparison.Ordinal),
+            "[cableado] sigue ahí el gancho que contestaba al clic, que el PC desmintió: lo que no sirve se borra, no se deja de adorno");
+    }
+
     /// <summary>Promesa 531.</summary>
     private static void UNoEstorbaEnAltTab()
     {
@@ -12171,6 +12250,507 @@ internal static class Contrato
             => m.TryGetProperty("type", out var t) && t.GetString() == "trozo"
                 ? new Voz.Realtime.Hecho[] { new Voz.Realtime.Hecho.DiceElUsuario(m.GetProperty("delta").GetString() ?? "") }
                 : Array.Empty<Voz.Realtime.Hecho>();
+    }
+
+    // ── Spec 071: el panel con dos puertas y la Memoria ──────────────────────────────────────────
+
+    private const string UsuarioDeLaMemoria = "ana@ejemplo.co";
+
+    /// <summary>Las doce cosas que la Memoria tiene que contar, en el orden en que se leen. Es la lista
+    /// de la spec, escrita aquí a mano a propósito: si el plan de la app pierde un apartado, esto no se
+    /// entera por el plan —que es quien lo perdió— sino por esta lista.</summary>
+    private static readonly string[] ApartadosDeLaMemoria =
+    {
+        "quien", "datos", "recordatorios", "conversacion", "habilidades", "lecciones",
+        "pantalla", "sitios", "explicado", "aparatos", "registro", "fuera",
+    };
+
+    private static System.Xml.Linq.XElement? ConNombre(System.Xml.Linq.XElement raiz, string nombre) =>
+        raiz.DescendantsAndSelf().FirstOrDefault(e => NombreDe(e) == nombre);
+
+    private static string NombreDe(System.Xml.Linq.XElement e) =>
+        (string?)e.Attribute(System.Xml.Linq.XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) ?? "";
+
+    /// <summary>La vista de la carita ya leída como árbol, y su código. Null si no se pudo: el juez dice
+    /// que NO PUDO, no que la promesa falló (aprendizaje nº17).</summary>
+    private static (System.Xml.Linq.XElement? Vista, string Codigo) FuentesDeLaCarita()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string xaml = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml");
+        string codigo = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(xaml) || !File.Exists(codigo))
+        {
+            _fallos++;
+            Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO no hay FaceWindow.xaml que mirar (lo pone scripts/contrato-del-grafo.ps1).");
+            return (null, "");
+        }
+        return (System.Xml.Linq.XDocument.Load(xaml).Root, File.ReadAllText(codigo));
+    }
+
+    private static void ElPanelTieneTresBotones()
+    {
+        var (vista, _) = FuentesDeLaCarita();
+        if (vista == null) return;
+        var panel = ConNombre(vista, "BarPanel");
+        Debe(panel != null, "el óvalo (BarPanel) sigue existiendo");
+        if (panel == null) return;
+
+        // Lo que solo existe a ratos —detener, actualizar, rehacer, comprobar— no cuenta: la promesa
+        // habla del panel EN REPOSO. Y un botón que nace Collapsed tampoco es una puerta.
+        var aRatos = ConNombre(panel, "ContextZone");
+        var enReposo = panel.Descendants()
+            .Where(e => e.Name.LocalName == "Button")
+            .Where(b => aRatos == null || !b.Ancestors().Contains(aRatos))
+            .Where(b => (string?)b.Attribute("Visibility") != "Collapsed")
+            .Select(NombreDe).ToList();
+        Debe(enReposo.Count == 3 && enReposo.Contains("MemoriaBtn") && enReposo.Contains("CollarModoBtn") && enReposo.Contains("LadoBtn"),
+            $"en reposo se ven tres botones —Memoria, el collar y el de lado—: hay {enReposo.Count} ({string.Join(", ", enReposo)})");
+        foreach (string ido in new[] { "LearnBtn", "WorkBtn", "SubirBtn", "JevBtn" })
+            Debe(ConNombre(panel, ido) == null, $"«{ido}» ya no vive en el óvalo");
+
+        var memoria = ConNombre(panel, "MemoriaBtn");
+        Debe((string?)memoria?.Attribute("Content") == "Memoria", "el botón nuevo dice «Memoria», con esa palabra a la vista");
+        Debe(enReposo.IndexOf("MemoriaBtn") >= 0 && enReposo.IndexOf("MemoriaBtn") < enReposo.IndexOf("CollarModoBtn"),
+            "Memoria va arriba y el collar debajo, donde estaba");
+    }
+
+    private static void ElPanelCambiaDeLado()
+    {
+        var regla = Cliente.GetType("U.WindowsClient.Ui.ReglaDelMuelle");
+        var tLado = Cliente.GetType("U.WindowsClient.Ui.LadoDelMuelle");
+        var sitio = regla?.GetMethod("IzquierdaDeLaVentana");
+        var entra = regla?.GetMethod("DeDondeEntra");
+        var elOtro = regla?.GetMethod("ElOtro");
+        var ladoDe = regla?.GetMethod("LadoDe");
+        var comoSeGuarda = regla?.GetMethod("ComoSeGuarda");
+        var guardado = typeof(U.WindowsClient.Config).GetProperty("LadoDelMuelle");
+        if (tLado == null || sitio == null || entra == null || elOtro == null || ladoDe == null || comoSeGuarda == null || guardado == null)
+        { Pendiente("ReglaDelMuelle.IzquierdaDeLaVentana/DeDondeEntra/ElOtro/LadoDe/ComoSeGuarda + Config.LadoDelMuelle", "629", "071"); return; }
+
+        object derecha = Enum.Parse(tLado, "Derecha"), izquierda = Enum.Parse(tLado, "Izquierda");
+        double Sitio(object lado, System.Windows.Rect area, double ancho, double separacion) =>
+            (double)sitio.Invoke(null, new object[] { lado, area, ancho, separacion })!;
+        object LadoDe(string? texto) => ladoDe.Invoke(null, new object?[] { texto })!;
+
+        // La pantalla de esta máquina en unidades de WPF (1920x1080 al 125 %), y otra que no empieza en cero:
+        // una barra de tareas a la izquierda, o un segundo monitor.
+        var pantalla = new System.Windows.Rect(0, 0, 1536, 816);
+        var corrida = new System.Windows.Rect(120, 0, 1416, 816);
+        Debe(Sitio(derecha, pantalla, 174, 10) == 1352, $"a la derecha, la ventana acaba a 10 del borde derecho: {Sitio(derecha, pantalla, 174, 10)}");
+        Debe(Sitio(izquierda, pantalla, 174, 10) == 10, $"a la izquierda, empieza a 10 del borde izquierdo: {Sitio(izquierda, pantalla, 174, 10)}");
+        Debe(Sitio(izquierda, corrida, 174, 10) == 130, $"el borde izquierdo es el del área de trabajo, no el cero: {Sitio(izquierda, corrida, 174, 10)}");
+        double holguraDerecha = pantalla.Right - (Sitio(derecha, pantalla, 400, 10) + 400), holguraIzquierda = Sitio(izquierda, pantalla, 400, 10) - pantalla.Left;
+        Debe(holguraDerecha == holguraIzquierda, $"desplegado mide más y sigue igual de separado en los dos lados: {holguraDerecha} y {holguraIzquierda}");
+
+        Debe((double)entra.Invoke(null, new object[] { derecha, 24.0 })! == 24 && (double)entra.Invoke(null, new object[] { izquierda, 24.0 })! == -24,
+            "el panel entra desde el borde donde vive: desde la derecha a la derecha, desde la izquierda a la izquierda");
+        Debe(elOtro.Invoke(null, new[] { derecha })!.Equals(izquierda) && elOtro.Invoke(null, new[] { izquierda })!.Equals(derecha),
+            "el botón alterna: de la derecha a la izquierda y vuelta");
+
+        Debe(LadoDe("izquierda").Equals(izquierda) && LadoDe("  IZQUIERDA ").Equals(izquierda), "lo guardado se entiende con mayúsculas y espacios de más");
+        foreach (string? raro in new[] { "derecha", "", "   ", null, "arriba" })
+            Debe(LadoDe(raro).Equals(derecha), $"«{raro ?? "(nada)"}» es la derecha: es donde ha vivido siempre, y un valor roto no puede esconder el panel");
+        Debe(LadoDe((string)comoSeGuarda.Invoke(null, new[] { izquierda })!).Equals(izquierda) && LadoDe((string)comoSeGuarda.Invoke(null, new[] { derecha })!).Equals(derecha),
+            "lo que se guarda se vuelve a leer como el mismo lado");
+
+        // QUE SE RECUERDE. Por el archivo de verdad, en el directorio de esta prueba.
+        var nueva = U.WindowsClient.Config.Load();
+        Debe(LadoDe((string?)guardado.GetValue(nueva)).Equals(derecha), "una instalación nueva nace con el panel a la derecha");
+        guardado.SetValue(nueva, (string)comoSeGuarda.Invoke(null, new[] { izquierda })!);
+        nueva.Save();
+        Debe(LadoDe((string?)guardado.GetValue(U.WindowsClient.Config.Load())).Equals(izquierda), "elegida la izquierda, al volver a abrir sigue a la izquierda");
+
+        // Y que la regla sea la que corre: el muelle se coloca y entra por ella, y el botón guarda lo elegido.
+        var (vista, codigo) = FuentesDeLaCarita();
+        if (vista == null) return;
+        string muelle = File.ReadAllText(Path.Combine(Environment.GetEnvironmentVariable("U_REPO") ?? "", "windows-client", "src", "Ui", "Muelle.cs"));
+        Debe(muelle.Contains("ReglaDelMuelle.IzquierdaDeLaVentana(", StringComparison.Ordinal) && muelle.Contains("ReglaDelMuelle.DeDondeEntra(", StringComparison.Ordinal),
+            "el muelle se coloca y se desliza por la regla, no con el borde derecho escrito a mano");
+        var boton = ConNombre(vista, "LadoBtn");
+        Debe(boton != null && ConNombre(vista, "BarPanel")!.Descendants().Contains(boton) && (string?)boton.Attribute("Click") == "OnCambiarDeLado",
+            "el botón de lado vive en el panel y llama a OnCambiarDeLado");
+        string alCambiar = CuerpoDe(codigo, "private void OnCambiarDeLado(");
+        Debe(alCambiar.Contains("ReglaDelMuelle.ElOtro(", StringComparison.Ordinal) && alCambiar.Contains("_config.Save()", StringComparison.Ordinal),
+            "pulsarlo pasa al otro lado y lo deja guardado en ese mismo gesto");
+        Debe(codigo.Contains("ReglaDelMuelle.LadoDe(_config.LadoDelMuelle)", StringComparison.Ordinal),
+            "al arrancar, el muelle nace en el lado guardado");
+    }
+
+    private static void LoQueSalioDelPanelNoSePierde()
+    {
+        var (vista, codigo) = FuentesDeLaCarita();
+        if (vista == null) return;
+        var menu = ConNombre(vista, "MenuPanel");
+        Debe(menu != null, "el panel de desarrollo (MenuPanel) sigue existiendo");
+        if (menu == null) return;
+
+        foreach (var (manejador, que) in new[] { ("OnSubirEstudios", "subir estudios"), ("OnToggleJev", "encender Jev") })
+        {
+            Debe(menu.Descendants().Any(e => e.Name.LocalName == "Button" && (string?)e.Attribute("Click") == manejador),
+                $"{que} tiene su botón en el panel de desarrollo");
+            Debe(codigo.Contains($"private void {manejador}(", StringComparison.Ordinal),
+                $"{que} sigue llegando al manejador de siempre ({manejador}), no a uno nuevo");
+        }
+        Debe(ConNombre(menu, "JevBtn") != null,
+            "el botón de Jev conserva su nombre: es donde el código pinta si está encendido o apagado");
+    }
+
+    private static void ElBotonMemoriaAbreYQuitaSuVentana()
+    {
+        var (vista, codigo) = FuentesDeLaCarita();
+        if (vista == null) return;
+        if (Cliente.GetType("U.WindowsClient.Ui.MemoriaWindow") == null) { Pendiente("Ui.MemoriaWindow", "627", "071"); return; }
+
+        Debe((string?)ConNombre(vista, "MemoriaBtn")?.Attribute("Click") == "OnMemoria", "el botón «Memoria» llama a OnMemoria");
+        string cuerpo = CuerpoDe(codigo, "private void OnMemoria(");
+        Debe(cuerpo.Length > 0, "OnMemoria existe en la carita");
+        Debe(cuerpo.Contains("MemoriaWindow.AlTocarSuBoton(", StringComparison.Ordinal),
+            "la carita no decide qué hacer con la ventana: se lo pide a la ventana, que es quien sabe cómo está");
+
+        // Dónde se decide. Vive en la ventana y no en la carita porque para decidir hace falta saber cuándo
+        // perdió el foco, y eso solo lo sabe ella (promesa 628).
+        string decide = CuerpoDe(FuenteDeLaMemoria(), "public static void AlTocarSuBoton(");
+        Debe(decide.Length > 0, "MemoriaWindow.AlTocarSuBoton existe");
+        Debe(decide.Contains("ReglaDeLaVentana.AlPulsarSuBoton", StringComparison.Ordinal),
+            "qué hacer al pulsarlo lo decide la misma regla que el botón del collar, no una cuenta nueva");
+        Debe(decide.Contains("QueHacerConLaVentana.Abrir", StringComparison.Ordinal)
+             && decide.Contains("QueHacerConLaVentana.TraerAlFrente", StringComparison.Ordinal)
+             && decide.Contains("QueHacerConLaVentana.Ocultar", StringComparison.Ordinal),
+            "las tres respuestas de la regla tienen su caso: abrir, traer al frente y quitar");
+    }
+
+    /// <summary>Desde la firma de un método hasta el siguiente miembro. Vacío si no está.</summary>
+    private static string CuerpoDe(string codigo, string firma)
+    {
+        int desde = codigo.IndexOf(firma, StringComparison.Ordinal);
+        if (desde < 0) return "";
+        int hasta = new[] { "\n    private ", "\n    public ", "\n    internal ", "\n    /// <summary>" }
+            .Select(m => codigo.IndexOf(m, desde + firma.Length, StringComparison.Ordinal))
+            .Where(i => i > desde).DefaultIfEmpty(codigo.Length).Min();
+        return codigo[desde..hasta];
+    }
+
+    private static string FuenteDeLaMemoria()
+    {
+        string archivo = Path.Combine(Environment.GetEnvironmentVariable("U_REPO") ?? "", "windows-client", "src", "Ui", "MemoriaWindow.cs");
+        return File.Exists(archivo) ? File.ReadAllText(archivo) : "";
+    }
+
+    private static void TocarElBotonNoEsDejarLaVentana()
+    {
+        var regla = Cliente.GetType("U.WindowsClient.Ui.ReglaDeLaVentana");
+        var estaba = regla?.GetMethod("EstabaAlFrente", new[] { typeof(bool), typeof(bool), typeof(long) });
+        var pulsar = regla?.GetMethod("AlPulsarSuBoton");
+        if (estaba == null || pulsar == null) { Pendiente("ReglaDeLaVentana.EstabaAlFrente(seVe, activa, msEntrePerderElFocoYElToque)", "628", "071"); return; }
+        bool AlFrente(bool seVe, bool activa, long ms) => (bool)estaba.Invoke(null, new object[] { seVe, activa, ms })!;
+        string AlPulsar(bool existe, bool alFrente) => pulsar.Invoke(null, new object[] { existe, alFrente })!.ToString()!;
+
+        Debe(AlFrente(true, true, -1), "una ventana que se ve y tiene el foco está al frente, sin más cuentas");
+        Debe(AlFrente(true, false, 4), "perdió el foco 4 ms antes del toque: se lo quitó el toque, así que seguía al frente");
+        Debe(!AlFrente(true, false, 1500), "lo perdió segundo y medio antes: ya estaba detrás cuando se tocó el botón");
+        Debe(!AlFrente(true, false, -1), "nunca tuvo el foco, o lo perdió después del toque: no estaba al frente");
+        Debe(!AlFrente(false, true, 0) && !AlFrente(false, false, 4), "lo que no se ve —escondida o minimizada— no está al frente, tenga el foco que tenga");
+
+        // El margen separa «me lo quitó este toque» de «ya lo había perdido». Tiene que caber el salto
+        // de una ventana a otra (milésimas) y no alcanzar a un cambio de ventana hecho por la persona.
+        long margen = Enumerable.Range(0, 5000).Select(i => (long)i).TakeWhile(ms => AlFrente(true, false, ms)).Count();
+        Debe(margen is >= 100 and <= 500, $"el margen del toque está entre 100 y 500 ms: {margen}");
+
+        // Y lo que eso cambia, que es lo que se vio fallar: con la Memoria delante, el botón la QUITA.
+        Debe(AlPulsar(true, AlFrente(true, false, 4)) == "Ocultar",
+            "con la Memoria delante, tocar su botón en el óvalo la quita, aunque el óvalo se haya quedado con el foco");
+        Debe(AlPulsar(true, AlFrente(true, false, 1500)) == "TraerAlFrente",
+            "con la Memoria detrás desde hace rato, tocar su botón la trae: no se esconde algo que no se estaba mirando");
+
+        // Que la ventana le diga a la regla la verdad: cuándo perdió el foco, y cuándo se tocó el botón.
+        var (vista, codigo) = FuentesDeLaCarita();
+        if (vista == null) return;
+        string ventana = FuenteDeLaMemoria();
+        Debe(ventana.Contains("Deactivated +=", StringComparison.Ordinal) && ventana.Contains("ReglaDeLaVentana.EstabaAlFrente(", StringComparison.Ordinal),
+            "la ventana apunta cuándo pierde el foco y se lo pasa a la regla");
+        Debe((string?)ConNombre(vista, "MemoriaBtn")?.Attribute("PreviewMouseLeftButtonDown") == "OnMemoriaSeToca"
+             && codigo.Contains("private void OnMemoriaSeToca(", StringComparison.Ordinal),
+            "el instante del toque es el de apoyar el ratón, no el de soltarlo: una pulsación larga no cambia la respuesta");
+    }
+
+    /// <summary>Lo que la Memoria va a pintar para esta persona, o null si la capacidad todavía no existe.</summary>
+    private static List<dynamic>? LeerLaMemoria(DateTimeOffset ahora)
+    {
+        var enCarpetas = Cliente.GetType("U.WindowsClient.Memoria.Fuentes")
+            ?.GetMethod("EnCarpetas", new[] { typeof(string), typeof(string), typeof(string) });
+        var leer = Cliente.GetType("U.WindowsClient.Memoria.LoQueUSabe")?.GetMethod("Leer");
+        if (enCarpetas == null || leer == null) return null;
+        object fuentes = enCarpetas.Invoke(null, new object[] { UserPaths.Roaming, UserPaths.Local, UsuarioDeLaMemoria })!;
+        return ((System.Collections.IEnumerable)leer.Invoke(null, new object[] { fuentes, ahora })!).Cast<dynamic>().ToList();
+    }
+
+    private static dynamic? Apartado(List<dynamic> apartados, string clave) =>
+        apartados.FirstOrDefault(a => (string)a.Clave == clave);
+
+    /// <summary>Todo lo que un apartado enseña, junto: título, resumen y cada entrada con su detalle.</summary>
+    private static List<string> TextosDe(IEnumerable<dynamic> apartados)
+    {
+        var textos = new List<string>();
+        foreach (var a in apartados)
+        {
+            textos.Add((string)a.Titulo);
+            textos.Add((string)a.Resumen);
+            foreach (var e in a.Entradas) { textos.Add((string)e.Texto); textos.Add((string)e.Detalle); }
+        }
+        return textos;
+    }
+
+    private static List<string> DetallesDe(IEnumerable<dynamic> apartados)
+    {
+        var detalles = new List<string>();
+        foreach (var a in apartados) foreach (var e in a.Entradas) detalles.Add((string)e.Detalle);
+        return detalles;
+    }
+
+    /// <summary>
+    /// Llena los almacenes POR LAS CLASES QUE LOS ESCRIBEN EN LA APP, no a mano: la Memoria lee los
+    /// archivos por su cuenta —tiene que poder decir «no pude leerlo»—, así que el formato vive en dos
+    /// sitios, y lo que impide que se separen es escribir por un camino y leer por el otro (nº16).
+    /// A mano solo va lo que la app escribe en una ruta fija del perfil y no se deja redirigir.
+    /// </summary>
+    private static void SembrarLaMemoria()
+    {
+        string roaming = Path.Combine(UserPaths.Roaming, "U"), local = Path.Combine(UserPaths.Local, "U");
+        Directory.CreateDirectory(roaming);
+        Directory.CreateDirectory(local);
+
+        var cfg = U.WindowsClient.Config.Load();
+        cfg.DisplayName = "Ana Restrepo";
+        cfg.Email = UsuarioDeLaMemoria;
+        cfg.UserId = UsuarioDeLaMemoria;
+        cfg.ClientToken = "tok-secreto-123";
+        cfg.InstallId = "inst-999-zzz";
+        cfg.Save();
+
+        string archivoMemoria = Path.Combine(roaming, "memoria-personal.json");
+        var memoria = new MemoriaPersonal(UsuarioDeLaMemoria, archivoMemoria);
+        memoria.EjecutarAsync("recuerda que soy alérgica a la penicilina", default).Wait();
+        memoria.EjecutarAsync("recuerda que mi consultorio es el 204", default).Wait();
+        memoria.EjecutarAsync("recuérdame llamar al laboratorio en 30 minutos", default).Wait();
+        // Y lo de OTRA persona en el mismo archivo, que no es de quien abre la Memoria.
+        new MemoriaPersonal("otro@ejemplo.co", archivoMemoria).EjecutarAsync("recuerda que esto es de otra persona", default).Wait();
+
+        var charla = new ConversacionPersonal(UsuarioDeLaMemoria, Path.Combine(roaming, "conversacion-personal.json"));
+        charla.Agregar("usuario", "¿qué tengo pendiente?");
+        charla.Agregar("asistente", "Llamar al laboratorio.");
+        charla.Agregar("usuario", "gracias");
+
+        long ms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        byte[] jpeg = { 0xFF, 0xD8, 0xFF, 0xE0, 0, 0 };
+        var album = new AlbumDeMiradas(Path.Combine(local, "recuerdos", "miradas"), () => ms,
+            AlbumDeMiradas.DosGigas, AlbumDeMiradas.SieteDiasMs);
+        album.Guardar(jpeg, "uia://Notepad.exe/sin-título-bloc-de-notas", "pasando por aquí");
+        album.Guardar(jpeg, "web://google.com/search", "pasando por aquí");
+        album.Guardar(jpeg, "web://google.com/search", "miró la pantalla");
+
+        SkillEnsenada.Empaquetar("Enviar un correo en Gmail", "Úsala cuando haya que mandar un correo",
+            "web://mail.google.com", new[] { new PasoEnsenado("Redactar") })!.Guardar(Path.Combine(local, "skills"));
+
+        string leccion = U.WindowsClient.Teach.LeccionEnDisco.NuevaCarpeta("leccion_20260923_143605");
+        U.WindowsClient.Teach.LeccionEnDisco.Guardar(new U.WindowsClient.Teach.Leccion(
+            "leccion_20260923_143605", "uia://chrome.exe/Plataforma · Miracle - Google Chrome", "uia://omi-windows.exe/omi",
+            29_587, "", Array.Empty<U.WindowsClient.Teach.EventoDeLaLeccion>(), Array.Empty<FraseDicha>(),
+            Array.Empty<U.WindowsClient.Teach.CuadroDeLaLeccion>()), leccion);
+
+        U.WindowsClient.Uia.PestanasAbiertas.Apunta("github.com", "chrome", "ZevCorp/Mensaje: el monorepo - Google Chrome", "https");
+        new NombresDeDispositivos().Poner("{0.0.1.00000000}.{9f3c}", "Micrófono de la consulta");
+
+        string fotos = Path.Combine(local, "recuerdos", "fotos");
+        Directory.CreateDirectory(fotos);
+        File.WriteAllBytes(Path.Combine(fotos, "20260919-081646-permitir-una-vez.jpg"), jpeg);
+        File.WriteAllBytes(Path.Combine(fotos, "20260919-085515-barra-de-direcciones-y-de-búsqueda.jpg"), jpeg);
+        File.WriteAllText(Path.Combine(local, "collar.json"), "{\"permanente\":true,\"enlazado\":true}");
+        File.WriteAllText(Path.Combine(roaming, "omi-telefono.json"), "{\"codigo\":\"48291357\",\"emitido\":1790194811470}");
+        Directory.CreateDirectory(Path.Combine(local, "logs"));
+        File.WriteAllText(Path.Combine(local, "logs", "u-20260929.log"), "[10:00:00] arranque\n");
+        File.WriteAllText(Path.Combine(local, "logs", "u-20260930-instalada-p40028-020208.log"), "[02:02:08] arranque\n");
+    }
+
+    private static void LaMemoriaCuentaTodoLoGuardado()
+    {
+        var vacia = LeerLaMemoria(DateTimeOffset.Now);
+        if (vacia == null) { Pendiente("Memoria.LoQueUSabe.Leer(fuentes, ahora) + Fuentes.EnCarpetas", "622", "071"); return; }
+
+        // SIN NADA GUARDADO, LOS DOCE SIGUEN AHÍ. El denominador es el plan, nunca lo que había (nº10):
+        // un apartado que desaparece cuando está vacío no se distingue de uno que nadie escribió.
+        var claves = vacia.Select(a => (string)a.Clave).ToList();
+        Debe(claves.SequenceEqual(ApartadosDeLaMemoria),
+            $"sin nada guardado se cuentan los doce apartados, en su orden: {string.Join(", ", claves)}");
+        foreach (var a in vacia.Where(a => (string)a.Clave != "fuera"))
+        {
+            string clave = (string)a.Clave, estado = a.Estado.ToString(), resumen = (string)a.Resumen;
+            int cuenta = (int)a.Cuenta;
+            Debe(estado == "Vacio" && cuenta == 0 && resumen.Contains("odavía", StringComparison.Ordinal),
+                $"«{clave}» sin nada dice «todavía nada»: {estado}, {cuenta}, «{resumen}»");
+        }
+        var fuera = Apartado(vacia, "fuera");
+        string estadoDeFuera = fuera?.Estado.ToString() ?? "(no está)";
+        int cuentaDeFuera = (int)(fuera?.Cuenta ?? 0);
+        Debe(estadoDeFuera == "ConDatos" && cuentaDeFuera >= 1,
+            "lo que sale de este computador se dice siempre, haya o no algo guardado aquí");
+
+        SembrarLaMemoria();
+        var llena = LeerLaMemoria(DateTimeOffset.Now)!;
+        int Cuenta(string clave) => (int)(Apartado(llena, clave)?.Cuenta ?? -1);
+        string Estado(string clave) => Apartado(llena, clave)?.Estado.ToString() ?? "(no está)";
+
+        Debe(llena.Select(a => (string)a.Clave).SequenceEqual(ApartadosDeLaMemoria), "con todo guardado siguen siendo los mismos doce");
+        foreach (string clave in ApartadosDeLaMemoria)
+            Debe(Estado(clave) == "ConDatos", $"«{clave}» tiene datos y lo dice: {Estado(clave)}");
+
+        Debe(Cuenta("datos") == 2, $"lo contado son 2 cosas —lo de otra persona no cuenta, ni el recordatorio—: {Cuenta("datos")}");
+        Debe(Cuenta("recordatorios") == 1, $"hay 1 recordatorio: {Cuenta("recordatorios")}");
+        Debe(Cuenta("conversacion") == 3, $"lo hablado son 3 turnos: {Cuenta("conversacion")}");
+        Debe(Cuenta("habilidades") == 1, $"hay 1 habilidad enseñada: {Cuenta("habilidades")}");
+        Debe(Cuenta("lecciones") == 1, $"hay 1 lección grabada: {Cuenta("lecciones")}");
+        Debe(Cuenta("pantalla") == 3, $"se miró la pantalla 3 veces: {Cuenta("pantalla")}");
+        Debe(((IEnumerable<dynamic>)Apartado(llena, "pantalla")!.Entradas).Count() == 2,
+            "las 3 miradas se cuentan por sitio: el Bloc de notas y google.com, no una fila por foto");
+        Debe(Cuenta("explicado") == 2, $"hay 2 cosas explicadas señalándolas: {Cuenta("explicado")}");
+        Debe(Cuenta("aparatos") == 2, $"hay 2 aparatos, el collar y el micrófono bautizado: {Cuenta("aparatos")}");
+        Debe(Cuenta("registro") == 2, $"el registro tiene 2 días: {Cuenta("registro")}");
+
+        // Los sitios web los apunta una clase con memoria estática compartida entre promesas: cuántos
+        // hay se le pregunta al archivo que ella misma escribió, no se supone.
+        using var sitios = JsonDocument.Parse(File.ReadAllText(Path.Combine(UserPaths.Local, "U", "titulos-web.json")));
+        int dominios = sitios.RootElement.EnumerateObject().Count();
+        Debe(dominios >= 1 && Cuenta("sitios") == dominios, $"los sitios web son los {dominios} que hay apuntados: {Cuenta("sitios")}");
+
+        var textos = TextosDe(llena);
+        foreach (string dicho in new[] { "Ana Restrepo", UsuarioDeLaMemoria, "soy alérgica a la penicilina", "mi consultorio es el 204",
+                     "llamar al laboratorio en 30 minutos", "Llamar al laboratorio.", "Enviar un correo en Gmail", "github.com",
+                     "Micrófono de la consulta" })
+            Debe(textos.Any(t => t.Contains(dicho, StringComparison.Ordinal)), $"lo guardado se LEE, no solo se cuenta: «{dicho}»");
+        Debe(!textos.Any(t => t.Contains("otra persona", StringComparison.Ordinal)), "lo que recordó otra persona en este PC no se enseña");
+    }
+
+    private static void LoQueNoSePudoLeerSeDice()
+    {
+        if (LeerLaMemoria(DateTimeOffset.Now) == null) { Pendiente("Memoria.LoQueUSabe.Leer", "623", "071"); return; }
+        SembrarLaMemoria();
+        string roaming = Path.Combine(UserPaths.Roaming, "U"), local = Path.Combine(UserPaths.Local, "U");
+
+        // DAÑADOS: un JSON cortado a la mitad, que es lo que deja un apagón a media escritura.
+        foreach (string roto in new[]
+                 {
+                     Path.Combine(roaming, "config.json"), Path.Combine(roaming, "memoria-personal.json"),
+                     Path.Combine(local, "recuerdos", "miradas", "album.json"), Path.Combine(local, "titulos-web.json"),
+                     Path.Combine(local, "collar.json"),
+                 })
+            File.WriteAllText(roto, "{ \"items\": [ { \"text\": \"a med");
+        // Y entre las habilidades, una buena y una rota: la buena se sigue contando.
+        File.WriteAllText(Path.Combine(local, "skills", "Otra-cosa.skill.json"), "{ \"Nombre\": ");
+
+        string conversacion = Path.Combine(roaming, "conversacion-personal.json");
+        List<dynamic> leido;
+        // OCUPADO: otro programa lo tiene abierto en exclusiva. No es lo mismo que dañado, y se dice distinto.
+        using (new FileStream(conversacion, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            leido = LeerLaMemoria(DateTimeOffset.Now)!;
+
+        string Estado(string clave) => Apartado(leido, clave)?.Estado.ToString() ?? "(no está)";
+        string Resumen(string clave) => (string)(Apartado(leido, clave)?.Resumen ?? "");
+        foreach (string clave in new[] { "quien", "datos", "recordatorios", "pantalla", "sitios", "conversacion" })
+        {
+            Debe(Estado(clave) == "NoSePudoLeer", $"«{clave}» no se pudo leer y lo dice, en vez de decir «vacío»: {Estado(clave)}");
+            Debe(Resumen(clave).Contains("no pude leer", StringComparison.OrdinalIgnoreCase),
+                $"«{clave}» lo dice con esas palabras: «{Resumen(clave)}»");
+        }
+        Debe(Resumen("datos") != Resumen("conversacion"),
+            $"dañado y ocupado no se dicen igual: «{Resumen("datos")}» / «{Resumen("conversacion")}»");
+        Debe(Estado("aparatos") == "ConDatos" && Resumen("aparatos").Contains("no pude leer", StringComparison.OrdinalIgnoreCase),
+            $"de los aparatos se enseña el que se leyó y se dice que el collar no: {Estado("aparatos")}, «{Resumen("aparatos")}»");
+        Debe(Estado("habilidades") == "ConDatos" && (int)Apartado(leido, "habilidades")!.Cuenta == 1
+             && Resumen("habilidades").Contains("no pude leer", StringComparison.OrdinalIgnoreCase),
+            $"la habilidad buena se cuenta y la rota se nombra como no leída: {Estado("habilidades")}, «{Resumen("habilidades")}»");
+        Debe(Estado("lecciones") == "ConDatos" && Estado("explicado") == "ConDatos" && Estado("registro") == "ConDatos",
+            "lo que sí se pudo leer se sigue enseñando: un almacén roto no tumba a los demás");
+    }
+
+    private static void LaMemoriaHablaComoUnaPersona()
+    {
+        if (LeerLaMemoria(DateTimeOffset.Now) == null) { Pendiente("Memoria.LoQueUSabe.Leer", "624", "071"); return; }
+        SembrarLaMemoria();
+        var ahora = DateTimeOffset.Now;
+        var hoy = LeerLaMemoria(ahora)!;
+
+        // Las filas de los sitios web quedan fuera de este repaso, y solo ellas: son direcciones y títulos de
+        // páginas copiados tal cual, y quien los apunta guarda memoria entre promesas. Lo que Ü dice POR SU
+        // CUENTA de ese apartado —título y resumen— sí entra.
+        var textos = TextosDe(hoy.Where(a => (string)a.Clave != "sitios"));
+        textos.Add((string)Apartado(hoy, "sitios")!.Titulo);
+        textos.Add((string)Apartado(hoy, "sitios")!.Resumen);
+        foreach (string interno in new[] { "\\", "://", ".json", ".exe", ".jpg", ".log", ".skill", "local_", "leccion_", "{0.0.1" })
+        {
+            var culpables = textos.Where(t => t.Contains(interno, StringComparison.OrdinalIgnoreCase)).Take(2).ToList();
+            Debe(culpables.Count == 0, $"nada de lo que se enseña lleva «{interno}»: {string.Join(" | ", culpables)}");
+        }
+        var conReloj = textos.Where(t => System.Text.RegularExpressions.Regex.IsMatch(t, @"\d{4}-\d{2}-\d{2}T|\d{13}")).Take(2).ToList();
+        Debe(conReloj.Count == 0, $"ninguna fecha sale como la guarda la máquina: {string.Join(" | ", conReloj)}");
+        Debe(textos.Any(t => t.Contains("Bloc de notas", StringComparison.Ordinal)), "un programa se llama por su nombre, no por su proceso: «Bloc de notas»");
+        Debe(textos.Any(t => t.Contains("google.com", StringComparison.Ordinal)), "un sitio web se llama por su dirección corta: «google.com»");
+
+        string[] meses = { "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre" };
+        bool Dice(IEnumerable<string> detalles, string palabra) => detalles.Any(d => d.Contains(palabra, StringComparison.OrdinalIgnoreCase));
+        // Las tres fechas se piden sobre lo MISMO, moviendo el «ahora»: lo guardado no cambia de día.
+        var conversacionHoy = DetallesDe(new[] { Apartado(hoy, "conversacion")! });
+        var conversacionManana = DetallesDe(new[] { Apartado(LeerLaMemoria(ahora.AddDays(1))!, "conversacion")! });
+        var conversacionLejos = DetallesDe(new[] { Apartado(LeerLaMemoria(ahora.AddDays(40))!, "conversacion")! });
+        Debe(Dice(conversacionHoy, "hoy"), $"lo hablado hoy dice «hoy»: {string.Join(" | ", conversacionHoy)}");
+        Debe(Dice(conversacionManana, "ayer") && !Dice(conversacionManana, "hoy"),
+            $"un día después dice «ayer»: {string.Join(" | ", conversacionManana)}");
+        Debe(!Dice(conversacionLejos, "hoy") && !Dice(conversacionLejos, "ayer") && meses.Any(m => Dice(conversacionLejos, " de " + m)),
+            $"cuarenta días después dice el día y el mes: {string.Join(" | ", conversacionLejos)}");
+    }
+
+    private static void LoSecretoNoSeEnsena()
+    {
+        if (LeerLaMemoria(DateTimeOffset.Now) == null) { Pendiente("Memoria.LoQueUSabe.Leer", "625", "071"); return; }
+        SembrarLaMemoria();
+        var textos = TextosDe(LeerLaMemoria(DateTimeOffset.Now)!);
+
+        // La prueba tiene que poder fallar: el nombre vive en el MISMO archivo que la clave, y se lee.
+        Debe(textos.Any(t => t.Contains("Ana Restrepo", StringComparison.Ordinal)), "el archivo de la clave sí se leyó: el nombre sale");
+        foreach (var (secreto, que) in new[]
+                 {
+                     ("tok-secreto-123", "la clave del cliente"), ("inst-999-zzz", "el identificador de la instalación"),
+                     ("48291357", "el código del teléfono"),
+                 })
+            Debe(!textos.Any(t => t.Contains(secreto, StringComparison.Ordinal)), $"{que} no se enseña");
+    }
+
+    private static void AbrirLaMemoriaNoCambiaNada()
+    {
+        if (LeerLaMemoria(DateTimeOffset.Now) == null) { Pendiente("Memoria.LoQueUSabe.Leer", "626", "071"); return; }
+        SembrarLaMemoria();
+
+        // EL CEBO. Un dato viejo que dice una hora y no tiene fecha: leer la memoria por la puerta de la voz
+        // (ContextoAsync, Pendientes) lo convierte en recordatorio Y REESCRIBE el archivo. Mirar no puede hacer eso.
+        string memoria = Path.Combine(UserPaths.Roaming, "U", "memoria-personal.json");
+        File.WriteAllText(memoria, "{\"items\":[{\"id\":\"local_viejo\",\"userId\":\"" + UsuarioDeLaMemoria
+            + "\",\"text\":\"llamar a mamá a las 8\",\"kind\":\"fact\",\"createdAt\":\"2026-09-01T10:00:00+00:00\","
+            + "\"dueAt\":null,\"timeZone\":\"\",\"delivered\":false}]}");
+
+        string raiz = Environment.GetEnvironmentVariable("U_DATA_DIR") ?? "";
+        Dictionary<string, string> Foto() => Directory.EnumerateFiles(raiz, "*", SearchOption.AllDirectories)
+            .ToDictionary(f => f, f => File.GetLastWriteTimeUtc(f).Ticks + ":"
+                + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(f))));
+
+        var antes = Foto();
+        var leido = LeerLaMemoria(DateTimeOffset.Now)!;
+        LeerLaMemoria(DateTimeOffset.Now.AddDays(3));
+        var despues = Foto();
+
+        Debe((int)Apartado(leido, "datos")!.Cuenta == 1, "el dato viejo se leyó: la prueba miró el archivo de verdad");
+        var tocados = antes.Keys.Union(despues.Keys)
+            .Where(f => !antes.TryGetValue(f, out var a) || !despues.TryGetValue(f, out var d) || a != d)
+            .Select(f => Path.GetFileName(f)).ToList();
+        Debe(antes.Count > 10, $"había archivos que vigilar: {antes.Count}");
+        Debe(tocados.Count == 0, $"abrir la Memoria dos veces no escribe, no borra y no crea nada: {string.Join(", ", tocados)}");
     }
 
     private static void Prueba(string nombre, Action cuerpo)

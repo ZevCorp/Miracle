@@ -8,7 +8,8 @@ using U.WindowsClient.Diagnostics;
 namespace U.WindowsClient.Ui;
 
 /// <summary>
-/// EL MUELLE: el panel de Ü, pegado al borde derecho de la pantalla y siempre ahí.
+/// EL MUELLE: el panel de Ü, pegado a un borde de la pantalla —el derecho, o el izquierdo si la
+/// persona lo elige (promesa 629)— y siempre ahí.
 /// </summary>
 /// <remarks>
 /// POR QUÉ EXISTE (spec 010, 2026-09-05, pedido por el usuario). El panel se abría con un clic en la
@@ -105,6 +106,46 @@ public sealed class Muelle : Window, AnfitrionDeLaCarita
 
     private readonly Decorator _hueco = new();          // aquí vive el panel reparentado
     private readonly Border _dibujoPestana;
+    private readonly Grid _blancoPestana;
+
+    /// <summary>Lo que recorre el panel al deslizarse desde su borde.</summary>
+    private const double Recorrido = 24;
+
+    private LadoDelMuelle _lado = LadoDelMuelle.Derecha;
+
+    /// <summary>
+    /// EN QUÉ BORDE VIVE (promesa 629). Cambiarlo acopla la pestaña al otro borde y recoloca la
+    /// ventana; el panel de dentro lo espeja FaceWindow, que es quien tiene el XAML.
+    /// </summary>
+    /// <remarks>
+    /// LA PESTAÑA SIEMPRE CONTRA EL BORDE y el panel creciendo hacia dentro, en los dos lados: es lo
+    /// que hace que desplegarse no mueva lo que se acaba de tocar (ver «el ancla es la pestaña»).
+    ///
+    /// AL CAMBIAR, SE QUEDA ABIERTO UN MOMENTO EN EL LADO NUEVO. El cursor está sobre el botón que
+    /// se acaba de pulsar, y el panel se va de debajo de él: sin ese respiro se plegaría en el acto y
+    /// lo que se vería es un panel que desaparece, no uno que se muda.
+    /// </remarks>
+    public LadoDelMuelle Lado
+    {
+        get => _lado;
+        set
+        {
+            if (_lado == value) return;
+            _lado = value;
+            DockPanel.SetDock(_blancoPestana, value == LadoDelMuelle.Izquierda ? Dock.Left : Dock.Right);
+            Recolocar();
+            if (EstaDesplegado)
+            {
+                _gracia.Stop();
+                _gracia.Interval = TimeSpan.FromMilliseconds(GraciaAlMudarseMs);
+                _gracia.Start();
+            }
+            LogBus.Log("muelle", $"ahora vive a la {ReglaDelMuelle.ComoSeGuarda(value)}");
+        }
+    }
+
+    /// <summary>Lo que se queda abierto tras mudarse de lado, para que se vea adónde fue.</summary>
+    private const int GraciaAlMudarseMs = 1800;
     private readonly TranslateTransform _desliz = new();
     private readonly DispatcherTimer _gracia;
     private readonly Func<bool> _hayConversacion;
@@ -152,7 +193,7 @@ public sealed class Muelle : Window, AnfitrionDeLaCarita
         };
 
         // Background transparente Y NO nulo: nulo no recibe el ratón, y sin ratón no hay gesto.
-        var blancoPestana = new Grid
+        var blancoPestana = _blancoPestana = new Grid
         {
             Width = AnchoPestana,
             Height = AltoPestana,
@@ -162,8 +203,9 @@ public sealed class Muelle : Window, AnfitrionDeLaCarita
         };
         blancoPestana.Children.Add(_dibujoPestana);
 
-        // La pestaña a la derecha del todo y el panel llenando lo que quede a su izquierda: así el
-        // panel crece hacia dentro de la pantalla y la pestaña se queda clavada al borde.
+        // La pestaña contra el borde y el panel llenando lo que quede hacia dentro: así el panel
+        // crece hacia dentro de la pantalla y la pestaña se queda clavada al borde. Nace a la
+        // derecha; quien quiera la izquierda pone Lado, que la acopla al otro borde.
         var fila = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(blancoPestana, Dock.Right);
         fila.Children.Add(blancoPestana);
@@ -208,13 +250,13 @@ public sealed class Muelle : Window, AnfitrionDeLaCarita
     }
 
     /// <summary>
-    /// Pegada al borde derecho y con la pestaña quieta. El alto lo pone el contenido, así que al
+    /// Pegada a su borde y con la pestaña quieta. El alto lo pone el contenido, así que al
     /// desplegarse la ventana crece hacia arriba y hacia abajo por igual desde el centro guardado.
     /// </summary>
     private void Recolocar()
     {
         var wa = SystemParameters.WorkArea;
-        Left = wa.Right - ActualWidth - SeparacionDelBorde;
+        Left = ReglaDelMuelle.IzquierdaDeLaVentana(_lado, wa, ActualWidth, SeparacionDelBorde);
         Top = Math.Clamp(_centro - ActualHeight / 2, wa.Top, Math.Max(wa.Top, wa.Bottom - ActualHeight));
     }
 
@@ -259,7 +301,7 @@ public sealed class Muelle : Window, AnfitrionDeLaCarita
 
         _hueco.Visibility = Visibility.Visible;
         _desliz.BeginAnimation(TranslateTransform.XProperty,
-            new DoubleAnimation(24, 0, TimeSpan.FromMilliseconds(180))
+            new DoubleAnimation(ReglaDelMuelle.DeDondeEntra(_lado, Recorrido), 0, TimeSpan.FromMilliseconds(180))
             { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         _hueco.BeginAnimation(OpacityProperty,
             new DoubleAnimation(1, TimeSpan.FromMilliseconds(150)));
@@ -285,7 +327,7 @@ public sealed class Muelle : Window, AnfitrionDeLaCarita
         irse.Completed += (_, __) => { if (!EstaDesplegado) _hueco.Visibility = Visibility.Collapsed; };
         _hueco.BeginAnimation(OpacityProperty, irse);
         _desliz.BeginAnimation(TranslateTransform.XProperty,
-            new DoubleAnimation(24, TimeSpan.FromMilliseconds(140)));
+            new DoubleAnimation(ReglaDelMuelle.DeDondeEntra(_lado, Recorrido), TimeSpan.FromMilliseconds(140)));
         CrecerPestana(false);
 
         LogBus.Log("muelle", $"plegado · {porque}");
@@ -307,6 +349,8 @@ public sealed class Muelle : Window, AnfitrionDeLaCarita
     /// </summary>
     private void Reconsiderar()
     {
+        // El respiro largo de mudarse de lado vale una vez; después, la gracia de siempre.
+        _gracia.Interval = TimeSpan.FromMilliseconds(GraciaMs);
         bool debe = ReglaDelMuelle.Desplegado(IsMouseOver, Seguro(_hayConversacion), IsKeyboardFocusWithin);
         if (!debe) { Plegar("el cursor se fue y no quedaba nada abierto"); return; }
         if (!_gracia.IsEnabled) _gracia.Start();

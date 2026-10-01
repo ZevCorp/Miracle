@@ -2194,7 +2194,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // puesta a mano sobre una placa que declara el XAML— así que se pide la misma cuenta.
         BarShell.Margin = Estudio.HolguraDe(Estudio.Sombra3);
 
-        foreach (var b in new[] { LearnBtn, WorkBtn, SubirBtn })
+        // LA ÚNICA PASTILLA DEL ÓVALO (spec 071): antes eran Learn, Work y Subir. Se deja el bucle y
+        // no una asignación suelta para que la próxima pastilla se vista igual sin copiar ocho líneas.
+        foreach (var b in new[] { MemoriaBtn })
         {
             b.Template = Estudio.Pastilla(b.Height / 2);
             b.Background = Estudio.Superficie;
@@ -2230,7 +2232,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // nada — y desde que 📍 nace APAGADO, un interruptor cuyo estado de reposo no se ve es un
         // interruptor que no se encuentra.
         foreach (var b in new System.Windows.Controls.Primitives.ButtonBase[]
-                 { RestartTeachBtn, ComprobarBtn, MenuActivator, CollarModoBtn,
+                 { RestartTeachBtn, ComprobarBtn, MenuActivator, CollarModoBtn, LadoBtn,
                    InspectorBtn, LocatorBtn, RecuerdosBtn, LogsBtn })
         {
             b.Foreground = Estudio.Tinta;
@@ -2243,6 +2245,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             if (trazo is System.Windows.Shapes.Path camino) camino.Stroke = Estudio.Tinta;
             if (trazo is System.Windows.Shapes.Ellipse punto) punto.Fill = Estudio.Tinta;
         }
+
+        LadoHojaIzquierda.Stroke = Estudio.Tinta;
+        LadoHojaDerecha.Stroke = Estudio.Tinta;
+        PintarBotonDeLado();
 
         SepContexto.Background = Estudio.Borde;
         SepBarra.Background = Estudio.Borde;
@@ -2260,9 +2266,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         RootPanel.Visibility = Visibility.Visible;   // dentro del muelle, quien lo esconde es él
         VestirElPanelConElEstudio();
 
-        // La barra vive SIEMPRE a la derecha ahora, así que el espejo de lados se aplica una vez y
-        // deja de depender de dónde ande la carita.
-        ApplyBarSide(false);
+        // La barra vive en el lado que la persona eligió (promesa 629) —a la derecha si nunca
+        // eligió—, y no depende de dónde ande la carita.
+        var lado = ReglaDelMuelle.LadoDe(_config.LadoDelMuelle);
+        ApplyBarSide(lado == LadoDelMuelle.Izquierda);
 
         // La carita, en cambio, ya no alterna: flota siempre.
         CollapsedGroup.Visibility = Visibility.Visible;
@@ -2271,8 +2278,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // quedaba abierto toda la conversación — y desde que hablar ya no abre el chat, eso sería
         // exactamente el estorbo que el dueño pidió quitar (2026-09-05). Lo que no se puede cerrar
         // por debajo es lo que estás LEYENDO o ESCRIBIENDO; hablar no ocupa la pantalla.
-        _muelle = new Muelle(RootPanel, () => _acciones?.ChatAbierto == true) { Hueco = SillaDelMuelle };
+        _muelle = new Muelle(RootPanel, () => _acciones?.ChatAbierto == true) { Hueco = SillaDelMuelle, Lado = lado };
         _muelle.Cambio += AlCambiarElMuelle;
+        PintarBotonDeLado();
         Closed += (_, __) => { try { _muelle?.Close(); } catch { } };
     }
 
@@ -2514,6 +2522,74 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         var panel = EstudiosWindow.Unica;
         panel.MostrarJuntoA(BarPanel);
         if (!panel.TieneFotos) panel.ElegirFotos();
+    }
+
+    /// <summary>
+    /// MEMORIA: todo lo que Ü guarda de la persona, para leerlo (spec 071).
+    /// </summary>
+    /// <remarks>
+    /// QUÉ HACER AL PULSARLO LO DECIDE LA VENTANA, con la misma regla que el collar (promesa 627):
+    /// abre si no está, trae al frente si está detrás, y quita si es con lo que se está trabajando. Un
+    /// botón que solo sabe abrir obliga a ir a buscar la equis. La carita solo le dice CUÁNDO se tocó.
+    ///
+    /// LAS FUENTES SE PIDEN EN CADA CLIC, no una vez: el correo puede llegar después de arrancar, y
+    /// con él cambia de quién es la memoria que se enseña y si el diario se está copiando al servidor.
+    /// </remarks>
+    private void OnMemoria(object sender, RoutedEventArgs e)
+    {
+        // Pulsado con el teclado no hubo ratón que apoyar: el toque es ahora.
+        long toque = _tocoMemoria > 0 ? _tocoMemoria : Environment.TickCount64;
+        _tocoMemoria = 0;
+
+        PlayTick();
+        MemoriaWindow.AlTocarSuBoton(BarPanel,
+            U.WindowsClient.Memoria.Fuentes.DeLaApp(_config.UserId, TelemetryBus.Activa), toque);
+    }
+
+    /// <summary>
+    /// EL INSTANTE DEL TOQUE es el de APOYAR el ratón, no el de soltarlo (promesa 628). La ventana de
+    /// la Memoria pierde el foco al apoyar; si se midiera hasta el clic, una pulsación larga parecería
+    /// «ya estaba detrás» y el botón la traería en vez de quitarla.
+    /// </summary>
+    private void OnMemoriaSeToca(object sender, MouseButtonEventArgs e) => _tocoMemoria = Environment.TickCount64;
+
+    /// <summary>Cuándo se apoyó el ratón en «Memoria» (TickCount64). Cero: no hay toque pendiente.</summary>
+    private long _tocoMemoria;
+
+    /// <summary>
+    /// EL PANEL SE MUDA AL OTRO BORDE DE LA PANTALLA, y se queda ahí la próxima vez (promesa 629).
+    /// </summary>
+    /// <remarks>
+    /// Son tres cosas y van juntas: la ventana del muelle cambia de borde, el contenido se espeja
+    /// —<see cref="ApplyBarSide"/>, que ya existía de cuando la barra viajaba con la carita— y el lado
+    /// se guarda. Guardar en el mismo gesto y no al cerrar: si Ü se cae, el panel tiene que volver
+    /// donde la persona lo dejó, no donde estaba al arrancar.
+    /// </remarks>
+    private void OnCambiarDeLado(object sender, RoutedEventArgs e)
+    {
+        if (_muelle == null) return;
+        var lado = ReglaDelMuelle.ElOtro(_muelle.Lado);
+
+        PlayTick();
+        ApplyBarSide(lado == LadoDelMuelle.Izquierda);
+        _muelle.Lado = lado;
+        PintarBotonDeLado();
+
+        _config.LadoDelMuelle = ReglaDelMuelle.ComoSeGuarda(lado);
+        _config.Save();
+
+        // Y SE SUELTA EL FOCO. Un clic deja el foco de teclado en el botón, y el muelle no se pliega
+        // mientras el teclado viva dentro (promesa 148: ahí se está escribiendo). Aquí nadie escribe:
+        // sin soltarlo, el panel se quedaría abierto en el lado nuevo hasta el siguiente clic fuera.
+        Keyboard.ClearFocus();
+    }
+
+    /// <summary>La hoja rellena es el lado donde vive el panel ahora. Sin muelle todavía, el guardado.</summary>
+    private void PintarBotonDeLado()
+    {
+        var lado = _muelle?.Lado ?? ReglaDelMuelle.LadoDe(_config.LadoDelMuelle);
+        LadoHojaIzquierda.Fill = lado == LadoDelMuelle.Izquierda ? Estudio.Tinta : System.Windows.Media.Brushes.Transparent;
+        LadoHojaDerecha.Fill = lado == LadoDelMuelle.Derecha ? Estudio.Tinta : System.Windows.Media.Brushes.Transparent;
     }
 
     /// <summary>Alterna el muelle. Conserva el nombre porque lo llaman los atajos de siempre.</summary>
