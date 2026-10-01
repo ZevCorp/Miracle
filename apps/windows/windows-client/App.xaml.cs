@@ -43,11 +43,16 @@ public partial class App : Application
             // tres líneas más abajo, que sabe si hay otra Ü trabajando y deja rastro del intento. El de
             // Velopack corre aquí dentro, antes que la guardia de instancia, y mataba a la carita que ya
             // estaba abierta cuando alguien pulsaba el icono de la consulta.
+            //
+            // Y EL ACCESO DIRECTO ES DE MÉDICOS (spec 080, promesa 755). Los tres ganchos lo creaban
+            // sin mirar quién usa la instalación: un estudiante recién instalado se encontraba un
+            // icono «Miracle Consulta» en el escritorio. Ahora preguntan el rol: una instalación que
+            // ya tenía identidad lo conserva, y una nueva lo recibe cuando alguien dice que es médico.
             VelopackApp.Build()
                 .SetAutoApplyOnStartup(false)
-                .OnAfterInstallFastCallback(_ => CrearAccesoDirectoDeConsulta())
-                .OnAfterUpdateFastCallback(_ => CrearAccesoDirectoDeConsulta())
-                .OnFirstRun(_ => CrearAccesoDirectoDeConsulta())
+                .OnAfterInstallFastCallback(_ => AccesoDirectoSegunElRol(RolDeLaInstalacion()))
+                .OnAfterUpdateFastCallback(_ => AccesoDirectoSegunElRol(RolDeLaInstalacion()))
+                .OnFirstRun(_ => AccesoDirectoSegunElRol(RolDeLaInstalacion()))
                 .Run();
 
             // Antes de lanzar nada: lo que Ü abra desde aquí hereda la carpeta de trabajo, y si es la de
@@ -147,6 +152,31 @@ public partial class App : Application
     /// silencio, que es justo de lo que este metodo nacio (ver arriba).</remarks>
     internal void AbrirLaConsulta()
     {
+        // EL MISMO ICONO ABRE LO DE CADA UNO (spec 080). Para un estudiante, el panel graba clases: sin
+        // cuenta, sin contraseña y sin backend clínico. Y quien todavía no ha dicho qué es no abre
+        // ninguno de los dos: se lo pregunta la carita, que es quien llama aquí cuando ya lo sabe.
+        var rol = RolDeLaInstalacion();
+        if (rol == Persona.Rol.Estudiante)
+        {
+            try
+            {
+                new Ui.ConsultaWindow(new Persona.PerfilDeLaPersona().Leer(), U.Graph.GraphConfig.Load()).Show();
+                LogBus.Log("arranque", "panel de clases abierto");
+            }
+            catch (Exception e)
+            {
+                for (var x = e; x != null; x = x.InnerException)
+                    LogBus.Log("arranque", $"FALLÓ al abrir el panel de clases: {x.GetType().Name}: {x.Message}");
+                Ui.Aviso.Fallo("abrir el panel de clases", e.Message);
+            }
+            return;
+        }
+        if (rol == Persona.Rol.SinElegir)
+        {
+            LogBus.Log("arranque", "se pidió el panel de grabar sin haber elegido rol: no se abre; el primer encuentro lo pregunta");
+            return;
+        }
+
         var modoPrevio = ShutdownMode;
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         try
@@ -163,6 +193,69 @@ public partial class App : Application
             arranque.Correr();
         }
         finally { ShutdownMode = modoPrevio; }
+    }
+
+    /// <summary>
+    /// El rol con el que arranca esta instalación, leído del disco. Lo usan los ganchos del
+    /// instalador y <c>--consulta</c>, que corren antes de que exista la carita.
+    /// </summary>
+    internal static Persona.Rol RolDeLaInstalacion()
+    {
+        try
+        {
+            var perfil = new Persona.PerfilDeLaPersona().Leer();
+            bool previa = !string.IsNullOrWhiteSpace(Config.Load().Email);
+            if (!perfil.Conocido && !previa)
+                previa = new Cuenta.SesionMiracle(Cuenta.Nube.SupabaseUrl, Cuenta.Nube.ClavePublicable).Restaurar();
+            return Persona.ReglaDelRol.Efectivo(perfil, previa);
+        }
+        catch (Exception e)
+        {
+            LogBus.Log("persona", $"no pude leer el rol de la instalación ({e.GetType().Name}: {e.Message}): sin elegir");
+            return Persona.Rol.SinElegir;
+        }
+    }
+
+    /// <summary>
+    /// Esta copia la puso el instalador: Velopack deja <c>sq.version</c> junto al ejecutable. Un build
+    /// suelto no lo tiene.
+    /// </summary>
+    internal static bool EsUnaInstalacion => File.Exists(Path.Combine(AppContext.BaseDirectory, "sq.version"));
+
+    private static string RutaDelAccesoDirectoDeConsulta =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Miracle Consulta.lnk");
+
+    /// <summary>
+    /// Deja el acceso directo de la consulta como le toca al rol: lo crea si es de médico y no está, y
+    /// lo quita si quien usa esta instalación resultó ser estudiante. Sin rol elegido no toca nada.
+    /// </summary>
+    internal static void AccesoDirectoSegunElRol(Persona.Rol rol)
+    {
+        try
+        {
+            // SOLO UNA COPIA INSTALADA TOCA EL ESCRITORIO. Esto se llama también al arrancar y al terminar el
+            // primer encuentro, y una Ü de desarrollo —un build suelto, una de pruebas con sus datos
+            // aparte— dejaría en el escritorio de quien la corre un icono apuntando a ella.
+            if (!EsUnaInstalacion)
+            {
+                LogBus.Log("instalador", "no es una copia instalada: el acceso directo del escritorio no se toca");
+                return;
+            }
+            string lnk = RutaDelAccesoDirectoDeConsulta;
+            if (Persona.ReglaDelRol.Puede(rol, Persona.Capacidad.AccesoDirectoDeConsulta))
+            {
+                if (!File.Exists(lnk)) CrearAccesoDirectoDeConsulta();
+            }
+            else if (rol == Persona.Rol.Estudiante && File.Exists(lnk))
+            {
+                File.Delete(lnk);
+                LogBus.Log("instalador", "acceso directo de consulta retirado: esta instalación es de un estudiante");
+            }
+        }
+        catch (Exception e)
+        {
+            LogBus.Log("instalador", $"no pude dejar el acceso directo como toca: {e.GetType().Name}: {e.Message}");
+        }
     }
 
     /// <summary>

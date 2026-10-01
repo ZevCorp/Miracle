@@ -38,6 +38,10 @@ internal sealed class GuardiaDeInstancia : IDisposable
             if (!nuevo)
             {
                 candidato.Dispose();
+                // SE DICE, aunque no haya ventana que traer: otra Ü de esta carpeta tiene el candado y todavía no
+                // enseña ventana —está arrancando, o cerrándose—. Sin esta línea, esta apertura se retiraba sin
+                // dejar rastro: dos líneas en el log y nada más (medido el 2026-10-01, relanzando justo tras cerrar).
+                LogBus.Log("instancia", "ya hay otra Ü de esta carpeta en este escritorio, arrancando o cerrándose: esta apertura se retira");
                 TraerAlFrente(identidad, escritorio);
                 return false;
             }

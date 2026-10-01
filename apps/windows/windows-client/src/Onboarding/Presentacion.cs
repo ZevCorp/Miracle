@@ -1,4 +1,5 @@
 using U.WindowsClient.Diagnostics;
+using U.WindowsClient.Persona;
 using U.WindowsClient.SystemApi;
 
 namespace U.WindowsClient.Onboarding;
@@ -26,32 +27,43 @@ public static class Presentacion
     ///
     /// Se nombra por proceso y no por el nombre visible del menú Inicio, porque ese cambia con el
     /// idioma y la versión («Google Chrome» vs «Chrome»), y el ejecutable no.
+    ///
+    /// CADA UNA DICE DE QUIÉN ES (spec 080). SAP es de médicos: a un estudiante que lo tenga instalado
+    /// no se le promete abrir una historia clínica. Las demás son de cualquiera.
     /// </summary>
-    private static readonly (string Proceso, string Nombre, string Puedo)[] LoQueSeConducir =
+    private static readonly (string Proceso, string Nombre, string Puedo, Capacidad? Pide)[] LoQueSeConducir =
     {
         ("saplogon", "SAP",
-            "abrir una historia clínica, navegar hasta triage y llenar sus campos desde la consulta web"),
+            "abrir una historia clínica, navegar hasta triage y llenar sus campos desde la consulta web",
+            Capacidad.EscribirEnSap),
         ("chrome", "Chrome",
-            "moverme por páginas web, rellenar formularios y traerte datos de una pestaña a otra"),
+            "moverme por páginas web, rellenar formularios y traerte datos de una pestaña a otra", null),
         ("msedge", "Edge",
-            "moverme por páginas web y rellenar formularios"),
+            "moverme por páginas web y rellenar formularios", null),
         ("explorer", "el explorador de archivos",
-            "buscar carpetas, mover archivos y ordenarte cosas sin que abras nada"),
+            "buscar carpetas, mover archivos y ordenarte cosas sin que abras nada", null),
         ("excel", "Excel",
-            "leer y escribir celdas, y pasar datos de otra aplicación a una hoja"),
+            "leer y escribir celdas, y pasar datos de otra aplicación a una hoja", null),
         ("winword", "Word",
-            "escribir y editar documentos al dictado"),
+            "escribir y editar documentos al dictado", null),
         ("outlook", "Outlook",
-            "leerte el correo y redactar respuestas"),
+            "leerte el correo y redactar respuestas", null),
         ("notepad", "el Bloc de notas",
-            "escribir al dictado"),
+            "escribir al dictado", null),
     };
+
+    /// <summary>Lo que se puede prometer a alguien de este rol, tenga o no la aplicación (promesa 755).</summary>
+    public static IReadOnlyList<string> FrasesPara(Rol rol) =>
+        ParaElRol(rol).Select(x => $"{x.Nombre}: {x.Puedo}").ToList();
+
+    private static IEnumerable<(string Proceso, string Nombre, string Puedo, Capacidad? Pide)> ParaElRol(Rol rol) =>
+        LoQueSeConducir.Where(x => x.Pide is not { } c || ReglaDelRol.Puede(rol, c));
 
     /// <summary>
     /// El resumen que Ü lee en voz alta. Va en texto llano y en segunda persona porque lo que sale de
     /// aquí no se pinta: se dice.
     /// </summary>
-    public static string Escanear()
+    public static string Escanear(Rol rol)
     {
         var partes = new List<string>();
 
@@ -76,7 +88,7 @@ public static class Presentacion
         }
         catch (Exception e) { LogBus.Log("presentacion", $"no se pudo mirar lo abierto: {e.Message}"); }
 
-        var reconocidas = LoQueSeConducir
+        var reconocidas = ParaElRol(rol)
             .Where(x => abiertas.Contains(x.Proceso)
                      || instaladas.Any(a => a.Nombre.Contains(x.Nombre, StringComparison.OrdinalIgnoreCase))
                      || instaladas.Any(a => a.Lnk.Contains(x.Proceso, StringComparison.OrdinalIgnoreCase)))
@@ -121,23 +133,7 @@ public static class Presentacion
         return resumen;
     }
 
-    /// <summary>
-    /// Lo que se le manda a Ü al abrir la conversación la primera vez, para que salude ELLA y no
-    /// espere a que hable el usuario.
-    ///
-    /// Se manda como turno del usuario porque es la única forma de que el modelo arranque hablando;
-    /// va marcado como instrucción para que no lo lea en voz alta creyendo que se lo dijeron.
-    /// </summary>
-    public static string Saludo(string nombre) =>
-        "[instrucción del sistema, no la leas en voz alta] Es la PRIMERA vez que te abren en este "
-        + $"equipo{(string.IsNullOrWhiteSpace(nombre) ? "" : $" y la persona se llama {nombre}")}. "
-        + "Preséntate en dos frases cortas: quién eres y que trabajas sobre las aplicaciones que ya "
-        + "usa. Después haz UNA pregunta: si quiere que mires su computador para contarle qué puedes "
-        + "hacer por él. Si dice que sí, llama a scan_computer y cuéntale el resultado con tus "
-        + "palabras, sin leer la lista entera: lo más útil primero. Si dice que no, dilo bien y "
-        + "quédate esperando.\n"
-        + "ESA ES LA ÚNICA PREGUNTA DE CORTESÍA QUE HARÁS EN TODA LA CONVERSACIÓN. Se pregunta "
-        + "porque mirar el equipo es idea TUYA y nadie te la pidió. A partir de ahí, todo lo que te "
-        + "pidan lo haces sin volver a pedir permiso: la presentación no puede dejar la costumbre de "
-        + "consultar antes de cada paso. No hagas nada más en este primer turno.";
+    // EL SALUDO DE LA PRIMERA VEZ YA NO VIVE AQUÍ (spec 080): era un mensaje que se mandaba como si lo
+    // dijera la persona, y quedaba en el hilo guardado entre sesiones. El primer encuentro lo lleva
+    // ahora Persona.PrimerEncuentro, con su guion en las instrucciones y su final de verdad.
 }

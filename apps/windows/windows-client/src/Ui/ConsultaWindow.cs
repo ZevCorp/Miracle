@@ -13,7 +13,9 @@ using U.Graph;
 using U.WindowsClient.Clinical;
 using U.WindowsClient.Clinical.Transcripcion;
 using U.WindowsClient.Cuenta;
+using U.WindowsClient.Clases;
 using U.WindowsClient.Diagnostics;
+using U.WindowsClient.Persona;
 using U.WindowsClient.Voice;
 
 namespace U.WindowsClient.Ui;
@@ -62,6 +64,20 @@ public sealed partial class ConsultaWindow : Window
     private readonly DictadoEnVivo _dictado;
     private readonly Consulta _consulta;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
+
+    // ── EL MISMO PANEL, PARA GRABAR CLASES (spec 080) ────────────────────────
+    //
+    // «Donde dice consultas será clases» (el dueño, 2026-10-01). Es la misma ventana y el mismo botón:
+    // lo que cambia es de qué habla (PalabrasDelPanel, promesa 756) y a dónde va lo grabado —al
+    // cuaderno del estudiante (GrabacionDeClase, promesa 757) y no al backend clínico—. Con un
+    // estudiante, lo que es de médicos ni se pinta ni se enciende.
+    private readonly PalabrasDelPanel _palabras;
+    private readonly GrabacionDeClase? _clase;
+    private readonly CuadernoDeClases? _cuaderno;
+    private readonly string _nombreDelEstudiante = "";
+
+    /// <summary>Este panel graba clases y no consultas.</summary>
+    private bool DeClases => _clase != null;
 
     private readonly Button _quienBoton;
     private readonly TextBlock _quien;
@@ -169,13 +185,34 @@ public sealed partial class ConsultaWindow : Window
 
     public static Size TamanoMinimo => new(400, 540);
 
-    public ConsultaWindow(SesionMiracle sesion, GraphConfig graphConfig)
+    public ConsultaWindow(SesionMiracle sesion, GraphConfig graphConfig) : this(sesion, graphConfig, null) { }
+
+    /// <summary>El panel de un estudiante: graba clases en su cuaderno. No hay cuenta ni backend clínico.</summary>
+    public ConsultaWindow(Perfil estudiante, GraphConfig graphConfig)
+        : this(new SesionMiracle(Nube.SupabaseUrl, Nube.ClavePublicable), graphConfig, estudiante) { }
+
+    private ConsultaWindow(SesionMiracle sesion, GraphConfig graphConfig, Perfil? estudiante)
     {
         _sesion = sesion;
         ToquesDeU.Proteger(this);   // aloja la carita y graba: un clic de Ü no es la persona (promesa 508)
+        _palabras = PalabrasDelPanel.Para(estudiante != null ? Rol.Estudiante : Rol.Medico);
         _clinica = new ClinicaClient(graphConfig.BaseUrl, sesion);
         _audio = new LiveAudio();
-        _dictado = new DictadoEnVivo(graphConfig, _audio, sesion);
+        // Sin sesión de médico, el dictado se identifica por máquina (ver DictadoEnVivo.PedirSesionAsync).
+        _dictado = new DictadoEnVivo(graphConfig, _audio, estudiante != null ? null : sesion);
+        if (estudiante != null)
+        {
+            _nombreDelEstudiante = estudiante.Nombre;
+            _cuaderno = new CuadernoDeClases();
+            _clase = new GrabacionDeClase(_cuaderno, _dictado.ArrancarAsync, () => _dictado.PararAsync(),
+                Cardio.ClienteCardio.EnviarAOpenAIAsync,
+                // Lo oído se va guardando cada veinte segundos: una clase de dos horas no puede depender de
+                // que el portátil llegue con batería al final (promesa 761).
+                loDichoHastaAhora: () => _dictado.Dicho.Todo);
+            _clase.Cambio += _ => Dispatcher.BeginInvoke(PintarSegunEstado);
+            // Y al cerrar la ventana a media grabación, lo último que se oyó se guarda antes de irse.
+            Closed += (_, __) => _clase.GuardarLoQueVa();
+        }
         _consulta = new Consulta(sesion, _clinica,
             abrirMicrofono: _dictado.ArrancarAsync,
             pararYRecogerLoDicho: () => _dictado.PararAsync(),
@@ -253,7 +290,8 @@ public sealed partial class ConsultaWindow : Window
         };
         var contenidoQuien = new StackPanel { Orientation = Orientation.Horizontal };
         contenidoQuien.Children.Add(_quien);
-        contenidoQuien.Children.Add(chevron);
+        // Sin cuenta no hay nada que desplegar: un estudiante ve su nombre y ya.
+        if (!DeClases) contenidoQuien.Children.Add(chevron);
 
         _quienBoton = new Button
         {
@@ -268,9 +306,13 @@ public sealed partial class ConsultaWindow : Window
             Cursor = Cursors.Hand,
             Template = Estudio.Pastilla(Estudio.RadioChico),
         };
-        _quienBoton.MouseEnter += (_, __) => _quienBoton.Background = Estudio.SuperficieSuave;
-        _quienBoton.MouseLeave += (_, __) => _quienBoton.Background = Brushes.Transparent;
-        _quienBoton.Click += (_, __) => AlternarMenuCuenta();
+        if (DeClases) { _quienBoton.Cursor = Cursors.Arrow; _quienBoton.Focusable = false; }
+        else
+        {
+            _quienBoton.MouseEnter += (_, __) => _quienBoton.Background = Estudio.SuperficieSuave;
+            _quienBoton.MouseLeave += (_, __) => _quienBoton.Background = Brushes.Transparent;
+            _quienBoton.Click += (_, __) => AlternarMenuCuenta();
+        }
 
         _menuCuenta = new Popup
         {
@@ -353,7 +395,8 @@ public sealed partial class ConsultaWindow : Window
         // aunque cada pieza esté bien dibujada.
         _aprendizajes = BotonDeIcono(CerebroDibujado(), "Aprendizajes");
         _aprendizajes.Click += (_, __) => { if (_enAprendizajes) Mostrar(nota: _enNota); else AbrirAprendizajes(); };
-        izquierdaDeLaCabecera.Children.Add(_aprendizajes);
+        // Los aprendizajes son lo que Ü sabe escribir en una historia clínica: de médicos.
+        if (!DeClases) izquierdaDeLaCabecera.Children.Add(_aprendizajes);
 
         cabecera.Children.Add(botonera);
         cabecera.Children.Add(izquierdaDeLaCabecera);
@@ -370,8 +413,8 @@ public sealed partial class ConsultaWindow : Window
             Margin = new Thickness(0, 0, 0, 18),
         };
         var segmentos = new StackPanel { Orientation = Orientation.Horizontal };
-        _tabConsultas = Pestana("Consultas");
-        _tabNota = Pestana("Nota");
+        _tabConsultas = Pestana(_palabras.PestanaDeLaLista);
+        _tabNota = Pestana(_palabras.PestanaDeLoGrabado);
         _tabConsultas.Click += async (_, __) => { Mostrar(nota: false); await CargarConsultasAsync(); };
         _tabNota.Click += (_, __) => Mostrar(nota: true);
         segmentos.Children.Add(_tabConsultas);
@@ -399,19 +442,19 @@ public sealed partial class ConsultaWindow : Window
         var pilaVacio = new StackPanel();
         pilaVacio.Children.Add(new TextBlock
         {
-            Text = "Pulsa grabar y habla con normalidad.",
+            Text = _palabras.VacioTitulo,
             Foreground = Estudio.Tinta, FontSize = 14, FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6),
         });
         pilaVacio.Children.Add(new TextBlock
         {
-            Text = "Verás aquí lo que se va oyendo. Al parar, la nota queda organizada y guardada "
-                 + "en tu cuenta — la misma que ves en el portal.",
+            Text = _palabras.VacioCuerpo,
             Foreground = Estudio.TintaMedia, FontSize = 12.5, LineHeight = 19,
             TextWrapping = TextWrapping.Wrap,
         });
         // Sin esta línea soltar documentos no se descubre: la ventana no tiene ningún botón que lo sugiera.
-        pilaVacio.Children.Add(new TextBlock
+        // Soltar la historia clínica es de la consulta: en clases ni se dice ni se admite.
+        if (!DeClases) pilaVacio.Children.Add(new TextBlock
         {
             Text = "Suelta aquí la historia clínica —fotos o PDF— y te digo por qué vino a cardiología.",
             Foreground = Estudio.TintaMedia, FontSize = 12.5, LineHeight = 19,
@@ -421,10 +464,16 @@ public sealed partial class ConsultaWindow : Window
 
         _panelNota = new StackPanel();
         // ARRIBA DE TODO: es lo primero que el médico tiene que leer (spec 051).
-        _panelNota.Children.Add(_motivo.Vista);
+        if (!DeClases) _panelNota.Children.Add(_motivo.Vista);
         _panelNota.Children.Add(_vivo);
         _panelNota.Children.Add(_voces.Vista);
-        _panelNota.Children.Add(Estudio.Elevar(_vacioNota));
+        // LA CUNA SE VA CON SU TARJETA. Elevar envuelve la tarjeta en una caja con el margen de la sombra, y
+        // esconder solo la tarjeta dejaba ese margen puesto: un hueco en blanco encima de la nota y de los
+        // apuntes, que se veía como si faltara algo (capturado el 2026-10-01).
+        var cunaDelVacio = Estudio.Elevar(_vacioNota);
+        System.ComponentModel.DependencyPropertyDescriptor.FromProperty(VisibilityProperty, typeof(Border))
+            .AddValueChanged(_vacioNota, (_, __) => cunaDelVacio.Visibility = _vacioNota.Visibility);
+        _panelNota.Children.Add(cunaDelVacio);
         _panelNota.Children.Add(_nota);
         _panelNota.Children.Add(HuecoDeLaCarita());   // promesa 272: aquí se sienta la carita
 
@@ -499,6 +548,8 @@ public sealed partial class ConsultaWindow : Window
             Template = Estudio.Pastilla(37),
         };
         _grabar.ConRelieve(Estudio.Sombra2);
+        // Su contenido es un punto y una etiqueta: sin nombre, un lector de pantalla no sabe qué botón es.
+        AutomationProperties.SetName(_grabar, "Grabar");
         _grabar.Click += async (_, __) => await AlternarAsync();
         Grid.SetRow(_grabar, 4);
         raiz.Children.Add(_grabar);
@@ -560,8 +611,8 @@ public sealed partial class ConsultaWindow : Window
 
         // SOLTAR LA HISTORIA CLÍNICA (spec 051): en la vista de Nota, grabando o no. En Consultas y en
         // Aprendizajes no se admite: allí no hay paciente al que pertenezca lo soltado.
-        AllowDrop = true;
-        bool AdmiteSoltar() => _enNota && !_enAprendizajes;
+        AllowDrop = !DeClases;
+        bool AdmiteSoltar() => !DeClases && _enNota && !_enAprendizajes;
         DragEnter += (_, e) => { if (AdmiteSoltar()) _motivo.AlPasarPorEncima(e); else { e.Effects = DragDropEffects.None; e.Handled = true; } };
         DragOver += (_, e) => { if (AdmiteSoltar()) _motivo.AlPasarPorEncima(e); else { e.Effects = DragDropEffects.None; e.Handled = true; } };
         DragLeave += (_, __) => _motivo.AlSalir();
@@ -1210,6 +1261,13 @@ public sealed partial class ConsultaWindow : Window
 
     private async Task ArrancarAsync()
     {
+        if (DeClases)
+        {
+            // Sin cuenta ni plantilla que resolver: el cuaderno está en el disco y ya está listo.
+            _quien.Text = _nombreDelEstudiante.Length > 0 ? _nombreDelEstudiante : "Mis clases";
+            Estado("Listo.");
+            return;
+        }
         _quien.Text = _sesion.MedicoNombre.Length > 0 ? _sesion.MedicoNombre : _sesion.MedicoEmail;
         Estado("Preparando…");
         await ResolverPlantillaAsync();
@@ -1883,6 +1941,8 @@ public sealed partial class ConsultaWindow : Window
             Margin = new Thickness(6, 8, 6, 6),
         });
 
+        if (DeClases) { PintarLasClases(); return; }
+
         var previas = await EspejoDeConsulta.UltimasAsync(_sesion, _http);
         _listaConsultas.Children.Clear();
 
@@ -1894,13 +1954,13 @@ public sealed partial class ConsultaWindow : Window
             var pila = new StackPanel();
             pila.Children.Add(new TextBlock
             {
-                Text = "Todavía no hay consultas.",
+                Text = _palabras.ListaVaciaTitulo,
                 Foreground = Estudio.Tinta, FontSize = 14, FontWeight = FontWeights.SemiBold,
                 Margin = new Thickness(0, 0, 0, 6),
             });
             pila.Children.Add(new TextBlock
             {
-                Text = "La primera que grabes aparece aquí y en el portal.",
+                Text = _palabras.ListaVaciaCuerpo,
                 Foreground = Estudio.TintaMedia, FontSize = 12.5, TextWrapping = TextWrapping.Wrap,
             });
             vacio.Child = pila;
@@ -1918,9 +1978,11 @@ public sealed partial class ConsultaWindow : Window
         _grabar.IsEnabled = false;
         try
         {
+            if (_clase != null) { await AlternarLaClaseAsync(_clase); return; }
+
             if (_consulta.Estado == EstadoDeConsulta.Grabando)
             {
-                Estado("Guardando y organizando la nota…");
+                Estado(_palabras.Guardando);
                 await _consulta.TerminarAsync();
                 return;
             }
@@ -1954,7 +2016,7 @@ public sealed partial class ConsultaWindow : Window
                 Estado($"Grabando con «{Omi.Selector.Nombre((int)_selector.Activa)}»: "
                      + $"«{Omi.Selector.Nombre((int)pedida)}» no está entregando audio.");
             else
-                Estado("Abriendo la consulta…");
+                Estado(_palabras.Abriendo);
 
             if (!await _consulta.EmpezarAsync(_plantillaId)) Estado(_consulta.Motivo);
         }
@@ -1963,7 +2025,9 @@ public sealed partial class ConsultaWindow : Window
 
     private void PintarSegunEstado()
     {
-        bool grabando = _consulta.Estado == EstadoDeConsulta.Grabando;
+        bool grabando = _clase != null
+            ? _clase.Estado == EstadoDeGrabacion.Grabando
+            : _consulta.Estado == EstadoDeConsulta.Grabando;
         _etiquetaDeGrabar.Text = grabando ? "Parar" : "Grabar";
         _puntoDeGrabar.Foreground = grabando ? Estudio.Alerta : Estudio.TintaTenue;
         _puntoDeGrabar.Text = grabando ? "■" : "●";
@@ -1971,12 +2035,211 @@ public sealed partial class ConsultaWindow : Window
         if (grabando) { _empezoAGrabar = DateTimeOffset.Now; _cronometro.Start(); PintarCronometro(); }
         else _cronometro.Stop();
 
+        if (_clase != null)
+        {
+            switch (_clase.Estado)
+            {
+                case EstadoDeGrabacion.Organizando: Estado(_palabras.Organizando); break;
+                case EstadoDeGrabacion.Lista: PintarLosApuntes(_clase.Clase, recienGrabada: true); break;
+                case EstadoDeGrabacion.Fallida: PintarElFalloDeLaClase(_clase); break;
+            }
+            return;
+        }
+
         switch (_consulta.Estado)
         {
-            case EstadoDeConsulta.GenerandoNota: Estado("Organizando la nota…"); break;
+            case EstadoDeConsulta.GenerandoNota: Estado(_palabras.Organizando); break;
             case EstadoDeConsulta.NotaLista: PintarNota(); break;
             case EstadoDeConsulta.Fallida: Estado(_consulta.Motivo); break;
         }
+    }
+
+    // ── las clases (spec 080) ────────────────────────────────────────────────
+
+    private async Task AlternarLaClaseAsync(GrabacionDeClase clase)
+    {
+        if (clase.Estado == EstadoDeGrabacion.Grabando)
+        {
+            Estado(_palabras.Guardando);
+            await clase.TerminarAsync();
+            return;
+        }
+
+        Mostrar(nota: true);
+        _nota.Children.Clear();
+        PintarLoOido("");
+        _vacioNota.Visibility = Visibility.Visible;
+        // La misma regla que en la consulta: se graba con lo que hay, pero se dice cuál es.
+        if (_selector.Preferida is { } pedida && _selector.Activa != pedida)
+            Estado($"Grabando con «{Omi.Selector.Nombre((int)_selector.Activa)}»: "
+                 + $"«{Omi.Selector.Nombre((int)pedida)}» no está entregando audio.");
+        else
+            Estado(_palabras.Abriendo);
+
+        clase.Cerrar();
+        if (!await clase.EmpezarAsync()) Estado(clase.Motivo);
+    }
+
+    /// <summary>
+    /// Los apuntes de una clase, en las mismas tarjetas que la nota. Sin ✓: aquí no hay a dónde enviar.
+    /// </summary>
+    private void PintarLosApuntes(Clase? clase, bool recienGrabada)
+    {
+        _nota.Children.Clear();
+        PintarLoOido("");
+        _vacioNota.Visibility = Visibility.Collapsed;
+        if (clase == null) { Estado(_palabras.VolvioVacio); return; }
+
+        string titulo = clase.Titulo.Length > 0 ? clase.Titulo : _palabras.FilaSinTitulo;
+        _nota.Children.Add(TituloDeVista(titulo, ClasesParaLaVoz.Dia(clase.Fecha)
+            + (clase.DuracionSegundos >= 60 ? $" · {clase.DuracionSegundos / 60} min" : "")));
+
+        if (clase.Apuntes is { } apuntes)
+        {
+            if (apuntes.Resumen.Length > 0) _nota.Children.Add(TarjetaDeTexto("Resumen", apuntes.Resumen));
+            foreach (var s in apuntes.Secciones)
+                if (s.Contenido.Trim().Length > 0) _nota.Children.Add(TarjetaDeTexto(s.Titulo, s.Contenido));
+            Estado(recienGrabada ? _palabras.Listo : "Listo.");
+        }
+        else
+        {
+            // SIN APUNTES NO ES UN CALLEJÓN: la clase que se cortó a mitad, o aquella en la que organizar
+            // falló, se organiza desde aquí cuando se quiera (promesa 761).
+            var organizar = BotonDeClase("Organizar los apuntes");
+            organizar.Click += async (_, __) =>
+            {
+                if (_clase == null) return;
+                organizar.IsEnabled = false;
+                if (!await _clase.OrganizarEstaAsync(clase)) { Estado(_clase.Motivo); organizar.IsEnabled = true; }
+            };
+            _nota.Children.Add(organizar);
+            _nota.Children.Add(TarjetaDeTexto("Lo que se dijo", Recorte(clase.Transcripcion, 1800)));
+            Estado("Esta clase todavía no tiene apuntes: está guardado lo que se dijo.");
+        }
+        _superficie.ScrollToHome();
+    }
+
+    /// <summary>
+    /// Organizar falló, pero la clase está guardada (promesa 757): se dicen las dos cosas y se ofrece
+    /// reintentar sobre ESA clase.
+    /// </summary>
+    private void PintarElFalloDeLaClase(GrabacionDeClase grabacion)
+    {
+        Estado(grabacion.Motivo);
+        if (grabacion.Clase == null) return;
+
+        _nota.Children.Clear();
+        PintarLoOido("");
+        _vacioNota.Visibility = Visibility.Collapsed;
+        _nota.Children.Add(TarjetaDeTexto("Lo que se dijo", Recorte(grabacion.Clase.Transcripcion, 1800)));
+        var reintentar = BotonDeClase("Organizar los apuntes otra vez");
+        reintentar.Click += async (_, __) =>
+        {
+            reintentar.IsEnabled = false;
+            await grabacion.ReintentarAsync();
+        };
+        _nota.Children.Add(reintentar);
+    }
+
+    /// <summary>El botón de las acciones sobre una clase: centrado, con su aire, del tamaño de lo que dice.</summary>
+    private static Button BotonDeClase(string texto)
+    {
+        var b = new Button
+        {
+            // El aire va en el texto: la plantilla Pastilla no enlaza Padding.
+            Content = new TextBlock { Text = texto, FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(22, 0, 22, 1) },
+            Height = 44,
+            Margin = new Thickness(2, 0, 2, 14),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Cursor = Cursors.Hand,
+            Background = Estudio.Acento,
+            Foreground = Brushes.White,
+            BorderThickness = new Thickness(0),
+            Template = Estudio.Pastilla(22),
+        };
+        AutomationProperties.SetName(b, texto);
+        return b;
+    }
+
+    /// <summary>La pestaña «Clases»: las del cuaderno, la más reciente arriba. Un clic abre sus apuntes.</summary>
+    private void PintarLasClases()
+    {
+        _listaConsultas.Children.Clear();
+        var clases = _cuaderno?.Todas() ?? Array.Empty<Clase>();
+        if (clases.Count == 0)
+        {
+            _listaConsultas.Children.Add(TarjetaVacia(_palabras.ListaVaciaTitulo, _palabras.ListaVaciaCuerpo));
+            return;
+        }
+
+        foreach (var c in clases) _listaConsultas.Children.Add(FilaDeClase(c));
+    }
+
+    /// <summary>
+    /// Una clase en la lista: de qué fue, cuándo, y el principio de su resumen. Es un BOTÓN, y no una
+    /// tarjeta con un clic colgado: se llega con el tabulador, se abre con Enter y un lector de pantalla
+    /// la nombra.
+    /// </summary>
+    private UIElement FilaDeClase(Clase c)
+    {
+        string titulo = c.Titulo.Length > 0 ? c.Titulo : _palabras.FilaSinTitulo;
+        string cuando = ClasesParaLaVoz.Dia(c.Fecha) + (c.DuracionSegundos >= 60 ? $" · {c.DuracionSegundos / 60} min" : "");
+
+        var arriba = new DockPanel { Margin = new Thickness(0, 0, 0, 5) };
+        if (c.Apuntes == null)
+        {
+            var chip = new Border
+            {
+                CornerRadius = new CornerRadius(9), Background = Estudio.EsperaSuave, Padding = new Thickness(8, 3, 8, 3),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock { Text = "sin apuntes", Foreground = Estudio.Espera, FontSize = 9.5, FontWeight = FontWeights.SemiBold },
+            };
+            DockPanel.SetDock(chip, Dock.Right);
+            arriba.Children.Add(chip);
+        }
+        arriba.Children.Add(new TextBlock
+        {
+            Text = cuando, Foreground = Estudio.TintaTenue, FontSize = 10.5, FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        var pila = new StackPanel();
+        pila.Children.Add(arriba);
+        pila.Children.Add(new TextBlock
+        {
+            Text = titulo, Foreground = Estudio.Tinta, FontSize = 14.5, FontWeight = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap, MaxHeight = 42, TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        string resumen = c.Apuntes?.Resumen ?? "";
+        if (resumen.Length > 0)
+            pila.Children.Add(new TextBlock
+            {
+                Text = resumen, Foreground = Estudio.TintaMedia, FontSize = 12.5, LineHeight = 18,
+                TextWrapping = TextWrapping.Wrap, MaxHeight = 38, TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(0, 4, 0, 0),
+            });
+
+        // El aire va en el contenido y no en Padding: la plantilla Pastilla no lo enlaza.
+        pila.Margin = new Thickness(16, 13, 16, 14);
+        var boton = new Button
+        {
+            Content = pila,
+            Margin = new Thickness(2, 0, 2, 10),
+            Background = Estudio.Superficie,
+            BorderBrush = Estudio.Borde,
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+            Template = Estudio.Pastilla(18, estirado: true),
+        };
+        AutomationProperties.SetName(boton, $"{titulo}, {cuando}");
+        boton.ConRelieve(Estudio.Sombra1);
+        boton.Click += (_, __) =>
+        {
+            if (_clase?.Estado == EstadoDeGrabacion.Grabando) { Estado("Termina de grabar para abrir otra clase."); return; }
+            Mostrar(nota: true);
+            PintarLosApuntes(c, recienGrabada: false);
+        };
+        return boton;
     }
 
     /// <summary>
@@ -1997,7 +2260,8 @@ public sealed partial class ConsultaWindow : Window
     {
         _voces.Pintar(texto);
         _vivo.Text = _voces.HayVoces ? "" : texto;
-        _vivo.Visibility = _voces.HayVoces ? Visibility.Collapsed : Visibility.Visible;
+        // Sin texto no ocupa: un renglón vacío encima de la nota es un hueco, no un silencio.
+        _vivo.Visibility = _voces.HayVoces || texto.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void PintarNota()
@@ -2006,11 +2270,11 @@ public sealed partial class ConsultaWindow : Window
         _nota.Children.Clear();
         PintarLoOido("");
         _vacioNota.Visibility = Visibility.Collapsed;
-        if (nota == null) { Estado("La nota volvió vacía."); return; }
+        if (nota == null) { Estado(_palabras.VolvioVacio); return; }
 
         // SE DICE SI SE VIO O NO EN EL PORTAL, no se supone (promesa 93).
         Estado(_consulta.VisibleEnElPortal
-            ? "Nota lista. Ya se ve en el portal."
+            ? _palabras.Listo
             : "Nota guardada, pero no se pudo espejar al portal. Está en el log.");
 
         if (nota.Resumen.Length > 0) _nota.Children.Add(TarjetaDeTexto("Resumen", nota.Resumen));
@@ -2396,7 +2660,7 @@ public sealed partial class ConsultaWindow : Window
         {
             Text = c.Motivo.Length > 0 ? c.Motivo
                  : c.Resumen.Length > 0 ? c.Resumen
-                 : "Consulta sin motivo anotado",
+                 : PalabrasDelPanel.Para(Rol.Medico).FilaSinTitulo,
             Foreground = Estudio.Tinta, FontSize = 13.5, LineHeight = 20,
             TextWrapping = TextWrapping.Wrap, MaxHeight = 62, TextTrimming = TextTrimming.CharacterEllipsis,
         });
