@@ -970,7 +970,7 @@ internal static class Contrato
         Prueba("662. cada clic alterna la voz exactamente una vez: una ráfaga de N clics la deja encendida si N es impar y apagada si es par, los avisos alternan sin repetirse, y la conexión que llega tarde se suelta sin abrir sesión", CadaClicAlternaUnaVez);
         Prueba("663. apagar no espera a nadie: con el borrado de las miradas colgado, al volver del clic la voz ya consta apagada, avisó, soltó el micrófono y no manda un trozo más; las miradas se retiran igual", ApagarNoEsperaANadie);
         Prueba("664. apagar y volver a encender seguido deja viva la segunda: ni el cierre de la sesión vieja ni su escucha que termina cierran la nueva", ApagarYEncenderSeguidoDejaVivaLaSegunda);
-        Prueba("665. el micrófono se pone en guardia al acercarse a la carita: lo captado en guardia no se entrega a nadie, sin clic se suelta solo, y con clic lo siguiente se entrega sin volver a abrir el dispositivo", ElMicrofonoSePoneEnGuardia);
+        Prueba("665. el micrófono preparado entrega lo que pide el protocolo, venga como venga de Windows: de 48 kHz estéreo en coma flotante o de 16 kHz mono sale PCM16 mono al ritmo pedido, con la misma duración y el mismo tono, igual a trozos de 10 ms que de una vez", ElMicrofonoPreparadoEntregaLoQuePideElProtocolo);
         Prueba("666. cada encendido y cada apagado dejan una línea voz-clic con los milisegundos de cada tramo desde el gesto, y el tramo que no llegó lo dice en vez de faltar", CadaGestoDejaSuLineaDeTiempos);
         Prueba("667. la historia que se manda al abrir cabe siempre en lo que el servidor acepta: se queda con los turnos más recientes que entren en el presupuesto, enteros y en orden", LaHistoriaCabeSiempre);
         Console.WriteLine();
@@ -16780,74 +16780,101 @@ internal static class Contrato
 
     /// <summary>Promesa 665.</summary>
     /// <remarks>
-    /// EL MICRÓFONO TARDA EN ABRIR 320–550 ms ÉL SOLO (medido el 2026-09-30 con una sonda: WaveIn y WASAPI por igual,
-    /// 546 ms tras 15 s de reposo): no es la API, es el dispositivo. Para estar captando al medio segundo del clic
-    /// hay que empezar a abrirlo antes del clic. Y un micrófono que se abre al acercar el ratón tiene que poder
-    /// jurar que no oyó nada: lo captado en guardia no llega a nadie.
+    /// ABRIR EL MICRÓFONO TARDABA MEDIO SEGUNDO, Y CASI TODO ERA PREPARARLO. Medido el 2026-10-01 sobre «Varios
+    /// micrófonos (Realtek)»: inicializar el cliente de captura, 449 ms; arrancarlo ya inicializado, 240–257 ms,
+    /// también tras veinte segundos parado. Y un cliente inicializado y sin arrancar NO consta como micrófono en
+    /// uso (el registro de Windows que enciende el indicador solo lo apunta entre arrancar y parar). Así que el
+    /// micrófono se deja preparado desde que la app nace, y el clic solo lo arranca.
+    ///
+    /// EL PRECIO: un cliente preparado entrega el formato de la mezcla de Windows —48 kHz estéreo en coma
+    /// flotante en este equipo, 16 kHz mono con el micrófono de unos audífonos—, no el PCM16 mono al ritmo del
+    /// protocolo que antes pedía por nosotros la API vieja. Esa conversión es ahora nuestra, y es lo que se juzga.
+    /// Lo que no puede juzgar un contrato —cuánto tarda este dispositivo— lo juzga el nivel 4 sobre el PC.
     /// </remarks>
-    private static void ElMicrofonoSePoneEnGuardia()
+    private static void ElMicrofonoPreparadoEntregaLoQuePideElProtocolo()
     {
-        var t = Cap004("U.WindowsClient.Voice.OidoEnGuardia");
-        var acercarse = t?.GetMethod("Acercarse");
-        var alejarse = t?.GetMethod("Alejarse");
-        var abrir = t?.GetMethod("Abrir");
-        var cerrar = t?.GetMethod("Cerrar");
-        var tic = t?.GetMethod("Tic");
-        var entrega = t?.GetProperty("Entrega");
-        var quiere = t?.GetProperty("QuiereDispositivo");
-        if (t == null || acercarse == null || alejarse == null || abrir == null || cerrar == null || tic == null || entrega == null || quiere == null)
-        { Pendiente("Voice.OidoEnGuardia (Acercarse, Alejarse, Abrir, Cerrar, Tic, Entrega, QuiereDispositivo)", "665", "075"); return; }
+        var t = Cap004("U.WindowsClient.Voice.DeLaMezclaAPcm16");
+        var ctor = t?.GetConstructor(new[] { typeof(int), typeof(int), typeof(int) });
+        var convertir = t?.GetMethod("Convertir", new[] { typeof(byte[]), typeof(int) });
+        if (t == null || ctor == null || convertir == null)
+        { Pendiente("Voice.DeLaMezclaAPcm16 (ritmo de origen, canales, ritmo de destino; Convertir)", "665", "075"); return; }
 
-        object Nuevo() => Activator.CreateInstance(t, new object[] { 4000 })!;
-        string Acerca(object o, long ms) => acercarse.Invoke(o, new object[] { ms })!.ToString()!;
-        string Aleja(object o) => alejarse.Invoke(o, null)!.ToString()!;
-        string Abre(object o) => abrir.Invoke(o, null)!.ToString()!;
-        string Cierra(object o) => cerrar.Invoke(o, null)!.ToString()!;
-        string Tic(object o, long ms) => tic.Invoke(o, new object[] { ms })!.ToString()!;
-        bool Entrega(object o) => (bool)entrega.GetValue(o)!;
-        bool Quiere(object o) => (bool)quiere.GetValue(o)!;
+        // Un tono de 440 Hz a media escala, en coma flotante de 32 bits, intercalado por canales.
+        static byte[] Tono(int ritmo, int canales, double segundos, double amplitud = 0.5, bool soloElPrimero = false)
+        {
+            int cuadros = (int)(ritmo * segundos);
+            var b = new byte[cuadros * canales * 4];
+            for (int i = 0; i < cuadros; i++)
+            {
+                float m = (float)(amplitud * Math.Sin(2 * Math.PI * 440 * i / ritmo));
+                for (int c = 0; c < canales; c++)
+                    BitConverter.GetBytes(soloElPrimero && c > 0 ? 0f : m).CopyTo(b, (i * canales + c) * 4);
+            }
+            return b;
+        }
+        // Lo que sale, entero o a trozos del tamaño que entrega Windows.
+        byte[] Pasa(int ritmo, int canales, int destino, byte[] entrada, int cuadrosPorTrozo)
+        {
+            var conv = ctor.Invoke(new object[] { ritmo, canales, destino });
+            var salida = new MemoryStream();
+            int paso = cuadrosPorTrozo <= 0 ? entrada.Length : cuadrosPorTrozo * canales * 4;
+            for (int i = 0; i < entrada.Length; i += paso)
+            {
+                var trozo = entrada.AsSpan(i, Math.Min(paso, entrada.Length - i)).ToArray();
+                var pcm = (byte[])convertir.Invoke(conv, new object[] { trozo, trozo.Length })!;
+                salida.Write(pcm, 0, pcm.Length);
+            }
+            (conv as IDisposable)?.Dispose();
+            return salida.ToArray();
+        }
+        static short[] Muestras(byte[] pcm) => Enumerable.Range(0, pcm.Length / 2).Select(i => BitConverter.ToInt16(pcm, i * 2)).ToArray();
+        // Cuántas veces cruza el cero hacia arriba: en un tono, su frecuencia por los segundos que dura.
+        static int Subidas(short[] m) { int n = 0; for (int i = 1; i < m.Length; i++) if (m[i - 1] < 0 && m[i] >= 0) n++; return n; }
+        // El salto más grande entre dos muestras seguidas, lejos del principio: un corte entre trozos se ve como un escalón.
+        static int MayorSalto(short[] m) { int s = 0; for (int i = 200; i < m.Length; i++) s = Math.Max(s, Math.Abs(m[i] - m[i - 1])); return s; }
+        static int Pico(short[] m) => m.Skip(200).Select(x => Math.Abs((int)x)).DefaultIfEmpty(0).Max();
 
-        // ACERCARSE Y NO PULSAR.
-        var g = Nuevo();
-        Debe(!Quiere(g) && !Entrega(g), "nace sin querer el dispositivo y sin entregar nada");
-        Debe(Acerca(g, 0) == "AbrirDispositivo" && Quiere(g), "acercarse a la carita manda abrir el dispositivo");
-        Debe(!Entrega(g), "y en guardia NO entrega: lo captado antes del clic no llega a nadie");
-        Debe(Acerca(g, 100) == "Nada", "acercarse otra vez con el dispositivo ya pedido no manda abrir otro");
-        Debe(Tic(g, 4099) == "Nada", "la guardia aguanta mientras no caduque (cuenta desde el último acercamiento)");
-        Debe(Tic(g, 4100) == "CerrarDispositivo" && !Quiere(g), "y sin clic se suelta sola al caducar: un ratón aparcado encima no deja el micrófono abierto");
-        Debe(Tic(g, 9000) == "Nada", "soltada, no vuelve a mandar cerrar");
+        // ── LO DE ESTE EQUIPO: 48 kHz estéreo → 24 kHz mono, a trozos de 10 ms como los entrega Windows ──
+        var entrada = Tono(48000, 2, 1.0);
+        var m = Muestras(Pasa(48000, 2, 24000, entrada, 480));
+        Debe(Math.Abs(m.Length - 24000) <= 240, $"un segundo a 48 kHz estéreo sale como un segundo a 24 kHz mono (salieron {m.Length} muestras; se esperan 24.000 ± 1 %)");
+        Debe(Math.Abs(Subidas(m) - 440) <= 6, $"y el tono sigue siendo el mismo: 440 Hz (cruza el cero {Subidas(m)} veces en ese segundo)");
+        Debe(Pico(m) is > 14700 and < 18000, $"con su volumen: media escala (pico {Pico(m)} de 32.767; se espera ~16.384)");
+        // Un tono de 440 Hz a media escala y 24 kHz cambia como mucho ~1.900 entre dos muestras: un escalón mayor es un corte.
+        Debe(MayorSalto(m) < 2600, $"y sin escalones entre un trozo y el siguiente: el filtro conserva su estado (mayor salto {MayorSalto(m)})");
 
-        // ACERCARSE Y ALEJARSE.
-        g = Nuevo();
-        Acerca(g, 0);
-        Debe(Aleja(g) == "CerrarDispositivo" && !Quiere(g), "alejarse sin pulsar suelta el dispositivo");
-        Debe(Aleja(g) == "Nada", "y alejarse dos veces no cierra dos veces");
+        var deUnaVez = Muestras(Pasa(48000, 2, 24000, entrada, 0));
+        Debe(Math.Abs(deUnaVez.Length - m.Length) <= 48, $"a trozos de 10 ms sale lo mismo que de una vez (a trozos {m.Length}, de una vez {deUnaVez.Length})");
 
-        // ACERCARSE Y PULSAR: el dispositivo ya está, y desde el clic se entrega.
-        g = Nuevo();
-        Acerca(g, 0);
-        Debe(Abre(g) == "Nada" && Entrega(g), "con la guardia puesta, el clic no vuelve a abrir el dispositivo y lo siguiente se entrega");
-        Debe(Aleja(g) == "Nada" && Entrega(g) && Quiere(g), "y apartar el ratón con la voz encendida no suelta nada");
-        Debe(Tic(g, 60_000) == "Nada" && Entrega(g), "ni caduca: lo que caduca es la guardia, no la conversación");
-        Debe(Cierra(g) == "CerrarDispositivo" && !Entrega(g) && !Quiere(g), "colgar deja de entregar y suelta el dispositivo");
+        // ── EL MICRÓFONO DE UNOS AUDÍFONOS: 16 kHz mono → 24 kHz ──
+        var deAuriculares = Muestras(Pasa(16000, 1, 24000, Tono(16000, 1, 1.0), 160));
+        Debe(Math.Abs(deAuriculares.Length - 24000) <= 240 && Math.Abs(Subidas(deAuriculares) - 440) <= 6,
+            $"de 16 kHz mono también sale un segundo a 24 kHz con su tono ({deAuriculares.Length} muestras, {Subidas(deAuriculares)} subidas)");
 
-        // PULSAR SIN HABERSE ACERCADO (el doble Ctrl, el collar): se abre en el clic, como siempre.
-        g = Nuevo();
-        Debe(Abre(g) == "AbrirDispositivo" && Entrega(g), "sin guardia, abrir la voz manda abrir el dispositivo y entrega");
-        Debe(Acerca(g, 10) == "Nada" && Entrega(g), "y acercarse con la voz encendida no cambia nada");
-        Debe(Cierra(g) == "CerrarDispositivo", "y al colgar se suelta");
-        Debe(Cierra(g) == "Nada", "colgar dos veces no cierra dos veces");
+        // ── LA CONSULTA PIDE 16 kHz: 48 kHz estéreo → 16 kHz mono ──
+        var paraLaConsulta = Muestras(Pasa(48000, 2, 16000, entrada, 480));
+        Debe(Math.Abs(paraLaConsulta.Length - 16000) <= 160 && Math.Abs(Subidas(paraLaConsulta) - 440) <= 6,
+            $"y al ritmo de la consulta, 16 kHz, lo mismo ({paraLaConsulta.Length} muestras, {Subidas(paraLaConsulta)} subidas)");
 
-        // [cableado] La regla tiene que ser la que usa el micrófono de verdad, y alguien tiene que acercarse.
+        // ── SIN CAMBIO DE RITMO no se inventa ni se pierde nada ──
+        var igual = Muestras(Pasa(24000, 1, 24000, Tono(24000, 1, 0.5), 240));
+        Debe(igual.Length == 12000, $"al mismo ritmo y un solo canal salen exactamente las muestras que entran ({igual.Length} de 12.000)");
+
+        // ── LA MEZCLA A MONO ES LA MEDIA: una voz que solo entra por un canal no se pierde ni satura ──
+        var unCanal = Muestras(Pasa(48000, 2, 24000, Tono(48000, 2, 1.0, 0.8, soloElPrimero: true), 480));
+        Debe(Pico(unCanal) is > 11500 and < 14500, $"con la voz en un solo canal de dos, sale a la mitad: la media de los canales (pico {Pico(unCanal)}; se espera ~13.107)");
+
+        // ── LO QUE SATURA SE RECORTA, no da la vuelta ──
+        var fuerte = Muestras(Pasa(24000, 1, 24000, Tono(24000, 1, 0.2, 1.6), 240));
+        Debe(fuerte.Max() == short.MaxValue && fuerte.Min() <= -32767 && Subidas(fuerte) is >= 86 and <= 90,
+            $"una entrada por encima de la escala se recorta en el tope en vez de dar la vuelta (máx {fuerte.Max()}, mín {fuerte.Min()}, subidas {Subidas(fuerte)})");
+
+        // [cableado] El micrófono de la conversación tiene que ser el preparado, con el de siempre de respaldo.
         if (FuenteDe("windows-client", "src", "Voice", "LiveAudio.cs") is not { } audio) return;
-        Debe(audio.Contains("OidoEnGuardia", StringComparison.Ordinal) && audio.Contains("_oido.Entrega", StringComparison.Ordinal),
-            "[cableado] LiveAudio no decide con OidoEnGuardia qué trozos entrega: la regla juzgada no es la que corre");
-        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
-        Debe(cara.Contains("PrepararElOido()", StringComparison.Ordinal) && cara.Contains("SoltarElOido()", StringComparison.Ordinal),
-            "[cableado] la carita no pone el micrófono en guardia al acercarse ni lo suelta al alejarse");
-        // Y ENGANCHADO A LA CARITA SUELTA, que es la que se pulsa: una guardia escrita y sin colgar de nadie no adelanta nada.
-        Debe(cara.Contains("GuardiaAlAcercarse(CollapsedGroup);", StringComparison.Ordinal),
-            "[cableado] la guardia existe pero no cuelga de la carita suelta: acercarse a ella no abre nada");
+        Debe(audio.Contains("MicrofonoPreparado", StringComparison.Ordinal),
+            "[cableado] LiveAudio no usa el micrófono preparado: cada clic volvería a inicializar el dispositivo");
+        Debe(audio.Contains("new WaveInEvent", StringComparison.Ordinal),
+            "[cableado] LiveAudio se quedó sin el micrófono de respaldo: si Windows no deja preparar el dispositivo, no habría con qué oír");
     }
 
     /// <summary>Promesa 666.</summary>
