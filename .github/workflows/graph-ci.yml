@@ -7,7 +7,8 @@ name: Graph · CI
 # entró al monorepo.
 #
 # Node 24, la versión del proyecto en Vercel. Los tests SQL (test:sql) necesitan una base real y no
-# corren aquí.
+# corren aquí. Desde el 2026-10-01 corre también el pytest del orquestador de voz Python
+# (bounded/miracle-ai), que tenía pruebas y no corrían en ningún CI.
 
 on:
   pull_request:
@@ -36,6 +37,16 @@ jobs:
           cache-dependency-path: services/graph/package-lock.json
       - run: npm ci --no-audit --no-fund
       - run: npm test
+      # Sin instalar el paquete: tests/conftest.py deja src/ en el path.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: pytest del orquestador de voz (bounded/miracle-ai)
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python -m pip install --disable-pip-version-check -q pytest python-dotenv starlette uvicorn
+          python -m pytest -p no:cacheprovider -q bounded/miracle-ai/tests
 
   # Solo en main, y solo si los tests pasaron: lo que llega a producción es lo que pasó el CI.
   desplegar:

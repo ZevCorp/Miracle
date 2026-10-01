@@ -24,6 +24,9 @@ jobs:
       - name: La raíz sigue en orden
         run: bash tools/monorepo/comprobar-raiz.sh
 
+      - name: La constitución de Ü dice lo mismo en Windows y en Graph
+        run: bash tools/monorepo/constitucion.sh
+
       - name: Los porteros y los scripts del repo parsean
         run: |
           for f in .githooks/pre-push apps/*/.githooks/pre-push tools/monorepo/*.sh; do
