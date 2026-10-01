@@ -71,7 +71,7 @@ public static class PestanasAbiertas
     private static readonly object _candado = new();
     private static bool _cargado;
 
-    private static string Archivo => System.IO.Path.Combine(UserPaths.Local, "U", "titulos-web.json");
+    internal static string Archivo => System.IO.Path.Combine(UserPaths.Local, "U", "titulos-web.json");
 
     /// <summary>Cuántos títulos se guardan por dominio: los últimos, que son los que siguen abiertos.</summary>
     private const int MaxTitulos = 12;
