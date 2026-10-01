@@ -160,6 +160,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // la telemetría de "Windows Live" arranque con el usuario correcto.
         EnsureOnboarded();
 
+        // LA CREDENCIAL DE ESTA INSTALACIÓN (spec 076). Aquí y no más abajo: tiene que estar puesta ANTES
+        // de la primera petición a Graph, y después del correo, que es con lo que se presenta.
+        PresentarLaInstalacion();
+
         MaxHeight = SystemParameters.WorkArea.Height - 48; // al llegar al tope, el globo hace scroll
         ColocarVentana();
 
@@ -1564,6 +1568,67 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             }
         }
         catch (Exception ex) { LogBus.Log("onboarding", ex.Message); }
+    }
+
+    /// <summary>
+    /// CADA INSTALACIÓN TIENE SU CREDENCIAL (spec 076, promesas 680-687).
+    /// </summary>
+    /// <remarks>
+    /// El instalador es público y lleva UNA clave de Graph que comparten todas las copias. Esa clave ya
+    /// solo sirve para presentarse: aquí la instalación dice quién es, Graph le da una credencial propia
+    /// y un administrador la aprueba en Provider Studio. Lo que se carga de disco se carga AHORA, sin
+    /// red, para que la primera petición ya la lleve; presentarse y preguntar van en segundo plano.
+    ///
+    /// Contra un Graph anterior a la 076 no hace nada visible: presentarse da 404, no se insiste y no
+    /// viaja ninguna cabecera.
+    /// </remarks>
+    private void PresentarLaInstalacion()
+    {
+        try
+        {
+            var credencial = CredencialDeInstalacion.DeGraph(_graphConfig, m => LogBus.Log("instalacion", m));
+            credencial.AlCambiar += situacion =>
+            {
+                // APROBADA: las claves que no llegaron por estar esperando se piden ahora, sin reiniciar Ü.
+                if (situacion == CredencialDeInstalacion.Aprobada)
+                    _ = Credenciales.ClavesDelBackend.Viva?.TraerSiFaltaAlgunaAsync();
+                // UN RECHAZO A MITAD DE SESIÓN (Graph dejó de conocerla, o la devolvieron a pendiente) vuelve
+                // a poner la vigilancia. Si ya hay una en marcha, esta llamada no hace nada.
+                if (situacion is CredencialDeInstalacion.SinPresentar or CredencialDeInstalacion.Pendiente)
+                    VigilarLaInstalacion(credencial);
+                // A LA PERSONA SE LE DICE LO QUE PUEDE ARREGLAR: que espera aprobación, con el código que
+                // tiene que dictarle al administrador, o que la revocaron. Lo demás se queda en el log.
+                if (situacion is CredencialDeInstalacion.Pendiente or CredencialDeInstalacion.Revocada)
+                {
+                    string frase = credencial.Estado;
+                    Dispatcher.BeginInvoke(() => SetStatus(char.ToUpper(frase[0]) + frase[1..] + "."));
+                }
+            };
+            CredencialDeInstalacion.Viva = credencial;
+            VigilarLaInstalacion(credencial);
+        }
+        catch (Exception ex)
+        {
+            // La cadena entera (patrón nº3). Sin credencial Ü sigue arrancando: contra un Graph sin
+            // compuerta funciona igual, y contra uno con compuerta el 403 lo dirá con su nombre.
+            for (var x = ex; x != null; x = x.InnerException)
+                LogBus.Log("instalacion", $"no pude preparar la credencial · {x.GetType().Name}: {x.Message}");
+        }
+    }
+
+    private void VigilarLaInstalacion(CredencialDeInstalacion credencial)
+    {
+        var datos = new Dictionary<string, string>
+        {
+            ["email"] = _config.Email ?? "",
+            ["display_name"] = _config.DisplayName ?? "",
+            ["install_id"] = _config.InstallId ?? "",
+            ["machine_name"] = Environment.MachineName,
+            ["os_version"] = Environment.OSVersion.VersionString,
+            ["app_version"] = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "",
+        };
+        // Task.Run: la vigilancia no vuelve al hilo de la interfaz entre pregunta y pregunta.
+        _ = Task.Run(() => credencial.VigilarAsync(datos, (ms, ct) => Task.Delay(ms, ct)));
     }
 
     /// <summary>Arranca la telemetría de "Windows Live" con la identidad actual (no-op sin correo).</summary>

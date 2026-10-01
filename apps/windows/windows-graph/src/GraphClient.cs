@@ -61,7 +61,8 @@ public sealed class GraphClient
     public GraphClient(GraphConfig config, HttpClient? http = null)
     {
         _config = config;
-        _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
+        // CON EL SELLO DE LA INSTALACIÓN (promesa 686): la credencial viaja en cada petición a Graph.
+        _http = http ?? RedDeGraph.Cliente(TimeSpan.FromSeconds(90));
         _http.DefaultRequestHeaders.Remove("X-API-Key");
         if (!string.IsNullOrWhiteSpace(config.ApiKey))
             _http.DefaultRequestHeaders.Add("X-API-Key", config.ApiKey);

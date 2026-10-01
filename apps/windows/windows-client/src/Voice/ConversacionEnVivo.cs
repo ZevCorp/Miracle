@@ -567,8 +567,40 @@ public sealed class ConversacionEnVivo : IDisposable
     {
         if (Viva) return Task.CompletedTask;
         string clave = Clave();
+        // SI NO LLEGÓ PORQUE LA INSTALACIÓN ESPERABA APROBACIÓN, SE PIDE AHORA (promesa 687): entre el
+        // arranque y este momento la pueden haber aprobado. Si ya se pidió y falló por otra cosa, esa
+        // llamada no viaja — eso sigue siendo de la 300.
+        //
+        // ES EL ÚNICO CAMINO QUE ESPERA A LA RED ANTES DEL GESTO, y solo se toma SIN clave: con ella en la
+        // mano el encendido sigue siendo síncrono, que es lo que prometen la 660 y la 661.
+        if (clave.Length == 0 && Credenciales.ClavesDelBackend.Viva is { } claves)
+            return ArrancarTrasPedirLaClaveAsync(claves, conMicrofono, gesto);
+        return ArrancarCon(clave, conMicrofono, gesto);
+    }
+
+    private async Task ArrancarTrasPedirLaClaveAsync(Credenciales.ClavesDelBackend claves, bool conMicrofono, long gesto)
+    {
+        await claves.TraerAsync();
+        await ArrancarCon(Clave(), conMicrofono, gesto);
+    }
+
+    private Task ArrancarCon(string clave, bool conMicrofono, long gesto)
+    {
         if (clave.Length == 0)
         {
+            // A UNA PERSONA EN UN HOSPITAL NO SE LE DICE «setx OPENAI_API_KEY»: no puede, y no es su
+            // problema. Si lo que pasa es que la instalación espera aprobación o la revocaron, se dice eso,
+            // con el código que tiene que dictarle al administrador (spec 076).
+            var instalacion = U.Graph.CredencialDeInstalacion.Viva;
+            bool esLaInstalacion = instalacion != null
+                && instalacion.Situacion is U.Graph.CredencialDeInstalacion.Pendiente or U.Graph.CredencialDeInstalacion.Revocada;
+            if (esLaInstalacion)
+            {
+                Dice?.Invoke($"No hay voz todavía: {instalacion!.Estado}.");
+                // El prefijo de siempre, porque los guiones de nivel 4 leen esta línea para saber que la voz no abrió.
+                LogBus.Log("voz-viva", $"sin OPENAI_API_KEY: no se arranca ({instalacion.Estado})");
+                return Task.CompletedTask;
+            }
             Dice?.Invoke($"No hay voz en vivo: falta la clave de {_protocolo.Quien}. "
                        + "Una sola vez: setx OPENAI_API_KEY \"tu_key\" y reinicia Ü.");
             LogBus.Log("voz-viva", "sin OPENAI_API_KEY: no se arranca");

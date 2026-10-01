@@ -105,12 +105,10 @@ jobs:
           # Este repo es privado y el feed ahora son sus releases, así que sin esto el botón de
           # actualizar responde «no autorizado». Ver WindowsClient.csproj → UpdateGithubToken.
           UpdateGithubToken: ${{ secrets.UPDATE_GITHUB_TOKEN }}
-          # MISMO mecanismo para la voz en vivo (WindowsClient.csproj → AssemblyMetadata
-          # GeminiDefaultApiKey). Secreto: GEMINI_DEFAULT_API_KEY (una key AIza... de AI Studio, con
-          # saldo — si se agota, la voz en vivo falla en TODAS las instalaciones a la vez, porque es
-          # la MISMA key en cada copia distribuida. Decisión consciente 2026-08-14: lo ideal es que
-          # el backend la emita por sesión, como ya hace con Soniox; se embebe por velocidad).
-          GeminiDefaultApiKey: ${{ secrets.GEMINI_DEFAULT_API_KEY }}
+          # LA KEY DE GEMINI YA NO SE EMBEBE (2026-09-30, spec 076 de apps/windows, promesa 688): nadie
+          # la leía desde que la voz pasó a GPT-Live, y este instalador es público. El secreto
+          # GEMINI_DEFAULT_API_KEY del repo ya no se usa: se puede borrar, y la key hay que revocarla
+          # —viajó dentro de todos los instaladores publicados hasta la 1.3.7—.
         # -p:Version SELLA LA VERSIÓN EN EL BINARIO (2026-09-30). Sin esto todos los U.exe decían
         # 1.0.0.0, que es lo que la telemetría mandaba al panel: 36 equipos con la misma versión y
         # ninguna forma de saber a quién le había llegado una release.

@@ -1033,6 +1033,21 @@ internal static class Contrato
         Prueba("446. cuando Ü pulsa algo, la carita lo presiona con la mano: saca solo la mano de ese lado, la empuja hacia fuera y la esconde sola en menos de un segundo, por detrás de la cara; la mano no se sale del aire que la ventana de la carita le deja, tampoco al saludar; y solo presiona cuando el pulso es de Ü: señalar no saca la mano", LaCaritaPresionaLoQueUPulsa);
         Prueba("447. los gestos responden a lo que pasa: tocar la carita la hace rebotar, y al ir junto a lo que Ü toca gira la cabeza hacia ello y la sigue teniendo girada aunque cambie de estado", LosGestosRespondenALoQuePasa);
         Prueba("448. al hablar la boca no se abre: es una línea en todos los estados, sin relleno ni lengua; hablar se ve en la sonrisa, que se ensancha poco a poco al empezar una frase y se relaja al callar, sin parpadear en cada frase", AlHablarLaBocaNoSeAbre);
+
+        // ── Spec 076: cada instalación tiene su credencial ──────────────────────────────────────
+        // Nacieron el 2026-09-30 como 640-648 en una rama que no llegó a commitearse; al entrar a main ya estaban
+        // tomadas (spec 072, la actualización), y pasaron a 680-688, por encima de la 667 de la spec 075. El lado
+        // de Graph (spec 004, promesas 401-410) lo juzga services/graph/scripts/verify-windows-devices.js.
+        Prueba("680. una instalación sin credencial se presenta a Graph UNA vez —con la clave embebida y diciendo quién es— y guarda la credencial que recibe; con credencial guardada no se vuelve a presentar, y sin correo todavía no se presenta", LaInstalacionSePresentaUnaVez);
+        Prueba("681. la credencial de la instalación viaja en cada petición a Graph y en ninguna a otro sitio; sin credencial no viaja nada", ElSelloViajaSoloAGraph);
+        Prueba("682. la credencial no aparece en el log ni en el estado, y lo que queda en disco no la lleva en claro", LaCredencialNoSeVe);
+        Prueba("683. una instalación que espera aprobación, una revocada y una que no pudo presentarse se dicen cada una con su nombre, y la que espera da el código con el que el administrador la reconoce", CadaSituacionConSuNombre);
+        Prueba("684. no poder presentarse no tumba la app ni deja nada guardado a medias, y se reintenta con pausas cada vez más largas: nunca dos intentos seguidos sin esperar; a un Graph que todavía no sabe de instalaciones no se le insiste", NoPoderPresentarseNoSeAtasca);
+        Prueba("685. mientras espera aprobación pregunta de vez en cuando y deja de preguntar en cuanto la aprueban o la revocan; si Graph ya no la conoce, se vuelve a presentar", EsperandoAprobacionPregunta);
+        Prueba("686. los seis clientes HTTP que hablan con Graph llevan el sello de la instalación: ninguno se queda sin él", LosSeisClientesLlevanElSello);
+        Prueba("687. unas claves negadas porque la instalación espera aprobación se dicen como espera y no como clave que falta, y se vuelven a pedir cuando hacen falta en vez de darse por perdidas", LasClavesNegadasPorEsperaSeVuelvenAPedir);
+        Prueba("688. el instalador no lleva embebida ninguna clave de terceros: en el binario solo viajan la clave para presentarse y el token de actualizaciones", ElInstaladorNoLlevaClavesDeTerceros);
+        Prueba("689. encender la voz sin clave se la vuelve a pedir a Graph en ese mismo gesto: si la instalación sigue esperando lo dice con su código y no enciende, y si ya la aprobaron enciende sin reiniciar Ü", EncenderSinClaveLaVuelveAPedir);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -17878,6 +17893,12 @@ internal static class Contrato
         var lineas = new List<string>();
         Action<string, string> oye = (tag, msg) => { if (tag == "voz-clic") lock (lineas) lineas.Add(msg); };
         string[] Lineas() { lock (lineas) return lineas.ToArray(); }
+        // LA VOZ DE LA PROMESA ANTERIOR TODAVÍA TIENE UNA LÍNEA POR ESCRIBIR. La 664 termina con la voz encendida
+        // y su Dispose la apaga; un apagado al que nadie le pinta la estela escribe su voz-clic 300 ms DESPUÉS de
+        // cerrar el socket (ConversacionEnVivo, el Task.Delay(300) de después del apagado). LogBus es de todo el
+        // proceso, así que esa línea caía aquí dentro: el 2026-10-01, en dos corridas seguidas, «dejó 3» con un
+        // «apagar» por delante del encendido. Se espera a que pase ANTES de empezar a escuchar.
+        Thread.Sleep(450);
         anotado.AddEventHandler(null, oye);
         try
         {
@@ -18478,6 +18499,620 @@ internal static class Contrato
             "entre hablar y callar no parpadea: en una conversación eso pasa cada pocos segundos");
         Debe(P("Reposo", "Trabajando") && P("Trabajando", "Fallo") && P("Reposo", "Hablando"),
             "los demás cambios de estado sí llevan su parpadeo");
+    }
+
+    // ── Spec 076: cada instalación tiene su credencial ───────────────────────────────────────────
+    //
+    // POR QUÉ EXISTEN ESTAS NUEVE (2026-09-30). El repo es público, así que el instalador se descarga
+    // sin credenciales, y lleva embebida UNA clave de Graph que comparten todas las instalaciones. Con
+    // ella, /api/v1/agent/claves entregaba las claves crudas de OpenAI y TypeSafe —medido contra
+    // producción— y todo /api/v1 quedaba abierto. Desde aquí la clave embebida solo sirve para
+    // PRESENTARSE: cada instalación recibe una credencial propia, que un administrador aprueba y puede
+    // revocar de una en una. Lo que exige Graph lo juzga su propio script; esto juzga a Ü.
+
+    /// <summary>Los tipos de la 076, que viven en windows-graph (U.Graph.dll).</summary>
+    private static Type? DeLaInstalacion(string nombre) => typeof(GraphConfig).Assembly.GetType("U.Graph." + nombre);
+
+    private const string DestinoDeLaInstalacion = "https://graph.contrato.test";
+    private const string CredencialDelContrato = "udev_SECRETO-DE-LA-INSTALACION-que-no-debe-verse-0123456789";
+    private const string CodigoDelContrato = "0A1B-2C3D";
+
+    private static Dictionary<string, string> DatosDeLaInstalacion(string email = "medico@hospital.test") => new()
+    {
+        ["email"] = email,
+        ["display_name"] = "Dra. Contrato",
+        ["install_id"] = "inst-del-contrato",
+        ["machine_name"] = "PC-TRIAGE",
+        ["os_version"] = "Windows 11",
+        ["app_version"] = "1.4.0",
+    };
+
+    /// <summary>
+    /// Una instalación con el disco, la red y el reloj DE MENTIRA, y que ANOTA en qué orden pasó cada cosa.
+    /// </summary>
+    /// <remarks>
+    /// El orden es lo que juzgan la 684 y la 685: «reintentó tres veces» no distingue tres intentos con sus
+    /// pausas de tres intentos seguidos, y lo segundo es el bucle del que ya se salió una vez.
+    /// </remarks>
+    private sealed class InstalacionDePrueba
+    {
+        public string? Disco;
+        public int Escrituras, Presentaciones, Preguntas;
+        public readonly List<string> Eventos = new();
+        public readonly List<string> Log = new();
+        public readonly List<string> Cambios = new();
+        public readonly List<string> Cuerpos = new();
+        public readonly List<string?> DiscoAlPresentar = new();
+        public readonly List<string> CredencialesPreguntadas = new();
+        public readonly List<int> Pausas = new();
+        public Func<int, (int, string)> AlPresentar = _ => (200, Alta(CredencialDelContrato));
+        public Func<int, (int, string)> AlPreguntar = _ => (200, Respuesta("aprobada"));
+        public object Objeto = null!;
+        public Type Tipo = null!;
+
+        private const string Id = "0a1b2c3d-1111-4222-8333-444455556666";
+        public static string Alta(string token) => "{\"device_id\":\"" + Id + "\",\"token\":\"" + token + "\",\"estado\":\"pendiente\",\"codigo\":\"" + CodigoDelContrato + "\"}";
+        public static string Respuesta(string estado) => "{\"device_id\":\"" + Id + "\",\"estado\":\"" + estado + "\",\"codigo\":\"" + CodigoDelContrato + "\"}";
+
+        /// <summary>Null si la capacidad todavía no existe entera: quien llama lo declara PENDIENTE.</summary>
+        public static InstalacionDePrueba? Nueva(string? disco = null)
+        {
+            var t = DeLaInstalacion("CredencialDeInstalacion");
+            var ctor = t?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 6);
+            if (t == null || ctor == null) return null;
+            foreach (string m in new[] { "PresentarseAsync", "PreguntarAsync", "VigilarAsync" }) if (t.GetMethod(m) == null) return null;
+            foreach (string p in new[] { "Valor", "Situacion", "Estado", "Codigo" }) if (t.GetProperty(p) == null) return null;
+
+            var i = new InstalacionDePrueba { Disco = disco, Tipo = t };
+            Func<string?> leer = () => i.Disco;
+            Action<string?> guardar = v => { i.Disco = v; i.Escrituras++; };
+            Func<string, CancellationToken, Task<(int, string)>> presentar = (cuerpo, _) =>
+            {
+                i.Presentaciones++; i.Eventos.Add("presentar"); i.Cuerpos.Add(cuerpo); i.DiscoAlPresentar.Add(i.Disco);
+                return Task.FromResult(i.AlPresentar(i.Presentaciones));
+            };
+            Func<string, CancellationToken, Task<(int, string)>> preguntar = (credencial, _) =>
+            {
+                i.Preguntas++; i.Eventos.Add("preguntar"); i.CredencialesPreguntadas.Add(credencial);
+                return Task.FromResult(i.AlPreguntar(i.Preguntas));
+            };
+            i.Objeto = ctor.Invoke(new object?[] { DestinoDeLaInstalacion, leer, guardar, presentar, preguntar, (Action<string>)(l => i.Log.Add(l)) });
+            t.GetEvent("AlCambiar")?.AddEventHandler(i.Objeto, (Action<string>)(s => i.Cambios.Add(s)));
+            return i;
+        }
+
+        private string Prop(string n) => (string)(Tipo.GetProperty(n)!.GetValue(Objeto) ?? "");
+        public string Valor => Prop("Valor");
+        public string Situacion => Prop("Situacion");
+        public string Estado => Prop("Estado");
+        public string Codigo => Prop("Codigo");
+
+        public string Presentarse(Dictionary<string, string> datos) =>
+            ((Task<string>)Tipo.GetMethod("PresentarseAsync")!.Invoke(Objeto, new object[] { datos, CancellationToken.None })!).GetAwaiter().GetResult();
+
+        public string Preguntar() =>
+            ((Task<string>)Tipo.GetMethod("PreguntarAsync")!.Invoke(Objeto, new object[] { CancellationToken.None })!).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Vigila con una pausa que NO espera: anota cuánto pidió esperar y sigue. Y con un tope, para que
+        /// un bucle de verdad acabe en un rojo que lo diga en vez de en un contrato colgado.
+        /// </summary>
+        public void Vigilar(Dictionary<string, string> datos, int tope = 40)
+        {
+            Func<int, CancellationToken, Task> pausa = (ms, _) =>
+            {
+                Pausas.Add(ms); Eventos.Add("pausa");
+                if (Pausas.Count > tope) throw new OperationCanceledException($"más de {tope} pausas");
+                return Task.CompletedTask;
+            };
+            try { ((Task)Tipo.GetMethod("VigilarAsync")!.Invoke(Objeto, new object[] { datos, pausa, CancellationToken.None })!).GetAwaiter().GetResult(); }
+            catch (OperationCanceledException) { }
+        }
+
+        public string Orden => string.Join(" ", Eventos);
+        public string TodoLoDicho => string.Join(" | ", Log) + " | " + Estado + " | " + Situacion + " | " + string.Join(" | ", Cambios);
+    }
+
+    private static void LaInstalacionSePresentaUnaVez()
+    {
+        var a = InstalacionDePrueba.Nueva();
+        if (a == null) { Pendiente("U.Graph.CredencialDeInstalacion(destino, leer, guardar, presentar, preguntar, log) + PresentarseAsync/PreguntarAsync/VigilarAsync", "680", "076"); return; }
+
+        // 1. SIN CREDENCIAL SE PRESENTA, Y DICE QUIÉN ES. Lo que manda es lo que el administrador va a ver
+        //    en el panel para decidir si la aprueba: sin máquina ni correo, aprobaría a ciegas.
+        Debe(a.Valor.Length == 0, "recién instalada no tiene credencial");
+        a.Presentarse(DatosDeLaInstalacion());
+        Debe(a.Presentaciones == 1, $"sin credencial se presenta una vez: {a.Presentaciones}");
+        string cuerpo = a.Cuerpos.FirstOrDefault() ?? "";
+        Debe(cuerpo.Contains("medico@hospital.test") && cuerpo.Contains("PC-TRIAGE") && cuerpo.Contains("inst-del-contrato"),
+            $"y dice quién es —correo, máquina, instalación—: «{cuerpo}»");
+        Debe(a.Valor == CredencialDelContrato, "la credencial que dio Graph es la que se usa desde ya");
+        Debe(a.Escrituras == 1 && (a.Disco ?? "").Contains(CredencialDelContrato), $"y se guarda, una vez ({a.Escrituras} escritura(s))");
+        Debe(a.Codigo == CodigoDelContrato, $"con el código que dio Graph, no uno calculado aquí: «{a.Codigo}»");
+
+        // 2. UNA VEZ. Presentarse deja una fila en el panel: una instalación que se presentara en cada
+        //    arranque llenaría la lista de pendientes de sí misma, y ninguna estaría aprobada.
+        a.Presentarse(DatosDeLaInstalacion());
+        a.Presentarse(DatosDeLaInstalacion());
+        Debe(a.Presentaciones == 1, $"con credencial no se vuelve a presentar: {a.Presentaciones} presentación(es) tras tres llamadas");
+
+        // 3. Y TAMPOCO AL VOLVER A ABRIR Ü: la credencial sale del disco, sin red.
+        var b = InstalacionDePrueba.Nueva(a.Disco)!;
+        Debe(b.Valor == CredencialDelContrato, "al volver a abrir, la credencial sale de lo guardado sin pedir nada");
+        b.Presentarse(DatosDeLaInstalacion());
+        Debe(b.Presentaciones == 0, $"y no se presenta otra vez: {b.Presentaciones}");
+
+        // 4. SIN CORREO NO SE PRESENTA. El primer arranque abre antes de que la persona diga quién es; una
+        //    fila sin correo en el panel no se puede aprobar ni reconocer.
+        foreach (string vacio in new[] { "", "   " })
+        {
+            var c = InstalacionDePrueba.Nueva()!;
+            c.Presentarse(DatosDeLaInstalacion(vacio));
+            Debe(c.Presentaciones == 0 && c.Disco == null && c.Valor.Length == 0, $"sin correo («{vacio}») no se presenta ni guarda nada");
+            Debe(c.Estado.Contains("correo", StringComparison.OrdinalIgnoreCase), $"y dice que es el correo lo que falta: «{c.Estado}»");
+        }
+
+        // 5. LO GUARDADO QUE NO SE ENTIENDE NO ES UNA CREDENCIAL. Un archivo a medias no puede dejar a la
+        //    instalación ni muerta ni mandando basura como credencial: se presenta de nuevo.
+        var d = InstalacionDePrueba.Nueva("esto no es lo que guardé")!;
+        Debe(d.Valor.Length == 0, "lo guardado que no se entiende no se usa como credencial");
+        d.Presentarse(DatosDeLaInstalacion());
+        Debe(d.Presentaciones == 1 && d.Valor == CredencialDelContrato, "y se presenta de nuevo");
+
+        // 6. UN ALTA SIN CREDENCIAL DENTRO NO ES UN ALTA (vacío no es ausente, patrón nº9).
+        foreach (string sinToken in new[] { "{\"estado\":\"pendiente\"}", "{\"token\":\"\",\"estado\":\"pendiente\"}", "{\"token\":\"   \"}" })
+        {
+            var e = InstalacionDePrueba.Nueva()!;
+            e.AlPresentar = _ => (200, sinToken);
+            e.Presentarse(DatosDeLaInstalacion());
+            Debe(e.Valor.Length == 0 && e.Disco == null, $"un alta que no trae credencial no deja nada guardado («{sinToken}»)");
+        }
+    }
+
+    private static void ElSelloViajaSoloAGraph()
+    {
+        var tSello = DeLaInstalacion("SelloDeInstalacion");
+        var a = InstalacionDePrueba.Nueva();
+        var ctor = a == null ? null : tSello?.GetConstructor(new[] { typeof(HttpMessageHandler), a.Tipo });
+        if (a == null || ctor == null) { Pendiente("U.Graph.SelloDeInstalacion(interno, credencial)", "681", "076"); return; }
+
+        HttpStatusCode codigo = HttpStatusCode.OK;
+        string respuesta = "{}";
+        var red = new BackendDeMentira(_ => (codigo, respuesta));
+        using var http = new HttpClient((HttpMessageHandler)ctor.Invoke(new object?[] { red, a.Objeto }));
+        string? Sello(string url)
+        {
+            http.GetAsync(url).GetAwaiter().GetResult().Dispose();
+            return red.UltimasCabeceras.TryGetValue("X-Device-Token", out var v) ? v : null;
+        }
+
+        // 1. SIN CREDENCIAL NO VIAJA NADA. Una cabecera vacía no es «sin cabecera»: Graph la leería como
+        //    una credencial inventada y contestaría «no te conozco» en vez de «preséntate».
+        Debe(Sello(DestinoDeLaInstalacion + "/api/v1/workflows") == null, "sin credencial no viaja la cabecera, ni vacía");
+
+        // 2. CON CREDENCIAL, EN CADA PETICIÓN A GRAPH.
+        a.Presentarse(DatosDeLaInstalacion());
+        foreach (string ruta in new[] { "/api/v1/workflows", "/api/v1/agent/claves", "/api/v1/agent/turn?x=1", "/API/V1/pipeline" })
+            Debe(Sello(DestinoDeLaInstalacion + ruta) == CredencialDelContrato, $"la credencial viaja en {ruta}");
+
+        // 3. Y EN NINGUNA A OTRO SITIO. Es un secreto de Graph: a OpenAI, a TypeSafe o a un dominio que solo
+        //    EMPIEZA igual no se le enseña.
+        foreach (string otro in new[]
+                 {
+                     "https://api.openai.com/v1/files",
+                     "https://api.typesafe.ai/v1/systemone",
+                     "https://graph.contrato.test.malo.example/api/v1/workflows",
+                     "https://malo.example/graph.contrato.test/api/v1",
+                     "http://graph.contrato.test/api/v1/workflows",
+                     "https://graph.contrato.test:8443/api/v1/workflows",
+                 })
+            Debe(Sello(otro) == null, $"la credencial NO viaja a {otro}");
+
+        // 4. LO QUE GRAPH DICE AL RECHAZAR SE ANOTA, y quien hizo la petición sigue pudiendo leer la respuesta.
+        codigo = HttpStatusCode.Forbidden;
+        respuesta = "{\"error\":\"espera\",\"code\":\"instalacion_revocada\",\"codigo\":\"" + CodigoDelContrato + "\"}";
+        using (var r = http.GetAsync(DestinoDeLaInstalacion + "/api/v1/workflows").GetAwaiter().GetResult())
+        {
+            string leido = r.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            Debe(leido == respuesta, $"quien pidió sigue leyendo el cuerpo entero: «{leido}»");
+        }
+        Debe(a.Situacion == "revocada", $"y la instalación se entera de que la revocaron por la primera respuesta que lo dice: «{a.Situacion}»");
+        respuesta = "{\"error\":\"otra cosa\",\"code\":\"no_es_de_instalaciones\"}";
+        http.GetAsync(DestinoDeLaInstalacion + "/api/v1/workflows").GetAwaiter().GetResult().Dispose();
+        Debe(a.Situacion == "revocada", $"un 403 por otro motivo no cambia la situación: «{a.Situacion}»");
+    }
+
+    private static void LaCredencialNoSeVe()
+    {
+        var a = InstalacionDePrueba.Nueva();
+        var tAlmacen = DeLaInstalacion("AlmacenProtegido");
+        var ctor = tAlmacen?.GetConstructor(new[] { typeof(string) });
+        var leer = tAlmacen?.GetMethod("Leer");
+        var guardar = tAlmacen?.GetMethod("Guardar");
+        if (a == null || ctor == null || leer == null || guardar == null) { Pendiente("U.Graph.AlmacenProtegido(ruta) + Leer/Guardar", "682", "076"); return; }
+
+        // 1. NI EN EL LOG NI EN EL ESTADO, pase lo que pase: alta, espera, aprobación, rechazo y fallo.
+        a.AlPreguntar = n => n == 1 ? (200, InstalacionDePrueba.Respuesta("pendiente")) : n == 2 ? (503, "caído") : (200, InstalacionDePrueba.Respuesta("aprobada"));
+        a.Vigilar(DatosDeLaInstalacion());
+        var b = InstalacionDePrueba.Nueva(a.Disco)!;
+        b.AlPreguntar = _ => (200, InstalacionDePrueba.Respuesta("revocada"));
+        b.Vigilar(DatosDeLaInstalacion());
+        foreach (var i in new[] { a, b })
+            Debe(!i.TodoLoDicho.Contains(CredencialDelContrato) && !i.TodoLoDicho.Contains("SECRETO"),
+                $"la credencial no aparece en el log ni en el estado: «{i.TodoLoDicho}»");
+        Debe(a.Log.Count > 0, "y aun así el log cuenta lo que pasó: sin líneas no hay forma de diagnosticar una instalación que no entra");
+        Debe(a.CredencialesPreguntadas.All(c => c == CredencialDelContrato), "a Graph sí se le enseña: es la única forma de preguntar por ella");
+
+        // 2. EN DISCO NO QUEDA EN CLARO. El almacén de verdad, sobre un archivo de verdad: se miran los bytes.
+        string ruta = Path.Combine(_raiz, "682", "instalacion.bin");
+        Directory.CreateDirectory(Path.GetDirectoryName(ruta)!);
+        object almacen = ctor.Invoke(new object[] { ruta });
+        string guardado = a.Disco ?? "";
+        Debe(guardado.Contains(CredencialDelContrato), "(lo que se le entrega al almacén sí lleva la credencial: si no, esta prueba no juzga nada)");
+        guardar.Invoke(almacen, new object?[] { guardado });
+        Debe(File.Exists(ruta), "el almacén escribe en la ruta que se le dio");
+        byte[] bytes = File.Exists(ruta) ? File.ReadAllBytes(ruta) : Array.Empty<byte>();
+        foreach (var (nombre, cod) in new[] { ("UTF-8", Encoding.UTF8), ("UTF-16", Encoding.Unicode), ("Latin-1", Encoding.Latin1) })
+            Debe(!cod.GetString(bytes).Contains(CredencialDelContrato) && !cod.GetString(bytes).Contains("udev_"),
+                $"lo que queda en disco no lleva la credencial en claro (leído como {nombre})");
+        Debe((string?)leer.Invoke(ctor.Invoke(new object[] { ruta }), null) == guardado, "y aun así otro arranque la recupera entera");
+
+        // 3. UN ARCHIVO ROTO NO TUMBA EL ARRANQUE: es «no hay credencial», y se presenta de nuevo.
+        File.WriteAllBytes(ruta, new byte[] { 1, 2, 3, 4, 5 });
+        string? roto = "sin leer";
+        try { roto = (string?)leer.Invoke(almacen, null); } catch (Exception e) { roto = "LANZÓ " + (e.InnerException ?? e).GetType().Name; }
+        Debe(roto == null, $"un archivo que no se puede abrir es «no hay credencial», no una excepción: «{roto}»");
+
+        // 4. GUARDAR NADA ES BORRAR: una credencial que Graph ya no conoce no se queda en disco.
+        guardar.Invoke(almacen, new object?[] { guardado });
+        guardar.Invoke(almacen, new object?[] { null });
+        Debe(!File.Exists(ruta), "guardar nada borra el archivo");
+        Debe((string?)leer.Invoke(almacen, null) == null, "y sin archivo no hay credencial");
+    }
+
+    private static void CadaSituacionConSuNombre()
+    {
+        if (InstalacionDePrueba.Nueva() == null) { Pendiente("U.Graph.CredencialDeInstalacion.Estado/Situacion/Codigo", "683", "076"); return; }
+
+        InstalacionDePrueba Con(string estado)
+        {
+            var i = InstalacionDePrueba.Nueva()!;
+            i.Presentarse(DatosDeLaInstalacion());
+            i.AlPreguntar = _ => (200, InstalacionDePrueba.Respuesta(estado));
+            i.Preguntar();
+            return i;
+        }
+        var espera = Con("pendiente");
+        var aprobada = Con("aprobada");
+        var revocada = Con("revocada");
+        var caido = InstalacionDePrueba.Nueva()!;
+        caido.AlPresentar = _ => (503, "{\"error\":\"No se pudo comprobar la instalación.\",\"code\":\"autorizacion_no_disponible\"}");
+        caido.Presentarse(DatosDeLaInstalacion());
+        var sinRed = InstalacionDePrueba.Nueva()!;
+        sinRed.AlPresentar = _ => throw new HttpRequestException("no hay red", new System.Net.Sockets.SocketException(11001));
+        sinRed.Presentarse(DatosDeLaInstalacion());
+        var frenada = InstalacionDePrueba.Nueva()!;
+        frenada.AlPresentar = _ => (429, "{\"code\":\"limite_de_uso\"}");
+        frenada.Presentarse(DatosDeLaInstalacion());
+
+        // LA SITUACIÓN, para la máquina: una palabra fija por caso.
+        Debe(espera.Situacion == "pendiente" && aprobada.Situacion == "aprobada" && revocada.Situacion == "revocada",
+            $"cada situación tiene su palabra: «{espera.Situacion}» · «{aprobada.Situacion}» · «{revocada.Situacion}»");
+        Debe(caido.Situacion == sinRed.Situacion && caido.Situacion != espera.Situacion && caido.Valor.Length == 0,
+            $"no poder presentarse es otra, y no deja credencial: «{caido.Situacion}»");
+
+        // EL ESTADO, para la persona. «Ü no funciona» sin nombre manda la llamada al sitio equivocado: esperar
+        // aprobación se arregla en el panel, una revocación se habla con quien revocó, y un fallo de red, con la red.
+        Debe(espera.Estado.Contains("aprobación") && espera.Estado.Contains(CodigoDelContrato),
+            $"la que espera lo dice, y da el código con el que el administrador la reconoce: «{espera.Estado}»");
+        Debe(revocada.Estado.Contains("revoc") && !revocada.Estado.Contains("espera"),
+            $"la revocada dice que la revocaron, no que espera: «{revocada.Estado}»");
+        Debe(aprobada.Estado.Contains("aprobada") && !aprobada.Estado.Contains("espera"), $"la aprobada lo dice: «{aprobada.Estado}»");
+        Debe(caido.Estado.Contains("503") && !caido.Estado.Contains("aprobación"),
+            $"la que no pudo presentarse dice el motivo real, y no que espera aprobación: «{caido.Estado}»");
+        Debe(sinRed.Estado.Contains("no hay red") && sinRed.Estado.Contains("SocketException"),
+            $"si fue la red, la cadena ENTERA de la excepción (patrón nº3): «{sinRed.Estado}»");
+        Debe(frenada.Estado.Contains("429"), $"y si Graph la frenó por presentarse demasiado, también: «{frenada.Estado}»");
+        var estados = new[] { espera.Estado, aprobada.Estado, revocada.Estado, caido.Estado, sinRed.Estado, frenada.Estado };
+        Debe(estados.Distinct().Count() == estados.Length, $"ningún estado se confunde con otro: [{string.Join(" ¦ ", estados)}]");
+    }
+
+    private static void NoPoderPresentarseNoSeAtasca()
+    {
+        var a = InstalacionDePrueba.Nueva();
+        if (a == null) { Pendiente("U.Graph.CredencialDeInstalacion.VigilarAsync", "684", "076"); return; }
+
+        // 1. TRES FALLOS Y DESPUÉS ENTRA. Graph caído al abrir Ü no puede dejar la instalación sin presentarse
+        //    hasta el siguiente arranque —con la compuerta puesta, eso es Ü muerta todo el día—, ni convertirse
+        //    en el bucle que ya se pagó una vez (14 turnos rebotando, pendiente nº3 de CLAUDE.md).
+        a.AlPresentar = n => n switch
+        {
+            1 => throw new HttpRequestException("no hay red"),
+            2 => (503, "{\"code\":\"autorizacion_no_disponible\"}"),
+            3 => (429, "{\"code\":\"limite_de_uso\"}"),
+            _ => (200, InstalacionDePrueba.Alta(CredencialDelContrato)),
+        };
+        string lanzo = "";
+        try { a.Vigilar(DatosDeLaInstalacion()); } catch (Exception e) { lanzo = (e.InnerException ?? e).GetType().Name + ": " + (e.InnerException ?? e).Message; }
+        Debe(lanzo.Length == 0, $"no poder presentarse no lanza hacia fuera: «{lanzo}»");
+        Debe(a.Presentaciones == 4 && a.Valor == CredencialDelContrato, $"tras tres fallos, al cuarto intento entra: {a.Presentaciones} intento(s), credencial {(a.Valor.Length > 0 ? "sí" : "no")}");
+        Debe(a.Orden.StartsWith("presentar pausa presentar pausa presentar pausa presentar"),
+            $"NUNCA dos intentos seguidos sin esperar entre ellos: «{a.Orden}»");
+        var esperas = a.Pausas.Take(3).ToList();
+        Debe(esperas.Count == 3 && esperas[0] >= 15_000 && esperas[1] > esperas[0] && esperas[2] > esperas[1],
+            $"y cada espera es más larga que la anterior: [{string.Join(", ", esperas)}] ms");
+        Debe(a.DiscoAlPresentar.All(d => d == null) && a.Escrituras == 1,
+            $"mientras falla no hay nada guardado a medias: {a.Escrituras} escritura(s), y solo la del alta buena");
+
+        // 2. LAS ESPERAS TIENEN TECHO. Un Graph caído una tarde no puede acabar en «vuelvo a probar mañana».
+        var b = InstalacionDePrueba.Nueva()!;
+        b.AlPresentar = _ => (503, "caído");
+        b.Vigilar(DatosDeLaInstalacion(), tope: 12);
+        Debe(b.Pausas.Count > 12 && b.Pausas.Max() <= 10 * 60_000, $"la espera entre intentos no pasa de diez minutos: máximo {b.Pausas.DefaultIfEmpty(0).Max()} ms");
+        Debe(b.Disco == null && b.Valor.Length == 0, "y trece fallos después sigue sin inventarse una credencial");
+
+        // 3. A UN GRAPH QUE TODAVÍA NO SABE DE INSTALACIONES NO SE LE INSISTE. Esta versión de Ü va a
+        //    convivir con un Graph anterior a la spec 076 —la producción se actualiza en su propio paso—, y
+        //    ahí presentarse da 404. No es un fallo que reintentar: es que no hace falta, y todo sigue como antes.
+        var c = InstalacionDePrueba.Nueva()!;
+        c.AlPresentar = _ => (404, "<html>Cannot POST /api/v1/agent/enroll</html>");
+        c.Vigilar(DatosDeLaInstalacion());
+        Debe(c.Presentaciones == 1 && c.Pausas.Count == 0, $"un 404 al presentarse no se reintenta: {c.Presentaciones} intento(s), {c.Pausas.Count} pausa(s)");
+        Debe(c.Valor.Length == 0 && c.Disco == null, "y no deja credencial");
+        Debe(c.Estado.Contains("404") && !c.Estado.Contains("aprobación"), $"dice lo que pasó sin decir que espera aprobación: «{c.Estado}»");
+
+        // 4. SIN CORREO NO SE QUEDA VIGILANDO: no hay nada que esperar hasta que la persona diga quién es.
+        var d = InstalacionDePrueba.Nueva()!;
+        d.Vigilar(DatosDeLaInstalacion(""));
+        Debe(d.Presentaciones == 0 && d.Pausas.Count == 0, $"sin correo ni se presenta ni se queda dando vueltas: {d.Pausas.Count} pausa(s)");
+    }
+
+    private static void EsperandoAprobacionPregunta()
+    {
+        var a = InstalacionDePrueba.Nueva();
+        if (a == null) { Pendiente("U.Graph.CredencialDeInstalacion.VigilarAsync + AlCambiar", "685", "076"); return; }
+
+        // 1. PENDIENTE, PENDIENTE, PENDIENTE, APROBADA. Quien instala llama al administrador, este aprueba en el
+        //    panel, y Ü tiene que enterarse sola: reiniciar para «que coja la aprobación» es la clase de paso
+        //    que nadie recuerda el día de la instalación.
+        a.AlPreguntar = n => (200, InstalacionDePrueba.Respuesta(n <= 3 ? "pendiente" : "aprobada"));
+        a.Vigilar(DatosDeLaInstalacion());
+        Debe(a.Presentaciones == 1 && a.Preguntas == 4, $"se presenta una vez y pregunta hasta que la aprueban: {a.Presentaciones} alta(s), {a.Preguntas} pregunta(s)");
+        // Recién presentada ya se sabe pendiente —lo dijo el alta—: preguntar en el mismo instante es un viaje
+        // para oír lo mismo. Primero se espera.
+        Debe(a.Orden == "presentar pausa preguntar pausa preguntar pausa preguntar pausa preguntar",
+            $"con una espera antes de cada pregunta, y ninguna después de aprobada: «{a.Orden}»");
+        Debe(a.Pausas.All(p => p >= 5_000), $"de vez en cuando, no a toda prisa: [{string.Join(", ", a.Pausas)}] ms");
+        Debe(a.Situacion == "aprobada", $"y termina aprobada: «{a.Situacion}»");
+        Debe(a.Cambios.Count(c => c == "aprobada") == 1 && a.Cambios.Count(c => c == "pendiente") == 1,
+            $"avisa de cada cambio UNA vez —no una por pregunta—: [{string.Join(", ", a.Cambios)}]");
+        int antes = a.Preguntas;
+        a.Vigilar(DatosDeLaInstalacion());
+        Debe(a.Preguntas - antes <= 1 && a.Pausas.Count == 4, $"aprobada, deja de preguntar: {a.Preguntas - antes} pregunta(s) más al volver a vigilar");
+
+        // 2. REVOCADA TAMBIÉN ES EL FINAL: preguntar más no la va a des-revocar.
+        var b = InstalacionDePrueba.Nueva(a.Disco)!;
+        b.AlPreguntar = n => (200, InstalacionDePrueba.Respuesta(n == 1 ? "pendiente" : "revocada"));
+        b.Vigilar(DatosDeLaInstalacion());
+        Debe(b.Preguntas == 2 && b.Pausas.Count == 1 && b.Situacion == "revocada", $"revocada, deja de preguntar: {b.Preguntas} pregunta(s), «{b.Situacion}»");
+        Debe(b.Presentaciones == 0 && b.Valor == CredencialDelContrato, "y NO se presenta de nuevo para saltarse la revocación");
+
+        // 3. SI GRAPH YA NO LA CONOCE, SE VUELVE A PRESENTAR. Pasa si se borra la fila, o si la base es otra:
+        //    seguir enseñando una credencial que nadie reconoce es quedarse fuera para siempre.
+        var c = InstalacionDePrueba.Nueva(a.Disco)!;
+        const string Nueva = "udev_OTRA-CREDENCIAL-NUEVA-del-contrato-9876543210";
+        c.AlPresentar = _ => (200, InstalacionDePrueba.Alta(Nueva));
+        c.AlPreguntar = n => n == 1 ? (404, "{\"code\":\"instalacion_desconocida\"}") : (200, InstalacionDePrueba.Respuesta(n == 2 ? "pendiente" : "aprobada"));
+        c.Vigilar(DatosDeLaInstalacion());
+        Debe(c.Presentaciones == 1 && c.Valor == Nueva, $"desconocida, se presenta de nuevo y usa la credencial nueva: {c.Presentaciones} alta(s)");
+        Debe((c.Disco ?? "").Contains(Nueva) && !(c.Disco ?? "").Contains(CredencialDelContrato), "y en disco queda la nueva, no la que ya nadie conoce");
+        Debe(c.CredencialesPreguntadas.Skip(1).All(x => x == Nueva), "y desde ahí pregunta con la nueva");
+        Debe(c.Situacion == "aprobada", $"hasta que la aprueban: «{c.Situacion}»");
+
+        // 4. NO PODER PREGUNTAR NO ES ESTAR REVOCADA: se espera y se vuelve a preguntar, con la misma credencial.
+        var d = InstalacionDePrueba.Nueva(a.Disco)!;
+        d.AlPreguntar = n => n switch
+        {
+            1 => throw new HttpRequestException("no hay red"),
+            2 => (503, "{\"code\":\"autorizacion_no_disponible\"}"),
+            _ => (200, InstalacionDePrueba.Respuesta("aprobada")),
+        };
+        d.Vigilar(DatosDeLaInstalacion());
+        Debe(d.Preguntas == 3 && d.Orden == "preguntar pausa preguntar pausa preguntar", $"un fallo al preguntar se espera y se repite: «{d.Orden}»");
+        Debe(d.Presentaciones == 0 && d.Valor == CredencialDelContrato && (d.Disco ?? "").Contains(CredencialDelContrato),
+            "sin tirar la credencial ni presentarse otra vez: un 503 no es «no te conozco»");
+    }
+
+    private static void LosSeisClientesLlevanElSello()
+    {
+        var tSello = DeLaInstalacion("SelloDeInstalacion");
+        if (tSello == null) { Pendiente("U.Graph.SelloDeInstalacion en los seis clientes de Graph", "686", "076"); return; }
+
+        // POR QUÉ SE CUENTAN, Y POR QUÉ SE MIRA CADA UNO (patrón nº5). El 2026-09-30 había SEIS sitios que
+        // construían su propio HttpClient hacia Graph, cada uno poniendo la X-API-Key a mano. Un séptimo sin
+        // sello es una parte de Ü que, con la compuerta puesta, falla con 403 mientras todo lo demás
+        // funciona — y eso se parece demasiado a «esa función está rota». Ya pasó: el diagnóstico de la
+        // superficie SAP se cableó en dos de los TRES sitios, y faltaba justo el que usa el operador.
+        var manejador = typeof(HttpMessageInvoker).GetField("_handler", BindingFlags.NonPublic | BindingFlags.Instance);
+        Debe(manejador != null, "(el arnés sabe mirar qué manejador lleva un HttpClient: sin esto, la promesa no juzga nada)");
+        if (manejador == null) return;
+
+        HttpClient? Estatico(string tipo, string campo)
+        {
+            var t = Cliente.GetType(tipo);
+            return t?.GetField(campo, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as HttpClient;
+        }
+        HttpClient? DeInstancia(object? o) =>
+            o?.GetType().GetField("_http", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(o) as HttpClient;
+
+        var clientes = new (string Quien, HttpClient? Http)[]
+        {
+            ("GraphClient", DeInstancia(new GraphClient(new GraphConfig { ApiKey = "clave-del-contrato" }))),
+            ("BackendClient", DeInstancia(new U.WindowsClient.Backend.BackendClient(new U.WindowsClient.Config(), new GraphConfig { ApiKey = "clave-del-contrato" }))),
+            ("EjecutorDeExportaciones", Estatico("U.WindowsClient.Clinical.EjecutorDeExportaciones", "Http")),
+            ("RellenadorSap", Estatico("U.WindowsClient.Clinical.RellenadorSap", "Http")),
+            ("DictadoEnVivo", Estatico("U.WindowsClient.Clinical.Transcripcion.DictadoEnVivo", "Http")),
+            ("ClavesDelBackend", Estatico("U.WindowsClient.Credenciales.ClavesDelBackend", "Red")),
+        };
+        foreach (var (quien, http) in clientes)
+        {
+            Debe(http != null, $"{quien}: no encuentro su HttpClient — si se movió, esta promesa hay que moverla con él, no borrarla");
+            if (http == null) continue;
+            object? lleva = manejador.GetValue(http);
+            Debe(lleva != null && tSello.IsInstanceOfType(lleva),
+                $"{quien} habla con Graph SIN el sello de la instalación: su manejador es {lleva?.GetType().Name ?? "ninguno"}");
+        }
+    }
+
+    private static void LasClavesNegadasPorEsperaSeVuelvenAPedir()
+    {
+        var t = Capacidad("U.WindowsClient.Credenciales.ClavesDelBackend");
+        var tNiega = DeLaInstalacion("GraphNiegaLaInstalacion");
+        var ctorNiega = tNiega?.GetConstructor(new[] { typeof(string), typeof(string) });
+        var ctor = t?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 3);
+        if (t == null || ctor == null || ctorNiega == null) { Pendiente("U.Graph.GraphNiegaLaInstalacion(code, codigo) + ClavesDelBackend que la entiende", "687", "076"); return; }
+
+        const string SecretoVoz = "sk-secreto-de-la-voz-que-no-debe-salir";
+        string cuerpo = "{\"openai\":\"" + SecretoVoz + "\",\"typesafe\":\"ts-secreto\"}";
+        Exception Niega(string code) => (Exception)ctorNiega.Invoke(new object[] { code, CodigoDelContrato });
+        object Crear(Func<int, string> pedir, List<string> log, out Func<int> peticiones)
+        {
+            int n = 0;
+            peticiones = () => n;
+            Func<CancellationToken, Task<string>> pedirCt = _ => { n++; return Task.FromResult(pedir(n)); };
+            return ctor.Invoke(new object[] { (Func<string, string?>)(_ => null), pedirCt, (Action<string>)(l => log.Add(l)) });
+        }
+        int Traer(object c) => ((Task<int>)t.GetMethod("TraerAsync")!.Invoke(c, new object[] { CancellationToken.None })!).GetAwaiter().GetResult();
+        string Estado(object c) => (string)t.GetProperty("Estado")!.GetValue(c)!;
+        string Resolver(object c, string n) => (string)t.GetMethod("Resolver")!.Invoke(c, new object[] { n })!;
+
+        // 1. PENDIENTE: NO ES UNA CLAVE QUE FALTA. Antes de esto, una instalación sin aprobar habría dicho
+        //    «No hay voz: falta la clave. setx OPENAI_API_KEY…» a una persona en un hospital — una instrucción
+        //    que no puede seguir, para un problema que no tiene.
+        var log = new List<string>();
+        var c1 = Crear(n => n == 1 ? throw Niega("instalacion_pendiente") : cuerpo, log, out var peticiones);
+        Debe(Traer(c1) == 0, "pendiente de aprobación no trae claves");
+        string espera = Estado(c1);
+        Debe(espera.Contains("aprobación") && espera.Contains(CodigoDelContrato), $"lo dice como espera, con el código: «{espera}»");
+        Debe(!espera.Contains("OPENAI_API_KEY") && !espera.Contains("HTTP"), $"y no como clave que falta ni como fallo de red: «{espera}»");
+
+        // 2. Y NO SE DAN POR PERDIDAS. La promesa 300 pide las claves UNA vez también cuando falla, para no
+        //    hacer bucle contra un backend caído. Aplicada a una espera, dejaría la voz muerta hasta reiniciar
+        //    Ü aunque la aprobaran al minuto.
+        Debe(Traer(c1) == 2 && peticiones() == 2, $"aprobada después, la siguiente vez que hacen falta se piden y llegan: {peticiones()} petición(es)");
+        Debe(Resolver(c1, "OPENAI_API_KEY") == SecretoVoz, "y la voz ya tiene su clave, sin reiniciar");
+        Traer(c1);
+        Debe(peticiones() == 2, $"con las claves ya traídas no se piden más: {peticiones()} petición(es)");
+
+        // 3. REVOCADA Y SIN PRESENTAR, CADA UNA CON SU NOMBRE.
+        var c2 = Crear(_ => throw Niega("instalacion_revocada"), new List<string>(), out _);
+        Traer(c2);
+        Debe(Estado(c2).Contains("revoc") && !Estado(c2).Contains("espera"), $"revocada se dice revocada: «{Estado(c2)}»");
+        var c3 = Crear(_ => throw Niega("instalacion_sin_credencial"), new List<string>(), out _);
+        Traer(c3);
+        Debe(Estado(c3).Contains("present") && Estado(c3) != Estado(c2) && Estado(c3) != espera,
+            $"y sin presentarse todavía, también con su nombre: «{Estado(c3)}»");
+
+        // 4. LO DEMÁS SIGUE COMO LO DEJÓ LA 300: un backend caído se intenta una vez.
+        var c4 = Crear(_ => throw new InvalidOperationException("HTTP 503"), new List<string>(), out var caidas);
+        Traer(c4); Traer(c4);
+        Debe(caidas() == 1, $"un backend caído NO se reintenta en cada llamada: {caidas()} intento(s)");
+        Debe(!string.Join(" ", log).Contains(SecretoVoz), "y ninguna clave en el log");
+    }
+
+    /// <summary>Promesa 689.</summary>
+    /// <remarks>
+    /// POR QUÉ EXISTE (2026-10-01). La 687 juzga a <c>ClavesDelBackend</c>; que la VOZ vuelva a pedirlas al
+    /// encender no lo juzgaba nadie, y ese camino se reescribió al poner esta spec sobre la 075: el encendido
+    /// pasó a ser síncrono y lo que antes era un <c>await</c> en medio dejó de compilar. Un camino reescrito y
+    /// sin juez es justo el que se rompe en silencio: la voz diría «falta la clave» a una instalación que
+    /// aprobaron hace un minuto, hasta reiniciar Ü.
+    /// </remarks>
+    private static void EncenderSinClaveLaVuelveAPedir()
+    {
+        var t = Capacidad("U.WindowsClient.Credenciales.ClavesDelBackend");
+        var tNiega = DeLaInstalacion("GraphNiegaLaInstalacion");
+        var tCred = DeLaInstalacion("CredencialDeInstalacion");
+        var ctorNiega = tNiega?.GetConstructor(new[] { typeof(string), typeof(string) });
+        var ctor = t?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 3);
+        var clavesVivas = t?.GetProperty("Viva", BindingFlags.Public | BindingFlags.Static);
+        var instalacionViva = tCred?.GetProperty("Viva", BindingFlags.Public | BindingFlags.Static);
+        var inst = InstalacionDePrueba.Nueva();
+        if (ctor == null || ctorNiega == null || clavesVivas == null || instalacionViva == null || inst == null)
+        { Pendiente("ConversacionEnVivo que pide las claves al encender sin ellas (ClavesDelBackend.Viva + CredencialDeInstalacion.Viva)", "689", "076"); return; }
+
+        // Una instalación que se presentó y espera: es lo que la voz tiene que saber decir.
+        inst.AlPreguntar = _ => (200, InstalacionDePrueba.Respuesta("pendiente"));
+        inst.Presentarse(new Dictionary<string, string> { ["email"] = "medico@hospital.test" });
+        inst.Preguntar();
+        Debe(inst.Situacion == "pendiente", $"[preparación] la instalación de prueba espera aprobación (está «{inst.Situacion}»)");
+
+        // Un backend SIN nada en el entorno, que niega las claves mientras la instalación espera.
+        int peticiones = 0;
+        bool aprobada = false;
+        Func<CancellationToken, Task<string>> pedir = _ =>
+        {
+            peticiones++;
+            if (!aprobada) throw (Exception)ctorNiega.Invoke(new object[] { "instalacion_pendiente", CodigoDelContrato });
+            return Task.FromResult("{\"openai\":\"sk-del-backend-del-contrato\",\"typesafe\":\"ts-del-contrato\"}");
+        };
+        object claves = ctor.Invoke(new object[] { (Func<string, string?>)(_ => null), pedir, (Action<string>)(_ => { }) });
+
+        object? clavesDeAntes = clavesVivas.GetValue(null), instalacionDeAntes = instalacionViva.GetValue(null);
+        try
+        {
+            using var v = VozDePrueba.Nueva("689");
+            if (v == null) return;
+            clavesVivas.SetValue(null, claves);
+            instalacionViva.SetValue(null, inst.Objeto);
+
+            // 1. ESPERANDO: el gesto pregunta, y lo que dice es la espera, con el código.
+            v.Alterna().Wait(3000);
+            string[] dichos; lock (v.Dichos) dichos = v.Dichos.ToArray();
+            Debe(peticiones == 1, $"sin clave, el gesto se la pide a Graph: {peticiones} petición(es)");
+            Debe(!v.Viva && v.Conexiones == 0, $"y con la instalación esperando la voz no enciende ni abre cable (viva: {v.Viva}, conexiones: {v.Conexiones})");
+            Debe(dichos.Any(d => d.Contains("aprobación", StringComparison.Ordinal) && d.Contains(CodigoDelContrato, StringComparison.Ordinal)),
+                $"dice que espera aprobación, con el código que hay que dictarle al administrador (dijo: «{string.Join(" | ", dichos)}»)");
+            Debe(!dichos.Any(d => d.Contains("setx", StringComparison.Ordinal)),
+                $"y no le pide a una persona en un hospital que ponga una variable de entorno (dijo: «{string.Join(" | ", dichos)}»)");
+
+            // 2. APROBADA: el siguiente gesto vuelve a preguntar y enciende, sin reiniciar nada.
+            aprobada = true;
+            var clic = v.Alterna();
+            Debe(Espera(() => v.Viva, 3000), "aprobada después, el siguiente gesto enciende la voz sin reiniciar Ü");
+            Debe(peticiones == 2 && v.Conexiones == 1, $"pidiendo las claves otra vez y abriendo su cable ({peticiones} petición(es), {v.Conexiones} conexión(es))");
+            Debe(v.LosAvisos().SequenceEqual(new[] { true }), $"y avisó una vez de que encendió (avisos: {Lista(v.LosAvisos())})");
+
+            // 3. CON LA CLAVE YA EN LA MANO no se vuelve a preguntar: el encendido de siempre no espera a la red.
+            v.Alterna().Wait(3000);
+            v.Alterna();
+            Debe(v.Viva && peticiones == 2, $"con la clave ya traída, apagar y encender no la vuelve a pedir ({peticiones} petición(es))");
+        }
+        finally
+        {
+            clavesVivas.SetValue(null, clavesDeAntes);
+            instalacionViva.SetValue(null, instalacionDeAntes);
+        }
+    }
+
+    private static void ElInstaladorNoLlevaClavesDeTerceros()
+    {
+        // MEDIDO EL 2026-09-30: U.dll llevaba el atributo «GeminiDefaultApiKey», que el workflow de release
+        // rellenaba con una clave de pago de verdad, y que NADIE LEÍA desde que la voz pasó a GPT-Live (spec
+        // 018). Una clave en un instalador público es una clave publicada, la lea alguien o no.
+        //
+        // Se juzga el NOMBRE del atributo y no su valor: en el binario que compila el contrato todos van
+        // vacíos, y es el workflow quien los rellena. Si el atributo existe, tiene sitio donde viajar.
+        var permitidos = new HashSet<string>(StringComparer.Ordinal) { "GraphDefaultApiKey", "UpdateGithubToken" };
+        var secreto = new System.Text.RegularExpressions.Regex("key|token|secret|clave|password", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var embebidos = new[] { Cliente, typeof(GraphConfig).Assembly }
+            .SelectMany(a => a.GetCustomAttributes<AssemblyMetadataAttribute>().Select(m => (Donde: a.GetName().Name, m.Key)))
+            .Where(x => secreto.IsMatch(x.Key))
+            .ToList();
+        Debe(embebidos.Any(x => x.Key == "GraphDefaultApiKey"),
+            "(el arnés ve los secretos embebidos: si no viera ni la clave de Graph, esta promesa pasaría sin mirar nada)");
+        var sobran = embebidos.Where(x => !permitidos.Contains(x.Key)).Select(x => $"{x.Key} en {x.Donde}.dll").ToList();
+        Debe(sobran.Count == 0, $"el binario tiene sitio para secretos que no debería llevar: {string.Join(", ", sobran)}");
     }
 
     private static void Debe(bool condicion, string promesa)

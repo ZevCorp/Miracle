@@ -37,19 +37,11 @@
          (distinta de RuntimeIdentifier de .NET 5+). -->
     <Platform>x64</Platform>
 
-    <!-- Key de Gemini embebida SOLO en builds de DISTRIBUCIÓN. MISMO patrón que GraphDefaultApiKey
-         en GraphWorkflows.csproj: el CI la inyecta desde un secreto, VACÍA por defecto → los builds
-         del repo no llevan ninguna key. Con ella, la voz en vivo funciona en el Setup.exe distribuido
-         sin que el usuario final teclee nada; sigue siendo sobreescribible por GEMINI_API_KEY en la
-         máquina (ver GeminiLive.Clave), que es lo que ya usa quien desarrolla.
-
-         DECISIÓN CONSCIENTE, no la ideal: el comentario de GeminiLive.Clave dice que en producción
-         debería EMITIRLA el backend por sesión —como ya hace DictadoSoniox con Soniox—, porque una
-         key de Gemini es de alcance completo y esto la reparte IDÉNTICA en cada copia distribuida:
-         si se filtra o se agota el saldo, afecta a todas las instalaciones a la vez (2026-08-14, el
-         propio usuario se quedó sin saldo en la key de desarrollo ese mismo día). Se elige este
-         camino por velocidad, sabiendo el cambio pendiente. -->
-    <GeminiDefaultApiKey Condition="'$(GeminiDefaultApiKey)' == ''"></GeminiDefaultApiKey>
+    <!-- AQUÍ ESTUVO LA KEY DE GEMINI (GeminiDefaultApiKey), y se quitó el 2026-09-30 (spec 076, promesa
+         688). Se embebía en cada instalador «por velocidad» desde el 2026-08-14; cuando la voz pasó a
+         GPT-Live (spec 018) NADIE volvió a leerla, pero el workflow siguió rellenándola con una clave
+         de pago de verdad. Y el instalador es público: una clave dentro es una clave publicada, la lea
+         alguien o no. Ninguna clave de terceros vuelve a entrar aquí; las de pago viven en Graph. -->
 
     <!-- Token de SOLO LECTURA con el que la carita mira si hay versión nueva. El feed pasó a vivir
          en las releases de este repo, que es privado, así que hace falta identificarse para leerlo.
@@ -82,7 +74,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <AssemblyMetadata Include="GeminiDefaultApiKey" Value="$(GeminiDefaultApiKey)" />
     <AssemblyMetadata Include="UpdateGithubToken" Value="$(UpdateGithubToken)" />
   </ItemGroup>
 
