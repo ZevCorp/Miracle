@@ -422,7 +422,38 @@ public sealed class PanelDeAcciones : Window
         var h = new WindowInteropHelper(this).Handle;
         SetWindowLong(h, GWL_EXSTYLE,
             GetWindowLong(h, GWL_EXSTYLE) | WS_EX_LAYERED | WS_EX_TOOLWINDOW);
+        HwndSource.FromHwnd(h)?.AddHook(GanchoDeActivacion);
     }
+
+    private const int WM_MOUSEACTIVATE = 0x0021;
+    private static readonly IntPtr MA_NOACTIVATE = new(3);
+
+    /// <summary>
+    /// QUÉ CONTESTA EL NOTCH CUANDO WINDOWS PREGUNTA SI UN CLIC LO ACTIVA (promesa 542, spec 066).
+    /// Compacto: «no me actives, pero dame el clic». Con el chat abierto no contesta nada, y Windows
+    /// lo activa como a cualquier ventana: ahí se escribe.
+    /// </summary>
+    /// <remarks>
+    /// LO QUE PASABA, medido el 2026-09-30: pulsar la onda para prender la voz dejaba de delante a
+    /// «Ü Acciones» en vez de la app en la que se estaba escribiendo, y había que volver a hacerle
+    /// clic. La activación ocurre ANTES de que llegue el botón (sonda 0 de la spec 061), así que no se
+    /// arregla en el manejador del clic: se arregla contestando esta pregunta.
+    ///
+    /// ES 3 Y NO 4. MA_NOACTIVATEANDEAT (4) tampoco activa, pero se come el clic: la onda dejaría de
+    /// pulsarse. Y abrir el chat no depende de esto: <see cref="EnfocarEntrada"/> pide el teclado a
+    /// mano con Activate(), que es justo lo que hace falta ahora que el clic no lo trae.
+    ///
+    /// Pura y estática para que el contrato la juzgue sin ventana.
+    /// </remarks>
+    public static IntPtr AlPreguntarSiActiva(int msg, bool chatAbierto, ref bool manejado)
+    {
+        if (msg != WM_MOUSEACTIVATE || chatAbierto) return IntPtr.Zero;
+        manejado = true;
+        return MA_NOACTIVATE;
+    }
+
+    private IntPtr GanchoDeActivacion(IntPtr hwnd, int msg, IntPtr wp, IntPtr lp, ref bool manejado) =>
+        AlPreguntarSiActiva(msg, ChatAbierto, ref manejado);
 
     /// <summary>Empieza un paso: se pinta YA, antes de saber cómo acaba. Ese instante es el tiempo real.</summary>
     public void Empieza(string texto)
