@@ -71,13 +71,27 @@ token sigue teniendo trabajo, y un riesgo:
 
 ## 3. Sacar una versión nueva
 
-Desde la pestaña Actions → **Windows release** → *Run workflow*, con la versión (SemVer, mayor que
-la publicada) y un `request_id` cualquiera. O desde la terminal:
+**Lo más corto: pedírselo a un agente.** «Publica la actualización de Windows», con o sin el
+mensaje para la persona. La skill `/publica-windows` (`.claude/skills/publica-windows/`) le dice qué
+comprobar antes, cómo lanzar, y cómo ver que la versión llega de verdad a un equipo.
+
+A mano, desde la pestaña Actions → **Windows release** → *Run workflow*, con la versión (SemVer,
+mayor que la publicada) y un `request_id` cualquiera. O desde la terminal:
 
 ```bash
-gh workflow run windows-release.yml -f version=1.1.3 -f request_id=lo-que-sea \
+gh workflow run windows-release.yml --ref main -f version=1.3.8 -f request_id=lo-que-sea \
   -f user_message="Ahora Ü recuerda mejor lo que hacemos y retoma la experiencia con más continuidad."
 ```
+
+**Las versiones solo suben.** Velopack actualiza a un número MAYOR que el instalado y a nada más. El
+2026-10-01, la víspera de instalar a los primeros usuarios, se planteó volver a empezar en `0.1`: se
+descartó porque ya había equipos en la 1.3.x —entre ellos los del hospital—, y una `0.1.0` publicada
+después de la `1.3.7` no les llegaría nunca, sin ningún error: verían «ya tienes la última versión»
+para siempre. Si un día se quiere marcar un comienzo, se salta hacia arriba (`2.0.0`), no hacia abajo.
+
+**Ensayar sin que le llegue a nadie.** Con `-f ensayo=true` el workflow hace el trabajo entero y
+publica como pre-release, que las Ü instaladas no ven. Es para cuando lo que cambia es el propio
+actualizador o este workflow; se borra después con `gh release delete <tag> --cleanup-tag --yes`.
 
 O desde **Provider Studio → Distribuir App**, que pregunta el mensaje antes de lanzar. Hasta el
 2026-09-30 no lo mandaba, GitHub rechazaba el build con un `422 Required input 'user_message' not
@@ -96,7 +110,8 @@ publicado y el `.nupkg` ausente: el cliente veía la versión, la intentaba baja
 minutos. Un release que miente es peor que uno que no ocurre.
 
 **Cliente nuevo** (primera instalación): mandale el `U-win-Setup.exe` de la release. A partir de ahí
-no vuelve a instalar nada nunca.
+no vuelve a instalar nada nunca. El enlace que siempre apunta al último:
+`https://github.com/ZevCorp/Miracle/releases/latest/download/U-win-Setup.exe`.
 
 ---
 
