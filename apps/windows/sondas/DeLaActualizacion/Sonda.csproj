@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    La sonda del banco de actualización (spec 072). Una app mínima que arranca IGUAL que la carita
+    (App.Main) y usa su módulo de actualización tal cual: los .cs de windows-client/src/Update van
+    ENLAZADOS, no copiados, así que lo que el banco aprueba es el código que se distribuye.
+
+    Existe porque el contrato no puede decir que Update.exe renombra una carpeta: eso solo lo dice
+    una instalación de Velopack de verdad. Y la carita entera tarda minuto y medio en empaquetarse y
+    pinta ventanas; esta pesa 2 MB y recorre un escenario en quince segundos.
+
+    Lo corre scripts\banco-de-actualizacion.ps1. No se distribuye ni la compila el portero.
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Sonda</AssemblyName>
+    <RootNamespace>Sonda</RootNamespace>
+    <UpdateGithubToken Condition="'$(UpdateGithubToken)' == ''"></UpdateGithubToken>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\windows-client\src\Update\*.cs" LinkBase="Update" />
+    <!-- La misma versión que WindowsClient.csproj: probar el update con otro Velopack no prueba nada. -->
+    <PackageReference Include="Velopack" Version="1.2.0" />
+    <!-- Igual que la carita, para poder ensayar un token embebido que GitHub rechaza (promesa 643). -->
+    <AssemblyMetadata Include="UpdateGithubToken" Value="$(UpdateGithubToken)" />
+  </ItemGroup>
+
+</Project>

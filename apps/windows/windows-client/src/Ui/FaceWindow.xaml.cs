@@ -1569,7 +1569,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             InstallId = _config.InstallId,
             DisplayName = _config.DisplayName,
             AppId = _graphConfig.AppId,
-            AppVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "",
+            // La instalada, no la del ensamblado: el panel decía 1.0.0.0 para todos los equipos (promesa 642).
+            AppVersion = Updater.VersionDeclarada(
+                ArranqueDeActualizacion.VersionInstalada,
+                System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString()),
             MachineName = Environment.MachineName,
             OsVersion = Environment.OSVersion.VersionString
         };
@@ -1583,11 +1586,11 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
     /// <summary>
     /// Arranca el sondeo de versiones nuevas. El usuario no toca nada: si aparece una, se descarga en
-    /// segundo plano y recién ahí asoma la pastilla. Ver <see cref="Updater"/>.
+    /// segundo plano y el botón de actualizar del panel se enciende. Ver <see cref="Updater"/>.
     /// </summary>
     private void StartUpdater()
     {
-        _updater = new Updater(_config.UpdateFeedUrl);
+        _updater = new Updater(_config.UpdateFeedUrl, App.CarpetaDelRastroDeActualizacion);
         VersionText.Text = $"Versión {_updater.CurrentVersion}";
         // UpdateReady llega desde un hilo del pool, no del Dispatcher: tocar la UI directo reventaría.
         // QUÉ versión es ya no se dice al pasar el ratón (promesa 164): el ⬇ dice que hay algo nuevo
@@ -1595,15 +1598,48 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         _updater.UpdateReady += info => Dispatcher.Invoke(() =>
         {
             _mensajeDeActualizacion = info.Message;
-            ShowUpdate(true);
+            PintarBotonDeActualizar();
             SetStatus($"Hay una actualización lista: {info.Version}.");
         });
         _updater.Start();
+        PintarBotonDeActualizar();
+
+        // LO QUE PASÓ CON EL TOQUE ANTERIOR. Quien pulsó actualizar vio a Ü cerrarse y volver: tiene que
+        // saber si volvió en la versión nueva o no, y hasta hoy volver en la vieja era idéntico a no haber
+        // pulsado. Solo se cuenta el intento que pidió la persona; los que Ü hace sola al cerrar o al
+        // arrancar van al log, que es donde se mira un equipo que no se actualiza.
+        var intento = ArranqueDeActualizacion.UltimoVeredicto;
+        if (intento.Via == "pastilla" && intento.Que != ResultadoDelIntento.SinIntento)
+        {
+            SetStatus(BotonDeActualizar.FraseDelIntento(intento));
+            MostrarConversacion(intento.Que == ResultadoDelIntento.Aplicada ? MotivoDelGlobo.SoloEsProgreso : MotivoDelGlobo.AlgoFallo);
+        }
     }
 
-    private void OnApplyUpdate(object sender, RoutedEventArgs e)
+    /// <summary>El botón de actualizar del panel. Qué hace cada toque lo decide <see cref="BotonDeActualizar"/>.</summary>
+    private void OnActualizar(object sender, RoutedEventArgs e)
     {
+        var estado = BotonDeActualizar.Estado(_updater?.ReadyInfo != null, _actualizando);
+        if (BotonDeActualizar.AlPulsar(estado) == GestoDelBoton.Nada) return;
         _ = AplicarActualizacionConNarrativaAsync();
+    }
+
+    /// <summary>
+    /// El dibujo dice el estado: en reposo, con la tinta de los demás iconos; con una versión lista, en
+    /// el color de acento y con su punto; mientras trabaja, a media tinta.
+    /// </summary>
+    private void PintarBotonDeActualizar()
+    {
+        if (ActualizarBtn == null) return;
+        var estado = BotonDeActualizar.Estado(_updater?.ReadyInfo != null, _actualizando);
+        var tinta = estado == EstadoDelBoton.HayVersionLista ? Estudio.Acento : Estudio.Tinta;
+        ActualizarFlecha.Stroke = tinta;
+        ActualizarBandeja.Stroke = tinta;
+        ActualizarPunto.Fill = Estudio.Acento;
+        ActualizarPunto.Visibility = estado == EstadoDelBoton.HayVersionLista ? Visibility.Visible : Visibility.Collapsed;
+        ActualizarDibujo.Opacity = estado == EstadoDelBoton.Trabajando ? 0.45 : 1;
+        System.Windows.Automation.AutomationProperties.SetName(ActualizarBtn,
+            BotonDeActualizar.Nombre(estado, _updater?.ReadyInfo?.Version));
     }
 
     /// <summary>Flujo visible y hablado: morado mientras se instala, mensaje del release y reinicio.</summary>
@@ -1612,6 +1648,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         if (_actualizando || _updater == null) return;
         _actualizando = true;
         PintarHalo();
+        PintarBotonDeActualizar();
         try
         {
             if (_updater.ReadyInfo == null)
@@ -1623,9 +1660,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 {
                     _actualizando = false;
                     PintarHalo();
-                    Speak(resultado.Que == Updater.Busqueda.AlDia
-                        ? "Ya estoy al día. No hay una actualización nueva para instalar."
-                        : $"No pude actualizarme: {resultado.Detalle}.");
+                    PintarBotonDeActualizar();
+                    Speak(BotonDeActualizar.FraseDeLaBusqueda(resultado.Que, resultado.Detalle));
                     return;
                 }
             }
@@ -1642,7 +1678,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         {
             _actualizando = false;
             PintarHalo();
-            LogBus.Log("update", $"actualización pedida por voz falló: {ex.Message}");
+            PintarBotonDeActualizar();
+            LogBus.Log("update", $"aplicar la actualización falló antes de reiniciar — {ex.GetType().Name}: {ex.Message}");
             Speak("No pude completar la actualización, pero sigo aquí. Puedes intentarlo de nuevo.");
         }
     }
@@ -1670,8 +1707,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             SetStatus(que switch
             {
                 Updater.Busqueda.AlDia => $"Ya tienes la última versión ({detalle}).",
-                Updater.Busqueda.Descargada => $"Versión {detalle} descargada. Pulsa ⬇ para escuchar qué trae y reiniciar.",
-                Updater.Busqueda.YaEstabaLista => $"La versión {detalle} ya estaba lista. Pulsa ⬇ para reiniciar.",
+                Updater.Busqueda.Descargada => $"Versión {detalle} descargada. Pulsa el botón de actualizar del panel para escuchar qué trae y reiniciar.",
+                Updater.Busqueda.YaEstabaLista => $"La versión {detalle} ya estaba lista. Pulsa el botón de actualizar del panel para reiniciar.",
                 Updater.Busqueda.NoAplica => $"No se puede actualizar: {detalle}.",
                 _ => $"No pude comprobarlo: {detalle}",
             });
@@ -1680,7 +1717,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     }
 
     /// <summary>
-    /// Si el usuario nunca tocó la pastilla, la versión descargada se instala al cerrar: el próximo
+    /// Si el usuario nunca tocó el botón de actualizar, la versión descargada se instala al cerrar: el próximo
     /// arranque ya es la nueva, sin que él haya hecho nada.
     /// </summary>
     protected override void OnClosed(EventArgs e)
@@ -2113,16 +2150,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         UpdateContextZone();
     }
 
-    private void ShowUpdate(bool on)
-    {
-        UpdateBtn.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
-        UpdateContextZone();
-    }
-
     /// <summary>La zona vive solo mientras haya algo dentro; si no, se lleva su separador con ella.</summary>
     private void UpdateContextZone() =>
         ContextZone.Visibility =
-            UpdateBtn.Visibility == Visibility.Visible ||
             StopBtn.Visibility == Visibility.Visible ||
             RestartTeachBtn.Visibility == Visibility.Visible
                 ? Visibility.Visible : Visibility.Collapsed;
@@ -2211,9 +2241,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // el mismo gris —lo que hice el 2026-09-05— borró el color de dos que SÍ lo tenían:
         // «hay versión nueva» era azul y «detener» era rojo, y los dejé grises a los dos. El color
         // ahí no es adorno: es lo único que distingue un botón que informa de uno que interrumpe.
-        UpdateBtn.Background = Estudio.AcentoSuave;   // hay algo nuevo
+        // (El de «hay versión nueva» ya no es una pastilla: es el botón fijo de actualizar, que dice lo
+        // mismo con su trazo en el color de acento. Ver PintarBotonDeActualizar.)
         StopBtn.Background = Estudio.AlertaSuave;     // esto para lo que está pasando
-        UpdateBtn.Foreground = Estudio.Acento;
         StopBtn.Foreground = Estudio.Alerta;
 
         // Y LOS NEUTROS, SIN FONDO NINGUNO (2026-09-06, lo pidió el dueño mirando el del collar:
@@ -2225,7 +2255,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // nada — y desde que 📍 nace APAGADO, un interruptor cuyo estado de reposo no se ve es un
         // interruptor que no se encuentra.
         foreach (var b in new System.Windows.Controls.Primitives.ButtonBase[]
-                 { RestartTeachBtn, ComprobarBtn, MenuActivator, CollarModoBtn, LadoBtn,
+                 { RestartTeachBtn, ComprobarBtn, MenuActivator, CollarModoBtn, ActualizarBtn, LadoBtn,
                    InspectorBtn, LocatorBtn, RecuerdosBtn, LogsBtn })
         {
             b.Foreground = Estudio.Tinta;
@@ -2242,6 +2272,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         LadoHojaIzquierda.Stroke = Estudio.Tinta;
         LadoHojaDerecha.Stroke = Estudio.Tinta;
         PintarBotonDeLado();
+        PintarBotonDeActualizar();
 
         SepContexto.Background = Estudio.Borde;
         SepBarra.Background = Estudio.Borde;

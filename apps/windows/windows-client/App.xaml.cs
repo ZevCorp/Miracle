@@ -38,11 +38,23 @@ public partial class App : Application
             // `OnFirstRun`, sin límite de tiempo, como red de seguridad si alguno de los dos
             // «FastCallback» no llegara a dispararse. Los tres llaman al mismo método idempotente:
             // repetirlo sólo vuelve a escribir el mismo archivo.
+            //
+            // SIN EL AUTO-APLICAR DE VELOPACK (spec 072, 2026-09-30): lo hace `ArranqueDeActualizacion`,
+            // tres líneas más abajo, que sabe si hay otra Ü trabajando y deja rastro del intento. El de
+            // Velopack corre aquí dentro, antes que la guardia de instancia, y mataba a la carita que ya
+            // estaba abierta cuando alguien pulsaba el icono de la consulta.
             VelopackApp.Build()
+                .SetAutoApplyOnStartup(false)
                 .OnAfterInstallFastCallback(_ => CrearAccesoDirectoDeConsulta())
                 .OnAfterUpdateFastCallback(_ => CrearAccesoDirectoDeConsulta())
                 .OnFirstRun(_ => CrearAccesoDirectoDeConsulta())
                 .Run();
+
+            // Antes de lanzar nada: lo que Ü abra desde aquí hereda la carpeta de trabajo, y si es la de
+            // instalación Update.exe no puede renombrarla mientras ese programa siga abierto.
+            Update.CarpetaDeTrabajo.Soltar(AppContext.BaseDirectory);
+            Update.ArranqueDeActualizacion.Correr(CarpetaDelRastroDeActualizacion,
+                Path.Combine(U.Graph.UserPaths.LocalDeWindows, "velopack"), args);
 
             string identidad = GuardiaDeInstancia.IdentidadDelProceso();
             Guid escritorio = EscritorioVirtual.Actual();
@@ -65,6 +77,12 @@ public partial class App : Application
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
+
+    /// <summary>
+    /// Dónde se anota cada intento de actualizar: con los demás datos de la persona, que respetan
+    /// <c>U_DATA_DIR</c> y quedan fuera de la carpeta <c>current</c> que Velopack reemplaza.
+    /// </summary>
+    internal static string CarpetaDelRastroDeActualizacion => Path.Combine(U.Graph.UserPaths.Local, "U");
 
     protected override void OnStartup(StartupEventArgs e)
     {
