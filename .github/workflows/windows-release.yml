@@ -5,7 +5,7 @@ name: Windows release
 # la subida automática a Supabase (`vpk upload s3`) que ese script hoy deja
 # manual. Ver RELEASING-WINDOWS.md para el flujo de referencia.
 
-run-name: "Windows release ${{ inputs.version }} (${{ inputs.request_id }}) [${{ inputs.dry_run == true && 'dry-run' || 'real' }}]"
+run-name: "Windows release ${{ inputs.version }} (${{ inputs.request_id }}) [${{ inputs.dry_run == true && 'dry-run' || (inputs.ensayo == true && 'ensayo' || 'real') }}]"
 
 on:
   workflow_dispatch:
@@ -24,6 +24,16 @@ on:
         type: string
       dry_run:
         description: "Solo probar el pipeline (sin publish/pack/upload reales)"
+        required: false
+        type: boolean
+        default: false
+      # EL ENSAYO (2026-10-01). El dry-run no compila ni empaqueta: no prueba nada de lo que puede
+      # fallar. Esto hace el trabajo ENTERO —compila con los secretos, baja la anterior, empaqueta
+      # con su delta, sube y comprueba— y publica como PRE-RELEASE, que las Ü instaladas no ven
+      # (consultan con `prerelease: false`) y que Graph tampoco cuenta como «la última». Sirve para
+      # ensayar un cambio en este workflow, o un build, sin que le llegue a nadie. Se borra después.
+      ensayo:
+        description: "Ensayo: el trabajo entero, publicado como pre-release que las Ü instaladas no ven"
         required: false
         type: boolean
         default: false
@@ -101,9 +111,39 @@ jobs:
           # la MISMA key en cada copia distribuida. Decisión consciente 2026-08-14: lo ideal es que
           # el backend la emita por sesión, como ya hace con Soniox; se embebe por velocidad).
           GeminiDefaultApiKey: ${{ secrets.GEMINI_DEFAULT_API_KEY }}
+        # -p:Version SELLA LA VERSIÓN EN EL BINARIO (2026-09-30). Sin esto todos los U.exe decían
+        # 1.0.0.0, que es lo que la telemetría mandaba al panel: 36 equipos con la misma versión y
+        # ninguna forma de saber a quién le había llegado una release.
         run: >
           dotnet publish windows-client\WindowsClient.csproj
           -c Release -r win-x64 --self-contained true -o out\assistant
+          -p:Version=${{ inputs.version }}
+
+      # LA RELEASE ANTERIOR, PARA QUE HAYA DELTA (2026-09-30).
+      #
+      # `vpk pack` genera el delta comparando contra el paquete anterior, y solo si lo tiene delante.
+      # Este paso no existía: cada release salía con el -full.nupkg nada más, y cada equipo bajaba
+      # los 83 MB enteros en cada actualización —seis minutos en una red lenta, medidos el
+      # 2026-09-28—, mientras RELEASING-WINDOWS.md prometía «deltas de KB». En el banco, con la
+      # anterior delante, el delta entre dos builds iguales pesa 3 KB frente a 2 MB.
+      #
+      # NO TUMBA LA PUBLICACIÓN: si no se puede bajar, la release sale sin delta —como hasta hoy— y
+      # el cliente cae solo al paquete completo. Se dice en el log para que no parezca que lo hubo.
+      - name: Bajar la release anterior (base del delta)
+        if: ${{ inputs.dry_run != true }}
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          vpk download github -o out\releases -c win `
+            --repoUrl https://github.com/${{ github.repository }} `
+            --token $env:GITHUB_TOKEN
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::no se pudo bajar la release anterior (codigo $LASTEXITCODE): esta version saldra SIN delta"
+            $global:LASTEXITCODE = 0
+          } else {
+            Get-ChildItem out\releases -Filter *.nupkg | ForEach-Object { Write-Host "base del delta: $($_.Name)" }
+          }
 
       - name: Empaquetar con Velopack
         if: ${{ inputs.dry_run != true }}
@@ -169,12 +209,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # --targetCommitish: la etiqueta apunta al commit que se compiló. Sin él apunta a la punta de
+          # main, que en un ensayo lanzado desde una rama es OTRO código que el del paquete.
+          $extra = @()
+          if ('${{ inputs.ensayo }}' -eq 'true') { $extra += '--pre' }
           vpk upload github -o out/releases -c win `
             --repoUrl https://github.com/${{ github.repository }} `
             --token $env:GITHUB_TOKEN `
             --tag v${{ inputs.version }} `
             --releaseName "U ${{ inputs.version }}" `
-            --publish --merge
+            --targetCommitish ${{ github.sha }} `
+            --publish --merge @extra
           if ($LASTEXITCODE -ne 0) { throw "la publicacion fallo (codigo $LASTEXITCODE): NO hay release" }
 
           # QUE LA RELEASE NO ANUNCIE LO QUE NO TIENE. La vez anterior la subida
@@ -183,12 +228,22 @@ jobs:
           # version cuyo paquete no existia: el cliente la veia, la intentaba
           # bajar y fallaba cada 30 minutos. Un release que miente es peor que
           # uno que no ocurre.
-          $esperado = (Get-Content out/releases/releases.win.json | ConvertFrom-Json).Assets[0].FileName
+          #
+          # SE COMPRUEBA CADA ARCHIVO DE ESTA VERSION, no el primero de la lista (2026-09-30): desde
+          # que hay delta el indice anuncia dos paquetes por version, y `.Assets[0]` solo miraba uno.
+          $indice = (Get-Content out/releases/releases.win.json | ConvertFrom-Json).Assets
+          $deEsta = @($indice | Where-Object { $_.Version -eq '${{ inputs.version }}' })
+          if ($deEsta.Count -eq 0) { throw "el indice no anuncia la version ${{ inputs.version }}: no hay nada que comprobar" }
           $publicados = gh release view v${{ inputs.version }} --json assets --jq '.assets[].name'
-          if ($publicados -notcontains $esperado) {
-            throw "la release anuncia $esperado pero ese archivo no esta subido"
+          foreach ($a in $deEsta) {
+            if ($publicados -notcontains $a.FileName) {
+              throw "la release anuncia $($a.FileName) pero ese archivo no esta subido"
+            }
+            Write-Host "release coherente: $($a.FileName) ($($a.Type), $([math]::Round($a.Size / 1MB, 1)) MB) esta publicado"
           }
-          Write-Host "release coherente: $esperado esta publicado"
+          if (-not ($deEsta | Where-Object { $_.Type -eq 'Delta' })) {
+            Write-Host "::warning::la version ${{ inputs.version }} sale SIN delta: cada equipo bajara el paquete completo"
+          }
           gh release upload v${{ inputs.version }} out/release-message.json --clobber
 
       - name: Smoke test (dry run)

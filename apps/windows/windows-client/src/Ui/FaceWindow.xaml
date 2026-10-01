@@ -496,11 +496,9 @@
                              separador se colapse con ella (si no, queda una raya flotando sobre nada)
                              y para que su visibilidad se decida en UN sitio: UpdateContextZone(). -->
                         <StackPanel x:Name="ContextZone" Visibility="Collapsed">
-                            <!-- Pastilla de actualización: oculta salvo que ya haya una versión descargada
-                                 y lista. Si el usuario la ignora, se aplica sola al cerrar (ApplyOnExit). -->
-                            <Button x:Name="UpdateBtn" Content="⬇" Style="{StaticResource BarBtn}"
-                                    Margin="0" Background="#553B82F6" Visibility="Collapsed" Click="OnApplyUpdate"
-                                    AutomationProperties.Name="Aplicar la actualización"/>
+                            <!-- Aquí vivió la pastilla ⬇ de «hay versión lista». Desde el 2026-10-01
+                                 actualizar tiene un botón fijo abajo, ActualizarBtn (promesa 646): dos
+                                 botones para lo mismo es no saber cuál pulsar. -->
 
                             <!-- Solo visible mientras ejecuta algo: detener es detener, también la voz. -->
                             <Button x:Name="StopBtn" Content="⏹" Style="{StaticResource BarBtn}"
@@ -569,6 +567,31 @@
                                       Data="M 5,4 C 5,11.2 15,11.2 15,4"/>
                                 <Ellipse x:Name="CollarPunto" Canvas.Left="7.6" Canvas.Top="11.4"
                                          Width="4.8" Height="4.8" Fill="#E8FFFFFF"/>
+                            </Canvas>
+                        </Button>
+
+                        <!-- ACTUALIZAR Ü (promesa 646; lo pidió el dueño el 2026-10-01: «un icono con buen
+                             estilo como el del último panel, para que los usuarios actualicen la app»).
+                             Siempre aquí, y un toque hace el trabajo entero: si hay versión descargada
+                             la aplica, y si no, busca, descarga y aplica. Antes eran 🔄 en el panel de
+                             desarrollo y una pastilla ⬇ que solo existía a ratos.
+
+                             Mismo lápiz que el collar —trazo de 1,5, extremos redondos, sin emoji—: una
+                             flecha que baja a su bandeja. El dibujo dice el estado sin cartel (promesa
+                             164): en reposo, con la tinta de los demás; con una versión lista, en el
+                             color de acento y con un punto arriba, como la pieza del collar; mientras
+                             trabaja, a media tinta. Lo pinta PintarBotonDeActualizar. -->
+                        <Button x:Name="ActualizarBtn" Style="{StaticResource BarBtn}" Click="OnActualizar"
+                                AutomationProperties.Name="Buscar una versión nueva de Ü">
+                            <Canvas x:Name="ActualizarDibujo" Width="20" Height="20">
+                                <Path x:Name="ActualizarFlecha" Stroke="#E8FFFFFF" StrokeThickness="1.5"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                      Data="M 10,3.2 L 10,12 M 6.4,8.5 L 10,12.1 L 13.6,8.5"/>
+                                <Path x:Name="ActualizarBandeja" Stroke="#E8FFFFFF" StrokeThickness="1.5"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                      Data="M 4.4,13.4 L 4.4,16.4 L 15.6,16.4 L 15.6,13.4"/>
+                                <Ellipse x:Name="ActualizarPunto" Canvas.Left="15.4" Canvas.Top="0"
+                                         Width="4.8" Height="4.8" Fill="#E8FFFFFF" Visibility="Collapsed"/>
                             </Canvas>
                         </Button>
 

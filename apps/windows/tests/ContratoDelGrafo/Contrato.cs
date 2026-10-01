@@ -968,7 +968,9 @@ internal static class Contrato
         // falle: callarse un almacén, enseñar como vacío uno que no pudo leer, o enseñar la clave que vive
         // en el mismo archivo que el nombre. Por eso lo que se juzga es lo que la ventana va a pintar.
         Console.WriteLine();
-        Prueba("620. el panel en reposo ofrece tres botones y nada más: «Memoria», el collar y el de cambiar de lado; Learn, Work, Subir y Jev ya no están en él", ElPanelTieneTresBotones);
+        // La 620 nació con «tres botones». El 2026-10-01 el dueño pidió el cuarto, el de actualizar, con el dibujo
+        // del mismo lápiz que los otros (spec 072): el enunciado cambia con él, y el número se queda.
+        Prueba("620. el panel en reposo ofrece cuatro botones y nada más: «Memoria», el collar, el de actualizar y el de cambiar de lado; Learn, Work, Subir y Jev ya no están en él", ElPanelTieneTresBotones);
         Prueba("621. lo que salió del panel no se pierde: subir estudios y encender Jev siguen teniendo su puerta en el panel de desarrollo, con el mismo manejador", LoQueSalioDelPanelNoSePierde);
         Prueba("622. la Memoria cuenta TODO lo que Ü guarda de ti: cada almacén tiene su apartado con su cuenta, y un almacén sin nada dice «todavía nada» en vez de desaparecer", LaMemoriaCuentaTodoLoGuardado);
         Prueba("623. un almacén que no se pudo leer dice que no se pudo leer y por qué; no se enseña como vacío", LoQueNoSePudoLeerSeDice);
@@ -984,6 +986,21 @@ internal static class Contrato
         // la derecha de la pantalla. Hasta ese día el muelle vivía clavado al borde derecho.
         Prueba("629. el panel se puede mandar al otro lado de la pantalla: a la izquierda queda a la misma distancia de su borde que tenía del derecho y entra desde ese borde; el lado elegido es el que se encuentra al volver a abrir Ü, y un lado guardado que no se entiende es la derecha", ElPanelCambiaDeLado);
 
+        // LA ACTUALIZACIÓN LLEGA, Y CUANDO NO LLEGA LO DICE (spec 072, 2026-09-30). En los equipos reales la versión
+        // nueva se descargaba y no se aplicaba: cquintero bajó la 1.3.5 tres veces en dos días. Reproducido con
+        // Velopack de verdad: un programa abierto por Ü hereda su carpeta de trabajo, `current`, y mientras vive
+        // Update.exe no puede renombrarla. Volvía la versión vieja sin una línea en el log. Las 620-629 son de la
+        // spec 071.
+        Prueba("640. al arrancar, Ü suelta su carpeta de instalación: si la carpeta de trabajo del proceso está dentro, pasa a la primera candidata que existe y queda fuera, así que un programa que Ü abra sin carpeta propia no hereda `current` ni le impide a Velopack renombrarla; si ya estaba fuera no se toca, y una carpeta vecina cuyo nombre empieza igual no cuenta como dentro", USueltaSuCarpetaDeInstalacion);
+        Prueba("641. un intento de aplicar deja rastro antes de empezar, y el arranque siguiente lo juzga: con la versión que se quería, «aplicada»; con la de antes, «no se aplicó» y la causa leída del log de Velopack —su línea de error, cuántas veces reintentó—; sin log, o con un log sin ese intento, lo dice tal cual en vez de inventar una causa; el rastro se consume, así que un mismo intento no se juzga dos veces", UnIntentoDeAplicarDejaRastro);
+        Prueba("642. la versión que Ü declara es la instalada: la de Velopack cuando hay instalación y la del ensamblado solo cuando no la hay; vacío no es ausente, y sin ninguna de las dos dice «dev»", LaVersionDeclaradaEsLaInstalada);
+        Prueba("643. si GitHub rechaza el token embebido (401 o 403), Ü busca la actualización sin token en vez de rendirse; cualquier otro fallo —sin red, 404, 500— no pasa por ese camino", UnTokenRechazadoNoDejaSinActualizar);
+        Prueba("644. abrir Ü por segunda vez no mata a la que ya está trabajando: al arrancar, la actualización descargada se aplica solo si no hay otra Ü viva de la misma instalación —la ruta se compara sin mirar mayúsculas, y una Ü de otra carpeta no cuenta—; y tras un intento que acaba de fallar no se reintenta en ese mismo arranque, para no entrar en bucle", AbrirOtraVezNoMataALaQueTrabaja);
+        // EL REPO CAMBIA DE NOMBRE (2026-10-01): es un monorepo y ya no se llama «U-Windows-App». Las Ü instaladas
+        // llevan escrito el nombre viejo; GitHub lo redirige, pero una versión que no supiera caer al otro nombre
+        // dependería de que el cambio y la versión salieran en un orden exacto.
+        Prueba("645. el feed se busca por el nombre nuevo del repositorio y, si GitHub contesta que no existe (404), por el anterior; una dirección guardada con un nombre viejo pasa a la nueva al cargar, y una puesta a mano se respeta", ElFeedSobreviveAlCambioDeNombre);
+        Prueba("646. el botón de actualizar del panel hace el trabajo entero con un toque: con una versión lista la aplica, sin ella busca, descarga y aplica, y mientras trabaja un segundo toque no hace nada; su dibujo dice el estado —en reposo, trabajando, hay versión— y cada desenlace tiene su frase, también la del intento que no llegó a aplicarse", ElBotonDeActualizarHaceElTrabajoEntero);
         // LA VOZ AL PRIMER CLIC (spec 075, 2026-10-01). «Se demora varios segundos en aparecer la estela y muchos
         // más en que me escuche… la cliqueo para cerrarla y no se cierra, me toca volver a hacer clic». Medido en
         // main con un juez de fuera: estela a los 666–1.027 ms del clic, sesión confirmada a los 1.509–1.902, y lo
@@ -11016,6 +11033,357 @@ internal static class Contrato
             Debe(V(nombre) is Type v && DeTrabajo(v), $"«{nombre}» es una ventana de trabajo: sigue saliendo en Alt+Tab, que es donde se la busca");
     }
 
+    // ── Spec 072: la actualización llega, y cuando no llega lo dice ──────────
+
+    /// <summary>Promesa 640.</summary>
+    private static void USueltaSuCarpetaDeInstalacion()
+    {
+        var t = Capacidad("U.WindowsClient.Update.CarpetaDeTrabajo");
+        var soltar = t?.GetMethod("Soltar", new[] { typeof(string), typeof(string[]) });
+        var estaDentro = t?.GetMethod("EstaDentro", new[] { typeof(string), typeof(string) });
+        if (soltar == null || estaDentro == null) { Pendiente("Update.CarpetaDeTrabajo.Soltar/EstaDentro", "640", "072"); return; }
+        string Soltar(string instalacion, params string[] candidatas) => (string)soltar.Invoke(null, new object[] { instalacion, candidatas })!;
+        bool Dentro(string carpeta, string de) => (bool)estaDentro.Invoke(null, new object[] { carpeta, de })!;
+        static bool Misma(string a, string b) => string.Equals(
+            Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar), Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
+
+        // La forma de una instalación de Velopack: <raíz>\current es lo que Update.exe renombra al actualizar.
+        string raiz = Path.Combine(_raiz, "carpeta-de-trabajo");
+        string current = Path.Combine(raiz, "U", "current");
+        string dentro = Path.Combine(current, "runtimes");
+        string vecina = Path.Combine(raiz, "U", "current-vieja");
+        string fuera = Path.Combine(raiz, "perfil");
+        string otra = Path.Combine(raiz, "otra");
+        foreach (string d in new[] { dentro, vecina, fuera, otra }) Directory.CreateDirectory(d);
+
+        string antes = Environment.CurrentDirectory;
+        try
+        {
+            // El acceso directo que crea el instalador arranca a Ü con la carpeta de trabajo en current.
+            Environment.CurrentDirectory = current;
+            string donde = Soltar(current, fuera);
+            Debe(Misma(Environment.CurrentDirectory, fuera) && Misma(donde, fuera),
+                "arrancada desde su acceso directo —carpeta de trabajo = current—, Ü pasa a la candidata de fuera, y dice a cuál");
+
+            Environment.CurrentDirectory = dentro;
+            Soltar(current, fuera);
+            Debe(Misma(Environment.CurrentDirectory, fuera), "desde una subcarpeta de la instalación también se suelta");
+
+            Environment.CurrentDirectory = otra;
+            Soltar(current, fuera);
+            Debe(Misma(Environment.CurrentDirectory, otra), "si ya estaba fuera no se toca: quien lanzó a Ü desde otra carpeta la conserva");
+
+            Environment.CurrentDirectory = vecina;
+            Soltar(current, fuera);
+            Debe(Misma(Environment.CurrentDirectory, vecina),
+                "«current-vieja» empieza igual que «current» y no es la instalación: comparar por prefijo de texto la daría por dentro");
+            Debe(Dentro(dentro, current) && Dentro(current, current) && !Dentro(vecina, current) && !Dentro(fuera, current),
+                "dentro es la carpeta misma o lo que cuelga de ella; ni la vecina ni la de fuera");
+
+            Environment.CurrentDirectory = current;
+            Soltar(current.ToUpperInvariant() + Path.DirectorySeparatorChar, Path.Combine(raiz, "no-existe"), dentro, fuera);
+            Debe(Misma(Environment.CurrentDirectory, fuera),
+                "se elige la primera candidata que EXISTE y queda FUERA —la que no existe y la que está dentro se saltan—, y la instalación dicha con otras mayúsculas y barra final es la misma carpeta");
+
+            Environment.CurrentDirectory = current;
+            string sola = Soltar(current);
+            Debe(!Dentro(Environment.CurrentDirectory, current) && Directory.Exists(sola),
+                "sin candidatas elige ella una carpeta que existe y queda fuera: en la app de verdad nadie se las pasa");
+
+            // LO QUE CIERRA EL ASUNTO: el hijo. Así lanza Ü un navegador o una app del menú Inicio —sin carpeta de
+            // trabajo—, y es ese proceso, vivo horas, el que le sujetaba `current` a Update.exe.
+            Environment.CurrentDirectory = current;
+            Soltar(current, fuera);
+            using var hijo = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c cd")
+            { UseShellExecute = false, RedirectStandardOutput = true, CreateNoWindow = true })!;
+            string carpetaDelHijo = hijo.StandardOutput.ReadToEnd().Trim();
+            hijo.WaitForExit(5000);
+            Debe(Directory.Exists(carpetaDelHijo) && !Dentro(carpetaDelHijo, current),
+                $"un programa lanzado sin carpeta propia nace fuera de la instalación (nació en «{carpetaDelHijo}»)");
+        }
+        finally { Environment.CurrentDirectory = antes; }
+    }
+
+    /// <summary>
+    /// Lo que Update.exe dejó escrito el 2026-09-30 cuando no pudo renombrar `current` (banco de actualización,
+    /// escenario S2). Son sus líneas, sin tocar: diez reintentos y el error, seguidas del arranque de la app vieja.
+    /// </summary>
+    private const string LogDeVelopackQueNoPudoRenombrar =
+        "[update:33596] [22:08:51] [INFO] Command: Apply\n" +
+        "[update:33596] [22:08:51] [INFO]     Restart: true\n" +
+        "[update:33596] [22:08:51] [INFO]     Wait: WaitPid(30448)\n" +
+        "[update:33596] [22:08:51] [INFO] Applying package 9.0.2 to current: 9.0.1\n" +
+        "[update:33596] [22:08:52] [INFO] Backing up current dir to \"C:\\\\U-banco\\\\inst\\\\packages\\\\VelopackTemp\\\\tmp_tG3VB9gQm8DQd1Xd\"\n" +
+        "[update:33596] [22:08:52] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:53] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:54] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:55] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:56] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:57] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:58] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:59] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:09:00] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:09:01] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:09:02] [ERROR] Apply error: Error applying package: Unable to start the update, because one or more running processes prevented it. Try again later, or if the issue persists, restart your computer.\n" +
+        "[update:33596] [22:09:02] [ERROR] An error has occurred: Apply error: Error applying package: Unable to start the update, because one or more running processes prevented it. Try again later, or if the issue persists, restart your computer.\n" +
+        "[lib-csharp:38452] [22:09:03] [Information] Initialized WindowsVelopackLocator for USonda v9.0.1\n" +
+        "[lib-csharp:38452] [22:09:03] [Information] Starting VelopackApp.Run (library version 1.2.0).\n";
+
+    /// <summary>Promesa 641.</summary>
+    private static void UnIntentoDeAplicarDejaRastro()
+    {
+        var t = Capacidad("U.WindowsClient.Update.RastroDeActualizacion");
+        var anotar = t?.GetMethod("Anotar", new[] { typeof(string), typeof(string), typeof(string), typeof(string) });
+        var juzgar = t?.GetMethod("Juzgar", new[] { typeof(string), typeof(string), typeof(string) });
+        if (anotar == null || juzgar == null) { Pendiente("Update.RastroDeActualizacion.Anotar/Juzgar", "641", "072"); return; }
+        void Anotar(string carpeta, string desde, string hacia, string via) => anotar.Invoke(null, new object[] { carpeta, desde, hacia, via });
+        object Juzgar(string carpeta, string actual, string? log) => juzgar.Invoke(null, new object?[] { carpeta, actual, log })!;
+        static string Que(object v) => Prop(v, "Que")!.ToString()!;
+        static string Causa(object v) => (string)Prop(v, "Causa")!;
+
+        string carpeta = Path.Combine(_raiz, "rastro-de-actualizacion");
+        Directory.CreateDirectory(carpeta);
+
+        Debe(Que(Juzgar(carpeta, "1.3.6", LogDeVelopackQueNoPudoRenombrar)) == "SinIntento",
+            "sin rastro no se juzga nada: un arranque cualquiera no es un intento, por más errores viejos que tenga el log");
+
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        var bien = Juzgar(carpeta, "1.3.7", null);
+        Debe(Que(bien) == "Aplicada" && (string)Prop(bien, "Desde")! == "1.3.6" && (string)Prop(bien, "Hacia")! == "1.3.7"
+             && (string)Prop(bien, "Via")! == "pastilla",
+            "arrancar en la versión que se quería es «aplicada», y el veredicto dice de cuál a cuál y por qué camino");
+        Debe(Que(Juzgar(carpeta, "1.3.7", null)) == "SinIntento", "el rastro se consume: el mismo intento no se cuenta dos veces");
+
+        Anotar(carpeta, "1.3.6", "1.3.7", "al cerrar");
+        var mal = Juzgar(carpeta, "1.3.6", LogDeVelopackQueNoPudoRenombrar);
+        Debe(Que(mal) == "NoAplicada", "arrancar en la versión de antes es «no se aplicó»: esto es lo que hasta hoy no dejaba ni una línea");
+        Debe(Causa(mal).Contains("one or more running processes prevented it"),
+            $"y la causa es la línea de error de Update.exe, citada, no una frase nuestra (dijo: «{Causa(mal)}»)");
+        Debe(Causa(mal).Contains("10"), "con cuántas veces reintentó antes de rendirse: diez, que son diez segundos de arranque perdidos");
+        Debe(Que(Juzgar(carpeta, "1.3.6", LogDeVelopackQueNoPudoRenombrar)) == "SinIntento", "y el fallo tampoco se cuenta dos veces");
+
+        // TRES SITUACIONES, TRES FRASES (patrón nº2). Un mensaje que no distingue sus causas manda la investigación
+        // al sitio equivocado: «no hay log» se arregla en un sitio, «Update.exe ni arrancó» en otro.
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        string sinLog = Causa(Juzgar(carpeta, "1.3.6", null));
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        string sinIntento = Causa(Juzgar(carpeta, "1.3.6",
+            "[lib-csharp:1] [10:00:00] [Information] Starting VelopackApp.Run (library version 1.2.0).\n"));
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        string sinError = Causa(Juzgar(carpeta, "1.3.6",
+            "[update:7] [10:00:00] [INFO] Command: Apply\n[update:7] [10:00:01] [INFO] Applying package 1.3.7 to current: 1.3.6\n"));
+        var frases = new[] { Causa(mal), sinLog, sinIntento, sinError };
+        Debe(frases.All(f => !string.IsNullOrWhiteSpace(f)) && frases.Distinct().Count() == 4,
+            "sin log, con un log donde Update.exe ni llegó a intentarlo, con un intento sin línea de error y con el error: cuatro frases distintas");
+        Debe(!sinLog.Contains("prevented") && !sinIntento.Contains("prevented") && !sinError.Contains("prevented"),
+            "y ninguna de las tres inventa la causa que no leyó");
+
+        // SOLO CUENTA EL ÚLTIMO INTENTO. El log de Velopack no se borra nunca: citar el error de ayer para el
+        // intento de hoy es una causa que miente.
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        string viejoYNuevo = LogDeVelopackQueNoPudoRenombrar
+            + "[update:9] [09:00:00] [INFO] Command: Apply\n[update:9] [09:00:01] [INFO] Applying package 1.3.7 to current: 1.3.6\n";
+        Debe(!Causa(Juzgar(carpeta, "1.3.6", viejoYNuevo)).Contains("prevented"),
+            "el error de un intento anterior no se le cuelga al último");
+
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        Debe(Que(Juzgar(carpeta, "1.3.8", null)) == "Aplicada", "y si la versión se movió a otra más nueva todavía, el intento no falló");
+
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        string[] escritos = Directory.GetFiles(carpeta);
+        Debe(escritos.Length == 1, $"el rastro es un archivo, uno, en la carpeta que se le dice (hay {escritos.Length})");
+        foreach (string f in escritos) File.WriteAllText(f, "{ esto no es un rastro");
+        Debe(Que(Juzgar(carpeta, "1.3.6", null)) == "SinIntento",
+            "un rastro ilegible no tumba el arranque ni se da por intento: se descarta");
+    }
+
+    /// <summary>Promesa 642.</summary>
+    private static void LaVersionDeclaradaEsLaInstalada()
+    {
+        var m = Capacidad("U.WindowsClient.Update.Updater")?.GetMethod("VersionDeclarada", new[] { typeof(string), typeof(string) });
+        if (m == null) { Pendiente("Update.Updater.VersionDeclarada", "642", "072"); return; }
+        string V(string? instalada, string? ensamblado) => (string)m.Invoke(null, new object?[] { instalada, ensamblado })!;
+
+        Debe(V("1.3.7", "1.0.0.0") == "1.3.7",
+            "con instalación manda la versión de Velopack: los 36 equipos del panel decían 1.0.0.0, que es la del ensamblado y no cambia nunca");
+        Debe(V(null, "1.0.0.0") == "1.0.0.0", "sin instalación —un build de desarrollo— se dice la del ensamblado");
+        Debe(V("", "1.0.0.0") == "1.0.0.0" && V("   ", "1.0.0.0") == "1.0.0.0", "vacío no es ausente: una versión instalada en blanco no tapa a la otra");
+        Debe(V(null, null) == "dev" && V("", " ") == "dev", "y sin ninguna de las dos dice «dev», no una cadena vacía");
+        Debe(V(" 1.3.7 ", null) == "1.3.7", "sin espacios alrededor: se compara con ella");
+    }
+
+    /// <summary>Promesa 643.</summary>
+    private static void UnTokenRechazadoNoDejaSinActualizar()
+    {
+        var m = Capacidad("U.WindowsClient.Update.Updater")?.GetMethod("SeReintentaSinToken", new[] { typeof(Exception), typeof(bool) });
+        if (m == null) { Pendiente("Update.Updater.SeReintentaSinToken", "643", "072"); return; }
+        bool Reintenta(Exception e, bool ibaConToken = true) => (bool)m.Invoke(null, new object[] { e, ibaConToken })!;
+        static HttpRequestException Http(HttpStatusCode? codigo) => new("Response status code does not indicate success.", null, codigo);
+
+        // Lo que Velopack lanza de verdad cuando GitHub no acepta el token (medido el 2026-09-30 contra el repo real):
+        // HttpRequestException con StatusCode = Unauthorized.
+        Debe(Reintenta(Http(HttpStatusCode.Unauthorized)), "un 401 con el token embebido se reintenta sin token: el repo es público y contesta igual");
+        Debe(Reintenta(Http(HttpStatusCode.Forbidden)), "y un 403 también: es lo que da un token al que le quitaron el permiso");
+        Debe(Reintenta(new InvalidOperationException("envuelta", Http(HttpStatusCode.Unauthorized))), "aunque llegue envuelta en otra excepción");
+        Debe(!Reintenta(Http(HttpStatusCode.NotFound)) && !Reintenta(Http(HttpStatusCode.InternalServerError)),
+            "un 404 o un 500 no son cosa del token: reintentar sin él solo gastaría el cupo anónimo");
+        Debe(!Reintenta(Http(null)) && !Reintenta(new TaskCanceledException()), "sin red o con el plazo vencido tampoco");
+        Debe(!Reintenta(Http(HttpStatusCode.Unauthorized), ibaConToken: false) && !Reintenta(Http(HttpStatusCode.Forbidden), ibaConToken: false),
+            "y si ya iba sin token no hay nada que quitar: un 403 anónimo es el cupo agotado, y repetirlo sería un bucle");
+    }
+
+    /// <summary>Promesa 644.</summary>
+    private static void AbrirOtraVezNoMataALaQueTrabaja()
+    {
+        var t = Capacidad("U.WindowsClient.Update.ArranqueDeActualizacion");
+        var hayOtra = t?.GetMethod("HayOtraViva", new[] { typeof(string), typeof(int), typeof(IEnumerable<(int, string)>) });
+        var aplica = t?.GetMethod("AplicaAlArrancar", new[] { typeof(bool), typeof(bool), typeof(bool) });
+        if (hayOtra == null || aplica == null) { Pendiente("Update.ArranqueDeActualizacion.HayOtraViva/AplicaAlArrancar", "644", "072"); return; }
+        bool Otra(params (int Pid, string? Ruta)[] procesos) =>
+            (bool)hayOtra.Invoke(null, new object[] { @"C:\Users\ana\AppData\Local\U\current\U.exe", 10, procesos.AsEnumerable() })!;
+        bool Aplica(bool hayPendiente, bool acabaDeFallar, bool hayOtraViva) =>
+            (bool)aplica.Invoke(null, new object[] { hayPendiente, acabaDeFallar, hayOtraViva })!;
+
+        const string yo = @"C:\Users\ana\AppData\Local\U\current\U.exe";
+        Debe(!Otra((10, yo)), "yo sola no soy «otra»");
+        Debe(Otra((10, yo), (11, yo)), "otra Ü de la misma instalación sí: es la carita que ya estaba trabajando");
+        Debe(Otra((10, yo), (11, @"c:\users\ana\appdata\local\u\CURRENT\u.exe")),
+            "la misma ruta con otras mayúsculas es la misma instalación (aprendizaje nº16: dos identidades de distinta forma dan falso en silencio)");
+        Debe(!Otra((10, yo), (11, @"C:\U-versiones\otra\U.exe")),
+            "una Ü de otra carpeta —un build de desarrollo, otra instalación— no cuenta: actualizar ésta no la toca");
+        Debe(!Otra((10, yo), (11, null), (12, "")), "ni un proceso cuya ruta no se pudo leer: no se sabe que sea de aquí");
+
+        Debe(Aplica(hayPendiente: true, acabaDeFallar: false, hayOtraViva: false),
+            "con la actualización descargada y sin nadie más, se aplica al arrancar: es lo que cura un equipo que se apagó sin aplicarla");
+        Debe(!Aplica(hayPendiente: true, acabaDeFallar: false, hayOtraViva: true),
+            "con otra Ü viva NO: aplicar la mataría, y puede estar grabando una consulta");
+        Debe(!Aplica(hayPendiente: true, acabaDeFallar: true, hayOtraViva: false),
+            "tras un intento que acaba de fallar tampoco: reintentar en el mismo arranque es un bucle de doce segundos por vuelta");
+        Debe(!Aplica(hayPendiente: false, acabaDeFallar: false, hayOtraViva: false), "y sin nada descargado no hay nada que aplicar");
+    }
+
+    /// <summary>Promesa 645.</summary>
+    private static void ElFeedSobreviveAlCambioDeNombre()
+    {
+        var up = Capacidad("U.WindowsClient.Update.Updater");
+        var nombres = up?.GetMethod("NombresDelFeed", new[] { typeof(string) });
+        var porOtro = up?.GetMethod("SeBuscaPorOtroNombre", new[] { typeof(Exception) });
+        if (nombres == null || porOtro == null) { Pendiente("Update.Updater.NombresDelFeed/SeBuscaPorOtroNombre", "645", "072"); return; }
+        List<string> Nombres(string feed) => ((IEnumerable<string>)nombres.Invoke(null, new object[] { feed })!).ToList();
+        bool PorOtro(Exception e) => (bool)porOtro.Invoke(null, new object[] { e })!;
+        static HttpRequestException Http(HttpStatusCode? codigo) => new("Response status code does not indicate success.", null, codigo);
+
+        const string nuevo = "https://github.com/ZevCorp/Miracle", viejo = "https://github.com/ZevCorp/U-Windows-App";
+        var delNuevo = Nombres(nuevo);
+        Debe(delNuevo.Count == 2 && delNuevo[0] == nuevo && delNuevo[1] == viejo,
+            $"con el nombre nuevo se prueba primero ése y después el anterior: {string.Join(" → ", delNuevo)}");
+        var delViejo = Nombres(viejo + "/");
+        Debe(delViejo.Count == 2 && delViejo[0] == viejo && delViejo[1] == nuevo,
+            $"quien todavía trae el viejo —con su barra final— lo prueba primero y luego el nuevo, sin repetirse: {string.Join(" → ", delViejo)}");
+        Debe(Nombres("https://github.com/otra/cosa").SequenceEqual(new[] { "https://github.com/otra/cosa" }),
+            "un repositorio puesto a mano no tiene otros nombres: no se le cambia por el nuestro");
+        Debe(Nombres(@"C:\feed").SequenceEqual(new[] { @"C:\feed" }), "y una carpeta tampoco: es lo que usan las pruebas locales");
+
+        Debe(PorOtro(Http(HttpStatusCode.NotFound)), "un 404 del repositorio se busca por el otro nombre");
+        Debe(PorOtro(new InvalidOperationException("envuelta", Http(HttpStatusCode.NotFound))), "aunque llegue envuelto");
+        Debe(!PorOtro(Http(HttpStatusCode.Unauthorized)) && !PorOtro(Http(HttpStatusCode.InternalServerError)) && !PorOtro(Http(null)),
+            "un 401, un 500 o no tener red no son cosa del nombre: probar el otro solo gastaría peticiones");
+
+        // LO GUARDADO. config.json lleva escrita la dirección con la que nació cada instalación: sin migrarla, la
+        // versión nueva seguiría preguntando por el nombre viejo para siempre, y sin el token tras la redirección.
+        string? antes = Environment.GetEnvironmentVariable("U_DATA_DIR");
+        string tmp = Path.Combine(_raiz, "feed-renombrado");
+        try
+        {
+            Environment.SetEnvironmentVariable("U_DATA_DIR", tmp);
+            string cfg = U.WindowsClient.Config.Archivo;
+            Directory.CreateDirectory(Path.GetDirectoryName(cfg)!);
+            string Cargar(string? guardada)
+            {
+                File.WriteAllText(cfg, guardada == null ? "{}" : JsonSerializer.Serialize(new { UpdateFeedUrl = guardada }));
+                return U.WindowsClient.Config.Load().UpdateFeedUrl;
+            }
+            Debe(Cargar(null) == nuevo, $"una instalación nueva nace con el nombre nuevo: {Cargar(null)}");
+            Debe(Cargar(viejo) == nuevo && Cargar(viejo.ToUpperInvariant() + "/") == nuevo,
+                "la dirección guardada con el nombre anterior pasa a la nueva al cargar, también con otras mayúsculas y barra final");
+            Debe(Cargar("https://zyvfamlhlmztliexvmej.supabase.co/storage/v1/object/public/windows") == nuevo,
+                "y la del bucket de Supabase, que fue la primera, también llega a la de hoy y no a la de en medio");
+            Debe(Cargar("https://github.com/otra/cosa") == "https://github.com/otra/cosa" && Cargar(@"C:\feed") == @"C:\feed",
+                "una dirección puesta a mano se respeta");
+        }
+        finally { Environment.SetEnvironmentVariable("U_DATA_DIR", antes); }
+    }
+
+    /// <summary>Promesa 646.</summary>
+    private static void ElBotonDeActualizarHaceElTrabajoEntero()
+    {
+        var t = Capacidad("U.WindowsClient.Update.BotonDeActualizar");
+        var estado = t?.GetMethod("Estado", new[] { typeof(bool), typeof(bool) });
+        var alPulsar = t?.GetMethod("AlPulsar");
+        var deLaBusqueda = t?.GetMethod("FraseDeLaBusqueda");
+        var delIntento = t?.GetMethod("FraseDelIntento");
+        var tBusqueda = Capacidad("U.WindowsClient.Update.Updater+Busqueda");
+        if (estado == null || alPulsar == null || deLaBusqueda == null || delIntento == null || tBusqueda == null)
+        { Pendiente("Update.BotonDeActualizar.Estado/AlPulsar/FraseDeLaBusqueda/FraseDelIntento", "646", "072"); return; }
+        object Estado(bool hayVersionLista, bool trabajando) => estado.Invoke(null, new object[] { hayVersionLista, trabajando })!;
+        string Gesto(object e) => alPulsar.Invoke(null, new[] { e })!.ToString()!;
+        string Frase(string que, string detalle) => (string)deLaBusqueda.Invoke(null, new object[] { Enum.Parse(tBusqueda, que), detalle })!;
+
+        // UN TOQUE, EL TRABAJO ENTERO. Hasta hoy eran dos botones en dos sitios: 🔄 buscaba y ⬇ aplicaba, y el
+        // segundo solo existía a ratos. «No hay un botón confiable para actualizar», dijo el dueño.
+        Debe(Estado(false, false).ToString() == "EnReposo" && Gesto(Estado(false, false)) == "BuscarYAplicar",
+            "en reposo, pulsarlo busca, descarga y aplica: no hace falta saber si hay versión para pedirla");
+        Debe(Estado(true, false).ToString() == "HayVersionLista" && Gesto(Estado(true, false)) == "Aplicar",
+            "con una versión ya descargada, la aplica sin volver a buscar");
+        Debe(Estado(false, true).ToString() == "Trabajando" && Estado(true, true).ToString() == "Trabajando"
+             && Gesto(Estado(true, true)) == "Nada",
+            "mientras trabaja lo dice, y un segundo toque no hace nada: un botón que no responde se pulsa tres veces");
+
+        // CADA DESENLACE, SU FRASE, y para una persona: ni «Update.exe» ni el nombre de una excepción.
+        string alDia = Frase("AlDia", "1.3.7"), noAplica = Frase("NoAplica", "x"), fallo = Frase("Fallo", "Host desconocido. (api.github.com:443)");
+        Debe(alDia.Contains("1.3.7") && new[] { alDia, noAplica, fallo }.Distinct().Count() == 3,
+            $"al día dice con qué versión, y las tres frases son distintas: «{alDia}» · «{noAplica}» · «{fallo}»");
+        Debe(!fallo.Contains("api.github.com") && !fallo.Contains("Exception"), "la de no haber podido buscar no le enseña a la persona la dirección ni el error crudo");
+
+        var rastro = Capacidad("U.WindowsClient.Update.RastroDeActualizacion");
+        var anotar = rastro?.GetMethod("Anotar", new[] { typeof(string), typeof(string), typeof(string), typeof(string) });
+        var juzgar = rastro?.GetMethod("Juzgar", new[] { typeof(string), typeof(string), typeof(string) });
+        if (anotar == null || juzgar == null) { Pendiente("Update.RastroDeActualizacion", "646", "072"); return; }
+        string carpeta = Path.Combine(_raiz, "boton-de-actualizar");
+        Directory.CreateDirectory(carpeta);
+        object Veredicto(string actual, string? log)
+        {
+            anotar.Invoke(null, new object[] { carpeta, "1.3.7", "1.3.8", "pastilla" });
+            return juzgar.Invoke(null, new object?[] { carpeta, actual, log })!;
+        }
+        string DelIntento(object v) => (string)delIntento.Invoke(null, new[] { v })!;
+
+        string bloqueada = DelIntento(Veredicto("1.3.7", LogDeVelopackQueNoPudoRenombrar));
+        string sinCausa = DelIntento(Veredicto("1.3.7", null));
+        string llego = DelIntento(Veredicto("1.3.8", null));
+        Debe(bloqueada.Contains("1.3.8") && !bloqueada.Contains("Update.exe") && !bloqueada.Contains("Apply error"),
+            $"el intento que no se aplicó dice qué versión no pudo instalar, sin el error crudo del actualizador: «{bloqueada}»");
+        Debe(bloqueada != sinCausa && !string.IsNullOrWhiteSpace(sinCausa),
+            "y no afirma «otro programa tiene abierta mi carpeta» cuando el log no lo dice");
+        Debe(llego.Contains("1.3.8") && llego != bloqueada, $"el que sí llegó lo cuenta al volver: «{llego}»");
+
+        // [cableado] El óvalo tiene UNA puerta para actualizar, dibujada con el lápiz de las otras.
+        var (vista, codigo) = FuentesDeLaCarita();
+        if (vista == null) return;
+        var panel = ConNombre(vista, "BarPanel");
+        var boton = panel == null ? null : ConNombre(panel, "ActualizarBtn");
+        Debe(boton != null, "[cableado] el botón de actualizar vive en el óvalo");
+        if (boton == null) return;
+        Debe((string?)boton.Attribute("Click") == "OnActualizar", "[cableado] y pulsarlo llama a su manejador");
+        Debe(boton.Attribute("Content") == null && boton.Descendants().Any(e => e.Name.LocalName == "Path"),
+            "[cableado] está dibujado con trazos, no con un emoji: un emoji trae su propio color y su propio peso");
+        Debe(panel!.Descendants().All(e => NombreDe(e) != "UpdateBtn"),
+            "[cableado] la pastilla ⬇ de antes ya no está: dos botones para lo mismo es no saber cuál pulsar");
+        Debe(codigo.Contains("BotonDeActualizar.AlPulsar(") && codigo.Contains("BotonDeActualizar.Estado("),
+            "[cableado] la ventana no decide por su cuenta: pregunta a la regla qué toca hacer y cómo pintarse");
+    }
+
     private static void LaZonaDelNotchMantieneLaIntencion()
     {
         var t = Capacidad("U.WindowsClient.Ui.ReglaDeLaBandeja");
@@ -12303,8 +12671,11 @@ internal static class Contrato
             .Where(b => aRatos == null || !b.Ancestors().Contains(aRatos))
             .Where(b => (string?)b.Attribute("Visibility") != "Collapsed")
             .Select(NombreDe).ToList();
-        Debe(enReposo.Count == 3 && enReposo.Contains("MemoriaBtn") && enReposo.Contains("CollarModoBtn") && enReposo.Contains("LadoBtn"),
-            $"en reposo se ven tres botones —Memoria, el collar y el de lado—: hay {enReposo.Count} ({string.Join(", ", enReposo)})");
+        Debe(enReposo.Count == 4 && enReposo.Contains("MemoriaBtn") && enReposo.Contains("CollarModoBtn")
+             && enReposo.Contains("ActualizarBtn") && enReposo.Contains("LadoBtn"),
+            $"en reposo se ven cuatro botones —Memoria, el collar, el de actualizar y el de lado—: hay {enReposo.Count} ({string.Join(", ", enReposo)})");
+        Debe(enReposo.IndexOf("CollarModoBtn") < enReposo.IndexOf("ActualizarBtn") && enReposo.IndexOf("ActualizarBtn") < enReposo.IndexOf("LadoBtn"),
+            "el de actualizar va entre el collar y el de lado: abajo queda lo que menos se usa");
         foreach (string ido in new[] { "LearnBtn", "WorkBtn", "SubirBtn", "JevBtn" })
             Debe(ConNombre(panel, ido) == null, $"«{ido}» ya no vive en el óvalo");
 

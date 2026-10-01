@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-  Compila la carita y arma el paquete de actualización. Un comando, todo lo demás es subir 3 archivos.
+  Compila la carita y arma el paquete en LOCAL. No publica: publicar es lanzar el workflow.
 
 .DESCRIPTION
-  Deja en out\releases lo que hay que subir al bucket `windows` de Supabase para que TODOS los clientes
-  instalados se actualicen solos. Ver RELEASING-WINDOWS.md para el flujo completo.
+  Deja en out\releases el instalador y el paquete, para instalarlos o mirarlos a mano. Las versiones
+  que reciben los clientes las saca `windows-release.yml`. Ver RELEASING-WINDOWS.md.
 
 .EXAMPLE
   .\scripts\publish-release.ps1 -Version 1.0.1
@@ -43,7 +43,10 @@ vpk pack -u U -v $Version -p $publishDir -e U.exe -o $releaseDir --icon $iconPat
 if ($LASTEXITCODE -ne 0) { throw "vpk pack falló" }
 
 Write-Host ""
-Write-Host "Listo. Subí estos archivos al bucket 'windows' de Supabase:" -ForegroundColor Green
+# ESTO YA NO PUBLICA NADA (2026-09-30): el feed son las releases de GitHub y las saca el workflow
+# `windows-release.yml`, que ademas baja la release anterior para el delta. Decia «subi estos
+# archivos al bucket de Supabase», que estuvo siempre vacio. Sirve para tener un paquete en local.
+Write-Host "Paquete local listo (NO esta publicado: publicar es lanzar el workflow, ver RELEASING-WINDOWS.md):" -ForegroundColor Green
 Get-ChildItem $releaseDir -Include "releases.win.json", "*.nupkg" -Recurse |
     ForEach-Object { "  - $($_.Name)  ($([math]::Round($_.Length / 1MB, 1)) MB)" }
 Write-Host ""

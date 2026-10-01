@@ -151,7 +151,9 @@ No se arreglaron en la fase 1, porque no eran de orden. Están por urgencia.
     sabe saltarse los proyectos no afectados en monorepos de npm/pnpm.
 - **Archivar los repos de origen** cuando Vercel ya despliegue desde aquí. Los de `joseph1356k` solo
   los puede archivar Joseph.
-- **Renombrar el repo**, en el orden de la arquitectura: el token, el 307 de Graph y Vercel.
+- ~~**Renombrar el repo**~~. Hecho el 2026-10-01: es `ZevCorp/Miracle`. Lo que se cuidó está en
+  «El nombre del repo» de la arquitectura. Queda poner el nombre nuevo en `WINDOWS_APP_GITHUB_REPO`
+  de los proyectos de Vercel.
 
 ## Orden propuesto para la fase 2
 
