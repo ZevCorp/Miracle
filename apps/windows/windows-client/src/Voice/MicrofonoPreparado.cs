@@ -68,6 +68,11 @@ internal sealed class MicrofonoPreparado : IDisposable
         EventWaitHandle? aviso = null;
         try
         {
+            // UN MICRÓFONO BLUETOOTH NO SE DEJA PREPARADO. Unos audífonos cambian de perfil —de música a
+            // manos libres, que suena peor— cuando se les abre el micrófono, y no se ha medido si basta con
+            // inicializarlo para provocarlo. Hasta medirlo, con ellos se abre en el gesto, como siempre.
+            if (EsBluetooth(dispositivo))
+                throw new NotSupportedException($"«{dispositivo.FriendlyName}» es Bluetooth: no se inicializa de antemano");
             cliente = dispositivo.AudioClient;
             var mezcla = cliente.MixFormat;
             bool flotante = mezcla.BitsPerSample == 32
@@ -90,6 +95,19 @@ internal sealed class MicrofonoPreparado : IDisposable
             try { dispositivo.Dispose(); } catch { }
             throw;
         }
+    }
+
+    /// <summary>PKEY_Device_EnumeratorName: quién enumera el dispositivo. Los de Bluetooth traen «BTH…».</summary>
+    private static readonly PropertyKey QuienLoEnumera = new(new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), 24);
+
+    private static bool EsBluetooth(MMDevice dispositivo)
+    {
+        try
+        {
+            string quien = dispositivo.Properties[QuienLoEnumera]?.Value as string ?? "";
+            return quien.Contains("BTH", StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }   // sin el dato no se sabe; lo que decide entonces es si se puede inicializar
     }
 
     /// <summary>

@@ -1,6 +1,6 @@
 # Plan de implementación: la voz se enciende y se apaga al primer clic
 
-Estado: **en curso** · Nace del diagnóstico del 2026-09-30 · Rama: `jose/la-voz-al-primer-clic`
+Estado: **implementado; medido sobre el PC real, pendiente de que el dueño lo pruebe hablando** (2026-10-01) · Rama: `jose/la-voz-al-primer-clic`
 
 ## Diagnóstico: qué se midió
 
@@ -11,46 +11,49 @@ escuchando. Y lo mismo para cerrarla: la cliqueo para cerrarla y no se cierra to
 volver a hacer clic. Activar y desactivar la voz no es confiable».
 
 Se midió antes de tocar nada, con tres instrumentos: los logs de la Ü del dueño, una sonda de solo
-lectura contra el micrófono y el servidor, y un juez de fuera que pulsa la carita de una Ü de
-`main` con el ratón de verdad y mira la pantalla (no el log) para saber cuándo se ve la estela.
+lectura contra el micrófono y el servidor, y un **juez de fuera** que pulsa la carita de una Ü de
+pruebas con el ratón de verdad y mira la pantalla (no el log) para saber cuándo se ve la estela.
 
 | Qué | Medida | Fuente |
 |---|---|---|
 | Clic → estela visible, en `main` | **666–1.027 ms** (3 rondas) | juez de fuera, píxeles de la pantalla, 2026-10-01 00:02 |
 | Clic → micrófono abierto, en `main` | **673–987 ms** | mismo juez, línea `micrófono abierto` |
 | Clic → sesión confirmada, en `main` | **1.509–1.902 ms** con una historia de 11.450 caracteres | mismo juez, línea `sesión abierta` |
-| Clic de apagar → estela apagada | 263–435 ms sin miradas en la sesión | mismo juez |
-| Por qué la estela espera | `Viva` y `Cambio(true)` van DESPUÉS de `ConnectAsync` y de las instrucciones | `ConversacionEnVivo.ArrancarAsync` |
+| Clic de apagar → estela apagada, en `main` | 263–435 ms sin miradas en la sesión; **706 y 1.003 ms** con una | mismo juez, 2026-10-01 00:54 |
+| Dos clics seguidos, en `main` | a 150 ms la dejan ENCENDIDA; cuatro a 120 ms, encendida y con 3 sockets abiertos | juez de fuera, ráfagas |
+| Por qué la estela espera | `Viva` y `Cambio(true)` iban DESPUÉS de `ConnectAsync` y de las instrucciones | `ConversacionEnVivo.ArrancarAsync` |
 | Conectar el socket | 467–515 ms; la primera del proceso, 1.285 ms | sonda, 4 conexiones sin `session.start` |
 | Conectar con el TLS ya hecho | 404–440 ms: calentar la conexión ahorra ~70 ms | sonda, `SocketsHttpHandler` compartido |
-| `session.start` → `session.started` | 305–588 ms con una apertura mínima | sonda, 3 sesiones |
-| Abrir el micrófono (WaveIn, 24 kHz) | **319–512 ms** hasta grabar, 433–664 ms hasta el primer trozo; **546 ms** tras 15 s de reposo | sonda, 10 aperturas |
-| Abrir el micrófono por WASAPI | 333–584 ms; 526 ms en frío. No es la API: es el dispositivo («Varios micrófonos (Realtek)») | sonda, 7 aperturas |
-| Cerrar el micrófono | 45–74 ms | sonda |
-| Dónde se abre hoy el micrófono | en el hilo de la interfaz, con el candado que también usan la boca y el halo | `LiveAudio.AbrirLocal` |
+| `session.start` → `session.started` | 293–395 ms con la apertura mínima; 586–656 con la delegación entera; **849–1.235** con la delegación y 11.450 caracteres de historia | sonda, 3 aperturas de cada una |
+| Mandar la delegación aparte, detrás | no lo baja (550–903 ms): lo que pesa es la historia | sonda |
+| Abrir el micrófono (WaveIn, 24 kHz) | 319–512 ms hasta grabar; **546 ms** tras 15 s de reposo | sonda, 10 aperturas |
+| Abrir el micrófono por WASAPI | 333–584 ms; 526 ms en frío. No es la API | sonda, 7 aperturas |
+| De eso, **inicializar** el dispositivo | **449 ms** | sonda `prelisto` |
+| **Arrancarlo** ya inicializado | **240–257 ms**, también tras 20 s parado | sonda `prelisto`, 4 vueltas |
+| Inicializado y sin arrancar, ¿consta como micrófono en uso? | **no**: Windows solo lo apunta entre arrancar y parar | registro `ConsentStore\microphone`, leído en cada estado |
+| Pararlo | 0–1 ms | sonda `prelisto` |
+| Dónde se abría el micrófono | en el hilo de la interfaz, con el candado que también usan la boca y el halo | `LiveAudio.AbrirLocal` |
 | Audio mandado ANTES de `session.started` | **el servidor lo tira**: de «Manzana. Repite solamente la primera palabra que dije» contestó «Repite.» y no transcribió nada | sonda, caso «antes» |
-| Audio guardado y mandado en ráfaga DESPUÉS de `session.started` | lo oye entero: transcribió «Manzana. Re…» y contestó «Manzana.» | sonda, caso «ráfaga» |
-| Dos aperturas a la vez | `socket conectado` dos veces en el mismo segundo (10:03:16), y un segundo cierre a los 4 s | log de la Ü del dueño, 2026-09-30 |
+| Audio guardado y mandado en ráfaga DESPUÉS | lo oye entero: transcribió «Manzana. Re…» y contestó «Manzana.» | sonda, caso «ráfaga» |
+| Dos aperturas a la vez | `socket conectado` dos veces en el mismo segundo (10:03:16) | log de la Ü del dueño, 2026-09-30 |
 | La sesión que no abre | 14 aperturas rechazadas con `Initial items must not exceed 8192 tokens` entre el 29 y el 30 | logs de la Ü del dueño |
-| Por qué | `Historial()` manda los últimos 56 turnos sin tope de tamaño (hasta 4.000 caracteres cada uno) | `ConversacionPersonal.Historial` |
-| Qué espera el apagado | `await mirada.SoltarAsync()` —un DELETE por HTTP por cada mirada, con 30 s de plazo— ANTES de `Viva = false` | `ConversacionEnVivo.TerminarAsync` |
-| Qué pasa con un segundo clic mientras abre | `Viva` todavía es falso: otro `ArrancarAsync`, otro socket, y el campo `_ws` cambia de dueño | `AlternarAsync` |
-| Qué hace el final de una sesión vieja | `SeAcaboLaEscuchaAsync` cierra «la voz» si `Viva`, sea la suya o la que se abrió después | `ConversacionEnVivo` |
+| Por qué | `Historial()` mandaba los últimos 56 turnos sin tope de tamaño (hasta 4.000 caracteres cada uno) | `ConversacionPersonal.Historial` |
+| Qué esperaba el apagado | `await mirada.SoltarAsync()` —un DELETE por HTTP por cada mirada, 475–756 ms medidos— ANTES de `Viva = false` | `ConversacionEnVivo.TerminarAsync` |
+| Qué hacía el final de una sesión vieja | `SeAcaboLaEscuchaAsync` cerraba «la voz» si `Viva`, fuera la suya o la que se abrió después | `ConversacionEnVivo` |
 
 Lo que sale de las medidas, en orden:
 
-1. **La estela y el micrófono esperan a la red, y no hace falta.** Nada de lo que ve o hace la
+1. **La estela y el micrófono esperaban a la red, y no hace falta.** Nada de lo que ve o hace la
    persona en el clic depende del servidor.
-2. **«Escuchándome de verdad» no puede ser «el servidor confirmó»**: eso tarda 1,5–1,9 s en el mejor
-   caso medido y no hay cómo bajarlo de ~800 ms (conectar + confirmar). Lo que sí se puede es que lo
-   dicho desde el clic no se pierda: se capta desde el clic, se guarda, y sale entero cuando el
-   servidor confirma. La sonda dice que el servidor lo acepta así, y que lo que le llega antes de
-   confirmar lo tira.
-3. **El micrófono tarda en abrir 320–550 ms él solo**, con la API que sea. Para estar captando a los
-   500 ms del clic hay que empezar a abrirlo antes del clic: al acercar el ratón a la carita.
-4. **El clic no alterna: pregunta un estado que cambia tarde.** Encender tarda en constar (tras la
-   red) y apagar tarda en constar (tras borrar las miradas); entre medias, otro clic hace lo
-   contrario de lo que la persona quería.
+2. **«Escuchándome de verdad» no puede ser «el servidor confirmó»**: eso tarda de 1,2 a 2,6 s y no
+   hay cómo bajarlo de ~800 ms (conectar + confirmar). Lo que sí se puede es que lo dicho desde el
+   clic no se pierda: se capta, se guarda, y sale entero cuando el servidor confirma. La sonda dice
+   que el servidor lo acepta así, y que lo que le llega antes de confirmar lo tira.
+3. **El micrófono tardaba medio segundo en abrir, y casi todo era inicializarlo.** Inicializado de
+   antemano, arrancarlo son ~250 ms — y preparado no capta ni enciende el indicador de Windows.
+4. **El clic no alternaba: preguntaba un estado que cambiaba tarde.** Encender tardaba en constar
+   (tras la red) y apagar tardaba en constar (tras borrar las miradas); entre medias, otro clic
+   hacía lo contrario de lo que la persona quería.
 
 ## Por qué esto va dirigido por especificación
 
@@ -71,7 +74,7 @@ promesa que la juzga. Cada fase empieza con el contrato ROTO y termina con el co
 | 662 | cada clic alterna la voz exactamente una vez: una ráfaga de N clics la deja encendida si N es impar y apagada si es par, los avisos alternan sin repetirse, y la conexión que llega tarde se suelta sin abrir sesión | 4 |
 | 663 | apagar no espera a nadie: con el borrado de las miradas colgado, al volver del clic la voz ya consta apagada, avisó, soltó el micrófono y no manda un trozo más; las miradas se retiran igual | 3 |
 | 664 | apagar y volver a encender seguido deja viva la segunda: ni el cierre de la sesión vieja ni su escucha que termina cierran la nueva | 4 |
-| 665 | el micrófono se pone en guardia al acercarse a la carita: lo captado en guardia no se entrega a nadie, sin clic se suelta solo, y con clic lo siguiente se entrega sin volver a abrir el dispositivo | 6 |
+| 665 | el micrófono preparado entrega lo que pide el protocolo, venga como venga de Windows: de 48 kHz estéreo en coma flotante o de 16 kHz mono sale PCM16 mono al ritmo pedido, con la misma duración y el mismo tono, igual a trozos de 10 ms que de una vez | 6 |
 | 666 | cada encendido y cada apagado dejan una línea voz-clic con los milisegundos de cada tramo desde el gesto, y el tramo que no llegó lo dice en vez de faltar | 2 |
 | 667 | la historia que se manda al abrir cabe siempre en lo que el servidor acepta: se queda con los turnos más recientes que entren en el presupuesto, enteros y en orden | 1 |
 
@@ -79,6 +82,9 @@ Números: 532–535, 542, 620–629 y 640–648 los tienen otras ramas sin merge
 
 La que cierra el asunto es la **662**: mientras un clic pueda no alternar, todo lo demás es
 velocidad sobre un interruptor que no es de fiar.
+
+La 661 lleva una cláusula que no estaba al principio: **lo escrito** mientras la sesión abre
+tampoco se pierde. Salió al revisar qué más daba por abierta una voz que solo estaba encendida.
 
 ### Con qué se juzga cada una
 
@@ -89,37 +95,52 @@ contestar la conexión: el contrato lo deja colgado y lo suelta cuando quiere) y
 cerrar el micrófono: el contrato solo lo anota). Los trozos de micrófono entran por `MandarTrozo` y
 los mensajes del servidor por `Procesar`.
 
-La 665 y la 666 juzgan su regla pura (`OidoEnGuardia`, `RelojDelClic`) con un reloj de mentira; la
-667, `ConversacionPersonal.Historial` sobre un archivo temporal.
+El cable de mentira **no obedece a la cancelación**, a propósito: una conexión de verdad puede
+contestar después de que la persona ya apagó, y ese es justo el caso del log del 30.
 
-**Lo que el contrato no puede juzgar**, y por eso va al nivel 4 con el juez de fuera: los
-milisegundos sobre el PC real. Ningún contrato sabe cuánto tarda este micrófono en abrir.
+La 665 juzga `DeLaMezclaAPcm16` con tonos sintéticos; la 666, `RelojDelClic` con un reloj de
+mentira; la 667, `ConversacionPersonal.Historial` sobre un archivo temporal.
+
+**Lo que el contrato no puede juzgar**, y por eso va al nivel 4 con el juez de fuera:
+
+- los milisegundos sobre el PC real: ningún contrato sabe cuánto tarda este micrófono;
+- que el cierre de una sesión no toque **el socket** de la siguiente: con el cable de mentira no
+  hay socket. Lo juzga la ráfaga «encender, 2,5 s, apagar y encender a 150 ms»;
+- que `LiveAudio` arranque de verdad el micrófono preparado: el cableado se lee en la fuente, y lo
+  que prueba que corre es la línea `micrófono abierto … estaba preparado` del log;
+- el collar que conecta tarde (`LiveAudio._cierres`): haría falta un collar de mentira.
 
 ## Las fases
 
 | Fase | Pone verde | Toca |
 |---|---|---|
-| 0 | — | medir (hecho): sonda del micrófono y del servidor, juez de fuera sobre `main` |
+| 0 | — | medir: sonda del micrófono y del servidor, juez de fuera sobre `main` |
 | 1 | 667 | `Voice/ConversacionPersonal.cs` |
 | 2 | 666 | `Voice/RelojDelClic.cs` (nuevo) |
-| 3 | 660, 663 | `Voice/ConversacionEnVivo.cs`: encender y apagar constan en el clic; la red va detrás |
+| 3 | 660, 663 | `Voice/ConversacionEnVivo.cs`: encender y apagar constan en el gesto; la red va detrás |
 | 4 | 662, 664 | `Voice/ConversacionEnVivo.cs`: cada sesión es dueña de su socket y de su cancelación |
 | 5 | 661 | `voz/Realtime/PreEscucha.cs` (nuevo), `Voice/ConversacionEnVivo.cs` |
-| 6 | 665 | `Voice/OidoEnGuardia.cs` (nuevo), `Voice/LiveAudio.cs`, `Ui/FaceWindow.xaml.cs` |
+| 6 | 665 | `Voice/MicrofonoPreparado.cs` y `Voice/DeLaMezclaAPcm16.cs` (nuevos), `Voice/LiveAudio.cs`, una línea en `Ui/FaceWindow.xaml.cs` |
+
+Sitios con la clase de error «el final de algo viejo toca lo nuevo», contados: **5** en
+`ConversacionEnVivo` (el cierre tras sus esperas, la escucha que termina, la reconexión cancelada,
+el apagado aplazado por orden de voz, la conexión que contesta tarde) y **3** en `LiveAudio` (el
+collar que conecta tarde, su salida al micrófono local, el reintento de diez segundos).
 
 ## Lo que NO entra
 
-- **Calentar la conexión con el servidor.** Medido: ahorra ~70 ms de 470. No paga una conexión
-  abierta por cada vez que el ratón pasa cerca.
-- **Abrir la sesión antes del clic.** GPT-Live cobra por segundo de sesión; una sesión por cada
-  acercamiento sin clic es dinero tirado.
-- **El doble Ctrl y el botón del collar no tienen guardia**: no hay ratón que se acerque. Encienden
-  la estela en el acto y guardan lo dicho igual, pero su micrófono empieza a captar cuando el
-  dispositivo abre (320–550 ms en esta máquina). Con el collar conectado no hay dispositivo que abrir.
-- **Que la onda del notch ponga el micrófono en guardia.** Enciende por el mismo camino (promesa
-  540) y hereda todo lo demás; la guardia al acercarse a ella es otra rama.
-- **Lo que tarda el servidor en confirmar** (el tamaño de la apertura, el delegado): con lo dicho a
-  salvo desde el clic, deja de ser lo que la persona espera.
+- **Calentar la conexión con el servidor.** Medido: ahorra ~70 ms de 470.
+- **Abrir la sesión, o el socket, antes del clic.** GPT-Live cobra por segundo de sesión; y un
+  socket por cada vez que el ratón pasa cerca, para ganar ~450 ms de respuesta, es otra decisión.
+- **Lo que tarda el servidor en confirmar.** Depende sobre todo de la historia que lleva la
+  apertura (849–1.235 ms con 11.450 caracteres, 586–656 sin ella). Con lo dicho a salvo desde el
+  gesto, deja de ser lo que la persona espera para hablar; sigue siendo lo que espera para que Ü
+  conteste a una frase muy corta. Bajarlo es recortar la historia, y eso es otra conversación.
+- **El micrófono de unos audífonos Bluetooth no se deja preparado.** No se ha medido si
+  inicializarlo basta para cambiarles el perfil a manos libres; por precaución se abre en el gesto,
+  como hasta hoy (320–550 ms). En este equipo el micrófono por defecto es el del portátil.
+- **El collar.** Con él conectado no hay dispositivo que abrir; lo que cambia para él es que
+  colgar mientras se le busca ya no deja ningún micrófono abierto.
 
 ## Hallazgos
 
@@ -128,4 +149,4 @@ milisegundos sobre el PC real. Ningún contrato sabe cuánto tarda este micrófo
 - [ ] Todas las promesas verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO)
 - [ ] `.\scripts\verificar.ps1` pasa, con evidencia en `out\evidencia.md`
 - [ ] Probado sobre el PC real con el juez de fuera: rondas y ráfagas, antes y después
-- [ ] Estado de este documento: **implementado** (AAAA-MM-DD)
+- [ ] El dueño lo probó hablando

@@ -363,7 +363,7 @@ public sealed class LiveAudio : IDisposable
             catch (Exception e)
             {
                 _noPrepararHastaMs = Environment.TickCount64 + 60_000;
-                LogBus.Log("voz-viva", $"no pude dejar preparado el micrófono ({Cadena(e)}): se abrirá por la vía de siempre");
+                LogBus.Log("voz-viva", $"el micrófono no queda preparado ({Cadena(e)}): se abrirá en el gesto, por la vía de siempre");
                 return null;
             }
             lock (_candadoDelOido)
