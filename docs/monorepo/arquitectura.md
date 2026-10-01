@@ -19,7 +19,7 @@ docs/
 tools/monorepo/   importar, ponerse al día, comprobar la raíz, la copia de reglas para Claude
 .github/          un workflow por proyecto, monorepo.yml y la plantilla de PR
 .githooks/        el portero del monorepo: un despachador
-.claude/          lo común para Claude: CLAUDE.md, reglas comunes y la skill /avisa
+.claude/          lo común para Claude: CLAUDE.md y las reglas comunes
 AGENTS.md         el mapa y las reglas comunes
 README.md         el mapa para personas
 ```
@@ -69,9 +69,9 @@ nuevos de una rama a la carpeta nueva si la vieja deja de existir en `main`:
 | Qué | Dónde | Cómo llega |
 |---|---|---|
 | El mapa y las reglas comunes | `AGENTS.md`, con una copia en `.claude/rules/monorepo.md` | Codex lee los `AGENTS.md` desde la raíz hasta su carpeta. Claude carga `.claude/rules/` de la raíz desde cualquier carpeta |
-| Reglas comunes largas | `.claude/rules/` de la raíz: ramas y commits, aviso en Slack, qué toca cada máquina | igual, desde cualquier carpeta |
+| Reglas comunes largas | `.claude/rules/` de la raíz: ramas y commits, qué toca cada máquina | igual, desde cualquier carpeta |
 | Reglas de un proyecto | su `CLAUDE.md`, su `AGENTS.md` y su `.claude/rules/` | al abrir la sesión en su carpeta, o al leer un archivo suyo |
-| Skills | `.claude/skills/` de la raíz (`/avisa`) y de cada proyecto | las del proyecto, al abrir ahí o al tocar un archivo suyo |
+| Skills | `.claude/skills/` de cada proyecto | al abrir ahí o al tocar un archivo suyo |
 | Hooks, permisos, MCP | `<proyecto>/.claude/settings.json`, `.mcp.json` | **solo** si la sesión se abre en esa carpeta |
 
 Lo midió un experimento el 2026-09-28, con Claude Code 2.1.276. En un repo de juguete puse un

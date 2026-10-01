@@ -3,8 +3,8 @@
 > Esta es la guía de **Windows**, que desde el 2026-09-28 vive en `apps/windows/` del monorepo.
 > Todos los comandos de aquí se corren **desde esta carpeta** (`cd apps/windows`), y abrir Claude
 > aquí carga estas reglas, sus skills y sus hooks: Claude Code no hereda hooks ni skills entre
-> carpetas. Lo común a todo el monorepo (ramas, commits, el aviso de cada push, qué toca cada
-> máquina) vive en el [`AGENTS.md`](../../AGENTS.md) de la raíz y se carga igual desde aquí.
+> carpetas. Lo común a todo el monorepo (ramas, commits, qué toca cada máquina) vive en el
+> [`AGENTS.md`](../../AGENTS.md) de la raíz y se carga igual desde aquí.
 
 ## EL CICLO — léelo antes que nada
 
@@ -97,12 +97,8 @@ juzga.** Cada fase empieza con el contrato ROTO y termina con el contrato INTACT
 | 5. Verificar | `/verifica` | `out\evidencia.md` con los cuatro niveles |
 | 6. Integrar | `/a-main` | PR con evidencia, y `main` sigue verde |
 
-Y atravesándolo todo: **cada `git push` que publique commits deja un aviso en `#miracle-updates`**
-con `/avisa` — qué entró, a qué rama y qué zona toca. Somos tres, y enterarse de un push cuando
-llega el conflicto es enterarse tarde.
-
 Las reglas de Windows viven en `.claude/rules/` de esta carpeta, y las comunes a todo el monorepo
-(ramas y commits, el aviso de cada push, qué toca cada máquina) en `.claude/rules/` de la raíz.
+(ramas y commits, qué toca cada máquina) en `.claude/rules/` de la raíz.
 Las dos se cargan solas:
 
 @.claude/rules/flujo-sdd.md

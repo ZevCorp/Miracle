@@ -85,7 +85,7 @@ echo "── 2. lo que tu rama añadió y git no supo llevar a su carpeta"
 # Adónde fue cada cosa de la raíz vieja. Todo lo que no era de otro proyecto era de Windows, así que
 # un docs/, un scripts/ o una regla nueva que traiga una rama vieja también lo es. u/ y medidor/ son
 # proyectos de Windows que viven en ramas (#125 y claude/miracle-impact-measurement-h1n3k8).
-COMPARTIDAS=" monorepo.md ramas-y-commits.md aviso-en-slack.md solo-mac.md "
+COMPARTIDAS=" monorepo.md ramas-y-commits.md solo-mac.md "
 destino() {
   local f="$1" arriba="${1%%/*}" resto="${1#*/}"
   case "$arriba" in
@@ -100,7 +100,7 @@ destino() {
     .claude)
       case "$f" in
         .claude/rules/*) case "$COMPARTIDAS" in *" ${f##*/} "*) ;; *) echo "apps/windows/$f" ;; esac ;;
-        .claude/skills/avisa/*|.claude/CLAUDE.md) ;;
+        .claude/CLAUDE.md) ;;
         .claude/skills/*) echo "apps/windows/$f" ;;
       esac ;;
   esac

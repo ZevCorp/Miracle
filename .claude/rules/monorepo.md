@@ -53,9 +53,6 @@ todas ellas. El porqué de cada decisión está en `docs/monorepo/arquitectura.m
    las dejaría sin actualizaciones. Mac y Android publican artefactos, no releases.
 10. **Nada secreto en el repo: es público.** Claves, tokens y keystores van en los secretos de
     GitHub Actions, en Vercel o en un `.env` ignorado.
-11. **Cada push que publique commits deja un aviso** en `#miracle-updates` con la skill `/avisa`:
-    rama, qué entró, qué proyecto toca y en qué estado quedó. El detalle está en
-    `.claude/rules/aviso-en-slack.md`.
 
 ## Herramientas
 
