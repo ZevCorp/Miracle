@@ -1960,11 +1960,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         int estilo = Fantasma.Poner(new System.Windows.Interop.WindowInteropHelper(this).Handle, fantasma);
         if (fantasma)
         {
-            // El globo de la línea es OTRA ventana, que el bit no cubre: si se abriera junto al elemento que Ü acaba de
-            // tocar, un clic en él abriría el chat y robaría el foco. Se cierra, y se paran sus relojes.
-            _lineaTimer.Stop();
-            _cerrarLineaTimer.Stop();
-            GhostPista.IsOpen = false;
+            // Aquí se cerraba además el globo de la línea «Escríbele…», que era OTRA ventana y el bit no cubría. Ya no
+            // hay línea que cerrar: se retiró el 2026-09-30 con la promesa 167.
             (_latidoDeVisita ??= NuevoLatidoDeVisita()).Start();
         }
         else
