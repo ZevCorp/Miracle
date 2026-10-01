@@ -1569,7 +1569,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             InstallId = _config.InstallId,
             DisplayName = _config.DisplayName,
             AppId = _graphConfig.AppId,
-            AppVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "",
+            // La instalada, no la del ensamblado: el panel decía 1.0.0.0 para todos los equipos (promesa 642).
+            AppVersion = Updater.VersionDeclarada(
+                ArranqueDeActualizacion.VersionInstalada,
+                System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString()),
             MachineName = Environment.MachineName,
             OsVersion = Environment.OSVersion.VersionString
         };
@@ -1587,7 +1590,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </summary>
     private void StartUpdater()
     {
-        _updater = new Updater(_config.UpdateFeedUrl);
+        _updater = new Updater(_config.UpdateFeedUrl, App.CarpetaDelRastroDeActualizacion);
         VersionText.Text = $"Versión {_updater.CurrentVersion}";
         // UpdateReady llega desde un hilo del pool, no del Dispatcher: tocar la UI directo reventaría.
         // QUÉ versión es ya no se dice al pasar el ratón (promesa 164): el ⬇ dice que hay algo nuevo

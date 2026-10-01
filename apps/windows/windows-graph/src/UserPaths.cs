@@ -30,6 +30,13 @@ public static class UserPaths
     /// <summary>Equivalente a %LOCALAPPDATA%: logs, step-shots, vídeos y pendientes de cierre.</summary>
     public static string Local => Resolve("local", Environment.SpecialFolder.LocalApplicationData);
 
+    /// <summary>
+    /// El %LOCALAPPDATA% de Windows de verdad, IGNORANDO <c>U_DATA_DIR</c>. Solo para LEER lo que
+    /// escribe ahí un programa que no sabe de esa variable: el log de <c>Update.exe</c> de Velopack
+    /// (spec 072). Nada de la persona se guarda por aquí; para eso está <see cref="Local"/>.
+    /// </summary>
+    public static string LocalDeWindows => Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
     private static string Resolve(string sub, Environment.SpecialFolder fallback)
     {
         string? root = Environment.GetEnvironmentVariable("U_DATA_DIR");

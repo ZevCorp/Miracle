@@ -35,10 +35,14 @@ public sealed class Updater
     /// <summary>Cada cuánto se vuelve a mirar el feed. Igual que Android (RELEASING.md): ~30 min.</summary>
     public static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(30);
 
-    private readonly UpdateManager _mgr;
+    private UpdateManager _mgr;
     private readonly string _feedUrl;
+    private readonly string _carpetaDelRastro;
+    /// <summary>¿Se le está presentando a GitHub el token embebido? Deja de ser cierto si lo rechaza.</summary>
+    private bool _conToken;
     private VelopackAsset? _ready;
     private ReleaseMessage? _readyMessage;
+    private bool _dijoAlDia;
 
     /// <summary>Se dispara con la versión y el mensaje humano cuando el paquete ya está descargado.</summary>
     public event Action<UpdateReadyInfo>? UpdateReady;
@@ -51,9 +55,15 @@ public sealed class Updater
     /// De dónde se leen las versiones. Si apunta a un repositorio de GitHub se usan sus *releases*;
     /// cualquier otra cosa se trata como una carpeta estática. Ver <see cref="Config.UpdateFeedUrl"/>.
     /// </param>
-    public Updater(string feedUrl)
+    /// <param name="carpetaDelRastro">
+    /// Dónde se anota cada intento de aplicar, fuera de la carpeta que Velopack reemplaza. Ver
+    /// <see cref="RastroDeActualizacion"/>.
+    /// </param>
+    public Updater(string feedUrl, string carpetaDelRastro)
     {
         _feedUrl = feedUrl.TrimEnd('/');
+        _carpetaDelRastro = carpetaDelRastro;
+        _conToken = EsRepositorioDeGithub(feedUrl) && TokenDeLectura() != null;
         // Sin canal explícito a propósito: Velopack usa el mismo con el que se empaquetó ("win"), y
         // pasarle uno distinto haría que pidiera un releases.<canal>.json que no existe → 404.
         //
@@ -95,11 +105,46 @@ public sealed class Updater
         catch { return null; }
     }
 
+    /// <summary>
+    /// ¿Hay que repetir la búsqueda sin el token embebido?
+    /// </summary>
+    /// <remarks>
+    /// EL TOKEN VA IGUAL EN TODAS LAS COPIAS, así que el día que se revoque o se le quite el permiso,
+    /// todas reciben un 401 a la vez — y ninguna podría bajarse la versión que trae el token nuevo. El
+    /// repo es público y contesta sin credenciales (60 peticiones/h por IP en vez de 5000): peor cupo,
+    /// pero la flota no se queda sin actualizar para siempre (medido el 2026-09-30 contra el repo real:
+    /// con un token inválido Velopack lanza <c>HttpRequestException</c> con <c>StatusCode = Unauthorized</c>).
+    ///
+    /// Si ya iba sin token no hay nada que quitar: un 403 anónimo es el cupo agotado, y repetirlo sería un bucle.
+    /// </remarks>
+    public static bool SeReintentaSinToken(Exception e, bool ibaConToken)
+    {
+        if (!ibaConToken) return false;
+        for (Exception? x = e; x != null; x = x.InnerException)
+            if (x is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden })
+                return true;
+        return false;
+    }
+
+    /// <summary>
+    /// La versión que Ü dice tener: la instalada, y la del ensamblado solo si no hay instalación.
+    /// </summary>
+    /// <remarks>
+    /// La telemetría mandaba la del ensamblado, que nadie sella: los 36 equipos del panel decían
+    /// <c>1.0.0.0</c> y no había forma de saber a quién le había llegado una release (2026-09-30).
+    /// </remarks>
+    public static string VersionDeclarada(string? instalada, string? ensamblado) =>
+        !string.IsNullOrWhiteSpace(instalada) ? instalada.Trim()
+        : !string.IsNullOrWhiteSpace(ensamblado) ? ensamblado.Trim()
+        : "dev";
+
     /// <summary>False en desarrollo o si se corre la carpeta suelta sin instalar: ahí no hay nada que actualizar.</summary>
     public bool Enabled => _mgr.IsInstalled;
 
     /// <summary>Versión instalada, para mostrar en el panel (soporte: "¿qué versión tenés?").</summary>
-    public string CurrentVersion => _mgr.CurrentVersion?.ToString() ?? "dev";
+    public string CurrentVersion => VersionDeclarada(
+        _mgr.CurrentVersion?.ToString(),
+        System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString());
 
     /// <summary>Arranca el sondeo en segundo plano. No lanza: los fallos de red son normales y se loguean.</summary>
     public void Start()
@@ -109,7 +154,24 @@ public sealed class Updater
             LogBus.Log("update", "auto-update desactivado (no es una instalación Velopack; normal en dotnet run)");
             return;
         }
+        // AQUÍ y no solo en Main: allí todavía no hay telemetría, y esta línea es la que tiene que
+        // llegar al panel — es la que faltaba cuando un equipo volvía en la versión vieja.
+        if (ArranqueDeActualizacion.UltimoVeredicto.Que != ResultadoDelIntento.SinIntento)
+            LogBus.Log("update", ArranqueDeActualizacion.Frase(ArranqueDeActualizacion.UltimoVeredicto));
         _ = PollLoopAsync();
+    }
+
+    /// <summary>Buscar en el feed, y si GitHub rechaza el token, otra vez sin él.</summary>
+    private async Task<UpdateInfo?> ComprobarAsync()
+    {
+        try { return await _mgr.CheckForUpdatesAsync(); }
+        catch (Exception e) when (SeReintentaSinToken(e, _conToken))
+        {
+            LogBus.Log("update", "GitHub rechazó el token embebido: de aquí en adelante busco sin token (60 peticiones por hora en vez de 5000)");
+            _conToken = false;
+            _mgr = new UpdateManager(new Velopack.Sources.GithubSource(_feedUrl, null, prerelease: false));
+            return await _mgr.CheckForUpdatesAsync();
+        }
     }
 
     private async Task PollLoopAsync()
@@ -134,8 +196,15 @@ public sealed class Updater
 
     private async Task CheckOnceAsync()
     {
-        UpdateInfo? info = await _mgr.CheckForUpdatesAsync();
-        if (info == null) return; // null = estamos al día. No es error.
+        UpdateInfo? info = await ComprobarAsync();
+        if (info == null)
+        {
+            // null = estamos al día. No es error, pero se dice UNA vez por proceso: sin esta línea, «miró y
+            // no había nada» y «nunca llegó a mirar» eran el mismo silencio en el log.
+            if (!_dijoAlDia) LogBus.Log("update", $"al día: {CurrentVersion} es la última publicada. Vuelvo a mirar cada {PollInterval.TotalMinutes:0} min");
+            _dijoAlDia = true;
+            return;
+        }
 
         string version = info.TargetFullRelease.Version.ToString();
         LogBus.Log("update", $"versión nueva disponible: {version} — descargando…");
@@ -176,7 +245,7 @@ public sealed class Updater
 
         try
         {
-            UpdateInfo? info = await _mgr.CheckForUpdatesAsync();
+            UpdateInfo? info = await ComprobarAsync();
             if (info == null)
             {
                 LogBus.Log("update", "búsqueda a mano: ya está en la última versión");
@@ -205,6 +274,9 @@ public sealed class Updater
     {
         if (_ready == null) return;
         LogBus.Log("update", "aplicando actualización y reiniciando");
+        // El rastro ANTES: esta es la última línea que el proceso llega a escribir, y si Update.exe
+        // falla, quien arranca después es la versión vieja y sin él no sabría que venía de un intento.
+        RastroDeActualizacion.Anotar(_carpetaDelRastro, CurrentVersion, _ready.Version.ToString(), "pastilla");
         _mgr.ApplyUpdatesAndRestart(_ready); // no retorna: mata el proceso
     }
 
@@ -218,6 +290,7 @@ public sealed class Updater
         try
         {
             LogBus.Log("update", "aplicando actualización pendiente al salir");
+            RastroDeActualizacion.Anotar(_carpetaDelRastro, CurrentVersion, _ready.Version.ToString(), "al cerrar");
             _mgr.WaitExitThenApplyUpdates(_ready, silent: true, restart: false);
         }
         catch (Exception ex)
@@ -235,7 +308,9 @@ public sealed class Updater
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-            string? token = TokenDeLectura();
+            // El mismo token que la búsqueda, y solo mientras GitHub lo acepte: con uno rechazado el
+            // mensaje daría 401 aunque el archivo sea público.
+            string? token = _conToken ? TokenDeLectura() : null;
             if (!string.IsNullOrWhiteSpace(token))
                 http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
             http.DefaultRequestHeaders.UserAgent.ParseAdd("U-Windows-App/1.0");
