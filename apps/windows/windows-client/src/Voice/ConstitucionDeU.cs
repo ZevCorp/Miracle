@@ -5,14 +5,15 @@ namespace U.WindowsClient.Voice;
 /// perfil. Un solo texto para todo lo que piensa en nombre de Ü.
 /// </summary>
 /// <remarks>
-/// HAY TRES COPIAS Y TIENEN QUE SER LA MISMA, palabra por palabra: esta, que va compilada dentro de
+/// HAY CUATRO COPIAS Y TIENEN QUE SER LA MISMA, palabra por palabra: esta, que va compilada dentro de
 /// U.exe porque la voz habla directo con el proveedor sin pasar por Graph;
 /// <c>services/graph/src/application/prompts/ConstitucionDeU.js</c>, que lee el cerebro de
-/// <c>/api/v1/agent/turn</c>; y <c>apps/android/core/src/commonMain/kotlin/graph/core/domain/ConstitucionDeU.kt</c>,
-/// que lee el cerebro local de Android. Las compara <c>tools/monorepo/constitucion.sh</c> tal como las
+/// <c>/api/v1/agent/turn</c>; <c>apps/android/core/src/commonMain/kotlin/graph/core/domain/ConstitucionDeU.kt</c>,
+/// que lee el cerebro local de Android; y <c>apps/mac/Sources/UCore/ConstitucionDeU.swift</c>, que leen la
+/// voz y Luna en el Mac (desde el 2026-10-01). Las compara <c>tools/monorepo/constitucion.sh</c> tal como las
 /// ve cada programa, con la sangría de las viñetas incluida, así que cada texto lleva delante su marca
 /// <c>// constitucion:…</c> (una sola vez) y se escribe como raw string: las comillas de cierre marcan
-/// la sangría que se quita. Si cambias un texto aquí, cámbialo en las otras dos en el mismo PR.
+/// la sangría que se quita. Si cambias un texto aquí, cámbialo en las otras tres en el mismo PR.
 ///
 /// <c>{ESPECIALIDAD}</c> se sustituye por «, especialista en &lt;Nombre&gt;» o por nada; lo hace
 /// <see cref="U.WindowsClient.Cuenta.PerfilDeUso.ParaElDelegado"/>. Las dos frases de la voz
@@ -20,7 +21,7 @@ namespace U.WindowsClient.Voice;
 /// lleva una persona corta y ahí vive la personalidad que se oye; su <c>{ESPECIALIDAD_CORTA}</c> es
 /// « de &lt;Nombre&gt;» o nada (<see cref="U.WindowsClient.Cuenta.PerfilDeUso.ParaLaVoz"/>).
 ///
-/// Diseño del 2026-10-01 (spec 078). La versión viaja igual en las tres copias.
+/// Diseño del 2026-10-01 (spec 078). La versión viaja igual en las cuatro copias.
 /// </remarks>
 internal static class ConstitucionDeU
 {
