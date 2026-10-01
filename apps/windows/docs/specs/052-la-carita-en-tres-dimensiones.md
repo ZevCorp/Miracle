@@ -1,6 +1,6 @@
 # Plan de implementación: la carita gira la cabeza, saca las manos y nunca cambia de color
 
-Estado: **propuesto** · 2026-09-30 · Rama: `jose/carita-3d` · Promesas **440-444** (reservadas 440-449)
+Estado: **implementado, con la segunda vuelta del 2026-10-01** · Rama: `jose/carita-3d` · Promesas **440-448** (reservadas 440-449)
 
 > El dueño, en un audio del 2026-09-30 (transcripción en `fuentes/052-audio-2026-09-30.md`): «la
 > carita actualmente es 2D, quiero que sea ligeramente 3D como el repositorio que te voy a mandar
@@ -64,7 +64,14 @@ cada una en algo que se rompe si alguien lo contradice.
 | 441 | girar la cabeza no es correr los ojos: los rasgos se proyectan sobre una cara curva, así que al girar todos se van hacia donde mira, el ojo que se acerca al borde se estrecha más que el otro y los dos quedan más juntos; ningún rasgo se sale de la cara; sin giro todo queda donde siempre estuvo; y lo pintado se mueve de verdad hacia ese lado | 2 |
 | 442 | las manos asoman y se esconden: en reposo no se ven; al saludar salen por detrás de la cara —lo que la cara tapa no cambia—, una saluda mientras la otra se queda, y al terminar vuelven a esconderse solas en menos de dos segundos y medio | 3 |
 | 443 | la carita tiene volumen: con luz arriba, el cuerpo es más claro arriba que abajo y más oscuro en el borde que hacia dentro, en los dos temas | 4 |
-| 444 | la carita está viva sin estar ansiosa: parpadea sola cada 3 a 7 segundos —cerrar es más rápido que abrir y el parpadeo entero dura menos de un cuarto de segundo—; los gestos grandes (girar la cabeza, sacar las manos, un pulso) siguen espaciados 8 segundos o más y los tres salen; y quieta no pide cuadros | 5 |
+| 444 | la carita está viva sin estar ansiosa: sola solo parpadea, cada 8 a 18 segundos —cerrar es más rápido que abrir y el parpadeo entero dura menos de un cuarto de segundo—; girar la cabeza y el pulso no salen solos; el saludo sale solo muy rara vez, entre hora y media y tres horas; y quieta no pide cuadros | 5, 7 |
+| 445 | la carita blanca es casi blanca sin ser blanca: su cuerpo no llega al blanco puro en ningún punto ni se apaga —el centro no baja de 240 de 255, y arriba, abajo y a los lados no baja de 225—, y conserva el volumen | 6 |
+| 446 | cuando Ü pulsa algo, la carita lo presiona con la mano: saca solo la mano de ese lado, la empuja hacia fuera y la esconde sola en menos de un segundo, por detrás de la cara; la mano no se sale del aire que la ventana de la carita le deja, tampoco al saludar; y solo presiona cuando el pulso es de Ü: señalar no saca la mano | 8 |
+| 447 | los gestos responden a lo que pasa: tocar la carita la hace rebotar, y al ir junto a lo que Ü toca gira la cabeza hacia ello y la sigue teniendo girada aunque cambie de estado | 9 |
+| 448 | al hablar la boca no se abre: es una línea en todos los estados, sin relleno ni lengua; hablar se ve en la sonrisa, que se ensancha poco a poco al empezar una frase y se relaja al callar, sin parpadear en cada frase | 10 |
+
+La 444 se REESCRIBIÓ el 2026-10-01, antes de llegar a `main` (ver «La segunda vuelta»): decía «parpadea
+sola cada 3 a 7 segundos […] los gestos grandes siguen espaciados 8 segundos o más y los tres salen».
 
 ### Con qué se juzga
 
@@ -94,6 +101,86 @@ bien* no lo juzga ninguna promesa; lo dice el ojo.
 | 3 — las manos | 442 | `Ui/ManosDeLaCarita.cs` (nueva), `FaceControl.Manos` y `Saludar()` | 442 verde |
 | 4 — el volumen | 443 | las tres capas de luz en `OnRender` | 443 verde |
 | 5 — la vida | 444 | `Ui/GestosDeLaCarita.cs` (nueva), parpadeo propio y gestos grandes | 444 verde |
+
+## La segunda vuelta (2026-10-01): lo que el dueño vio, y lo que cambió
+
+El dueño vio la carita de la primera vuelta junto a la de `main` (una ventana de prueba con las dos,
+movidas gesto por gesto) y dijo, en dos audios:
+
+- **Le gustó**: el degradado y las sombras, que voltee la cara («me gusta bastante»), que salude con
+  las manos, el rebote y los parpadeos.
+- **El blanco quedó «muy opaco»**: «quiero que sea prácticamente blanco sin que sea blanco, porque
+  el blanco puro lastima los ojos». Medido en la primera vuelta: el centro del cuerpo daba 234 de 255
+  y el borde bajaba de 200. → promesa 445.
+- **No le gustó CUÁNDO hace las cosas**: «el repo de inspiración es de un diseñador que lo hizo para
+  que esté todo el tiempo haciendo gestos; prefiero que nuestra interacción sea mucho más basada en
+  acciones reales que va ejecutando la carita». La carita de siempre «parpadea cada cierto tiempo que
+  no se siente invasivo»; el saludo, «como cada dos horas […] con rangos aleatorios, pero largos […]
+  que sea raro de ver». → la 444 reescrita: sola solo parpadea, a la cadencia de siempre (8-18 s), y
+  girar y el pulso dejan de salir solos.
+- **«Cuando haga clic, que saque las manos y haga el clic»**, y que al ponerse junto a lo que pulsa
+  lo voltee a mirar con el giro nuevo. → promesas 446 y 447.
+- **La boca al hablar es «extremadamente horrible»**, heredada de un experimento viejo: «toma la
+  decisión de diseño correcta […] si la decisión es que no haya animación […] que le guste a los
+  usuarios». → promesa 448.
+
+### La decisión de la boca, y de dónde sale
+
+Tres bocas abiertas ya se juzgaron mirando la pantalla y las tres se rechazaron: la rellena con
+lengua que hay en `main` («horrible» el 2026-09-06 y otra vez hoy), y la hueca de trazo («parece que
+tuviera labios negros»). Ese mismo día el dueño pidió «la cara compuesta» y que la voz se viera en el
+halo; se hizo en la rama `jose/estetica-de-la-carita` y nunca llegó a `main`, así que siguió viendo
+la boca que había rechazado.
+
+La referencia apunta al mismo sitio: Coucou no tiene boca. Dice todo con los ojos, el cuerpo y las
+curvas de inercia. Y hay una razón de tamaño: la carita mide 66 px y su trazo 1,8; una boca que
+cambia de forma a ritmo de sílaba, a ese tamaño, es una mancha que tiembla.
+
+Así que **la boca no se abre**. Sigue siendo la línea de la sonrisa, y hablar se ve de dos maneras:
+
+1. **La sonrisa se ensancha mientras dice una frase y se relaja al callar.** Es la pose `Hablando`
+   que ya existía, pero ahora se LLEGA a ella: 260 ms para ensancharse, 900 para relajarse — los
+   tiempos de la envolvente que el dueño eligió el 2026-09-06 para el halo («a ritmo de sílaba da la
+   sensación de una persona ansiosa»). Va a ritmo de frase, no de sílaba.
+2. **El halo**, que ya late con el nivel real de la voz y no se toca.
+
+Con eso se borra la maquinaria entera de la boca abierta (`MouthOpen`, `MouthRound`, la lengua y su
+color, el vaivén para la voz sin nivel): cuando una pieza se retira, se borra, no se deja apagada.
+
+Y de paso, **todas** las expresiones dejan de saltar: la carita pasa de una pose a otra en ~300 ms.
+Era el tercer pilar de la referencia («nada va lineal») y solo se había aplicado a los gestos.
+
+### Lo que se decidió sin preguntar en esta vuelta
+
+- **El parpadeo vuelve a 8-18 s**, el reloj de la carita de siempre. La primera vuelta lo bajó a
+  3-7 s; el dueño señaló como buena la cadencia vieja.
+- **Presiona con UNA mano**, la del lado de lo que pulsó. Dos manos empujando a la vez se leen como
+  un aplauso, no como un clic.
+- **La mano presiona al llegar**, no antes: el clic de verdad ya salió (promesa 504: el ciclo no
+  espera a la carita), y el gesto lo cuenta en cuanto la carita se posa.
+- **Señalar no presiona.** `Senalador` (mostrar algo) y `UiaSurface.Pulso` (pulsarlo) entraban por la
+  misma visita; ahora la visita sabe cuál de las dos es.
+- **Cambiar de estado ya no devuelve la cabeza al frente.** Lo hacía de un salto, y con el giro
+  nuevo se nota: mientras Ü trabaja y narra, el estado va y viene entre hablar y callar.
+- **Un parpadeo por cambio de estado, salvo entre hablar y callar**, que en una conversación pasa
+  cada pocos segundos.
+- **El halo no se toca.** Su latido sigue el nivel de voz sin envolvente; es de otra spec y el dueño
+  lo ajustó mirando la pantalla el 2026-09-30.
+
+### Las fases de la segunda vuelta
+
+| Fase | Promesa | Qué toca | Terminado |
+|---|---|---|---|
+| 6 — casi blanca | 445 | `Ui/PaletaDeLaCarita.cs` (la clara) | 445 verde, 443 sigue verde |
+| 7 — sola solo parpadea | 444 | `Ui/GestosDeLaCarita.cs`, `FaceControl.StartIdle` | 444 verde |
+| 8 — la mano que presiona | 446 | `Ui/ManosDeLaCarita.cs`, `FaceControl.Presionar`, `FaceWindow.Visitar`, `EstanciaDeLaCarita` | 446 verde |
+| 9 — gestos por lo que pasa | 447 | `FaceWindow.StartMicByFace`, `FaceControl.OnMoodChanged` | 447 verde |
+| 10 — la boca | 448 | `FaceControl` (poses que se mezclan, fuera la boca abierta), `FaceWindow` (el pulso de la voz ya no mueve boca) | 448 verde |
+
+**Sitios con cada clase** (contados con grep el 2026-10-01): quién hace mirar a la carita, 1
+(`FaceWindow.Visitar`); quién la deja de hacer mirar, 3; quién abre el micrófono al tocarla, 1 función
+(`StartMicByFace`) con 2 llamadores —la del muelle y la suelta—; quién escribía la boca, 1
+(`MoverLaBoca`); quién avisa de una visita, 2 (`Senalador.Senala` y `UiaSurface.Pulso`).
 
 ## Decisiones tomadas sin preguntar (encargo nocturno)
 

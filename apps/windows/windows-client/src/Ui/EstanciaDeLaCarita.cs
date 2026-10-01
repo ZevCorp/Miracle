@@ -50,7 +50,7 @@ public sealed class EstanciaDeLaCarita
         if (Casa == null) return false;
         if (ReglaDeLaVisita.Junto(elemento, carita, area) is not { } destino) return false;
         Salir();
-        _volar(destino, Duracion(desde, destino), null);
+        _volar(destino, CuantoTarda(desde, destino), null);
         return true;
     }
 
@@ -67,7 +67,7 @@ public sealed class EstanciaDeLaCarita
         if (Tocable || enVuelo || Casa is not { } casa) return;
         if (_reloj() - _ultimaSalida < QuietudMs) return;
         if (Distancia(dondeEsta, casa) <= 1) { Aterrizo(dondeEsta); return; }
-        _volar(casa, Duracion(dondeEsta, casa), Aterrizo);
+        _volar(casa, CuantoTarda(dondeEsta, casa), Aterrizo);
     }
 
     /// <summary>Se posó ahí. Solo si es la casa vuelve a dejarse tocar.</summary>
@@ -87,7 +87,11 @@ public sealed class EstanciaDeLaCarita
         Tocable = true;
     }
 
-    private static TimeSpan Duracion(Point a, Point b)
+    /// <summary>
+    /// Cuánto tarda el vuelo de <paramref name="a"/> a <paramref name="b"/>; cero si queda tan cerca que no vuela. Lo
+    /// pregunta también quien quiere hacer algo AL POSARSE: la mano que presiona sale entonces, no por el camino.
+    /// </summary>
+    public static TimeSpan CuantoTarda(Point a, Point b)
     {
         double d = Distancia(a, b);
         return ComoViajaLaCarita.MereceViaje(d) ? ComoViajaLaCarita.Cuanto(d) : TimeSpan.Zero;

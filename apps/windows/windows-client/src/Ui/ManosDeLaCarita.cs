@@ -3,7 +3,8 @@ using System;
 namespace U.WindowsClient.Ui;
 
 /// <summary>
-/// Las manos de la carita: dónde están en cada instante de un saludo (spec 052, promesa 442).
+/// Las manos de la carita: dónde están en cada instante de un saludo (spec 052, promesa 442) y al
+/// presionar lo que Ü pulsa (promesa 446).
 ///
 /// Pedidas por el dueño el 2026-09-30: «que pueda tener esas manitos […] que las pueda sacar de vez en
 /// cuando, meterlas». El movimiento sigue a Coucou (<c>greet</c> y <c>drawHandsBehind</c>): viven
@@ -63,4 +64,57 @@ public static class ManosDeLaCarita
         // La otra se queda: se mece al compás, con la mitad de frecuencia y casi nada de recorrido.
         return (x, y + Math.Sin(Frecuencia / 2 * w) * 0.03 * env, 0);
     }
+
+    // ── Presionar ─────────────────────────────────────────────────────────────────────────────
+    //
+    // «Cuando haga clic, que saque las manos y haga el clic» (el dueño, 2026-10-01; promesa 446). La
+    // carita ya iba junto a lo que Ü pulsa (spec 061); al posarse saca la mano de ese lado, EMPUJA hacia
+    // fuera —más lejos de donde descansa una mano que solo asoma— y la esconde. Una sola mano: dos
+    // empujando a la vez se leen como un aplauso, no como un clic.
+
+    /// <summary>Lo que dura presionar, de esconderse a esconderse, en segundos.</summary>
+    public const double DuracionDePresionar = 0.7;
+
+    private const double Asoma = 0.16;       // sale por el costado, a media altura
+    private const double Empuja = 0.27;      // y de ahí, el empujón: corto y con decisión
+    private const double Aguanta = 0.40;     // se queda apretando un instante, que es lo que lo hace un clic
+
+    private const double Dentro = 0.80;      // escondida detrás del cuerpo
+    private const double Asomada = 1.02;
+    /// <summary>
+    /// Hasta dónde llega el centro de la mano al empujar, en radios de la cara. LO LIMITA LA VENTANA: la
+    /// carita suelta mide 66 con 17 de aire (<see cref="ReglaDelHalo"/>), o sea 1,53 radios hasta el
+    /// canto; 1,20 más el medio ancho de la mano y lo que el cuerpo se corre al girar son 1,48.
+    /// </summary>
+    private const double Alcance = 1.20;
+    private const double Altura = 0.18;      // un poco por debajo del centro: a la altura de un brazo
+
+    /// <summary>
+    /// La mano que presiona en el instante <paramref name="t"/>, por el lado <paramref name="lado"/>
+    /// (1 derecha, −1 izquierda): dónde está y cuánto asoma (0 dentro, 1 fuera). La otra mano no sale.
+    /// </summary>
+    public static (double X, double Y, double Angulo, double Asomo) Presion(double t, int lado)
+    {
+        int s = Math.Sign(lado);
+        if (t <= 0 || t >= DuracionDePresionar) return (s * Dentro, Altura, 0, 0);
+
+        double x, asomo;
+        if (t < Asoma)
+        {
+            double p = Frenando(t / Asoma);
+            (x, asomo) = (Dentro + (Asomada - Dentro) * p, p);
+        }
+        else if (t < Empuja) (x, asomo) = (Asomada + (Alcance - Asomada) * Frenando((t - Asoma) / (Empuja - Asoma)), 1);
+        else if (t < Aguanta) (x, asomo) = (Alcance, 1);
+        else
+        {
+            // Vuelve acelerando, encogiéndose mientras se mete: por detrás, igual que salió.
+            double p = (DuracionDePresionar - t) / (DuracionDePresionar - Aguanta);
+            (x, asomo) = (Dentro + (Alcance - Dentro) * p * p, p * p);
+        }
+        return (s * x, Altura, 0, asomo);
+    }
+
+    /// <summary>Sale con prisa y frena al llegar.</summary>
+    private static double Frenando(double p) => 1 - Math.Pow(1 - Math.Clamp(p, 0, 1), 3);
 }

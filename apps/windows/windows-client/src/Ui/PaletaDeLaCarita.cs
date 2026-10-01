@@ -7,7 +7,7 @@ namespace U.WindowsClient.Ui;
 /// Todo lo que pinta la carita, y solo grises (spec 052, promesa 440).
 ///
 /// Hasta el 2026-09-30 la carita se TEÑÍA: roja al grabar y al fallar, ámbar al esperar, gris al
-/// detenerse, y la lengua era rosa. El dueño: «no me gusta que cambie de color, quiero que sea siempre
+/// detenerse, y tenía una lengua rosa (que se fue con la boca abierta, promesa 448). El dueño: «no me gusta que cambie de color, quiero que sea siempre
 /// blanco o negro». Ya había pasado lo mismo con el notch (spec 023) y la carita siguió con su acento,
 /// porque vivía en otra paleta: por eso esta es SUYA y no tira de <see cref="UiPalette"/>, que es de
 /// la barra grande y tiene que seguir teniendo color.
@@ -26,17 +26,16 @@ public sealed class PaletaDeLaCarita
     /// <summary>El brillo especular, arriba a la derecha, donde da la luz.</summary>
     public Color Brillo { get; }
     public Color Filete { get; }
-    public Color Lengua { get; }
 
     public Brush Cuerpo { get; }
     public Brush Vineta { get; }
     public Brush Reflejo { get; }
     public Pen Contorno { get; }
 
-    private PaletaDeLaCarita(Color tinta, Color arriba, Color abajo, Color sombra, Color brillo, Color filete, Color lengua)
+    private PaletaDeLaCarita(Color tinta, Color arriba, Color abajo, Color sombra, Color brillo, Color filete)
     {
         Tinta = tinta; CuerpoArriba = arriba; CuerpoAbajo = abajo;
-        Sombra = sombra; Brillo = brillo; Filete = filete; Lengua = lengua;
+        Sombra = sombra; Brillo = brillo; Filete = filete;
 
         // La luz viene de arriba y un poco de la derecha: el degradado no es vertical puro, igual que
         // en la referencia, para que el brillo y la sombra cuenten la misma historia.
@@ -60,15 +59,24 @@ public sealed class PaletaDeLaCarita
         Contorno = p;
     }
 
-    /// <summary>Blanco con tinta negra: la de siempre, ahora con volumen.</summary>
+    /// <summary>
+    /// Casi blanca, sin ser blanca (promesa 445), con tinta negra.
+    /// </summary>
+    /// <remarks>
+    /// La primera vuelta bajaba de #FFFFFF a #D6D6D6 con una viñeta del 20 %: el centro daba 234 de 255
+    /// y el borde menos de 200. El dueño, al verla (2026-10-01): «me gustó mucho el degradado, pero quedó
+    /// muy opaco; quiero que sea prácticamente blanco sin que sea blanco, porque el blanco puro lastima
+    /// los ojos». Así que el volumen se queda y se le quita peso: de 251 a 240, viñeta del 8 %. El
+    /// centro da 245 y el borde 230. Y arriba NO es 255 a propósito: con el brillo encima llegaría al
+    /// blanco puro, que es justo lo que no se quiere.
+    /// </remarks>
     public static readonly PaletaDeLaCarita Clara = new(
         tinta: Colors.Black,
-        arriba: Color.FromRgb(0xFF, 0xFF, 0xFF),
-        abajo: Color.FromRgb(0xD6, 0xD6, 0xD6),
-        sombra: Color.FromArgb(0x33, 0, 0, 0),
-        brillo: Color.FromArgb(0x8C, 0xFF, 0xFF, 0xFF),
-        filete: Color.FromArgb(0x1F, 0, 0, 0),
-        lengua: Color.FromRgb(0x8C, 0x8C, 0x8C));
+        arriba: Color.FromRgb(0xFB, 0xFB, 0xFB),
+        abajo: Color.FromRgb(0xF0, 0xF0, 0xF0),
+        sombra: Color.FromArgb(0x14, 0, 0, 0),
+        brillo: Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF),
+        filete: Color.FromArgb(0x1F, 0, 0, 0));
 
     /// <summary>Negro con tinta blanca. El degradado sube a gris para que el negro no sea un agujero.</summary>
     public static readonly PaletaDeLaCarita Oscura = new(
@@ -77,8 +85,7 @@ public sealed class PaletaDeLaCarita
         abajo: Color.FromRgb(0x0C, 0x0C, 0x0C),
         sombra: Color.FromArgb(0x66, 0, 0, 0),
         brillo: Color.FromArgb(0x2E, 0xFF, 0xFF, 0xFF),
-        filete: Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF),
-        lengua: Color.FromRgb(0x9A, 0x9A, 0x9A));
+        filete: Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
 
     public static PaletaDeLaCarita Para(FaceTheme tema) => tema == FaceTheme.Dark ? Oscura : Clara;
 

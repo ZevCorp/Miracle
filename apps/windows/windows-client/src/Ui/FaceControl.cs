@@ -140,7 +140,38 @@ public sealed class FaceControl : FrameworkElement
 
     private double Saludo => (double)GetValue(SaludoProperty);
 
-    /// <summary>Qué está haciendo Ü. Cambia la pose, el acento de color y la animación continua.</summary>
+    /// <summary>
+    /// El instante de la presión en curso, en segundos y CON EL SIGNO DEL LADO: positivo, la mano
+    /// derecha; negativo, la izquierda; 0, no presiona (spec 052, promesa 446). Lo anima
+    /// <see cref="Presionar"/>; dónde está la mano en cada instante lo dice <see cref="ManosDeLaCarita.Presion"/>.
+    /// Lado y tiempo en un solo número para que no puedan desacompasarse.
+    /// </summary>
+    public double Presion
+    {
+        get => (double)GetValue(PresionProperty);
+        set => SetValue(PresionProperty, value);
+    }
+
+    public static readonly DependencyProperty PresionProperty = DependencyProperty.Register(
+        nameof(Presion), typeof(double), typeof(FaceControl),
+        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>
+    /// Cuánto ha LLEGADO a la cara de su estado: 0, sigue con la que tenía; 1, ya es la nueva. La carita
+    /// no salta de una expresión a otra (promesa 448): al cambiar de estado esto va de 0 a 1 en lo que
+    /// diga <see cref="GestosDeLaCarita.CuantoTardaEnLlegar"/>, y lo pintado es la mezcla.
+    /// </summary>
+    public double Llegada
+    {
+        get => (double)GetValue(LlegadaProperty);
+        set => SetValue(LlegadaProperty, value);
+    }
+
+    public static readonly DependencyProperty LlegadaProperty = DependencyProperty.Register(
+        nameof(Llegada), typeof(double), typeof(FaceControl),
+        new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>Qué está haciendo Ü. Cambia la pose y la animación continua.</summary>
     public FaceMood Mood
     {
         get => (FaceMood)GetValue(MoodProperty);
@@ -150,7 +181,7 @@ public sealed class FaceControl : FrameworkElement
     public static readonly DependencyProperty MoodProperty = DependencyProperty.Register(
         nameof(Mood), typeof(FaceMood), typeof(FaceControl),
         new FrameworkPropertyMetadata(FaceMood.Reposo, FrameworkPropertyMetadataOptions.AffectsRender,
-            (d, e) => ((FaceControl)d).OnMoodChanged((FaceMood)e.NewValue)));
+            (d, e) => ((FaceControl)d).OnMoodChanged((FaceMood)e.OldValue, (FaceMood)e.NewValue)));
 
     /// <summary>0 = ojos abiertos, 1 = cerrados. Lo anima <see cref="Blink"/>.</summary>
     public double BlinkClosed
@@ -163,44 +194,11 @@ public sealed class FaceControl : FrameworkElement
         nameof(BlinkClosed), typeof(double), typeof(FaceControl),
         new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    /// <summary>
-    /// Cuánto está ABIERTA la boca, 0 (cerrada, la sonrisa de siempre) a 1 (bien abierta).
-    /// </summary>
-    /// <remarks>
-    /// Va en una DependencyProperty con AffectsRender pese a la regla de esta clase —lo continuo va
-    /// en RenderTransform— porque aquí no hay transform que valga: la boca no se mueve ni se escala,
-    /// CAMBIA DE FORMA, y una geometría distinta hay que dibujarla. Lo que sí se respeta es el
-    /// motivo de la regla: esto solo se anima mientras Ü habla (no en reposo, que es casi todo el
-    /// tiempo), a ~16 cuadros por segundo y no a 60, y quien la mueve redondea el valor para no
-    /// disparar un repintado por cada variación imperceptible.
-    /// </remarks>
-    public double MouthOpen
-    {
-        get => (double)GetValue(MouthOpenProperty);
-        set => SetValue(MouthOpenProperty, value);
-    }
-
-    public static readonly DependencyProperty MouthOpenProperty = DependencyProperty.Register(
-        nameof(MouthOpen), typeof(double), typeof(FaceControl),
-        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
-
-    /// <summary>
-    /// La FORMA de la abertura: 0 = ancha y plana (como al decir «i» o «e»), 1 = redonda y estrecha
-    /// (como al decir «o» o «u»). Con la altura, es lo que distingue las bocas del dibujo.
-    ///
-    /// Por el volumen no se puede saber qué vocal se está diciendo —eso exigiría analizar el sonido,
-    /// que es otro problema entero— así que esto no pretende acertar la vocal: pretende que la boca
-    /// no repita siempre el mismo gesto, que es lo que delata a un muñeco.
-    /// </summary>
-    public double MouthRound
-    {
-        get => (double)GetValue(MouthRoundProperty);
-        set => SetValue(MouthRoundProperty, value);
-    }
-
-    public static readonly DependencyProperty MouthRoundProperty = DependencyProperty.Register(
-        nameof(MouthRound), typeof(double), typeof(FaceControl),
-        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
+    // LA BOCA NO SE ABRE (promesa 448). Aquí vivían MouthOpen y MouthRound: una boca rellena, con
+    // lengua, que cambiaba de forma 16 veces por segundo siguiendo el volumen de la voz. El dueño la
+    // juzgó tres veces mirándola («horrible», y su variante hueca «parece que tuviera labios negros»).
+    // A 66 px y con un trazo de 1,8 era una mancha que tiembla. Se borró entera: hablar se ve en la
+    // sonrisa de la pose Hablando, a la que ahora se LLEGA (ver Llegada), y en el halo.
 
     // ── Las poses ─────────────────────────────────────────────────────────────────────────────
 
@@ -251,28 +249,50 @@ public sealed class FaceControl : FrameworkElement
         [FaceMood.Fallo] = new(-3, -3, 0.15, 0.15, 0.8, 0.15, -0.5, 34 * 0.9, 0.1, 0.1),
     };
 
-    private FacePose CurrentPose => Poses.TryGetValue(Mood, out var p) ? p : Poses[FaceMood.Reposo];
+    private static FacePose PoseDe(FaceMood m) => Poses.TryGetValue(m, out var p) ? p : Poses[FaceMood.Reposo];
+
+    /// <summary>La cara entre dos poses: 0 es <paramref name="a"/>, 1 es <paramref name="b"/>.</summary>
+    private static FacePose Mezclar(FacePose a, FacePose b, double t)
+    {
+        t = Math.Clamp(t, 0, 1);
+        double M(double x, double y) => x + (y - x) * t;
+        return new(M(a.BrowL, b.BrowL), M(a.BrowR, b.BrowR), M(a.CurveL, b.CurveL), M(a.CurveR, b.CurveR),
+            M(a.EyeOpen, b.EyeOpen), M(a.Squint, b.Squint), M(a.MouthCurve, b.MouthCurve), M(a.MouthWidth, b.MouthWidth),
+            M(a.CornerL, b.CornerL), M(a.CornerR, b.CornerR));
+    }
+
+    /// <summary>La cara de la que viene. No es la del estado anterior: es la que se VEÍA, que podía ir a medio camino.</summary>
+    private FacePose _poseDesde = Poses[FaceMood.Reposo];
+
+    /// <summary>Lo que se pinta: de la cara que tenía a la de su estado, lo que haya llegado.</summary>
+    private FacePose CurrentPose => Mezclar(_poseDesde, PoseDe(Mood), Llegada);
 
     /// <summary>
-    /// Coreografía del estado: limpia lo del anterior y arranca lo del nuevo.
+    /// Coreografía del estado: llega a la cara nueva, para lo continuo del anterior y arranca lo suyo.
     ///
-    /// Lo primero que hace es soltar las animaciones de <c>BlinkClosed</c> y <c>Giro</c>: mientras un
-    /// valor está animado WPF IGNORA cualquier asignación, y sin esta limpieza una carita que parpadeó
-    /// justo antes de cambiar de estado se quedaría con los ojos a medio cerrar para siempre.
+    /// LA CABEZA NO SE TOCA. Hasta el 2026-10-01 cada cambio de estado la devolvía al frente de un
+    /// salto. Con los ojos corridos 3,5 unidades casi no se veía; con la cabeza girada hacia lo que Ü
+    /// acaba de pulsar, sí — y mientras Ü trabaja y narra, el estado cambia cada pocos segundos
+    /// (promesa 447). Hacia dónde mira no depende de qué está haciendo.
     ///
-    /// Y al final PARPADEA: cambiar de estado es un pensamiento nuevo, y es lo que hace la referencia
-    /// (Coucou, <c>setState</c>) — la microexpresión más barata que existe.
+    /// Y PARPADEA: cambiar de estado es un pensamiento nuevo, y es lo que hace la referencia (Coucou,
+    /// <c>setState</c>). Salvo entre hablar y callar, que en una conversación es cada frase.
     /// </summary>
-    private void OnMoodChanged(FaceMood mood)
+    private void OnMoodChanged(FaceMood antes, FaceMood ahora)
     {
-        Soltar(this, BlinkClosedProperty);
-        Soltar(this, GiroProperty);
-        BlinkClosed = 0;
-        Giro = 0;
+        _poseDesde = Mezclar(_poseDesde, PoseDe(antes), Llegada);
+        Soltar(this, LlegadaProperty);
+        if (IsLoaded)
+        {
+            Llegada = 0;
+            Animar(this, LlegadaProperty, Claves((0, 0, null), (1, GestosDeLaCarita.CuantoTardaEnLlegar(antes, ahora), Suave)));
+        }
+        // Sin pantalla no hay camino que ver: quien la pinta suelta (el contrato) quiere la cara del estado.
+        else Llegada = 1;
 
         StopContinuous();
 
-        switch (mood)
+        switch (ahora)
         {
             case FaceMood.Escuchando:
                 // Respiración: el único estado con movimiento propio permanente, porque «te escucho»
@@ -298,18 +318,44 @@ public sealed class FaceControl : FrameworkElement
                 break;
         }
 
-        Blink(1);
+        if (GestosDeLaCarita.ParpadeaAlCambiar(antes, ahora))
+        {
+            // Mientras un valor está animado WPF ignora cualquier asignación: se suelta antes, o una
+            // carita que venía parpadeando se quedaría con los ojos a medio cerrar.
+            Soltar(this, BlinkClosedProperty);
+            BlinkClosed = 0;
+            Blink(1);
+        }
     }
 
+    // Lo continuo del estado: la respiración de Escuchando y la inclinación de Trabajando y Esperando.
+    private bool _respira, _inclinada;
+
+    /// <summary>
+    /// Para lo CONTINUO del estado anterior, y solo eso. Antes soltaba también el pulso y el salto, que
+    /// son de un golpe: un toque rebota 420 ms, y si en ese rato cambiaba el estado —tocarla abre la
+    /// voz— el rebote se cortaba en seco. Y vuelve a su sitio andando, no de un salto.
+    /// </summary>
     private void StopContinuous()
     {
-        Soltar(_scale, ScaleTransform.ScaleXProperty);
-        Soltar(_scale, ScaleTransform.ScaleYProperty);
-        Soltar(_tilt, RotateTransform.AngleProperty);
-        Soltar(_salto, TranslateTransform.YProperty);
-        _scale.ScaleX = _scale.ScaleY = 1;
-        _tilt.Angle = 0;
-        _salto.Y = 0;
+        if (_respira)
+        {
+            _respira = false;
+            Volver(_scale, ScaleTransform.ScaleXProperty, _scale.ScaleX, 1);
+            Volver(_scale, ScaleTransform.ScaleYProperty, _scale.ScaleY, 1);
+        }
+        if (_inclinada)
+        {
+            _inclinada = false;
+            Volver(_tilt, RotateTransform.AngleProperty, _tilt.Angle, 0);
+        }
+    }
+
+    private void Volver(IAnimatable dueno, DependencyProperty p, double desde, double a)
+    {
+        if (IsLoaded) { Animar(dueno, p, Claves((desde, 0, null), (a, 280, Suave))); return; }
+        Soltar(dueno, p);
+        ((DependencyObject)dueno).SetValue(p, a);
     }
 
     // ── Animar sin quedarse animando ──────────────────────────────────────────────────────────
@@ -359,6 +405,7 @@ public sealed class FaceControl : FrameworkElement
 
     private void Breathe(double from, double to, int ms)
     {
+        _respira = true;
         var a = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(ms))
         {
             AutoReverse = true,
@@ -371,6 +418,7 @@ public sealed class FaceControl : FrameworkElement
 
     private void Sway(double degrees, int ms)
     {
+        _inclinada = true;
         var a = new DoubleAnimation(-degrees, degrees, TimeSpan.FromMilliseconds(ms))
         {
             AutoReverse = true,
@@ -380,8 +428,11 @@ public sealed class FaceControl : FrameworkElement
         _tilt.BeginAnimation(RotateTransform.AngleProperty, a);
     }
 
-    private void Ladear(double grados) =>
-        Animar(_tilt, RotateTransform.AngleProperty, Claves((0, 0, null), (grados, 340, Rebota)));
+    private void Ladear(double grados)
+    {
+        _inclinada = true;
+        Animar(_tilt, RotateTransform.AngleProperty, Claves((_tilt.Angle, 0, null), (grados, 340, Rebota)));
+    }
 
     /// <summary>Sube un poco y cae con rebote: «te oí».</summary>
     private void Saltito()
@@ -433,47 +484,50 @@ public sealed class FaceControl : FrameworkElement
         Animar(this, SaludoProperty, a, final: 0);
     }
 
-    /* ---------- Lo que hace sola: parpadear cada pocos segundos y, más espaciado, un gesto grande ---------- */
+    /// <summary>
+    /// Saca la mano de un lado, EMPUJA hacia fuera y la esconde (spec 052, promesa 446): el gesto de
+    /// pulsar lo que Ü acaba de pulsar. <paramref name="tras"/> es lo que tarda en llegar junto al
+    /// elemento: la mano sale al posarse, no por el camino.
+    /// </summary>
+    public void Presionar(bool izquierda, TimeSpan tras)
+    {
+        double d = ManosDeLaCarita.DuracionDePresionar * (izquierda ? -1 : 1);
+        var a = new DoubleAnimationUsingKeyFrames { BeginTime = tras > TimeSpan.Zero ? tras : TimeSpan.Zero };
+        a.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        a.KeyFrames.Add(new LinearDoubleKeyFrame(d, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(Math.Abs(d)))));
+        Animar(this, PresionProperty, a, final: 0);
+    }
+
+    /* ---------- Lo que hace sola: parpadear, y muy de vez en cuando saludar ---------- */
 
     private readonly Random _rng = new();
-    private DispatcherTimer? _idleTimer, _blinkTimer;
+    private DispatcherTimer? _blinkTimer, _saludoTimer;
 
     /// <summary>
-    /// Arranca la vida en reposo: dos relojes (<see cref="GestosDeLaCarita"/>). El parpadeo cada 3-7 s,
-    /// a veces doble; y cada 8-18 s un gesto grande — girar la cabeza, saludar o un pulso.
+    /// Arranca lo que la carita hace SOLA (<see cref="GestosDeLaCarita"/>, promesa 444): parpadear cada
+    /// 8-18 s, a veces doble, y saludar entre hora y media y tres horas. Nada más: girar la cabeza y el
+    /// pulso responden a algo que pasó (mirar lo que Ü toca, un toque), no a un reloj.
     /// </summary>
     public void StartIdle()
     {
-        if (_idleTimer != null) return;
-        _idleTimer = new DispatcherTimer();
-        _idleTimer.Tick += (_, _) => { DoIdleGesture(); ScheduleNextIdle(); };
-        ScheduleNextIdle();
-        _idleTimer.Start();
-
-        _blinkTimer = new DispatcherTimer();
+        if (_blinkTimer != null) return;
+        _blinkTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(GestosDeLaCarita.ProximoParpadeo(_rng.NextDouble())) };
         _blinkTimer.Tick += (_, _) =>
         {
             Blink(GestosDeLaCarita.EsDoble(_rng.NextDouble()) ? 2 : 1);
             _blinkTimer!.Interval = TimeSpan.FromSeconds(GestosDeLaCarita.ProximoParpadeo(_rng.NextDouble()));
         };
-        _blinkTimer.Interval = TimeSpan.FromSeconds(GestosDeLaCarita.ProximoParpadeo(_rng.NextDouble()));
         _blinkTimer.Start();
-    }
 
-    private void ScheduleNextIdle()
-    {
-        // Tranquila: los gestos grandes, cada 8-18 s (antes cambiaba demasiado seguido y se veía ansiosa).
-        if (_idleTimer != null) _idleTimer.Interval = TimeSpan.FromSeconds(GestosDeLaCarita.ProximoGesto(_rng.NextDouble()));
-    }
-
-    private void DoIdleGesture()
-    {
-        switch (GestosDeLaCarita.Elegir(_rng.NextDouble()))
+        _saludoTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(GestosDeLaCarita.ProximoSaludo(_rng.NextDouble())) };
+        _saludoTimer.Tick += (_, _) =>
         {
-            case GestoDeLaCarita.Mirar: LookAround(); break;
-            case GestoDeLaCarita.Manos: if (!_mirandoFijo) Saludar(); break;
-            case GestoDeLaCarita.Pulso: Pulse(); break;
-        }
+            // Solo si está a la vista, en reposo y sin mirar nada: saludar en mitad de un trabajo o de
+            // una conversación sería interrumpir. Si no toca, se salta: ya habrá otro.
+            if (IsVisible && Mood == FaceMood.Reposo && !_mirandoFijo) Saludar();
+            _saludoTimer!.Interval = TimeSpan.FromSeconds(GestosDeLaCarita.ProximoSaludo(_rng.NextDouble()));
+        };
+        _saludoTimer.Start();
     }
 
     /// <summary>
@@ -483,13 +537,12 @@ public sealed class FaceControl : FrameworkElement
     /// seguir mirando al frente es raro, casi desatento (2026-08-05, pedido por el usuario). Hasta el
     /// 2026-09-30 corría solo los ojos; ahora gira la cabeza entera (spec 052).
     ///
-    /// Mientras está fija, los gestos de reposo no la giran: no se puede estar mirando algo y
-    /// distraerse cada ocho segundos.
+    /// Mientras está fija no saluda: no se puede estar mirando algo y distraerse.
     /// </summary>
     public void MirarHacia(bool izquierda)
     {
         _mirandoFijo = true;
-        Girar(objetivo: (izquierda ? -1 : 1) * 0.75, volver: false);
+        Girar((izquierda ? -1 : 1) * 0.75);
     }
 
     /// <summary>Vuelve a mirar al frente y deja que los gestos de reposo sigan su curso.</summary>
@@ -502,34 +555,17 @@ public sealed class FaceControl : FrameworkElement
 
     private bool _mirandoFijo;
 
-    private void LookAround()
-    {
-        if (_mirandoFijo) return;   // está mirando algo: no se distrae
-        double lado = _rng.Next(2) == 0 ? -1 : 1;
-        Girar(objetivo: lado * (0.5 + _rng.NextDouble() * 0.35), volver: true);
-    }
-
     /// <summary>
     /// El giro con sus tres tiempos de animación: una ANTICIPACIÓN mínima hacia el otro lado, el
     /// viaje con un pelo de sobrepaso, y el asentarse. Sin la anticipación el giro parece arrastrado;
     /// sin el sobrepaso, se clava como un servo.
     /// </summary>
-    private void Girar(double objetivo, bool volver)
-    {
-        var claves = new List<(double, double, IEasingFunction?)>
-        {
+    private void Girar(double objetivo) =>
+        Animar(this, GiroProperty, Claves(
             (Giro, 0, null),
-            (Giro - objetivo * 0.08, 90, Sale),
-            (objetivo * 1.06, 430, Suave),
-            (objetivo, 580, Suave),
-        };
-        if (volver)
-        {
-            claves.Add((objetivo, 1400, null));
-            claves.Add((0, 1950, Suave));
-        }
-        Animar(this, GiroProperty, Claves(claves.ToArray()));
-    }
+            (Giro - (objetivo - Giro) * 0.08, 90, Sale),
+            (objetivo + (objetivo - Giro) * 0.06, 430, Suave),
+            (objetivo, 580, Suave)));
 
     protected override void OnRender(DrawingContext dc)
     {
@@ -635,83 +671,16 @@ public sealed class FaceControl : FrameworkElement
         double shift = (cornerR - cornerL) * 10;
         double half = mouthWidth / 2;
 
-        // ABIERTA O CERRADA. Cerrada es la sonrisa de siempre —una línea— y así se queda en reposo:
-        // esto no puede cambiar la cara que ya existía. Abierta, la MISMA curva pasa a ser el labio
-        // de arriba y se le añade otro por debajo, cerrando una figura que se rellena. Un solo
-        // dibujo con dos estados, en vez de dos bocas distintas que habría que mantener a la par.
-        double abierta = Math.Max(0, Math.Min(1, MouthOpen));
-        if (abierta <= 0.02)
+        // UNA LÍNEA, SIEMPRE (promesa 448). No se abre ni al hablar: lo que cambia es la pose —más
+        // ancha y más curva mientras dice una frase—, y a ella se llega mezclando, no saltando.
+        var boca = new StreamGeometry();
+        using (var g = boca.Open())
         {
-            var linea = new StreamGeometry();
-            using (var g = linea.Open())
-            {
-                g.BeginFigure(new Point(X(-half), Y(leftY)), false, false);
-                g.BezierTo(new Point(X(-half * 0.3 + shift), Y(midY)), new Point(X(half * 0.3 + shift), Y(midY)), new Point(X(half), Y(rightY)), true, false);
-            }
-            linea.Freeze();
-            dc.DrawGeometry(null, stroke, linea);
+            g.BeginFigure(new Point(X(-half), Y(leftY)), false, false);
+            g.BezierTo(new Point(X(-half * 0.3 + shift), Y(midY)), new Point(X(half * 0.3 + shift), Y(midY)), new Point(X(half), Y(rightY)), true, false);
         }
-        else
-        {
-            // Redonda estrecha la boca; ancha la deja como está. Es lo que separa una «o» de una «e».
-            double redonda = Math.Max(0, Math.Min(1, MouthRound));
-            double halfA = half * (1 - redonda * 0.58);
-            double alto = 3 + abierta * 20 * (0.75 + redonda * 0.45);
-
-            // La comisura sube un poco al abrir, como una boca de verdad: si las esquinas se quedan
-            // clavadas mientras el centro baja, parece una bisagra y no una boca.
-            double lY = leftY - abierta * 2, rY = rightY - abierta * 2;
-            double mY = midY - abierta * 1.5;
-            double centro = (lY + rY) / 2;
-
-            // DE MEDIA LUNA A ÓVALO. Con la sonrisa de siempre arriba, estrechar la boca la cierra en
-            // PUNTA y sale un colmillo, no una «o» (2026-08-05, visto al dibujarlas todas seguidas).
-            // Así que al redondear no basta con estrechar: el labio de arriba tiene que dejar de
-            // sonreír —se levanta hasta curvarse al revés— y los dos tiran hacia fuera, que es lo que
-            // convierte la media luna en un óvalo.
-            double Mezcla(double plano, double redondo) => plano + (redondo - plano) * redonda;
-            double ctrlArribaY = Mezcla(mY, centro - alto * 0.45);
-            double ctrlAbajoY = Mezcla(mY + alto, centro + alto * 0.55);
-            double anchoArriba = halfA * Mezcla(0.30, 0.62);
-            double anchoAbajo = halfA * Mezcla(0.45, 0.78);
-
-            var boca = new StreamGeometry();
-            using (var g = boca.Open())
-            {
-                g.BeginFigure(new Point(X(-halfA), Y(lY)), true, true);
-                g.BezierTo(new Point(X(-anchoArriba + shift), Y(ctrlArribaY)), new Point(X(anchoArriba + shift), Y(ctrlArribaY)), new Point(X(halfA), Y(rY)), false, false);
-                g.BezierTo(new Point(X(anchoAbajo), Y(ctrlAbajoY)), new Point(X(-anchoAbajo), Y(ctrlAbajoY)), new Point(X(-halfA), Y(lY)), false, false);
-            }
-            boca.Freeze();
-            dc.DrawGeometry(tinta, null, boca);
-
-            // La lengua. Solo cuando la boca está lo bastante abierta para que se vea algo dentro:
-            // dibujarla siempre la convierte en una mancha pegada al labio. GRIS desde el 2026-09-30:
-            // era rosa, y una lengua rosa en una cara blanca y negra es lo primero que ve el ojo.
-            if (abierta > 0.35)
-            {
-                // DÓNDE ACABA LA BOCA NO ES DONDE ESTÁ SU PUNTO DE CONTROL. Una bezier cúbica no
-                // llega hasta sus controles: con los dos a la misma altura se queda en tres cuartos
-                // del camino. Colocar la lengua contando desde el control la dejaba POR DEBAJO del
-                // labio, asomando fuera de la boca (2026-08-05). El punto más bajo de la curva sale
-                // de evaluarla en la mitad: (P0 + 3·C1 + 3·C2 + P3) / 8.
-                double fondo = (lY + rY) / 8 + ctrlAbajoY * 0.75;
-
-                var (lx, le) = CabezaDeLaCarita.Proyectar(shift * 0.4, giro);
-                double rx = halfA * 0.42 * le, ry = alto * 0.20;
-                var lengua = new EllipseGeometry(new Point(cx + lx * s, Y(fondo - ry * 0.25)), rx * s, ry * s);
-                lengua.Freeze();
-                var pincel = new SolidColorBrush(paleta.Lengua);
-                pincel.Freeze();
-
-                // Y ADEMÁS se recorta contra la boca, que es lo que garantiza que no pueda salirse
-                // aunque la cuenta de arriba falle en algún tamaño raro: la geometría manda sobre la
-                // aritmética.
-                dc.PushClip(boca);
-                dc.DrawGeometry(pincel, null, lengua);
-                dc.Pop();
-            }
-        }
+        boca.Freeze();
+        dc.DrawGeometry(null, stroke, boca);
 
         dc.Pop();
     }
@@ -724,34 +693,46 @@ public sealed class FaceControl : FrameworkElement
     }
 
     /// <summary>
-    /// Las dos manos, detrás del cuerpo. Fuera se ven si <see cref="Manos"/> lo pide o si hay un
-    /// saludo en curso; en el saludo manda la línea de tiempo de <see cref="ManosDeLaCarita"/>.
+    /// Las manos, detrás del cuerpo. Fuera se ven si <see cref="Manos"/> lo pide, si hay un saludo en
+    /// curso o si está presionando; dónde está cada una lo dice <see cref="ManosDeLaCarita"/>.
     /// Pintadas con el mismo degradado del cuerpo: son de la misma pieza, no un añadido.
     /// </summary>
     private void PintarManos(DrawingContext dc, PaletaDeLaCarita paleta, double cx, double cy, double r, double s)
     {
+        var contorno = new Pen(new SolidColorBrush(paleta.Filete), Math.Max(0.75, 1.2 * s));
+        contorno.Freeze();
+
+        void Pintar(double x, double y, double angulo, double asomo)
+        {
+            if (asomo <= 0.01) return;
+            double hx = cx + x * r, hy = cy + y * r;
+            var mano = new EllipseGeometry(new Point(hx, hy), ManosDeLaCarita.Ancho * r * asomo, ManosDeLaCarita.Alto * r * asomo);
+            mano.Freeze();
+            dc.PushTransform(new RotateTransform(angulo * 180 / Math.PI, hx, hy));
+            dc.DrawGeometry(paleta.Cuerpo, contorno, mano);
+            dc.Pop();
+        }
+
+        // PRESIONAR MANDA, Y ES UNA SOLA MANO: la del lado de lo que Ü pulsó (promesa 446).
+        double p = Presion;
+        if (p != 0 && Math.Abs(p) < ManosDeLaCarita.DuracionDePresionar)
+        {
+            var (x, y, angulo, asomo) = ManosDeLaCarita.Presion(Math.Abs(p), Math.Sign(p));
+            Pintar(x, y, angulo, asomo);
+            return;
+        }
+
         double t = Saludo;
         bool saludando = t > 0 && t < ManosDeLaCarita.Duracion;
         double enReposo = Math.Clamp(Manos, 0, 1);
         double delSaludo = saludando ? ManosDeLaCarita.Asomo(t) : 0;
-        double asomo = Math.Max(enReposo, delSaludo);
-        if (asomo <= 0.01) return;
-
-        var contorno = new Pen(new SolidColorBrush(paleta.Filete), Math.Max(0.75, 1.2 * s));
-        contorno.Freeze();
-
+        double fuera = Math.Max(enReposo, delSaludo);
         foreach (int lado in new[] { -1, 1 })
         {
             var (x, y, angulo) = saludando && delSaludo >= enReposo
                 ? ManosDeLaCarita.Mano(t, lado)
-                : ManosDeLaCarita.Reposo(asomo, lado);
-            double hx = cx + x * r, hy = cy + y * r;
-            var mano = new EllipseGeometry(new Point(hx, hy), ManosDeLaCarita.Ancho * r * asomo, ManosDeLaCarita.Alto * r * asomo);
-            mano.Freeze();
-
-            dc.PushTransform(new RotateTransform(angulo * 180 / Math.PI, hx, hy));
-            dc.DrawGeometry(paleta.Cuerpo, contorno, mano);
-            dc.Pop();
+                : ManosDeLaCarita.Reposo(fuera, lado);
+            Pintar(x, y, angulo, fuera);
         }
     }
 
