@@ -183,6 +183,58 @@ Lo que salió al implementarla, por orden (2026-10-01):
 
 Con el juez de fuera: ratón de verdad sobre la carita de una Ü de pruebas, la estela mirada en los
 píxeles de la pantalla y el resto en el log de esa Ü. Milisegundos desde que se suelta el botón.
+Una pantalla, y hay que decirlo: la carita suelta, en este portátil, con su micrófono.
+
+**Encender** — `main`, 5 rondas; la rama, 12 (8 seguidas y 4 con 22 s de reposo entre una y otra):
+
+| Desde el clic | `main` | la rama |
+|---|---|---|
+| Estela en la pantalla | 635–1.027 ms | **20–99 ms** |
+| Micrófono grabando | 673–987 ms | **4–20 ms**; 246 la primera vez tras arrancar la app |
+| Primer trozo de audio captado | no se medía | 94–120 ms; 297 la primera vez |
+| El servidor confirma la sesión | 1.350–1.902 ms | 1.239–2.073 ms |
+| Lo dicho entre el clic y la confirmación | se pierde | sale al confirmar: 1.200–2.000 ms guardados en cada ronda |
+
+En las ráfagas el micrófono llegó a tardar 257–263 ms en arrancar (2 de 11 encendidos): es el
+máximo medido, y es lo que cuesta arrancarlo cuando no viene de usarse.
+
+**Apagar** — la app pinta la estela apagada a los 0–14 ms del clic (línea `voz-clic`). El juez
+exige tres fotos seguidas sin estela, y por eso su cifra es mayor:
+
+| Desde el clic | `main` | la rama |
+|---|---|---|
+| Estela fuera de la pantalla, sesión sin miradas | 263–435 ms | 106–176 ms (una de 252) |
+| Estela fuera de la pantalla, con una mirada en la sesión | **706 y 1.003 ms** | 147 y 158 ms |
+| El micrófono deja de entregar | 175–897 ms | 0–1 ms |
+| La mirada se borra de OpenAI | antes de apagar | después, a los 437–500 ms, sin que nadie la espere |
+
+**Ráfagas** — once casos; se juzga la estela en la pantalla seis segundos después del último clic:
+
+| Caso | `main` | la rama |
+|---|---|---|
+| dos clics a 150 ms | **queda ENCENDIDA** | apagada (3 de 3 pasadas) |
+| dos clics a 400 ms, el segundo mientras abre | hereda el estado del anterior | apagada (3 de 3) |
+| tres clics a 200 ms | idem | encendida (3 de 3) |
+| encender, 2,5 s, apagar y encender a 150 ms | encendida | encendida, y sigue viva (2 de 2) |
+| cuatro clics a 120 ms | **queda ENCENDIDA, con 3 sockets abiertos** | apagada, 0 sockets (2 de 2) |
+| cinco clics a 90 ms | encendida, con 3 sockets | encendida, 1 socket (2 de 2) |
+| encender, 1,2 s, apagar, 300 ms, encender | encendida | encendida (1 de 1) |
+| un clic para apagar, tras cada caso que acaba encendido | apagada | apagada (todas) |
+
+En `main`, de los cuatro casos de más de un clic que parten de apagada, fallan dos; los otros tres
+arrancan del estado que dejó el fallo anterior y no se pueden contar. En la rama no falló ninguno en
+22 casos pasados: 11 con la primera versión del micrófono (la guardia, ya retirada) y 11 con el
+preparado. Con dos clics a 150 ms la rama ni siquiera llega a abrir un socket: no hay sesión de pago
+que cerrar.
+
+Los archivos, con sus horas: `C:\U-versiones\voz-medidas\` (`antes-*.txt`, `despues-*.txt`).
+
+**Lo que no se probó**: hablarle. Las pruebas pulsan y miden; que lo dicho en el primer medio
+segundo llega al modelo está juzgado por partes —la sonda (el servidor oye una ráfaga mandada tras
+confirmar), la promesa 661 (lo guardado sale entero y en orden) y el log (cuántos milisegundos se
+guardaron en cada ronda)—, no de punta a punta con una voz. Tampoco el doble Ctrl ni el botón del
+collar, que entran por el mismo `StartMicByFace`; ni la salida por parlantes, donde el carrillón del
+clic entra ahora en lo guardado (en estas pruebas la salida eran unos audífonos).
 
 ## Cierre
 
