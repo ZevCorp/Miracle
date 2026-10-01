@@ -903,7 +903,8 @@ public sealed class ConversacionEnVivo : IDisposable
             }
             catch { }
             Soltar(ws);
-            try { cts?.Dispose(); } catch { }
+            // LA CANCELACIÓN NO SE DESECHA: la conexión de esta sesión puede estar aún volviendo, y pedirle el
+            // testigo a una cancelación desechada lanza. Cancelada basta; no guarda nada que haya que soltar.
         }).ConfigureAwait(false);
         reloj.Marca("socket");
         // Lo que estuviera llegando mientras se cancelaba pudo encolar una sílaba más. Solo si nadie volvió a encender.
