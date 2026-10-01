@@ -201,7 +201,7 @@ public sealed class Updater
         {
             // null = estamos al día. No es error, pero se dice UNA vez por proceso: sin esta línea, «miró y
             // no había nada» y «nunca llegó a mirar» eran el mismo silencio en el log.
-            if (!_dijoAlDia) LogBus.Log("update", $"al día: {CurrentVersion} es la última publicada. Vuelvo a mirar cada {PollInterval.TotalMinutes:0} min");
+            if (!_dijoAlDia) LogBus.Log("update", $"al día: no hay nada publicado más nuevo que la {CurrentVersion}. Vuelvo a mirar cada {PollInterval.TotalMinutes:0} min");
             _dijoAlDia = true;
             return;
         }

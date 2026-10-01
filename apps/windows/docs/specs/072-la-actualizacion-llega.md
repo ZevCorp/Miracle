@@ -1,6 +1,6 @@
 # Plan de implementación: la actualización llega, y cuando no llega lo dice
 
-Estado: **en curso** · Nace del diagnóstico del 2026-09-30 · Rama: `jose/la-actualizacion-llega`
+Estado: **implementado, sin publicar** (2026-09-30) · Nace del diagnóstico del 2026-09-30 · Rama: `jose/la-actualizacion-llega`
 
 ## Diagnóstico: qué se midió
 
@@ -53,13 +53,14 @@ la que todavía no conocemos, vuelva a pasar meses en silencio.
 ### Con qué se juzga cada una
 
 - **En el contrato** (`tests/ContratoDelGrafo/Contrato.cs`), sin pantalla ni red: carpetas temporales
-  para la 640 y la 641, y para esta además un fixture congelado con las líneas reales de
-  `Update.exe` del 2026-09-30 (`bronce/velopack-no-pudo-renombrar.log`); funciones puras para la
-  642, la 643 y la 644.
+  para la 640 —y un `cmd /c cd` de verdad, para ver dónde nace un hijo— y para la 641, que lleva
+  pegadas en la propia prueba las líneas reales de `Update.exe` del 2026-09-30; funciones puras para
+  la 642, la 643 y la 644.
 - **En el banco** (`scripts/banco-de-actualizacion.ps1`), que es el nivel 4 de esta spec: una
   instalación Velopack de verdad, fuera de `%LOCALAPPDATA%`, con otro id de paquete (`USonda`) y el
-  módulo `windows-client/src/Update` enlazado tal cual. El contrato no puede decir que `Update.exe`
-  renombra la carpeta; el banco sí. Sus ocho escenarios son la tabla de evidencia.
+  módulo `windows-client/src/Update` enlazado tal cual (`sondas/DeLaActualizacion`). El contrato no
+  puede decir que `Update.exe` renombra la carpeta; el banco sí. Sus diez escenarios son la tabla de
+  evidencia, y su modo `-Viejo` es el sabotaje.
 
 ## Las fases
 
@@ -100,10 +101,84 @@ Ninguna toca el núcleo congelado.
 - **2026-09-30 · El `RELEASING-WINDOWS.md` promete deltas que no existen** y describe el feed de un
   bucket de Supabase en `publish-release.ps1`, que ya no es el camino.
 
+- **2026-09-30 · El arranque de la actualización pidió la carpeta de Windows por su cuenta** y la
+  promesa 522 lo cazó en la primera tanda verde. El log de `Update.exe` vive en el `%LOCALAPPDATA%`
+  de verdad aunque haya `U_DATA_DIR`: ahora se pide por `UserPaths.LocalDeWindows`, que lo dice.
+- **2026-09-30 · La pastilla no depende de la voz.** `Speak` es disparar y olvidar: sin sesión de voz
+  escribe una línea y sigue, así que el aplicar no se queda esperando. Pero con la voz viva la
+  narración tiene 2,2 s antes de que el proceso muera: se corta. Es de la fase de experiencia.
+- **2026-09-30 · El escenario S7 del banco estaba mal hecho la primera vez**: abría `sq.version` en
+  exclusiva, y con eso la app ni sabía que estaba instalada. Salió MAL por el banco, no por el código.
+
+## Evidencia (2026-09-30)
+
+**Contrato.** Rojo antes del código: cinco `⧗ PENDIENTE`, las 640-644, y el resto intacto. INTACTO
+después, 0 pendientes. **Sabotaje, comprobado que se aplicó** (un guion que cuenta el ancla y relee
+el archivo): la comparación por prefijo de texto, `FindIndex` en vez de `FindLastIndex`, `!= null` en
+vez de `IsNullOrWhiteSpace`, sin el `ibaConToken` y sin el `acabaDeFallar` → las cinco rojas, cada
+una por su frase.
+
+**Banco, con Velopack 1.2.0 de verdad** (`scripts\banco-de-actualizacion.ps1 -ConGitHub`, 263 s):
+
+| | Escenario | Con el arreglo | Modo `-Viejo` (como la 1.3.6) |
+|---|---|---|---|
+| S1 | pastilla, sin nada más abierto | BIEN · dice «aplicada: 9.0.1 → 9.0.2 (pastilla)» | BIEN, sin decir nada |
+| S2 | pastilla, con un programa abierto por la app | BIEN · 1 intento | **MAL** · 4 intentos en bucle, sigue en 9.0.1 |
+| S3 | el proceso muere (apagón) y se reabre | BIEN · «(al arrancar)» | BIEN |
+| S4 | cierre ordenado: se aplica al salir | BIEN · «(al cerrar)» | BIEN |
+| S5 | se reabre con un programa de la sesión anterior vivo | BIEN · 4 s | **MAL** · 12 s de arranque, y vieja |
+| S6 | segunda apertura con la actualización descargada | BIEN · la primera sigue viva, y lo dice | **MAL** · mata a la primera |
+| S7 | candado ajeno (un archivo de `current` abierto por otro) | BIEN · no aplica, y **lo dice con la causa** | **MAL** · silencio |
+| S8 | cierre ordenado con un programa abierto por la app | BIEN | **MAL** · silencio, sigue en 9.0.1 |
+| S9 | dos versiones atrás y deltas anunciados que no están | BIEN · cae al paquete completo | BIEN |
+| S10 | token embebido que GitHub rechaza (contra el repo real) | BIEN · «GitHub rechazó el token… busco sin token» | — |
+
+10 de 10 con el arreglo; 4 de 9 en modo viejo, y las cinco que caen son las cinco esperadas.
+
+**La carita de verdad** (el build de la rama, empaquetado como `UBanco` 9.1.1 → 9.1.2, instalado en
+`C:\U-banco\realinst` con sus datos aparte; 3 caminos, no 1):
+
+```
+[22:50:47] update: carpeta de trabajo: de «C:\U-banco\realinst\current» a «C:\Users\felip», para no sujetarle la instalación a Update.exe
+[22:50:59] update: versión 9.1.2 descargada y lista para aplicar
+            (se mata el proceso y se reabre)
+[22:51:01] update: al arrancar: la 9.1.2 está descargada y no hay otra Ü trabajando; se aplica
+[22:51:17] update: actualización aplicada: 9.1.1 → 9.1.2 (al arrancar)
+
+[22:51:55] update: aplicando actualización pendiente al salir            (WM_CLOSE a sus 3 ventanas)
+[22:51:59] update: actualización aplicada: 9.1.1 → 9.1.2 (al cerrar)
+
+[22:52:28] update: la 9.1.2 está descargada y no se aplica en este arranque: hay otra Ü de esta instalación trabajando y aplicar la cerraría
+            (la primera, pid 38828, sigue viva; en disco 9.1.1)
+```
+
+El paquete viajó por **delta** en los tres: 0,2 MB entre dos builds iguales, aplicado y con la suma
+comprobada. El `-p:Version` sella el binario: `U.exe` dice `9.1.1.0`.
+
+**El workflow, ensayado en local con la release real**: `vpk download github` baja la 1.3.6 (79 MB,
+176 s en esta red) y `vpk pack` de la rama encima deja `U-1.3.7-delta.nupkg` de **10,8 MB** frente a
+los 77 del completo.
+
+**Graph**: `node scripts/verify-windows-release.js` → OK; con el código de `main`, FALLÓ por «el
+dispatch no lleva user_message, que el workflow exige: GitHub contestaría 422».
+
+### Lo que NO se probó, dicho como tal
+
+- **La pastilla ⬇ pulsada en la carita.** El camino que recorre (`ApplyAndRestart`) es el de S1, S2 y
+  S7, pero el clic en la ventana de verdad no se dio: el muelle se despliega con el cursor encima y
+  había alguien usando el PC.
+- **Una release de verdad recibida por una instalación de verdad.** No se publicó nada: publicar le
+  llega a todos los equipos y lo decide el dueño. Tampoco corrió el workflow modificado en GitHub.
+- **La transición desde la 1.3.6.** La 1.3.6 instalada aplica con SU código, que es el modo viejo:
+  llega si no hay un programa abierto por ella, y si lo hay, en el primer arranque sin él.
+- **Otros equipos.** Todo se midió en una máquina. Un antivirus de empresa que no deje a `Update.exe`
+  tocar la carpeta no se puede reproducir aquí; ahora, si pasa, la línea «NO se aplicó» lo trae.
+
 ## Cierre
 
-- [ ] Todas las promesas verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO)
-- [ ] Sabotaje de cada una, comprobado que se aplicó
-- [ ] Los ocho escenarios del banco en verde, con la sonda y con la carita
+- [x] Todas las promesas verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO)
+- [x] Sabotaje de cada una, comprobado que se aplicó
+- [x] Los diez escenarios del banco en verde con la sonda; tres caminos con la carita
+- [ ] La pastilla pulsada en la carita de verdad
 - [ ] Una release de verdad recibida por una instalación de verdad
 - [ ] Estado de este documento: **implementado** (AAAA-MM-DD)
