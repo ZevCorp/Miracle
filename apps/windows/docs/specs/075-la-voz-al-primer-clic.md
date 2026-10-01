@@ -236,9 +236,32 @@ guardaron en cada ronda)—, no de punta a punta con una voz. Tampoco el doble C
 collar, que entran por el mismo `StartMicByFace`; ni la salida por parlantes, donde el carrillón del
 clic entra ahora en lo guardado (en estas pruebas la salida eran unos audífonos).
 
+## Los sabotajes
+
+Cada promesa se vio roja dos veces: antes de su código (las ocho por PENDIENTE) y rompiéndolo a
+propósito, con un guion que falla a gritos si un sabotaje no llega a aplicarse.
+
+| Se rompió | Se puso roja | Cláusula |
+|---|---|---|
+| la historia vuelve a ir sin tope | 667 | «manda 167.944 de 20.000» |
+| el tramo que no llegó se calla | 666 | «consta como sin llegar en vez de faltar» |
+| lo captado mientras abre no se guarda | 661 | «tampoco sale nada antes de que el servidor confirme» |
+| vaciada, la espera sigue guardando | 661 | «lo que se capta después va detrás» |
+| lo escrito mientras abre vuelve a tirarse | 661 | «lo escrito… no se tira ni sale: espera» |
+| apagar vuelve a esperar a las miradas | 663 y 664 | «al volver del clic la voz ya consta apagada» |
+| el aviso de encendido o de apagado no sale en el gesto | 660, 662, 663, 664 y la 337 | «avisó UNA vez…» |
+| la conexión que llega tarde ya no se suelta | 662 | «la que llega tarde se suelta sin mandar su apertura» |
+| la escucha de una sesión vieja vuelve a decidir | 664 | «tampoco cierra la nueva» |
+| el reintento de red vuelve a apagar la voz | 660 | «se reintenta solo… sigue encendida» |
+| el encendido que no confirmó se queda sin línea | 666 | «deja igual sus dos líneas» |
+| lo que satura da la vuelta; los canales se suman | 665 | «se recorta en el tope», «la media de los canales» |
+| el filtro pierde su estado en cada trozo | 665 | «sin escalones entre un trozo y el siguiente» |
+| `LiveAudio` no arranca el preparado | **ninguna** | el contrato no lo ve; lo dice el log del PC |
+
 ## Cierre
 
-- [ ] Todas las promesas verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO)
-- [ ] `.\scripts\verificar.ps1` pasa, con evidencia en `out\evidencia.md`
-- [ ] Probado sobre el PC real con el juez de fuera: rondas y ráfagas, antes y después
+- [x] Todas las promesas verdes: contrato del grafo 377/377, contrato de la voz 46/46 (2026-10-01 01:32)
+- [x] `.\scripts\verificar.ps1` pasa los niveles 1 y 2. Los escenarios (nivel 3) no se corrieron: no hay ninguno de la voz
+- [x] Probado sobre el PC real con el juez de fuera: rondas y ráfagas, antes y después. Una pantalla: la carita suelta
 - [ ] El dueño lo probó hablando
+- [ ] PR a `main`: la rama está commiteada en local, sin empujar
