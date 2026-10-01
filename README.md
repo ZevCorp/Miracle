@@ -17,13 +17,16 @@ origen), y guarda su README, sus reglas y su manera de construirse.
 ## Empezar
 
 ```bash
-git config core.hooksPath .githooks     # una vez por clon: activa el portero
-cd apps/<proyecto>                      # y trabaja desde ahí: ahí están sus reglas y sus comandos
+git config core.hooksPath .githooks                    # una vez por clon: activa el portero
+bash tools/monorepo/arbol.sh nuevo <tu-nombre>/<que-hace>   # tu rama, en su propio árbol de trabajo
+cd <ese árbol>/apps/<proyecto>                         # y trabaja desde ahí: ahí están sus reglas
 ```
 
 - Las reglas comunes, para personas y agentes: [`AGENTS.md`](AGENTS.md).
+- Cómo se trabaja en todos los proyectos, la promesa antes que el código:
+  [`docs/monorepo/metodo.md`](docs/monorepo/metodo.md).
 - Por qué el repo está organizado así: [`docs/monorepo/arquitectura.md`](docs/monorepo/arquitectura.md).
-- Lo que viene después (prácticas comunes, contratos compartidos, despliegues):
+- Lo que viene después (contratos compartidos, despliegues):
   [`docs/monorepo/fase-2.md`](docs/monorepo/fase-2.md).
 
 ## Si tu rama nació antes del 2026-09-28

@@ -60,7 +60,8 @@ qué se está arreglando — y ese es el hallazgo.
 - **Las promesas ejecutables**: `tests/ContratoDelGrafo/Contrato.cs`, numeradas en continuación de
   las que ya hay. **Los números no se reciclan**: una promesa retirada deja su hueco, porque los
   commits y los planes viejos la citan por número.
-- **Los fixtures congelados**: `tests/ContratoDelGrafo/bronce/`. Entradas que tienen que dar el mismo
+- **Los fixtures congelados**: `tests/ContratoDelGrafo/bronce/` (la carpeta nace con el primer
+  fixture: al 2026-09-30 todavía no hay ninguno). Entradas que tienen que dar el mismo
   resultado en cualquier máquina y para siempre. Distinto de `C:\U-versiones\escenarios\` (mide
   resultado sobre el terreno vivo de *esta* máquina, y por eso no se commitea).
 
@@ -78,7 +79,7 @@ plantilla, [`docs/specs/PLANTILLA.md`](../../docs/specs/PLANTILLA.md).
 
 ## Con qué se juzga una promesa
 
-- **Fixture congelado** (`tests/ContratoDelGrafo/bronce/`) si tiene que dar el mismo resultado en
+- **Fixture congelado** (`tests/ContratoDelGrafo/bronce/`, que nace con el primero) si tiene que dar el mismo resultado en
   cualquier máquina y para siempre. Se captura una vez, **se le quita todo lo declarado antes de
   guardarlo** —si no, nace contaminado con lo que estamos quitando— y no se vuelve a tocar salvo
   para añadir casos.

@@ -3,7 +3,7 @@ name: Windows · contrato
 # La mitad que SI puede correr en la nube. El contrato juzga las PROMESAS del nucleo
 # (tests/ContratoDelGrafo/Contrato.cs) y no toca la pantalla, asi que un runner sin escritorio ni
 # apps instaladas lo puede correr entero. Lo que no puede correr aqui son los escenarios
-# (scripts/ci-local.ps1): esos abren apps de verdad y miden el resultado sobre el terreno, y por
+# (scripts/ci-terreno.ps1): esos abren apps de verdad y miden el resultado sobre el terreno, y por
 # eso viven en la maquina del desarrollador.
 #
 # Corre en cada PR a main que toque Windows, porque main roto bloquea a todos. Una rama con promesas
