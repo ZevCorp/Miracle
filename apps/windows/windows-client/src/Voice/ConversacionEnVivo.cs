@@ -1810,6 +1810,9 @@ public sealed class ConversacionEnVivo : IDisposable
 
     private async Task EnviarTextoInternoAsync(string texto, bool soloTexto)
     {
+        // ENCENDIDA Y TODAVÍA ABRIENDO (spec 075): la voz consta encendida desde el gesto, así que lo escrito
+        // puede llegar antes que el socket. No se tira: espera a que el servidor confirme, igual que lo dicho.
+        if (Viva && !_confirmada) await EsperarAbiertaAsync(TimeSpan.FromSeconds(10));
         if (!SalidaAbierta || string.IsNullOrWhiteSpace(texto)) return;
         if (soloTexto) _respuestaDeTexto = true;
         EmpiezaUnTurnoDelUsuario("texto");   // escribir también es pedir algo nuevo (spec 017)

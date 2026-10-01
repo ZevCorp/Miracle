@@ -16618,6 +16618,26 @@ internal static class Contrato
                 "y lo primero que sale por el cable es la apertura, no un trozo de micrófono");
         }
 
+        // Y LO ESCRITO TAMPOCO SE PIERDE: con la voz encendida desde el gesto, una frase escrita puede llegar antes
+        // que el socket. Espera a la confirmación y sale entonces, detrás de la apertura.
+        using (var v = VozDePrueba.Nueva("661"))
+        {
+            if (v == null) return;
+            var escribir = v.Tipo.GetMethod("EnviarTextoAsync", BindingFlags.Public | BindingFlags.Instance);
+            if (escribir == null) { Pendiente("ConversacionEnVivo.EnviarTextoAsync", "661", "075"); return; }
+            v.Alterna();
+            var escrito = (Task)escribir.Invoke(v.Conv, new object[] { "frase escrita de la 661" })!;
+            int Escritos() { lock (v.Mandados) return v.Mandados.Count(m => m.Contains("frase escrita de la 661", StringComparison.Ordinal)); }
+            Debe(Escritos() == 0 && !escrito.IsCompleted, "lo escrito con la conexión sin contestar no se tira ni sale: espera");
+            v.Conecta();
+            string Cuales() { lock (v.Mandados) return string.Join(" ¦ ", v.Mandados.Where(m => m.Contains("frase escrita de la 661", StringComparison.Ordinal)).Select(m => m.Length > 90 ? m[..90] : m)); }
+            Debe(Espera(() => v.Aperturas == 1, 3000) && Escritos() == 0, $"conectado y sin confirmar, sigue esperando (salió {Escritos()} vez/veces: {Cuales()})");
+            v.Confirma();
+            Debe(escrito.Wait(3000) && Escritos() == 1, $"y al confirmar el servidor, sale (salió {Escritos()} vez/veces)");
+            string[] orden; lock (v.Mandados) orden = v.Mandados.ToArray();
+            Debe(orden.Length > 1 && orden[0].Contains("\"session.start\"", StringComparison.Ordinal), "detrás de la apertura, no delante");
+        }
+
         // APAGADA ANTES DE CONFIRMAR, lo guardado no sale nunca: ni al apagar ni si el servidor confirma tarde.
         using (var v = VozDePrueba.Nueva("661"))
         {
