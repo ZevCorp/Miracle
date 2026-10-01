@@ -80,15 +80,18 @@ def tramos_cambiados(base, proyecto):
 
 
 def mirar(raiz, proyecto, base):
-    """Devuelve (texto, pudo_mirar)."""
+    """Devuelve (texto, pudo_mirar). texto None: la rama no cambia código en el proyecto."""
+    tramos = tramos_cambiados(base, proyecto)
+    # Sin código cambiado no hay a quién afectar, y se dice en una línea: el primer comentario de
+    # verdad gastó tres bloques en decir «0 símbolos» de tres proyectos con un .md. Va ANTES de
+    # buscar el mapa: para saber que un .md no afecta a nadie no hace falta mapa.
+    if not any(es_codigo(a) for a in tramos):
+        return None, True
+
     grafo_ruta = os.path.join(raiz, proyecto, "graphify-out", "graph.json")
     if not os.path.isfile(grafo_ruta):
         return (f"### {proyecto}\n\nNo hay mapa de este proyecto, así que no pude mirar. Créalo con "
                 f"`graphify update .` dentro de `{proyecto}` (o `tools/graphify/instalar`).\n"), False
-
-    tramos = tramos_cambiados(base, proyecto)
-    if not tramos:
-        return f"### {proyecto}\n\nLa rama no cambia nada en este proyecto.\n", True
 
     # Un archivo que nace en la rama no lo usa nadie de fuera todavía: si el mapa dice que sí, es
     # que confundió su nombre con el de otro. El 2026-10-01 una sonda nueva declaraba su propio
@@ -291,11 +294,17 @@ def main(argv):
         return 0
 
     print(f"## A quién afecta, según el mapa de graphify (contra `{base}`)\n")
-    pudo = True
+    pudo, sin_codigo = True, []
     for p in proyectos:
         texto, ok = mirar(raiz, p, mb)
-        print(texto)
+        if texto is None:
+            sin_codigo.append(p)
+        else:
+            print(texto)
         pudo = pudo and ok
+    if sin_codigo:
+        print("La rama no cambia código en " + ", ".join(f"`{p}`" for p in sin_codigo)
+              + ": ahí no hay a quién afectar.")
     return 0 if pudo else 2
 
 

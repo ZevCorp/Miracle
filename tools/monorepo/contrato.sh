@@ -448,7 +448,7 @@ EOF
 # .Nuevo() que no puede existir, y a la copia de sondas/ la llamada de d.cs.
 git switch -q -c jose/cambio
 sed -i -e 's/^linea 1$/linea 1 cambiada/' -e 's/^linea 6$/linea 6 cambiada/' apps/uno/src/a.cs
-echo nuevo > apps/uno/src/nuevo.cs; echo notas > apps/uno/notas.txt
+echo nuevo > apps/uno/src/nuevo.cs; echo notas > apps/uno/notas.txt; echo cambio >> apps/sinmapa/src/x.cs
 git add -A && git commit -q -m "cambia .Hacer(), añade nuevo.cs y unas notas"
 for viejo in apps/uno/src/a.cs apps/uno/src/nuevo.cs apps/uno/notas.txt; do
   touch -d '2000-01-01' "$viejo" 2> /dev/null || touch -t 200001010000 "$viejo"
@@ -524,6 +524,21 @@ i8() {
   return 0
 }
 
+i9() {
+  # El primer comentario de verdad (PR 153) gastó tres bloques en decir «0 símbolos» de tres
+  # proyectos donde solo cambiaba un .md. Un comentario con ruido deja de leerse.
+  cd "$imp" || falla "no existe el repo de impacto"
+  [ -f tools/graphify/impacto.sh ] || falla "PENDIENTE: tools/graphify/impacto.sh todavía no existe"
+  git switch -q -c jose/solo-notas main 2> /dev/null || falla "no se pudo crear la rama de solo notas"
+  echo mas >> apps/uno/docs/spec.md; git commit -q -am "solo una nota"
+  impacto --base main apps/uno > "$tmp/out" 2>&1; codigo=$?
+  git switch -q jose/cambio
+  [ "$codigo" -eq 0 ] || { cat "$tmp/out"; falla "una rama que solo cambia notas salió con $codigo"; }
+  grep -qi "no cambia código" "$tmp/out" || { cat "$tmp/out"; falla "no dijo que la rama no cambia código en el proyecto"; }
+  grep -q "símbolo(s)" "$tmp/out" && { cat "$tmp/out"; falla "contó símbolos en una rama que no toca código"; }
+  return 0
+}
+
 promesa 31 "sin graphify instalado, los ganchos del mapa no hacen nada y no frenan a git" g1
 promesa 32 "tras commit, cambio de rama y merge se rehace el mapa de cada proyecto que lo tiene, y de ninguno más" g2
 promesa 33 "un árbol enlazado nuevo construye el mapa de los proyectos que el clon principal tiene mapeados" g3
@@ -537,6 +552,7 @@ promesa 40 "impacto separa los documentos que citan lo cambiado del código que 
 promesa 41 "impacto deja fuera los archivos nuevos, y lo dice: nadie de fuera usa todavía lo que acaba de nacer" i6
 promesa 42 "cuando dos definiciones comparten nombre completo, impacto cuenta los usos de las dos y nombra a la otra" i7
 promesa 43 "ni un archivo sin código ni un espacio de nombres cuentan: no disparan el aviso de mapa viejo ni salen como símbolo cambiado" i8
+promesa 44 "si la rama no cambia código en un proyecto, impacto lo dice en una línea y no cuenta símbolos" i9
 
 echo
 if [ "$SOLO" != "  " ]; then
