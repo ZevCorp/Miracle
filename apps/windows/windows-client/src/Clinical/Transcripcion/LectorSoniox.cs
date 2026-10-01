@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 
 namespace U.WindowsClient.Clinical.Transcripcion;
@@ -95,13 +95,26 @@ public sealed class LectorSoniox : ILectorDeStream
             }
             if (texto == "<fin>") continue;   // fin del STREAM, no del habla
 
-            if (firme) verbatim.Confirmar(texto);
+            // Con la voz que lo dijo (spec 070): Graph pide la diarización y hasta aquí se tiraba.
+            if (firme) verbatim.ConfirmarConVoz(texto, Hablante(t));
             else provisional.Append(texto);
         }
 
         string pintar = (verbatim.Todo + provisional).Trim();
         if (pintar.Length > 0) parcial(pintar);
     }
+
+    /// <summary>
+    /// La voz del token. Soniox la manda como cadena («"1"»); se acepta también un número por si
+    /// cambia, y se devuelve null si no viene — que es lo que pasa sin diarización.
+    /// </summary>
+    private static string? Hablante(JsonElement t) =>
+        t.TryGetProperty("speaker", out var v) ? v.ValueKind switch
+        {
+            JsonValueKind.String => v.GetString(),
+            JsonValueKind.Number => v.GetRawText(),
+            _ => null,
+        } : null;
 
     private static string Texto(JsonElement o, string campo) =>
         o.ValueKind == JsonValueKind.Object && o.TryGetProperty(campo, out var v)

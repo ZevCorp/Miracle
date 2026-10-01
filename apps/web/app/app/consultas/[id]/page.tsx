@@ -62,6 +62,7 @@ import { Timeline } from "@/components/app/Timeline";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { HoverHint } from "@/components/ui/HoverHint";
+import { SpeakerConversation } from "@/components/app/SpeakerConversation";
 
 export default function ConsultaDetallePage() {
   const params = useParams();
@@ -1130,6 +1131,9 @@ function TranscripcionTab({
                 <span className="text-[0.95rem] text-ink">{turn.texto}</span>
               </div>
             </div>
+          ) : /^\[Hablante \d+\]/m.test(turn.texto) ? (
+            // Verbatim con las voces de Soniox dentro (spec 070): se ve por voces.
+            <SpeakerConversation key={i} transcript={turn.texto} live={false} />
           ) : (
             // Transcripción verbatim (tal cual como se dijo): bloque de texto plano.
             <p

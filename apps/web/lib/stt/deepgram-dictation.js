@@ -104,6 +104,10 @@ const MiracleDeepgramDictation = (function (global) {
       // end_ms}] paralelo a sonioxFinalBuffer. Sin texto — quien mide la
       // consulta no debe recibir PHI por este canal.
       sonioxFinalTokens: [],
+      // El mismo texto partido por voz: [{speaker, text}] (spec 070). Es lo que
+      // deja escribir «[Hablante N]» en la transcripción; los tiempos de arriba
+      // siguen sin texto.
+      sonioxFinalTurns: [],
     };
 
     function resetFinalizeQuietTimer() {
@@ -155,6 +159,7 @@ const MiracleDeepgramDictation = (function (global) {
       state.provider = "deepgram";
       state.sonioxFinalBuffer = "";
       state.sonioxFinalTokens = [];
+      state.sonioxFinalTurns = [];
       state.isRecording = false;
       releaseMicrophone();
       void closeSocket();
@@ -183,6 +188,10 @@ const MiracleDeepgramDictation = (function (global) {
       state.sonioxFinalBuffer = "";
       const tokens = state.sonioxFinalTokens;
       state.sonioxFinalTokens = [];
+      const turns = state.sonioxFinalTurns
+        .map((turn) => ({ speaker: turn.speaker, text: turn.text.trim() }))
+        .filter((turn) => turn.text);
+      state.sonioxFinalTurns = [];
       if (!transcript) {
         return;
       }
@@ -192,6 +201,7 @@ const MiracleDeepgramDictation = (function (global) {
         transcript,
         language: (state.streamSession && state.streamSession.language) || null,
         tokens,
+        turns,
       });
     }
 
@@ -218,6 +228,13 @@ const MiracleDeepgramDictation = (function (global) {
             continue;
           }
           state.sonioxFinalBuffer += text;
+          const speaker = token.speaker == null ? "" : `${token.speaker}`;
+          const lastTurn = state.sonioxFinalTurns[state.sonioxFinalTurns.length - 1];
+          if (lastTurn && lastTurn.speaker === speaker) {
+            lastTurn.text += text;
+          } else {
+            state.sonioxFinalTurns.push({ speaker, text });
+          }
           // Timing + hablante del token (solo numeros). Con
           // enable_speaker_diarization activo, `speaker` distingue al medico
           // del paciente; sin ella llega 0 y quien mide lo reporta como
@@ -347,6 +364,7 @@ const MiracleDeepgramDictation = (function (global) {
       state.provider = (session && session.provider) || "deepgram";
       state.sonioxFinalBuffer = "";
       state.sonioxFinalTokens = [];
+      state.sonioxFinalTurns = [];
       state.timesliceMs = Number(session && session.timeslice_ms) || 250;
       const soniox = isSonioxSession(session);
       onDebug("deepgram.session.created", {
@@ -486,6 +504,7 @@ const MiracleDeepgramDictation = (function (global) {
         state.provider = "deepgram";
         state.sonioxFinalBuffer = "";
         state.sonioxFinalTokens = [];
+        state.sonioxFinalTurns = [];
         state.isRecording = false;
         releaseMicrophone();
       }

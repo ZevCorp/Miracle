@@ -2,6 +2,7 @@
 // El motor es multi-proveedor: la sesión del backend decide Deepgram o Soniox.
 
 import { MiracleDeepgramDictation } from "./deepgram-dictation.js";
+import type { SpeakerTurn } from "./speaker-turns";
 
 /** Respuesta de POST /api/stt/session (passthrough del backend Miracle). */
 export interface VoiceStreamSession {
@@ -40,6 +41,11 @@ export interface DictationOptions {
      * este canal. Ausente si el motor vendoreado es anterior a este campo.
      */
     tokens?: { speaker?: number; start_ms: number; end_ms: number }[];
+    /**
+     * El texto del segmento partido por voz (spec 070), solo con Soniox y
+     * diarización activa. Ausente con Deepgram.
+     */
+    turns?: SpeakerTurn[];
   }) => void;
   onError?: (message: string) => void;
   onDebug?: (event: string, data: unknown) => void;

@@ -1,4 +1,5 @@
 import type { VoiceStreamSession } from "./index";
+import { appendTurn, createSpeakerLabeler, joinDictation, type SpeakerTurn } from "./speaker-turns";
 
 export const MAX_AUDIO_UPLOAD_BYTES = 100 * 1024 * 1024;
 
@@ -76,6 +77,14 @@ export async function transcribeAudioFile(
 
   const finalSegments: string[] = [];
   let sonioxBuffer = "";
+  // Un archivo es un solo stream: las voces se numeran por aparición (spec 070).
+  const labelSpeakers = createSpeakerLabeler();
+  let sonioxTurns: SpeakerTurn[] = [];
+  const closeSonioxSegment = () => {
+    finalSegments.push(labelSpeakers(sonioxTurns, 0, sonioxBuffer.trim()));
+    sonioxBuffer = "";
+    sonioxTurns = [];
+  };
   let latestPartial = "";
   let lastMessageAt = Date.now();
   let providerError: string | null = null;
@@ -132,18 +141,20 @@ export async function transcribeAudioFile(
         let nonFinal = "";
         let boundary = false;
         for (const rawToken of tokens) {
-          const token = rawToken as { text?: unknown; is_final?: unknown };
+          const token = rawToken as { text?: unknown; is_final?: unknown; speaker?: unknown };
           const text = typeof token.text === "string" ? token.text : "";
           if (!text) continue;
           if (token.is_final) {
             if (text === "<end>" || text === "<fin>") boundary = true;
-            else sonioxBuffer += text;
+            else {
+              sonioxBuffer += text;
+              appendTurn(sonioxTurns, token.speaker, text);
+            }
           } else nonFinal += text;
         }
         latestPartial = `${sonioxBuffer}${nonFinal}`.trim();
         if (boundary && sonioxBuffer.trim()) {
-          finalSegments.push(sonioxBuffer.trim());
-          sonioxBuffer = "";
+          closeSonioxSegment();
           latestPartial = "";
         }
         return;
@@ -195,9 +206,11 @@ export async function transcribeAudioFile(
       if (Date.now() - lastMessageAt > 2_500 && Date.now() - finalizeStartedAt > 1_500) break;
       await delay(150, options.signal);
     }
-    if (sonioxBuffer.trim()) finalSegments.push(sonioxBuffer.trim());
+    if (sonioxBuffer.trim()) closeSonioxSegment();
     options.onProgress?.(100);
-    const transcript = finalSegments.join(" ").replace(/\s+/g, " ").trim() || latestPartial.trim();
+    // Se colapsan espacios, no saltos de línea: cada salto abre una voz nueva.
+    const transcript =
+      finalSegments.reduce(joinDictation, "").replace(/[ \t]+/g, " ").trim() || latestPartial.trim();
     if (!transcript) throw new Error("No se detectó voz en la grabación. Verifica el archivo e inténtalo de nuevo.");
     return transcript;
   } finally {

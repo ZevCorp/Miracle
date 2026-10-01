@@ -19,8 +19,10 @@
 const clauses = require('../prompts/PromptClauses');
 const NoteModeResolver = require('./NoteModeResolver');
 const { GROUNDING_LEVELS } = require('../../domain/clinical/grounding');
+const speakerLabels = require('../../domain/clinical/speakerLabels');
 
-const PROMPT_VERSION = clauses.promptVersion('clinical-note', '5');
+// 6: hablantes etiquetados y prioridad del médico (spec 070).
+const PROMPT_VERSION = clauses.promptVersion('clinical-note', '6');
 // Vocabulario de la columna user_preferences.note_detail en producción
 // (concisa | estandar | detallada). 'estandar' no emite nada.
 const NOTE_DETAILS = Object.freeze(['concisa', 'estandar', 'detallada']);
@@ -41,6 +43,28 @@ const INTERPRETIVE_TASK = [
   '- Lo que el paciente dice de sí mismo se documenta como referido por el paciente; lo que el médico afirma, explora o encuentra se documenta como hallazgo. No mezcles las dos voces.',
   '- Sintetiza cuando corresponda, nunca a costa de un dato clínico: cifras, medidas, dosis, nombres de medicamentos, fechas, alergias y negaciones van completos.',
   '- Si el médico dictó explícitamente un texto para una sección ("escribe en el plan: …"), respeta ese texto.'
+].join('\n');
+
+// El médico es quien examina, interpreta y decide; el paciente aporta el relato.
+// Hasta la spec 070 el prompt pedía «no mezclar las dos voces» pero no decía
+// cuál manda cuando chocan, y una corrección del médico («eso no es alergia, es
+// una celulitis») podía acabar en la nota como diagnóstico del paciente.
+const DOCTOR_PRIORITY = [
+  'PRIORIDAD DEL MÉDICO — lo que dice el médico es la fuente de mayor autoridad de la nota:',
+  '- Hallazgos del examen, interpretación de estudios, diagnósticos, decisiones, medicamentos, dosis y órdenes se toman de lo que dijo el médico.',
+  '- Si el paciente o un acompañante afirma algo que el médico corrige, precisa o descarta, prevalece lo que dice el médico. Lo del paciente sólo se conserva, como referido por el paciente, si aporta al relato ("refiere que pensó que era una alergia").',
+  '- Un síntoma, antecedente o diagnóstico que sólo menciona el paciente o su acompañante se documenta como referido por el paciente, nunca como hallazgo ni como diagnóstico.',
+  '- Si no puedes saber si algo clínicamente relevante lo dijo el médico, no se lo atribuyas: documéntalo como referido y añade un warning.'
+].join('\n');
+
+// Sólo entra cuando la transcripción trae dos voces o más (spec 070). Las
+// etiquetas las pone el reconocimiento de voz y no saben quién es quién: eso
+// lo deduce el modelo por lo que cada voz dice.
+const SPEAKER_LABELS = [
+  'HABLANTES — la transcripción viene separada por voces: cada línea que empieza con [Hablante N] marca que cambió quien habla.',
+  '- Las etiquetas las pone el reconocimiento de voz de forma automática y NO dicen quién es quién. Deduce por el contexto quién es el médico (pregunta, examina, explica, interpreta, diagnostica, formula, ordena) y quién el paciente o su acompañante (relata síntomas, responde, cuenta su historia, habla del paciente en tercera persona).',
+  '- Una misma persona puede aparecer con más de una etiqueta (la numeración vuelve a empezar si se corta la conexión), y en frases cortas la separación puede equivocarse. Si lo que dice una línea contradice a quién crees que pertenece su etiqueta, manda el contenido.',
+  '- No copies las etiquetas a la nota. En "evidence", cita el fragmento sin la etiqueta.'
 ].join('\n');
 
 // Retroalimentación de médicos (piloto de cardiología, 2026-09-23): la nota
@@ -230,7 +254,7 @@ class ClinicalNotePromptBuilder {
     return clauses.extractTagged(content, tag);
   }
 
-  buildSystem(modes, sections, noteDetail) {
+  buildSystem(modes, sections, noteDetail, speakers = 0) {
     const hasInterpretive = modes.interpretiveKeys.length > 0 || sections.length === 0;
     const hasVerbatim = modes.verbatimKeys.length > 0;
     return clauses.composePrompt(
@@ -240,7 +264,9 @@ class ClinicalNotePromptBuilder {
       clauses.NO_INVENTION_CLINICAL,
       clauses.IDENTIFIER_FIDELITY,
       '═══ TAREA ═══',
+      speakers >= 2 ? SPEAKER_LABELS : '',
       hasInterpretive ? INTERPRETIVE_TASK : '',
+      hasInterpretive ? DOCTOR_PRIORITY : '',
       hasInterpretive ? CLINICAL_REASONING : '',
       PUNCTUATION_RULES,
       MEASURE_RULES,
@@ -283,9 +309,10 @@ class ClinicalNotePromptBuilder {
       .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
     const modes = this.resolveModes({ ...templateSnapshot, sections });
     const detail = sanitizeNoteDetail(noteDetail);
+    const source = speakerLabels.forModel(transcript);
     const messages = [
-      { role: 'system', content: this.buildSystem(modes, sections, detail) },
-      { role: 'user', content: this.buildUser(templateSnapshot, modes, sections, transcript) }
+      { role: 'system', content: this.buildSystem(modes, sections, detail, source.speakers) },
+      { role: 'user', content: this.buildUser(templateSnapshot, modes, sections, source.text) }
     ];
     return {
       messages,
