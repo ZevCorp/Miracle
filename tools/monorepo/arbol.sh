@@ -160,7 +160,7 @@ terminada() {
 
 # Borra el árbol <dir> (si lo hay) y la rama <rama>, que ya se sabe terminada. 0 si quedó hecho.
 cerrar() {
-  local rama="$1" dir="$2" sucios
+  local rama="$1" dir="$2" sucios resto
   if [ -n "$dir" ]; then
     sucios="$(git -C "$dir" status --porcelain 2> /dev/null)"
     if [ -n "$sucios" ]; then
@@ -168,10 +168,25 @@ cerrar() {
       printf '%s\n' "$sucios" | head -4 | sed 's/^/       /'
       return 1
     fi
+    resto="$(git_del_arbol "$dir")"
     if ! git worktree remove "$dir" 2> "$TMP_ERR"; then
-      rojo "  ✘  $dir  [$rama]: git no pudo borrar la carpeta. Suele ser un programa abierto desde ahí, o una terminal dentro."
-      head -2 "$TMP_ERR" | sed 's/^/       /'
-      return 1
+      if [ -d "$dir" ]; then
+        rojo "  ✘  $dir  [$rama]: git no pudo borrar la carpeta de trabajo. Esto dijo:"
+        head -2 "$TMP_ERR" | sed 's/^/       /'
+        echo "       Suele ser un programa abierto desde ahí, o una terminal parada dentro."
+        return 1
+      fi
+      # La carpeta de trabajo ya no está: lo que git no pudo borrar es la del árbol dentro de .git.
+      # Pasa con un clon que vive en OneDrive, que marca esas carpetas de solo lectura; el
+      # 2026-09-30 dejó así cuatro árboles de un barrido. Se les quita la marca y se termina.
+      chmod -R u+w "$resto" 2> /dev/null
+      if command -v attrib.exe > /dev/null 2>&1 && command -v cygpath > /dev/null 2>&1; then
+        attrib.exe -R "$(cygpath -w "$resto")\\*" //S //D > /dev/null 2>&1
+        attrib.exe -R "$(cygpath -w "$resto")" > /dev/null 2>&1
+      fi
+      rm -rf "$resto" 2> /dev/null
+      git worktree prune 2> /dev/null
+      [ ! -d "$resto" ] || gris "       quedó un resto en $resto, que git no lista: bórralo a mano"
     fi
   fi
   git branch -q -D "$rama" 2> /dev/null
