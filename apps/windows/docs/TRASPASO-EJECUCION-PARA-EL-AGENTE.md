@@ -236,7 +236,6 @@ y el sabotaje. El repo pide una spec por rama: decidir con Jose cómo entra.
 - El panel no enseña desde el panel (🎓 vive en la carita) a propósito.
 - `docs/mapa/` es de otra sesión paralela del dueño («Teach workflow/skill visual polish»); no es
   de este frente y no se toca.
-- Los avisos de Slack de los PR #60 y #62 siguen pendientes de pegarse.
 
 ## 7. Cómo empezar
 

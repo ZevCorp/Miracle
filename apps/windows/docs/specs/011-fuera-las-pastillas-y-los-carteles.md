@@ -141,7 +141,7 @@ despliega. Es el requisito explícito del dueño: lo que pasa al hablarle a la c
 
 La zona es `windows-client/` UI: **choque alto**. La rama 008 sigue abierta en el PR #51 sobre estos
 mismos archivos, y esta spec la deja obsoleta en tres de sus cinco promesas — al mergear esto, aquel
-PR se cierra o se reduce a lo que quede (el anillo). Se avisa en `#miracle-updates`.
+PR se cierra o se reduce a lo que quede (el anillo).
 
 ## Acta de retiro de las promesas 165 y 166 (2026-09-06)
 
