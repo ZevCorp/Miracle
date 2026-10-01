@@ -99,7 +99,7 @@ public sealed class ProtocoloGptLive : IProtocolo
     public bool MarcaLosTurnos => false;
     public bool SabeEsperarTurno => false;
 
-    public ProtocoloGptLive(string modelo = "gpt-live-1", string delegado = "gpt-5.6-luna")
+    public ProtocoloGptLive(string modelo = "gpt-live-1", string delegado = "gpt-6-sol")
     {
         Modelo = modelo;
         Delegado = delegado;
@@ -238,6 +238,11 @@ public sealed class ProtocoloGptLive : IProtocolo
             instructions = instrucciones,
             tools = ProtocoloOpenAI.ComoFunciones(utensilios),
             tool_choice = "auto",
+            // MODO RÁPIDO (promesa 518, spec 062): sin pedirlo, Luna piensa en su medio por defecto, ~2 s por respuesta
+            // (sesión del 2026-09-28). El servidor lo acepta en la delegación: medido con session.started ese mismo día.
+            reasoning = new { effort = "low" },
+            // SIN PRIORITY (promesa 520, segunda decisión del dueño del 2026-09-29): priority bajaba el primer plan de 3.546 a
+            // 1.874 ms de mediana, pero «el costo nos puede salir muy caro». Se queda el pensamiento en bajo.
         },
     };
 

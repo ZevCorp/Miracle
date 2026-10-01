@@ -74,6 +74,9 @@ public partial class App : Application
         // (promesa 164). La metadata de una propiedad se sella para un tipo en cuanto se lee sobre
         // una instancia suya, así que esto tiene que correr antes de que exista la primera ventana.
         Ui.SinCarteles.Aplicar();
+        // UN CLIC DE Ü NO ES UN TOQUE DE LA PERSONA (promesa 508): se instala antes de que exista la primera ventana, para
+        // que ninguna —la carita, el muelle, el notch— tome por suyo un clic que mandó Ü.
+        Ui.ToquesDeU.Instalar();
         // Nunca dejar caer la carita por una excepción no capturada: es un overlay permanente.
         DispatcherUnhandledException += (_, ex) =>
         {

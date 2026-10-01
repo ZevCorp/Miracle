@@ -95,6 +95,7 @@ public sealed class Muelle : Window, AnfitrionDeLaCarita
     public Muelle(UIElement panel, Func<bool> hayConversacion)
     {
         _hayConversacion = hayConversacion;
+        ToquesDeU.Proteger(this);   // su clic despliega y aloja la carita: un clic de Ü no es la persona (promesa 508)
 
         Title = "Ü";
         WindowStyle = WindowStyle.None;

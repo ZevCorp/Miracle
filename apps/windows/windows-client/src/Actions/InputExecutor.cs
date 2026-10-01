@@ -52,6 +52,11 @@ public static class InputExecutor
     public static bool Tap(int x, int y)
     {
         if (Parado) return false;
+        if (U.Graph.Surfaces.UiaSurface.LibrarElPunto?.Invoke(x, y) is { Length: > 0 } tapado)
+        {
+            U.WindowsClient.Diagnostics.LogBus.Log("mano", $"toque en ({x},{y}) no dado: {tapado}");
+            return false;
+        }
         MoveTo(x, y);
         Thread.Sleep(30);
         Mouse(MOUSEEVENTF_LEFTDOWN);
@@ -84,7 +89,7 @@ public static class InputExecutor
         var inp = new INPUT
         {
             type = INPUT_MOUSE,
-            U = new InputUnion { mi = new MOUSEINPUT { mouseData = unchecked((uint)(down ? -120 : 120)), dwFlags = MOUSEEVENTF_WHEEL } },
+            U = new InputUnion { mi = new MOUSEINPUT { mouseData = unchecked((uint)(down ? -120 : 120)), dwFlags = MOUSEEVENTF_WHEEL, dwExtraInfo = U.Ciclo.Raton.Firma } },
         };
         SendInput(1, new[] { inp }, Marshal.SizeOf<INPUT>());
         return true;
@@ -142,7 +147,7 @@ public static class InputExecutor
         var inp = new INPUT
         {
             type = INPUT_MOUSE,
-            U = new InputUnion { mi = new MOUSEINPUT { dx = ax, dy = ay, dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE } },
+            U = new InputUnion { mi = new MOUSEINPUT { dx = ax, dy = ay, dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, dwExtraInfo = U.Ciclo.Raton.Firma } },
         };
         SendInput(1, new[] { inp }, Marshal.SizeOf<INPUT>());
         SetCursorPos(x, y);
@@ -150,7 +155,7 @@ public static class InputExecutor
 
     private static void Mouse(uint flags)
     {
-        var inp = new INPUT { type = INPUT_MOUSE, U = new InputUnion { mi = new MOUSEINPUT { dwFlags = flags } } };
+        var inp = new INPUT { type = INPUT_MOUSE, U = new InputUnion { mi = new MOUSEINPUT { dwFlags = flags, dwExtraInfo = U.Ciclo.Raton.Firma } } };
         SendInput(1, new[] { inp }, Marshal.SizeOf<INPUT>());
     }
 

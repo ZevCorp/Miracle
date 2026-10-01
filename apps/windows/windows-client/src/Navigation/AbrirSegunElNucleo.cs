@@ -37,7 +37,19 @@ public sealed class AbrirSegunElNucleo
     private readonly Func<string, bool> _lanzar;
     private readonly Func<IReadOnlyList<(IntPtr Hwnd, string Proceso, string Titulo)>> _ventanasAbiertas;
     private readonly Func<IntPtr, bool> _traerVentana;
+    private readonly Func<IntPtr> _delante;
 
+    /// <summary>
+    /// La forma de siete, sin saber qué hay delante: la promesa 232 construye por aridad, y la reflexión no rellena
+    /// opcionales —la lección de la 103—. Sin «delante» se comporta como antes de la 481.
+    /// </summary>
+    public AbrirSegunElNucleo(Func<string> donde, Func<ComoMePongoDelante.Plan, bool> traerAlFrente,
+        Func<string, string> dominioQueSuena, Func<IReadOnlyList<AppDelSistema>>? instaladas,
+        Func<string, bool>? lanzar, Func<IReadOnlyList<(IntPtr Hwnd, string Proceso, string Titulo)>>? ventanasAbiertas,
+        Func<IntPtr, bool>? traerVentana)
+        : this(donde, traerAlFrente, dominioQueSuena, instaladas, lanzar, ventanasAbiertas, traerVentana, null) { }
+
+    /// <param name="delante">La ventana que está delante ahora: si es la de lo pedido, no hay nada que esperar (promesa 481).</param>
     /// <param name="dominioQueSuena">Si lo pedido suena a un sitio web que ya está abierto, su
     /// dominio; si no, vacío. Lo contesta la memoria de pestañas, que es quien sabe de eso.</param>
     /// <param name="ventanasAbiertas">Las ventanas abiertas de verdad, con su proceso y su título (promesa 232).</param>
@@ -48,8 +60,10 @@ public sealed class AbrirSegunElNucleo
         Func<IReadOnlyList<AppDelSistema>>? instaladas = null,
         Func<string, bool>? lanzar = null,
         Func<IReadOnlyList<(IntPtr Hwnd, string Proceso, string Titulo)>>? ventanasAbiertas = null,
-        Func<IntPtr, bool>? traerVentana = null)
+        Func<IntPtr, bool>? traerVentana = null,
+        Func<IntPtr>? delante = null)
     {
+        _delante = delante ?? (() => IntPtr.Zero);
         _donde = donde;
         _traerAlFrente = traerAlFrente;
         _dominioQueSuena = dominioQueSuena;
@@ -71,10 +85,25 @@ public sealed class AbrirSegunElNucleo
     {
         string q = Nombres.Aplanar(pedido ?? "");
         if (q.Length == 0) return Array.Empty<(IntPtr, string, string)>();
-        return ventanas.Where(v =>
+        // Y POR LO QUE ES (promesa 480): «ms-settings:» no está ni en el proceso —ApplicationFrameHost— ni en el título
+        // —«Configuración»—, así que map_open_app no la veía abierta y acababa esperando 12 s a un proceso que no existe
+        // (13 s medidos el 2026-09-27, con Configuración delante). Apps.EsLaPedida de u/ ya sabe de las de la tienda.
+        // Una dirección no: con ella cualquier navegador «es la pedida», y abrirla no es traer Chrome.
+        bool porLoQueEs = !EsDireccion(pedido!);
+        // El escritorio es explorer.exe con el título «Program Manager»: por lo que es, «explorador» lo contaba como
+        // ventana suya (medido al estrenar la 480). No es una ventana de ninguna app que se pueda traer.
+        return ventanas.Where(v => !string.Equals(v.Titulo, "Program Manager", StringComparison.Ordinal)).Where(v =>
                 Nombres.Aplanar(SinExe(v.Proceso ?? "")).Contains(q, StringComparison.Ordinal)
-                || Nombres.Aplanar(v.Titulo ?? "").Contains(q, StringComparison.Ordinal))
+                || Nombres.Aplanar(v.Titulo ?? "").Contains(q, StringComparison.Ordinal)
+                || (porLoQueEs && U.Ciclo.Apps.EsLaPedida(pedido!, SinExe(v.Proceso ?? ""), v.Titulo ?? "")))
             .ToList();
+    }
+
+    private static bool EsDireccion(string s)
+    {
+        s = s.Trim();
+        return s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || s.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            || s.StartsWith("www.", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -175,6 +204,16 @@ public sealed class AbrirSegunElNucleo
         var abiertas = LasDe(que, _ventanasAbiertas());
         if (abiertas.Count > 0 && !nueva)
         {
+            // YA DELANTE (promesa 481): traerla solo la fija como ventana de trabajo —estando delante no cuesta—, y
+            // esperar a que cambie algo que no va a cambiar eran 2 s de techo entero.
+            IntPtr hDelante = _delante();
+            var yaDelante = abiertas.FirstOrDefault(v => v.Hwnd != IntPtr.Zero && v.Hwnd == hDelante);
+            if (yaDelante.Hwnd != IntPtr.Zero)
+            {
+                _traerVentana(yaDelante.Hwnd);
+                return $"ya estás en «{yaDelante.Titulo}» — no hace falta abrir nada."
+                     + (abiertas.Count > 1 ? $" Hay {abiertas.Count} ventanas de «{que}»; si quieres otra copia, pide instancia=nueva." : "");
+            }
             var elegida = abiertas[0];
             string antesDeTraer = _donde() ?? "";
             bool puesta = _traerVentana(elegida.Hwnd);

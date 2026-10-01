@@ -205,27 +205,15 @@ public sealed class MapaVivo : IDisposable
         if (volvieron > 0)
             LogBus.Log("mapa-vivo", $"memoria recuperada: {volvieron} ubicación(es) de sesiones anteriores");
 
-        // DOS CADENCIAS, PORQUE SON DOS COSTES. Saber dónde estoy vale 32 ms; leer la pantalla
-        // entera, 400 (medido el 2026-08-12). Con las dos en el mismo latido, lo barato heredaba la
-        // lentitud de lo caro: el cambio de sitio tardaba más de un segundo en registrarse, y si se
-        // navegaba rápido una ubicación intermedia no llegaba a verse — el camino quedaba grabado
-        // como A→C cuando en realidad fue A→B→C.
-        //
-        // Ahora el DÓNDE se mira cuatro veces por segundo y el QUÉ HAY a su ritmo. La atribución
-        // del clic vive con el dónde, que es lo que la hace fiable: cuanto antes se detecte el
-        // salto, más fresco es el clic que lo explica.
-        //
-        // 250 ms y no 120: con 120 la vuelta siguiente llegaba antes de terminar la anterior y se
-        // apilaban. El candado de reentrada lo impide de todas formas, pero pedir cuatro veces por
-        // segundo algo que a veces cuesta 200 ms ya es pedir de más.
-        _reloj?.Dispose();
-        _relojUbicacion?.Dispose();
-        _msUbicacion = MinUbicacionMs;
-        _costeTipico = 0;
-        _relojUbicacion = new System.Threading.Timer(_ => MirarDonde(), null, 200, _msUbicacion);
-        _reloj = new System.Threading.Timer(_ => Latido(), null, 600, cadaMs);
-        LogBus.Log("mapa-vivo", $"ubicación cada {_msUbicacion} ms (se ajusta sola entre "
-            + $"{MinUbicacionMs} y {MaxUbicacionMs}) · pantalla cada {cadaMs} ms · proyectando en Neo4j");
+        // SIN RELOJES DE FONDO (spec 054, promesa 489). El latido (la ventana de delante entera cada 900 ms) y la
+        // ubicación (cada 250-400 ms, 200-290 ms de UIA en Configuración) leían la MISMA app que el ciclo mientras el
+        // ciclo pulsaba, y sus lecturas subían: la del Explorador tras un clic pasaba de ~500 ms a más de 1 s
+        // (2026-09-27). Lo que se pierde, y dónde vive entero: el grafo ya no se alimenta solo ni aprende de los clics
+        // de la persona (docs/patrimonio-del-grafo.md, MapaVivo.cs en 334f144). Latido() y MirarDonde() siguen aquí
+        // para quien los llame a mano.
+        _reloj?.Dispose(); _reloj = null;
+        _relojUbicacion?.Dispose(); _relojUbicacion = null;
+        LogBus.Log("mapa-vivo", "sin latido ni ubicación de fondo (spec 054): solo el ciclo lee la pantalla");
     }
 
     /// <summary>
@@ -574,16 +562,6 @@ public sealed class MapaVivo : IDisposable
             LogBus.Log("mapa-vivo", $"no pude observar: {e.Message}");
         }
         finally { PulsoDelMapeador.Actual.Pantalla.Termine(); }
-    }
-
-    /// <summary>
-    /// «Se pulsó esto aquí y acabamos allí». Lo llama quien de verdad cruzó algo — es el otro hecho
-    /// que el núcleo guarda, y el único que no se puede deducir mirando.
-    /// </summary>
-    public void Cruzado(string desde, string selector, string hasta)
-    {
-        _grafo.Cruzar(desde, selector, hasta);
-        _proyector.Proyectar(_grafo);
     }
 
     /// <summary>

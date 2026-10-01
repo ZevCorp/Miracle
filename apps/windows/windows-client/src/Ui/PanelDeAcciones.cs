@@ -122,6 +122,28 @@ public sealed class PanelDeAcciones : Window
 
     public bool ChatAbierto { get; private set; }
 
+    /// <summary>El título con el que se reconoce el notch bajo un punto (promesa 527).</summary>
+    public const string Titulo = "Ü Acciones";
+
+    private static System.Threading.Timer? _vuelta;
+
+    /// <summary>
+    /// Aparta el notch un momento para que un clic de Ü caiga en lo que tapa (promesa 527): transparente al ratón, y a los
+    /// 1,5 s vuelve a dejarse tocar. Sin hilo de interfaz: el estilo se cambia desde el hilo que pulsa, y la sonda 0 midió que
+    /// WindowFromPoint lo respeta al instante. En Paint maximizado, «Rojo» quedaba debajo y Ü no podía pulsarlo (2026-09-29).
+    /// </summary>
+    public static void ApartarUnMomento(IntPtr notch)
+    {
+        Fantasma.Poner(notch, true);
+        Diagnostics.LogBus.Log("ui-anim", "notch apartado: el clic de Ü cae en lo que tapa");
+        _vuelta?.Dispose();
+        _vuelta = new System.Threading.Timer(_ =>
+        {
+            Fantasma.Poner(notch, false);
+            Diagnostics.LogBus.Log("ui-anim", "notch de vuelta: se deja tocar otra vez");
+        }, null, 1500, System.Threading.Timeout.Infinite);
+    }
+
     public PanelDeAcciones()
     {
         WindowStyle = WindowStyle.None;
@@ -134,7 +156,7 @@ public sealed class PanelDeAcciones : Window
         IsHitTestVisible = true;
         Focusable = true;
         ShowActivated = false;
-        Title = "Ü Acciones";
+        Title = Titulo;
 
         // LA SOMBRA VA EN UNA PLACA GEMELA SIN HIJOS, no en la pieza que lleva el texto. Un Effect es
         // un shader: WPF rasteriza a una textura intermedia todo el subárbol que cuelgue de él, y ahí

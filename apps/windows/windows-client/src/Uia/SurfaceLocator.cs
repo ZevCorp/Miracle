@@ -277,7 +277,23 @@ public sealed class SurfaceLocator : IDisposable
     private static bool IsSap(string proc) =>
         proc.StartsWith("sap", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Ubicarse CON PLAZO (promesa 490): una app que no contesta deja la pregunta sin respuesta —null, y quien pregunta
+    /// usa lo último que sabía— en vez de congelar a quien preguntó. No toca estado: lo que llegue tarde se descarta.
+    /// </summary>
     private SurfaceLocation? Compute(IntPtr hwnd, string proc, string title)
+    {
+        // SAP no: su scripting es COM y va en el hilo que lo pide; moverlo a otro hilo es arriesgar la sesión.
+        if (IsSap(proc)) return ComputeSinPlazo(hwnd, proc, title);
+        if (Plazo.Con(() => ComputeSinPlazo(hwnd, proc, title), PlazoMs, out var donde)) return donde;
+        LogBus.Log("donde", $"«{proc}» no contestó en {PlazoMs} ms: no sé dónde estoy ahí");
+        return null;
+    }
+
+    /// <summary>Cuánto se espera a que una app diga qué pantalla es (promesa 490).</summary>
+    public const int PlazoMs = 1500;
+
+    private SurfaceLocation? ComputeSinPlazo(IntPtr hwnd, string proc, string title)
     {
         // SAP responde por sí mismo: sistema + transacción + programa/dynpro, que es la pantalla DE VERDAD
         // y el mismo string que sella la grabación. Si el scripting no está disponible se cae al esquema

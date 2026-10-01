@@ -30,7 +30,7 @@ public static class CollarPermanente
 
     /// <summary>Dónde se recuerda la decisión. Al lado de los logs, que es donde vive lo de esta app.</summary>
     private static string Archivo => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "U", "collar.json");
+        U.Graph.UserPaths.Local, "U", "collar.json");
 
     /// <summary>Audio del collar, en el mismo formato que el micrófono local.</summary>
     public static event Action<byte[]>? Capturado;

@@ -1,0 +1,215 @@
+﻿# Pulsar como Ü desde cero
+
+Estado: **paso 1 implementado: fases 1-6** (2026-09-27; la 4 medida y descartada) · Paso 1 de la integración de `u/` en `main`
+(plan: https://claude.ai/artifact/N3c1p4GGeNJV9nCcnETN5N) · Rama: `jose/u-pulsar-en-main`, que sale de
+`jose/u-entra-a-main` (main `334f144` + `u/`).
+
+## Qué se quiere
+
+Que U.exe pulse tan rápido como `u/`: en `u/` una vuelta con clic cuesta ~300 ms; en `main`, pulsar cuesta 3-4 s.
+Sin perder nada de lo que cuelga del clic: el grafo aprende la arista, la carita viaja al clic, el inspector ve,
+el freno para, la mano dice por qué no pudo, y SAP sigue por su camino.
+
+**Regla de la integración (del dueño):** cada pieza entra sola, se mide a fondo, y si sube la latencia se rediseña.
+Por eso dos fases, una por pieza, y la segunda no empieza hasta que la primera esté medida y estable.
+
+## La línea base (medida el 2026-09-27, U.exe de `main` 334f144, por el MCP 8790)
+
+| Clic | la mano | esperar el cambio | total |
+|---|---|---|---|
+| Configuración → «Sistema» | 263 ms | **1.864 ms** («no cambió»: sí cambió) | 3.263 ms |
+| Configuración → «Pantalla» | 875 ms | **1.824 ms** («no cambió») | 4.016 ms |
+| Google Docs → «Blank document» (voz, 2026-09-26) | 1.312 ms | 918 ms | 3.048 ms |
+| Bloc de notas → «Agregar nueva pestaña» (voz, 2026-09-26) | 760 ms | 531 ms | 3.419 ms |
+
+La espera sondea «dónde» cada 120 ms hasta 1.800 ms, y en Configuración pasar de una sección a otra no cambia la
+ubicación: se come el techo entero y concluye «no cambió» sobre una página que sí cambió. La mano es la escalera
+patrón → mensaje → físico, con ~560 ms de esperas fijas en el caso físico típico.
+
+## Fase 1 — la espera (esta rama)
+
+`PulsarSegunElNucleo` recibe, si se le da, un lector de **lo que se ve** en la ventana de trabajo: la huella de
+`u/` (accionables, textos y foco, leída con una sola petición a UIA, 20-100 ms). Con él:
+
+| # | Promesa |
+|---|---|
+| 475 | tras pulsar, la espera sale en cuanto lo que se ve en la ventana de trabajo cambia y se asienta —dos lecturas iguales a 60 ms, o 300 ms más—, aunque la ubicación sea la misma; sin cambio no pasa de 150 ms tras un botón ni de 1,5 s tras un enlace; lo que cambió se cuenta como cambio de pantalla, sin ensayar el doble ni repetir el clic, y si la ubicación llega mientras se asienta, se aprende la arista |
+| 476 | un pulso de SAP, o uno sin lector de lo que se ve, espera como siempre: la ubicación, hasta el techo de siempre (en SAP, UIA no ve nada y cortar la espera haría repetir el clic mientras SAP procesa) |
+
+Lo que no cambia: el grafo aprende solo cuando cambia la **ubicación** (`Cruzar`, promesa 21/46); la mano; SAP.
+
+**Presupuesto (regla 1 del plan):** la espera tras un botón ≤ 150 ms; tras un enlace, lo que tarde la página, con
+techo 1,5 s. Se mide contra la tabla de arriba con la misma sonda (`medir-pulsar-main2.ps1`).
+
+### Resultado de la fase 1 (medido el 2026-09-27, 2 vueltas × Configuración y Explorador, 10 pulsos)
+
+| | línea base | fase 1 |
+|---|---|---|
+| esperar el cambio | 1.824-1.864 ms | **mediana 211 ms** |
+| pulsar entero (ida y vuelta por el MCP) | 3.263-4.016 ms | **mediana 930 ms** |
+| aristas aprendidas al cambiar de carpeta | — | **8 de 8** |
+
+Hallazgo al medir: saliendo al PRIMER cambio (mediana 127 ms), 5 de 8 cambios de carpeta del Explorador quedaban
+«sigues en Imágenes» —la lista cambia antes que el título, que es la ubicación— y el grafo no aprendía esas aristas.
+De ahí el asentado (dos lecturas iguales a 60 ms): cuesta ~85 ms de mediana y devuelve el aprendizaje entero.
+Y un fallo del arnés: al referenciar U.exe el núcleo de `u/`, la promesa 162 caía por `FileNotFoundException:
+U.Ciclo`; el contrato ahora referencia sus DLL. Sabotajes: 3, los 3 rojos.
+
+## Fase 2 — la mano
+
+El clic con el ratón real de `u/` (SetCursorPos + SendInput al centro del elemento ya leído), sin volver a buscarlo.
+Lo que tenía que conservar, con su sitio (inventario del 2026-09-27): el evento `UiaSurface.Pulso` que mueve la
+carita (sale de `Actuar`, UiaSurface.cs:1163), el freno (`Execute`, :992), el motivo (promesa 231), el log «mano»,
+el doble clic aprendido (82-83) y la guarda de SAP (FaceWindow:780, en pareja con `EsContenido`).
+
+| # | Promesa |
+|---|---|
+| 477 | la mano rápida pulsa sin volver a buscar: si lo pedido coincide con UN solo elemento visible de la lectura rápida —mismo nombre (el del selector o, si va por AutomationId, la etiqueta) y mismo tipo—, el clic es el ratón real en su centro; con nombres repetidos, sin coincidencia o en SAP no pulsa y deja paso a la mano de siempre |
+| 478 | la mano rápida avisa a la carita donde pulsó (UiaSurface.Pulso, con la caja) y al cursor (CursorMoved); y con el freno echado no pulsa y lo dice |
+| 479 | lo mismo pedido otra vez en menos de 3 s —el ensayo del doble o la repetición de pulsar— va por la mano de siempre: primero el clic real y, si no agarró, la escalera (aprendizaje nº19) |
+
+**Decisión sobre 234, 237 y 265 (tomada sin el dueño, por su orden de no preguntar; 2026-09-27):** no se retiran.
+La mano rápida va **delante** de la escalera, no en su lugar: la escalera sigue siendo la mano cuando la rápida no
+se atreve (homónimos, sin coincidencia, SAP, gesto de doble clic, repetición en < 3 s). Es lo que ya dice el
+aprendizaje nº19 —«actuar primero y verificar después: el clic real, y solo si no agarró, el patrón»— y por eso 479
+manda la repetición a la escalera: si el clic real no agarró la primera vez, la segunda no puede ser igual.
+Las promesas de la escalera siguen juzgando la escalera, que existe entera.
+
+### Resultado de la fase 2 (medido el 2026-09-27, Configuración y Explorador, 13 pulsos)
+
+| | línea base | fase 1 | fase 2 |
+|---|---|---|---|
+| la mano | 263-875 ms | igual | **8-47 ms (mediana 37)** |
+| esperar el cambio | 1.824-1.864 ms | mediana 211 ms | **mediana 226 ms** |
+| pulsar entero (ida y vuelta por el MCP) | 3.263-4.016 ms | mediana 930 ms | **mediana 532 ms** |
+
+Hallazgos:
+- **Una lectura por clic, no dos.** La primera versión volvía a leer la ventana para buscar el elemento (~100-300 ms).
+  La lectura que la espera deja guardada (`_ultimaLectura`) vale si tiene < 500 ms: la mano no lee nada.
+- **«Dónde» no es caro.** Hipótesis probada y falsa: sacarlo del bucle de espera empeoró el Explorador. El reparto
+  medido en el log: «dónde» cuesta 0-29 ms; lo caro es la primera lectura de Configuración tras el clic (300-900 ms,
+  la app está animando la transición). Eso es de la app, no nuestro, y no se toca.
+- Sabotajes: 5, los 5 rojos (homónimos, sin tipo, sin aviso a la carita, sin freno, lo repetido rápido). La primera
+  tanda salió roja con el mensaje equivocado —un recuento de clics acumulado hacía culpar a SAP de los homónimos—; cada
+  chequeo cuenta ahora sus clics, y cada sabotaje nombra su causa.
+
+## Fase 3 — abrir (pieza P3 del plan)
+
+Línea base: `map_open_app` con Configuración ya abierta y delante, **13 s**, y contestaba «no pude traer
+«ms-settings:» al frente» con Configuración delante. Inventario de la causa (2026-09-27): lo pedido se compara con
+el NOMBRE DEL PROCESO en cuatro sitios, y Configuración vive en `ApplicationFrameHost` —aprendizaje nº16 otra vez—:
+
+| Sitio | Qué compara | Consecuencia |
+|---|---|---|
+| `AbrirSegunElNucleo.LasDe` | «ms-settings:» con el proceso y el título | no ve la ventana abierta |
+| `AbrirSegunElNucleo.YaEstamos` | `SystemSettings` con «ms-settings:» | no sabe que ya estás |
+| `AppAligner.VentanaDe` | idem | no la trae |
+| `WindowsSystemApi.EsperarVentana` | un proceso llamado «ms-settings:» | **espera los 12 s enteros**, siempre |
+
+`u/` ya lo resuelve con `Apps.EsLaPedida` (proceso, y título para las de la tienda) y `Apps.Llego` (cambió la ventana
+de delante o su título). Se usan esas, no una tercera opinión:
+
+| # | Promesa |
+|---|---|
+| 480 | abrir encuentra lo ya abierto también por lo que ES, no solo por cómo se llama su proceso: «ms-settings:» y «configuración» encuentran la ventana de ApplicationFrameHost titulada «Configuración» (Apps.EsLaPedida) |
+| 481 | si la ventana de lo pedido ya es la de delante, abrir contesta que ya estás sin esperar a que algo cambie, y esa ventana pasa a ser la de trabajo (traerla es lo que la fija, y estando delante no cuesta) |
+| 482 | lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12 |
+
+### Resultado de la fase 3 (medido el 2026-09-27, por el MCP, Configuración y Explorador)
+
+| | línea base | fase 3 |
+|---|---|---|
+| abrir lo que ya está delante («configuración», «ms-settings:») | 13 s y «no pude traer» | **194-270 ms**, «ya estás en «Configuración»» |
+| abrir lo abierto detrás (Configuración ↔ Explorador, 3 formas de pedirlo) | — | **227-309 ms**, «Te puse delante» |
+| lanzar con la app cerrada («ms-settings:», «configuración») | 13 s | **389-1.083 ms**, llega |
+| 17 aperturas en total | | 17 de 17 bien · mediana 242 ms |
+
+Hallazgos:
+- **El escritorio es explorer.exe.** Al estrenar la 480, «explorador» contaba «Program Manager» como ventana suya.
+  Chequeo añadido a la 480 en rojo, y fuera.
+- **Una sonda por el MCP no es la persona.** Llamando desde un script, Windows le niega a U cambiar la ventana de
+  delante —nadie le dio entrada—, y traer el Explorador «fallaba» 4 de 4 con la misma técnica que desde otro proceso
+  trae en 10-23 ms (sonda de la API, 6 de 6). Por voz o por el panel la persona acaba de darle entrada: main-limpio
+  tiene 0 «No pude traer» en 30+ aperturas. La sonda ahora le cede el permiso (`AllowSetForegroundWindow`), como la
+  persona al hablarle. No se toca `TraerAlFrente`.
+- Sabotajes: 5, los 5 rojos (solo por proceso, sin mirar delante, sin fijar la ventana de trabajo, protocolo a 12 s,
+  el título no cuenta).
+
+## Fase 4 — ver: medida, y NO se integra (2026-09-27)
+
+Se midió antes de escribir nada (`medir-ver.ps1`, `map_what_i_see` por el MCP, 3 vueltas):
+
+| | ida y vuelta | elementos |
+|---|---|---|
+| Configuración | 95-128 ms | 44 |
+| Explorador | 148-205 ms | 74 |
+
+El lector de `u/` lee en 20-100 ms: cambiarlo ahorraría ≤ 100 ms por mirada, y costaría tres cosas que `LoQueVeo`
+tiene y `LectorUia` no: las puertas del grafo y los campos de SAP que se suman a la lista (promesa 285, que
+`map_decidir` comparte a propósito), el selector de cada elemento (el lector rápido no trae AutomationId), y la
+ventana — `LoQueVeo` lee la de la persona y el rápido la de trabajo. **Decisión: no entra.** La regla 1 del plan
+prohíbe subir la latencia; esto es la regla al revés: tampoco entra una pieza cuyo ahorro no paga lo que rompe.
+Lo que sí se aprovecha ya del lector rápido es lo que sí paga: la huella de la espera (fase 1) y la mano (fase 2).
+
+Decidir tampoco se toca aquí: `map_decidir` (Jev, spec 035) ya está en main con su lista numerada y su medida.
+
+## Fase 5 — escribir (pieza P6 del plan)
+
+Medido antes de escribir código (`medir-escribir.ps1`, `map_type` por el MCP en el Bloc de notas de Windows 11):
+**2.246-2.378 ms, con 4 letras y con 300**. Que no dependiera del largo decía que no era el tecleo; el log lo dijo:
+1,5-2 s entre la llamada y el Execute. Escribir sin `target` esperaba un foco de tipo **Edit**, 30 × 50 ms, y el
+editor del Bloc de notas de Windows 11 es un **Document**: agotaba el techo siempre, y después escribía bien porque
+`UiaSurface.AceptaTexto` —la regla que decide si se escribe— sí lo acepta. Dos reglas para la misma pregunta.
+
+| # | Promesa |
+|---|---|
+| 483 | escribir sin decir dónde espera a un foco que ACEPTE texto, no a uno que se llame Edit: en cuanto lo hay —también el Document del Bloc de notas de Windows 11— escribe sin esperar más, y el techo de 1,5 s es solo para cuando aún no hay dónde |
+
+| | línea base | fase 5 |
+|---|---|---|
+| `map_type` 4 letras | 2.378 ms | **695 ms** |
+| `map_type` 300 letras | 2.246-2.375 ms | **382-480 ms** |
+
+Sitios con la clase de error (esperar por el nombre del tipo): 1. Los dos `ControlType.Edit` de `SurfaceLocator`
+buscan campos para identificar la pantalla, no esperan, y no se tocan. Sabotajes: 2, los 2 rojos.
+
+**Hallazgo que queda abierto — escribir REEMPLAZA.** `SetValue` pone el texto entero del campo: en el Bloc de notas
+la segunda escritura borró la primera (el título de la pestaña pasó de «hola» a «Las almejas…»). La primera medida
+se hizo sobre una pestaña «Sin título» que ya estaba abierta, y su contenido se perdió; las siguientes, en una
+pestaña nueva. Añadir o reemplazar es la pieza P6 de fondo (spec 049, promesa 410, «si el campo no lo refleja»):
+no es de velocidad y va en su propia rama.
+
+## Fase 6 — desplazar (pieza P1 del plan)
+
+`Desplazamiento.Mover` dormía 350 ms fijos tras cada `ScrollVertical` antes de leer el porcentaje.
+
+| # | Promesa |
+|---|---|
+| 484 | desplazar comprueba la consecuencia en cuanto la hay: sale al primer cambio del porcentaje en vez de dormir 350 ms fijos, y sin cambio agota el mismo techo antes de decir que no se movió |
+
+| `map_scroll` en Configuración, 7 desplazamientos (abajo, arriba, principio, final) | línea base | fase 6 |
+|---|---|---|
+| ida y vuelta | 463-503 ms | **115-215 ms** |
+| lo que contestó | 7 de 7 con su porcentaje | 7 de 7, los mismos porcentajes |
+
+Sabotajes: 2, los 2 rojos (dormir el techo entero; decir «no se movió» sin esperar).
+
+## Balance del paso 1 (2026-09-27)
+
+| Qué hace U.exe | línea base (main) | rama | promesas |
+|---|---|---|---|
+| pulsar (ida y vuelta por el MCP) | 3,3-4,0 s | mediana 532 ms | 475-479 |
+| abrir una app | 13 s con Configuración | 194-1.083 ms, 17 de 17 | 480-482 |
+| escribir | 2,2-2,4 s | 382-695 ms | 483 |
+| desplazar | 463-503 ms | 115-215 ms | 484 |
+| mirar | 95-205 ms | sin cambio: medido, y no entra | — |
+
+Lo que no se integra y por qué: el lector de `u/` para mirar (fase 4), y decidir (Jev ya está en main con
+`map_decidir`). SAP no se tocó: sus caminos siguen por la mano y la espera de siempre (promesa 476), y no hubo
+sesión de SAP en este PC para medir la parte que es suya (P11 del plan). La voz (P12) y no replanear (P10) son del
+modelo, no de las manos: van en su spec.
+
+## Lo que queda fuera
+
+- `PasoDelNucleo` y `ServidorDelNucleo` (8792) usan `_mapaVivo.Pulsar` y no pasan por `PulsarSegunElNucleo`.
+- El `MemoriaCorta(400)` de `DondeTrabajo`: la fase 1 no depende de él para detectar el cambio.

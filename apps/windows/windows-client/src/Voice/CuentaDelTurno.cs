@@ -28,7 +28,8 @@ public sealed class CuentaDelTurno
     private readonly Func<long> _relojMs;
     private readonly object _candado = new();
 
-    private long? _t0, _primera, _ultima, _peticion;
+    private long? _t0, _primera, _ultima, _peticion, _finTrabajo, _habloTras;
+    private long _ejecutar;
     private int _llamadas, _rechazadas, _retiradas;
     private readonly HashSet<string> _distintas = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _intentos = new(StringComparer.Ordinal);
@@ -63,6 +64,32 @@ public sealed class CuentaDelTurno
         }
     }
 
+    /// <summary>
+    /// Una tanda de herramientas terminó y tardó <paramref name="ms"/>, desde que se pidió hasta que su resultado salió
+    /// hacia Luna (promesa 512). Es lo que se ejecutó; todo lo demás del turno es pensar.
+    /// </summary>
+    public void Trabajo(long ms)
+    {
+        lock (_candado)
+        {
+            if (_t0 == null) return;   // una tanda del turno anterior no se cuenta en este
+            _ejecutar += Math.Max(0, ms);
+            _finTrabajo = _relojMs();
+        }
+    }
+
+    /// <summary>
+    /// Ü dijo algo (promesa 512). Lo primero que dice tras la última tanda es el final del pedido: lo de antes de
+    /// cualquier herramienta no lo es, y lo que sigue diciendo después tampoco lo alarga.
+    /// </summary>
+    public void Hablo()
+    {
+        lock (_candado)
+        {
+            if (_finTrabajo is long f && (_habloTras == null || _habloTras < f)) _habloTras = _relojMs();
+        }
+    }
+
     public void Rechazada(string herramienta, string destino)
     {
         lock (_candado) _rechazadas++;
@@ -84,7 +111,8 @@ public sealed class CuentaDelTurno
     /// anterior se colaba en el siguiente (crítico de la rama, 2026-09-11).</summary>
     private void Reiniciar()
     {
-        _t0 = _primera = _ultima = _peticion = null;
+        _t0 = _primera = _ultima = _peticion = _finTrabajo = _habloTras = null;
+        _ejecutar = 0;
         _llamadas = _rechazadas = _retiradas = 0;
         _distintas.Clear();
         _intentos.Clear();
@@ -107,10 +135,26 @@ public sealed class CuentaDelTurno
             string linea = $"llamadas={_llamadas} distintas={_distintas.Count} {intentos} "
                          + $"primera={Desde(_primera)} ultima={Desde(_ultima)} "
                          + $"desde_peticion={(_primera is long p && _peticion is long q ? (p - q) + " ms" : "—")} "
-                         + $"rechazadas={_rechazadas} retiradas={_retiradas}";
+                         + $"rechazadas={_rechazadas} retiradas={_retiradas}"
+                         + PensarYEjecutar();
 
             Reiniciar();
             return linea;
         }
+    }
+
+    /// <summary>
+    /// LO QUE PIENSA LUNA Y LO QUE EJECUTA JEFF (promesa 512, spec 062). La sesión del dueño del 2026-09-28 fue ~77 %
+    /// pensar, y se sacó a mano restando huecos de un log con resolución de un segundo; la meta es ≤ 20 %.
+    /// Pensar incluye a la voz decidiendo delegar y a Luna contando el resultado: todo lo que no es ejecutar.
+    /// </summary>
+    private string PensarYEjecutar()
+    {
+        if (_peticion is not long q) return $" pensar=— ejecutar={_ejecutar} ms luna=—";
+        long fin = _habloTras is long h && _finTrabajo is long f && h >= f ? h : _finTrabajo ?? _ultima ?? q;
+        long total = Math.Max(1, fin - q);
+        long ejecutar = Math.Min(_ejecutar, total);
+        long pensar = total - ejecutar;
+        return $" pensar={pensar} ms ejecutar={ejecutar} ms luna={(int)Math.Round(100.0 * pensar / total)}%";
     }
 }

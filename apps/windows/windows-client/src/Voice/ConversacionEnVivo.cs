@@ -678,6 +678,28 @@ public sealed class ConversacionEnVivo : IDisposable
         concreta. Que sea incómodo de deshacer no basta: tiene que ser imposible. Todo lo demás se
         hace, y si eliges mal, se arregla haciéndolo otra vez.
 
+        PARA ACTUAR, PLANEA: map_hacer. Es tu forma normal de hacer cosas en la pantalla. En UNA llamada le das
+        TODOS los pasos que ya puedes prever, y Jeff —tus manos rápidas— los hace seguidos sin volver a
+        preguntarte: cada vuelta tuya cuesta dos segundos, y un paso de Jeff, un tercio. Cada paso es UNO de estos:
+          · «abre: <app o dirección>» — calculadora, configuración, explorador, paint, edge, o una dirección
+            (https://…, ms-settings:bluetooth: el camino más corto a una sección de Configuración).
+          · «pulsa: <nombre exacto>» — cuando ves ese nombre en EN PANTALLA AHORA, o cuando sabes cómo se llama
+            aunque aún no lo veas (las secciones de Configuración, los menús de siempre). Es lo más rápido, y si no
+            está a la vista Jeff lo busca por su cuenta: nunca pierdes nada por usarlo.
+          · «carpeta: <ruta o nombre>» — abre esa carpeta en el Explorador por el disco (documentos, descargas,
+            imágenes, C:\…): varias carpetas seguidas van en un solo plan, no una llamada por carpeta.
+          · «escribe: <texto exacto>» — donde esté el foco. Para escribir en un campo, antes un paso que lo enfoque.
+          · «tecla: <tecla>» — Enter, Escape, Tab, Ctrl+S, Alt+F4.
+          · «desplaza: abajo|arriba [muescas]» — para ver lo que queda fuera de la pantalla.
+          · cualquier otra frase es un OBJETIVO en la pantalla («ir a Bluetooth y dispositivos», «abrir el menú
+            Archivo»): Jeff mira lo que hay y pulsa hasta cumplirlo, aunque necesite varios clics.
+        Un objetivo por pantalla y UNA intención por objetivo. Planea el pedido ENTERO de una vez, hasta donde
+        lo puedas prever —cinco o diez pasos no son muchos—, y no mires antes si el pedido ya dice qué hacer. Si
+        la app acepta teclado (números en la calculadora, texto en un buscador), prefiere «escribe:» a pulsar
+        botón por botón. map_hacer te devuelve cómo acabó cada paso y lo que hay en pantalla: si uno falló,
+        vuelve a planear DESDE AHÍ con lo que ves, sin repetir lo ya hecho. map_take, map_type y map_open_app
+        siguen ahí para un gesto suelto; para dos o más, map_hacer.
+
         Tienes manos: las herramientas map_* mueven y accionan aplicaciones de verdad. Úsalas en
         cuanto la petición sea clara, y ENCADÉNALAS sin pararte a comentar entre una y otra: se te
         mide por lo que dejas hecho en la pantalla, no por lo que cuentas. Más abajo está dicho
@@ -707,9 +729,8 @@ public sealed class ConversacionEnVivo : IDisposable
             aquí», usa map_pointing_at ANTES que nada. No adivines de qué elemento habla por el
             nombre que creas haber entendido: él está apuntando, y apuntar es más exacto que
             describir. Te devuelve la puerta que hay bajo el cursor, con su nombre real, y la
-            ilumina. Con ese nombre ya puedes pulsarlo (map_take) o —lo más frecuente— aprender
-            qué es si te lo van a explicar (map_esto_es), que es donde SÍ llega una foto — ver
-            más abajo.
+            ilumina. Con ese nombre ya puedes pulsarlo (map_take) o, si te lo van a explicar,
+            aprender qué es (map_esto_es), que es donde SÍ llega una foto — ver más abajo.
           · CUANDO NECESITES VER ALGO QUE NADIE TE HA SEÑALADO —el diseño de una pantalla, un color,
             un error pintado en rojo, si algo se parece a otra cosa— pide map_look. Te manda una foto
             de lo que hay AHORA. No la pidas para saber nombres o tipos: para eso está map_what_i_see,
@@ -737,10 +758,9 @@ public sealed class ConversacionEnVivo : IDisposable
             la IDENTIDAD de la pantalla —qué app, qué pestaña, qué sitio— la dice siempre
             map_where_am_i. Las dos cosas juntas, cada una con su fuente, no una adivinando por la otra.
 
-        ERES UN APRENDIZ QUE EJECUTA LO QUE APRENDE. No estás aquí solo para obedecer: cada vez que
-        alguien te señala algo y te dice qué es, tienes la oportunidad de saber más la próxima vez.
-        El objetivo no es un ejecutor que repite lo mismo para siempre — es un aprendiz que, con el
-        tiempo, sabe más que quien lo enseñó a base de acumular RECUERDOS.
+        APRENDES DE LO QUE TE ENSEÑAN, NO DE LO QUE SUPONES. Cuando alguien te señala algo y te dice
+        qué es, guárdalo con map_esto_es y úsalo la próxima vez. No describas por tu cuenta lo que
+        tocas: un recuerdo es lo que te enseñó una persona, no lo que tú creías que era.
 
           · LO QUE VENGA MARCADO «[interno]» ES PARA TI, NO PARA DECIRLO. Son indicaciones de la
             propia herramienta —qué hacer después, por qué no pudo— y leerlas en voz alta suena a
@@ -794,9 +814,9 @@ public sealed class ConversacionEnVivo : IDisposable
           · ENSEÑAR NO ES EJECUTAR. Si te dicen «recuerda que hay que verificar esto antes», eso se
             GUARDA; no es una orden de pulsarlo ahora. Pulsar lo que te acaban de explicar en vez de
             aprenderlo es perder la lección y además hacer algo que nadie pidió.
-          · UN RECUERDO SE QUEDA, para siempre y no solo en esta charla: vive pegado a ESE elemento
-            en ESA pantalla, en el mismo sitio donde vive el mapa. La próxima vez que llegues ahí,
-            map_where_am_i te lo recuerda solo («Aquí me enseñaste: «X» es Y»). ÚSALO DE VERDAD: si
+          · UN RECUERDO VIVE PEGADO A ESE ELEMENTO EN ESA PANTALLA. Cuando vuelvas ahí,
+            map_where_am_i te dice qué te enseñaron («aquí me has enseñado N cosa(s)…») y
+            map_recuerdos te las cuenta una a una. ÚSALO DE VERDAD: si
             lo que te piden coincide con un recuerdo que ya tienes, actúa con esa pista en vez de
             preguntar otra vez o adivinar a ciegas. Un aprendiz que vuelve a preguntar lo que ya le
             explicaron no aprendió nada.
@@ -804,7 +824,7 @@ public sealed class ConversacionEnVivo : IDisposable
             tienes un recuerdo de un campo en una pantalla y encuentras uno parecido, sin explicar,
             en una pantalla vecina de la MISMA app, puedes proponer la misma lectura — pero DILO, no
             lo des por hecho en silencio («¿este también es el número de factura, como el de
-            antes?»). Generalizar bien es parte de aprender; generalizar sin decirlo es adivinar
+            antes?»), y cuélgalo con map_esto_es solo si te dice que sí. Generalizar bien es parte de aprender; generalizar sin decirlo es adivinar
             disfrazado de memoria.
           · ENSEÑAR Y ACTUAR PUEDEN IR EN LA MISMA FRASE. «Esto es donde se radican los pacientes,
             entra» son dos cosas a la vez: crea el recuerdo CON map_esto_es Y entra con map_take o
@@ -978,13 +998,19 @@ public sealed class ConversacionEnVivo : IDisposable
     // mapa despacha) para que una pregunta se responda en un solo sitio — dos catálogos del mismo
     // terreno se desincronizan en silencio. La unificación completa (que la voz y el MCP compartan
     // también map_batch) es la F4 del plan de batch.
-    internal static IReadOnlyList<Utensilio> Herramientas()
-    {
-        var todas = Catalogo();
+    internal static IReadOnlyList<Utensilio> Herramientas() => ConElDecisor(Catalogo(conCoreografia: false));
+
+    /// <summary>
+    /// EL CATÁLOGO DEL PILOTO (promesa 500): el de la voz, más «decir» y «recuerdo» en map_take y map_type, que la mano
+    /// del piloto lleva al comprobar una lección (191). Lo sirve el MCP, que es por donde entran sus manos. La voz NO los
+    /// tiene: el esquema era la invitación, y el modelo los mandaba en casi cada clic (2026-09-28).
+    /// </summary>
+    internal static IReadOnlyList<Utensilio> HerramientasDelPiloto() => ConElDecisor(Catalogo(conCoreografia: true));
+
+    private static IReadOnlyList<Utensilio> ConElDecisor(IReadOnlyList<Utensilio> todas) =>
         // CON EL DECISOR APAGADO EL CATÁLOGO QUEDA BYTE A BYTE COMO HOY (promesa 284): no se le ofrece a
         // Luna una herramienta que contestaría «todavía no sé decidir».
-        return ConDecisor ? todas.Append(MapDecidir).Append(MapTramo).Append(MapAlto).Append(MapTramoEstado).ToList() : todas;
-    }
+        ConDecisor ? todas.Append(MapDecidir).Append(MapTramo).Append(MapAlto).Append(MapTramoEstado).ToList() : todas;
 
     /// <summary>
     /// QUIÉN ELIGE LA PUERTA (spec 035). Falso = Luna, como siempre. Lo pone la ventana al arrancar
@@ -1000,9 +1026,7 @@ public sealed class ConversacionEnVivo : IDisposable
         + "en…» o «la pantalla no cambió»). Si contesta «no se acciona», no se atrevió: te dice por qué "
         + "y te deja el inventario delante — entonces elige tú con map_take.",
         ("objetivo", "Qué quieres conseguir en esta pantalla, con tus palabras («crear el triage "
-                   + "administrativo del paciente», «abrir la carpeta Descargas»)."),
-        ("decir", "Una frase corta que Ü dice con su voz JUSTO ANTES de pulsar."),
-        ("recuerdo", "Qué es y para qué sirve lo que se va a pulsar, con tus palabras, si lo sabes."));
+                   + "administrativo del paciente», «abrir la carpeta Descargas»)."));
 
     /// <summary>EL TRAMO (spec 037): muchos clics de una llamada, y la llamada vuelve al instante.</summary>
     private static readonly Utensilio MapTramo = Fn("map_tramo",
@@ -1012,8 +1036,7 @@ public sealed class ConversacionEnVivo : IDisposable
         + "persona. Cuando pare te llega un mensaje con la cuenta; map_tramo_estado dice por dónde va; "
         + "map_alto lo para. Úsalo para «abre X y entra en Y», «llega hasta Z»: varias puertas seguidas.",
         ("objetivo", "Qué se quiere conseguir, con tus palabras («abrir Descargas y entrar en la carpeta Facturas»)."),
-        ("tope", "Cuántos pasos como mucho. Vacío = 15."),
-        ("decir", "Una frase corta que Ü dice al arrancar."));
+        ("tope", "Cuántos pasos como mucho. Vacío = 15."));
 
     private static readonly Utensilio MapAlto = Fn("map_alto",
         "PARA EL TRAMO EN MARCHA en el paso en curso. Úsalo cuando la persona diga que pare, que espere, o "
@@ -1041,8 +1064,21 @@ public sealed class ConversacionEnVivo : IDisposable
         tiempo. Si la persona dice que pare o cambia de idea, map_alto. Si pregunta cómo va, map_tramo_estado.
         """;
 
-    private static Utensilio[] Catalogo() => new[]
+    /// <summary>
+    /// «decir» y «recuerdo» van SOLO en el catálogo del piloto (promesa 500): son la voz y la tarjeta que su mano lleva al
+    /// comprobar una lección. Ofrecidos a la voz, el modelo los mandaba en casi cada clic y cada clic tomaba el camino
+    /// lento de la coreografía (0 de 9 map_take por el ciclo rápido, sesión del 2026-09-28).
+    /// </summary>
+    private static Utensilio[] Catalogo(bool conCoreografia) => new[]
     {
+        // PRIMERA A PROPÓSITO (spec 062): es la forma normal de actuar; las de un gesto quedan para un gesto suelto.
+        Fn("map_hacer", "HACE UN PLAN ENTERO EN UNA LLAMADA: le das la lista de pasos, en orden, y Jeff —tus manos rápidas— "
+            + "los cumple seguidos en la pantalla real, sin volver a preguntarte entre uno y otro. Para dos o más acciones, "
+            + "esta y no una herramienta por gesto. Devuelve cómo acabó cada paso (✔/✘; al primer fallo para y los demás "
+            + "quedan omitidos) y lo que hay en pantalla ahora.",
+            ("pasos", "Lista JSON de pasos, en orden: [\"abre: calculadora\", \"escribe: 1234*5678=\", \"pulsa: Memoria\", "
+                    + "\"ir a Bluetooth y dispositivos\"]. Cada paso es «abre: …», «pulsa: <nombre exacto que ya ves>», "
+                    + "«escribe: <texto exacto>», «tecla: …», «desplaza: abajo|arriba», o un objetivo dicho con tus palabras.")),
         Fn("map_where_am_i", "Dice en qué pantalla estás ahora mismo y qué salidas conoce el mapa desde ahí. "
             + "Si hay un diálogo delante, lo describe en vez de fingir que es un lugar."),
         Fn("map_go_to", "Va a una pantalla, comprobando cada tramo. TAMBIÉN es la forma de ir a una "
@@ -1055,16 +1091,18 @@ public sealed class ConversacionEnVivo : IDisposable
             + "Contesta QUÉ PASÓ: «ahora estás en…» o «la pantalla no cambió». Si esperabas NAVEGAR y "
             + "no cambió, por ahí no era: prueba otra cosa en vez de repetir. Un botón que hace su "
             + "trabajo sin cambiar de pantalla —Guardar, Copiar, una casilla— está bien aunque no cambie.",
-            ("exit", "Nombre de lo que hay que pulsar («Nuevo», «Buscar», «Pegar») o un selector «uia:name=X;ct=ListItem»."),
-            ("which", "Solo cuando map_take te devolvió una lista numerada de varios con ese nombre: el "
-                    + "número del que quieres, «1», «2»…, en el orden de ESA lista. Vacío lo normal."),
-            ("decir", "Una frase corta que Ü dice con su voz JUSTO ANTES de pulsar. Al comprobar una lección va siempre: la carita se pone al lado, lo dice, y entonces pulsa."),
-            ("recuerdo", "Qué es y para qué sirve lo que vas a pulsar, con tus palabras. Se cuelga del elemento y se muestra en tarjeta antes de tocarlo.")),
+            Comprobando(conCoreografia,
+                ("exit", "Nombre de lo que hay que pulsar («Nuevo», «Buscar», «Pegar») o un selector «uia:name=X;ct=ListItem»."),
+                ("which", "Solo cuando map_take te devolvió una lista numerada de varios con ese nombre: el "
+                        + "número del que quieres, «1», «2»…, en el orden de ESA lista. Vacío lo normal."),
+                ("decir", "Al comprobar una lección: la frase corta que Ü dice con su voz JUSTO ANTES de pulsar. La carita se pone al lado, lo dice, y entonces pulsa."),
+                ("recuerdo", "Al comprobar una lección: qué es y para qué sirve lo que vas a pulsar. Se muestra en tarjeta antes de tocarlo."))),
         Fn("map_type", "Escribe texto en el campo abierto; sirve para nombrar una carpeta recién creada.",
-            ("text", "Lo que hay que escribir."),
-            ("target", "El campo por su nombre tal como se lee («Preguntar a Google», «Términos de búsqueda») o su selector; en SAP, su etiqueta, su nombre técnico o el selector de la lección. Vacío = el campo con el foco, si es de texto. En una terminal (PowerShell, cmd, Git Bash) déjalo vacío: se teclea en ella y se confirma con Enter."),
-            ("decir", "Una frase corta que Ü dice con su voz JUSTO ANTES de escribir. Al comprobar una lección va siempre."),
-            ("recuerdo", "Qué es ese campo y para qué sirve, con tus palabras. Se cuelga y se muestra en tarjeta antes de escribir.")),
+            Comprobando(conCoreografia,
+                ("text", "Lo que hay que escribir."),
+                ("target", "El campo por su nombre tal como se lee («Preguntar a Google», «Términos de búsqueda») o su selector; en SAP, su etiqueta, su nombre técnico o el selector de la lección. Vacío = el campo con el foco, si es de texto. En una terminal (PowerShell, cmd, Git Bash) déjalo vacío: se teclea en ella y se confirma con Enter."),
+                ("decir", "Al comprobar una lección: la frase corta que Ü dice con su voz JUSTO ANTES de escribir."),
+                ("recuerdo", "Al comprobar una lección: qué es ese campo y para qué sirve. Se muestra en tarjeta antes de escribir."))),
         Fn("map_unblock", "Resuelve un diálogo que está bloqueando el paso y reanuda la tarea.",
             ("at", "A dónde volver DESPUÉS, como superficie (uia://… o web://…), o vacío para quedarse donde está. NO es el nombre del diálogo."),
             ("choose", "La opción a pulsar. Vacío = solo si hay una única salida posible.")),
@@ -1129,9 +1167,9 @@ public sealed class ConversacionEnVivo : IDisposable
             + "Úsala solo cuando explique qué es un elemento visible o para qué sirve: «esto es X», "
             + "«aquí va X cuando Y», «este botón sirve para…». Los datos personales, preferencias y "
             + "compromisos van SIEMPRE a memory_remember, aunque la frase empiece por «recuerda que». "
-            + "QUEDA GUARDADO PARA SIEMPRE, pegado a ese elemento en esa pantalla, CON "
-            + "UNA FOTO del instante: map_where_am_i te lo recordará solo la próxima vez que "
-            + "vuelvas, sin que nadie tenga que volver a explicarlo.",
+            + "Queda pegado a ese elemento en esa pantalla, CON UNA FOTO del instante, y "
+            + "map_where_am_i te lo recordará cuando vuelvas. Nunca para describir lo que tú vas a "
+            + "pulsar o escribir: un recuerdo es lo que te enseñan, no una nota tuya.",
             ("significado", "Lo que ha dicho que es, con sus palabras. No lo resumas: «aquí va el número "
                           + "de factura, nunca el nombre» es más útil que «número de factura»."),
             ("sobre", "SOLO si NO acaba de señalarlo con el cursor: el nombre del elemento al que se "
@@ -1307,7 +1345,7 @@ public sealed class ConversacionEnVivo : IDisposable
         if (primera.Length > 70) primera = primera[..70] + "…";
 
         // UN RECUERDO NUEVO SE MARCA DISTINTO — no es una acción más, es la única herramienta que
-        // deja algo que dura más que la conversación. Un ✓ genérico se pierde entre los demás; esto
+        // deja algo que sigue ahí cuando la conversación termina. Un ✓ genérico se pierde entre los demás; esto
         // es lo mínimo para que se note que acaba de pasar algo que se va a recordar (2026-08-24,
         // pedido por el usuario: que se sienta cuando se crea un recuerdo).
         if (tool == "map_esto_es" && !mal) return $"🧠 {primera}  ({ms} ms)";
@@ -1336,6 +1374,10 @@ public sealed class ConversacionEnVivo : IDisposable
 
     private static Utensilio Fn(string nombre, string descripcion, params (string Nombre, string Que)[] args)
         => new(nombre, descripcion, args.Select(a => new Argumento(a.Nombre, a.Que)).ToList());
+
+    /// <summary>Los argumentos de siempre; y los dos últimos, «decir» y «recuerdo», solo en el catálogo del piloto (promesa 500).</summary>
+    private static (string Nombre, string Que)[] Comprobando(bool conCoreografia, params (string Nombre, string Que)[] args)
+        => conCoreografia ? args : args[..^2];
 
     // ── El caño ──────────────────────────────────────────────────────────────
 
@@ -1931,6 +1973,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 // son solo una llamada a herramienta, sin una palabra — que es justo el caso que
                 // hay que distinguir (ver Navigation.ElTurnoDeContar).
                 _mapa.TurnoDeContar.Hablo();
+                _cuenta.Hablo();   // lo primero que dice tras la última herramienta cierra el pedido (promesa 512)
                 break;
 
             case Hecho.CierraElTurno:
@@ -2142,6 +2185,8 @@ public sealed class ConversacionEnVivo : IDisposable
     /// </summary>
     private async Task EjecutarAsync(IReadOnlyList<Llamada> llamadas, CancellationToken ct)
     {
+        // LO QUE EJECUTA JEFF, de la petición a que el resultado sale hacia Luna (promesa 512): el resto del turno es pensar.
+        var relojDeLaTanda = System.Diagnostics.Stopwatch.StartNew();
         try { await EjecutarNucleoAsync(llamadas, ct); }
         catch (Exception e) { LogBus.Log("voz-viva", $"la ejecución de una llamada reventó: {e.Message}"); }
         // EL TRABAJO TERMINÓ, salga como salga (promesa 211): contestada, retirada o reventada. Mientras no se
@@ -2150,6 +2195,7 @@ public sealed class ConversacionEnVivo : IDisposable
         // Aunque reventara a medias: una llamada que ya no se va a contestar no retiene el turno de las demás (214).
         finally
         {
+            _cuenta.Trabajo(relojDeLaTanda.ElapsedMilliseconds);
             _turnosSinMarca?.Devuelta(llamadas);
             DarPorContestadas(llamadas);
         }

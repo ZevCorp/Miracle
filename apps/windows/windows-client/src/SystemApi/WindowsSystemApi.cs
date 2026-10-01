@@ -59,7 +59,64 @@ public static class WindowsSystemApi
         // pasar por la app. Si nada de lo anterior sirvió, es más honesto decir que no se pudo.
         if (!lanzado) return false;
 
-        return EsperarVentana(esperado, 12000); // arranque en frío de Chrome/Teams pasa de 6 s
+        // UN PROTOCOLO NO ES UN PROCESO (promesa 482). «ms-settings:» lo abre ApplicationFrameHost/SystemSettings, y
+        // esperar una ventana de un proceso llamado «ms-settings:» agotaba los 12 s SIEMPRE, también con Configuración
+        // ya delante (13 s medidos el 2026-09-27). Se espera como u/: a que cambie la ventana de delante o su título.
+        if (EsProtocolo(esperado))
+        {
+            var (h, t) = Delante();
+            if (U.Ciclo.Apps.EsLaPedida(pedido, ProcesoDe(h), t)) return true;
+            if (EsperarDesde((h, t), Delante, TechoDeEspera(pedido))) return true;
+            var (hf, tf) = Delante();
+            return U.Ciclo.Apps.EsLaPedida(pedido, ProcesoDe(hf), tf);
+        }
+        return EsperarVentana(esperado, TechoDeEspera(pedido)); // arranque en frío de Chrome/Teams pasa de 6 s
+    }
+
+    /// <summary>«ms-settings:», «mailto:…»: un esquema de dos letras o más y dos puntos. «C:\…» no lo es.</summary>
+    public static bool EsProtocolo(string s) =>
+        System.Text.RegularExpressions.Regex.IsMatch((s ?? "").Trim(), @"^[A-Za-z][A-Za-z0-9.+-]+:");
+
+    /// <summary>Cuánto se espera a que llegue lo lanzado: un protocolo, 3 s como en u/; un programa en frío, 12 s.</summary>
+    public static int TechoDeEspera(string pedido) => EsProtocolo(pedido) ? 3000 : 12000;
+
+    /// <summary>
+    /// ¿LLEGÓ? Sale en cuanto cambia la ventana de delante o su título (Apps.Llego de u/, promesa 469); false al
+    /// agotar el techo. Lo de antes se toma en la primera mirada.
+    /// </summary>
+    public static bool EsperarLlegada(Func<(IntPtr, string)> delante, int techoMs) => EsperarDesde(delante(), delante, techoMs);
+
+    private static bool EsperarDesde((IntPtr, string) antes, Func<(IntPtr, string)> delante, int techoMs)
+    {
+        var reloj = Stopwatch.StartNew();
+        while (reloj.ElapsedMilliseconds < techoMs)
+        {
+            var (h, t) = delante();
+            if (U.Ciclo.Apps.Llego(antes.Item1, antes.Item2, h, t)) return true;
+            System.Threading.Thread.Sleep(15);
+        }
+        return false;
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr h, System.Text.StringBuilder s, int max);
+
+    private static (IntPtr, string) Delante()
+    {
+        var h = GetForegroundWindow();
+        var sb = new System.Text.StringBuilder(512);
+        if (h != IntPtr.Zero) GetWindowText(h, sb, sb.Capacity);
+        return (h, sb.ToString());
+    }
+
+    /// <summary>La ventana que está delante ahora (para AbrirSegunElNucleo, promesa 481).</summary>
+    public static IntPtr VentanaDeDelante() => GetForegroundWindow();
+
+    private static string ProcesoDe(IntPtr h)
+    {
+        if (h == IntPtr.Zero) return "";
+        GetWindowThreadProcessId(h, out uint pid);
+        try { using var p = Process.GetProcessById((int)pid); return p.ProcessName; }
+        catch (ArgumentException) { return ""; }   // el proceso ya no existe
     }
 
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();

@@ -74,6 +74,12 @@ public sealed class UiaSurface : IUiSurface
     // del código. La ejecución por coordenadas es el espejo de cómo se graba (por posición).
     [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, IntPtr dwExtraInfo);
+
+    /// <summary>
+    /// La firma de Ü en dwExtraInfo (promesa 508, spec 061): el mismo valor que U.Ciclo.Raton.Firma, que esta capa no
+    /// puede ver. Con ella, ninguna ventana de Ü toma un clic de Ü por un toque de la persona.
+    /// </summary>
+    public const long FirmaDeU = 0x0055DC01;
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
     [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr hWnd);
@@ -116,8 +122,8 @@ public sealed class UiaSurface : IUiSurface
         if (!RealClick(el, out error, permitirSelect: false)) return false;
 
         System.Threading.Thread.Sleep(60);
-        mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, IntPtr.Zero);
-        mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, IntPtr.Zero);
+        mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, (IntPtr)FirmaDeU);
+        mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, (IntPtr)FirmaDeU);
         L("    → segundo clic del doble (mismo punto, sin recolocar)");
         return true;
     }
@@ -128,7 +134,8 @@ public sealed class UiaSurface : IUiSurface
 
     /// <summary>
     /// DÓNDE ACABA DE CAER UN CLIC de la mano: la caja del elemento en píxeles físicos (x, y, ancho,
-    /// alto), como los da UIA. La carita lo escucha para ir a plantarse al lado (promesa 240).
+    /// alto), como los da UIA. Era lo que la carita escuchaba para ir a plantarse al lado (promesa 240); desde la
+    /// 492 (spec 054) no lo escucha nadie, y se conserva para cuando vuelva a viajar.
     /// </summary>
     /// <remarks>
     /// Hace falta aparte de <see cref="CursorMoved"/>, que solo emite cuando el ratón se mueve DE
@@ -137,6 +144,24 @@ public sealed class UiaSurface : IUiSurface
     /// la superficie pública del mapeador.
     /// </remarks>
     public static event Action<double, double, double, double>? Pulso;
+
+    /// <summary>
+    /// Cuenta un clic que dio OTRA mano —la rápida de Ü desde cero, spec 053—: el pulso es el mismo venga de la mano
+    /// que venga, y el evento solo se podía invocar desde aquí.
+    /// </summary>
+    /// <returns>null si se avisó (o no había a quién); si quien escucha revienta, POR QUÉ. Antes se lo tragaba un catch
+    /// mudo, y un aviso roto era indistinguible de uno que nadie escucha (spec 061, patrón nº3).</returns>
+    public static string? AvisarDelPulso(double x, double y, double ancho, double alto)
+    {
+        try { if (ancho >= 1 && alto >= 1) Pulso?.Invoke(x, y, ancho, alto); return null; }
+        catch (Exception e) { return $"{e.GetType().Name}: {e.Message}"; }
+    }
+
+    /// <summary>Cuenta que el cursor se movió, cuando lo movió otra mano (spec 053).</summary>
+    public static void AvisarDelCursor(int x, int y)
+    {
+        try { CursorMoved?.Invoke(x, y); } catch { }
+    }
 
     /// <summary>Cuenta dónde cayó el clic, si es que alguien escucha y el elemento tiene caja.</summary>
     private static void AvisarDelPulso(AutomationElement el)
@@ -803,6 +828,13 @@ public sealed class UiaSurface : IUiSurface
     /// </remarks>
     public static Func<bool>? HayQueParar;
 
+    /// <summary>
+    /// ¿Está libre el punto de un clic? null = sí; si no, por qué (promesa 510, spec 061): un clic de Ü no cae sobre una
+    /// ventana de Ü. La pone la cara; aquí se consulta antes de cada clic físico, igual que la mano rápida, el ciclo y los
+    /// toques de computer-use. Sin nadie que la ponga (el contrato, una sonda), todo punto está libre.
+    /// </summary>
+    public static Func<int, int, string?>? LibrarElPunto;
+
     /// <summary>Lo que se contesta al negarse. Dice QUIÉN paró: un «no se encontró» mandaría a
     /// buscar un elemento que sí estaba.</summary>
     public const string ParasteTu = "paraste tú con Escape; no sigo hasta que arranques otra cosa";
@@ -879,10 +911,15 @@ public sealed class UiaSurface : IUiSurface
                 L($"  selector no resolvió → fallback por POSICIÓN: clic en ({x},{y}) [ventana+({rel.RelX},{rel.RelY})]");
                 try
                 {
+                    if (LibrarElPunto?.Invoke(x, y) is { Length: > 0 } tapado)
+                    {
+                        error = $"no pulso por posición en ({x},{y}): {tapado}";
+                        return false;
+                    }
                     SmoothMove(x, y);
                     Thread.Sleep(20);
-                    mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, IntPtr.Zero);
-                    mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, IntPtr.Zero);
+                    mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, (IntPtr)FirmaDeU);
+                    mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, (IntPtr)FirmaDeU);
                     return true;
                 }
                 catch (Exception e) { error = $"fallback por posición falló: {e.Message}"; }
@@ -898,35 +935,6 @@ public sealed class UiaSurface : IUiSurface
         L($"  ✓ resuelto en {attempts} intento(s) con '{hitSelector}' → name='{Safe(() => el.Current.Name)}' ct={Safe(() => el.Current.ControlType.ProgrammaticName)} rect={Safe(() => el.Current.BoundingRectangle.ToString())} ventana='{WindowLabel(el)}'");
 
         return Actuar(el, step, flexible, out error);
-    }
-
-    /// <summary>
-    /// Actúa sobre un elemento QUE YA SE TIENE EN LA MANO, sin volver a buscarlo por selector.
-    ///
-    /// Quien lee la pantalla se queda con el <see cref="AutomationElement"/> exacto; volver a
-    /// resolverlo por nombre es un rodeo que puede fallar aunque el elemento siga ahí — y fallaba:
-    /// el lector encontraba «Buscar en Notas» (Edit) y el ejecutor no lo resolvía ni en cinco
-    /// intentos, así que el asistente veía la barra de búsqueda y no podía pulsarla (2026-08-05).
-    ///
-    /// Esto NO es pulsar por coordenadas: es pulsar EXACTAMENTE el elemento que se vio, que es la
-    /// forma más fuerte de acción por identidad que hay — no hay nombre que pueda quedarse a medias
-    /// ni homónimo que confunda, porque no se busca nada.
-    /// </summary>
-    public bool EjecutarSobre(AutomationElement el, PlanStep step, out string error)
-    {
-        L($"Ejecutar directo «{step.Label}» · {step.ActionType} · sobre el elemento ya leído "
-          + $"(name='{Safe(() => el.Current.Name)}' ct={Safe(() => el.Current.ControlType.ProgrammaticName)})");
-
-        // SOBRE UNA VENTANA TAPADA NO SE ACTÚA. Con la ventana detrás, UIA no da punto pulsable
-        // —dice, con razón, que está tapado— y SetFocus no agarra: el foco se queda donde estaba.
-        // Eso produjo lo peor que puede pasar aquí: se pulsó la barra de búsqueda del explorador,
-        // se dio por hecha, y el texto siguiente acabó en la barra de direcciones de Chrome, que
-        // sí tenía el foco, y navegó (2026-08-05). Se sube la ventana ANTES y se comprueba.
-        IntPtr win = TopLevelWindow(el);
-        if (win != IntPtr.Zero && !TraerAlFrente(win))
-            L("    NO se pudo traer la ventana al frente; se actúa igual, pero puede no agarrar");
-
-        return Actuar(el, step, flexible: false, out error);
     }
 
     /// <summary>
@@ -1000,7 +1008,7 @@ public sealed class UiaSurface : IUiSurface
                 _ => Fail($"actionType no soportado en UIA: {step.ActionType}", out error),
             };
             L($"  resultado acción: ok={ok}{(ok ? "" : $" · motivo='{error}'")}");
-            // LA CARITA VA A DONDE SE PULSÓ (promesa 240). Un solo sitio para los tres clics: aquí pasan
+            // EL PULSO SE AVISA DONDE SE PULSÓ (era la promesa 240; desde la 492 nadie lo escucha). Un solo sitio para los tres clics: aquí pasan
             // el simple, el doble y el derecho, vengan del plan o de la mano suelta.
             if (ok && ComoViajaLaCarita.EsClic(step.ActionType ?? "")) AvisarDelPulso(el);
             if (!ok && flexible) { L("  flexible → se salta pese al fallo (ok)"); error = ""; return true; }
@@ -1083,11 +1091,11 @@ public sealed class UiaSurface : IUiSurface
         int notch = delta > 0 ? 120 : -120, remaining = delta, guard = 0;
         while (Math.Abs(remaining) >= 120 && guard++ < 400)
         {
-            mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (uint)notch, IntPtr.Zero);
+            mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (uint)notch, (IntPtr)FirmaDeU);
             Thread.Sleep(12);
             remaining -= notch;
         }
-        if (remaining != 0) mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (uint)remaining, IntPtr.Zero);
+        if (remaining != 0) mouse_event(MOUSEEVENTF_WHEEL, 0, 0, (uint)remaining, (IntPtr)FirmaDeU);
         return true;
     }
 
@@ -1490,10 +1498,15 @@ public sealed class UiaSurface : IUiSurface
             }
 
             int cx = (int)(r.Left + r.Width / 2), cy = (int)(r.Top + r.Height / 2);
+            if (LibrarElPunto?.Invoke(cx, cy) is { Length: > 0 } tapado)
+            {
+                error = $"no abro el menú en ({cx},{cy}): {tapado}";
+                return false;
+            }
             SmoothMove(cx, cy);
             Thread.Sleep(30);
-            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, IntPtr.Zero);
-            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, IntPtr.Zero);
+            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, (IntPtr)FirmaDeU);
+            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, (IntPtr)FirmaDeU);
             L($"    → clic DERECHO en ({cx},{cy})");
             return true;
         }
@@ -1864,11 +1877,17 @@ public sealed class UiaSurface : IUiSurface
                     cx = r.Left + r.Width / 2; cy = r.Top + r.Height / 2;
                 }
                 L($"    RealClick: rect={r} punto=({(int)cx},{(int)cy}) ventana='{WindowLabel(el)}'{(IsDesktopWindow(win) ? " (ESCRITORIO)" : "")}");
+                if (LibrarElPunto?.Invoke((int)cx, (int)cy) is { Length: > 0 } tapado)
+                {
+                    error = $"no pulso en ({(int)cx},{(int)cy}): {tapado}";
+                    L($"    {error}");
+                    return false;
+                }
                 L($"    → clic físico en ({(int)cx},{(int)cy})");
                 SmoothMove((int)cx, (int)cy);
                 Thread.Sleep(20);
-                mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, IntPtr.Zero);
-                mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, IntPtr.Zero);
+                mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, (IntPtr)FirmaDeU);
+                mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, (IntPtr)FirmaDeU);
 
                 // ¿AGARRÓ? Solo se puede preguntar en lo seleccionable, y ahí basta: si tras el clic
                 // real el elemento no quedó seleccionado, esta app ignora el ratón sintético y hay

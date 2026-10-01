@@ -79,8 +79,10 @@ public static class Desplazamiento
                 return PorTeclado(hacia, "el patrón de desplazamiento falló");
             }
 
-            System.Threading.Thread.Sleep(350);
-            double despues = scroll.Current.VerticalScrollPercent;
+            // Se mira en cuanto se mueve, no a los 350 ms (promesa 484): lo normal es que el porcentaje ya haya cambiado
+            // al volver la llamada, y dormir fijo lo pagaba cada desplazamiento. Sin cambio se agota el mismo techo
+            // antes de decir «no se movió», que es lo que el sueño fijo protegía.
+            double despues = EsperarQueSeMueva(() => scroll.Current.VerticalScrollPercent, antes, 350);
             LogBus.Log("scroll", $"{hacia}: {antes:N0}% → {despues:N0}%");
 
             // SE COMPRUEBA POR CONSECUENCIA. Y no moverse no siempre es un fallo: si ya estabas
@@ -97,6 +99,19 @@ public static class Desplazamiento
         }
 
         return PorTeclado(hacia, "esta pantalla no expone desplazamiento a UIA");
+    }
+
+    /// <summary>El porcentaje en cuanto deja de ser el de antes; al agotar el techo, el que haya (promesa 484).</summary>
+    public static double EsperarQueSeMueva(Func<double> leer, double antes, int techoMs)
+    {
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        double ahora = leer();
+        while (Math.Abs(ahora - antes) <= 0.5 && reloj.ElapsedMilliseconds < techoMs)
+        {
+            System.Threading.Thread.Sleep(15);
+            ahora = leer();
+        }
+        return ahora;
     }
 
     /// <summary>

@@ -103,7 +103,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// <summary>Las manos del asistente, para poder preguntarles desde el panel. Ver OnVerRecuerdos.</summary>
     private Mcp.SurfaceMapTools? _mapaDeMano;
 
-    /// <summary>La puerta MCP real (127.0.0.1:8790/mcp) por la que entra el Agent SDK.</summary>
+    /// <summary>La puerta MCP real (127.0.0.1, en ServidorMcp.Puerto) por la que entra el Agent SDK.</summary>
     private Mcp.ServidorMcp? _servidorMcp;
     /// <summary>Los nombres del catálogo MCP, para armar las dos cajas del piloto (spec 013).</summary>
     private List<string> _nombresMcp = new();
@@ -134,6 +134,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     public FaceWindow()
     {
         InitializeComponent();
+        // LA CARITA DE VISITA (spec 061): la regla decide si sale, a dónde y cuándo vuelve; aquí solo se le dan las manos.
+        _visita = new EstanciaDeLaCarita(Traspasable, VolarDeVisita, () => Environment.TickCount64);
+        ToquesDeU.Proteger(this);   // su clic abre o cuelga la voz: un clic de Ü no es la persona (promesa 508)
         // La precarga del plan dispara cuando el carrusel lleva 300 ms quieto sobre un workflow (spec 007).
         _precarga.Tick += (_, _) =>
         {
@@ -208,7 +211,13 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // LA CARITA VA A DONDE MIRA. Cuando el asistente dice que ve un elemento, ponerse a su lado
         // es lo que convierte «lo veo» en algo comprobable: si se planta junto a otra cosa, se ve al
         // instante. Es la misma idea que el recuadro, dicha con el cuerpo (2026-08-05).
-        Senalador.Senala += (caja, _) => Dispatcher.BeginInvoke(() => IrJuntoA(caja));
+        Senalador.Senala += (caja, _) => Dispatcher.BeginInvoke(() => Visitar(caja));
+        // Y A LO QUE Ü PULSA (promesa 504): el ciclo rápido, la mano rápida y la escalera avisan por el mismo pulso, con la
+        // caja del elemento y después del clic. Se atiende con BeginInvoke: quien pulsa no espera a la carita.
+        U.Graph.Surfaces.UiaSurface.Pulso += (x, y, w, h) => Dispatcher.BeginInvoke(() => Visitar(new Rect(x, y, w, h)));
+        // Y NINGUNA MANO PULSA SOBRE Ü (promesa 510): la escalera, la mano rápida y los toques de computer-use miran con la
+        // misma regla que el ciclo rápido antes de cada clic físico.
+        U.Graph.Surfaces.UiaSurface.LibrarElPunto = LibrarElPuntoDeUnClic;
 
         // ILUMINAR ES PARA QUIEN MIRA, NO PARA QUIEN PROGRAMA. El recuadro se pintaba solo desde
         // GraphExplorerWindow —la ventana del grafo, una herramienta de desarrollo— así que señalar
@@ -426,7 +435,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // El rastro del cursor va desde el arranque: cuando alguien dice «ilumina todo esto que te
         // estoy mostrando», ya ha PASADO el ratón por encima. Si se empezara a mirar al oír la
         // frase, lo que se quiere enseñar ya habría ocurrido.
-        RastroDelCursor.Arrancar();
+        // Sin rastro del cursor (spec 054, promesa 489): leía la app bajo el ratón cada 180 ms, justo después de cada
+        // clic del ciclo, para una sola herramienta (map_pointed_trail). Vive entero en 334f144.
 
         var mcp = new LocalMcp(_uia);
         // El terreno, al alcance del cerebro. Desde la gran limpieza (2026-08-30) las
@@ -682,7 +692,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     var loc = _locator?.Identificar(h);
                     if (loc != null) { _trabajo.Fijar(h, loc.Id); LogBus.Log("trabajo", $"la ventana de trabajo es ahora «{loc.Id}» (traída)"); }
                     return ok;
-                });
+                },
+                SystemApi.WindowsSystemApi.VentanaDeDelante);
             if (mcp.Map != null) mcp.Map.AbrirPorElNucleo = (app, instancia) =>
             {
                 string antes = FocoDeLaPersona();
@@ -777,6 +788,18 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 (sel, etq, gesto) =>
                 {
                     _ultimoMotivoDeLaMano = "";
+                    // LA MANO RÁPIDA PRIMERO (spec 053, fase 2): si lo pedido es UN elemento visible de la lectura rápida,
+                    // el ratón real en su centro. Si no es suyo —SAP, homónimos, sin coincidencia, o repetido en menos
+                    // de 3 s porque el primer clic no agarró—, la mano de siempre, con su escalera.
+                    if (gesto.Length == 0)
+                    {
+                        var reloj = System.Diagnostics.Stopwatch.StartNew();
+                        if (_manoRapida.Intentar(sel, etq, out string? motivoRapido))
+                        {
+                            LogBus.Log("mano", $"mano rápida: «{etq}» en {reloj.ElapsedMilliseconds} ms{(motivoRapido != null ? " · " + motivoRapido : "")}");
+                            return motivoRapido;
+                        }
+                    }
                     if (gesto.Length == 0 || U.Graph.Surfaces.SapSelector.Owns(sel))
                         return (_mapaVivo?.Pulsar?.Invoke(sel, etq) ?? false) ? null : _ultimoMotivoDeLaMano;
                     try
@@ -794,14 +817,104 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     }
                 });
             pulsar.AvisoDeLaVentana = _trabajo.TomarAviso;
-            if (mcp.Map != null) mcp.Map.PulsarPorElNucleo = (sel, etq) =>
+            // LO QUE SE VE (promesa 475, spec 053): la huella de Ü desde cero sobre la ventana de trabajo —una sola
+            // petición a UIA, 20-100 ms—. Cada lectura vacía la memoria corta de «dónde»: si la ubicación cambió,
+            // la pregunta de después de la espera lo ve al momento y el grafo aprende la arista.
+            pulsar.LoQueSeVe = () =>
             {
-                string antes = FocoDeLaPersona();
-                ObservarLaVentanaDeTrabajo();
-                var r = pulsar.Pulsa(sel, etq);
-                SeguirElFoco(antes);
-                return r.Cuenta;
+                _dondeTrabajo.Olvida();
+                var l = _lectorRapido.Leer(VentanaObjetivo());
+                _ultimaLectura = (l, Environment.TickCount64);
+                return l.Huella;
             };
+
+            // EL CICLO DE u/ (spec 054, promesas 485-488): un clic por nombre en UIA no pasa por la compuerta de vivo,
+            // ni por las ubicaciones, ni por el grafo: ver → clic → volver a ver, y la última lectura es la respuesta.
+            // El clic es el ratón real, así que la ventana de trabajo tiene que estar delante; si no se puede traer, el
+            // ciclo no se encarga y decide el camino de siempre.
+            if (mcp.Map != null)
+            {
+                var ciclo = new Navigation.CicloRapido(
+                    () =>
+                    {
+                        // Lo de delante, como u/ (promesa 491); la de trabajo solo si delante está Ü o nada.
+                        var (delante, esU) = Navigation.CicloRapido.Delante();
+                        IntPtr v = Navigation.CicloRapido.ElegirVentana(delante, esU, VentanaObjetivo());
+                        if (v == IntPtr.Zero) return IntPtr.Zero;
+                        return v == delante || U.Graph.Surfaces.UiaSurface.EstaDelante(v) || U.Graph.Surfaces.UiaSurface.TraerAlFrente(v) ? v : IntPtr.Zero;
+                    },
+                    v => { var l = _lectorRapido.Leer(v); _ultimaLectura = (l, Environment.TickCount64); return l; },
+                    // El ratón real y nada más. La carita se entera DESPUÉS, por TrasPulsar (promesa 504).
+                    (x, y) => U.Ciclo.Raton.Clic(x, y),
+                    () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
+                    () => Environment.TickCount64)
+                // SAP es UNA regla, su proceso (promesa 498): la misma para pulsar, mirar y esperar tras escribir.
+                {
+                    Titulo = U.Graph.Surfaces.UiaSurface.TituloDe, EsSap = Uia.Sap.EsVentana,
+                    // LA CARITA VA DESPUÉS DEL CLIC (promesa 504), por el mismo pulso que las otras manos. El ciclo no la
+                    // espera: la cara lo atiende con BeginInvoke, y si el aviso revienta el clic no se entera.
+                    TrasPulsar = Navigation.CicloRapido.AvisarALaCarita,
+                    // Y NO PULSA SOBRE Ü (promesa 510): si bajo el punto está la carita, se aparta —fantasma— y se pulsa;
+                    // si es otra ventana de Ü, no se pulsa y se dice cuál. Solo espera a la interfaz cuando la tapa la carita.
+                    LibrarElPunto = LibrarElPuntoDeUnClic,
+                };
+                // MIRAR COMO u/ (promesa 495): la ventana de delante, con sus textos, por el mismo ciclo —el clic siguiente
+                // reutiliza esta lectura—. SAP no: UIA solo ve un panel opaco, y su lector de siempre lee el dynpro.
+                mcp.Map.LoQueVeoRapido = () =>
+                {
+                    var (delante, esU) = Navigation.CicloRapido.Delante();
+                    IntPtr v = Navigation.CicloRapido.ElegirVentana(delante, esU, VentanaObjetivo());
+                    if (v == IntPtr.Zero) return null;
+                    if (Uia.Sap.EsVentana(v)) return null;
+                    // La lectura con la que acaba de asentarse un acto (496) ES lo que se ve: no se lee otra vez.
+                    var l = ciclo.Ultima != null && ciclo.UltimaVentana == v && Environment.TickCount64 - ciclo.UltimaEnMs < 250
+                        ? ciclo.Ultima
+                        : ciclo.Mirar(v);
+                    return l.Accionables.Count == 0
+                        ? "no pude leer la pantalla a tiempo: no sé qué hay delante."
+                        : ciclo.Describir(l, v);
+                };
+                // TRAS ESCRIBIR, COMO u/ (promesa 496): dos lecturas iguales, techo 300 ms; la última queda en el ciclo.
+                mcp.Map.EsperarTrasEscribir = () =>
+                {
+                    var (delante, esU) = Navigation.CicloRapido.Delante();
+                    IntPtr v = Navigation.CicloRapido.ElegirVentana(delante, esU, VentanaObjetivo());
+                    if (v == IntPtr.Zero || Uia.Sap.EsVentana(v)) return null;
+                    return U.Ciclo.Asentado.Quieta(() => ciclo.Mirar(v), 300, () => Environment.TickCount64).Cambio;
+                };
+                mcp.Map.CicloRapido = (exit, cual, antesDePulsar) =>
+                {
+                    ciclo.AntesDePulsar = antesDePulsar;
+                    string? r = ciclo.Pulsar(exit, cual);
+                    if (r == null) LogBus.Log("mano", $"ciclo rápido: «{exit}» va por el camino de siempre: {ciclo.PorQueNo}");
+                    if (r != null && ciclo.Pulso)
+                    {
+                        var t = ciclo.Tiempos;
+                        LogBus.Log("mano", $"⏱ ciclo «{ciclo.Pulsado}»: ver {t.Ver} ms · clic {t.Clic} ms · volver a ver {t.Esperar} ms ({t.Lecturas} lectura(s), {(ciclo.Cambio ? "cambió" : "no cambió")})");
+                        if (ciclo.AvisoFallido.Length > 0) LogBus.Log("mano", $"el aviso a la carita reventó y el clic no se enteró: {ciclo.AvisoFallido}");
+                        if (ciclo.MsLibrar > 0) LogBus.Log("mano", $"⏱ librar el punto de «{ciclo.Pulsado}»: {ciclo.MsLibrar} ms (hubo que apartar la carita)");
+                    }
+                    return r == null ? null : (r, ciclo.Pulso ? ciclo.Cambio : null, ciclo.ClaveDelPulsado);
+                };
+                // JEFF CUMPLE EL PLAN DE LUNA (spec 062, promesas 514-517): map_hacer trae el plan entero en una llamada. Los
+                // gestos van por las manos de u/, «pulsa:» por este mismo ciclo, y los objetivos por el motor de u/ con Jev.
+                var manosDelPlan = new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero);
+                var mapaDelPlan = mcp.Map;
+                var planDeLuna = new Navigation.ElPlanPorObjetivos(
+                    manosDelPlan.Abrir, manosDelPlan.Escribir, manosDelPlan.Tecla,
+                    nombre => mapaDelPlan.CicloRapido?.Invoke(nombre, 0, null) is { Cambio: not null },
+                    ObjetivoConJev,
+                    () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
+                    () => mapaDelPlan.LoQueVeoRapido?.Invoke() ?? "",
+                    () => Environment.TickCount64)
+                {
+                    Desplazar = manosDelPlan.Desplazar, EsperarQuieta = manosDelPlan.EsperarQuieta, AlTerminarPaso = l => LogBus.Log("plan", "   " + l),
+                    // «carpeta:» por el disco, con la misma regla que file_open (promesa 526).
+                    AbrirCarpeta = ruta => SystemApi.Explorador.Navegar(SystemApi.Explorador.Expandir(ruta)).Length > 0,
+                };
+                mapaDelPlan.Hacer = planDeLuna.Hacer;
+                _ = Task.Run(() => { if (JevDelPlan() is { } jev) LogBus.Log("plan", $"Jev caliente en {jev.Calentar()} ms"); });
+            }
 
             // RECORRER EN BATCH: N pasos por llamada con la compuerta de vida antes de cada uno.
             // Usa EL MISMO pulsar de arriba —mismas manos, misma verificación por consecuencia,
@@ -917,6 +1030,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // archivo aparte con las mismas claves, y el usuario lo vio en cuanto se lo dibujé:
             // «¿es paralelo al grafo?». Lo era, y dos sitios que saben de lo mismo se desincronizan
             // sin avisar. Solo la foto se queda en disco: la ruta va al grafo, el PNG no.
+            // OJO DESDE LA 054: quien proyectaba el grafo a Neo4j era el latido, y el latido no corre (promesa 489). Un
+            // recuerdo vive en memoria mientras esta Ü esté abierta; que sobreviva a cerrarla está pendiente (spec 054).
             if (mcp.Map != null)
             {
                 mcp.Map.Ensenar = (donde, sel, que, foto) => _mapaVivo.Nucleo.Ensenar(donde, sel, que, foto);
@@ -1092,10 +1207,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         }
 
         // EL SERVIDOR MCP DE VERDAD (F2 del plan de batch): la puerta por la que el Agent SDK —o
-        // cualquier cliente MCP genérico— conduce el terreno. El catálogo es EL MISMO de la voz,
-        // filtrado a lo que el mapa despacha, más map_batch (que la voz aún no usa; F4 unifica);
+        // cualquier cliente MCP genérico— conduce el terreno. El catálogo es el DEL PILOTO: el de la voz
+        // más «decir» y «recuerdo» para comprobar (promesa 500), filtrado a lo que el mapa despacha, más map_batch (que la voz aún no usa; F4 unifica);
         // el despacho es el MISMO LocalMcp: mismas manos, mismos vetos, mismo freno.
-        var catalogoMcp = Voice.ConversacionEnVivo.Herramientas()
+        var catalogoMcp = Voice.ConversacionEnVivo.HerramientasDelPiloto()
             .Where(u => SurfaceMapTools.IsMapTool(u.Nombre))
             .Append(new Voz.Realtime.Utensilio("map_batch",
                 "RECORRE VARIOS PASOS DE UNA SOLA LLAMADA sobre el mapa del computador, con una "
@@ -1196,7 +1311,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 }))
             .ToList();
         _nombresMcp = catalogoMcp.Select(u => u.Nombre).ToList();
-        _servidorMcp = new ServidorMcp(new ProtocoloMcp(catalogoMcp, (tool, args) => mcp.Call(tool, args)));
+        // LAS ÓRDENES DE PRUEBA (promesa 513) van solo en el cable, no en la caja del piloto: el piloto no se manda órdenes.
+        var catalogoDelCable = Mcp.OrdenesDePrueba.ConElMcp(catalogoMcp, Environment.GetEnvironmentVariable("U_ORDENES_DE_PRUEBA"));
+        _servidorMcp = new ServidorMcp(new ProtocoloMcp(catalogoDelCable,
+            (tool, args) => Mcp.OrdenesDePrueba.Es(tool) ? AtenderOrdenDePrueba(tool, args) : mcp.Call(tool, args)));
         _servidorMcp.Start();
         Closed += (_, __) => _servidorMcp?.Dispose();
         // El backend es Graph: la credencial (X-API-Key) sale del MISMO GraphConfig que usa la
@@ -1323,12 +1441,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // plegado. Toda la coreografía vive en la región «menú extendido» de abajo.
         WireMenu();
 
-        // La carita colapsada SIGUE al cursor automatizado durante la ejecución de workflows: se ve
-        // "quién" está haciendo los clics. Evento estático de UiaSurface; se suelta al cerrar.
-        UiaSurface.CursorMoved += OnAutomationCursorMoved;
-        Closed += (_, __) => UiaSurface.CursorMoved -= OnAutomationCursorMoved;
-        UiaSurface.Pulso += OnManoPulso;
-        Closed += (_, __) => UiaSurface.Pulso -= OnManoPulso;
+        // La carita YA NO sigue al cursor automatizado ni viaja a cada clic (spec 054, promesa 492): se posaba ~80 px
+        // sobre el clic y el siguiente clic de Ü caía en ella, que abre la voz de pago — 5 sesiones en un día de pruebas
+        // (2026-09-27). OnAutomationCursorMoved y OnManoPulso se borraron en la fase 5 de la 054; viven en 334f144.
 
         // La voz ya dice cuándo está escuchando y cuándo hablando (antes no lo decía nadie y la UI lo
         // simulaba escribiendo «Escuchando…» y cruzando los dedos). Llega desde el hilo del motor de
@@ -1584,6 +1699,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        // El HWND de la carita, para quien mira bajo un clic desde el hilo que pulsa (promesa 510): allí no se toca WPF.
+        _hwndCarita = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         _hotkeys.Attach(this, InvocarPorAtajo, MicPorAtajo);
         Closed += (_, __) => _hotkeys.Dispose();
         // El atajo que quedó ACTIVO —no el que se pretendía— lo dice HotkeyStatus, dentro del panel.
@@ -1617,6 +1734,26 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     }
 
     private void OnNotchTextoEnviado(string texto) => _ = EnviarTextoDesdeElNotchAsync(texto);
+
+    /// <summary>
+    /// Las órdenes de prueba (promesa 513): u_orden entra por el mismo camino que lo escrito en el chat, y u_colgar cierra
+    /// la voz y deja la medida del último pedido.
+    /// </summary>
+    private string AtenderOrdenDePrueba(string tool, IReadOnlyDictionary<string, string> args)
+    {
+        if (tool == "u_orden")
+        {
+            string texto = args.TryGetValue("texto", out var t) ? t.Trim() : "";
+            if (texto.Length == 0) return "falta «texto»: la orden.";
+            LogBus.Log("prueba", $"orden de prueba: «{texto}»");
+            Dispatcher.BeginInvoke(() => _ = EnviarTextoDesdeElNotchAsync(texto));
+            return $"orden enviada: «{texto}»";
+        }
+        if (_vivo == null) return "no hay voz que cerrar.";
+        bool cerro = Dispatcher.Invoke(() => _vivo.TerminarAsync()).Wait(TimeSpan.FromSeconds(10));
+        LogBus.Log("prueba", cerro ? "voz cerrada por la prueba" : "la voz no terminó de cerrarse en 10 s");
+        return cerro ? "voz cerrada." : "la voz no terminó de cerrarse en 10 s.";
+    }
 
     private async Task EnviarTextoDesdeElNotchAsync(string texto)
     {
@@ -1736,6 +1873,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
         top = Math.Clamp(top, wa.Top, Math.Max(wa.Top, wa.Bottom - ActualHeight));
         MoveTo(left, top);
+        // LA CASA ES DONDE LA DEJÓ LA PERSONA, y la de verdad es esta: lo guardado puede faltar, haberse descartado o no
+        // estar pegado a un lado; esto es lo que quedó aplicado (promesa 507).
+        _visita.Casa = new Point(left, top);
 
         // Aserción viva: colocar la ventana depende de tres cosas que cambian solas (el tamaño ya
         // asentado, el área de trabajo y lo guardado). Cuando alguna falla, el síntoma es «aparece
@@ -1799,22 +1939,127 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     }
 
     /// <summary>
-    /// EL VIAJE AL CLIC (promesa 240): como <see cref="MoverConMuelle"/> pero con la curva y los
-    /// tiempos de <see cref="ComoViajaLaCarita"/> —más corta, y sin el rebote del lanzamiento—.
-    ///
-    /// No se reutiliza el muelle de lanzar porque esto pasa en CADA clic: 720 ms con rebote está bien
-    /// para un gesto de la persona, y encadenado veinte veces en un plan se lee como gelatina.
+    /// EL VUELO DE UNA VISITA (spec 061): la curva sin rebote y los tiempos de <see cref="ComoViajaLaCarita"/> —150 a
+    /// 430 ms—, no el muelle de lanzar, que rebota ~8 % y cruzaría el elemento al posarse. Tiempo cero = al momento.
     /// </summary>
-    private void ViajarAlClic(double left, double top)
+    private void VolarDeVisita(Point destino, TimeSpan dur, Action<Point>? alPosarse)
     {
-        double dx = left - Left, dy = top - Top;
-        double dist = Math.Sqrt(dx * dx + dy * dy);
-        if (!ComoViajaLaCarita.MereceViaje(dist)) { MoveTo(left, top); return; }
-        var dur = ComoViajaLaCarita.Cuanto(dist);
-        // Se anota porque es lo único que hace medible el viaje sin mirar la pantalla: en el log se lee
-        // de dónde salió, a dónde fue y cuánto tardó.
-        LogBus.Log("ui-anim", $"viaje al clic: ({Left:0},{Top:0}) → ({left:0},{top:0}) · {dist:0} px en {dur.TotalMilliseconds:0} ms");
-        Vuelo.Mover(this, left, top, dur, new CurvaDelClic(), new CurvaDelClic());
+        Action? alAterrizar = alPosarse == null ? null : () => alPosarse(new Point(Left, Top));
+        if (dur <= TimeSpan.Zero) { MoveTo(destino.X, destino.Y); alAterrizar?.Invoke(); return; }
+        // Se anota porque es lo único que hace medible el viaje sin mirar la pantalla.
+        LogBus.Log("ui-anim", $"visita: vuelo ({Left:0},{Top:0}) → ({destino.X:0},{destino.Y:0}) en {dur.TotalMilliseconds:0} ms");
+        Vuelo.Mover(this, destino.X, destino.Y, dur, new CurvaDelClic(), new CurvaDelClic(), alAterrizar: alAterrizar);
+    }
+
+    /// <summary>
+    /// EL FANTASMA (promesa 505): fuera de casa el ratón atraviesa la carita. Es lo único que toca su estilo, y dice lo
+    /// que quedó releyéndolo de la ventana.
+    /// </summary>
+    private void Traspasable(bool fantasma)
+    {
+        int estilo = Fantasma.Poner(new System.Windows.Interop.WindowInteropHelper(this).Handle, fantasma);
+        if (fantasma)
+        {
+            // El globo de la línea es OTRA ventana, que el bit no cubre: si se abriera junto al elemento que Ü acaba de
+            // tocar, un clic en él abriría el chat y robaría el foco. Se cierra, y se paran sus relojes.
+            _lineaTimer.Stop();
+            _cerrarLineaTimer.Stop();
+            GhostPista.IsOpen = false;
+            (_latidoDeVisita ??= NuevoLatidoDeVisita()).Start();
+        }
+        else
+        {
+            _latidoDeVisita?.Stop();
+            try { CollapsedFace?.DejarDeMirar(); } catch (Exception e) { LogBus.Log("ui-anim", $"no pude dejar de mirar: {e.Message}"); }
+        }
+        LogBus.Log("ui-anim", fantasma
+            ? $"carita fantasma: el ratón la atraviesa · exstyle=0x{estilo:X}"
+            : $"carita en casa: vuelve a dejarse tocar · exstyle=0x{estilo:X}");
+    }
+
+    private System.Windows.Threading.DispatcherTimer? _latidoDeVisita;
+
+    /// <summary>
+    /// El latido de la vuelta: cada 250 ms le dice a la regla dónde está y si vuela. Solo mueve su propia ventana y nunca
+    /// lee la pantalla (promesa 489).
+    /// </summary>
+    private System.Windows.Threading.DispatcherTimer NuevoLatidoDeVisita()
+    {
+        var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        t.Tick += (_, _) => _visita.Latido(new Point(Left, Top), Vuelo.EnCurso);
+        return t;
+    }
+
+    private readonly EstanciaDeLaCarita _visita;
+    private IntPtr _hwndCarita;
+
+    /// <summary>
+    /// ¿Está libre el punto de un clic de Ü? (promesa 510). Se llama desde el hilo que pulsa: solo Win32, y a la interfaz
+    /// solo se le pide algo —con techo— si hay que apartar la carita.
+    /// </summary>
+    /// <summary>Jev para los objetivos del plan (spec 062): uno por proceso. Sin clave, null — y el objetivo lo dice.</summary>
+    private U.Ciclo.ClienteJev? _jevDelPlan;
+
+    private U.Ciclo.ClienteJev? JevDelPlan()
+    {
+        if (_jevDelPlan != null) return _jevDelPlan;
+        string clave = Credenciales.ClavesDelBackend.DeLaApp(Credenciales.ClavesDelBackend.Jev);
+        if (clave.Length == 0) return null;
+        return _jevDelPlan = new U.Ciclo.ClienteJev(clave) { Umbral = U.Ciclo.Jev.UmbralPorDefecto };
+    }
+
+    /// <summary>
+    /// UN OBJETIVO DEL PLAN, CUMPLIDO POR JEV (spec 062): el motor de u/ —dónde, ver, Jev elige, pulsar, asentar— con una mano
+    /// que mira bajo el punto como las otras seis (510, 517) y avisa a la carita después (504).
+    /// </summary>
+    private U.Ciclo.Recorrido ObjetivoConJev(string objetivo, IReadOnlyList<string> hecho)
+    {
+        var jev = JevDelPlan();
+        if (jev == null)
+            return new U.Ciclo.Recorrido(Array.Empty<U.Ciclo.Vuelta>(),
+                "no pulso: no hay clave de Jev (TYPESAFE_API_KEY) para cumplir objetivos; usa «pulsa: <nombre exacto>»", false);
+        var motor = new U.Ciclo.Motor(DondeDelPlan,
+            () => _lectorRapido.Leer(DondeDelPlan()?.Ventana ?? IntPtr.Zero),
+            c => jev.Decidir(c),
+            a => { if (Navigation.ElPlanPorObjetivos.Pulsar(a, LibrarElPuntoDeUnClic, (x, y) => U.Ciclo.Raton.Clic(x, y), Navigation.CicloRapido.AvisarALaCarita) is { } no) LogBus.Log("plan", "   " + no); },
+            () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true)
+        { AlTerminarVuelta = v => LogBus.Log("plan", $"   ⏱ {v.Tiempos.Linea()} · {(v.Elegida.Length > 0 ? "pulsé " + v.Elegida : v.Resultado)}") };
+        return motor.Objetivo(objetivo, U.Ciclo.Asistente.PasosDeSeguridad, hecho);
+    }
+
+    /// <summary>
+    /// DÓNDE TRABAJA EL PLAN (promesa 519): la regla del ciclo rápido. Si no es la de delante —delante está Ü—, se trae.
+    /// La de trabajo solo se busca cuando hace falta: VentanaObjetivo puede preguntar a UIA.
+    /// </summary>
+    private U.Ciclo.Ubicacion? DondeDelPlan()
+    {
+        var (delante, esU) = Navigation.CicloRapido.Delante();
+        var u = Navigation.ElPlanPorObjetivos.Donde(delante, esU, delante == IntPtr.Zero || esU ? VentanaObjetivo() : IntPtr.Zero,
+            Navigation.ManosDelPlan.Describir);
+        if (u != null && u.Ventana != delante && !U.Graph.Surfaces.UiaSurface.EstaDelante(u.Ventana))
+            U.Graph.Surfaces.UiaSurface.TraerAlFrente(u.Ventana);
+        return u;
+    }
+
+    private string? LibrarElPuntoDeUnClic(int x, int y) =>
+        ReglaDeLaVisita.LibrarElPuntoConElNotch(() => VentanasDeU.Bajo(x, y), h => VentanasDeU.Nombre(h) == PanelDeAcciones.Titulo, PanelDeAcciones.ApartarUnMomento,
+            () => ReglaDeLaVisita.LibrarElPunto(() => VentanasDeU.Bajo(x, y), VentanasDeU.EsDeU, _hwndCarita, ApartarLaCarita, VentanasDeU.Nombre,
+                enLaCarita: () => VentanasDeU.Dentro(_hwndCarita, x, y),
+                ocupado: () => VentanasDeU.LaPersonaTieneElRaton(_hwndCarita) ? "la persona tiene el ratón (está pulsando o arrastrando)" : null));
+
+
+    /// <summary>
+    /// Aparta la carita —fantasma, y su rato fuera empieza otra vez— antes de un clic que caería en ella. Con techo: 100 ms a
+    /// la prioridad más alta. Si la interfaz no llega, el punto sigue tapado y el clic lo dice en vez de esperar.
+    /// </summary>
+    private void ApartarLaCarita()
+    {
+        try
+        {
+            Dispatcher.Invoke(() => _visita.Salir(), System.Windows.Threading.DispatcherPriority.Send,
+                System.Threading.CancellationToken.None, TimeSpan.FromMilliseconds(100));
+        }
+        catch (Exception e) { LogBus.Log("ui-anim", $"no pude apartar la carita a tiempo: {e.GetType().Name}: {e.Message}"); }
     }
 
     // --- Recordar dónde dejó el usuario la barra ---
@@ -1823,8 +2068,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     // la carita. Los otros dos orígenes se ignoran a propósito:
     //   · OnSizeChanged mueve la ventana cada vez que se abre el menú o el globo — eso es layout, no
     //     intención, y guardarlo desplazaría la barra un poco en cada arranque.
-    //   · OnAutomationCursorMoved la mueve DECENAS DE VECES POR SEGUNDO mientras corre un workflow;
-    //     persistir eso dejaría la barra en un punto aleatorio de SAP el próximo arranque.
+    //   · El seguimiento del cursor automatizado la movía DECENAS DE VECES POR SEGUNDO mientras corría un
+    //     workflow; persistir eso dejaba la barra en un punto aleatorio de SAP. Ya no existe (spec 054), y la
+    //     regla se queda para cuando la carita vuelva a viajar.
 
     private System.Windows.Threading.DispatcherTimer? _saveTimer;
 
@@ -1878,33 +2124,6 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             StopBtn.Visibility == Visibility.Visible ||
             RestartTeachBtn.Visibility == Visibility.Visible
                 ? Visibility.Visible : Visibility.Collapsed;
-
-    // --- La carita sigue al cursor automatizado (solo colapsada) ---
-
-    private long _lastFollowMs;
-
-    /// <summary>
-    /// Mueve la carita colapsada junto al cursor automatizado, con un offset para no tapar el objetivo
-    /// del clic. Throttle a ~30ms para no inundar el Dispatcher (el cursor emite frame a frame). Las
-    /// coordenadas llegan en píxeles físicos; WPF posiciona en DIPs → se divide por la escala de DPI.
-    /// </summary>
-    private void OnAutomationCursorMoved(int x, int y)
-    {
-        long now = Environment.TickCount64;
-        if (now - _lastFollowMs < 30) return;
-        _lastFollowMs = now;
-        Dispatcher.BeginInvoke(new Action(() =>
-        {
-            if (!_collapsed) return;
-            var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
-            double px = x / dpi.DpiScaleX + 18, py = y / dpi.DpiScaleY + 18;
-            var wa = SystemParameters.WorkArea;
-            // Por MoveTo y no por asignación directa: si el usuario lanzó la carita a un borde, la
-            // animación retenida se traga los Left/Top y la carita se queda plantada sin seguir a nadie.
-            MoveTo(Math.Clamp(px, wa.Left, Math.Max(wa.Left, wa.Right - ActualWidth)),
-                   Math.Clamp(py, wa.Top, Math.Max(wa.Top, wa.Bottom - ActualHeight)));
-        }));
-    }
 
     // --- Colapsar / expandir: la carita alterna entre la barra y solo ella misma ---
 
@@ -2108,6 +2327,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         if (anfitrion is not Muelle) anfitrion.Ventana.Closed += ElAnfitrionSeFue;
         // Sentada en la consulta, el botón de llevar tiene quien lleve (promesa 274).
         if (anfitrion is ConsultaWindow consulta) consulta.Llevar = (destino, nuevo) => _ = ViajarAsync(destino, nuevo);
+        _visita.VolverYa();   // sentada, la ventana flotante se esconde: que no se quede fantasma para cuando vuelva
         Hide();
     }
 
@@ -2736,6 +2956,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 // contra el borde: «me oculto» y seguir viéndose es peor que no ocultarse.
                 _muelle?.Plegar("Ü se oculta");
                 _muelle?.Hide();
+                // A casa y tocable ANTES de esconderse: el fantasma sobrevive a Hide/Show, y volvería intocable.
+                _visita.VolverYa();
                 Hide();
                 // Se ofrece el doble Ctrl y no Ctrl+Alt+U porque es el gesto que ya usa para
                 // hablarle: una tecla menos que recordar, y la misma que tenía en la mano.
@@ -3357,36 +3579,36 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         LogBus.Log("comprobar", $"plan del piloto: {pasos.Count} paso(s) → "
             + string.Join(" → ", pasos.Select(p => p.Texto.Length > 0 ? $"escribir «{p.Texto}» en «{p.Exit}»" : $"«{p.Exit}»")));
         var reloj = System.Diagnostics.Stopwatch.StartNew();
-        int hechos = 0;
-        for (int i = 0; i < pasos.Count; i++)
-        {
-            var p = pasos[i];
-            // LA GUARDA CRECE CON EL PLAN (2026-09-08): 18 pasos con su tarjeta de lectura pasan de
-            // 100 s, y el corte cayó justo en el paso 18. Ocho segundos por paso, y nunca menos de 100.
-            if (reloj.Elapsed > TimeSpan.FromSeconds(Math.Max(100, 8 * pasos.Count)))
-                return Piloto.PlanDeComprobacion.Relato(hechos, pasos.Count, i + 1,
-                    "se me acabó el tiempo de una sola llamada; el resto lo sigues tú o me vuelves a mandar el plan desde aquí.",
-                    _locator?.DondeEstoy()?.Id ?? "", registro.Hechos, registro.Total, LoQueFalta(registro));
-
-            // LA IDENTIDAD DEL PASO SE DECIDE EN UN SITIO (promesa 191): se señala y se nombra por la
-            // puerta aunque el piloto traiga el selector; se escribe por el selector de la lección
-            // aunque traiga el nombre. La llegada viaja con el paso: es la que el terreno aprendió, y
-            // el batch la verifica con su propia compuerta (promesas 103 y 122).
-            var evento = p.N > 0 ? leccion.Eventos.FirstOrDefault(e => e.N == p.N) : null;
-            var id = Piloto.ElPasoQueSeDa.Resolver(p.Exit, evento?.Etiqueta ?? "", evento?.Selector ?? "", p.Texto);
-            var res = DarUnPasoConCoreografia(id.ParaSenalar,
-                new Navigation.RecorrerSegunElNucleo.Paso(id.ParaElEjecutor, p.Texto, evento?.Llegada ?? "", p.Tecla), p.Recuerdo, p.Decir);
-            if (res.Hechos < 1)
+        // LA GUARDA CRECE CON EL PLAN (2026-09-08): 18 pasos con su tarjeta de lectura pasan de
+        // 100 s, y el corte cayó justo en el paso 18. Ocho segundos por paso, y nunca menos de 100.
+        var techo = TimeSpan.FromSeconds(Math.Max(100, 8 * pasos.Count));
+        // EL BOTÓN DE PARAR PARA TAMBIÉN EL PLAN (promesa 501). El plan corre en el hilo del servidor MCP, y
+        // cancelar solo le llegaba al piloto: el plan seguía pulsando hasta el final. Es el de ESTA comprobación.
+        var cancelar = _cts;
+        var r = Piloto.ElRecorridoDelPlan.Recorrer(pasos.Count,
+            darUnPaso: i =>
             {
-                LogBus.Log("comprobar", $"plan · PARÓ en el paso {i + 1} «{id.ParaSenalar}»: {res.Cuenta}");
-                return Piloto.PlanDeComprobacion.Relato(hechos, pasos.Count, i + 1, res.Cuenta,
-                    _locator?.DondeEstoy()?.Id ?? "", registro.Hechos, registro.Total, LoQueFalta(registro));
-            }
-            hechos++;
-            if (p.N > 0) registro.Llegue(p.N, _locator?.DondeEstoy()?.Id ?? "");
-        }
-        LogBus.Log("comprobar", $"plan · hice los {pasos.Count} paso(s) en {reloj.ElapsedMilliseconds} ms · {registro.Hechos}/{registro.Total} hechos");
-        return Piloto.PlanDeComprobacion.Relato(hechos, pasos.Count, 0, "", _locator?.DondeEstoy()?.Id ?? "", registro.Hechos, registro.Total, LoQueFalta(registro));
+                var p = pasos[i];
+                // LA IDENTIDAD DEL PASO SE DECIDE EN UN SITIO (promesa 191): se señala y se nombra por la
+                // puerta aunque el piloto traiga el selector; se escribe por el selector de la lección
+                // aunque traiga el nombre. La llegada viaja con el paso: es la que el terreno aprendió, y
+                // el batch la verifica con su propia compuerta (promesas 103 y 122).
+                var evento = p.N > 0 ? leccion.Eventos.FirstOrDefault(e => e.N == p.N) : null;
+                var id = Piloto.ElPasoQueSeDa.Resolver(p.Exit, evento?.Etiqueta ?? "", evento?.Selector ?? "", p.Texto);
+                var res = DarUnPasoConCoreografia(id.ParaSenalar,
+                    new Navigation.RecorrerSegunElNucleo.Paso(id.ParaElEjecutor, p.Texto, evento?.Llegada ?? "", p.Tecla), p.Recuerdo, p.Decir);
+                if (res.Hechos < 1) return res.Cuenta.Length > 0 ? res.Cuenta : $"«{id.ParaSenalar}» no se dio";
+                if (p.N > 0) registro.Llegue(p.N, _locator?.DondeEstoy()?.Id ?? "");
+                return "";
+            },
+            parar: _ => cancelar?.IsCancellationRequested == true ? "paraste la comprobación: no doy ni un paso más."
+                : reloj.Elapsed > techo ? "se me acabó el tiempo de una sola llamada; el resto lo sigues tú o me vuelves a mandar el plan desde aquí."
+                : "");
+        LogBus.Log("comprobar", r.ParoEn > 0
+            ? $"plan · PARÓ en el paso {r.ParoEn} de {r.Total} ({r.Omitidos} sin dar): {r.Motivo}"
+            : $"plan · hice los {r.Total} paso(s) en {reloj.ElapsedMilliseconds} ms · {registro.Hechos}/{registro.Total} hechos");
+        return Piloto.PlanDeComprobacion.Relato(r.Dados, r.Total, r.ParoEn, r.Motivo, _locator?.DondeEstoy()?.Id ?? "",
+            registro.Hechos, registro.Total, LoQueFalta(registro));
     }
 
     /// <summary>Lo que el juez todavía no da por hecho, dicho para el piloto: evento, nombre y motivo.</summary>
@@ -3402,7 +3624,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// ES UNA SOLA FUNCIÓN A PROPÓSITO (2026-09-08): vivía dentro del recorrido del plan, y cuando el
     /// plan paraba y el piloto seguía con las manos, la experiencia desaparecía: ni carita, ni voz, ni
     /// tarjeta. El dueño lo vio en la undécima prueba: «quiero que esa sea la experiencia estándar que
-    /// siempre suceda». Ahora map_take y map_type pasan por aquí.
+    /// siempre suceda». map_take y map_type pasan por aquí SOLO cuando la app señala al actuar (comprobación, encargo):
+    /// desde el 2026-09-28 (promesa 497) lo que traiga el modelo —decir, recuerdo— ya no saca un clic del ciclo rápido.
     /// </remarks>
     private Navigation.RecorrerSegunElNucleo.Resultado DarUnPasoConCoreografia(string senalar,
         Navigation.RecorrerSegunElNucleo.Paso paso, string recuerdo, string decir)
@@ -3410,11 +3633,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         var mano = _mapaDeMano!;
         recuerdo ??= ""; decir ??= ""; senalar ??= "";
         bool hayElemento = senalar.Length > 0 && mano.SenalarElemento(senalar, senalar);
-        // FUERA DE UNA COMPROBACIÓN NO HAY TARJETA NI PAUSA (promesa 266): la coreografía de la 180 es para cuando la
-        // persona está viendo una lección; en un clic normal quería ver la carita al lado y el clic, en un solo gesto.
-        bool enComprobacion = mano.Llegue != null;
-        var coreografia = Piloto.ElRecuerdoQueSeVe.Coreografia(hayElemento, recuerdo.Length > 0 && senalar.Length > 0, decir.Length > 0, enComprobacion);
-        if (!hayElemento && senalar.Length > 0) LogBus.Log("comprobar", $"paso · «{senalar}» no está en pantalla para señalarlo: va al ejecutor sin tarjeta");
+        var coreografia = Piloto.ElRecuerdoQueSeVe.Coreografia(hayElemento, recuerdo.Length > 0 && senalar.Length > 0, decir.Length > 0);
+        if (!hayElemento && senalar.Length > 0) LogBus.Log("coreografia", $"paso · «{senalar}» no está en pantalla para señalarlo: va al ejecutor sin tarjeta");
         foreach (var gesto in coreografia)
         {
             switch (gesto)
@@ -3426,7 +3646,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 case Piloto.ElRecuerdoQueSeVe.Gesto.Escribir:
                 {
                     string r = mano.Call("map_esto_es", new Dictionary<string, string> { ["significado"] = recuerdo, ["sobre"] = senalar });
-                    LogBus.Log("comprobar", $"paso · recuerdo en «{senalar}»: {(r.Length > 120 ? r[..120] + "…" : r)}");
+                    LogBus.Log("coreografia", $"paso · recuerdo en «{senalar}»: {(r.Length > 120 ? r[..120] + "…" : r)}");
                     break;
                 }
                 case Piloto.ElRecuerdoQueSeVe.Gesto.Mostrar:
@@ -3453,13 +3673,6 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         {
             if (gesto == Piloto.ElRecuerdoQueSeVe.Gesto.Cerrar) TarjetasDeRecuerdo.Cerrar();
             if (gesto == Piloto.ElRecuerdoQueSeVe.Gesto.Soltar) Senalador.Soltar();
-            // EL RECUERDO SE ESCRIBE DESPUÉS DE TOCAR fuera de una comprobación (promesa 266): lo que el modelo quiso
-            // recordar se guarda igual, pero no se paga antes de lo que la persona pidió.
-            if (gesto == Piloto.ElRecuerdoQueSeVe.Gesto.Escribir)
-            {
-                string r = mano.Call("map_esto_es", new Dictionary<string, string> { ["significado"] = recuerdo, ["sobre"] = senalar });
-                LogBus.Log("comprobar", $"paso · recuerdo tras tocar en «{senalar}»: {(r.Length > 120 ? r[..120] + "…" : r)}");
-            }
         }
         return res;
     }
@@ -3875,6 +4088,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </summary>
     private void OnWindowMoved(double left, double top)
     {
+        // Moverla la persona es cambiarle la casa: a donde vuelve tras una visita (promesa 507).
+        _visita.Casa = new Point(left, top);
         SavePositionSoon(left, top);
         var wa = SystemParameters.WorkArea;
         ApplyCaritaSide(left + ActualWidth / 2 < (wa.Left + wa.Right) / 2);
@@ -4579,101 +4794,80 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// Es la misma regla que ya sigue el vigilante de clics: siempre activo, porque el terreno se
     /// aprende viviendo. Lo que el usuario decide aquí es si quiere VERLO, no si el sistema sabe.
     /// </summary>
-    /// <summary>
-    /// Lleva la carita junto a una caja de pantalla, sin taparla.
-    ///
-    /// Se coloca a la DERECHA del elemento y, si ahí no cabe, a la izquierda: taparlo justo cuando
-    /// se está diciendo «mira esto» sería la peor forma de señalarlo. La caja llega en píxeles
-    /// físicos —como los da UIA— y se convierte aquí, porque el escalado lo sabe la ventana.
-    /// </summary>
     /// <summary>Cuando se señalan varias, el aviso de «una» llega detrás y no debe pisar el recorrido.</summary>
     private bool _recorridoReciénLanzado;
 
     /// <summary>
-    /// LA MANO ACABA DE PULSAR AHÍ: la carita va a verlo (promesa 240). La caja llega en píxeles
-    /// físicos, que es como la da UIA y como la espera <see cref="IrJuntoA"/>.
+    /// LA VISITA (spec 061): la carita va junto a lo que Ü tocó o señaló. TODO lo que la mueve por iniciativa de Ü pasa por
+    /// aquí (promesa 505): la regla la vuelve fantasma ANTES de volar, la posa al lado y nunca encima (506), y la trae
+    /// sola a casa (507). La caja llega en píxeles físicos, como la da UIA.
     /// </summary>
-    private void OnManoPulso(double x, double y, double ancho, double alto)
-        => Dispatcher.BeginInvoke(new Action(() => IrJuntoA(new Rect(x, y, ancho, alto), alClic: true)));
-
-    /// <param name="alClic">
-    /// Viene de un clic de la mano y no de señalar: viaja con la curva rápida, y solo si está
-    /// colapsada. Con el panel abierto la carita es una barra con contenido, y arrastrarla por la
-    /// pantalla en cada clic taparía justo lo que la persona está leyendo.
-    /// </param>
-    private void IrJuntoA(Rect fisico, bool alClic = false)
+    private void Visitar(Rect fisico)
     {
-        if (alClic && !_collapsed) return;
-        if (JuntoA(fisico) is not { } sitio) return;
-
-        // SEÑALAR VARIAS EMITE LAS DOS SEÑALES. Senalador avisa de «estas seis» y acto seguido de
-        // «la principal es esta», y las dos llegan a la carita: el recorrido arrancaba y el aviso
-        // siguiente lo sustituía por un viaje corriente a la primera. Desde fuera parecía que el
-        // recorrido no se había implementado (2026-08-07). Los ojos sí miran; lo que se ignora es
-        // el movimiento, que ya lo lleva la ruta.
-        if (_recorridoReciénLanzado) _recorridoReciénLanzado = false;
-        else if (alClic) ViajarAlClic(sitio.X, sitio.Y);
-        else MoverConMuelle(sitio.X, sitio.Y);
-
-        // Y los ojos hacia él: si la carita quedó a su derecha, mira a la izquierda.
         try
         {
-            var m = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
-                    ?? System.Windows.Media.Matrix.Identity;
-            var tl = m.Transform(new Point(fisico.X, fisico.Y));
-            var br = m.Transform(new Point(fisico.Right, fisico.Bottom));
-            double ancho = ActualWidth > 0 ? ActualWidth : 160;
-            CollapsedFace?.MirarHacia((tl.X + br.X) / 2 < sitio.X + ancho / 2);
+            if (!IsVisible) { LogBus.Log("ui-anim", "visita: la carita está oculta, no visita"); return; }
+            if (_silla.Ocupada) { LogBus.Log("ui-anim", $"visita: sentada en «{_silla.Donde}», no visita"); return; }
+            if (EnDips(fisico) is not { } d) return;
+
+            // SEÑALAR VARIAS EMITE LAS DOS SEÑALES. Senalador avisa de «estas seis» y acto seguido de «la principal es
+            // esta», y las dos llegan a la carita: el recorrido arrancaba y el aviso siguiente lo sustituía por un viaje
+            // corriente a la primera (2026-08-07). Los ojos sí miran; lo que se ignora es el movimiento, que ya lleva la ruta.
+            if (_recorridoReciénLanzado) _recorridoReciénLanzado = false;
+            else if (_visita.Visitar(d.Elemento, new Point(Left, Top), TamañoDeLaCarita, d.Area))
+                LogBus.Log("ui-anim", $"visita «{d.Elemento.X:0},{d.Elemento.Y:0} {d.Elemento.Width:0}x{d.Elemento.Height:0}»");
+            else
+                LogBus.Log("ui-anim", $"visita: no cabe junto a {d.Elemento.X:0},{d.Elemento.Y:0} {d.Elemento.Width:0}x{d.Elemento.Height:0} sin taparlo: no vuela");
+
+            // Y los ojos hacia él, desde donde se posa: si queda a su derecha, mira a la izquierda.
+            if (ReglaDeLaVisita.Junto(d.Elemento, TamañoDeLaCarita, d.Area) is { } posada)
+                CollapsedFace?.MirarHacia(d.Elemento.X + d.Elemento.Width / 2 < posada.X + TamañoDeLaCarita.Width / 2);
         }
-        catch { }
+        // UN FALLO DE LA VISITA NO ES UN FALLO DEL CLIC. Esto corre desde un BeginInvoke: sin este catch, la excepción
+        // subiría al manejador de la app, que abre el diálogo de «Ü tropezó» encima de lo que Ü está pulsando.
+        catch (Exception e) { LogBus.Log("ui-anim", $"la visita reventó y el clic siguió: {e.GetType().Name}: {e.Message}"); }
     }
+
+    /// <summary>El tamaño de la carita para posarla: la ventana entera, con su sombra, que también recoge clics.</summary>
+    private Size TamañoDeLaCarita => new(ActualWidth > 0 ? ActualWidth : 160, ActualHeight > 0 ? ActualHeight : 160);
 
     /// <summary>
     /// DÓNDE SE PONE la carita para señalar algo. Solo lo calcula; no la mueve.
     /// </summary>
     /// <remarks>
-    /// Separado de <see cref="IrJuntoA"/> porque hay dos formas de usarlo y solo una mueve: señalar
+    /// Separado de <see cref="Visitar"/> porque hay dos formas de usarlo y solo una mueve: señalar
     /// una cosa va y se planta, y señalar varias necesita SABER los sitios de todas antes de salir,
     /// para trazar un camino que pase por ellos. Si el cálculo viviera dentro del movimiento, el
     /// recorrido tendría que ir parándose para preguntar (2026-08-07).
     /// </remarks>
-    private Point? JuntoA(Rect fisico)
+    private Point? JuntoA(Rect fisico) =>
+        EnDips(fisico) is { } d ? ReglaDeLaVisita.Junto(d.Elemento, TamañoDeLaCarita, d.Area) : null;
+
+    /// <summary>La caja de UIA en DIP, y el área donde puede posarse la carita. null, dicho en el log, si no se pudo.</summary>
+    private (Rect Elemento, Rect Area)? EnDips(Rect fisico)
     {
         try
         {
             var src = PresentationSource.FromVisual(this);
             System.Windows.Media.Matrix m = src?.CompositionTarget?.TransformFromDevice
                 ?? System.Windows.Media.Matrix.Identity;
-            var tl = m.Transform(new Point(fisico.X, fisico.Y));
-            var br = m.Transform(new Point(fisico.Right, fisico.Bottom));
+            var elemento = new Rect(m.Transform(new Point(fisico.X, fisico.Y)), m.Transform(new Point(fisico.Right, fisico.Bottom)));
 
-            // DÓNDE PUEDE PONERSE. El área de trabajo es la del monitor PRINCIPAL, así que recortar
-            // contra ella arrastraba la carita de vuelta a la pantalla principal cada vez que el
-            // elemento estaba en otra: quedaba lejísimos de lo que decía estar mirando. Si el
-            // elemento cae dentro del área de trabajo se usa esa —así no tapa la barra de tareas—;
-            // si no, manda el escritorio ENTERO, que es donde de verdad está (2026-08-05).
+            // DÓNDE PUEDE PONERSE. El área de trabajo es la del monitor PRINCIPAL, así que recortar contra ella arrastraba
+            // la carita de vuelta a la pantalla principal cada vez que el elemento estaba en otra. Si el elemento cae
+            // dentro del área de trabajo se usa esa —así no tapa la barra de tareas—; si no, manda el escritorio ENTERO,
+            // que es donde de verdad está (2026-08-05).
             var trabajo = SystemParameters.WorkArea;
             var todo = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
                                 SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
-            var elemento = new Rect(tl, br);
-            var area = trabajo.Contains(elemento) ? trabajo : todo;
-
-            double ancho = ActualWidth > 0 ? ActualWidth : 160;
-            double alto = ActualHeight > 0 ? ActualHeight : 160;
-
-            double x = br.X + 12;
-            if (x + ancho > area.Right) x = tl.X - ancho - 12;      // no cabe a la derecha: al otro lado
-            x = Math.Max(area.Left, Math.Min(x, area.Right - ancho));
-
-            double y = tl.Y + ((br.Y - tl.Y) / 2) - (alto / 2);      // centrada con el elemento
-            y = Math.Max(area.Top, Math.Min(y, area.Bottom - alto));
-
-            return new Point(x, y);
+            return (elemento, trabajo.Contains(elemento) ? trabajo : todo);
         }
-        catch { return null; }
+        catch (Exception e)
+        {
+            LogBus.Log("ui-anim", $"no pude pasar la caja {fisico} a DIP: {e.GetType().Name}: {e.Message}");
+            return null;
+        }
     }
-
-    private int _recorrido;   // cada recorrido nuevo invalida el anterior
 
     /// <summary>
     /// Va PASANDO por todas las cosas señaladas, una tras otra, en vez de plantarse junto a la
@@ -4685,19 +4879,14 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// enumera algo con la mano — y de paso convierte una lista en algo que se puede seguir con la
     /// mirada, que es justo lo que no se puede hacer con seis recuadros encendidos de golpe.
     ///
-    /// Se para en cada una lo justo para que se lea, y se acaba en la primera: es la que manda —la
-    /// que <see cref="Senalador"/> considera la principal— y dejar la carita en la última sería
-    /// terminar señalando algo que no es el asunto.
+    /// Aminora junto a cada una sin pararse, y termina donde termina la lista.
     ///
-    /// Cada recorrido nuevo cancela el anterior por número de serie y no por una bandera: si el
-    /// asistente señala otra cosa a mitad de camino, el recorrido viejo tiene que morir en silencio,
-    /// no pelearse por mover la ventana.
+    /// Cada recorrido nuevo cancela el anterior: <see cref="Vuelo"/> lleva un solo viaje a la vez. Y sale de casa
+    /// por la visita (promesa 505): fantasma antes de moverse, y de vuelta sola cuando acaba.
     /// </remarks>
     private void Recorrer(IReadOnlyList<Rect> cajas)
     {
-        if (cajas.Count <= 1) return;   // una sola ya la lleva IrJuntoA
-
-        _recorrido++;
+        if (cajas.Count <= 1) return;   // una sola ya la lleva Visitar
 
         // TODAS, sin recortar. Antes se enseñaban seis por miedo a que fuera largo, y eso mentía:
         // se marcaban treinta recuadros y el cuerpo visitaba seis. Lo que hacía largo el recorrido
@@ -4709,6 +4898,17 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             if (JuntoA(caja) is { } sitio) paradas.Add(sitio);
         }
         if (paradas.Count == 0) return;
+        // UNA SOLA PARADA NO ES UN RECORRIDO: el de una parada vuela con el muelle que rebota ~8 % y cruzaría el
+        // elemento al posarse. Se va como una visita, con la curva sin rebote.
+        if (paradas.Count == 1)
+        {
+            if (!IsVisible || _silla.Ocupada) return;
+            _recorridoReciénLanzado = true;
+            _visita.Salir();
+            double d1 = (paradas[0] - new Point(Left, Top)).Length;
+            VolarDeVisita(paradas[0], ComoViajaLaCarita.MereceViaje(d1) ? ComoViajaLaCarita.Cuanto(d1) : TimeSpan.Zero, null);
+            return;
+        }
 
         // EL ORDEN EN QUE LLEGAN NO ES UN ORDEN. Las cosas se señalan pasando el ratón por encima,
         // y eso se hace en desorden —arriba, abajo, otra vez arriba—, así que recorrerlas en ese
@@ -4741,7 +4941,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // una barra lateral se despachaban en menos de un segundo y no daba tiempo a leer nada.
         var dur = TimeSpan.FromMilliseconds(
             Math.Clamp(500 + largo * 0.55 + paradas.Count * 260, 900, 8000));
+        if (!IsVisible || _silla.Ocupada) return;
         _recorridoReciénLanzado = true;
+        _visita.Salir();
         Vuelo.Recorrido(this, paradas, dur);
     }
 
@@ -4753,6 +4955,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     {
         try
         {
+            // El carrusel es un gesto de la persona, no una visita: si la carita estaba de visita, primero a casa y
+            // tocable, para que el sitio de antes sea el suyo y no el de lo último que tocó Ü.
+            _visita.VolverYa();
             _sitioDeAntes ??= (Left, Top);
             double ancho = ActualWidth > 0 ? ActualWidth : 160;
             double alto = ActualHeight > 0 ? ActualHeight : 160;
@@ -5164,7 +5369,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     {
         string cuerpo = System.Text.Json.JsonSerializer.Serialize(new
         { jsonrpc = "2.0", id = 1, method = "tools/call", @params = new { name, arguments = args } });
-        using var res = await _demoHttp.PostAsync("http://127.0.0.1:8790/mcp/",
+        using var res = await _demoHttp.PostAsync($"http://127.0.0.1:{Mcp.ServidorMcp.Puerto}/mcp/",
             new System.Net.Http.StringContent(cuerpo, System.Text.Encoding.UTF8, "application/json"));
         using var doc = System.Text.Json.JsonDocument.Parse(await res.Content.ReadAsStringAsync());
         string r = doc.RootElement.GetProperty("result").GetProperty("content")[0].GetProperty("text").GetString() ?? "";
@@ -5448,6 +5653,26 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </summary>
     private readonly Navigation.MemoriaCorta<string> _dondeTrabajo = new(400);
 
+    /// <summary>El lector de Ü desde cero (u/Nucleo): una petición a UIA con la condición en el proveedor, en su propio hilo MTA.</summary>
+    private readonly U.Ciclo.LectorUia _lectorRapido = new();
+
+    /// <summary>La mano de Ü desde cero (spec 053, fase 2): el ratón real sobre la caja de la lectura rápida.</summary>
+    private Navigation.ManoRapida? _manoRapidaCache;
+    /// <summary>
+    /// UNA LECTURA POR CLIC (spec 048/053): la huella de antes del clic y la mano rápida leían la misma pantalla dos veces
+    /// seguidas —45-265 ms de más por clic en Configuración, medido el 2026-09-27—. La mano usa la de la huella si es
+    /// de hace menos de 500 ms.
+    /// </summary>
+    private (U.Ciclo.Lectura Lectura, long En)? _ultimaLectura;
+
+    private Navigation.ManoRapida _manoRapida => _manoRapidaCache ??= new Navigation.ManoRapida(
+        () => _ultimaLectura is { } u && Environment.TickCount64 - u.En < 500
+            ? u.Lectura.Accionables
+            : _lectorRapido.Leer(VentanaObjetivo()).Accionables,
+        U.Ciclo.Raton.Clic,
+        () => U.Graph.Surfaces.UiaSurface.HayQueParar?.Invoke() == true,
+        () => Environment.TickCount64);
+
     private string DondeTrabajo() => _dondeTrabajo.Pide(() =>
     {
         RefrescarLaVentanaDeTrabajo();
@@ -5657,7 +5882,6 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
         LogBus.Log("aprendizajes", $"mostrando «{skill.Nombre}»: {pasos.Count} paso(s) de {skill.Pasos.Count}");
         await PrestarLaVozAlPilotoAsync("aprendizajes");
-        _mapaDeMano.SenalarAlActuar = true;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         ShowStop(true);
         SetWorking(true);
@@ -5665,9 +5889,13 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         {
             // EN OTRO HILO: la coreografía espera a que se lea cada tarjeta, y esto lo llama la
             // ventana de la consulta desde SU hilo de interfaz — hacerlo aquí la congelaría.
+            // PARAR ES PARAR TAMBIÉN AQUÍ (promesa 501): el token solo evitaba EMPEZAR; con los pasos en marcha, seguía.
+            var cancelar = _cts;
             var res = await Task.Run(() => Mcp.SurfaceMapTools.RecorrerSkill(pasos, paso =>
-                DarUnPasoConCoreografia(paso.Exit, paso, "",
-                    porPuerta.TryGetValue(paso.Exit, out var f) ? f : "")), _cts.Token);
+                cancelar.IsCancellationRequested
+                    ? new Navigation.RecorrerSegunElNucleo.Resultado(0, 1, "", false, "paraste: no doy ni un paso más.")
+                    : DarUnPasoConCoreografia(paso.Exit, paso, "",
+                        porPuerta.TryGetValue(paso.Exit, out var f) ? f : "")), cancelar.Token);
             LogBus.Log("aprendizajes", "← " + res.Cuenta);
             return res.Cuenta;
         }
@@ -5679,7 +5907,6 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         finally
         {
             SetWorking(false); ShowStop(false);
-            _mapaDeMano.SenalarAlActuar = false;
             _mapaDeMano.Decir = null;
             await DevolverLaVozAsync("aprendizajes");
         }

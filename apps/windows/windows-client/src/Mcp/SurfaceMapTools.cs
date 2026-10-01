@@ -140,8 +140,18 @@ public sealed class SurfaceMapTools
         return (aqui, lista, vivos.Count + delTerreno.Count);
     }
 
+    /// <summary>
+    /// Mirar con el lector de u/ (spec 054, promesa 495): la ventana de delante, accionables y textos. null = no es suyo
+    /// (SAP, que UIA no ve) y decide el lector de siempre.
+    /// </summary>
+    public Func<string?>? LoQueVeoRapido { get; set; }
+
+    /// <summary>La espera de u/ tras escribir y confirmar (promesa 496): true/false si cambió; null = no es suya (SAP), la de siempre.</summary>
+    public Func<bool?>? EsperarTrasEscribir { get; set; }
+
     private string LoQueVeo()
     {
+        if (LoQueVeoRapido?.Invoke() is { } rapido) return rapido;
         var (aqui, puertas, total) = PuertasDeAhora();
         if (aqui.Length == 0) return "no sé en qué pantalla estoy";
         // EL «NO VEO NADA» VA DESPUÉS DE MIRAR EN LOS TRES SITIOS (2026-09-08): con UIA en blanco
@@ -166,7 +176,7 @@ public sealed class SurfaceMapTools
     /// catálogo de la voz ni la ofrece. Así el camino que usa el hospital hoy queda byte a byte igual.
     ///
     /// LAS PUERTAS SALEN DE <see cref="PuertasDeAhora"/>, la misma función que map_what_i_see, y la
-    /// elegida entra por <see cref="Take"/>: misma coreografía, mismos vetos, mismo juez de llegada,
+    /// elegida entra por <see cref="Take"/>: el mismo camino (el ciclo rápido), mismos vetos, mismo juez de llegada,
     /// misma <see cref="Mano"/> para el tope de intentos. Esta pieza no pulsa nada por su cuenta.
     ///
     /// CUANDO EL DECISOR NO ACTÚA, EL CONTROL VUELVE CON EL INVENTARIO. La respuesta empieza por
@@ -174,13 +184,13 @@ public sealed class SurfaceMapTools
     /// hasta hoy. Y la mano NO cuenta un intento: no se pulsó nada, y contarlo frenaría el «pruebo
     /// otro» del tope de la 204 —el mismo argumento que la lista de homónimos (207).
     /// </remarks>
-    private string Decidir(string objetivo, string decir, string recuerdo)
+    private string Decidir(string objetivo)
     {
         if (objetivo.Length == 0) return "falta `objetivo`: qué se quiere conseguir en esta pantalla, para que el decisor elija la puerta";
         if (Decisor == null)
             return "todavía no sé decidir: el decisor está apagado (U_DECISOR ausente o en «luna»), así que decide Luna. "
                  + "Elige tú la puerta con map_take.";
-        return UnPasoDecidido(objetivo, decir, recuerdo).Cuenta;
+        return UnPasoDecidido(objetivo).Cuenta;
     }
 
     /// <summary>
@@ -188,7 +198,7 @@ public sealed class SurfaceMapTools
     /// primera no está—. Es el cuerpo de map_decidir, y el paso que repite el tramo (spec 037). Devuelve qué pasó
     /// como datos, y la cuenta con las mismas palabras de siempre.
     /// </summary>
-    private Navigation.ElTramo.Paso UnPasoDecidido(string objetivo, string decir, string recuerdo)
+    private Navigation.ElTramo.Paso UnPasoDecidido(string objetivo)
     {
         Navigation.ElTramo.Paso Sin(string cuenta, string porque, double conf = 0, bool cumplido = false)
         {
@@ -261,7 +271,7 @@ public sealed class SurfaceMapTools
                     $"contestó «{id}», que no se ofreció", d.Confianza);
             string numero = id.Substring(0, id.IndexOf(')'));
             var relojPulsar = System.Diagnostics.Stopwatch.StartNew();
-            string cuenta = Take(puerta.Selector, "", decir, recuerdo);
+            string cuenta = Take(puerta.Selector);
             relojPulsar.Stop();
             var mano = _ultimaMano;
             string tiempos = $"leer {relojLeer.ElapsedMilliseconds} ms · decidir {reloj.ElapsedMilliseconds} ms · pulsar {relojPulsar.ElapsedMilliseconds} ms";
@@ -441,11 +451,21 @@ public sealed class SurfaceMapTools
 
     /// <summary>Lo que una persona llamaría «un elemento» de la pantalla: algo que se puede pulsar
     /// y que ocupa un sitio razonable. No un contenedor ni una etiqueta suelta.</summary>
-    private static bool EsPuertaVisible(UiaReader.UiElement e) =>
-        e.Bounds.Width >= 12 && e.Bounds.Height >= 12
-        && e.Bounds.Width < 900                       // un contenedor ancho no es un elemento
-        && e.ControlType.ToLowerInvariant() is "button" or "listitem" or "treeitem" or "tabitem"
+    private static bool EsPuertaVisible(UiaReader.UiElement e) => EsPuertaVisible(e.ControlType, e.Bounds.Width, e.Bounds.Height);
+
+    private static bool EsPuertaVisible(string tipo, double ancho, double alto) =>
+        ancho >= 12 && alto >= 12
+        && ancho < 900                                // un contenedor ancho no es un elemento
+        && tipo.ToLowerInvariant() is "button" or "listitem" or "treeitem" or "tabitem"
             or "menuitem" or "hyperlink" or "checkbox" or "radiobutton" or "splitbutton" or "combobox";
+
+    /// <summary>
+    /// LO QUE SE PUEDE NOMBRAR AL ENSEÑAR (promesa 503): las puertas visibles y, además, los campos y los combos aunque
+    /// sean anchos. Un campo no es un contenedor por medir más de 900 px: el «Search» de Google mide 1.203.
+    /// </summary>
+    private static bool SePuedeNombrar(string tipo, double ancho, double alto) =>
+        EsPuertaVisible(tipo, ancho, alto)
+        || (ancho >= 12 && alto >= 12 && tipo.ToLowerInvariant() is "edit" or "combobox");
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
@@ -613,6 +633,10 @@ public sealed class SurfaceMapTools
         bool hayGesto = _ultimoSenalado is { } s
                      && Navigation.LoQueSenalas.SigueValiendo(s.Cuando, DateTime.UtcNow);
 
+        // Lo que se ve, leído UNA vez y solo si hace falta: sin gesto y con un nombre.
+        var vistas = !hayGesto && sobre.Length > 0 ? LoQueSePuedeNombrar() : Array.Empty<(string Selector, string Etiqueta, string Tipo)>();
+        var empatados = Navigation.ElCampoQueNombras.Empatados(sobre, vistas);
+
         string selector, nombre, tipo;
         if (hayGesto)
         {
@@ -621,11 +645,17 @@ public sealed class SurfaceMapTools
             nombre = ult.Nombre;
             tipo = "";
         }
-        else if (sobre.Length > 0 && BuscarEnPantalla(sobre) is { } visto)
+        else if (sobre.Length > 0 && Navigation.ElCampoQueNombras.Resolver(sobre, vistas) is { } visto)
         {
-            selector = Uia.Reconocedor.SelectorDe(visto);
-            nombre = visto.Label;
-            tipo = visto.ControlType;
+            (selector, nombre, tipo) = visto;
+        }
+        // UN EMPATE NO SE ADIVINA (promesa 503): colgar una enseñanza del elemento equivocado es peor que no guardarla,
+        // porque quien enseña se queda tranquilo y el dato acaba en otro sitio.
+        else if (empatados.Count > 1)
+        {
+            return $"hay {empatados.Count} cosas que se llaman como «{sobre}»: "
+                 + string.Join(", ", empatados.Select(e => $"«{e}»"))
+                 + ". No lo colgué de ninguna: dime cuál con su nombre entero, o señálamela con el cursor.";
         }
         // DENTRO DE SAP, WINDOWS NO VE NADA (promesa 117). El lector de arriba es UIA, y en una
         // sesión de SAP se queda en un Pane opaco: enseñar un campo del triage por su nombre era
@@ -697,7 +727,7 @@ public sealed class SurfaceMapTools
         UltimaFotoDeRecuerdo = foto;
         LogBus.Log("recuerdo", $"«{nombre}» en «{donde}» → {significado}"
             + (foto.Length > 0 ? $" · foto {System.IO.Path.GetFileName(foto)}" : " · sin foto"));
-        return $"nuevo recuerdo: «{nombre}» es {significado}. Lo recordaré cuando vuelva aquí.";
+        return $"nuevo recuerdo: «{nombre}» es {significado.TrimEnd('.', ' ')}.";
     }
 
     /// <summary>
@@ -977,21 +1007,19 @@ public sealed class SurfaceMapTools
         Func<Navigation.RecorrerSegunElNucleo.Paso, Navigation.RecorrerSegunElNucleo.Resultado> darUnPaso)
     {
         pasos ??= Array.Empty<Navigation.RecorrerSegunElNucleo.Paso>();
-        int hechos = 0; string donde = "";
-        for (int i = 0; i < pasos.Count; i++)
+        string donde = "";
+        // EL MISMO RECORRIDO QUE EL PLAN DEL PILOTO (promesa 501): eran dos bucles con la misma regla, y ninguno paraba.
+        var r = Piloto.ElRecorridoDelPlan.Recorrer(pasos.Count, i =>
         {
-            var r = darUnPaso(pasos[i]);
-            if (r.Donde.Length > 0) donde = r.Donde;
-            if (r.Hechos < 1)
-            {
-                string que = pasos[i].Exit.Length > 0 ? pasos[i].Exit : pasos[i].Tecla.Length > 0 ? "tecla " + pasos[i].Tecla : $"paso {i + 1}";
-                return new(hechos, pasos.Count, donde, false,
-                    $"hice {hechos} de {pasos.Count} y paré en el paso {i + 1} «{que}»: {r.Cuenta}");
-            }
-            hechos++;
-        }
-        return new(hechos, pasos.Count, donde, true,
-            $"hice los {pasos.Count} paso(s)" + (donde.Length > 0 ? $": quedaste en «{donde}»" : ""));
+            var x = darUnPaso(pasos[i]);
+            if (x.Donde.Length > 0) donde = x.Donde;
+            return x.Hechos >= 1 ? "" : x.Cuenta.Length > 0 ? x.Cuenta : "no se dio";
+        }, _ => "");
+        if (r.ParoEn == 0)
+            return new(r.Dados, r.Total, donde, true, $"hice los {r.Total} paso(s)" + (donde.Length > 0 ? $": quedaste en «{donde}»" : ""));
+        var p = pasos[r.ParoEn - 1];
+        string que = p.Exit.Length > 0 ? p.Exit : p.Tecla.Length > 0 ? "tecla " + p.Tecla : $"paso {r.ParoEn}";
+        return new(r.Dados, r.Total, donde, false, $"hice {r.Dados} de {r.Total} y paré en el paso {r.ParoEn} «{que}»: {r.Motivo}");
     }
 
 
@@ -1112,20 +1140,31 @@ public sealed class SurfaceMapTools
     }
 
     /// <summary>
-    /// El elemento que se llama así en la pantalla de AHORA, o null. Exacto primero, y si no,
-    /// el que lo contenga — quien enseña dice «Acceder al sistema» y el botón puede llamarse
-    /// «Acceder al sistema (Enter)».
+    /// Lo que se puede nombrar al enseñar (promesa 503): selector, etiqueta y tipo de lo visible. Sin asignar, lo lee UIA.
     /// </summary>
-    private UiaReader.UiElement? BuscarEnPantalla(string nombre)
+    public Func<IReadOnlyList<(string Selector, string Etiqueta, string Tipo)>>? PuertasParaNombrar { get; set; }
+
+    /// <summary>
+    /// Lo que se puede nombrar en la pantalla de AHORA: las puertas visibles y, además, los campos y los combos aunque
+    /// sean anchos. El «Search» de Google es un ComboBox de 1.203 px, y sin él «Search» se colgaba de «Search by voice»
+    /// (sesión de voz del 2026-09-28). A cuál se refiere un nombre lo decide <see cref="Navigation.ElCampoQueNombras"/>.
+    /// </summary>
+    private IReadOnlyList<(string Selector, string Etiqueta, string Tipo)> LoQueSePuedeNombrar()
     {
+        if (PuertasParaNombrar != null) return PuertasParaNombrar();
         try
         {
             _lector.Read();
-            var puertas = _lector.Elements.Where(e => e.Label.Length > 0 && EsPuertaVisible(e)).ToList();
-            return puertas.FirstOrDefault(e => e.Label.Equals(nombre, StringComparison.OrdinalIgnoreCase))
-                ?? puertas.FirstOrDefault(e => e.Label.Contains(nombre, StringComparison.OrdinalIgnoreCase));
+            return _lector.Elements
+                .Where(e => e.Label.Length > 0 && SePuedeNombrar(e.ControlType, e.Bounds.Width, e.Bounds.Height))
+                .Select(e => (Uia.Reconocedor.SelectorDe(e), e.Label, e.ControlType))
+                .ToList();
         }
-        catch (Exception e) { LogBus.Log("recuerdo", $"no pude buscar «{nombre}»: {e.Message}"); return null; }
+        catch (Exception e)
+        {
+            LogBus.Log("recuerdo", $"no pude leer lo que se ve para nombrarlo: {e.Message}");
+            return Array.Empty<(string, string, string)>();
+        }
     }
     private string LoQueSenala()
     {
@@ -1525,7 +1564,7 @@ public sealed class SurfaceMapTools
 
     private Navigation.ElTramo ElTramo() => _tramo ??= new Navigation.ElTramo(new Navigation.ElTramo.Manos(
         Donde: () => { try { return _where()?.Id ?? ""; } catch { return ""; } },
-        Paso: objetivo => UnPasoDecidido(objetivo, "", ""),
+        Paso: objetivo => UnPasoDecidido(objetivo),
         HayQueParar: () => HayQueParar?.Invoke() ?? Actions.Freno.Pidieron,
         Progreso: l => Progreso?.Invoke(l),
         Inventario: () => InventarioParaLosActos?.Invoke() ?? LoQueVeo(),
@@ -1535,7 +1574,7 @@ public sealed class SurfaceMapTools
         AlTerminar: () => AlTerminarTramo?.Invoke()));
 
     /// <summary>«map_tramo»: contesta al instante y el bucle corre por detrás (291).</summary>
-    private string Tramo(string objetivo, string tope, string decir)
+    private string Tramo(string objetivo, string tope)
     {
         if (objetivo.Length == 0) return "falta `objetivo`: qué se quiere conseguir, para que el tramo sepa hacia dónde ir";
         if (Decisor == null)
@@ -1579,8 +1618,26 @@ public sealed class SurfaceMapTools
     /// </summary>
     public Func<Navigation.Desbloqueo.Dialogo?>? LeerDialogo { get; set; }
 
+    /// <summary>Cuánto se espera a que la app conteste al leer el diálogo (promesa 528). Es una propiedad para juzgarlo sin esperar.</summary>
+    public int PlazoDelDialogoMs { get; set; } = 2000;
+
+    /// <summary>La última lectura del diálogo no contestó a tiempo: no se sabe si hay diálogo (≠ no lo hay).</summary>
+    private bool _dialogoSinContestar;
+
+    /// <summary>
+    /// EL DIÁLOGO DE DELANTE, CON PLAZO (promesa 528). Con el cuadro «Editar colores» de Paint delante, esta lectura tardó
+    /// 187 s y map_unblock contestó «no hay nada que desbloquear» (2026-09-29): el tercer sitio que lee la pantalla sin el
+    /// plazo que la 490 puso a los otros dos. Si no contesta, null y <see cref="_dialogoSinContestar"/> lo distingue.
+    /// </summary>
     private Navigation.Desbloqueo.Dialogo? DialogoDelante()
-        => LeerDialogo != null ? LeerDialogo() : Interrupcion.LeerDialogo(VentanaDeTrabajo?.Invoke() ?? IntPtr.Zero);
+    {
+        _dialogoSinContestar = false;
+        Func<Navigation.Desbloqueo.Dialogo?> leer = LeerDialogo ?? (() => Interrupcion.LeerDialogo(VentanaDeTrabajo?.Invoke() ?? IntPtr.Zero));
+        if (Uia.Plazo.Con(leer, PlazoDelDialogoMs, out var dialogo)) return dialogo;
+        _dialogoSinContestar = true;
+        LogBus.Log("mapa-mcp", $"el diálogo no se dejó leer en {PlazoDelDialogoMs} ms: sigo sin él");
+        return null;
+    }
 
     /// <summary>
     /// SEÑALAR, contestado por el núcleo. Recibe lo que UIA ya resolvió bajo el cursor y devuelve la
@@ -1594,13 +1651,6 @@ public sealed class SurfaceMapTools
     /// Ver <see cref="Navigation.AbrirSegunElNucleo"/>.
     /// </summary>
     public Func<string, string, string>? AbrirPorElNucleo { get; set; }
-
-    /// <summary>
-    /// PULSAR, contestado por el núcleo: se toca, se comprueba qué pasó y el grafo lo aprende.
-    /// Resolver el selector y escalar al doble clic siguen siendo de UIA.
-    /// Ver <see cref="Navigation.PulsarSegunElNucleo"/>.
-    /// </summary>
-    public Func<string, string, string>? PulsarPorElNucleo { get; set; }
 
     /// <summary>
     /// RECORRER EN BATCH: N pasos por llamada con la compuerta de vida antes de cada uno.
@@ -1658,6 +1708,8 @@ public sealed class SurfaceMapTools
     public Func<string, string, string>? GuardarSkill { get; set; }
     /// <summary>Recorrer el plan del piloto: por cada paso, voz, recuerdo, el paso por el batch y el juez.</summary>
     public Func<string, string>? Plan { get; set; }
+    /// <summary>Cumplir el plan de Luna (map_hacer, spec 062): recibe «pasos» tal cual y devuelve el relato para Luna.</summary>
+    public Func<string, string>? Hacer { get; set; }
 
     /// <summary>
     /// Quién decide si ya se puede pasar al siguiente recuerdo. Lo alimenta la voz —es la única que
@@ -1824,7 +1876,7 @@ public sealed class SurfaceMapTools
     }
 
     public static bool IsMapTool(string tool) => tool is
-        "map_where_am_i" or "map_go_to" or "map_take" or "map_type" or "map_unblock" or "map_decidir"
+        "map_where_am_i" or "map_go_to" or "map_take" or "map_type" or "map_unblock" or "map_decidir" or "map_hacer"
         or "map_tramo" or "map_alto" or "map_tramo_estado"
         or "map_open_app" or "map_what_i_see" or "map_pointing_at" or "map_show"
         or "map_pointed_trail" or "map_exclude" or "map_shot" or "map_scroll"
@@ -1839,6 +1891,7 @@ public sealed class SurfaceMapTools
     {
         string A(string k) => args.TryGetValue(k, out var v) ? v.Trim() : "";
         _ultimaMano = null;   // cada llamada dice SU resultado, no el de la anterior (spec 017)
+        _camino = null;       // y su camino (509)
 
         // Se registra CADA llamada y su respuesta. Sin esto, «el mapa no aportó nada» y «el modelo
         // ni lo intentó» se ven exactamente igual en el log — y esa ambigüedad me llevó a un
@@ -1862,8 +1915,10 @@ public sealed class SurfaceMapTools
             "map_where_am_i" => WhereAmI(),
             "map_go_to" => GoTo(A("surface")),
             "map_take" => Take(A("exit"), A("which"), A("decir"), A("recuerdo")),
-            "map_decidir" => Decidir(A("objetivo"), A("decir"), A("recuerdo")),
-            "map_tramo" => Tramo(A("objetivo"), A("tope"), A("decir")),
+            // EL PLAN ENTERO EN UNA LLAMADA (promesa 514, spec 062): Luna planea, Jeff lo cumple.
+            "map_hacer" => Hacer == null ? "todavía no sé cumplir un plan: nadie conectó a Jeff." : Hacer(A("pasos")),
+            "map_decidir" => Decidir(A("objetivo")),
+            "map_tramo" => Tramo(A("objetivo"), A("tope")),
             "map_alto" => Alto(),
             "map_tramo_estado" => EstadoDelTramo(),
             "map_type" => Type(A("text"), A("target"), A("decir"), A("recuerdo")),
@@ -1924,10 +1979,21 @@ public sealed class SurfaceMapTools
         // herramienta: había seis sitios y la clase de error se arregla una vez donde pasan todos. Lo que
         // compra: la mitad de los actos iban seguidos de un «¿y ahora qué hay?» que ya no hace falta. Va
         // ANTES de parar el reloj, para que el coste de leer la pantalla cuente como parte del acto.
+        long msActo = reloj.ElapsedMilliseconds;
+        // EL CAMINO, DICHO (promesa 509): una sesión real tiene que poder contestar «¿por dónde fue este clic?» sin
+        // teorizar. Y lo que no debió pasar se marca, para que no dependa de que alguien lea el log a tiempo.
+        if (_camino is { } cam)
+        {
+            LogBus.Log("mapa-mcp", $"camino: {tool} → {cam.Camino} ({cam.Razon})");
+            if (cam.Inesperado) LogBus.Log("mapa-mcp", $"⚠ camino inesperado: {tool} {args_} fue por {cam.Camino}: {cam.Razon}");
+        }
         if (ComoSeContesta.LlevaInventario(tool, r))
         {
             try { r = ComoSeContesta.Pegar(r, InventarioParaLosActos?.Invoke() ?? LoQueVeo()); }
             catch (Exception e) { LogBus.Log("mapa-mcp", $"no pude añadir lo que hay delante: {e.Message}"); }
+            // EL REPARTO DE UN ACTO (spec 053, comparación con u/): cuánto fue el acto y cuánto mirar lo que dejó.
+            // Junto con «⏱ pulsar» (mano y espera) dice en qué se va cada milisegundo de un clic.
+            LogBus.Log("mapa-mcp", $"⏱ {tool}: el acto {msActo} ms · mirar después {reloj.ElapsedMilliseconds - msActo} ms");
         }
 
         reloj.Stop();
@@ -2072,6 +2138,9 @@ public sealed class SurfaceMapTools
     {
         // EL DIÁLOGO CON SUS BOTONES (promesa 236): lo que se pulsa es el botón que se leyó, no un nombre.
         var dialogo = DialogoDelante();
+        // NO LEÍDO NO ES NO HABER (aprendizaje nº2): dos causas, dos frases.
+        if (_dialogoSinContestar)
+            return $"no pude leer el diálogo a tiempo: la app no contestó en {PlazoDelDialogoMs} ms. No pulsé nada.";
         if (dialogo == null || dialogo.Opciones.Count == 0)
             return "no hay nada que desbloquear: no veo ningún diálogo delante.";
         string titulo = dialogo.Titulo;
@@ -2118,9 +2187,12 @@ public sealed class SurfaceMapTools
         {
             System.Threading.Thread.Sleep(120);
             var sigue = DialogoDelante();
+            if (_dialogoSinContestar) break;   // la app dejó de contestar: no se sabe si se fue, y no se espera más
             if (sigue == null || sigue.Opciones.Count == 0) { libre = true; break; }
         }
         LogBus.Log("mapa-mcp", $"DESBLOQUEO: «{titulo}» → pulsado «{elegida}» · {(libre ? "resuelto" : "sigue ahí")}");
+        if (!libre && _dialogoSinContestar)
+            return $"pulsé «{elegida}» del diálogo «{titulo}», pero la app dejó de contestar y no sé si se fue.";
         if (!libre)
             return $"pulsé «{elegida}» y el diálogo «{titulo}» sigue delante. No insisto sola: dime qué hacer.";
 
@@ -2248,61 +2320,20 @@ public sealed class SurfaceMapTools
     /// </summary>
     private string DescribirInterrupcion()
     {
-        string d = Interrupcion.Describir(VentanaDeTrabajo?.Invoke() ?? IntPtr.Zero);
-        if (d.Length > 0) LogBus.Log("mapa-mcp", "INTERRUPCIÓN detectada");
-        return d;
-    }
-
-    /// <summary>
-    /// Lee el diálogo que haya delante: título, lo que dice y entre qué se puede elegir.
-    /// Opciones vacías = no hay diálogo.
-    ///
-    /// Se reconoce por su FORMA —pocos botones de respuesta más texto que explica— y no por el
-    /// título, que cambia con el idioma y con cada versión de Windows. El explorador normal, con
-    /// 18 botones, no se confunde (comprobado el 2026-08-03).
-    /// </summary>
-    private (string Titulo, List<string> Textos, List<string> Opciones) LeerInterrupcion()
-        => Interrupcion.Leer(VentanaDeTrabajo?.Invoke() ?? IntPtr.Zero);
-
-    private (string Titulo, List<string> Textos, List<string> Opciones) LeerInterrupcionVieja()
-    {
-        var textos = new List<string>();
-        var opciones = new List<string>();
-        string titulo = "";
-        try
+        // CON PLAZO (promesa 529): con «Editar colores» de Paint delante, map_where_am_i tardó 212 s leyendo aquí (2026-09-29).
+        // La 528 había puesto plazo solo a la otra puerta. Sin contestar no es sin diálogo: se dice que no se sabe.
+        IntPtr v = VentanaDeTrabajo?.Invoke() ?? IntPtr.Zero;
+        Func<string> describir = LeerDialogo != null
+            ? () => LeerDialogo() is { Opciones.Count: > 0 } d ? Interrupcion.Describir(d) : ""
+            : () => Interrupcion.Describir(v);
+        if (!Uia.Plazo.Con(describir, PlazoDelDialogoMs, out var texto))
         {
-            IntPtr fg = GetForegroundWindow();
-            if (fg == IntPtr.Zero) return (titulo, textos, opciones);
-            var v = System.Windows.Automation.AutomationElement.FromHandle(fg);
-            if (v == null) return (titulo, textos, opciones);
-
-            foreach (System.Windows.Automation.AutomationElement b in v.FindAll(
-                System.Windows.Automation.TreeScope.Descendants,
-                new System.Windows.Automation.PropertyCondition(
-                    System.Windows.Automation.AutomationElement.ControlTypeProperty,
-                    System.Windows.Automation.ControlType.Button)))
-            {
-                try { string n = b.Current.Name?.Trim() ?? ""; if (n.Length > 0 && !opciones.Contains(n)) opciones.Add(n); }
-                catch { }
-            }
-            // Muchos botones = es una app, no un diálogo. Ninguno = no hay nada que responder.
-            if (opciones.Count == 0 || opciones.Count > 8) { opciones.Clear(); return (titulo, textos, opciones); }
-
-            foreach (System.Windows.Automation.AutomationElement t in v.FindAll(
-                System.Windows.Automation.TreeScope.Descendants,
-                new System.Windows.Automation.PropertyCondition(
-                    System.Windows.Automation.AutomationElement.ControlTypeProperty,
-                    System.Windows.Automation.ControlType.Text)))
-            {
-                try { string n = t.Current.Name?.Trim() ?? ""; if (n.Length > 12 && !textos.Contains(n)) textos.Add(n); }
-                catch { }
-            }
-            if (textos.Count == 0) { opciones.Clear(); return (titulo, textos, opciones); }
-
-            try { titulo = v.Current.Name?.Trim() ?? ""; } catch { }
+            LogBus.Log("mapa-mcp", $"la ventana de delante no se dejó leer en {PlazoDelDialogoMs} ms: no sé si hay un diálogo");
+            return $"NO SÉ SI HAY UN DIÁLOGO DELANTE: la app no contestó en {PlazoDelDialogoMs} ms al leerla. "
+                 + "Si hay uno abierto, hay que cerrarlo o esperar a que la app vuelva a contestar.";
         }
-        catch { opciones.Clear(); }
-        return (titulo, textos, opciones);
+        if (!string.IsNullOrEmpty(texto)) LogBus.Log("mapa-mcp", "INTERRUPCIÓN detectada");
+        return texto ?? "";
     }
 
     private string Foto()
@@ -2342,6 +2373,30 @@ public sealed class SurfaceMapTools
     /// </remarks>
     public bool SenalarAlActuar { get; set; }
 
+    /// <summary>
+    /// El ciclo de u/ (spec 054): (qué, which, consulta al tope) → la respuesta, si cambió (null = no pulsó) y la clave de
+    /// lo pulsado —la misma con la que consultó al tope (499)—, o null si no es suyo y decide el camino de siempre.
+    /// </summary>
+    public Func<string, int, Func<string, string?>?, (string Texto, bool? Cambio, string Pulsado)?>? CicloRapido { get; set; }
+
+    // EL CAMINO DE CADA LLAMADA (spec 054, promesa 509). Por hilo, como la mano: la voz lo lee en el suyo.
+    [ThreadStatic] private static (string Camino, string Razon, bool Inesperado)? _camino;
+
+    /// <summary>
+    /// Por qué camino fue la última llamada de este hilo, y por qué. Existe porque el desvío era MUDO: el 2026-09-28,
+    /// 0 de 9 clics de voz llegaron al ciclo rápido y ninguna línea lo decía, porque el ciclo ni se invocaba.
+    /// </summary>
+    public (string Camino, string Razon, bool Inesperado)? UltimoCamino => _camino;
+
+    /// <summary>¿Es un clic por nombre en UIA, el que le toca al ciclo rápido? SAP, AutomationId y destinos del grafo no.</summary>
+    private static bool EsClicPorNombreUia(string exit)
+    {
+        string e = (exit ?? "").Trim();
+        if (e.Length == 0 || e.StartsWith("sap:", StringComparison.OrdinalIgnoreCase) || e.Contains("://")) return false;
+        return !e.StartsWith(UiaSelector.Prefix, StringComparison.OrdinalIgnoreCase)
+            || UiaSelector.Parse(e).TryGetValue("name", out var n) && !string.IsNullOrWhiteSpace(n);
+    }
+
     private string Take(string salida, string cual = "", string decir = "", string recuerdo = "")
     {
         if (salida.Length == 0) return "falta `exit`: qué puerta tomar (su nombre tal como se ve, o su selector)";
@@ -2351,13 +2406,32 @@ public sealed class SurfaceMapTools
         // «dime el selector». Los antiguos `action` y `at` no llegaban aquí desde e3c3ad8: el gesto lo
         // aprende la arista (spec 003), y ofrecerlos era la ilusión de controlarlo (promesa 206).
         int.TryParse(cual, out int n);
+        bool porNombre = EsClicPorNombreUia(salida);
+        // EL CICLO DE u/ PRIMERO (spec 054): un clic por nombre en UIA es ver → clic → volver a ver, y contesta con lo
+        // que se ve. La coreografía, SOLO cuando la app la pide al señalar al actuar —comprobación, encargo— (promesa 497).
+        // Hasta el 2026-09-28 bastaba con que el modelo trajera «decir» o «recuerdo», y los trae en casi cada clic: 0 de 9
+        // clics de voz llegaron al ciclo rápido (2.349 ms de mediana contra 182), cada uno con un recuerdo y una foto de más.
+        bool coreografia = DarUnPasoConCoreografia != null && SenalarAlActuar;
+        if (!coreografia && porNombre && CicloRapido?.Invoke(salida, n, _antesDePulsar) is { } rapido)
+        {
+            _camino = ("ciclo-rapido", "clic por nombre en UIA", false);
+            // Pulsó: se logró si cambió. Sin pulsar (homónimos numerados, freno, tope): no fue un intento o no se logró.
+            // Con lo pulsado (499): sin eso el tope de la 204 no ve los fallos de un clic rápido sobre el mismo botón.
+            _ultimaMano = rapido.Cambio is bool c
+                ? new Mano(true, c) { Pulsado = string.IsNullOrWhiteSpace(rapido.Pulsado) ? null : rapido.Pulsado }
+                : new Mano(false, false, Intento: !rapido.Texto.Contains("which=N"));
+            return rapido.Texto;
+        }
         var paso = new Navigation.RecorrerSegunElNucleo.Paso(salida) { Cual = n, AntesDePulsar = _antesDePulsar };
-        // LA MISMA COREOGRAFÍA QUE EL PLAN (promesa 191): al comprobar, o cuando el piloto trae algo que
-        // decir o un recuerdo, la mano señala, dice, cuelga y muestra, y solo después pulsa.
-        var r = DarUnPasoConCoreografia != null && (SenalarAlActuar || decir.Length > 0 || recuerdo.Length > 0)
-            ? DarUnPasoConCoreografia(salida, paso, recuerdo, decir)
-            : RecorrerPorElNucleo(new[] { paso });
-        return Anotar(r, escribe: false);
+        // LA MISMA COREOGRAFÍA QUE EL PLAN (promesa 191): al comprobar o en un encargo, la mano señala, dice, cuelga y
+        // muestra, y solo después pulsa. Lo que traiga (decir, recuerdo) lo usa ella; fuera de ahí, no desvía nada (497).
+        if (coreografia)
+        {
+            _camino = ("coreografia", "la app señala al actuar (comprobación, encargo)", false);
+            return Anotar(DarUnPasoConCoreografia!(salida, paso, recuerdo, decir), escribe: false);
+        }
+        _camino = ("nucleo", porNombre ? "el ciclo rápido no se encargó (ver «ciclo rápido:» en el log)" : "SAP, AutomationId o destino del grafo", porNombre);
+        return Anotar(RecorrerPorElNucleo(new[] { paso }), escribe: false);
     }
 
     /// <summary>
@@ -2422,11 +2496,17 @@ public sealed class SurfaceMapTools
         // la etiqueta que la persona ve y el nombre técnico del campo (promesa 185).
         if ((_where()?.Id ?? "").StartsWith("sapgui://", StringComparison.OrdinalIgnoreCase) && RecorrerPorElNucleo != null)
         {
-            // Y con la coreografía del plan cuando toca (promesa 191): se señala el campo, se dice, y luego se escribe.
-            if (DarUnPasoConCoreografia != null && (SenalarAlActuar || decir.Length > 0 || recuerdo.Length > 0))
+            // Y con la coreografía del plan cuando la app la pide (promesas 191 y 497): se señala el campo, se dice, y luego
+            // se escribe. Que el modelo traiga decir o recuerdo ya no basta.
+            if (DarUnPasoConCoreografia != null && SenalarAlActuar)
+            {
+                _camino = ("coreografia", "SAP, la app señala al actuar", false);
                 return Anotar(DarUnPasoConCoreografia(target, new Navigation.RecorrerSegunElNucleo.Paso(target, texto), recuerdo, decir), escribe: true);
+            }
+            _camino = ("nucleo", "SAP: la mano de SAP", false);
             return Anotar(RecorrerPorElNucleo(new[] { new Navigation.RecorrerSegunElNucleo.Paso(target, texto) }), escribe: true);
         }
+        _camino = ("escribir-uia", target.Length > 0 ? "con target" : "en el foco", false);
 
         // ESCRIBIR VA A LA VENTANA DE TRABAJO (promesa 235), como pulsar. Un `target` por nombre se resuelve
         // a un campo de esa ventana; una terminal se teclea; sin `target` y con la ventana de trabajo
@@ -2477,16 +2557,14 @@ public sealed class SurfaceMapTools
             // carpeta recién creada— tarda un instante en aparecer, y desde que las acciones son
             // rápidas se llegaba aquí antes que ella: se respondía «no hay ningún campo con el
             // foco» y la carpeta se quedaba como «Nueva carpeta» (2026-08-03).
-            for (int i = 0; i < 30; i++)
+            // Se espera a un foco que ACEPTE texto, con la misma regla que decide si se escribe (promesa 483). Se
+            // preguntaba si se llamaba Edit, y el editor del Bloc de notas de Windows 11 es un Document: cada map_type
+            // allí agotaba el techo, 2,2-2,4 s con 4 letras y con 300 (2026-09-27).
+            EsperarFocoQueAcepteTexto(() =>
             {
-                try
-                {
-                    var f = System.Windows.Automation.AutomationElement.FocusedElement;
-                    if (f != null && f.Current.ControlType == System.Windows.Automation.ControlType.Edit) break;
-                }
-                catch { }
-                System.Threading.Thread.Sleep(50);   // se sondea fino: se sale en cuanto aparece
-            }
+                var f = System.Windows.Automation.AutomationElement.FocusedElement;
+                return f != null && U.Graph.Surfaces.UiaSurface.AceptaTexto(f);
+            }, 1500);
 
             // El campo con el foco: es donde una persona escribiría sin pensarlo. Pero SOLO si de
             // verdad es un campo. Sin esta comprobación, cuando la edición en línea no llegaba a
@@ -2555,7 +2633,9 @@ public sealed class SurfaceMapTools
             keybd_event(0x0D, 0, 0, IntPtr.Zero);
             keybd_event(0x0D, 0, 2, IntPtr.Zero);
         }
-        EsperarPantallaLista(900);
+        // LA ESPERA DE u/ (promesa 496): dos lecturas iguales con el lector rápido, techo 300 ms. La de siempre contaba
+        // accionables con el lector viejo cada 90 ms, techo 900: ~400 ms de los 447 de un map_type (2026-09-27).
+        if (EsperarTrasEscribir?.Invoke() == null) EsperarPantallaLista(900);
 
         // EL ENTER PUEDE HABERNOS METIDO DENTRO. Al renombrar una carpeta recién creada queda
         // seleccionada, y el Enter que confirma el nombre también la ABRE: la tarea seguía creyendo
@@ -2577,6 +2657,22 @@ public sealed class SurfaceMapTools
 
         LogBus.Log("mapa-mcp", $"✓ escrito «{texto}» en {selector}");
         return RelatoDeEscribir(texto, antes, ahora);
+    }
+
+    /// <summary>
+    /// Espera, con reloj, a que el foco acepte texto (promesa 483). true en cuanto lo acepta; false al agotar el techo.
+    /// Un fallo de UIA al preguntar cuenta como «todavía no» y se vuelve a mirar: el foco está cambiando justo entonces.
+    /// </summary>
+    public static bool EsperarFocoQueAcepteTexto(Func<bool> focoAcepta, int techoMs)
+    {
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
+        {
+            try { if (focoAcepta()) return true; }
+            catch (Exception e) when (e is System.Windows.Automation.ElementNotAvailableException or System.Runtime.InteropServices.COMException) { }
+            if (reloj.ElapsedMilliseconds >= techoMs) return false;
+            System.Threading.Thread.Sleep(25);
+        }
     }
 
     /// <summary>
@@ -2655,20 +2751,6 @@ public sealed class SurfaceMapTools
             return n;
         }
         catch { return 0; }
-    }
-
-    /// <summary>Espera a que la superficie DEJE de ser la de partida y devuelve la nueva, o "".</summary>
-    private string EsperarCambio(string desde, int msMax)
-    {
-        for (int i = 0; i < msMax / 80; i++)
-        {
-            System.Threading.Thread.Sleep(80);
-            string ahora = _where()?.Id ?? "";
-            if (ahora.Length > 0 && !string.Equals(ahora, desde, StringComparison.OrdinalIgnoreCase)
-                && !ahora.EndsWith("/ventana", StringComparison.OrdinalIgnoreCase))
-                return ahora;
-        }
-        return "";
     }
 
     /// <summary>Espera a que la superficie sea la esperada. La UI tarda; la paciencia va aquí.</summary>

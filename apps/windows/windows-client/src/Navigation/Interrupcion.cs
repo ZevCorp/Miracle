@@ -197,15 +197,21 @@ public static class Interrupcion
     /// <summary>Cómo describirle a quien decide lo que hay delante, o "" si no hay nada cruzado.</summary>
     public static string Describir() => Describir(IntPtr.Zero);
 
+    /// <summary>La frase de un diálogo ya leído (promesa 529): la misma que <see cref="Describir(IntPtr)"/> cuando hay opciones.</summary>
+    public static string Describir(Desbloqueo.Dialogo d) => DescribirDialogo(d.Titulo, d.Textos.ToList(), d.Opciones.ToList());
+
+    private static string DescribirDialogo(string titulo, List<string> textos, List<string> opciones)
+        => $"INTERRUPCIÓN, no una ubicación: diálogo «{titulo}».\n"
+         + $"  Dice: {string.Join(" ", textos.Count > 3 ? textos.GetRange(0, 3) : textos)}\n"
+         + $"  Opciones: {string.Join(", ", opciones.ConvertAll(o => $"«{o}»"))}\n"
+         + "  No hay rutas desde aquí: primero hay que responder (map_unblock con `at`).";
+
     /// <summary>Lo mismo, sobre UNA ventana dada; cero = la de delante.</summary>
     public static string Describir(IntPtr ventana)
     {
         var (titulo, textos, opciones) = Leer(ventana);
         if (opciones.Count > 0)
-            return $"INTERRUPCIÓN, no una ubicación: diálogo «{titulo}».\n"
-                 + $"  Dice: {string.Join(" ", textos.Count > 3 ? textos.GetRange(0, 3) : textos)}\n"
-                 + $"  Opciones: {string.Join(", ", opciones.ConvertAll(o => $"«{o}»"))}\n"
-                 + "  No hay rutas desde aquí: primero hay que responder (map_unblock con `at`).";
+            return DescribirDialogo(titulo, textos, opciones);
 
         if (EsOpaca(ventana))
             return "BLOQUEADO por algo que NO puedo leer: la ventana de delante no expone ni un "

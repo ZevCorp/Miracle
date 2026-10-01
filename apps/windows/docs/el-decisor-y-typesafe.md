@@ -100,9 +100,9 @@ que pide un `objetivo` («crear el triage administrativo del paciente») en vez 
 1. Arma el inventario de la pantalla **con la misma función** que `map_what_i_see` — una sola
    lista, no dos catálogos del mismo terreno que se desincronicen en silencio.
 2. Le da al decisor la pantalla, el objetivo y las etiquetas de las puertas.
-3. Si el decisor actúa, **acciona llamando al cuerpo de `map_take`**: misma coreografía (decir,
-   colgar el recuerdo, señalar), mismos vetos, mismo juez de llegada, misma `Mano` para el tope de
-   intentos. La cuenta empieza por qué se eligió y con qué confianza.
+3. Si el decisor actúa, **acciona llamando al cuerpo de `map_take`**: el mismo camino (el ciclo rápido,
+   desde la spec 054), mismos vetos, mismo juez de llegada, misma `Mano` para el tope de intentos.
+   Sin «decir» ni «recuerdo» desde la promesa 500: eran la coreografía, y la voz ya no los ofrece. La cuenta empieza por qué se eligió y con qué confianza.
 4. Si no actúa, no pulsa nada, dice por qué con las palabras del decisor, **y devuelve el
    inventario**: el control vuelve a Luna con lo que hay delante, y ella elige como hasta hoy.
 

@@ -626,7 +626,14 @@ internal static class Contrato
         // responder diálogos usaba la lista del explorador autónomo y bloqueaba «No guardar»; y desde que los
         // clics van sin ratón, la carita ya no acompaña a la mano a ninguna parte.
         Prueba("239. responder un diálogo deja guardar y deja NO guardar: el veto de lo destructivo tiene su propia lista —lo que no se deshace— y no la del explorador autónomo; «Guardar», «No guardar» y «Aplicar» se pulsan cuando el modelo lo pide, mientras «Eliminar», «Formatear», «Reiniciar», «Enviar» y «Aceptar» siguen vetados; una etiqueta que niega el verbo pegado a él no es ese verbo; y el explorador autónomo no se relaja", GuardarYNoGuardarSePuedenPulsar);
-        Prueba("240. la carita va a donde Ü acaba de pulsar: los tres clics de la mano avisan con la caja del elemento y escribir o elegir no, el viaje solo vale la pena a partir de un salto real, y su curva es fluida y rápida —empieza acelerando, no se devuelve, no rebota, hace más de medio camino en el primer tercio del tiempo y cruzar la pantalla entera no pasa de 450 ms—", LaCaritaVaADondeSePulsa);
+        // 240 RETIRADA (spec 054, 2026-09-27): la carita que viajaba al clic se posaba ~80 px sobre él y el clic
+        // siguiente de Ü —la tecla de arriba en la Calculadora— caía EN LA CARITA, que abre la voz de pago. Pasó en 5
+        // corridas de prueba en un día. La sustituye la 492. El número no se recicla.
+        // 492 RETIRADA (spec 061, 2026-09-28): «la carita no se pone donde Ü va a hacer clic: ni sigue al cursor
+        // automatizado ni viaja al clic». Era una prohibición, no la propiedad que se quería: el dueño quiere que la carita
+        // vaya a cada elemento. Y su guarda de texto nunca cubrió el vuelo de Senalador antes de los clics con coreografía.
+        // Lo que protegía lo cumplen ahora 505, 506, 508 y 510; lo de no seguir al cursor sigue dentro de la 504. El número
+        // no se recicla.
 
         // «SESIÓN ABIERTA» SE ESCRIBÍA AL CONECTAR EL SOCKET (2026-09-13, nivel 4 del 12): con la cuenta sin crédito
         // salió en el mismo segundo que el error, y el conductor del nivel 4 la tomó por voz abierta. Del 220 al 222 son
@@ -739,7 +746,9 @@ internal static class Contrato
         Prueba("265. un patrón que lanza no es un clic que falló: la escalera de pulsar termina siempre en el clic físico —tras el patrón, tras el mensaje— y sólo el físico decide que no se pudo", LaEscaleraTerminaEnElClicFisico);
         // LAS DOS TANDAS QUE SIENTE EL DUEÑO: la coreografía de la 014 —tarjeta y pausa de lectura de hasta 4 s— aplicada
         // a clics normales, porque el modelo pone decir/recuerdo en el 89% de ellos. Fuera de una comprobación sobra.
-        Prueba("266. fuera de una comprobación, pulsar es señalar y tocar en un solo gesto: sin tarjeta ni pausa de lectura, y el recuerdo que el modelo mande se escribe DESPUÉS de tocar; dentro de una comprobación la coreografía de la 180 sigue entera", FueraDeUnaComprobacionPulsarEsUnSoloGesto);
+        // 266 RETIRADA (spec 054, 2026-09-28): «fuera de una comprobación, pulsar es señalar y tocar en un solo gesto, y el
+        // recuerdo se escribe DESPUÉS de tocar». Desde la 497 fuera de una comprobación no hay coreografía: el clic va por el
+        // ciclo rápido y recordar es map_esto_es, explícito. Lo de dentro ya lo promete la 180.
         Prueba("267. un paso que hizo 0 de N se ve como fallo, no con ✓: el notch y el registro lo pintan como lo que fue", CeroDeUnoSeVeComoFallo);
 
         Prueba("258. el modelo puede pedir lo que vio antes: pedir la mirada de una ubicación devuelve su foto con su ficha —cuándo fue y qué estaba pasando—, y si de esa no hay, dice QUÉ ubicaciones sí recuerda en vez de contestar que no hay nada", ElModeloPuedePedirLoQueVioAntes);
@@ -867,6 +876,65 @@ internal static class Contrato
         Prueba("421. leer la historia la TRANSCRIBE literal, por páginas y párrafos: cada documento viaja precedido de «Documento n — id: Dn», la foto como imagen con detalle alto y el PDF como archivo con su nombre, todo con store:false; las fotos van de 3 en 3 y cada PDF solo; lo que vuelve se convierte en párrafos con id estable «Dn-pP-k»; y un documento del que no volvió nada queda sin leer, diciendo por qué", LaHistoriaSeTranscribeLiteral);
         Prueba("422. «¿por qué vino a cardiología?» se pregunta con los párrafos de TODA la historia —de cardiología o no— y sin ninguna imagen ni archivo; la respuesta es UNA frase de como mucho 220 caracteres, y los párrafos que la sostienen se copian en código de la transcripción por su id: un id que no existe se descarta, y sin ninguna cita válida el titular es «Los documentos no dicen por qué vino a cardiología», aunque el modelo haya escrito una frase", ElMotivoSeCitaCopiandoDelDocumento);
         Prueba("423. soltar más documentos no vuelve a leer los ya leídos y rehace el motivo con todos; si la lectura falla a mitad, lo leído se conserva, el error nombra el documento que faltó, y reintentar lee solo lo que faltó", SoltarMasNoVuelveALeerLoLeido);
+
+        // ── Spec 053: pulsar como Ü desde cero (paso 1 de la integración de u/) ─────────────────────
+        Prueba("475. tras pulsar, la espera sale en cuanto lo que se ve en la ventana de trabajo cambia y se asienta —dos lecturas iguales a 60 ms, o 300 ms más—, aunque la ubicación sea la misma; sin cambio no pasa de 150 ms tras un botón ni de 1,5 s tras un enlace; lo que cambió se cuenta como cambio de pantalla, sin ensayar el doble ni repetir el clic, y si la ubicación llega mientras se asienta, se aprende la arista", PulsarSaleEnCuantoCambiaLoQueSeVe);
+        Prueba("476. un pulso de SAP, o uno sin lector de lo que se ve, espera como siempre: la ubicación, hasta el techo de siempre", PulsarDeSapEsperaComoSiempre);
+        Prueba("477. la mano rápida pulsa sin volver a buscar: si lo pedido coincide con UN solo elemento visible de la lectura rápida —mismo nombre (el del selector o, si va por AutomationId, la etiqueta) y mismo tipo—, el clic es el ratón real en su centro; con nombres repetidos, sin coincidencia o en SAP no pulsa y deja paso a la mano de siempre", LaManoRapidaPulsaSinBuscar);
+        Prueba("478. la mano rápida avisa a la carita donde pulsó (UiaSurface.Pulso, con la caja) y al cursor (CursorMoved); y con el freno echado no pulsa y lo dice", LaManoRapidaAvisaYRespetaElFreno);
+        Prueba("479. lo mismo pedido otra vez en menos de 3 s —el ensayo del doble o la repetición de pulsar— va por la mano de siempre: primero el clic real y, si no agarró, la escalera (aprendizaje nº19)", LoRepetidoVaPorLaEscalera);
+        Prueba("480. abrir encuentra lo ya abierto también por lo que ES, no solo por cómo se llama su proceso: «ms-settings:» y «configuración» encuentran la ventana de ApplicationFrameHost titulada «Configuración» (Apps.EsLaPedida)", AbrirEncuentraPorLoQueEs);
+        Prueba("481. si la ventana de lo pedido ya es la de delante, abrir contesta que ya estás sin esperar a que algo cambie, y esa ventana pasa a ser la de trabajo", AbrirLoQueYaEstaDelanteNoEspera);
+        Prueba("483. escribir sin decir dónde espera a un foco que ACEPTE texto, no a uno que se llame Edit: en cuanto lo hay —también el Document del Bloc de notas de Windows 11— escribe sin esperar más, y el techo de 1,5 s es solo para cuando aún no hay dónde", EscribirNoEsperaAUnEdit);
+        Prueba("485. un clic por nombre va por el ciclo rápido: si lo pedido es UN elemento visible de la lectura, pulsa en su centro, espera como u/ (sale al primer cambio de la huella; techo 150 ms, 1,5 s tras un enlace) y contesta lo que pulsó, si cambió, y lo que se ve DESPUÉS —accionables y textos— con la lectura de esa misma espera, marcado EN PANTALLA AHORA para que nadie vuelva a leer", ElCicloRapidoPulsaYContestaConLoQueVe);
+        Prueba("486. homónimos sin which: la lista 1..N en orden de lectura con su tipo, sin pulsar; con which=N pulsa ese y solo ese", ElCicloRapidoNumeraLosHomonimos);
+        // 487 RETIRADA (spec 054, 2026-09-27): «si tampoco está, decide el camino de siempre». En Edge ese camino se
+        // colgó 60 s por clic (4 de 14 en la corrida variada); u/ contesta «no está» al momento. La sustituye la 493.
+        Prueba("493. antes de pulsar el ciclo lee como mucho UNA vez, y ninguna si la última lectura de esa ventana tiene menos de 2 s; lo que no está se busca en UNA lectura nueva, y si tampoco está, contesta al momento que no está y lo que se ve, sin pulsar y sin ir al camino de siempre", ElCicloRapidoNoLeeDeMas);
+        Prueba("494. una lectura del lector de u/ tiene plazo total: si no vuelve en 4 s se contesta vacía y su hilo se abandona; las siguientes van a un hilo nuevo, sin hacer cola detrás de la atascada", ElLectorDeUTienePlazoTotal);
+        Prueba("488. con el freno echado no pulsa y lo dice; SAP y los selectores que no van por nombre no pasan por el ciclo rápido", ElCicloRapidoRespetaElFrenoYSap);
+        Prueba("491. el ciclo rápido trabaja sobre la ventana de delante, la que la persona ve, como u/; solo si delante está la propia Ü usa su ventana de trabajo", ElCicloTrabajaSobreLoQueHayDelante);
+        Prueba("495. mirar —map_what_i_see y lo que se pega a cada acto— lee con el lector de u/ la ventana de delante y cuenta accionables y textos; SAP, que UIA no ve, sigue por el lector de siempre", MirarLeeComoU);
+        Prueba("498. con SAP delante, un clic por nombre no entra al ciclo rápido: no lee, no pulsa, dice que es SAP y lo da la mano de SAP; y saber si una ventana es SAP es UNA regla —su proceso—, la misma para pulsar, mirar y esperar tras escribir", ConSapDelanteNoHayCicloRapido);
+        Prueba("499. el tope de intentos ve los clics del ciclo rápido: la mano de un clic rápido lleva lo pulsado con la misma clave con la que se le pregunta al tope antes de pulsar, y el tercer intento sobre el mismo botón no se da", ElTopeVeLosClicsRapidos);
+        Prueba("497. hacer es rápido: un clic por nombre con map_take va por el ciclo rápido traiga los argumentos que traiga —decir, recuerdo o cualquiera desconocido—; ni coreografía, ni recuerdo, ni foto. La coreografía solo cuando la app la pide al señalar al actuar (comprobación, encargo), y map_type en SAP tampoco se desvía por decir o recuerdo", HacerEsRapidoTraigaLoQueTraiga);
+        Prueba("500. la voz no ofrece decir ni recuerdo: en el catálogo de la voz, map_take, map_type, map_decidir y map_tramo no los declaran; el catálogo del piloto sí los declara en map_take y map_type, que es para lo que la mano del piloto los lleva (191)", LaVozNoOfreceDecirNiRecuerdo);
+        Prueba("509. cada llamada dice por qué camino fue y por qué —ciclo rápido, núcleo, coreografía— en el log y en la mano; y un clic por nombre en UIA que no va por el ciclo rápido fuera de una comprobación deja «⚠ camino inesperado» con su razón", CadaLlamadaDiceSuCamino);
+        Prueba("501. parar la comprobación para el plan: tras cancelarla no se da ni un paso más, y los que faltaban cuentan como no dados sobre el total del plan; el plan del piloto y el de una skill se recorren con ese mismo recorrido", PararLaComprobacionParaElPlan);
+        Prueba("502. recordar es explícito y honesto: las instrucciones no piden acumular recuerdos ni prometen que duren para siempre, la herramienta de recordar dice que no es para describir lo que Ü va a pulsar, y su respuesta empieza por «nuevo recuerdo:» sin prometer «lo recordaré»", RecordarEsExplicitoYHonesto);
+        Prueba("503. un recuerdo se cuelga del elemento por su nombre exacto; «contiene» solo cuando hay uno solo que lo contenga, y si hay varios se dicen y no se cuelga de ninguno", UnRecuerdoSeCuelgaPorSuNombreExacto);
+        Prueba("496. tras escribir, la espera es la de u/ —dos lecturas iguales con el lector rápido, techo 300 ms— y lo que se cuenta después es esa misma lectura, sin volver a leer", EscribirEsperaComoU);
+        Prueba("489. U.exe no lee la pantalla por su cuenta: el mapa vivo arranca sin latido ni ubicación de fondo, y el rastro del cursor no arranca; lo único que lee la pantalla es el ciclo que se le pide", NadieLeeLaPantallaDeFondo);
+        Prueba("490. leer la pantalla y saber dónde estoy tienen plazo: si la app no contesta, se sigue sin esa respuesta y se dice, en vez de congelar U; lo que llega tarde no pisa lo que ya se contestó", LeerYUbicarseTienenPlazo);
+        Prueba("484. desplazar comprueba la consecuencia en cuanto la hay: sale al primer cambio del porcentaje en vez de dormir 350 ms fijos, y sin cambio agota el mismo techo antes de decir que no se movió", DesplazarNoDuermeFijo);
+        Prueba("482. lanzar un protocolo (ms-settings:, mailto:…) no espera un proceso con ese nombre, que no existe: espera a que cambie la ventana de delante o su título (Apps.Llego), con techo 3 s y no 12", LanzarUnProtocoloEsperaALaVentanaDeDelante);
+        // ── Spec 061: la carita visita lo que Ü toca, y no le roba un clic ──
+        Prueba("504. la carita va a lo que Ü pulsó DESPUÉS de pulsarlo, con la caja del elemento, y el ciclo no la espera: el aviso sale tras el clic, se atiende en el hilo de la interfaz, y el ciclo contesta lo mismo aunque el aviso reviente; y no sigue al cursor automatizado", LaCaritaVaDespuesDelClic);
+        Prueba("505. fuera de casa la carita no se deja tocar: desde que Ü la saca de casa hasta que se posa otra vez en casa es transparente al ratón, y todo lo que la mueve por iniciativa de Ü pasa por la misma visita", FueraDeCasaNoSeDejaTocar);
+        Prueba("506. la carita se posa junto a lo que Ü tocó y nunca encima: al primer lado que quepa —derecha, izquierda, abajo, arriba— sin cortar la caja del elemento, con la curva sin rebote; si no cabe en ningún lado, no viaja", LaCaritaSePosaAlLadoYNuncaEncima);
+        Prueba("507. la carita vuelve sola a su sitio —el que eligió la persona— tras un rato sin visitas, y solo al posarse ahí vuelve a dejarse tocar; un vuelo cortado no cuenta como llegada", LaCaritaVuelveSolaASuSitio);
+        Prueba("508. un clic que manda Ü lleva su firma, y ninguna ventana de Ü lo toma por un toque de la persona: el filtro del hilo de la interfaz lo tira antes que WPF, y el log lo dice", UnClicDeUNoEsUnToque);
+        Prueba("510. un clic de Ü no cae sobre una ventana de Ü: antes de pulsar se mira qué hay bajo el punto; si es la carita, se aparta —fantasma— y se pulsa; si es otra ventana de Ü, no se pulsa y se dice cuál", UnClicDeUNoCaeSobreU);
+        Prueba("511. el puerto del MCP se puede cambiar con U_MCP_PUERTO, para que una Ü de pruebas no le quite el 8790 a la Ü del dueño; sin la variable, o con un puerto que no vale, es el 8790", DosUEnElMismoPc);
+        // ── Spec 062: Luna planea por objetivos, Jeff ejecuta ──
+        Prueba("512. la medida del turno separa pensar de ejecutar: ejecutar es lo que tardaron las tandas de herramientas; pensar es el resto, desde la petición hasta lo primero que dice Ü tras la última herramienta; la línea voz-turno lleva pensar=, ejecutar= y luna= en porcentaje", PensarYEjecutarSeSeparan);
+        Prueba("513. una orden de prueba entra por el mismo camino que lo escrito en el chat —u_orden por el MCP—, u_colgar cierra la voz, y las dos solo existen con U_ORDENES_DE_PRUEBA=1; Luna no las ve", OrdenesDePruebaPorElMcp);
+        Prueba("514. Luna tiene map_hacer con pasos: el plan entero en una llamada; sin ejecutor conectado lo dice, y con él le pasa los pasos tal cual", LunaTieneMapHacer);
+        Prueba("515. un plan se lee de una lista JSON (o una línea por paso); vacío o ilegible no ejecuta nada y lo dice; y cada plan deja su cuenta sobre el plan entero: ⏱ plan: N objetivo(s) · K cumplido(s) · F fallido(s) · O omitido(s) · A acción(es) · X ms", UnPlanSeLeeYSeCuenta);
+        Prueba("516. «pulsa: <nombre>» va por el ciclo rápido, sin Jev; si no está a la vista, el paso pasa a Jev como objetivo; un paso sin prefijo es un objetivo para Jev", PulsaVaPorElCicloRapido);
+        Prueba("517. la mano del plan no pulsa sobre una ventana de Ü: mira bajo el punto con la misma regla (510), y tras el clic avisa a la carita", LaManoDelPlanNoPulsaSobreU);
+        Prueba("518. Luna piensa en modo rápido: la delegación le pide reasoning.effort = low, al abrir y al cambiar de modo", LunaPiensaEnModoRapido);
+        Prueba("519. el plan trabaja sobre la misma ventana que el ciclo rápido: la de delante, y si delante está Ü o nada, la de trabajo; sin ninguna de las dos, dice que no hay ventana", ElPlanTrabajaDondeElCiclo);
+        Prueba("521. abrir una app nunca lanza a la propia Ü: el acceso directo «U» no casa con nada, y un acceso cuyo nombre está DENTRO de lo pedido solo cuenta si tiene al menos 4 letras; lo exacto gana y lo que no casa no lanza nada", AbrirNuncaLanzaAU);
+        Prueba("522. todo lo que Ü guarda de la persona vive donde dice U_DATA_DIR: la conversación se escribe bajo esa carpeta, y ningún archivo del cliente pide la carpeta de Windows por su cuenta", LoGuardadoVaDondeDiceUDataDir);
+        Prueba("523. abrir una app en el plan espera a que pinte algo más que su marco: una lectura con solo los botones de la ventana (menú del sistema, minimizar, maximizar, restaurar, cerrar) no es una app lista, y no se da por quieta", AbrirEsperaAQuePinte);
+        Prueba("524. «pulsa: <nombre>» que no encuentra el nombre espera UNA vez a que la pantalla se quede quieta y lo busca otra vez por el ciclo rápido antes de pasarlo a Jev; si aparece, Jev ni se entera", PulsaEsperaALaPaginaAntesDeJev);
+        Prueba("525. un «pulsa: X» que no está a la vista ni tras esperar pasa a Jev como «llegar a X»: con permiso para navegar hasta donde esté —la sección que lo contiene, o Atrás—, no para adivinar en esta pantalla", PulsaQueNoEstaEsLlegar);
+        Prueba("526. «carpeta: <ruta o nombre>» abre esa carpeta por el disco dentro del plan, sin Jev; si no se pudo, el paso falla diciendo cuál, y sin quien abra carpetas lo dice", CarpetaEnElPlan);
+        Prueba("527. el notch se aparta como la carita: si bajo el punto de un clic de Ü está el notch, se vuelve transparente al ratón un momento, se mira otra vez y se pulsa lo de debajo; cualquier otra ventana de Ü sigue sin pulsarse y se dice cuál", ElNotchSeApartaComoLaCarita);
+        Prueba("528. leer el diálogo de delante tiene plazo: si la app no contesta en 2 s, map_unblock no se congela —dice que no pudo leer el diálogo a tiempo, no que no hay ninguno— y no pulsa nada", LeerElDialogoTienePlazo);
+        Prueba("529. saber dónde estoy tampoco se congela leyendo un diálogo: map_where_am_i lee el diálogo por la misma puerta con plazo que map_unblock; las dos lecturas del diálogo son una", DondeEstoyNoSeCongelaConUnDialogo);
+        Prueba("520. quien planea es GPT-6 Sol con el pensamiento en bajo y sin pagar de más por velocidad: delegado gpt-6-sol con reasoning.effort = low y sin service_tier priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -9007,7 +9075,8 @@ internal static class Contrato
         // salieron ✔ 210 y CONTRATO INTACTO, exit 0 (sabotaje G2 de la revisión, repetido en esta rama), y
         // en U.exe cada session.start pediría ese modelo y la voz no abriría. La 40 no lo ve: juzga una
         // instancia que construye ella. Se juzga lo que manda la apertura: modelo, delegado y dirección.
-        const string gptLive = "ProtocoloGptLive · modelo gpt-live-1 · delegado gpt-5.6-luna · wss://api.openai.com/v1/live/sessions";
+        // El delegado es GPT-6 Sol desde el 2026-09-29 (decisión del dueño, spec 062, promesa 520).
+        const string gptLive = "ProtocoloGptLive · modelo gpt-live-1 · delegado gpt-6-sol · wss://api.openai.com/v1/live/sessions";
         const string realtime = "ProtocoloOpenAI · modelo gpt-realtime-2.1-mini · wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1-mini";
         static string Abre(object? p)
         {
@@ -9883,48 +9952,6 @@ internal static class Contrato
         Debe(!SafeToClick.Auto("Guardar", "hyperlink", out _) && !SafeToClick.Auto("Opciones", "listitem", out _),
             "mapear solo es navegar: el explorador autónomo sigue sin pulsar «Guardar» ni «Opciones»");
         Debe(SafeToClick.Auto("Documentos", "treeitem", out _), "y lo que era navegable lo sigue siendo");
-    }
-
-    private static void LaCaritaVaADondeSePulsa()
-    {
-        // DESDE LA SPEC 020 LA MAYORÍA DE LOS CLICS VAN SIN RATÓN, y la carita solo sabía seguir al cursor
-        // cuando el cursor se movía de verdad: dejó de acompañar a la mano justo cuando la mano mejoró. El
-        // dueño lo pidió con su curva: «fluido rápidamente, no brusco, con una aceleración suave pero rápida».
-        var t = Grafico("U.Graph.Surfaces.ComoViajaLaCarita");
-        var esClic = t?.GetMethod("EsClic");
-        var mereceViaje = t?.GetMethod("MereceViaje");
-        var cuanto = t?.GetMethod("Cuanto");
-        var curva = t?.GetMethod("Curva");
-        var pulso = Grafico("U.Graph.Surfaces.UiaSurface")?.GetEvent("Pulso");
-        Debe(esClic != null && mereceViaje != null && cuanto != null && curva != null && pulso != null,
-            "todavía no existen «Surfaces.ComoViajaLaCarita.EsClic/MereceViaje/Cuanto/Curva» ni el aviso «UiaSurface.Pulso» (spec 022, promesa 240). "
-            + "La promesa está escrita y en rojo, que es donde tiene que estar");
-        if (esClic == null || mereceViaje == null || cuanto == null || curva == null) return;
-        bool Clic(string a) => (bool)esClic.Invoke(null, new object[] { a })!;
-        Debe(Clic("click") && Clic("doubleclick") && Clic("rightclick"),
-            "los tres clics de la mano avisan de dónde cayeron: para eso se mueve la carita, para que se vea quién pulsa");
-        Debe(!Clic("input") && !Clic("select") && !Clic("scroll") && !Clic(""),
-            "escribir, elegir en una lista o desplazar no es pulsar: la carita no sale corriendo por eso");
-        bool Merece(double d) => (bool)mereceViaje.Invoke(null, new object[] { d })!;
-        Debe(!Merece(12) && Merece(200), "un salto de 12 px es un parpadeo, no un viaje; 200 px sí se ve");
-        double C(double x) => (double)curva.Invoke(null, new object[] { x })!;
-        Debe(Math.Abs(C(0)) < 1e-6 && Math.Abs(C(1) - 1) < 1e-6, "el viaje empieza donde estaba y termina exactamente donde se pulsó");
-        bool sube = true, rebota = false; double previo = double.MinValue;
-        for (int i = 0; i <= 200; i++)
-        {
-            double v = C(i / 200.0);
-            if (v < previo - 1e-9) sube = false;
-            if (v > 1 + 1e-9) rebota = true;
-            previo = v;
-        }
-        Debe(sube, "fluida: no se devuelve a mitad de camino");
-        Debe(!rebota, "y no rebota: un rebote está bien una vez, pero en CADA clic se lee como gelatina");
-        Debe(C(0.02) < 0.02, "empieza acelerando y no de un tirón: en el primer 2% del tiempo no ha hecho ni el 2% del camino");
-        Debe(C(1.0 / 3) > 0.5, "pero es rápida: al primer tercio del tiempo ya lleva más de medio camino");
-        var corto = (TimeSpan)cuanto.Invoke(null, new object[] { 30.0 })!;
-        var largo = (TimeSpan)cuanto.Invoke(null, new object[] { 3000.0 })!;
-        Debe(corto.TotalMilliseconds >= 120 && corto <= largo, $"un salto corto dura poco pero se ve ({corto.TotalMilliseconds:0} ms)");
-        Debe(largo.TotalMilliseconds <= 450, $"y cruzar la pantalla entera no pasa de 450 ms: rápido es parte de lo pedido ({largo.TotalMilliseconds:0} ms)");
     }
 
     private static void ElNotchEsBlancoYNegro()
@@ -11250,29 +11277,6 @@ internal static class Contrato
             $"tras el mensaje también (salió {E(U.Graph.Surfaces.ComoSePulsa.Gesto.Mensaje)})");
         Debe(E(U.Graph.Surfaces.ComoSePulsa.Gesto.Fisico) == "Fisico",
             "y el físico es el último peldaño: el único que puede decir que no se pudo");
-    }
-
-    private static void FueraDeUnaComprobacionPulsarEsUnSoloGesto()
-    {
-        var t = Capacidad("U.WindowsClient.Piloto.ElRecuerdoQueSeVe");
-        var m = t?.GetMethods(BindingFlags.Public | BindingFlags.Static).FirstOrDefault(x => x.Name == "Coreografia" && x.GetParameters().Length == 4);
-        if (m == null) { Pendiente("ElRecuerdoQueSeVe.Coreografia(elemento, recuerdo, decir, enComprobacion)", "266", "030"); return; }
-        string C(bool e, bool r, bool d, bool comp) =>
-            string.Join(">", ((System.Collections.IEnumerable)m.Invoke(null, new object[] { e, r, d, comp })!).Cast<object>().Select(g => g.ToString()));
-
-        string fuera = C(true, true, true, false);
-        Debe(fuera == "Senalar>Decir>Actuar>Escribir>Soltar",
-            $"fuera de una comprobación: señalar, decir, TOCAR, y el recuerdo después —sin tarjeta ni pausa— (salió {fuera})");
-        Debe(!fuera.Contains("Mostrar") && !fuera.Contains("Esperar"),
-            "ni tarjeta ni pausa de lectura: la persona no está leyendo una lección, está esperando el clic");
-        Debe(fuera.IndexOf("Escribir", StringComparison.Ordinal) > fuera.IndexOf("Actuar", StringComparison.Ordinal),
-            "y escribir el recuerdo va DESPUÉS de tocar: no se paga antes de lo que la persona pidió");
-        Debe(C(true, false, false, false) == "Senalar>Actuar>Soltar", "sin recuerdo ni frase: señalar, tocar, soltar");
-        Debe(C(false, true, true, false) == "Decir>Actuar>Escribir", "sin elemento en pantalla no hay señal: decir, tocar, escribir");
-
-        string dentro = C(true, true, true, true);
-        Debe(dentro == "Senalar>Decir>Escribir>Mostrar>Esperar>Actuar>Cerrar>Soltar",
-            $"dentro de una comprobación la coreografía de la 180 sigue entera (salió {dentro})");
     }
 
     private static void CeroDeUnoSeVeComoFallo()
@@ -13418,6 +13422,1806 @@ internal static class Contrato
     }
 
     // ── Spec 043 ─────────────────────────────────────────────────────────────────────────────────
+
+    // Un pulsador de mentira para la spec 053: «dónde» y «lo que se ve» los decide el guion, en función de cuánto
+    // hace del último toque de la mano.
+    private static (PulsarSegunElNucleo P, Func<int> Toques) PulsadorConVista(Nucleo.Grafo g, Func<long, string> donde, Func<long, string>? seVe)
+    {
+        int toques = 0;
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        long tocadoEn = long.MinValue / 2;
+        long Desde() => toques == 0 ? -1 : reloj.ElapsedMilliseconds - tocadoEn;
+        var p = new PulsarSegunElNucleo(g, () => donde(Desde()), (sel, et, gesto) => { toques++; tocadoEn = reloj.ElapsedMilliseconds; return true; })
+        { EsperaMaximaMs = 1800 };
+        if (seVe != null) typeof(PulsarSegunElNucleo).GetProperty("LoQueSeVe")?.SetValue(p, (Func<string>)(() => seVe(Desde())));
+        return (p, () => toques);
+    }
+
+    private static void PulsarSaleEnCuantoCambiaLoQueSeVe()
+    {
+        // LÍNEA BASE DEL 2026-09-27 (U.exe de main, por el MCP): Configuración → «Sistema», esperar el cambio 1.864 ms;
+        // → «Pantalla», 1.824 ms; las dos «no cambió» sobre una página que sí cambió. Pasar de una sección a otra no cambia
+        // la ubicación, y la espera solo miraba la ubicación. Ü desde cero mira lo que se ve y sale al cambiar.
+        if (typeof(PulsarSegunElNucleo).GetProperty("LoQueSeVe") == null) { Pendiente("PulsarSegunElNucleo.LoQueSeVe (la espera mira lo que se ve)", "475", "053"); return; }
+        const string A = "uia://SystemSettings.exe/configuracion";
+        Nucleo.Grafo Mundo()
+        {
+            var g = new Nucleo.Grafo();
+            g.Observar(A, new[]
+            {
+                new Nucleo.Elemento("uia:name=Sistema;ct=ListItem", "Sistema", "ListItem"),
+                new Nucleo.Elemento("uia:name=Guardar;ct=Button", "Guardar", "Button"),
+                new Nucleo.Elemento("uia:name=Ver más;ct=Hyperlink", "Ver más", "Hyperlink"),
+            });
+            return g;
+        }
+
+        // 1. LO QUE SE VE CAMBIA A LOS 40 MS Y LA UBICACIÓN NO: se sale ya, se cuenta como cambio, un solo toque —aunque
+        //    sea contenido, donde se ensayaría el doble—, y no se aprende arista: no se fue a otra ubicación.
+        var (p1, t1) = PulsadorConVista(Mundo(), _ => A, ms => ms >= 40 ? "Sistema: Pantalla, Sonido" : "Inicio");
+        var c1 = System.Diagnostics.Stopwatch.StartNew();
+        var r1 = p1.Pulsa("uia:name=Sistema;ct=ListItem", "Sistema");
+        Debe(c1.ElapsedMilliseconds < 400, $"lo que se ve cambió a los 40 ms y la espera tardó {c1.ElapsedMilliseconds} ms: sigue esperando la ubicación");
+        Debe(r1.SePudo && r1.CambioLaPantalla && t1() == 1 && !r1.Aprendido, $"un cambio de lo que se ve es un cambio, con un solo toque y sin arista (toques={t1()}; «{r1.Cuenta}»)");
+
+        // 2. UN BOTÓN QUE NO CAMBIA NADA: 150 ms de techo, no 1.800.
+        var (p2, t2) = PulsadorConVista(Mundo(), _ => A, _ => "Inicio");
+        var c2 = System.Diagnostics.Stopwatch.StartNew();
+        var r2 = p2.Pulsa("uia:name=Guardar;ct=Button", "Guardar");
+        Debe(c2.ElapsedMilliseconds < 400 && !r2.CambioLaPantalla && t2() == 1, $"un botón que no cambia nada esperó {c2.ElapsedMilliseconds} ms (toques={t2()})");
+
+        // 3. UN ENLACE QUE TARDA 600 MS EN CARGAR: se espera, y se ve cambiar.
+        var (p3, _) = PulsadorConVista(Mundo(), _ => A, ms => ms >= 600 ? "Página nueva" : "Página vieja");
+        var c3 = System.Diagnostics.Stopwatch.StartNew();
+        var r3 = p3.Pulsa("uia:name=Ver más;ct=Hyperlink", "Ver más");
+        Debe(r3.CambioLaPantalla && c3.ElapsedMilliseconds is >= 580 and < 1500, $"un enlace que carga a los 600 ms: cambió={r3.CambioLaPantalla} en {c3.ElapsedMilliseconds} ms");
+
+        // 4. SI LA UBICACIÓN CAMBIA, MANDA LA UBICACIÓN: se aprende la arista como siempre.
+        const string B = "uia://SystemSettings.exe/sistema";
+        var (p4, _) = PulsadorConVista(Mundo(), ms => ms >= 60 ? B : A, ms => ms >= 60 ? "Sistema" : "Inicio");
+        var r4 = p4.Pulsa("uia:name=Sistema;ct=ListItem", "Sistema");
+        Debe(r4.Hasta == B && r4.Aprendido, $"cuando cambia la ubicación se aprende la arista: hasta «{r4.Hasta}», aprendido={r4.Aprendido}");
+
+        // 5. LA UBICACIÓN LLEGA DESPUÉS DE LO QUE SE VE (medido el 2026-09-27 en el Explorador: 5 de 8 clics que sí
+        //    cambiaron de carpeta salieron «sigues en Imágenes», y el grafo no aprendió esas aristas). Lo que se ve
+        //    cambia a los 40 ms, se asienta a los 90, y el título —la ubicación— cambia a los 150: se aprende igual.
+        var (p5, _) = PulsadorConVista(Mundo(), ms => ms >= 150 ? B : A, ms => ms >= 90 ? "Sistema entera" : ms >= 40 ? "Sistema a medias" : "Inicio");
+        var c5 = System.Diagnostics.Stopwatch.StartNew();
+        var r5 = p5.Pulsa("uia:name=Sistema;ct=ListItem", "Sistema");
+        Debe(r5.Hasta == B && r5.Aprendido && c5.ElapsedMilliseconds < 700, $"la ubicación que llega a los 150 ms se perdió: hasta «{r5.Hasta}», aprendido={r5.Aprendido}, {c5.ElapsedMilliseconds} ms");
+    }
+
+    // ── Spec 053, fase 2: la mano rápida ──────────────────────────────────────────────────────────
+    private static IReadOnlyList<U.Ciclo.Accionable> Lectura(params (string Nombre, string Tipo, int X, int Y)[] e) =>
+        e.Select((x, i) => new U.Ciclo.Accionable(i + 1, x.Nombre, x.Tipo, new U.Ciclo.Caja(x.X, x.Y, 100, 30))).ToList();
+
+    private static Type? ManoRapidaT() => typeof(PulsarSegunElNucleo).Assembly.GetType("U.WindowsClient.Navigation.ManoRapida");
+
+    /// <summary>Una mano rápida de mentira: lee lo que se le dé, anota los clics y consulta el freno dado.</summary>
+    private static (object Mano, List<(int, int)> Clics, Func<long> Reloj) ManoDeMentira(IReadOnlyList<U.Ciclo.Accionable> vista, Func<bool> freno, Func<long> reloj)
+    {
+        var clics = new List<(int, int)>();
+        var t = ManoRapidaT()!;
+        var mano = Activator.CreateInstance(t, (Func<IReadOnlyList<U.Ciclo.Accionable>>)(() => vista), (Action<int, int>)((x, y) => clics.Add((x, y))), freno, reloj)!;
+        return (mano, clics, reloj);
+    }
+
+    private static bool Intentar(object mano, string selector, string etiqueta, out string? motivo)
+    {
+        var args = new object?[] { selector, etiqueta, null };
+        bool r = (bool)mano.GetType().GetMethod("Intentar")!.Invoke(mano, args)!;
+        motivo = (string?)args[2];
+        return r;
+    }
+
+    private static void LaManoRapidaPulsaSinBuscar()
+    {
+        // LÍNEA BASE DEL 2026-09-27: «la mano» de main, 263-875 ms por clic —Resolve con FindAll sobre la ventana, traer a
+        // la vista, la escalera patrón → mensaje → físico con sus esperas fijas—. La lectura rápida ya tiene la caja.
+        if (ManoRapidaT() == null) { Pendiente("Navigation.ManoRapida (la mano de u/)", "477", "053"); return; }
+        var vista = Lectura(("Pantalla", "ListItem", 200, 300), ("Sonido", "ListItem", 200, 340), ("Buscar", "Button", 50, 20), ("Buscar", "Button", 600, 20));
+        var (m, clics, _) = ManoDeMentira(vista, () => false, () => 0);
+
+        Debe(Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == 1 && clics[0] == (250, 315),
+            $"«Pantalla», única, no se pulsó en su centro: {string.Join(" ", clics)}");
+        Debe(Intentar(m, "uia:aid=SoundEntry;ct=ListItem", "Sonido", out _) && clics.Count == 2 && clics[1] == (250, 355),
+            $"por AutomationId no se buscó por la etiqueta: {string.Join(" ", clics)}");
+        Debe(Nada(clics, () => !Intentar(m, "uia:name=Buscar;ct=Button", "Buscar", out _)), "con dos «Buscar» se pulsó uno a ciegas");
+        Debe(Nada(clics, () => !Intentar(m, "uia:name=Bluetooth;ct=ListItem", "Bluetooth", out _)), "sin coincidencia se pulsó algo");
+        Debe(Nada(clics, () => !Intentar(m, "uia:name=Pantalla;ct=Button", "Pantalla", out _)), "con el tipo distinto se pulsó igual");
+        Debe(Nada(clics, () => !Intentar(m, "sap:wnd[0]/tbar[1]/btn[8]", "Pantalla", out _)), "un selector de SAP fue a la mano rápida");
+    }
+
+    // Cada chequeo cuenta SUS clics. Con el recuento acumulado, un sabotaje que pulsaba de más en el primero hacía caer
+    // a los siguientes, y el último mensaje culpaba a SAP de lo que hacían los homónimos (aprendizaje nº2, 2026-09-27).
+    private static bool Nada(List<(int, int)> clics, Func<bool> intento) { int antes = clics.Count; return intento() && clics.Count == antes; }
+
+    private static void LaManoRapidaAvisaYRespetaElFreno()
+    {
+        if (ManoRapidaT() == null) { Pendiente("Navigation.ManoRapida (la mano de u/)", "478", "053"); return; }
+        var vista = Lectura(("Pantalla", "ListItem", 200, 300));
+        (double, double, double, double)? pulso = null; (int, int)? cursor = null;
+        Action<double, double, double, double> alPulso = (x, y, w, h) => pulso = (x, y, w, h);
+        Action<int, int> alCursor = (x, y) => cursor = (x, y);
+        U.Graph.Surfaces.UiaSurface.Pulso += alPulso;
+        U.Graph.Surfaces.UiaSurface.CursorMoved += alCursor;
+        try
+        {
+            var (m, clics, _) = ManoDeMentira(vista, () => false, () => 0);
+            Debe(Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == 1, "no pulsó");
+            Debe(pulso == (200, 300, 100, 30), $"la carita no se enteró de dónde se pulsó: {pulso}");
+            Debe(cursor == (250, 315), $"el cursor no se contó: {cursor}");
+
+            var (conFreno, clics2, _) = ManoDeMentira(vista, () => true, () => 0);
+            bool hizo = Intentar(conFreno, "uia:name=Pantalla;ct=ListItem", "Pantalla", out string? motivo);
+            Debe(hizo && clics2.Count == 0 && (motivo ?? "").Contains("freno"), $"con el freno echado: pulsó {clics2.Count} vez/veces · motivo «{motivo}»");
+        }
+        finally
+        {
+            U.Graph.Surfaces.UiaSurface.Pulso -= alPulso;
+            U.Graph.Surfaces.UiaSurface.CursorMoved -= alCursor;
+        }
+    }
+
+    private static void LoRepetidoVaPorLaEscalera()
+    {
+        if (ManoRapidaT() == null) { Pendiente("Navigation.ManoRapida (la mano de u/)", "479", "053"); return; }
+        long ahora = 0;
+        var (m, clics, _) = ManoDeMentira(Lectura(("Pantalla", "ListItem", 200, 300)), () => false, () => ahora);
+        Debe(Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == 1, "el primer clic no fue rápido");
+        ahora = 1200;
+        Debe(!Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == 1, "la repetición a los 1,2 s no fue por la escalera");
+        ahora = 5000;
+        int antes = clics.Count;
+        Debe(Intentar(m, "uia:name=Pantalla;ct=ListItem", "Pantalla", out _) && clics.Count == antes + 1, "pasados 3 s, el clic no volvió a ser rápido");
+    }
+
+    // LÍNEA BASE DEL 2026-09-27: map_open_app con Configuración ya delante tardaba 13 s y contestaba «no pude traer
+    // «ms-settings:» al frente». Configuración vive en ApplicationFrameHost: por el nombre del proceso no se encuentra.
+    private static readonly (IntPtr Hwnd, string Proceso, string Titulo)[] VentanasConConfiguracion =
+    {
+        ((IntPtr)11, "ApplicationFrameHost.exe", "Configuración"),
+        ((IntPtr)12, "notepad.exe", "Sin título: Bloc de notas"),
+    };
+
+    private static void AbrirEncuentraPorLoQueEs()
+    {
+        foreach (var pedido in new[] { "ms-settings:", "configuración" })
+        {
+            var halladas = AbrirSegunElNucleo.LasDe(pedido, VentanasConConfiguracion);
+            Debe(halladas.Count == 1 && halladas[0].Hwnd == (IntPtr)11,
+                $"«{pedido}» no encontró la ventana de Configuración: [{string.Join(", ", halladas.Select(h => h.Titulo))}]");
+        }
+        var bloc = AbrirSegunElNucleo.LasDe("notepad", VentanasConConfiguracion);
+        Debe(bloc.Count == 1 && bloc[0].Hwnd == (IntPtr)12, "«notepad» dejó de encontrarse por su proceso");
+
+        // EL ESCRITORIO NO ES EL EXPLORADOR aunque sea explorer.exe. Medido el 2026-09-27 al estrenar la 480: «explorador»
+        // contestaba «2 ventana(s) («Música - Explorador de archivos», «Program Manager»)».
+        var conEscritorio = new[] { ((IntPtr)21, "explorer.exe", "Música - Explorador de archivos"), ((IntPtr)22, "explorer.exe", "Program Manager") };
+        var exp = AbrirSegunElNucleo.LasDe("explorador", conEscritorio);
+        Debe(exp.Count == 1 && exp[0].Hwnd == (IntPtr)21, $"«explorador» contó el escritorio como ventana suya: [{string.Join(", ", exp.Select(h => h.Titulo))}]");
+    }
+
+    private static void AbrirLoQueYaEstaDelanteNoEspera()
+    {
+        var ctor = typeof(AbrirSegunElNucleo).GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 8);
+        if (ctor == null) { Pendiente("AbrirSegunElNucleo(…, delante) — saber qué ventana está delante", "481", "053"); return; }
+        Func<string> donde = () => "uia://applicationframehost.exe/Configuración";
+        Func<Mapeador.ComoMePongoDelante.Plan, bool> traerAlFrente = _ => throw new InvalidOperationException("no había que traer nada");
+        Func<string, string> dominio = _ => "";
+        Func<IReadOnlyList<AbrirSegunElNucleo.AppDelSistema>> instaladas = () => Array.Empty<AbrirSegunElNucleo.AppDelSistema>();
+        Func<string, bool> lanzar = _ => throw new InvalidOperationException("no había que lanzar nada");
+        Func<IReadOnlyList<(IntPtr Hwnd, string Proceso, string Titulo)>> ventanas = () => VentanasConConfiguracion;
+        int traidas = 0;
+        Func<IntPtr, bool> traerVentana = _ => { traidas++; return true; };
+        Func<IntPtr> delante = () => (IntPtr)11;
+        var abrir = (AbrirSegunElNucleo)ctor.Invoke(new object[] { donde, traerAlFrente, dominio, instaladas, lanzar, ventanas, traerVentana, delante });
+
+        var crono = System.Diagnostics.Stopwatch.StartNew();
+        string r = abrir.Abrir("configuración", "");
+        long tardo = crono.ElapsedMilliseconds;
+        Debe(r.Contains("ya estás", StringComparison.OrdinalIgnoreCase), $"con Configuración delante no dijo que ya estás: «{r}»");
+        Debe(traidas == 1, $"la ventana de delante no pasó a ser la de trabajo: se trajo {traidas} vez/veces (traerla es lo que la fija)");
+        Debe(tardo < 300, $"contestar lo que ya está delante tardó {tardo} ms (esperaba a que cambiara algo que no iba a cambiar)");
+    }
+
+    private static void EscribirNoEsperaAUnEdit()
+    {
+        // LÍNEA BASE DEL 2026-09-27: map_type en el Bloc de notas de Windows 11, 2.246-2.378 ms con 4 letras y con 300.
+        // Su editor es un Document: el bucle esperaba un Edit y agotaba 30 × 50 ms cada vez (log: 1,5-2 s entre la
+        // llamada y el Execute).
+        var espera = typeof(SurfaceMapTools).GetMethod("EsperarFocoQueAcepteTexto", BindingFlags.Public | BindingFlags.Static);
+        if (espera == null) { Pendiente("SurfaceMapTools.EsperarFocoQueAcepteTexto", "483", "053"); return; }
+        var crono = System.Diagnostics.Stopwatch.StartNew();
+        bool hay = (bool)espera.Invoke(null, new object[] { (Func<bool>)(() => true), 1500 })!;
+        Debe(hay && crono.ElapsedMilliseconds < 60, $"con el foco ya aceptando texto esperó {crono.ElapsedMilliseconds} ms");
+
+        crono.Restart();
+        bool tarde = (bool)espera.Invoke(null, new object[] { (Func<bool>)(() => crono.ElapsedMilliseconds >= 200), 1500 })!;
+        Debe(tarde && crono.ElapsedMilliseconds < 350, $"el campo apareció a los 200 ms y se salió a los {crono.ElapsedMilliseconds} (una edición en línea tarda un instante)");
+
+        crono.Restart();
+        bool nunca = (bool)espera.Invoke(null, new object[] { (Func<bool>)(() => false), 300 })!;
+        Debe(!nunca && crono.ElapsedMilliseconds < 500, $"sin dónde escribir dijo {nunca} a los {crono.ElapsedMilliseconds} ms con techo de 300");
+
+        // Y la regla de «acepta texto» es la de UiaSurface.AceptaTexto, no el nombre del tipo: la espera la usa Type.
+        // Las fuentes las da U_REPO, como en la 164: sin él se dice que NO PUDE, no que está roto.
+        string archivo = Path.Combine(Environment.GetEnvironmentVariable("U_REPO") ?? "", "windows-client", "src", "Mcp", "SurfaceMapTools.cs");
+        if (!File.Exists(archivo)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la última parte: sin U_REPO no hay fuentes que mirar."); return; }
+        string fuente = File.ReadAllText(archivo);
+        var llamada = System.Text.RegularExpressions.Regex.Match(fuente, @"EsperarFocoQueAcepteTexto\(\(\) =>[\s\S]{0,400}?\}, \d+\)");
+        Debe(llamada.Success, "escribir ya no espera al foco con EsperarFocoQueAcepteTexto");
+        Debe(llamada.Success && llamada.Value.Contains("AceptaTexto(") && !llamada.Value.Contains("ControlType.Edit"),
+            $"la espera del foco no pregunta con UiaSurface.AceptaTexto, o sigue preguntando por un Edit por su nombre: «{llamada.Value}»");
+    }
+
+    // ── Spec 054: el ciclo de u/ dentro de map_take ──────────────────────────────────────────────────────────
+    // LÍNEA BASE DEL 2026-09-27: un ciclo (clic + volver a ver) costaba en la rama 2.268 ms de mediana y en u/ 502,
+    // con el clic igual (76 vs 61 ms): el resto era compuerta de vivo, ubicaciones, un asentado largo y OTRA lectura
+    // entera al final.
+
+    private sealed class CicloDeMentira
+    {
+        public readonly List<U.Ciclo.Lectura> Guion = new();
+        public int Siguiente, Lecturas;
+        public long Reloj;
+        public readonly List<(int X, int Y, int LecturasAlPulsar)> Clics = new();
+        public bool Freno;
+        public object Ciclo = null!;
+    }
+
+    private static Type? CicloRapidoT() => typeof(PulsarSegunElNucleo).Assembly.GetType("U.WindowsClient.Navigation.CicloRapido");
+
+    private static U.Ciclo.Lectura Pantalla(string[] textos, params (string Nombre, string Tipo, int X, int Y)[] e) =>
+        new U.Ciclo.Lectura(Lectura(e), textos);
+
+    /// <summary>Un ciclo de mentira: cada lectura cuesta 40 ms de su reloj y devuelve el guion en orden (la última se repite).</summary>
+    private static CicloDeMentira CicloCon(params U.Ciclo.Lectura[] guion)
+    {
+        var m = new CicloDeMentira();
+        m.Guion.AddRange(guion);
+        Func<IntPtr> ventana = () => (IntPtr)5;
+        Func<IntPtr, U.Ciclo.Lectura> leer = _ => { m.Reloj += 40; m.Lecturas++; return m.Guion[Math.Min(m.Siguiente++, m.Guion.Count - 1)]; };
+        Action<int, int> clic = (x, y) => m.Clics.Add((x, y, m.Lecturas));
+        Func<bool> freno = () => m.Freno;
+        Func<long> reloj = () => m.Reloj;
+        m.Ciclo = Activator.CreateInstance(CicloRapidoT()!, ventana, leer, clic, freno, reloj)!;
+        return m;
+    }
+
+    private static string? Pulsar(CicloDeMentira m, string exit, int cual = 0) =>
+        (string?)m.Ciclo.GetType().GetMethod("Pulsar")!.Invoke(m.Ciclo, new object[] { exit, cual });
+
+    private static void ElCicloRapidoPulsaYContestaConLoQueVe()
+    {
+        if (CicloRapidoT() == null) { Pendiente("Navigation.CicloRapido (el ciclo de u/ en map_take)", "485", "054"); return; }
+        var inicio = Pantalla(new[] { "Inicio" }, ("Sistema", "ListItem", 200, 300), ("Inicio", "ListItem", 200, 260));
+        var sistema = Pantalla(new[] { "Resolución 1920 × 1080" }, ("Pantalla", "ListItem", 200, 300), ("Sonido", "ListItem", 200, 340));
+        var m = CicloCon(inicio, inicio, sistema);
+        string r = Pulsar(m, "Sistema") ?? "(null)";
+        Debe(m.Clics.Count == 1 && m.Clics[0].X == 250 && m.Clics[0].Y == 315, $"no pulsó «Sistema» en su centro: {string.Join(" ", m.Clics)}");
+        Debe(r.Contains("«Sistema»") && r.Contains("cambió") && !r.Contains("no cambió"), $"no dijo que pulsó y que cambió: «{r}»");
+        Debe(r.Contains("EN PANTALLA AHORA") && r.Contains("«Pantalla» (ListItem)") && r.Contains("Resolución 1920 × 1080"),
+            $"no contestó con lo que se ve DESPUÉS, accionables y textos: «{r}»");
+        Debe(m.Lecturas == 3, $"leyó {m.Lecturas} veces: una antes y las de la espera hasta el cambio (3), ni una más");
+
+        var quieta = CicloCon(inicio);
+        string r2 = Pulsar(quieta, "Sistema") ?? "(null)";
+        Debe(r2.Contains("no cambió") && quieta.Reloj >= 150 && quieta.Reloj < 400, $"sin cambio: dijo «{r2}» a los {quieta.Reloj} ms (techo 150)");
+
+        var enlace = CicloCon(Pantalla(Array.Empty<string>(), ("Ver más", "Hyperlink", 100, 100)));
+        Pulsar(enlace, "Ver más");
+        Debe(enlace.Reloj >= 1500 && enlace.Reloj < 1800, $"tras un enlace la espera llegó a {enlace.Reloj} ms (techo 1,5 s)");
+    }
+
+    private static void ElCicloRapidoNumeraLosHomonimos()
+    {
+        if (CicloRapidoT() == null) { Pendiente("Navigation.CicloRapido (el ciclo de u/ en map_take)", "486", "054"); return; }
+        var p = Pantalla(Array.Empty<string>(), ("Buscar", "Button", 50, 20), ("Buscar", "Edit", 600, 20), ("Sistema", "ListItem", 200, 300));
+        var m = CicloCon(p);
+        string r = Pulsar(m, "Buscar") ?? "(null)";
+        Debe(m.Clics.Count == 0 && r.Contains("1)") && r.Contains("2)") && r.Contains("Button") && r.Contains("Edit"),
+            $"con dos «Buscar» y sin which: pulsó {m.Clics.Count} vez/veces y dijo «{r}»");
+        Pulsar(m, "Buscar", 2);
+        Debe(m.Clics.Count == 1 && m.Clics[0].X == 650 && m.Clics[0].Y == 35, $"con which=2 no pulsó el segundo «Buscar»: {string.Join(" ", m.Clics)}");
+    }
+
+    private static void ElCicloRapidoNoLeeDeMas()
+    {
+        if (CicloRapidoT() == null) { Pendiente("Navigation.CicloRapido (el ciclo de u/ en map_take)", "487", "054"); return; }
+        var inicio = Pantalla(Array.Empty<string>(), ("Sistema", "ListItem", 200, 300));
+        var sistema = Pantalla(Array.Empty<string>(), ("Pantalla", "ListItem", 200, 300), ("Sonido", "ListItem", 200, 340));
+        var pantalla = Pantalla(Array.Empty<string>(), ("Brillo", "Slider", 200, 300), ("Sonido", "ListItem", 200, 340));
+        var m = CicloCon(inicio, sistema, pantalla);
+        Pulsar(m, "Sistema");
+        int trasElPrimero = m.Lecturas;
+        Pulsar(m, "Pantalla");
+        Debe(m.Clics.Count == 2 && m.Clics[1].LecturasAlPulsar == trasElPrimero,
+            $"la lectura del ciclo anterior tenía menos de 2 s y se volvió a leer antes de pulsar: clics {string.Join(" ", m.Clics)}, lecturas tras el primero {trasElPrimero}");
+        int trasElSegundo = m.Lecturas;
+        m.Reloj += 2500;
+        Pulsar(m, "Sonido");
+        Debe(m.Clics.Count == 3 && m.Clics[2].LecturasAlPulsar == trasElSegundo + 1,
+            $"con la última lectura de hace 2,5 s no se leyó UNA vez antes de pulsar: clics {string.Join(" ", m.Clics)}, lecturas tras el segundo {trasElSegundo}");
+
+        var nada = CicloCon(inicio);
+        string? r = Pulsar(nada, "Bluetooth");
+        Debe(r != null && r.Contains("no está") && r.Contains("«Sistema» (ListItem)") && nada.Clics.Count == 0 && nada.Lecturas == 2,
+            $"lo que no está: devolvió «{r}», pulsó {nada.Clics.Count} y leyó {nada.Lecturas} veces (una y una más, y contestar con lo que se ve)");
+
+        // Una lectura VACÍA no se repite: es que la pantalla no se dejó leer a tiempo (494), y otra lectura cuesta otros
+        // 4 s para lo mismo. En Edge, 14 s por clic para decir «no pude leer» (2026-09-27).
+        var sinLeer = CicloCon(Pantalla(Array.Empty<string>()));
+        string? r2 = Pulsar(sinLeer, "Bluetooth");
+        Debe(r2 != null && r2.Contains("no pude leer") && sinLeer.Lecturas == 1,
+            $"con la lectura vacía: devolvió «{r2}» y leyó {sinLeer.Lecturas} veces (una sola: vacío es «no sé»)");
+    }
+
+    private static void ElLectorDeUTienePlazoTotal()
+    {
+        // MEDIDO EL 2026-09-27: una lectura de Wikipedia en Edge tardó 64.495 ms en u/ y hasta 136.531 ms en la rama, a
+        // pesar de los plazos de COM (1,5 s y 3 s): la llamada no se cuelga, es larga. Y el lector tiene UN hilo con cola:
+        // lo siguiente esperaba detrás.
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string lector = Path.Combine(repo, "u", "Nucleo", "LectorUia.cs");
+        if (!File.Exists(lector)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO no hay fuentes que mirar."); return; }
+        var t = typeof(U.Ciclo.LectorUia);
+        var plazo = t.GetField("PlazoTotalMs", BindingFlags.Public | BindingFlags.Static);
+        if (plazo == null) { Pendiente("LectorUia.PlazoTotalMs (plazo total de una lectura)", "494", "054"); return; }
+        Debe((int)plazo.GetValue(null)! <= 4000, $"el plazo total de una lectura es {plazo.GetValue(null)} ms (más de 4 s)");
+        string f = File.ReadAllText(lector);
+        var leer = System.Text.RegularExpressions.Regex.Match(f, @"public Lectura Leer\(IntPtr ventana\)[\s\S]*?\n    \}");
+        // Con un solo hilo, «mientras esa no termine, las siguientes vacías» dejó sin ojos a Ü el resto de la corrida
+        // (2026-09-27: 10 clics seguidos en Edge «no pude leer», y el Explorador de después a 570 ms).
+        Debe(leer.Success && leer.Value.Contains("Wait(PlazoTotalMs)") && leer.Value.Contains("ArrancarHilo()"),
+            "Leer no espera con plazo total, o tras una lectura atascada no abre un hilo nuevo (y las siguientes harían cola detrás)");
+    }
+
+    private static void ElCicloRapidoRespetaElFrenoYSap()
+    {
+        if (CicloRapidoT() == null) { Pendiente("Navigation.CicloRapido (el ciclo de u/ en map_take)", "488", "054"); return; }
+        var p = Pantalla(Array.Empty<string>(), ("Sistema", "ListItem", 200, 300));
+        var m = CicloCon(p);
+        m.Freno = true;
+        string r = Pulsar(m, "Sistema") ?? "(null)";
+        Debe(m.Clics.Count == 0 && r.Contains("freno"), $"con el freno echado pulsó {m.Clics.Count} vez/veces y dijo «{r}»");
+        // Lo que no es suyo no le cuesta nada: ni un clic ni una lectura (cada chequeo con su ciclo, para que un fallo
+        // no arrastre a los siguientes).
+        var sap = CicloCon(p);
+        Debe(Pulsar(sap, "sap:wnd[0]/tbar[1]/btn[8]") == null && sap.Clics.Count == 0 && sap.Lecturas == 0,
+            $"un selector de SAP pasó por el ciclo rápido: {sap.Clics.Count} clic(s), {sap.Lecturas} lectura(s)");
+        var aid = CicloCon(p);
+        Debe(Pulsar(aid, "uia:aid=SystemSettings_Display;ct=ListItem") == null && aid.Clics.Count == 0 && aid.Lecturas == 0,
+            $"un selector por AutomationId pasó por el ciclo rápido (la lectura rápida no trae AutomationId): {aid.Clics.Count} clic(s), {aid.Lecturas} lectura(s)");
+        var nombre = CicloCon(p);
+        Pulsar(nombre, "uia:name=Sistema;ct=ListItem");
+        Debe(nombre.Clics.Count == 1, "un selector por nombre y tipo no pasó por el ciclo rápido");
+    }
+
+    // ── Spec 054, fase 6: el clic siempre por la vía rápida ─────────────────────────────────────────────────
+    // MEDIDO EL 2026-09-28 en las dos sesiones de voz reales del dueño: 0 de 9 map_take llegaron al ciclo rápido. El
+    // modelo manda «decir» y «recuerdo» en cada clic y Take los tomaba por coreografía: 2.349 ms de mediana contra 182.
+    // Y NADA LO DECÍA: el ciclo rápido ni se invocaba, así que el log no tenía dónde contarlo.
+
+    /// <summary>Un mapa con manos de mentira que cuentan por dónde pasó cada llamada.</summary>
+    private sealed class ManosContadas
+    {
+        public int Ciclo, Nucleo, Coreografia;
+        public (string Texto, bool? Cambio, string Pulsado)? RespuestaDelCiclo = ("pulsé «Buscar» (Button) y la pantalla cambió.\n\nEN PANTALLA AHORA (1 elemento(s)):\n  «Buscar» (Button)", true, "uia:name=Buscar;ct=Button");
+        public SurfaceMapTools Mapa = null!;
+    }
+
+    private static ManosContadas MapaConManosContadas()
+    {
+        var m = new ManosContadas();
+        var mapa = new SurfaceMapTools(() => null);
+        var hecho = new RecorrerSegunElNucleo.Resultado(1, 1, "", true, "hice los 1 paso(s)", Cambio: true);
+        mapa.RecorrerPorElNucleo = _ => { m.Nucleo++; return hecho; };
+        mapa.DarUnPasoConCoreografia = (_, __, ___, ____) => { m.Coreografia++; return hecho; };
+        mapa.CicloRapido = (_, __, ___) => { m.Ciclo++; return m.RespuestaDelCiclo; };
+        m.Mapa = mapa;
+        return m;
+    }
+
+    private static (string Camino, string Razon, bool Inesperado)? CaminoDe(SurfaceMapTools mapa)
+    {
+        var p = typeof(SurfaceMapTools).GetProperty("UltimoCamino");
+        return p?.GetValue(mapa) as (string, string, bool)?;
+    }
+
+    private static void ConSapDelanteNoHayCicloRapido()
+    {
+        // Hallado leyendo el código el 2026-09-28, no medido (no hay SAP en este PC): con el desvío por decir/recuerdo
+        // quitado, un clic por nombre como «Triage» con SAP delante entraría al ciclo rápido, que por UIA solo ve un panel
+        // opaco, y contestaría «no está» sin pasar nunca por la mano de SAP. Y «qué es SAP» eran 3 criterios en 3 sitios.
+        var regla = typeof(SurfaceMapTools).Assembly.GetType("U.WindowsClient.Uia.Sap")?.GetMethod("EsProceso", BindingFlags.Public | BindingFlags.Static);
+        var esSap = CicloRapidoT()?.GetProperty("EsSap");
+        if (regla == null || esSap == null) { Pendiente("Uia.Sap.EsProceso y CicloRapido.EsSap (una sola regla de qué es SAP)", "498", "054"); return; }
+        bool Es(string p) => (bool)regla.Invoke(null, new object[] { p })!;
+        Debe(Es("saplogon") && Es("SAPGUI") && !Es("notepad") && !Es("msedge"), "la regla de SAP no reconoce su proceso, o reconoce otros");
+
+        var m = CicloCon(Pantalla(Array.Empty<string>(), ("Triage", "ListItem", 200, 300)));
+        esSap.SetValue(m.Ciclo, (Func<IntPtr, bool>)(_ => true));
+        string? r = Pulsar(m, "Triage");
+        string porQue = (string)(CicloRapidoT()!.GetProperty("PorQueNo")!.GetValue(m.Ciclo) ?? "");
+        Debe(r == null && m.Lecturas == 0 && m.Clics.Count == 0 && porQue.Contains("SAP"),
+            $"con SAP delante: devolvió «{r}», leyó {m.Lecturas}, pulsó {m.Clics.Count}, dijo «{porQue}»");
+
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        string c = File.ReadAllText(cara);
+        var bloque = System.Text.RegularExpressions.Regex.Match(c, @"var ciclo = new Navigation\.CicloRapido\([\s\S]*?mcp\.Map\.CicloRapido = ");
+        Debe(bloque.Success && bloque.Value.Contains("Uia.Sap.EsVentana") && !System.Text.RegularExpressions.Regex.IsMatch(bloque.Value, "StartsWith\\(\"(sap|SAP)\""),
+            "pulsar, mirar y esperar tras escribir no usan la misma regla de SAP (Uia.Sap.EsVentana), o alguno guarda su propio StartsWith");
+        // EL SABOTAJE DEL 2026-09-28 LO ENSEÑÓ: quitar «EsSap» del ciclo dejaba verde la línea de arriba, porque mirar y esperar
+        // tras escribir siguen nombrando la regla en el mismo bloque. Sin él, con SAP delante el ciclo lee el panel opaco.
+        Debe(bloque.Success && bloque.Value.Contains("EsSap = Uia.Sap.EsVentana"),
+            "[cableado] el ciclo que pulsa no sabe qué es SAP (falta EsSap = Uia.Sap.EsVentana al construirlo)");
+    }
+
+    /// <summary>Los argumentos de una herramienta en el catálogo que devuelve <paramref name="metodo"/>, o null.</summary>
+    private static HashSet<string>? ArgumentosEn(string metodo, string herramienta)
+    {
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+        var m = t?.GetMethod(metodo, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+        if (m?.Invoke(null, null) is not System.Collections.IEnumerable todas) return null;
+        foreach (var u in todas)
+        {
+            var tu = u?.GetType();
+            if (tu == null || (string?)tu.GetProperty("Nombre")?.GetValue(u) != herramienta) continue;
+            var set = new HashSet<string>(StringComparer.Ordinal);
+            if (tu.GetProperty("Args")?.GetValue(u) is System.Collections.IEnumerable args)
+                foreach (var a in args) if (a?.GetType().GetProperty("Nombre")?.GetValue(a) is string n) set.Add(n);
+            return set;
+        }
+        return null;
+    }
+
+    private static void LaVozNoOfreceDecirNiRecuerdo()
+    {
+        // EL ESQUEMA ERA LA INVITACIÓN: ninguna instrucción pedía decir/recuerdo en cada clic, pero el catálogo los ofrecía
+        // en map_take y map_type, y el modelo los mandó en casi todos (sesión del 2026-09-28; ElRecuerdoQueSeVe midió 89%).
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+        var piloto = t?.GetMethod("HerramientasDelPiloto", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+        var pCon = t?.GetProperty("ConDecisor", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+        if (piloto == null || pCon == null) { Pendiente("ConversacionEnVivo.HerramientasDelPiloto (el catálogo del piloto aparte)", "500", "054"); return; }
+        bool antes = (bool)pCon.GetValue(null)!;
+        try
+        {
+            foreach (bool conDecisor in new[] { false, true })
+            {
+                pCon.SetValue(null, conDecisor);
+                foreach (var h in new[] { "map_take", "map_type", "map_decidir", "map_tramo" })
+                {
+                    var a = ArgumentosEn("Herramientas", h);
+                    if (a == null) continue;   // map_decidir y map_tramo solo existen con el decisor
+                    Debe(!a.Contains("decir") && !a.Contains("recuerdo"), $"la voz ofrece decir/recuerdo en {h} (decisor {(conDecisor ? "encendido" : "apagado")})");
+                }
+            }
+            pCon.SetValue(null, true);
+            foreach (var h in new[] { "map_take", "map_type" })
+            {
+                var a = ArgumentosEn("HerramientasDelPiloto", h);
+                Debe(a != null && a.Contains("decir") && a.Contains("recuerdo"), $"el piloto no tiene decir/recuerdo en {h}: su mano los lleva para comprobar (191)");
+            }
+            foreach (var h in new[] { "map_decidir", "map_tramo" })
+            {
+                var a = ArgumentosEn("HerramientasDelPiloto", h);
+                Debe(a == null || (!a.Contains("decir") && !a.Contains("recuerdo")), $"el piloto ofrece decir/recuerdo en {h}, que no los usa");
+            }
+        }
+        finally { pCon.SetValue(null, antes); }
+
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        Debe(File.ReadAllText(cara).Contains("var catalogoMcp = Voice.ConversacionEnVivo.HerramientasDelPiloto()"),
+            "el servidor MCP (por donde entran las manos del piloto) no usa el catálogo del piloto");
+    }
+
+    private static void PararLaComprobacionParaElPlan()
+    {
+        var t = Capacidad("U.WindowsClient.Piloto.ElRecorridoDelPlan");
+        var m = t?.GetMethod("Recorrer", BindingFlags.Public | BindingFlags.Static);
+        if (m == null) { Pendiente("Piloto.ElRecorridoDelPlan.Recorrer (el recorrido del plan, con freno)", "501", "054"); return; }
+        (int Dados, int Total, int ParoEn, int Omitidos, string Motivo) R(object r)
+        {
+            var tr = r.GetType();
+            int I(string p) => (int)tr.GetProperty(p)!.GetValue(r)!;
+            return (I("Dados"), I("Total"), I("ParoEn"), I("Omitidos"), (string)tr.GetProperty("Motivo")!.GetValue(r)!);
+        }
+        (int, int, int, int, string) Correr(int total, Func<int, string> dar, Func<int, string> parar) =>
+            R(m.Invoke(null, new object[] { total, dar, parar })!);
+
+        // Cinco pasos, y la persona pulsa «parar» mientras se da el segundo.
+        int dados = 0; bool cancelado = false;
+        var c = Correr(5, i => { dados++; if (i == 1) cancelado = true; return ""; },
+                          _ => cancelado ? "paraste la comprobación" : "");
+        Debe(dados == 2, $"tras cancelar no se da ni un paso más (se dieron {dados} de 5; la cancelación llegó en el 2º)");
+        Debe(c.Item1 == 2 && c.Item2 == 5 && c.Item4 == 3,
+            $"la cuenta es sobre el plan: 2 dados y 3 sin dar, de 5 (salió {c.Item1}/{c.Item2}, {c.Item4} sin dar)");
+        Debe(c.Item3 == 3 && c.Item5.Contains("paraste"), $"y dice dónde y por qué paró (salió paso {c.Item3}: «{c.Item5}»)");
+
+        // Un paso que no se da para el plan ahí, y cuenta como no dado.
+        dados = 0;
+        var f = Correr(4, i => { dados++; return i == 1 ? "«Guardar» no está a la vista" : ""; }, _ => "");
+        Debe(dados == 2 && f.Item1 == 1 && f.Item4 == 3 && f.Item3 == 2,
+            $"un paso que no se da para el plan ahí: 1 dado, 3 sin dar, paró en el 2º (salió {f.Item1}/{f.Item2}, paró en {f.Item3})");
+
+        var todo = Correr(3, _ => "", _ => "");
+        Debe(todo.Item1 == 3 && todo.Item4 == 0 && todo.Item3 == 0, "sin freno ni fallo se dan todos, y no para en ninguno");
+
+        // [cableado] Los dos recorridos de planes que hay —el del piloto y el de una skill— son este mismo.
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        string mapa = Path.Combine(repo, "windows-client", "src", "Mcp", "SurfaceMapTools.cs");
+        if (!File.Exists(cara) || !File.Exists(mapa)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        string fc = File.ReadAllText(cara), fm = File.ReadAllText(mapa);
+        Debe(fc.Contains("Piloto.ElRecorridoDelPlan.Recorrer(") && fc.Contains("cancelar?.IsCancellationRequested"),
+            "[cableado] el plan del piloto se recorre con ElRecorridoDelPlan y para con la cancelación de la comprobación");
+        Debe(fm.Contains("Piloto.ElRecorridoDelPlan.Recorrer("), "[cableado] una skill se recorre con el mismo recorrido, no con un bucle propio");
+    }
+
+    private static void RecordarEsExplicitoYHonesto()
+    {
+        // LA SESIÓN DEL 2026-09-28: 9 de 9 clics traían un «recuerdo» que el modelo se inventaba de lo que iba a pulsar. Las
+        // instrucciones se lo pedían como meta —«sabe más que quien lo enseñó a base de acumular RECUERDOS»— y prometían
+        // que duraban «para siempre», cuando desde la 054 viven en memoria mientras Ü está abierta.
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+        string texto = t?.GetProperty("InstruccionesNormales", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as string ?? "";
+        if (texto.Length == 0) { Debe(false, "no encuentro «ConversacionEnVivo.InstruccionesNormales»"); return; }
+        foreach (var dicho in new[] { "acumular RECUERDOS", "para siempre", "lo más frecuente" })
+            Debe(!texto.Contains(dicho, StringComparison.Ordinal), $"las instrucciones todavía dicen «{dicho}»");
+
+        string desc = "";
+        if (t?.GetMethod("Herramientas", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null) is System.Collections.IEnumerable todas)
+            foreach (var u in todas)
+                if ((string?)u?.GetType().GetProperty("Nombre")?.GetValue(u) == "map_esto_es")
+                    desc = (string?)u.GetType().GetProperty("Descripcion")?.GetValue(u) ?? "";
+        Debe(desc.Contains("Nunca para describir lo que tú vas a pulsar", StringComparison.Ordinal),
+            $"la herramienta de recordar no dice que no es para describir lo que Ü va a pulsar (dice «{desc[..Math.Min(120, desc.Length)]}…»)");
+        Debe(!desc.Contains("PARA SIEMPRE", StringComparison.OrdinalIgnoreCase), "la herramienta de recordar promete que dura para siempre");
+
+        // [texto] La respuesta sigue empezando por «nuevo recuerdo:» —la voz la marca con 🧠 y anatomia-del-clic la cuenta—
+        // y no promete lo que no depende de ella.
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string mapa = Path.Combine(repo, "windows-client", "src", "Mcp", "SurfaceMapTools.cs");
+        if (!File.Exists(mapa)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        string fm = File.ReadAllText(mapa);
+        Debe(fm.Contains("return $\"nuevo recuerdo: «{nombre}» es ", StringComparison.Ordinal), "[texto] la respuesta de recordar ya no empieza por «nuevo recuerdo:»");
+        Debe(!fm.Contains("Lo recordaré cuando vuelva aquí", StringComparison.Ordinal), "[texto] la respuesta de recordar sigue prometiendo «Lo recordaré cuando vuelva aquí»");
+    }
+
+    private static void UnRecuerdoSeCuelgaPorSuNombreExacto()
+    {
+        var p = typeof(SurfaceMapTools).GetProperty("PuertasParaNombrar");
+        if (p == null) { Pendiente("SurfaceMapTools.PuertasParaNombrar (lo que se puede nombrar al enseñar)", "503", "054"); return; }
+        (string Respuesta, string Colgado) Ensenar(string sobre, params (string Selector, string Etiqueta, string Tipo)[] puertas)
+        {
+            string colgado = "";
+            var mapa = new SurfaceMapTools(() => null)
+            {
+                // Se contesta que no para que no se tome la foto: lo que se juzga es DE QUÉ se colgaría.
+                Ensenar = (donde, sel, que, foto) => { colgado = sel; return false; },
+            };
+            p.SetValue(mapa, new Func<IReadOnlyList<(string Selector, string Etiqueta, string Tipo)>>(() => puertas));
+            string r = mapa.Call("map_esto_es", new Dictionary<string, string> { ["significado"] = "el campo de la búsqueda", ["sobre"] = sobre });
+            return (r, colgado);
+        }
+
+        // La sesión real del 2026-09-28: «Search» es un ComboBox de 1.203 px, y se colgó de «Search by voice».
+        var exacto = Ensenar("Search", ("uia:aid=ti6dpd;ct=ComboBox", "Search", "ComboBox"),
+            ("uia:name=Search by voice;ct=Button", "Search by voice", "Button"), ("uia:name=Search by image;ct=Button", "Search by image", "Button"));
+        Debe(exacto.Colgado == "uia:aid=ti6dpd;ct=ComboBox",
+            $"con «Search» en pantalla, el recuerdo se cuelga de «Search» y no de lo que lo contiene (se colgó de «{exacto.Colgado}»)");
+
+        var empate = Ensenar("Search", ("uia:name=Search by voice;ct=Button", "Search by voice", "Button"),
+            ("uia:name=Search by image;ct=Button", "Search by image", "Button"));
+        Debe(empate.Colgado == "", $"si varios lo contienen no se cuelga de ninguno (se colgó de «{empate.Colgado}»)");
+        Debe(empate.Respuesta.Contains("Search by voice") && empate.Respuesta.Contains("Search by image"),
+            $"y se dicen los dos, para que quien enseña elija (dijo «{empate.Respuesta}»)");
+
+        var unico = Ensenar("Copilot", ("uia:name=Copilot anclado;ct=Button", "Copilot anclado", "Button"));
+        Debe(unico.Colgado == "uia:name=Copilot anclado;ct=Button", $"si uno solo lo contiene, es ese (se colgó de «{unico.Colgado}»)");
+
+        // Y LO QUE SE PUEDE NOMBRAR INCLUYE LOS CAMPOS ANCHOS. Lo de arriba inyecta la lista; el sabotaje del 2026-09-28
+        // mostró que el filtro de verdad —el que dejó fuera el «Search» de 1.203 px— no lo juzgaba nadie.
+        var sePuede = typeof(SurfaceMapTools).GetMethod("SePuedeNombrar", BindingFlags.NonPublic | BindingFlags.Static);
+        if (sePuede == null) { Pendiente("SurfaceMapTools.SePuedeNombrar (qué se puede nombrar al enseñar)", "503", "054"); return; }
+        bool N(string tipo, double ancho) => (bool)sePuede.Invoke(null, new object[] { tipo, ancho, 63.0 })!;
+        Debe(N("ComboBox", 1203) && N("Edit", 1203), "un campo o un combo ancho no se puede nombrar: el «Search» de Google mide 1.203 px");
+        Debe(N("Button", 80) && !N("Pane", 1203) && !N("Button", 1203), "una puerta visible sí se nombra; un panel, o un botón que ocupa media pantalla, no");
+    }
+
+    private static void HacerEsRapidoTraigaLoQueTraiga()
+    {
+        // LOS ARGUMENTOS DEL MODELO DE VERDAD (sesión de voz del 2026-09-28, 03:40:09): map_take exit=«Barra de direcciones
+        // y de búsqueda» decir=«Compruebo si es la empresa…» recuerdo=«Barra para cambiar la búsqueda del navegador».
+        var m = MapaConManosContadas();
+        m.Mapa.Call("map_take", new Dictionary<string, string>
+        {
+            ["exit"] = "Barra de direcciones y de búsqueda", ["which"] = "",
+            ["decir"] = "Compruebo si es la empresa de crédito de tu teléfono.",
+            ["recuerdo"] = "Barra para cambiar la búsqueda del navegador.", ["foo"] = "bar",
+        });
+        Debe(m.Ciclo == 1 && m.Coreografia == 0 && m.Nucleo == 0,
+            $"con decir y recuerdo el clic no fue por el ciclo rápido: ciclo {m.Ciclo}, coreografía {m.Coreografia}, núcleo {m.Nucleo}");
+
+        // El modo explícito sobrevive: cuando la app señala al actuar (comprobación, encargo), coreografía.
+        var e = MapaConManosContadas();
+        e.Mapa.SenalarAlActuar = true;
+        e.Mapa.Call("map_take", new Dictionary<string, string> { ["exit"] = "Buscar", ["decir"] = "Busco." });
+        Debe(e.Coreografia == 1 && e.Ciclo == 0, $"en una comprobación la coreografía no se dio: coreografía {e.Coreografia}, ciclo {e.Ciclo}");
+
+        // Escribir en SAP con decir y recuerdo va por la mano de SAP, no por la coreografía.
+        var s = MapaConManosContadas();
+        var sap = new SurfaceMapTools(() => new U.WindowsClient.Uia.SurfaceLocator.SurfaceLocation("sapgui://PRD/NV2000", "sapgui", "NV2000"));
+        sap.RecorrerPorElNucleo = s.Mapa.RecorrerPorElNucleo;
+        sap.DarUnPasoConCoreografia = s.Mapa.DarUnPasoConCoreografia;
+        sap.Call("map_type", new Dictionary<string, string> { ["text"] = "123", ["target"] = "Documento", ["decir"] = "Escribo.", ["recuerdo"] = "El documento." });
+        Debe(s.Coreografia == 0 && s.Nucleo == 1, $"escribir en SAP con decir y recuerdo se desvió: coreografía {s.Coreografia}, núcleo {s.Nucleo}");
+    }
+
+    private static void ElTopeVeLosClicsRapidos()
+    {
+        // Con el 100 % de los clics de voz por el ciclo rápido, una mano rápida sin «Pulsado» dejaría ciego al tope de la
+        // 204: el tercer intento sobre el mismo botón se daría. Hoy la mano rápida no lo lleva (SurfaceMapTools, Take).
+        var prop = typeof(SurfaceMapTools).GetProperty("CicloRapido")!;
+        var ret = prop.PropertyType.GetGenericArguments().Last();
+        var tupla = Nullable.GetUnderlyingType(ret) ?? ret;
+        if (tupla.GetGenericArguments().Length < 3) { Pendiente("CicloRapido devuelve lo pulsado (texto, cambio, pulsado)", "499", "054"); return; }
+        const string clave = "uia:name=Guardar;ct=Button";
+        var mapa = new SurfaceMapTools(() => null);
+        mapa.RecorrerPorElNucleo = _ => new RecorrerSegunElNucleo.Resultado(1, 1, "", true, "hice los 1 paso(s)");
+        Func<string, int, Func<string, string?>?, (string, bool?, string)?> ciclo = (_, __, ___) => ("pulsé «Guardar» (Button) y la pantalla no cambió.", false, clave);
+        prop.SetValue(mapa, ciclo);
+        mapa.Call("map_take", new Dictionary<string, string> { ["exit"] = "Guardar" });
+        var mano = mapa.UltimaMano;
+        Debe(mano?.Pulsado == clave, $"la mano del clic rápido no lleva lo pulsado: «{mano?.Pulsado}»");
+
+        var tope = new TopeDeIntentos();
+        for (int i = 0; i < 2; i++)
+            tope.Despues("map_take", "Guardar", false, mano?.Intento, mano?.Logro, "la pantalla no cambió", null, mano?.Pulsado);
+        Debe(tope.AntesDePulsar("map_take", clave) != null, "tras dos clics rápidos fallidos sobre el mismo botón, el tope no frena el tercero");
+
+        // Y EL CICLO DE VERDAD LO DICE. Lo de arriba usa un ciclo de mentira que ya trae la clave; el sabotaje del 2026-09-28
+        // dejó al ciclo sin decir qué pulsó y la promesa siguió verde. Aquí se le pregunta al ciclo: la clave con la que
+        // consulta al tope antes de pulsar es la misma que dice después.
+        var guardar = Pantalla(new[] { "Documento" }, ("Guardar", "Button", 200, 300));
+        var cm = CicloCon(guardar, guardar);
+        string? preguntada = null;
+        cm.Ciclo.GetType().GetProperty("AntesDePulsar")!.SetValue(cm.Ciclo, new Func<string, string?>(k => { preguntada = k; return null; }));
+        Pulsar(cm, "Guardar");
+        string dicha = (string)cm.Ciclo.GetType().GetProperty("ClaveDelPulsado")!.GetValue(cm.Ciclo)!;
+        Debe(preguntada == clave && dicha == clave,
+            $"el ciclo no consulta al tope y dice lo pulsado con la misma clave: preguntó «{preguntada}», dijo «{dicha}»");
+
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        Debe(File.ReadAllText(cara).Contains("ciclo.ClaveDelPulsado)"), "[cableado] la cara no le pasa a la mano lo que el ciclo pulsó");
+    }
+
+    private static void CadaLlamadaDiceSuCamino()
+    {
+        if (typeof(SurfaceMapTools).GetProperty("UltimoCamino") == null) { Pendiente("SurfaceMapTools.UltimoCamino (el camino de cada llamada)", "509", "054"); return; }
+        var m = MapaConManosContadas();
+        m.Mapa.Call("map_take", new Dictionary<string, string> { ["exit"] = "Buscar" });
+        var c = CaminoDe(m.Mapa);
+        Debe(c?.Camino == "ciclo-rapido" && c?.Inesperado == false, $"un clic por nombre por el ciclo rápido no lo dijo así: {c}");
+        Debe(U.WindowsClient.Diagnostics.LogBus.Snapshot().TakeLast(6).Any(l => l.Contains("camino: map_take → ciclo-rapido")), "el log no dice por qué camino fue el clic");
+
+        // El ciclo no se encarga (no es suyo): va por el núcleo, y fuera de una comprobación eso es inesperado.
+        var n = MapaConManosContadas();
+        n.RespuestaDelCiclo = null;
+        n.Mapa.Call("map_take", new Dictionary<string, string> { ["exit"] = "Buscar" });
+        var cn = CaminoDe(n.Mapa);
+        Debe(cn?.Camino == "nucleo" && cn?.Inesperado == true && (cn?.Razon ?? "").Length > 0, $"un clic por nombre que acabó en el núcleo no dejó razón ni alarma: {cn}");
+        Debe(U.WindowsClient.Diagnostics.LogBus.Snapshot().TakeLast(6).Any(l => l.Contains("⚠ camino inesperado")), "no hay «⚠ camino inesperado» en el log");
+
+        // SAP va por el núcleo y es lo esperado: sin alarma.
+        var s = MapaConManosContadas();
+        s.Mapa.Call("map_take", new Dictionary<string, string> { ["exit"] = "sap:wnd[0]/tbar[1]/btn[8]" });
+        var cs = CaminoDe(s.Mapa);
+        Debe(cs?.Camino == "nucleo" && cs?.Inesperado == false, $"un selector de SAP por el núcleo se tomó por inesperado: {cs}");
+    }
+
+    private static void EscribirEsperaComoU()
+    {
+        // MEDIDO EL 2026-09-27: map_type, 447 ms de acto con la escritura instantánea: el resto era EsperarPantallaLista,
+        // que cuenta accionables con el lector viejo cada 90 ms hasta dos iguales, techo 900.
+        var p = typeof(SurfaceMapTools).GetProperty("EsperarTrasEscribir");
+        if (p == null) { Pendiente("SurfaceMapTools.EsperarTrasEscribir (la espera de u/ tras escribir)", "496", "054"); return; }
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string herramientas = Path.Combine(repo, "windows-client", "src", "Mcp", "SurfaceMapTools.cs");
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(herramientas) || !File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO."); return; }
+        string h = File.ReadAllText(herramientas), c = File.ReadAllText(cara);
+        Debe(h.Contains("EsperarTrasEscribir?.Invoke()"), "escribir no usa la espera de u/");
+        var conexion = System.Text.RegularExpressions.Regex.Match(c, @"EsperarTrasEscribir = \(\) =>[\s\S]*?\};");
+        Debe(conexion.Success && conexion.Value.Contains("Asentado.Quieta") && conexion.Value.Contains("300"), "nadie conecta la espera de u/ tras escribir (Asentado.Quieta, techo 300 ms)");
+        var mirar = System.Text.RegularExpressions.Regex.Match(c, @"LoQueVeoRapido = \(\) =>[\s\S]*?\};");
+        Debe(mirar.Success && mirar.Value.Contains("UltimaEnMs"), "mirar después de escribir vuelve a leer en vez de usar la lectura de la espera");
+    }
+
+    private static void MirarLeeComoU()
+    {
+        // MEDIDO EL 2026-09-27: map_what_i_see costaba 95-205 ms con el lector viejo, de la ventana de la persona y sin los
+        // textos de la pantalla —el visor de la Calculadora no se veía, y Jev pulsó «Siete» seis veces—. El lector de u/
+        // lee 20-100 ms y trae los textos.
+        var t = typeof(SurfaceMapTools);
+        var p = t.GetProperty("LoQueVeoRapido");
+        if (p == null) { Pendiente("SurfaceMapTools.LoQueVeoRapido (mirar con el lector de u/)", "495", "054"); return; }
+        Debe(p.PropertyType == typeof(Func<string?>), $"LoQueVeoRapido es {p.PropertyType.Name}: tiene que ser Func<string?> (null = SAP, decide el lector de siempre)");
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string herramientas = Path.Combine(repo, "windows-client", "src", "Mcp", "SurfaceMapTools.cs");
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(herramientas) || !File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        var loQueVeo = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(herramientas), @"private string LoQueVeo\(\)[\s\S]*?\n    \}");
+        Debe(loQueVeo.Success && loQueVeo.Value.Contains("LoQueVeoRapido?.Invoke()"), "LoQueVeo no pregunta primero al lector de u/");
+        Debe(File.ReadAllText(cara).Contains("LoQueVeoRapido ="), "nadie conecta LoQueVeoRapido: mirar seguiría con el lector viejo");
+    }
+
+    // ── Spec 061: la carita visita lo que Ü toca, y no le roba un clic ──────────────────────────────────────────────
+    // LO QUE PASÓ EL 2026-09-27: la carita se posaba ~80 px sobre el clic y el clic siguiente de Ü caía en ella, que abre
+    // la voz de pago. Cinco sesiones en un día. La sonda 0 (2026-09-28) midió las palancas: con WS_EX_TRANSPARENT un clic
+    // real la atraviesa; un gancho ve la firma de dwExtraInfo antes que WPF; y tirar un clic firmado NO evita que la
+    // ventana se active. Por eso son cuatro guardas y no una.
+
+    private static string? FuenteDe(params string[] ruta)
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string f = Path.Combine(new[] { repo }.Concat(ruta).ToArray());
+        if (File.Exists(f)) return File.ReadAllText(f);
+        _fallos++; Console.WriteLine($"   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO no encuentro {string.Join("/", ruta)}.");
+        return null;
+    }
+
+    private static void LaCaritaVaDespuesDelClic()
+    {
+        var pAviso = CicloRapidoT()?.GetProperty("TrasPulsar");
+        if (pAviso == null) { Pendiente("CicloRapido.TrasPulsar (el aviso tras el clic)", "504", "061"); return; }
+        var inicio = Pantalla(new[] { "Inicio" }, ("Sistema", "ListItem", 200, 300), ("Inicio", "ListItem", 200, 260));
+        var sistema = Pantalla(new[] { "Resolución 1920 × 1080" }, ("Pantalla", "ListItem", 200, 300), ("Sonido", "ListItem", 200, 340));
+
+        var sin = CicloCon(inicio, inicio, sistema);
+        string rSin = Pulsar(sin, "Sistema") ?? "";
+
+        // Con aviso: sale UNA vez, después del clic y antes de esperar el cambio, con la caja del elemento.
+        var con = CicloCon(inicio, inicio, sistema);
+        var avisos = new List<(U.Ciclo.Caja Caja, int Clics, int Lecturas)>();
+        pAviso.SetValue(con.Ciclo, new Action<U.Ciclo.Caja>(c => avisos.Add((c, con.Clics.Count, con.Lecturas))));
+        string rCon = Pulsar(con, "Sistema") ?? "";
+        Debe(avisos.Count == 1, $"el aviso tras el clic no salió una vez (salió {avisos.Count})");
+        if (avisos.Count == 1)
+        {
+            Debe(avisos[0].Clics == 1, "el aviso salió antes del clic: la carita iría a donde Ü está a punto de pulsar");
+            Debe(avisos[0].Lecturas == 1, $"el aviso no salió justo tras el clic, sino después de esperar el cambio (lecturas al avisar: {avisos[0].Lecturas})");
+            Debe(avisos[0].Caja.Equals(new U.Ciclo.Caja(200, 300, 100, 30)), $"el aviso no lleva la caja del elemento: {avisos[0].Caja}");
+        }
+        Debe(rCon == rSin, "con aviso el ciclo contesta otra cosa que sin él");
+
+        // Un aviso que revienta no cambia nada, y deja dicho por qué: nada de catch mudo (patrón nº3).
+        var rev = CicloCon(inicio, inicio, sistema);
+        pAviso.SetValue(rev.Ciclo, new Action<U.Ciclo.Caja>(_ => throw new InvalidOperationException("la carita no está")));
+        string rRev = "";
+        try { rRev = Pulsar(rev, "Sistema") ?? ""; } catch (Exception e) { Debe(false, $"un aviso que revienta hizo reventar el clic: {e.GetBaseException().Message}"); }
+        Debe(rRev == rSin && rev.Clics.Count == sin.Clics.Count && rev.Lecturas == sin.Lecturas,
+            $"un aviso que revienta cambió lo que el ciclo hace o contesta («{rRev[..Math.Min(80, rRev.Length)]}»)");
+        string fallo = rev.Ciclo.GetType().GetProperty("AvisoFallido")?.GetValue(rev.Ciclo) as string ?? "";
+        Debe(fallo.Contains("InvalidOperationException"), $"el aviso reventó y no quedó dicho por qué («{fallo}»)");
+
+        // Sin clic no hay aviso: lo que no está, y el freno.
+        var nada = CicloCon(inicio);
+        int n = 0;
+        pAviso.SetValue(nada.Ciclo, new Action<U.Ciclo.Caja>(_ => n++));
+        Pulsar(nada, "Bluetooth");
+        nada.Freno = true; Pulsar(nada, "Sistema");
+        Debe(n == 0, $"hubo aviso sin clic ({n})");
+
+        // EL AVISO DE VERDAD llega por el pulso con la caja, y si quien escucha revienta, el aviso lo dice en vez de
+        // tragárselo (la crítica del 2026-09-28: AvisarDelPulso tenía un catch mudo y AvisoFallido nunca se habría visto).
+        var avisar = CicloRapidoT()?.GetMethod("AvisarALaCarita", BindingFlags.Public | BindingFlags.Static);
+        if (avisar == null) { Pendiente("CicloRapido.AvisarALaCarita (el aviso de verdad, por el pulso)", "504", "061"); return; }
+        (double, double, double, double)? llego = null;
+        Action<double, double, double, double> oye = (x, y, w, h) => llego = (x, y, w, h);
+        Action<double, double, double, double> revienta = (_, _, _, _) => throw new InvalidOperationException("la carita no está");
+        U.Graph.Surfaces.UiaSurface.Pulso += oye;
+        try { avisar.Invoke(null, new object[] { new U.Ciclo.Caja(200, 300, 100, 30) }); }
+        finally { U.Graph.Surfaces.UiaSurface.Pulso -= oye; }
+        Debe(llego == (200, 300, 100, 30), $"el aviso no llegó al pulso con la caja del elemento ({llego})");
+        U.Graph.Surfaces.UiaSurface.Pulso += revienta;
+        string dicho = "";
+        try { avisar.Invoke(null, new object[] { new U.Ciclo.Caja(200, 300, 100, 30) }); }
+        catch (TargetInvocationException e) { dicho = e.InnerException?.Message ?? ""; }
+        finally { U.Graph.Surfaces.UiaSurface.Pulso -= revienta; }
+        Debe(dicho.Contains("la carita no está"), "si quien escucha el pulso revienta, el aviso se lo traga en vez de decirlo");
+
+        // [cableado] El ciclo de la cara avisa con ESE aviso; la cara lo atiende UNA vez, con BeginInvoke —el ciclo no la
+        // espera— y por Visitar, que no deja escapar un fallo al diálogo de «Ü tropezó». Y no sigue al cursor automatizado.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } c) return;
+        var bloque = System.Text.RegularExpressions.Regex.Match(c, @"var ciclo = new Navigation\.CicloRapido\([\s\S]*?mcp\.Map\.CicloRapido = ");
+        Debe(bloque.Success && bloque.Value.Contains("TrasPulsar = Navigation.CicloRapido.AvisarALaCarita"), "[cableado] el ciclo de la cara no avisa a la carita tras el clic");
+        var visita = System.Text.RegularExpressions.Regex.Match(c, @"private void Visitar\(Rect [\s\S]*?\r?\n    }\r?\n");
+        Debe(visita.Success && System.Text.RegularExpressions.Regex.IsMatch(visita.Value, @"^private void Visitar\(Rect fisico\)\r?\n    \{\r?\n        try\r?\n")
+             && visita.Value.Contains("catch (Exception"), "[cableado] un fallo de la visita sube al diálogo de «Ü tropezó» en mitad de un clic (el cuerpo entero tiene que ir dentro del try)");
+        var sus = System.Text.RegularExpressions.Regex.Matches(c, @"UiaSurface\.Pulso \+= [^;]*;");
+        Debe(sus.Count == 1 && sus[0].Value.Contains("Dispatcher.BeginInvoke(") && sus[0].Value.Contains("Visitar(") && !sus[0].Value.Contains("Dispatcher.Invoke("),
+            $"[cableado] la cara no atiende el pulso una sola vez, con BeginInvoke y por Visitar ({sus.Count} suscripción(es))");
+        Debe(!c.Contains("UiaSurface.CursorMoved += "), "[cableado] la carita vuelve a seguir al cursor automatizado");
+    }
+
+    // Una estancia de mentira: anota «traspasable»/«tocable» y cada vuelo, guarda el aviso de llegada y lleva su reloj.
+    private sealed class EstanciaDeMentira
+    {
+        public readonly List<string> Log = new();
+        public long Reloj;
+        public Action<System.Windows.Point>? AlLlegar;
+        public object E = null!;
+        public Type T = null!;
+        public static readonly System.Windows.Point Casa = new(1792, 900);
+        public static readonly System.Windows.Size Carita = new(128, 128);
+        public static readonly System.Windows.Rect Area = new(0, 0, 1920, 1040);
+        public bool Visitar(System.Windows.Rect el, System.Windows.Point desde) =>
+            (bool)T.GetMethod("Visitar")!.Invoke(E, new object[] { el, desde, Carita, Area })!;
+        public void Latido(System.Windows.Point donde, bool enVuelo) => T.GetMethod("Latido")!.Invoke(E, new object[] { donde, enVuelo });
+        public void Aterrizo(System.Windows.Point donde) => T.GetMethod("Aterrizo")!.Invoke(E, new object[] { donde });
+        public bool Tocable => (bool)T.GetProperty("Tocable")!.GetValue(E)!;
+        public System.Windows.Point? CasaAhora => (System.Windows.Point?)T.GetProperty("Casa")!.GetValue(E);
+    }
+
+    private static EstanciaDeMentira? EstanciaCon(bool conCasa = true)
+    {
+        var t = Capacidad("U.WindowsClient.Ui.EstanciaDeLaCarita");
+        if (t == null) return null;
+        var m = new EstanciaDeMentira { T = t };
+        m.E = Activator.CreateInstance(t,
+            new Action<bool>(on => m.Log.Add(on ? "traspasable" : "tocable")),
+            new Action<System.Windows.Point, TimeSpan, Action<System.Windows.Point>?>((p, d, al) =>
+            {
+                m.Log.Add($"vuela {p.X:0},{p.Y:0} {d.TotalMilliseconds:0}");
+                m.AlLlegar = al;
+            }),
+            new Func<long>(() => m.Reloj))!;
+        if (conCasa) t.GetProperty("Casa")!.SetValue(m.E, (System.Windows.Point?)EstanciaDeMentira.Casa);
+        return m;
+    }
+
+    private static void FueraDeCasaNoSeDejaTocar()
+    {
+        var m = EstanciaCon();
+        if (m == null) { Pendiente("Ui.EstanciaDeLaCarita (la carita fuera de casa)", "505", "061"); return; }
+        var boton = new System.Windows.Rect(800, 500, 100, 30);
+        Debe(m.Visitar(boton, EstanciaDeMentira.Casa), "no visitó un botón con sitio a su lado");
+        Debe(m.Log.Count >= 2 && m.Log[0] == "traspasable" && m.Log[1].StartsWith("vuela 912,", StringComparison.Ordinal),
+            $"al salir de casa, primero se vuelve transparente y después vuela (salió: {string.Join(" · ", m.Log)})");
+        Debe(!m.Tocable, "fuera de casa se deja tocar");
+
+        m.Log.Clear();
+        m.Visitar(new System.Windows.Rect(300, 200, 100, 30), new System.Windows.Point(912, 451));
+        Debe(!m.Log.Contains("traspasable") && m.Log.Any(l => l.StartsWith("vuela", StringComparison.Ordinal)),
+            $"una segunda visita estando fuera no vuela sin más (salió: {string.Join(" · ", m.Log)})");
+        m.Aterrizo(new System.Windows.Point(412, 151));
+        Debe(!m.Tocable && !m.Log.Contains("tocable"), "aterrizar junto al elemento la volvió tocable: el clic siguiente de Ü caería en ella");
+
+        // Sin sitio donde posarse no sale: ni se vuelve transparente ni vuela.
+        var q = EstanciaCon()!;
+        Debe(!q.Visitar(EstanciaDeMentira.Area, EstanciaDeMentira.Casa) && q.Log.Count == 0 && q.Tocable,
+            $"un elemento que no deja sitio la sacó de casa (salió: {string.Join(" · ", q.Log)})");
+
+        // Señalar varias (el recorrido) sale de casa por la misma puerta: transparente antes de moverse.
+        var r = EstanciaCon()!;
+        r.T.GetMethod("Salir")!.Invoke(r.E, null);
+        Debe(r.Log.SequenceEqual(new[] { "traspasable" }) && !r.Tocable, $"salir para un recorrido no la volvió transparente (salió: {string.Join(" · ", r.Log)})");
+
+        // EL BIT, EN UNA VENTANA DE VERDAD: con fantasma lleva WS_EX_TRANSPARENT (0x20) y sigue en capas (0x80000); sin él,
+        // no. Un fantasma invertido pasaba todo lo demás y traía de vuelta el incidente del 2026-09-27.
+        var poner = Capacidad("U.WindowsClient.Ui.Fantasma")?.GetMethod("Poner", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+        if (poner == null) { Debe(false, "no encuentro Ui.Fantasma.Poner"); return; }
+        var w = new System.Windows.Window { WindowStyle = System.Windows.WindowStyle.None, AllowsTransparency = true, ShowInTaskbar = false };
+        try
+        {
+            IntPtr h = new System.Windows.Interop.WindowInteropHelper(w).EnsureHandle();
+            int con = (int)poner.Invoke(null, new object[] { h, true })!, sin = (int)poner.Invoke(null, new object[] { h, false })!;
+            Debe((con & 0x20) != 0 && (con & 0x80000) != 0, $"con fantasma el ratón no la atraviesa (estilo 0x{con:X})");
+            Debe((sin & 0x20) == 0 && (sin & 0x80000) != 0, $"sin fantasma sigue sin dejarse tocar, o dejó de estar en capas (estilo 0x{sin:X})");
+        }
+        finally { w.Close(); }
+
+        // [cableado] Todo lo que la mueve por iniciativa de Ü pasa por la visita, y solo ella toca el estilo de la ventana.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } c) return;
+        string Cuerpo(string firma) => System.Text.RegularExpressions.Regex.Match(c, System.Text.RegularExpressions.Regex.Escape(firma) + @"[\s\S]*?\r?\n    }\r?\n").Value;
+        string trasp = Cuerpo("private void Traspasable(bool fantasma)");
+        Debe(trasp.Contains("Fantasma.Poner(new System.Windows.Interop.WindowInteropHelper(this).Handle, fantasma)")
+             && trasp.Contains("(_latidoDeVisita ??= NuevoLatidoDeVisita()).Start()") && trasp.Contains("_latidoDeVisita?.Stop()"),
+            "[cableado] el fantasma no pone el bit que le piden, o no arranca y para la vuelta a casa");
+        Debe(Cuerpo("private System.Windows.Threading.DispatcherTimer NuevoLatidoDeVisita()").Contains("_visita.Latido("), "[cableado] el latido de la vuelta no le pregunta a la regla");
+        string volar = Cuerpo("private void VolarDeVisita(");
+        Debe(volar.Contains("new CurvaDelClic()") && volar.Contains("alAterrizar: alAterrizar") && !volar.Contains("MoverConMuelle("),
+            "[cableado] la visita no vuela con la curva sin rebote, o pierde el aviso de llegada");
+        string recorrer = Cuerpo("private void Recorrer(");
+        int enSalir = recorrer.IndexOf("_visita.Salir();", StringComparison.Ordinal), enRecorrido = recorrer.IndexOf("Vuelo.Recorrido(", StringComparison.Ordinal);
+        Debe(enSalir >= 0 && enRecorrido > enSalir, "[cableado] el recorrido de varias no sale de casa por la visita antes de volar");
+        Debe(recorrer.Contains("paradas.Count == 1"), "[cableado] un recorrido que se queda en una parada vuela con el muelle que rebota");
+        // Lo único que mueve con el muelle es el carrusel, que es un gesto de la persona (fuera de la visita, dicho en la spec).
+        var muelle = System.Text.RegularExpressions.Regex.Matches(c, @"(?<!void )MoverConMuelle\(").Count;
+        Debe(muelle == 2 && Cuerpo("private void EncimaDe(").Contains("MoverConMuelle(") && Cuerpo("private void VolverASuSitio(").Contains("MoverConMuelle("),
+            $"[cableado] algo más que el carrusel mueve la carita con el muelle ({muelle} llamada(s))");
+        Debe(!c.Contains("IrJuntoA("), "[cableado] sigue existiendo un camino que mueve la carita sin pasar por la visita (IrJuntoA)");
+        var senala = System.Text.RegularExpressions.Regex.Match(c, @"Senalador\.Senala \+= [^;]*;");
+        Debe(senala.Success && senala.Value.Contains("Visitar("), "[cableado] señalar no pasa por la visita");
+        int salir = c.IndexOf("_visita.Salir()", StringComparison.Ordinal), recorrido = c.IndexOf("Vuelo.Recorrido(", StringComparison.Ordinal);
+        Debe(salir >= 0 && recorrido > salir, "[cableado] el recorrido de varias no sale de casa por la visita antes de volar");
+        Debe(!c.Contains("SetWindowLong(") && System.Text.RegularExpressions.Regex.Matches(c, @"Fantasma\.Poner\(").Count == 1,
+            "[cableado] el estilo de la carita lo toca algo más que la visita (se espera un solo Fantasma.Poner y ningún SetWindowLong)");
+    }
+
+    private static void LaCaritaSePosaAlLadoYNuncaEncima()
+    {
+        var junto = Capacidad("U.WindowsClient.Ui.ReglaDeLaVisita")?.GetMethod("Junto", BindingFlags.Public | BindingFlags.Static);
+        if (junto == null) { Pendiente("Ui.ReglaDeLaVisita.Junto (dónde se posa la carita)", "506", "061"); return; }
+        var area = EstanciaDeMentira.Area;
+        var carita = EstanciaDeMentira.Carita;
+        System.Windows.Point? J(System.Windows.Rect el) => (System.Windows.Point?)junto.Invoke(null, new object[] { el, carita, area });
+        void Posada(string caso, System.Windows.Rect el, Func<System.Windows.Point, bool> lado)
+        {
+            if (J(el) is not { } p) { Debe(false, $"{caso}: no se posó en ningún lado"); return; }
+            var r = new System.Windows.Rect(p, carita);
+            Debe(area.Contains(r), $"{caso}: se posó fuera del área ({r})");
+            Debe(!r.IntersectsWith(el), $"{caso}: se posó ENCIMA del elemento ({r} corta {el})");
+            Debe(lado(p), $"{caso}: no eligió el lado que tocaba ({p})");
+        }
+        Posada("un botón en medio → a su derecha", new(800, 500, 100, 30), p => p.X >= 900);
+        Posada("una tecla pegada al borde derecho → a su izquierda", new(1850, 500, 60, 30), p => p.X + 128 <= 1850);
+        Posada("una barra de lado a lado → debajo", new(0, 500, 1920, 30), p => p.Y >= 530);
+        Posada("una barra de lado a lado abajo del todo → encima", new(0, 1000, 1920, 40), p => p.Y + 128 <= 1000);
+        Debe(J(area) == null, "un elemento que ocupa toda el área no deja sitio, y aun así se posó");
+        // La rejilla de teclas del incidente: nunca encima de la tecla que tocó.
+        for (int f = 0; f < 6; f++)
+            for (int k = 0; k < 4; k++)
+            {
+                var tecla = new System.Windows.Rect(1400 + k * 80, 400 + f * 60, 76, 56);
+                if (J(tecla) is { } p) Debe(!new System.Windows.Rect(p, carita).IntersectsWith(tecla), $"la tecla {f},{k}: se posó encima");
+            }
+
+        // La curva sin rebote, que juzgaba la 240 (retirada): nunca pasa de 1, siempre crece, y el viaje es corto.
+        double C(double t) => U.Graph.Surfaces.ComoViajaLaCarita.Curva(t);
+        Debe(Math.Abs(C(0)) < 1e-9 && Math.Abs(C(1) - 1) < 1e-9, "la curva no va de 0 a 1");
+        bool sube = true; double antes = 0, max = 0;
+        for (int i = 1; i <= 200; i++) { double v = C(i / 200.0); if (v < antes - 1e-9) sube = false; antes = v; max = Math.Max(max, v); }
+        Debe(sube && max <= 1 + 1e-9, $"la curva rebota (máximo {max:0.000}): cruzaría el elemento al posarse");
+        Debe(U.Graph.Surfaces.ComoViajaLaCarita.Cuanto(3000).TotalMilliseconds <= 450, "cruzar la pantalla tarda más de 450 ms");
+    }
+
+    private static void LaCaritaVuelveSolaASuSitio()
+    {
+        var m = EstanciaCon();
+        if (m == null) { Pendiente("Ui.EstanciaDeLaCarita (la vuelta a casa)", "507", "061"); return; }
+        int quietud = (int)m.T.GetField("QuietudMs")!.GetValue(null)!;
+        var fuera = new System.Windows.Point(912, 451);
+        m.Visitar(new System.Windows.Rect(800, 500, 100, 30), EstanciaDeMentira.Casa);
+        m.Log.Clear();
+
+        m.Reloj = quietud - 1; m.Latido(fuera, false);
+        Debe(m.Log.Count == 0, $"volvió antes del rato sin visitas ({string.Join(" · ", m.Log)})");
+        m.Reloj = quietud; m.Latido(fuera, false);
+        double dist = Math.Sqrt(Math.Pow(1792 - 912, 2) + Math.Pow(900 - 451, 2));
+        string vuelta = $"vuela 1792,900 {U.Graph.Surfaces.ComoViajaLaCarita.Cuanto(dist).TotalMilliseconds:0}";
+        Debe(m.Log.SequenceEqual(new[] { vuelta }), $"tras el rato sin visitas no voló a casa con la curva de siempre (salió: {string.Join(" · ", m.Log)})");
+        Debe(!m.Tocable, "se deja tocar mientras vuelve: el viaje de vuelta puede cruzar lo que Ü va a pulsar");
+
+        // Un vuelo cortado no es una llegada: sin aviso de llegada, el siguiente latido la manda otra vez.
+        m.Log.Clear();
+        m.Latido(new System.Windows.Point(1300, 700), true);
+        Debe(m.Log.Count == 0, "relanzó la vuelta con un vuelo en curso");
+        m.Reloj = quietud + 300; m.Latido(new System.Windows.Point(1300, 700), false);
+        Debe(m.Log.Count == 1 && m.Log[0].StartsWith("vuela 1792,900", StringComparison.Ordinal) && !m.Tocable,
+            $"un vuelo cortado no la mandó otra vez a casa, o la dio por llegada (salió: {string.Join(" · ", m.Log)})");
+
+        // Una visita mientras vuelve empieza el rato otra vez.
+        m.Log.Clear();
+        m.Reloj = 2400 + quietud; long visita = m.Reloj;
+        m.Visitar(new System.Windows.Rect(300, 200, 100, 30), new System.Windows.Point(1300, 700));
+        m.Log.Clear();
+        m.Reloj = visita + quietud - 1; m.Latido(new System.Windows.Point(412, 151), false);
+        Debe(m.Log.Count == 0, "una visita durante la vuelta no reinició el rato");
+        m.Reloj = visita + quietud; m.Latido(new System.Windows.Point(412, 151), false);
+        Debe(m.Log.Count == 1 && m.AlLlegar != null, "tras la nueva visita no volvió a casa");
+
+        // Solo posarse EN CASA la vuelve tocable, y una sola vez.
+        m.Log.Clear();
+        m.AlLlegar?.Invoke(new System.Windows.Point(1500, 800));
+        Debe(!m.Tocable && m.Log.Count == 0, "posarse fuera de casa la volvió tocable");
+        m.AlLlegar?.Invoke(EstanciaDeMentira.Casa);
+        Debe(m.Tocable && m.Log.Count(l => l == "tocable") == 1, $"al posarse en casa no volvió a dejarse tocar (salió: {string.Join(" · ", m.Log)})");
+        Debe(m.CasaAhora == EstanciaDeMentira.Casa, $"una visita cambió la casa: ahora es {m.CasaAhora}");
+
+        // Si otra cosa la dejó ya en casa (el carrusel al cerrarse), el latido la da por llegada sin volar.
+        var ya = EstanciaCon()!;
+        ya.Visitar(new System.Windows.Rect(800, 500, 100, 30), EstanciaDeMentira.Casa);
+        ya.Log.Clear();
+        ya.Reloj = quietud; ya.Latido(EstanciaDeMentira.Casa, false);
+        Debe(ya.Tocable && ya.Log.SequenceEqual(new[] { "tocable" }), $"ya en casa, no volvió a dejarse tocar sin volar (salió: {string.Join(" · ", ya.Log)})");
+
+        var sinCasa = EstanciaCon(conCasa: false)!;
+        Debe(!sinCasa.Visitar(new System.Windows.Rect(800, 500, 100, 30), EstanciaDeMentira.Casa) && sinCasa.Log.Count == 0,
+            "sin casa conocida salió igual: no sabría volver");
+
+        // [cableado] La casa la pone la persona: donde la dejó al arrancar o al moverla; lo que mueve Ü no se guarda.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } c) return;
+        var visitar = System.Text.RegularExpressions.Regex.Match(c, @"private void Visitar\(Rect [\s\S]*?\r?\n    }\r?\n");
+        Debe(visitar.Success && !visitar.Value.Contains("OnWindowMoved(") && !visitar.Value.Contains("SavePositionSoon(") && !visitar.Value.Contains(".Casa ="),
+            "[cableado] la visita guarda su sitio como si lo hubiera elegido la persona");
+        var movida = System.Text.RegularExpressions.Regex.Match(c, @"void OnWindowMoved\([\s\S]*?\r?\n    }\r?\n");
+        Debe(movida.Success && movida.Value.Contains("_visita.Casa ="), "[cableado] mover la carita a mano no le cambia la casa");
+    }
+
+    private static void UnClicDeUNoEsUnToque()
+    {
+        var firma = typeof(U.Ciclo.Raton).GetField("Firma", BindingFlags.Public | BindingFlags.Static);
+        var entradas = typeof(U.Ciclo.Raton).GetMethod("EntradasDelClic", BindingFlags.Public | BindingFlags.Static);
+        var toques = Capacidad("U.WindowsClient.Ui.ToquesDeU");
+        var descartar = toques?.GetMethod("Descartar", BindingFlags.Public | BindingFlags.Static);
+        var alMensaje = toques?.GetMethod("AlMensaje", BindingFlags.Public | BindingFlags.Static);
+        if (firma == null || entradas == null || descartar == null || alMensaje == null)
+        { Pendiente("Raton.Firma, Raton.EntradasDelClic y Ui.ToquesDeU", "508", "061"); return; }
+        IntPtr F = (IntPtr)firma.GetValue(null)!;
+        Debe(F != IntPtr.Zero && ((long)F & 0xFFFFFF00) != 0xFF515700, $"la firma 0x{(long)F:X} es cero o choca con la de WPF para el lápiz (0xFF5157xx)");
+        var es = ((System.Collections.IEnumerable)entradas.Invoke(null, null)!).Cast<object>().ToList();
+        Debe(es.Count == 2 && es.All(x => (IntPtr)x.GetType().GetField("Item2")!.GetValue(x)! == F), "los clics de Ü no llevan su firma");
+        var fg = Grafico("U.Graph.Surfaces.UiaSurface")?.GetField("FirmaDeU", BindingFlags.Public | BindingFlags.Static);
+        Debe(fg != null && Convert.ToInt64(fg.GetValue(null)) == (long)F, "la superficie de UIA firma con otra cosa, o no firma (aprendizaje nº16: dos identidades que tienen que ser la misma)");
+
+        bool D(int msg, long extra) => (bool)descartar.Invoke(null, new object[] { msg, new IntPtr(extra) })!;
+        long f = (long)F;
+        Debe(D(0x201, f) && D(0x202, f) && D(0x204, f) && D(0x205, f) && D(0x20A, f), "un clic o una rueda firmados por Ü no se tiran");
+        Debe(!D(0x201, 0) && !D(0x202, 0), "se tira el clic de la persona");
+        Debe(!D(0x201, unchecked((long)0xFF515780)), "se tira un clic del lápiz");
+        Debe(!D(0x200, f), "se tira un movimiento firmado: el paso del ratón no se puede tirar sin romper el hover");
+
+        var anotado = new List<string>();
+        bool deU = (bool)alMensaje.Invoke(null, new object[] { new IntPtr(0x1234), 0x201, new Func<IntPtr>(() => F), new Action<string>(anotado.Add) })!;
+        bool deLaPersona = (bool)alMensaje.Invoke(null, new object[] { new IntPtr(0x1234), 0x201, new Func<IntPtr>(() => IntPtr.Zero), new Action<string>(anotado.Add) })!;
+        Debe(deU && !deLaPersona && anotado.Count == 1 && anotado[0].Contains("descartado"),
+            $"el filtro no tira lo firmado y deja pasar lo demás, diciéndolo una vez ({string.Join(" · ", anotado)})");
+
+        // [cableado] Los 6 sitios de botón y los 3 de rueda firman (patrón nº5), y el filtro se instala al arrancar.
+        // EL FILTRO INSTALADO tira de verdad: un botón firmado que pasa por el hilo se da por manejado; uno sin firma, no.
+        var instalar = toques!.GetMethod("Instalar", BindingFlags.Public | BindingFlags.Static);
+        if (instalar == null || instalar.GetParameters().Length != 1) { Pendiente("ToquesDeU.Instalar(lector de la firma)", "508", "061"); return; }
+        IntPtr leido = F;
+        instalar.Invoke(null, new object?[] { new Func<IntPtr>(() => leido) });
+        var boton = new System.Windows.Interop.MSG { message = 0x201 };
+        bool tirado = System.Windows.Interop.ComponentDispatcher.RaiseThreadMessage(ref boton);
+        leido = IntPtr.Zero;
+        bool paso = !System.Windows.Interop.ComponentDispatcher.RaiseThreadMessage(ref boton);
+        Debe(tirado && paso, $"el filtro instalado no tira el botón firmado ({tirado}) o tira el de la persona ({!paso})");
+
+        if (FuenteDe("u", "Nucleo", "Raton.cs") is not { } raton) return;
+        string Metodo(string fuente, string firma) => System.Text.RegularExpressions.Regex.Match(fuente, System.Text.RegularExpressions.Regex.Escape(firma) + @"[\s\S]*?\r?\n    }\r?\n").Value;
+        string clic = Metodo(raton, "public static void Clic(int x, int y)");
+        Debe(clic.Contains("EntradasDelClic()") && clic.Contains("Extra = p.Extra"), "[cableado] Raton.Clic no manda las entradas firmadas");
+        Debe(Metodo(raton, "public static void Desplazar(int x, int y, int muescas)").Contains("Extra = Firma"), "[cableado] la rueda de Raton no lleva firma: sobre la carita en casa, la lanzaría y le cambiaría la casa");
+        if (FuenteDe("windows-graph", "src", "Surfaces", "UiaSurface.cs") is not { } uia) return;
+        var llamadas = System.Text.RegularExpressions.Regex.Matches(uia, @"(?<!extern void )mouse_event\([^;]*\);").Select(x => x.Value).ToList();
+        Debe(llamadas.Count == 10 && llamadas.All(l => l.Contains("FirmaDeU")), $"[cableado] UiaSurface: {llamadas.Count(l => l.Contains("FirmaDeU"))} de {llamadas.Count} mouse_event firmados (se esperan 10 de 10)");
+        if (FuenteDe("windows-client", "src", "Actions", "InputExecutor.cs") is not { } exe) return;
+        var entradasIe = System.Text.RegularExpressions.Regex.Matches(exe, @"new MOUSEINPUT \{[^}]*\}").Select(x => x.Value).ToList();
+        Debe(entradasIe.Count == 3 && entradasIe.All(e => e.Contains("dwExtraInfo = U.Ciclo.Raton.Firma")), $"[cableado] InputExecutor: {entradasIe.Count(e => e.Contains("dwExtraInfo = U.Ciclo.Raton.Firma"))} de {entradasIe.Count} MOUSEINPUT firmados");
+        if (FuenteDe("windows-client", "App.xaml.cs") is not { } app) return;
+        foreach (var ventana in new[] { new[] { "Ui", "FaceWindow.xaml.cs" }, new[] { "Ui", "Muelle.cs" }, new[] { "Ui", "ConsultaWindow.cs" } })
+        {
+            if (FuenteDe(new[] { "windows-client", "src" }.Concat(ventana).ToArray()) is not { } v) return;
+            Debe(v.Contains("ToquesDeU.Proteger(this)"), $"[cableado] {ventana[1]} abre la voz con un clic y no tiene su propio gancho: un bucle modal se salta el filtro de hilo");
+        }
+        int carteles = app.IndexOf("Ui.SinCarteles.Aplicar()", StringComparison.Ordinal), filtro = app.IndexOf("Ui.ToquesDeU.Instalar()", StringComparison.Ordinal);
+        Debe(carteles >= 0 && filtro > carteles, "[cableado] el filtro de toques no se instala al arrancar (después de SinCarteles, promesa 164)");
+    }
+
+    // ── Spec 062: Luna planea por objetivos, Jeff ejecuta ──
+
+    private static void PensarYEjecutarSeSeparan()
+    {
+        // LA SESIÓN DEL DUEÑO DEL 2026-09-28 (p33388): ~59 de 77 s eran Luna pensando, y eso se sacó a mano restando huecos
+        // de un log con resolución de un segundo. La meta del 20 % necesita la medida en cada pedido, no un script.
+        var t = Cap004("U.WindowsClient.Voice.CuentaDelTurno");
+        if (t?.GetMethod("Trabajo") == null || t.GetMethod("Hablo") == null) { Pendiente("CuentaDelTurno.Trabajo y CuentaDelTurno.Hablo (separar pensar de ejecutar)", "512", "062"); return; }
+        long ahora = 0;
+        var c = Activator.CreateInstance(t, new object[] { (Func<long>)(() => ahora) })!;
+        void M(string metodo, params object[] a) => t.GetMethod(metodo)!.Invoke(c, a);
+
+        M("Peticion");
+        ahora = 400; M("Hablo");   // lo que dice antes de la primera herramienta no es el final
+        ahora = 1000; M("Llamada", "map_hacer", "");
+        ahora = 4000; M("Resultado", "map_hacer", "", true); M("Trabajo", 3000L);
+        ahora = 5500; M("Llamada", "map_hacer", "");
+        ahora = 7500; M("Resultado", "map_hacer", "", true); M("Trabajo", 2000L);
+        ahora = 9000; M("Hablo");
+        ahora = 9500; M("Hablo");   // la voz sigue hablando: el final es lo PRIMERO que dice
+        string linea = (string?)t.GetMethod("Cerrar")!.Invoke(c, null) ?? "";
+        Debe(linea.Contains("ejecutar=5000 ms"), $"ejecutar no es la suma de lo que tardaron las dos tandas (5000 ms): «{linea}»");
+        Debe(linea.Contains("pensar=4000 ms"), $"pensar no es el resto desde la petición hasta lo primero que dijo Ü tras la última herramienta (4000 ms): «{linea}»");
+        Debe(linea.Contains("luna=44%"), $"luna no es pensar sobre el total (4000/9000 = 44 %): «{linea}»");
+        Debe(linea.Contains("llamadas=2"), $"la medida de siempre (205) se perdió: «{linea}»");
+
+        // Sin nada dicho después, el final es la última herramienta.
+        var c2 = Activator.CreateInstance(t, new object[] { (Func<long>)(() => ahora) })!;
+        void M2(string metodo, params object[] a) => t.GetMethod(metodo)!.Invoke(c2, a);
+        ahora = 0; M2("Peticion");
+        ahora = 500; M2("Llamada", "map_take", "Nueve");
+        ahora = 2500; M2("Resultado", "map_take", "Nueve", true); M2("Trabajo", 2000L);
+        string l2 = (string?)t.GetMethod("Cerrar")!.Invoke(c2, null) ?? "";
+        Debe(l2.Contains("pensar=500 ms") && l2.Contains("ejecutar=2000 ms") && l2.Contains("luna=20%"),
+            $"sin nada dicho después de la última herramienta, el final tiene que ser esa herramienta: «{l2}»");
+
+        // [cableado] La voz cuenta cada tanda y lo que dice.
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"private async Task EjecutarAsync\([\s\S]*?_cuenta\.Trabajo\("),
+            "[cableado] la voz no le cuenta a la medida lo que tardó cada tanda de herramientas");
+        var diceU = System.Text.RegularExpressions.Regex.Match(v, @"case Hecho\.DiceU d:[\s\S]*?break;");
+        Debe(diceU.Success && System.Text.RegularExpressions.Regex.IsMatch(diceU.Value, @"(?m)^\s*_cuenta\.Hablo\(\);"),
+            "[cableado] la voz no le cuenta a la medida cuándo habló Ü");
+    }
+
+    private static void OrdenesDePruebaPorElMcp()
+    {
+        // PROBAR COMO EL DUEÑO (2026-09-28): las pruebas tienen que entrar por el camino de su voz —la voz, Luna, las manos—
+        // y no por una sonda que llame a las herramientas directo. Lo escrito en el chat ya va por ahí.
+        var t = Capacidad("U.WindowsClient.Mcp.OrdenesDePrueba");
+        var con = t?.GetMethod("ConElMcp", BindingFlags.Public | BindingFlags.Static);
+        if (con == null) { Pendiente("OrdenesDePrueba.ConElMcp (u_orden y u_colgar por el MCP)", "513", "062"); return; }
+        var baseMcp = new List<Voz.Realtime.Utensilio> { new("map_take", "pulsa", Array.Empty<Voz.Realtime.Argumento>()) };
+        List<Voz.Realtime.Utensilio> Con(string? variable) =>
+            ((IEnumerable<Voz.Realtime.Utensilio>)con.Invoke(null, new object?[] { baseMcp, variable })!).ToList();
+        Debe(Con(null).Select(u => u.Nombre).SequenceEqual(new[] { "map_take" }) && Con("0").Count == 1 && Con("").Count == 1,
+            "sin U_ORDENES_DE_PRUEBA=1 el MCP ofrece órdenes de prueba: cualquier proceso del PC podría gastar la voz de pago");
+        var si = Con("1");
+        var orden = si.FirstOrDefault(u => u.Nombre == "u_orden");
+        Debe(si.Count == 3 && si[0].Nombre == "map_take" && orden != null && orden.Args.Any(a => a.Nombre == "texto") && si.Any(u => u.Nombre == "u_colgar"),
+            "con U_ORDENES_DE_PRUEBA=1 el MCP no ofrece u_orden (con «texto») y u_colgar detrás de lo de siempre");
+
+        foreach (string metodo in new[] { "Herramientas", "HerramientasDelPiloto" })
+        {
+            var todas = (System.Collections.IEnumerable)Cap004("U.WindowsClient.Voice.ConversacionEnVivo")!
+                .GetMethod(metodo, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)!.Invoke(null, null)!;
+            var nombres = todas.Cast<Voz.Realtime.Utensilio>().Select(u => u.Nombre).ToList();
+            Debe(!nombres.Contains("u_orden") && !nombres.Contains("u_colgar"), $"Luna ve las órdenes de prueba en {metodo}(): se podría mandar órdenes a sí misma");
+        }
+
+        // [cableado] El catálogo del MCP pasa por ahí, y la orden va por el mismo camino que el chat.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(cara.Contains("Mcp.OrdenesDePrueba.ConElMcp(") && cara.Contains("Environment.GetEnvironmentVariable(\"U_ORDENES_DE_PRUEBA\")"),
+            "[cableado] el catálogo del MCP no pasa por OrdenesDePrueba.ConElMcp con la variable");
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"""u_orden""[\s\S]{0,400}EnviarTextoDesdeElNotchAsync\("),
+            "[cableado] u_orden no entra por el mismo camino que lo escrito en el chat (EnviarTextoDesdeElNotchAsync)");
+    }
+
+    private static void LunaTieneMapHacer()
+    {
+        // 0 DE 46 RESPUESTAS DE LUNA TRAJERON MÁS DE UNA ACCIÓN (sesión del 2026-09-28): con una herramienta por gesto, cada
+        // gesto es una vuelta de ~2 s de Luna. El plan entero tiene que caber en UNA llamada.
+        var todas = (System.Collections.IEnumerable)Cap004("U.WindowsClient.Voice.ConversacionEnVivo")!
+            .GetMethod("Herramientas", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)!.Invoke(null, null)!;
+        var hacer = todas.Cast<Voz.Realtime.Utensilio>().FirstOrDefault(u => u.Nombre == "map_hacer");
+        var pHacer = typeof(SurfaceMapTools).GetProperty("Hacer");
+        if (hacer == null || pHacer == null) { Pendiente("map_hacer en el catálogo de Luna y SurfaceMapTools.Hacer", "514", "062"); return; }
+        Debe(hacer.Args.Select(a => a.Nombre).SequenceEqual(new[] { "pasos" }), "map_hacer no pide exactamente «pasos»");
+        Debe(SurfaceMapTools.IsMapTool("map_hacer"), "map_hacer no es una herramienta del mapa: la voz no la despacharía");
+
+        var mapa = new SurfaceMapTools(() => null);
+        string sinEjecutor = mapa.Call("map_hacer", new Dictionary<string, string> { ["pasos"] = "[\"abre: notepad\"]" });
+        Debe(!sinEjecutor.Contains("no soportada") && sinEjecutor.Contains("todavía"), $"sin ejecutor conectado no lo dijo: «{sinEjecutor}»");
+        string? recibido = null;
+        pHacer.SetValue(mapa, new Func<string, string>(p => { recibido = p; return "hecho"; }));
+        string conEjecutor = mapa.Call("map_hacer", new Dictionary<string, string> { ["pasos"] = "[\"abre: notepad\",\"escribe: hola\"]" });
+        Debe(conEjecutor == "hecho" && recibido == "[\"abre: notepad\",\"escribe: hola\"]", $"los pasos no llegaron tal cual al ejecutor («{recibido}»)");
+    }
+
+    private static Type? PlanT() => Capacidad("U.WindowsClient.Navigation.ElPlanPorObjetivos");
+
+    /// <summary>Un plan con manos de mentira: anota lo que hace cada mano, y Jev cumple todo menos lo que se le diga.</summary>
+    private static (object Plan, List<string> Hecho) PlanDeMentira(Func<string, bool> pulsarPorNombre, Func<string, bool> jevCumple)
+    {
+        var hecho = new List<string>();
+        long reloj = 0;
+        var jev = new Func<string, IReadOnlyList<string>, U.Ciclo.Recorrido>((objetivo, _) =>
+        {
+            hecho.Add("jev:" + objetivo); reloj += 700;
+            bool ok = jevCumple(objetivo);
+            var vueltas = new List<U.Ciclo.Vuelta> { new(1, new U.Ciclo.Tiempos(0, 0, 0, 0, 0), "p", 3, ok ? "1) X (Button)" : "", ok ? "cambió" : "no pulso") };
+            return new U.Ciclo.Recorrido(vueltas, ok ? "cumplido" : "no pulso: no veo cómo", ok);
+        });
+        var plan = Activator.CreateInstance(PlanT()!, new object[]
+        {
+            new Func<string, bool>(app => { hecho.Add("abre:" + app); reloj += 900; return true; }),
+            new Action<string>(texto => { hecho.Add("escribe:" + texto); reloj += 300; }),
+            new Func<string, bool>(tecla => { hecho.Add("tecla:" + tecla); reloj += 100; return true; }),
+            new Func<string, bool>(nombre => { hecho.Add("pulsa:" + nombre); reloj += 300; return pulsarPorNombre(nombre); }),
+            jev,
+            new Func<bool>(() => false),
+            new Func<string>(() => "EN PANTALLA AHORA, en «Prueba» (1 elemento(s)):\n  «Aceptar» (Button)"),
+            new Func<long>(() => reloj),
+        })!;
+        return (plan, hecho);
+    }
+
+    private static void UnPlanSeLeeYSeCuenta()
+    {
+        var t = PlanT();
+        var leer = t?.GetMethod("Leer", BindingFlags.Public | BindingFlags.Static);
+        var linea = t?.GetMethod("Linea", BindingFlags.Public | BindingFlags.Static);
+        if (leer == null || linea == null || t!.GetMethod("Hacer") == null) { Pendiente("ElPlanPorObjetivos.Leer, .Linea y .Hacer", "515", "062"); return; }
+        (IReadOnlyList<string>? Pasos, string Porque) L(string s)
+        {
+            var a = new object?[] { s, null };
+            var r = (IReadOnlyList<string>?)leer.Invoke(null, a);
+            return (r, (string?)a[1] ?? "");
+        }
+        Debe(L("[\"abre: calculadora\", \"pulsa: Nueve\"]").Pasos?.SequenceEqual(new[] { "abre: calculadora", "pulsa: Nueve" }) == true, "no leyó una lista JSON de pasos");
+        Debe(L("{\"pasos\": [\"a\", \"b\", \"c\"]}").Pasos?.Count == 3, "no leyó un objeto con «pasos»");
+        Debe(L("abre: notepad\nescribe: hola").Pasos?.SequenceEqual(new[] { "abre: notepad", "escribe: hola" }) == true, "no leyó una línea por paso");
+        Debe(L("1. abrir el menú Archivo\n- ir a Guardar como").Pasos?.SequenceEqual(new[] { "abrir el menú Archivo", "ir a Guardar como" }) == true,
+            "no quitó la numeración o la viñeta de cada línea");
+        foreach (string vacio in new[] { "", "   ", "[]", "{\"pasos\": []}" })
+        {
+            var (p, porque) = L(vacio);
+            Debe(p == null && porque.Length > 0, $"un plan vacío («{vacio}») no se rechazó diciendo por qué");
+        }
+        var (roto, porQueRoto) = L("[\"a\", ");
+        Debe(roto == null && porQueRoto.Contains("no entendí"), $"un JSON roto no se rechazó diciendo que no se entendió («{porQueRoto}»)");
+
+        var r = U.Ciclo.Plan.Resultado(new[] { "a", "b", "c", "d", "e" }, new[] { true, true, true, false });
+        string l = (string)linea.Invoke(null, new object[] { r, 12, 8400L })!;
+        Debe(l == "⏱ plan: 5 objetivo(s) · 3 cumplido(s) · 1 fallido(s) · 1 omitido(s) · 12 acción(es) · 8400 ms", $"la cuenta del plan no es la escrita: «{l}»");
+
+        // Punta a punta con manos de mentira: el paso 3 falla, el 4 queda Omitido, y la cuenta es sobre los 4.
+        var (plan, hecho) = PlanDeMentira(_ => true, objetivo => !objetivo.Contains("imposible"));
+        string res = (string)t.GetMethod("Hacer")!.Invoke(plan, new object[] { "[\"abre: calculadora\", \"pulsa: Nueve\", \"algo imposible\", \"tecla: Enter\"]" })!;
+        Debe(res.Contains("2 de 4") && res.Contains("EN PANTALLA AHORA"), $"el relato no cuenta sobre el plan o no trae lo que hay ahora: «{res}»");
+        Debe(!hecho.Contains("tecla:Enter"), "después del paso que falló se siguió ejecutando");
+        string cuenta = (string?)t.GetProperty("UltimaCuenta")?.GetValue(plan) ?? "";
+        Debe(cuenta.StartsWith("⏱ plan: 4 objetivo(s) · 2 cumplido(s) · 1 fallido(s) · 1 omitido(s) · 2 acción(es)"),
+            $"la cuenta del plan ejecutado no es la del plan entero (abrir y pulsar = 2 acciones; Jev no pulsó): «{cuenta}»");
+        var (plan2, hecho2) = PlanDeMentira(_ => true, _ => true);
+        string vacio2 = (string)t.GetMethod("Hacer")!.Invoke(plan2, new object[] { "" })!;
+        Debe(hecho2.Count == 0 && vacio2.Length > 0, "un plan vacío ejecutó algo, o no dijo nada");
+    }
+
+    private static void PulsaVaPorElCicloRapido()
+    {
+        var t = PlanT();
+        var objetivo = t?.GetMethod("Objetivo");
+        if (objetivo == null) { Pendiente("ElPlanPorObjetivos.Objetivo (a dónde va cada paso)", "516", "062"); return; }
+        var (plan, hecho) = PlanDeMentira(nombre => nombre == "Nueve", _ => true);
+        U.Ciclo.Recorrido O(string paso) => (U.Ciclo.Recorrido)objetivo.Invoke(plan, new object[] { paso, Array.Empty<string>() })!;
+
+        var r1 = O("pulsa: Nueve");
+        Debe(r1.Cumplido && hecho.SequenceEqual(new[] { "pulsa:Nueve" }), $"«pulsa: Nueve» a la vista no fue por el ciclo rápido solo ({string.Join(", ", hecho)})");
+        hecho.Clear();
+        var r2 = O("pulsa: Diez");
+        Debe(r2.Cumplido && hecho.Count == 2 && hecho[0] == "pulsa:Diez" && hecho[1].StartsWith("jev:") && hecho[1].Contains("Diez"),
+            $"«pulsa: Diez» que no está a la vista no pasó a Jev como objetivo ({string.Join(", ", hecho)})");
+        hecho.Clear();
+        var r3 = O("ir a Bluetooth y dispositivos");
+        Debe(r3.Cumplido && hecho.SequenceEqual(new[] { "jev:ir a Bluetooth y dispositivos" }), $"un objetivo sin prefijo no fue a Jev tal cual ({string.Join(", ", hecho)})");
+    }
+
+    private static void LaManoDelPlanNoPulsaSobreU()
+    {
+        var pulsar = PlanT()?.GetMethod("Pulsar", BindingFlags.Public | BindingFlags.Static);
+        if (pulsar == null) { Pendiente("ElPlanPorObjetivos.Pulsar (la mano del plan, con la guarda de la carita)", "517", "062"); return; }
+        var a = new U.Ciclo.Accionable(1, "Sistema", "ListItem", new U.Ciclo.Caja(200, 300, 100, 30));
+        var eventos = new List<string>();
+        string? P(Func<int, int, string?> librar) => (string?)pulsar.Invoke(null, new object?[]
+        {
+            a, librar, new Action<int, int>((x, y) => eventos.Add($"clic {x},{y}")), new Action<U.Ciclo.Caja>(c => eventos.Add($"carita {c.X},{c.Y}")),
+        });
+        string? libre = P((x, y) => { eventos.Add($"mira {x},{y}"); return null; });
+        Debe(libre == null && eventos.SequenceEqual(new[] { "mira 250,315", "clic 250,315", "carita 200,300" }),
+            $"con el punto libre no miró, pulsó el centro y avisó a la carita, en ese orden ({string.Join(" → ", eventos)})");
+        eventos.Clear();
+        string? tapado = P((_, _) => "lo tapa «Muelle», una ventana de Ü");
+        Debe(tapado != null && tapado.Contains("Muelle") && eventos.Count == 0, $"con una ventana de Ü encima pulsó igual o no dijo cuál («{tapado}», {eventos.Count} evento(s))");
+
+        // [cableado] La mano de Jev en el plan de la cara es esta, con la regla de la cara.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"Navigation\.ElPlanPorObjetivos\.Pulsar\([^;]*LibrarElPuntoDeUnClic[^;]*Navigation\.CicloRapido\.AvisarALaCarita"),
+            "[cableado] la mano del plan de la cara no mira bajo el punto con la regla de la cara, o no avisa a la carita");
+    }
+
+    private static void ElPlanTrabajaDondeElCiclo()
+    {
+        // MEDIDO EL 2026-09-28 (23:37): con Ü delante —la persona le acaba de escribir—, el plan decía «no hay ninguna ventana
+        // delante» en 2 de 4 órdenes, mientras el ciclo rápido sí pulsaba sobre la ventana de trabajo (491).
+        var donde = PlanT()?.GetMethod("Donde", BindingFlags.Public | BindingFlags.Static);
+        if (donde == null) { Pendiente("ElPlanPorObjetivos.Donde (la ventana del plan, con la regla del ciclo)", "519", "062"); return; }
+        U.Ciclo.Ubicacion? D(IntPtr delante, bool esU, IntPtr trabajo) => (U.Ciclo.Ubicacion?)donde.Invoke(null, new object[]
+            { delante, esU, trabajo, new Func<IntPtr, U.Ciclo.Ubicacion>(h => new U.Ciclo.Ubicacion(h, 7, "app" + h, "t" + h)) });
+        Debe(D((IntPtr)5, false, (IntPtr)9)?.Ventana == (IntPtr)5, "con otra app delante, el plan no trabajó sobre ella");
+        Debe(D((IntPtr)5, true, (IntPtr)9)?.Ventana == (IntPtr)9, "con Ü delante, el plan no trabajó sobre la ventana de trabajo");
+        Debe(D(IntPtr.Zero, false, (IntPtr)9)?.Ventana == (IntPtr)9, "sin nada delante, el plan no trabajó sobre la ventana de trabajo");
+        Debe(D((IntPtr)5, true, IntPtr.Zero) == null && D(IntPtr.Zero, false, IntPtr.Zero) == null, "sin ventana ajena ni de trabajo, el plan se inventó una");
+
+        // [cableado] El motor de Jev y las manos del plan preguntan dónde por esa regla, no por la de u/ (que se lee a sí misma).
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"new U\.Ciclo\.Motor\(DondeDelPlan,"), "[cableado] el motor de Jev no pregunta dónde con la regla del ciclo");
+        Debe(cara.Contains("new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero)"), "[cableado] las manos del plan no trabajan sobre la ventana del ciclo");
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"DondeDelPlan\(\)[\s\S]{0,300}Navigation\.ElPlanPorObjetivos\.Donde\("), "[cableado] DondeDelPlan no usa ElPlanPorObjetivos.Donde");
+    }
+
+    private static void DondeEstoyNoSeCongelaConUnDialogo()
+    {
+        // MEDIDO EL 2026-09-29 (04:41): con «Editar colores» de Paint delante, map_where_am_i tardó 212 s. La 528 puso plazo a
+        // UNO de los DOS sitios que leen el diálogo (DialogoDelante) y el otro (LeerInterrupcion) seguía sin él: el aprendizaje
+        // nº11 otra vez, habiendo contado los dos. Con una ubicación: sin ella, map_where_am_i sale antes de mirar diálogos.
+        var mapa = new SurfaceMapTools(() => new U.WindowsClient.Uia.SurfaceLocator.SurfaceLocation("uia://mspaint.exe/sin-título", "uia", ""));
+        var pLeer = typeof(SurfaceMapTools).GetProperty("LeerDialogo");
+        var pPlazo = typeof(SurfaceMapTools).GetProperty("PlazoDelDialogoMs");
+        if (pLeer == null || pPlazo == null) { Pendiente("SurfaceMapTools.PlazoDelDialogoMs", "529", "062"); return; }
+        pPlazo.SetValue(mapa, 300);
+        int lecturas = 0;
+        pLeer.SetValue(mapa, new Func<U.WindowsClient.Navigation.Desbloqueo.Dialogo?>(() => { lecturas++; Thread.Sleep(3000); return null; }));
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        mapa.Call("map_where_am_i", new Dictionary<string, string>());
+        reloj.Stop();
+        Debe(lecturas >= 1, "map_where_am_i no leyó el diálogo por la puerta con plazo (DialogoDelante): lo lee por otra");
+        Debe(reloj.ElapsedMilliseconds < 2500, $"map_where_am_i esperó {reloj.ElapsedMilliseconds} ms a un diálogo que no contesta, con plazo de 300 ms");
+
+        // [cableado] Solo hay una puerta al diálogo.
+        if (FuenteDe("windows-client", "src", "Mcp", "SurfaceMapTools.cs") is not { } s) return;
+        string Cuerpo(string firma) => System.Text.RegularExpressions.Regex.Match(s, System.Text.RegularExpressions.Regex.Escape(firma) + @"[\s\S]*?\r?\n    }\r?\n").Value;
+        string dialogo = Cuerpo("private Navigation.Desbloqueo.Dialogo? DialogoDelante()"), describir = Cuerpo("private string DescribirInterrupcion()");
+        Debe(dialogo.Contains("Uia.Plazo.Con(") && describir.Contains("Uia.Plazo.Con("), "[cableado] una de las dos puertas al diálogo lee sin plazo");
+        string resto = s.Replace(dialogo, "").Replace(describir, "");
+        var otras = System.Text.RegularExpressions.Regex.Matches(resto, @"Interrupcion\.(LeerDialogo|Leer|Describir)\(").Count;
+        Debe(otras == 0, $"[cableado] el mapa lee el diálogo por {otras} sitio(s) más, fuera de las dos puertas con plazo");
+    }
+
+    private static void LeerElDialogoTienePlazo()
+    {
+        // MEDIDO EL 2026-09-29 (03:28): con el cuadro «Editar colores» de Paint delante, map_unblock tardó 187 s en contestar
+        // «no hay nada que desbloquear». DialogoDelante leía sin plazo: el mismo agujero que la 490 cerró en el lector y en el
+        // «dónde estoy», en el tercer sitio que lee la pantalla. Y la frase mentía: no es que no hubiera diálogo, es que no se leyó.
+        var mapa = new SurfaceMapTools(() => null);
+        var pLeer = typeof(SurfaceMapTools).GetProperty("LeerDialogo");
+        var pPlazo = typeof(SurfaceMapTools).GetProperty("PlazoDelDialogoMs");
+        if (pLeer == null || pPlazo == null) { Pendiente("SurfaceMapTools.PlazoDelDialogoMs (leer el diálogo con plazo)", "528", "062"); return; }
+        pPlazo.SetValue(mapa, 300);
+        int lecturas = 0;
+        pLeer.SetValue(mapa, new Func<U.WindowsClient.Navigation.Desbloqueo.Dialogo?>(() => { lecturas++; Thread.Sleep(3000); return null; }));
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        string r = mapa.Call("map_unblock", new Dictionary<string, string> { ["choose"] = "Aceptar" });
+        reloj.Stop();
+        Debe(reloj.ElapsedMilliseconds < 2000, $"map_unblock esperó {reloj.ElapsedMilliseconds} ms a un diálogo que no contesta, con plazo de 300 ms");
+        Debe(r.Contains("a tiempo") && !r.StartsWith("no hay nada que desbloquear", StringComparison.Ordinal),
+            $"con la app sin contestar dijo que no había diálogo, en vez de que no pudo leerlo a tiempo («{r}»)");
+        Debe(lecturas == 1, $"con la primera lectura sin contestar se siguió leyendo ({lecturas} lecturas)");
+        Debe((int)pPlazo.GetValue(new SurfaceMapTools(() => null))! == 2000, "el plazo por defecto no es de 2 s");
+    }
+
+    private static void ElNotchSeApartaComoLaCarita()
+    {
+        // MEDIDO EL 2026-09-29: en Paint maximizado, «Rojo» quedaba bajo el notch («Ü Acciones») y la guarda (510) no pulsaba:
+        // 4 veces en una orden, y en cada tanda. Cualquier botón de arriba al centro de una app maximizada —la cinta de
+        // Paint, Word, Excel— era impulsable por Ü, que se tapaba a sí misma.
+        var m = Capacidad("U.WindowsClient.Ui.ReglaDeLaVisita")?.GetMethod("LibrarElPuntoConElNotch", BindingFlags.Public | BindingFlags.Static);
+        if (m == null) { Pendiente("ReglaDeLaVisita.LibrarElPuntoConElNotch (apartar el notch antes de un clic)", "527", "062"); return; }
+        IntPtr notch = new(40), app = new(30), muelle = new(20);
+        IntPtr bajo = notch;
+        int apartados = 0; IntPtr apartado = IntPtr.Zero;
+        string? L(Func<string?> resto) => (string?)m.Invoke(null, new object[]
+        {
+            new Func<IntPtr>(() => bajo), new Func<IntPtr, bool>(h => h == notch),
+            new Action<IntPtr>(h => { apartados++; apartado = h; bajo = app; }), resto,
+        });
+        string? r = L(() => bajo == app ? null : "lo tapa «Ü Acciones», una ventana de Ü");
+        Debe(r == null && apartados == 1 && apartado == notch, $"con el notch bajo el punto no se apartó una vez y se pulsó lo de debajo («{r}», {apartados} apartado(s))");
+        bajo = muelle; apartados = 0;
+        string? r2 = L(() => bajo == muelle ? "lo tapa «Muelle», una ventana de Ü" : null);
+        Debe(r2 != null && r2.Contains("Muelle") && apartados == 0, $"otra ventana de Ü bajo el punto se apartó, o se pulsó sin decir cuál («{r2}»)");
+
+        // [cableado] Los clics de la cara pasan por esa regla antes de la de la carita, y apartar el notch vuelve solo.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"private string\? LibrarElPuntoDeUnClic\(int x, int y\) =>\s*ReglaDeLaVisita\.LibrarElPuntoConElNotch\("),
+            "[cableado] los clics de la cara no apartan el notch antes de mirar bajo el punto");
+        // Apartar el notch vive en el notch, no en la cara: la cara solo toca el estilo de la carita (505).
+        Debe(cara.Contains("PanelDeAcciones.ApartarUnMomento"), "[cableado] los clics de la cara no apartan el notch con su propia regla");
+        if (FuenteDe("windows-client", "src", "Ui", "PanelDeAcciones.cs") is not { } notchSrc) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(notchSrc, @"public static void ApartarUnMomento\(IntPtr notch\)[\s\S]*?Fantasma\.Poner\(notch, true\)[\s\S]*?Fantasma\.Poner\(notch, false\)"),
+            "[cableado] apartar el notch no lo vuelve fantasma, o no lo devuelve a dejarse tocar");
+    }
+
+    private static void PulsaQueNoEstaEsLlegar()
+    {
+        // MEDIDO EL 2026-09-29 (03:04): dentro de Pantalla, «pulsa: Sonido» pasó a Jev como «pulsar «Sonido»», y Jev eligió
+        // «Mostrar más valores de configuración» con 0,31: Sonido cuelga de Sistema y no estaba en esa pantalla. Luna tuvo que
+        // replanear dos veces añadiendo «pulsa: Atrás». Jeff tiene libertad de navegar para cumplir un objetivo: se la da la frase.
+        var t = PlanT();
+        if (t?.GetMethod("Objetivo") == null) { Pendiente("ElPlanPorObjetivos.Objetivo", "525", "062"); return; }
+        var (plan, hecho) = PlanDeMentira(_ => false, _ => true);
+        t.GetMethod("Objetivo")!.Invoke(plan, new object[] { "pulsa: Sonido", Array.Empty<string>() });
+        string alJev = hecho.FirstOrDefault(h => h.StartsWith("jev:")) ?? "";
+        Debe(alJev.StartsWith("jev:llegar a «Sonido»", StringComparison.Ordinal) && alJev.Contains("Atrás"),
+            $"a Jev no le llegó «llegar a «Sonido»» con permiso para navegar (le llegó «{alJev}»)");
+    }
+
+    private static void CarpetaEnElPlan()
+    {
+        // MEDIDO EL 2026-09-29 (03:03): para «entra en Documentos, luego Descargas, luego Imágenes», Luna fue carpeta a carpeta
+        // con file_open: 0,17 s cada una, pero una vuelta de Luna por carpeta —20 s pensando para 1,2 s de trabajo—.
+        var t = PlanT();
+        var p = t?.GetProperty("AbrirCarpeta");
+        if (t?.GetMethod("Objetivo") == null || p == null) { Pendiente("ElPlanPorObjetivos.AbrirCarpeta («carpeta:» en el plan)", "526", "062"); return; }
+        U.Ciclo.Recorrido O(object plan, string paso) => (U.Ciclo.Recorrido)t.GetMethod("Objetivo")!.Invoke(plan, new object[] { paso, Array.Empty<string>() })!;
+        var (sin, hechoSin) = PlanDeMentira(_ => true, _ => true);
+        var rSin = O(sin, "carpeta: documentos");
+        Debe(!rSin.Cumplido && rSin.PorQueParo.Contains("carpeta") && hechoSin.Count == 0, $"sin quien abra carpetas no lo dijo, o se lo pasó a otro («{rSin.PorQueParo}»)");
+        var (plan, hecho) = PlanDeMentira(_ => true, _ => true);
+        var abiertas = new List<string>();
+        p.SetValue(plan, new Func<string, bool>(ruta => { abiertas.Add(ruta); return ruta != "no-existe"; }));
+        var r = O(plan, "carpeta: documentos");
+        Debe(r.Cumplido && abiertas.SequenceEqual(new[] { "documentos" }) && hecho.Count == 0, $"«carpeta: documentos» no abrió la carpeta sola, sin Jev ({string.Join(", ", abiertas)} · {string.Join(", ", hecho)})");
+        var r2 = O(plan, "carpeta: no-existe");
+        Debe(!r2.Cumplido && r2.PorQueParo.Contains("no-existe") && !hecho.Any(h => h.StartsWith("jev:")), $"una carpeta que no se abrió no falló diciendo cuál, o se la pasó a Jev («{r2.PorQueParo}»)");
+        // [cableado] La cara abre carpetas por el disco, con la misma regla que file_open.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(cara.Contains("AbrirCarpeta = ruta => SystemApi.Explorador.Navegar(SystemApi.Explorador.Expandir(ruta)).Length > 0"),
+            "[cableado] el plan de la cara no abre carpetas por el disco");
+    }
+
+    private static void PulsaEsperaALaPaginaAntesDeJev()
+    {
+        // MEDIDO EL 2026-09-29 (02:55:47): «pulsa: Sistema» y justo después «pulsa: Notificaciones», con la página de Sistema
+        // aún cargando: el ciclo rápido no vio «Notificaciones», el paso pasó a Jev, Jev dudó (0,39) y el plan se cortó. Luna
+        // tuvo que replanear. Un segundo más tarde, map_take lo pulsó a la primera.
+        var t = PlanT();
+        var pEsperar = t?.GetProperty("EsperarQuieta");
+        if (t?.GetMethod("Objetivo") == null || pEsperar == null) { Pendiente("ElPlanPorObjetivos.Objetivo con EsperarQuieta", "524", "062"); return; }
+        int intentos = 0, esperas = 0;
+        var (plan, hecho) = PlanDeMentira(nombre => ++intentos >= 2, _ => true);
+        pEsperar.SetValue(plan, new Func<bool>(() => { esperas++; return true; }));
+        var r = (U.Ciclo.Recorrido)t.GetMethod("Objetivo")!.Invoke(plan, new object[] { "pulsa: Notificaciones", Array.Empty<string>() })!;
+        Debe(r.Cumplido && esperas == 1 && intentos == 2 && !hecho.Any(h => h.StartsWith("jev:")),
+            $"el nombre que aparece tras cargar no se pulsó por el ciclo rápido tras UNA espera ({esperas} espera(s), {intentos} intento(s), {string.Join(", ", hecho)})");
+        // Si tampoco aparece, a Jev, y sin esperar más de una vez.
+        intentos = 0; esperas = 0; hecho.Clear();
+        var (plan2, hecho2) = PlanDeMentira(_ => { intentos++; return false; }, _ => true);
+        pEsperar.SetValue(plan2, new Func<bool>(() => { esperas++; return true; }));
+        var r2 = (U.Ciclo.Recorrido)t.GetMethod("Objetivo")!.Invoke(plan2, new object[] { "pulsa: Diez", Array.Empty<string>() })!;
+        Debe(r2.Cumplido && esperas == 1 && intentos == 2 && hecho2.Any(h => h.StartsWith("jev:")),
+            $"lo que no aparece ni tras esperar no pasó a Jev, o se esperó más de una vez ({esperas} espera(s), {intentos} intento(s))");
+    }
+
+    private static void AbrirEsperaAQuePinte()
+    {
+        // MEDIDO EL 2026-09-29 (02:52): «abre: calculadora» se dio por quieta con UN elemento —«System» (MenuItem), el marco
+        // de una app de la tienda que aún no pinta— y las tres «escribe:» siguientes cayeron en el vacío. Luna rehízo la
+        // cuenta en cinco planes: 14,5 s pensando donde bastaba uno.
+        var pintada = typeof(U.WindowsClient.Navigation.ManosDelPlan).GetMethod("Pintada", BindingFlags.Public | BindingFlags.Static);
+        if (pintada == null) { Pendiente("ManosDelPlan.Pintada (una app abierta que ya pintó algo más que su marco)", "523", "062"); return; }
+        bool P(params (string Nombre, string Tipo, int X, int Y)[] e) => (bool)pintada.Invoke(null, new object[] { Pantalla(Array.Empty<string>(), e) })!;
+        Debe(!P(), "una lectura vacía se dio por pintada");
+        Debe(!P(("System", "MenuItem", 5, 5)), "solo el menú del sistema se dio por una app lista");
+        Debe(!P(("Sistema", "MenuItem", 5, 5), ("Minimizar Calculadora", "Button", 900, 5), ("Maximizar Calculadora", "Button", 950, 5), ("Cerrar Calculadora", "Button", 1000, 5)),
+            "solo los botones de la ventana se dieron por una app lista");
+        Debe(!P(("Restaurar", "Button", 950, 5), ("Cerrar", "Button", 1000, 5)), "restaurar y cerrar solos se dieron por una app lista");
+        Debe(P(("System", "MenuItem", 5, 5), ("Cerrar Calculadora", "Button", 1000, 5), ("Uno", "Button", 100, 300)), "con un botón propio de la app no se dio por pintada");
+
+        // [cableado] Abrir espera con esa regla.
+        if (FuenteDe("windows-client", "src", "Navigation", "ManosDelPlan.cs") is not { } manos) return;
+        var abrir = System.Text.RegularExpressions.Regex.Match(manos, @"public bool Abrir\(string app\)[\s\S]*?\r?\n    }\r?\n");
+        Debe(abrir.Success && abrir.Value.Contains("Pintada(l) ? l : Lectura.Vacia"), "[cableado] abrir no espera a que la app pinte");
+    }
+
+    private static void LoGuardadoVaDondeDiceUDataDir()
+    {
+        // MEDIDO EL 2026-09-29: 26 turnos de las órdenes de prueba estaban en %APPDATA%\U\conversacion-personal.json, el
+        // archivo del dueño, y la prueba siguiente los heredaba: GPT-6 Sol hizo la orden de Configuración dentro de la de
+        // la calculadora. Environment.GetFolderPath no lee U_DATA_DIR (UserPaths lo explica); había 6 sitios que lo usaban.
+        string? antes = Environment.GetEnvironmentVariable("U_DATA_DIR");
+        string tmp = Path.Combine(Path.GetTempPath(), "u-contrato-522-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Environment.SetEnvironmentVariable("U_DATA_DIR", tmp);
+            var c = new U.WindowsClient.Voice.ConversacionPersonal("contrato@u.test");
+            c.Agregar("usuario", "hola desde el contrato");
+            string esperado = Path.Combine(tmp, "roaming", "U", "conversacion-personal.json");
+            Debe(File.Exists(esperado) && File.ReadAllText(esperado).Contains("hola desde el contrato"),
+                "con U_DATA_DIR puesta, la conversación no se escribió bajo esa carpeta: se habría escrito en la del dueño");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("U_DATA_DIR", antes);
+            try { Directory.Delete(tmp, true); } catch { }
+        }
+
+        // [cableado] Ningún archivo del cliente pide la carpeta de Windows por su cuenta: UserPaths es el único sitio.
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string src = Path.Combine(repo, "windows-client", "src");
+        if (!Directory.Exists(src)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO no hay fuentes que mirar."); return; }
+        var quienes = Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories)
+            .Where(f => System.Text.RegularExpressions.Regex.IsMatch(File.ReadAllText(f), @"SpecialFolder\.(Local)?ApplicationData"))
+            .Select(f => Path.GetRelativePath(src, f)).ToList();
+        Debe(quienes.Count == 0, $"[cableado] {quienes.Count} archivo(s) del cliente piden la carpeta de Windows sin UserPaths: {string.Join(", ", quienes)}");
+    }
+
+    private static void AbrirNuncaLanzaAU()
+    {
+        // MEDIDO EL 2026-09-28 (22:54): map_open_app «calculator» lanzó %LOCALAPPDATA%\U\current\U.exe —el acceso «U.lnk»—
+        // porque «calculator» CONTIENE «u». La Ü nueva heredó el entorno de la prueba y desplazó a la del dueño. Con la
+        // misma regla, «outlook», «youtube» o «cursor» abrían otra Ü si su acceso no estaba en el menú del usuario.
+        var elegir = typeof(U.WindowsClient.SystemApi.StartMenuLauncher).GetMethod("Elegir", BindingFlags.Public | BindingFlags.Static);
+        if (elegir == null) { Pendiente("StartMenuLauncher.Elegir (qué acceso directo casa con lo pedido)", "521", "062"); return; }
+        var menu = new[] { "U", "Out", "Obsidian", "Google Chrome", "Notepad++", "Notepad", "SAP Logon", "Visual Studio Code" };
+        string? E(string pedido) => (string?)elegir.Invoke(null, new object[] { pedido, menu });
+        foreach (string p in new[] { "calculator", "outlook", "youtube", "cursor", "u", "U", "Ü" })
+            Debe(E(p) == null, $"pedir «{p}» casó con «{E(p)}»: abrir no puede lanzar a la propia Ü ni un acceso de menos de 4 letras dentro de lo pedido");
+        // La propia Ü tampoco se puede pedir por su nombre, ni aunque no se filtraran los accesos: se mira lo pedido.
+        var soloU = new[] { "Ü" };
+        Debe(elegir.Invoke(null, new object[] { "ü", soloU }) == null, "pedir «ü» con un acceso «Ü» en el menú lo lanzó");
+        Debe(E("notepad") == "Notepad", $"lo exacto no ganó a lo que lo contiene («{E("notepad")}»)");
+        Debe(E("chrome") == "Google Chrome", $"lo pedido dentro del nombre del acceso dejó de casar («{E("chrome")}»)");
+        Debe(E("sap logon 760") == "SAP Logon", $"un acceso de 4 letras o más dentro de lo pedido dejó de casar («{E("sap logon 760")}»)");
+        Debe(E("paint") == null, $"lo que no casa lanzó algo («{E("paint")}»)");
+    }
+
+    private static void PlaneaGpt6SolAMaximaVelocidad()
+    {
+        // DECISIÓN DEL DUEÑO (2026-09-29): GPT-6 Sol por su calidad de planificación, a la máxima velocidad. MEDIDO ESE DÍA con
+        // las instrucciones y el catálogo de la voz (velocidad.py): primer plan, mediana 1.874 ms con low + priority (el
+        // servidor contesta service_tier «fast»), 3.546 ms sin priority, 3.766 ms con gpt-5.6-luna low. «ultrafast» se
+        // acepta al abrir la sesión pero la Responses API lo rechaza («Invalid service_tier argument»); «minimal» no existe
+        // para gpt-6-sol; «none» no es más rápido (2.339 ms).
+        var p = new Voz.Realtime.ProtocoloGptLive();
+        string Campo(string json, params string[] camino)
+        {
+            using var d = System.Text.Json.JsonDocument.Parse(json);
+            var e = d.RootElement;
+            foreach (var c in camino) { if (e.ValueKind != System.Text.Json.JsonValueKind.Object || !e.TryGetProperty(c, out e)) return ""; }
+            return e.ValueKind == System.Text.Json.JsonValueKind.String ? e.GetString() ?? "" : e.GetRawText();
+        }
+        // SEGUNDA DECISIÓN DEL DUEÑO (2026-09-29, al cerrar): «el costo de priority nos puede salir muy caro, así que no es
+        // necesario; desde que tenga la cadena de pensamiento en bajo». Sin priority el primer plan medía 3.546 ms de mediana.
+        string apertura = p.Apertura("reglas", Array.Empty<Voz.Realtime.Utensilio>(), "").Single();
+        Debe(p.Delegado == "gpt-6-sol" && Campo(apertura, "session", "delegation", "responses", "model") == "gpt-6-sol",
+            $"quien planea no es gpt-6-sol (es «{Campo(apertura, "session", "delegation", "responses", "model")}»)");
+        Debe(Campo(apertura, "session", "delegation", "responses", "reasoning", "effort") == "low", "al abrir, el pensamiento no está en bajo");
+        Debe(Campo(apertura, "session", "delegation", "responses", "service_tier") is not ("priority" or "fast" or "ultrafast"),
+            "al abrir, la delegación paga de más por velocidad (service_tier de pago)");
+        string cambio = p.CambioDeModo("otras reglas", Array.Empty<Voz.Realtime.Utensilio>(), false).First();
+        Debe(Campo(cambio, "session", "delegation", "responses", "model") == "gpt-6-sol"
+             && Campo(cambio, "session", "delegation", "responses", "service_tier") is not ("priority" or "fast" or "ultrafast"),
+            "al cambiar de modo, la delegación pierde gpt-6-sol o paga de más por velocidad");
+    }
+
+    private static void LunaPiensaEnModoRapido()
+    {
+        // MEDIDO EL 2026-09-28: el servidor acepta reasoning.effort en la delegación (session.started). Sin pedirlo, Luna piensa
+        // en su medio por defecto, ~2 s por respuesta; OpenAI recomienda low para herramientas y voz.
+        var p = new Voz.Realtime.ProtocoloGptLive();
+        string apertura = p.Apertura("reglas", Array.Empty<Voz.Realtime.Utensilio>(), "").Single();
+        string Esfuerzo(string json, string raiz)
+        {
+            using var d = System.Text.Json.JsonDocument.Parse(json);
+            var s = d.RootElement.GetProperty(raiz);
+            return s.TryGetProperty("delegation", out var del) && del.GetProperty("responses").TryGetProperty("reasoning", out var r)
+                   && r.TryGetProperty("effort", out var e) ? e.GetString() ?? "" : "";
+        }
+        if (Esfuerzo(apertura, "session") == "" ) { Pendiente("la delegación con reasoning.effort", "518", "062"); return; }
+        Debe(Esfuerzo(apertura, "session") == "low", "al abrir, la delegación no pide reasoning.effort = low");
+        string cambio = p.CambioDeModo("otras reglas", Array.Empty<Voz.Realtime.Utensilio>(), false).First();
+        Debe(Esfuerzo(cambio, "session") == "low", "al cambiar de modo, la delegación pierde el modo rápido");
+    }
+
+    private static void DosUEnElMismoPc()
+    {
+        // EL 2026-09-28 LA ÚNICA FORMA DE PROBAR LA CARITA EN EL PC REAL ERA CERRAR LA Ü DEL DUEÑO: las dos querían el 8790.
+        var m = typeof(U.WindowsClient.Mcp.ServidorMcp).GetMethod("PuertoDe", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+        if (m == null) { Pendiente("ServidorMcp.PuertoDe (el puerto del MCP, de U_MCP_PUERTO)", "511", "061"); return; }
+        int P(string? v) => (int)m.Invoke(null, new object?[] { v })!;
+        Debe(P(null) == 8790 && P("") == 8790 && P("   ") == 8790, "sin la variable el MCP no escucha en el 8790 de siempre");
+        Debe(P("8795") == 8795 && P(" 8795 ") == 8795, "con U_MCP_PUERTO=8795 el MCP no escucha en el 8795");
+        Debe(P("abc") == 8790 && P("0") == 8790 && P("70000") == 8790 && P("80") == 8790,
+            "un puerto que no vale (texto, 0, fuera de rango, o de los reservados por debajo de 1024) no cae al 8790");
+
+        // [cableado] El servidor y la URL que se le da al piloto salen de ese puerto, no de un número escrito a mano.
+        if (FuenteDe("windows-client", "src", "Mcp", "ServidorMcp.cs") is not { } s) return;
+        Debe(s.Contains(@"public static int Puerto { get; } = PuertoDe(Environment.GetEnvironmentVariable(""U_MCP_PUERTO""));")
+             && s.Contains("http://127.0.0.1:{Puerto}/mcp/"), "[cableado] el servidor MCP no escucha en el puerto que dice U_MCP_PUERTO");
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(!cara.Contains("127.0.0.1:8790"), "[cableado] la cara le da al piloto un 8790 escrito a mano");
+    }
+
+    private static void UnClicDeUNoCaeSobreU()
+    {
+        var pLibrar = CicloRapidoT()?.GetProperty("LibrarElPunto");
+        var regla = Capacidad("U.WindowsClient.Ui.ReglaDeLaVisita")?.GetMethod("LibrarElPunto", BindingFlags.Public | BindingFlags.Static);
+        if (pLibrar == null || regla == null) { Pendiente("CicloRapido.LibrarElPunto y ReglaDeLaVisita.LibrarElPunto (mirar bajo el punto antes de pulsar)", "510", "061"); return; }
+        var inicio = Pantalla(new[] { "Inicio" }, ("Sistema", "ListItem", 200, 300));
+
+        // El ciclo pregunta por el punto que va a pulsar, y solo pulsa si está libre.
+        var libre = CicloCon(inicio, inicio);
+        var preguntas = new List<(int, int)>();
+        pLibrar.SetValue(libre.Ciclo, new Func<int, int, string?>((x, y) => { preguntas.Add((x, y)); return null; }));
+        Pulsar(libre, "Sistema");
+        Debe(libre.Clics.Count == 1 && preguntas.SequenceEqual(new[] { (250, 315) }), $"con el punto libre no preguntó por el centro o no pulsó ({preguntas.Count} pregunta(s), {libre.Clics.Count} clic(s))");
+        var tapado = CicloCon(inicio, inicio);
+        pLibrar.SetValue(tapado.Ciclo, new Func<int, int, string?>((_, _) => "lo tapa «Muelle», una ventana de Ü"));
+        string r = Pulsar(tapado, "Sistema") ?? "";
+        Debe(tapado.Clics.Count == 0 && r.Contains("no pulsé", StringComparison.Ordinal) && r.Contains("Muelle", StringComparison.Ordinal),
+            $"con una ventana de Ü encima pulsó igual, o no dijo cuál («{r}»)");
+
+        // La decisión: ajena → libre; la carita → se aparta y se vuelve a mirar; otra de Ü → no, y se dice cuál.
+        IntPtr carita = new(10), muelle = new(20), ajena = new(30);
+        if (regla.GetParameters().Length != 7) { Pendiente("ReglaDeLaVisita.LibrarElPunto con la carita sobre el punto y la persona con el ratón", "510", "061"); return; }
+        string? L(Func<IntPtr> bajo, Action apartar, bool enLaCarita = false, string? ocupado = null) => (string?)regla.Invoke(null, new object[]
+            { bajo, new Func<IntPtr, bool>(h => h == carita || h == muelle), carita, apartar, new Func<IntPtr, string>(h => h == muelle ? "Muelle" : "carita"),
+              new Func<bool>(() => enLaCarita), new Func<string?>(() => ocupado) });
+        int apartadas = 0;
+        Debe(L(() => ajena, () => apartadas++) == null && apartadas == 0, "con una ventana ajena bajo el punto no lo dio por libre, o apartó la carita sin motivo");
+        var bajo = carita;
+        Debe(L(() => bajo, () => { apartadas++; bajo = ajena; }) == null && apartadas == 1, "con la carita bajo el punto no se apartó una vez y lo dio por libre");
+        apartadas = 0;
+        string? sigue = L(() => carita, () => apartadas++);
+        Debe(sigue != null && apartadas == 1 && sigue.Contains("carita"), $"si la carita sigue encima tras apartarse, lo tiene que decir («{sigue}»)");
+        apartadas = 0;
+        string? otra = L(() => muelle, () => apartadas++);
+        Debe(otra != null && apartadas == 0 && otra.Contains("Muelle"), $"con otra ventana de Ü bajo el punto no dijo cuál o apartó la carita («{otra}»)");
+        // La persona tiene el ratón (pulsa o arrastra la carita): la captura se lleva el clic adonde vaya. No se pulsa.
+        apartadas = 0;
+        string? ocupada = L(() => ajena, () => apartadas++, ocupado: "la persona tiene el ratón");
+        Debe(ocupada != null && ocupada.Contains("la persona tiene el ratón") && apartadas == 0, $"con la persona pulsando se pulsó igual («{ocupada}»)");
+        // La carita ya fantasma sobre el punto (vuelve a casa por encima): se aparta igual, para que su rato fuera empiece
+        // otra vez y no se pose tocable justo antes de que llegue el clic (la coreografía tarda hasta 4 s en pulsar).
+        apartadas = 0;
+        Debe(L(() => ajena, () => apartadas++, enLaCarita: true) == null && apartadas == 1, "con la carita fantasma sobre el punto no se apartó, y podría posarse tocable antes del clic");
+
+        // [cableado] El ciclo de la cara mira bajo el punto con esa regla.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } c) return;
+        var bloque = System.Text.RegularExpressions.Regex.Match(c, @"var ciclo = new Navigation\.CicloRapido\([\s\S]*?mcp\.Map\.CicloRapido = ");
+        Debe(bloque.Success && bloque.Value.Contains("LibrarElPunto = LibrarElPuntoDeUnClic"), "[cableado] el ciclo de la cara no mira qué hay bajo el punto antes de pulsar");
+        string Cuerpo(string fuente, string firma) => System.Text.RegularExpressions.Regex.Match(fuente, System.Text.RegularExpressions.Regex.Escape(firma) + @"[\s\S]*?\r?\n    }\r?\n").Value;
+        Debe(Cuerpo(c, "private string? LibrarElPuntoDeUnClic(").Contains("ReglaDeLaVisita.LibrarElPunto("), "[cableado] la cara no mira bajo el punto con la regla");
+        string apartar = Cuerpo(c, "private void ApartarLaCarita()");
+        Debe(apartar.Contains("DispatcherPriority.Send") && apartar.Contains("TimeSpan.FromMilliseconds(100)"), "[cableado] apartar la carita espera a la interfaz sin techo: el clic se quedaría colgado");
+        Debe(c.Contains("U.Graph.Surfaces.UiaSurface.LibrarElPunto = LibrarElPuntoDeUnClic;"), "[cableado] las otras manos no miran bajo el punto con la misma regla");
+        // LOS SEIS SITIOS QUE PULSAN (patrón nº5): el ciclo, la mano rápida, InputExecutor y los tres clics físicos de la
+        // escalera (el doble pasa por el primero). La coreografía de lección pulsa por la escalera.
+        if (FuenteDe("windows-graph", "src", "Surfaces", "UiaSurface.cs") is not { } uia) return;
+        int enUia = System.Text.RegularExpressions.Regex.Matches(uia, @"LibrarElPunto\?\.Invoke\(").Count;
+        Debe(enUia == 3, $"[cableado] la escalera mira bajo el punto en {enUia} de sus 3 clics físicos");
+        if (FuenteDe("windows-client", "src", "Navigation", "ManoRapida.cs") is not { } mano) return;
+        Debe(mano.Contains("UiaSurface.LibrarElPunto?.Invoke(x, y)"), "[cableado] la mano rápida no mira bajo el punto");
+        if (FuenteDe("windows-client", "src", "Actions", "InputExecutor.cs") is not { } exe) return;
+        Debe(exe.Contains("UiaSurface.LibrarElPunto?.Invoke(x, y)"), "[cableado] los toques de computer-use no miran bajo el punto");
+    }
+
+    private static void ElCicloTrabajaSobreLoQueHayDelante()
+    {
+        // MEDIDO EL 2026-09-27: sin el fondo, la ventana de trabajo dejó de seguir al foco. El Bloc de notas y Edge,
+        // abiertos por la persona, se quedaron sin ciclo: 30 clics seguidos «no está en la lectura (23 accionables)»,
+        // que eran los botones de la Calculadora de antes.
+        var elige = CicloRapidoT()?.GetMethod("ElegirVentana", BindingFlags.Public | BindingFlags.Static);
+        if (elige == null) { Pendiente("CicloRapido.ElegirVentana", "491", "054"); return; }
+        IntPtr E(IntPtr delante, bool delanteEsU, IntPtr trabajo) => (IntPtr)elige.Invoke(null, new object[] { delante, delanteEsU, trabajo })!;
+        Debe(E((IntPtr)7, false, (IntPtr)3) == (IntPtr)7, "con otra app delante, el ciclo no trabajó sobre ella sino sobre la ventana de trabajo");
+        Debe(E((IntPtr)7, true, (IntPtr)3) == (IntPtr)3, "con Ü delante, el ciclo no usó su ventana de trabajo");
+        Debe(E(IntPtr.Zero, false, (IntPtr)3) == (IntPtr)3, "sin nada delante, el ciclo no usó su ventana de trabajo");
+    }
+
+    private static void NadieLeeLaPantallaDeFondo()
+    {
+        // MEDIDO EL 2026-09-27: con el latido (lee la ventana de delante cada 900 ms), la ubicación de fondo (cada
+        // 250-400 ms, 200-290 ms de UIA en Configuración) y el rastro del cursor (180 ms, justo tras cada clic) leyendo
+        // la MISMA app que el ciclo, las lecturas del ciclo subían: la del Explorador tras un clic, de ~500 a más de 1 s.
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string mapa = Path.Combine(repo, "windows-client", "src", "Navigation", "MapaVivo.cs");
+        string cara = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(mapa) || !File.Exists(cara)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO no hay fuentes que mirar."); return; }
+        string m = File.ReadAllText(mapa);
+        var arrancar = System.Text.RegularExpressions.Regex.Match(m, @"public void Arrancar\([\s\S]*?\n    \}");
+        Debe(arrancar.Success, "no encontré MapaVivo.Arrancar");
+        Debe(arrancar.Success && !arrancar.Value.Contains("new System.Threading.Timer"),
+            "el mapa vivo sigue arrancando relojes de fondo (latido o ubicación) que leen la pantalla");
+        string c = File.ReadAllText(cara);
+        Debe(!System.Text.RegularExpressions.Regex.IsMatch(c, @"^\s*RastroDelCursor\.Arrancar\(\);", System.Text.RegularExpressions.RegexOptions.Multiline),
+            "el rastro del cursor sigue arrancando con la cara");
+    }
+
+    private static void LeerYUbicarseTienenPlazo()
+    {
+        // MEDIDO EL 2026-09-27: el Explorador tardó 252.579 ms en contestar UNA lectura del lector viejo, que no tiene
+        // plazo (System.Windows.Automation no lo admite). U entero se quedó esperando: abrir la Calculadora «tardó» 350 s.
+        var t = typeof(PulsarSegunElNucleo).Assembly.GetType("U.WindowsClient.Uia.Plazo");
+        var con = t?.GetMethods().FirstOrDefault(m => m.Name == "Con" && m.IsGenericMethodDefinition)?.MakeGenericMethod(typeof(int));
+        if (con == null) { Pendiente("Uia.Plazo.Con (leer con plazo)", "490", "054"); return; }
+        object?[] a = { (Func<int>)(() => { Thread.Sleep(2000); return 7; }), 200, null };
+        var crono = System.Diagnostics.Stopwatch.StartNew();
+        bool aTiempo = (bool)con.Invoke(null, a)!;
+        Debe(!aTiempo && crono.ElapsedMilliseconds < 450, $"una app que no contesta en 200 ms se esperó {crono.ElapsedMilliseconds} ms (a tiempo={aTiempo})");
+        object?[] b = { (Func<int>)(() => 7), 200, null };
+        Debe((bool)con.Invoke(null, b)! && (int)b[2]! == 7, "lo que contesta a tiempo no llegó con su valor");
+        object?[] c = { (Func<int>)(() => throw new InvalidOperationException("sin proveedor")), 200, null };
+        bool lanzo = false;
+        try { con.Invoke(null, c); } catch (TargetInvocationException e) when (e.InnerException is InvalidOperationException) { lanzo = true; }
+        Debe(lanzo, "un fallo dentro del plazo se tragó en vez de subir con su causa (aprendizaje nº3)");
+
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string lector = Path.Combine(repo, "windows-client", "src", "Uia", "UiaReader.cs");
+        string donde = Path.Combine(repo, "windows-client", "src", "Uia", "SurfaceLocator.cs");
+        if (!File.Exists(lector) || !File.Exists(donde)) { _fallos++; Console.WriteLine("   ⚠ NO PUDE JUZGAR la parte de las fuentes: sin U_REPO."); return; }
+        Debe(File.ReadAllText(lector).Contains("Plazo.Con("), "UiaReader.Read sigue leyendo sin plazo");
+        Debe(File.ReadAllText(donde).Contains("Plazo.Con("), "SurfaceLocator sigue ubicándose sin plazo");
+    }
+
+    private static void DesplazarNoDuermeFijo()
+    {
+        // LÍNEA BASE: Desplazamiento.Mover dormía 350 ms fijos tras cada ScrollVertical (2026-09-27), también cuando el
+        // porcentaje ya había cambiado al volver la llamada, que es lo normal.
+        var t = typeof(SurfaceMapTools).Assembly.GetType("U.WindowsClient.Uia.Desplazamiento");
+        var espera = t?.GetMethod("EsperarQueSeMueva", BindingFlags.Public | BindingFlags.Static);
+        if (espera == null) { Pendiente("Desplazamiento.EsperarQueSeMueva", "484", "053"); return; }
+
+        var crono = System.Diagnostics.Stopwatch.StartNew();
+        double ya = (double)espera.Invoke(null, new object[] { (Func<double>)(() => 40.0), 10.0, 350 })!;
+        Debe(ya == 40.0 && crono.ElapsedMilliseconds < 60, $"el porcentaje ya había cambiado y esperó {crono.ElapsedMilliseconds} ms (devolvió {ya})");
+
+        crono.Restart();
+        double tarde = (double)espera.Invoke(null, new object[] { (Func<double>)(() => crono.ElapsedMilliseconds >= 120 ? 55.0 : 10.0), 10.0, 350 })!;
+        Debe(tarde == 55.0 && crono.ElapsedMilliseconds < 250, $"se movió a los 120 ms y se supo a los {crono.ElapsedMilliseconds} (devolvió {tarde})");
+
+        crono.Restart();
+        double quieto = (double)espera.Invoke(null, new object[] { (Func<double>)(() => 100.0), 100.0, 350 })!;
+        Debe(quieto == 100.0 && crono.ElapsedMilliseconds >= 330, $"sin moverse dijo a los {crono.ElapsedMilliseconds} ms: tiene que agotar el techo antes de decir «no se movió»");
+    }
+
+    private static void LanzarUnProtocoloEsperaALaVentanaDeDelante()
+    {
+        var t = typeof(U.WindowsClient.SystemApi.WindowsSystemApi);
+        var techo = t.GetMethod("TechoDeEspera", BindingFlags.Public | BindingFlags.Static);
+        var espera = t.GetMethod("EsperarLlegada", BindingFlags.Public | BindingFlags.Static);
+        if (techo == null || espera == null) { Pendiente("WindowsSystemApi.TechoDeEspera / EsperarLlegada", "482", "053"); return; }
+
+        Debe((int)techo.Invoke(null, new object[] { "ms-settings:" })! <= 3000, "un protocolo sigue esperando más de 3 s");
+        Debe((int)techo.Invoke(null, new object[] { "mailto:alguien@ejemplo.com" })! <= 3000, "mailto: sigue esperando más de 3 s");
+        Debe((int)techo.Invoke(null, new object[] { "chrome" })! >= 6000, "un programa en frío necesita su paciencia: Chrome pasa de 6 s");
+
+        // Otra ventana delante a los 150 ms: llegó, y se sabe a los 150 ms, no a los 3 s.
+        var crono = System.Diagnostics.Stopwatch.StartNew();
+        Func<(IntPtr, string)> cambia = () => crono.ElapsedMilliseconds < 150 ? ((IntPtr)1, "Explorador") : ((IntPtr)2, "Configuración");
+        bool llego = (bool)espera.Invoke(null, new object[] { cambia, 3000 })!;
+        Debe(llego && crono.ElapsedMilliseconds < 600, $"la ventana de delante cambió a los 150 ms y la espera dijo {llego} a los {crono.ElapsedMilliseconds} ms");
+
+        // La MISMA ventana con otro título también es llegar (Apps.Llego, promesa 469).
+        crono.Restart();
+        Func<(IntPtr, string)> titulo = () => ((IntPtr)1, crono.ElapsedMilliseconds < 100 ? "Configuración" : "Configuración > Pantalla");
+        Debe((bool)espera.Invoke(null, new object[] { titulo, 3000 })!, "el título cambió y no se contó como llegada");
+
+        // Nada cambia: no llegó, y se dice al techo que se le dio.
+        crono.Restart();
+        Func<(IntPtr, string)> quieto = () => ((IntPtr)1, "Explorador");
+        bool nada = (bool)espera.Invoke(null, new object[] { quieto, 400 })!;
+        Debe(!nada && crono.ElapsedMilliseconds < 800, $"sin cambio dijo {nada} a los {crono.ElapsedMilliseconds} ms con techo de 400");
+    }
+
+    private static void PulsarDeSapEsperaComoSiempre()
+    {
+        // En SAP, UIA no ve más que un panel opaco: su huella no cambia nunca, y cortar la espera a 150 ms haría dar por
+        // no-agarrado un clic mientras SAP procesa el round-trip.
+        if (typeof(PulsarSegunElNucleo).GetProperty("LoQueSeVe") == null) { Pendiente("PulsarSegunElNucleo.LoQueSeVe (la espera mira lo que se ve)", "476", "053"); return; }
+        const string A = "sap://NWP1", B = "sap://NV2000";
+        var g = new Nucleo.Grafo();
+        g.Observar(A, new[] { new Nucleo.Elemento("sap:wnd[0]/tbar[1]/btn[8]", "Ejecutar", "GuiButton") });
+        var (p, _) = PulsadorConVista(g, ms => ms >= 700 ? B : A, _ => "panel opaco");
+        var r = p.Pulsa("sap:wnd[0]/tbar[1]/btn[8]", "Ejecutar");
+        Debe(r.Hasta == B && r.CambioLaPantalla, $"un pulso de SAP que llega a los 700 ms se perdió: hasta «{r.Hasta}» («{r.Cuenta}»)");
+
+        // Sin lector de lo que se ve, lo de siempre: la ubicación, hasta el techo.
+        var (p2, _) = PulsadorConVista(new Nucleo.Grafo(), ms => ms >= 700 ? "uia://x/b" : "uia://x/a", null);
+        var r2 = p2.Pulsa("uia:name=Ir;ct=Button", "Ir");
+        Debe(r2.Hasta == "uia://x/b", $"sin lector, un cambio de ubicación a los 700 ms se perdió: hasta «{r2.Hasta}»");
+    }
 
     private static void UnCampoDeTextoNoNavega()
     {
