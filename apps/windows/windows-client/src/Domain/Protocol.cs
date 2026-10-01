@@ -4,7 +4,7 @@ namespace U.WindowsClient.Domain;
 
 // Tipos del contrato con el cerebro (Graph, POST /api/v1/agent/turn). Su otro lado es
 // services/graph/src/application/use-cases/AgentTurnService.js; el backend viejo de Windows, del que
-// esto era espejo, se retira con la spec 071 (2026-10-01). El cliente solo conoce estos tipos del cerebro;
+// esto era espejo, se retira con la spec 078 (2026-10-01). El cliente solo conoce estos tipos del cerebro;
 // nada más cruza la frontera.
 
 /// <summary>Estado de pantalla que el cliente captura y envía cada turno.</summary>
@@ -32,7 +32,7 @@ public sealed class ScreenState
 public sealed class TurnRequest
 {
     /// <summary>
-    /// Con quién habla Ü (spec 071): solo en el primer turno, porque Graph lo congela en la sesión.
+    /// Con quién habla Ü (spec 078): solo en el primer turno, porque Graph lo congela en la sesión.
     /// Null si nadie lo eligió: el campo no viaja y el cerebro se porta como siempre. Lo pone
     /// <see cref="Backend.BackendClient"/>, no quien arma la petición.
     /// </summary>

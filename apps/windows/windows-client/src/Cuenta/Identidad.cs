@@ -55,7 +55,7 @@ public static class Identidad
         string.IsNullOrWhiteSpace(correoDelMedico) ? correoDeMaquina ?? "" : correoDelMedico;
 
     /// <summary>
-    /// Qué bienvenida toca al abrir Ü (spec 071, promesa 652). El perfil —médico o uso personal— se
+    /// Qué bienvenida toca al abrir Ü (spec 078, promesa 702). El perfil —médico o uso personal— se
     /// pregunta UNA vez, y nunca a quien ya entró con su cuenta Miracle: ese es médico.
     /// </summary>
     /// <remarks>

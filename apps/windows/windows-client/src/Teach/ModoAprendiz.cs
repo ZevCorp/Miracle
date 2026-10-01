@@ -34,7 +34,7 @@ public static class ModoAprendiz
 {
     /// <summary>
     /// LO ÚNICO QUE TIENE EL APRENDIZ: mirar, señalar lo que le muestran y callarse. Una LISTA BLANCA
-    /// (spec 071, D1, promesa 676): lo que no está aquí no entra, tampoco una herramienta que nazca mañana.
+    /// (spec 078, D1, promesa 726): lo que no está aquí no entra, tampoco una herramienta que nazca mañana.
     /// </summary>
     /// <remarks>
     /// ERA UNA LISTA NEGRA DE MANOS, escrita antes de la spec 062, y se le colaron cuatro: map_hacer —con

@@ -25,7 +25,7 @@ public enum ModoDeBienvenida
 /// es la identidad canónica del usuario en «Windows Live»).
 /// </summary>
 /// <remarks>
-/// UNA VENTANA CON DOS MODOS Y NO DOS VENTANAS (spec 071). La promesa 531 exige que toda ventana de
+/// UNA VENTANA CON DOS MODOS Y NO DOS VENTANAS (spec 078). La promesa 531 exige que toda ventana de
 /// Ü esté declarada como flotante o de trabajo, y esta ya lo estaba; una segunda habría sido una
 /// forma más de olvidarlo.
 ///
@@ -35,7 +35,7 @@ public enum ModoDeBienvenida
 ///
 /// NUNCA BLOQUEA. Cerrarla sin contestar deja el perfil sin elegir —la Ü de antes— y se vuelve a
 /// preguntar en el próximo arranque. La regla de cuándo sale vive en
-/// <see cref="Identidad.QueBienvenida"/>, que el contrato juzga (promesa 652); la ventana es nivel 4.
+/// <see cref="Identidad.QueBienvenida"/>, que el contrato juzga (promesa 702); la ventana es nivel 4.
 /// </remarks>
 public sealed class OnboardingWindow : Window
 {

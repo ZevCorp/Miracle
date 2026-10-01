@@ -656,16 +656,16 @@ public sealed class ConversacionEnVivo : IDisposable
     /// corta (ProtocoloGptLive.InstruccionesDeLaVoz).
     /// </summary>
     /// <remarks>
-    /// UNA SOLA Ü (spec 071, 2026-10-01). Hasta hoy había dos: esta, de 25.096 caracteres, que empezaba
+    /// UNA SOLA Ü (spec 078, 2026-10-01). Hasta hoy había dos: esta, de 25.096 caracteres, que empezaba
     /// «Eres Ü, un asistente que maneja el ordenador de quien te habla», y la del cerebro de Graph con su
     /// «PERSONALIDAD viva y divertida» y sus emojis, que llegaba a esta misma voz por Speak. La misma voz
     /// sonaba a dos personas. Ahora el principio —<see cref="ConstitucionDeU.Quien"/> y
     /// <see cref="ConstitucionDeU.Obedece"/>— es el mismo texto que lee Graph (lo compara
     /// <c>tools/monorepo/constitucion.sh</c>), y aquí solo se escribe lo que es de Windows:
     /// <see cref="Operacion"/>. Mide 17.547 caracteres (con \n), y las de siempre de un médico de
-    /// Cardiología con el decisor, 19.831. La 674 juzga el peor caso —un médico con una especialidad de 60
+    /// Cardiología con el decisor, 19.831. La 724 juzga el peor caso —un médico con una especialidad de 60
     /// caracteres, y el decisor—: 19.880 de 20.000, 120 de holgura (constitución del 2026-10-01). Lo que
-    /// se añada aquí o a la constitución se paga quitando: la segunda ronda (687) cupo porque se fueron el
+    /// se añada aquí o a la constitución se paga quitando: la segunda ronda (737) cupo porque se fueron el
     /// párrafo largo del decisor y lo que ya decían las descripciones de map_esto_es, map_pointing_at y
     /// map_exclude; su revisión, porque se fueron la alarma y «no te asustes si la pantalla no cambia», que
     /// ya dicen memory_remember y map_take.
@@ -689,11 +689,11 @@ public sealed class ConversacionEnVivo : IDisposable
     /// permiso, elegir tú y parar solo ante lo irreversible que nadie pidió vive en la constitución (244):
     /// escrito dos veces, las dos copias se contradecían.
     ///
-    /// LA SEGUNDA RONDA (687, 2026-10-01) clava lo que las pruebas del delegado encontraron: «espera» es una
+    /// LA SEGUNDA RONDA (737, 2026-10-01) clava lo que las pruebas del delegado encontraron: «espera» es una
     /// interrupción y no self_mute; lo que cancela acaba con lo anterior; un diálogo que solo confirma lo
     /// pedido se contesta con `choose`, y si map_unblock lo veta («NO pulso…»: veta Eliminar o Aceptar aunque
     /// se lo pidan), con map_take; dos personas del mismo nombre se preguntan, también si la lista llega de
-    /// un map_hacer (691); map_where_am_i una vez al llegar a una app de trabajo, antes de actuar, porque es
+    /// un map_hacer (741); map_where_am_i una vez al llegar a una app de trabajo, antes de actuar, porque es
     /// lo único que cuenta lo enseñado; «al terminar habla SIEMPRE»; y tocar archivos es file_list, un
     /// map_hacer con pasos y teclas que las manos leen (sin «seleccionar juntos:», que no existe), de uno en
     /// uno y volviendo a la carpeta de origen, y file_list otra vez.
@@ -821,7 +821,7 @@ public sealed class ConversacionEnVivo : IDisposable
 
     /// <summary>El párrafo que se añade a las instrucciones solo con el decisor encendido.</summary>
     /// <remarks>
-    /// Medía 1.071 caracteres y contaba otra vez lo que dicen las descripciones de map_decidir, map_tramo, map_alto y
+    /// Medía 1.078 caracteres y contaba otra vez lo que dicen las descripciones de map_decidir, map_tramo, map_alto y
     /// map_tramo_estado; ahora mide 619 y solo dice cuándo se usa cada una. Ni «Jev» ni «TypeSafe»: son nombres de dentro, y
     /// el modelo copia los nombres que lee al hablar con la persona (2026-10-01).
     /// </remarks>
@@ -1278,11 +1278,11 @@ public sealed class ConversacionEnVivo : IDisposable
     /// <summary>
     /// CÓMO EMPIEZA LO QUE SE LE DICTA A LA VOZ. Un solo sitio, porque la voz prestada
     /// (<see cref="Piloto.VozPrestada.Instrucciones"/>) tiene que citarlo tal cual: hasta el 2026-10-01
-    /// citaba «Di exactamente esto: …», que coincidía como prefijo y no como frase (D10, promesa 684).
+    /// citaba «Di exactamente esto: …», que coincidía como prefijo y no como frase (D10, promesa 734).
     /// </summary>
     internal const string PrefijoDelDictado = "Di exactamente esto, sin añadir nada ni comentarlo: ";
 
-    // ── Con quién habla Ü (spec 071) ────────────────────────────────────────
+    // ── Con quién habla Ü (spec 078) ────────────────────────────────────────
 
     /// <summary>
     /// CON QUIÉN HABLA ESTA VOZ: médico (con su especialidad), persona, o sin elegir. Lo pone la ventana
@@ -1293,7 +1293,7 @@ public sealed class ConversacionEnVivo : IDisposable
     /// conversación, y el contrato juzga varias a la vez sin pisarse. Con GPT-Live pone además la frase
     /// corta de la voz (<see cref="ProtocoloGptLive.PersonaExtra"/>), que es la que se oye; vale desde la
     /// próxima apertura o vuelta de modo, porque la persona de una sesión abierta no se reemplaza.
-    /// Sin elegir, todo es la Ü de antes byte a byte (promesa 672).
+    /// Sin elegir, todo es la Ü de antes byte a byte (promesa 722).
     /// </remarks>
     public Cuenta.PerfilDeUso Perfil
     {
@@ -1317,7 +1317,7 @@ public sealed class ConversacionEnVivo : IDisposable
     /// <summary>
     /// LAS INSTRUCCIONES DE SIEMPRE DE ESTA CONVERSACIÓN: quién es Ü, con quién habla, el pilar de obedecer,
     /// cómo se opera y, con el decisor, quién elige la puerta. Lo que se manda al abrir, al reconectar y al
-    /// volver de un modo (spec 071; D2 y D3).
+    /// volver de un modo (spec 078; D2 y D3).
     /// </summary>
     internal string InstruccionesDeSiempre => ArmarLasDeSiempre(Perfil.ParaElDelegado());
 
@@ -1344,7 +1344,7 @@ public sealed class ConversacionEnVivo : IDisposable
     /// cuando se le pide. Null = el de siempre.
     /// </summary>
     /// <remarks>
-    /// Nació el 2026-10-01 (D2, D4 y D9 de la spec 071). Sin él nadie sabía en qué modo estaba la voz:
+    /// Nació el 2026-10-01 (D2, D4 y D9 de la spec 078). Sin él nadie sabía en qué modo estaba la voz:
     /// reconectar a mitad de una enseñanza la devolvía con manos, el botón Jev a mitad de una demo le
     /// devolvía el catálogo entero, y los vigilantes de lección y de memoria seguían despiertos mientras
     /// alguien narraba «esto es el número de factura» para la grabación.
@@ -1367,7 +1367,7 @@ public sealed class ConversacionEnVivo : IDisposable
     /// que a mitad de sesión es un error (medido el 2026-09-12), y lo que se manda es un session.update de
     /// la delegación y, a la voz, un append con las reglas del modo (spec 018, promesa 47 de la voz).
     ///
-    /// ESPERA A QUE EL SERVIDOR CONFIRME LA SESIÓN (D8, promesa 682): enseñar y comprobar abren la voz y
+    /// ESPERA A QUE EL SERVIDOR CONFIRME LA SESIÓN (D8, promesa 732): enseñar y comprobar abren la voz y
     /// cambian de modo en el mismo instante, y con GPT-Live no está medido que un session.update antes de
     /// session.started se acepte. Con techo de 15 s, como <see cref="HablarConVozVivaAsync"/>.
     /// </remarks>
@@ -1394,7 +1394,7 @@ public sealed class ConversacionEnVivo : IDisposable
 
     /// <summary>
     /// VUELVE AL MODO DE SIEMPRE con todo lo que se abrió: las instrucciones con el perfil, el decisor, la
-    /// memoria y el hilo, y el catálogo entero. D2 de la spec 071, promesa 677.
+    /// memoria y el hilo, y el catálogo entero. D2 de la spec 078, promesa 727.
     /// </summary>
     /// <remarks>
     /// LO QUE PASABA: los tres sitios de vuelta —terminar de enseñar, devolver la voz prestada y el botón
@@ -1421,7 +1421,7 @@ public sealed class ConversacionEnVivo : IDisposable
     /// <summary>
     /// EL CATÁLOGO CAMBIÓ (el botón Jev encendió o apagó el decisor): se le manda a la voz si está en su modo
     /// de siempre. En un modo especial no se toca nada —encender Jev a mitad de una enseñanza le devolvía las
-    /// manos al aprendiz— y la vuelta ya leerá el catálogo nuevo (promesa 678).
+    /// manos al aprendiz— y la vuelta ya leerá el catálogo nuevo (promesa 728).
     /// </summary>
     public Task ReenviarElCatalogoAsync()
     {
@@ -1434,7 +1434,7 @@ public sealed class ConversacionEnVivo : IDisposable
     }
 
     /// <summary>
-    /// TRAS UN CORTE, LA VOZ VUELVE AL MODO EN QUE ESTABA (D4, promesa 679). La reconexión abre con las
+    /// TRAS UN CORTE, LA VOZ VUELVE AL MODO EN QUE ESTABA (D4, promesa 729). La reconexión abre con las
     /// instrucciones de siempre —es lo que la vuelta necesita como punto de partida— y, si había un modo
     /// especial, se le vuelve a poner en cuanto el servidor confirma la sesión nueva.
     /// </summary>
@@ -1784,12 +1784,12 @@ public sealed class ConversacionEnVivo : IDisposable
                     + $"cero (intento {_reintentos})");
                 // «SIGO» CUANDO EL SERVIDOR CONFIRMA, no al reconectar el socket: el 2026-09-12 se dijo cuatro
                 // veces sobre una sesión que no iba a abrir. Y SIN «OLVIDÉ LO ÚLTIMO»: la sesión nueva abre con la
-                // memoria y el hilo durable, en las instrucciones y en el historial (spec 071).
+                // memoria y el hilo durable, en las instrucciones y en el historial (spec 078).
                 EmpiezaUnaConexion("Se cortó un instante; ya volví.");
             }
 
             _ = Task.Run(() => RecibirAsync(_cts.Token), _cts.Token);
-            // Y SI ESTABA EN UN MODO, VUELVE A ÉL (D4, promesa 679): la apertura de arriba es la de siempre, y el
+            // Y SI ESTABA EN UN MODO, VUELVE A ÉL (D4, promesa 729): la apertura de arriba es la de siempre, y el
             // modo se le pone encima cuando el servidor confirme — que llega por la escucha que acaba de arrancar.
             if (_modo != null) _ = Task.Run(() => ReaplicarElModoAsync());
         }
@@ -1817,7 +1817,7 @@ public sealed class ConversacionEnVivo : IDisposable
         _segundosDeConexionesAnteriores += _segundosDeLaConexion;
         _segundosDeLaConexion = 0;
         _confirmada = !_protocolo.ConfirmaQueAbrio;
-        // LA ESPERA PENDIENTE PASA A LA CONEXIÓN NUEVA (promesa 693). Antes se creaba otra y la de la conexión muerta
+        // LA ESPERA PENDIENTE PASA A LA CONEXIÓN NUEVA (promesa 743). Antes se creaba otra y la de la conexión muerta
         // no la resolvía nadie: quien la esperaba (volver de un modo, empezar a enseñar, hablar) se rendía a los 15 s
         // aunque la nueva ya estuviera confirmada, y el aprendiz quedaba puesto. TerminarAsync la sigue cerrando en false.
         _aperturaConfirmada = _aperturaConfirmada is { Task.IsCompleted: false } pendiente
@@ -2047,9 +2047,9 @@ public sealed class ConversacionEnVivo : IDisposable
     /// </summary>
     private void GuardarPeticionPersonalSiLaPidio(string texto)
     {
-        // EN UN MODO ESPECIAL NO (D9, promesa 683): lo que se oye mientras se enseña es narración para la
+        // EN UN MODO ESPECIAL NO (D9, promesa 733): lo que se oye mientras se enseña es narración para la
         // grabación —«tengo un paciente…»— y no un dato de la persona; con la voz prestada habla el piloto.
-        // CON UN MÉDICO TAMPOCO (promesa 690): en consulta, «recuerda que la de la cama 4 es alérgica a la
+        // CON UN MÉDICO TAMPOCO (promesa 740): en consulta, «recuerda que la de la cama 4 es alérgica a la
         // penicilina» es un dato de un paciente, y la constitución dice que eso no va a la memoria. Una palabra
         // clave no distingue un pendiente del médico de un dato clínico; el modelo sí, con memory_remember.
         if (_modo != null || _perfil.EsMedico || Memoria == null || string.IsNullOrWhiteSpace(texto)) return;
@@ -2085,7 +2085,7 @@ public sealed class ConversacionEnVivo : IDisposable
     /// </summary>
     private void GuardarDetallePersonalSiEsRelevante(string texto)
     {
-        if (_modo != null || _perfil.EsMedico || Memoria == null || string.IsNullOrWhiteSpace(texto)) return;   // D9 y 690: ver arriba
+        if (_modo != null || _perfil.EsMedico || Memoria == null || string.IsNullOrWhiteSpace(texto)) return;   // D9 y 740: ver arriba
         string bajo = texto.Trim().ToLowerInvariant();
         if (bajo.Length < 12 || bajo.Length > 900) return;
         if (bajo.Contains("recuerda", StringComparison.Ordinal)
@@ -2307,7 +2307,7 @@ public sealed class ConversacionEnVivo : IDisposable
     /// </remarks>
     private void VigilarLaLeccion(string dicho)
     {
-        // EN UN MODO ESPECIAL NO SE VIGILA (D9, promesa 683): el aprendiz no tiene map_esto_es —los recuerdos se
+        // EN UN MODO ESPECIAL NO SE VIGILA (D9, promesa 733): el aprendiz no tiene map_esto_es —los recuerdos se
         // cuelgan al comprobar (125)— y un aviso que se la pide contradice el modo en que está.
         if (_modo != null) return;
         if (!Navigation.UnaLeccion.Parece(dicho)) return;
@@ -2454,7 +2454,7 @@ public sealed class ConversacionEnVivo : IDisposable
 
     /// <summary>
     /// UNA NOTA DEL SISTEMA PARA EL MODELO, que no es del usuario: no entra en el hilo durable ni se pinta
-    /// «Tú: …», y pide respuesta igual que lo escrito. D7 de la spec 071, promesa 681.
+    /// «Tú: …», y pide respuesta igual que lo escrito. D7 de la spec 078, promesa 731.
     /// </summary>
     /// <remarks>
     /// LO QUE PASABA: el saludo de primera vez y la cuenta de un tramo iban por <see cref="EnviarTextoAsync"/>,
@@ -2482,7 +2482,7 @@ public sealed class ConversacionEnVivo : IDisposable
     /// conversación (con su perfil y, si está encendido, el decisor), la memoria personal y el hilo.
     /// </summary>
     /// <remarks>
-    /// CON EL DECISOR DESDE LA APERTURA (D3, promesa 675): usaba la constante <see cref="Instrucciones"/>, y el
+    /// CON EL DECISOR DESDE LA APERTURA (D3, promesa 725): usaba la constante <see cref="Instrucciones"/>, y el
     /// catálogo ya traía map_decidir y map_tramo sin el párrafo que dice cuándo usarlas; ConDecisor se enciende
     /// al arrancar la ventana, antes de que exista la voz, así que el párrafo solo llegaba tras un cambio de modo.
     /// </remarks>
@@ -2510,7 +2510,7 @@ public sealed class ConversacionEnVivo : IDisposable
     }
 
     /// <summary>
-    /// CUÁNTO HILO VA EN LAS INSTRUCCIONES: lo último, hasta 8.000 caracteres (D5 de la spec 071, promesa 674).
+    /// CUÁNTO HILO VA EN LAS INSTRUCCIONES: lo último, hasta 8.000 caracteres (D5 de la spec 078, promesa 724).
     /// </summary>
     /// <remarks>
     /// Eran 18.000, y con GPT-Live el mismo hilo viaja OTRA vez como historial de la voz (session.input): la

@@ -17,14 +17,14 @@ namespace U.WindowsClient.Backend;
 /// <see cref="GraphConfig"/> (%APPDATA%\U\graph.json o env GRAPH_API_KEY). Una sola fuente a
 /// propósito: dos keys para el mismo backend era justo el lío que el port a Graph vino a eliminar.
 ///
-/// UN SOLO CONTRATO (spec 071, promesa 657). Hasta el 2026-10-01 había un modo viejo —prefijo
+/// UN SOLO CONTRATO (spec 078, promesa 707). Hasta el 2026-10-01 había un modo viejo —prefijo
 /// <c>/api</c> y <c>Authorization: Bearer ClientToken</c>— para volver a u-windows-backend en una
 /// emergencia, y se activaba con cualquier localhost. Ese backend llevaba muerto desde septiembre y
-/// se retira (spec 071); lo que sí rompía el modo viejo era <c>scripts/dev-local.ps1</c>, que levanta GRAPH en
+/// se retira (spec 078); lo que sí rompía el modo viejo era <c>scripts/dev-local.ps1</c>, que levanta GRAPH en
 /// localhost: el cliente le hablaba como al backend viejo y Graph contestaba 401. Hoy cualquier URL
 /// —Graph remoto o local— recibe lo mismo: <c>/api/v1</c> con X-API-Key.
 ///
-/// EL PERFIL VIAJA SOLO (spec 071, promesa 655): quien arma el turno no tiene que acordarse.
+/// EL PERFIL VIAJA SOLO (spec 078, promesa 705): quien arma el turno no tiene que acordarse.
 /// <see cref="Perfil"/> se pone una vez al crear el puente y va en el primer turno de cada objetivo.
 /// </summary>
 public sealed class BackendClient

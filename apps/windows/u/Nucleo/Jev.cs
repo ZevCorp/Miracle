@@ -41,7 +41,7 @@ public static class Jev
     /// <summary>
     /// LO QUE ES PELIGROSO PULSAR SIN QUE LA PERSONA LO HAYA PEDIDO, en una sola frase para las dos preguntas a
     /// TypeSafe: la de esta mano (<see cref="Cuerpo(Contexto, string)"/>) y la del decisor de la voz
-    /// (<c>U.WindowsClient.Decision.PeticionASystemOne</c>). Spec 071 de Windows, D6, promesa 680.
+    /// (<c>U.WindowsClient.Decision.PeticionASystemOne</c>). Spec 078 de Windows, D6, promesa 730.
     /// </summary>
     /// <remarks>
     /// ERAN DOS FRASES Y NINGUNA COINCIDÍA: esta no nombraba guardar, grabar, firmar ni finalizar, y un objetivo de

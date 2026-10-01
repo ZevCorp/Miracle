@@ -6,7 +6,7 @@ namespace U.WindowsClient.Cuenta;
 /// <summary>
 /// CON QUIÉN HABLA Ü EN ESTE EQUIPO: un médico (con su especialidad), una persona en su día a día,
 /// o todavía nadie lo dijo. Es puro: no lee disco ni red, y por eso el contrato lo juzga entero
-/// (spec 071, promesas 650, 651 y 659).
+/// (spec 078, promesas 700, 701 y 709).
 /// </summary>
 /// <remarks>
 /// NACE DE LO QUE PIDIÓ EL DUEÑO el 2026-10-01: que Ü pregunte al empezar si quien lo usa es médico

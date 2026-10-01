@@ -124,7 +124,7 @@ public static class Presentacion
 
     /// <summary>
     /// Lo que se le manda a Ü al abrir la conversación la primera vez, para que salude ELLA y no
-    /// espere a que hable la persona. Según con quién habla (spec 071, §5 del diseño, promesa 685).
+    /// espere a que hable la persona. Según con quién habla (spec 078, §5 del diseño, promesa 735).
     /// </summary>
     /// <remarks>
     /// VA COMO NOTA DEL SISTEMA (<c>ConversacionEnVivo.AvisarAlModeloAsync</c>), no como texto de la persona:

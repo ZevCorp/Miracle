@@ -350,7 +350,7 @@
 
                         <Border Style="{StaticResource Sep}"/>
 
-                        <!-- ── Con quién habla Ü (spec 071): médico con su especialidad, uso personal
+                        <!-- ── Con quién habla Ü (spec 078): médico con su especialidad, uso personal
                              o sin elegir. La bienvenida promete «lo puedes cambiar cuando quieras
                              desde el menú de Ü», y es aquí. Con la cuenta Miracle dentro manda la
                              cuenta y la fila solo lo dice. El texto lo pone PintarElPerfilEnElMenu. -->

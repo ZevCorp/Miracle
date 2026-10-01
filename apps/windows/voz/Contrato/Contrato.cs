@@ -192,7 +192,7 @@ internal static class Contrato
 
         Prueba("50. GPT Realtime confirma la apertura con lo primero que manda su servidor al conectar: declara que confirma, session.created es un Hecho.Abierta, y ni un error, ni session.updated, ni ningún otro mensaje lo es", GptRealtimeConfirmaLaApertura);
 
-        // LA VOZ SABE CON QUIÉN HABLA Y VUELVE ENTERA DE UN MODO (spec 071 de Windows, 2026-10-01). Volver del aprendiz
+        // LA VOZ SABE CON QUIÉN HABLA Y VUELVE ENTERA DE UN MODO (spec 078 de Windows, 2026-10-01). Volver del aprendiz
         // mandaba a la voz un append de 25.000 caracteres —las de siempre con la memoria ya no eran las de la apertura—,
         // el servidor lo rechazaba y la voz se quedaba asintiendo con una palabra el resto de la sesión. Y la persona
         // que se oye le hablaba igual a un médico que a quien ordena sus fotos, en el español de otro país.
@@ -1251,9 +1251,9 @@ internal static class Contrato
 
     /// <summary>
     /// UNAS INSTRUCCIONES DEL TAMAÑO DE LAS DE Ü, no un marcador. Las de Ü miden 17.547 caracteres desde
-    /// la spec 071 de Windows (18.230 bytes UTF-8, 2026-10-01: la constitución de Ü y la operación), y las
+    /// la spec 078 de Windows (18.230 bytes UTF-8, 2026-10-01: la constitución de Ü y la operación), y las
     /// de siempre de un médico de Cardiología con el decisor, 19.831 (19.880 en el peor caso que juzga la
-    /// 674 del grafo); antes medían 20.694 (2026-09-12) y llegaron a 25.096.
+    /// 724 del grafo); antes medían 20.694 (2026-09-12) y llegaron a 25.096.
     /// Comprobarlas con Contains de una frase de 46 dejaba en verde recortarlas: el sabotaje V2 de la
     /// revisión —cortar a 4.000, una defensa verosímil ante el tope de 16.384 fichas— salió VOZ ÍNTEGRA.
     /// Estas miden más que las de Ü (unos 24.100), llevan lo que JSON escapa (tildes, Ü, comillas, barra
@@ -1592,7 +1592,7 @@ internal static class Contrato
     ///
     /// Al volver NO se le pasan las instrucciones de operar: la voz no las lleva (40), y el servidor
     /// rechaza un append de más de 500 fichas («Context append text must not exceed 500 tokens.», medido
-    /// con 2.400 caracteres; las de Ü eran 20.694 entonces y son 17.547 desde la spec 071 de Windows).
+    /// con 2.400 caracteres; las de Ü eran 20.694 entonces y son 17.547 desde la spec 078 de Windows).
     /// </remarks>
     private static void CambiarDeModoCambiaLaVoz()
     {
@@ -1953,10 +1953,10 @@ internal static class Contrato
         public IReadOnlyList<Hecho> Leer(JsonElement mensaje) => Array.Empty<Hecho>();
     }
 
-    // ── Spec 071 de Windows: la voz por perfil y la vuelta de un modo (56-59) ──────────
+    // ── Spec 078 de Windows: la voz por perfil y la vuelta de un modo (56-59) ──────────
 
-    private const string AlCambiarDeModo071 = "CAMBIO DE MODO. Desde ahora mandan estas reglas sobre cuándo y cómo hablas, por encima de las anteriores:\n";
-    private const string AlVolver071 = "VUELVES A TU MODO DE SIEMPRE. Lo anterior sobre el modo especial ya no manda; desde ahora mandan estas reglas:\n";
+    private const string AlCambiarDeModo078 = "CAMBIO DE MODO. Desde ahora mandan estas reglas sobre cuándo y cómo hablas, por encima de las anteriores:\n";
+    private const string AlVolver078 = "VUELVES A TU MODO DE SIEMPRE. Lo anterior sobre el modo especial ya no manda; desde ahora mandan estas reglas:\n";
 
     /// <summary>Volver de un modo, por la interfaz (así se juzga también el valor por defecto). Null si no existe.</summary>
     private static List<string>? VueltaDeModo(IProtocolo p, string instrucciones, IReadOnlyList<Utensilio> utensilios)
@@ -1982,13 +1982,13 @@ internal static class Contrato
     private static void VolverDeUnModoEsSuMensaje()
     {
         var p = GptLive();
-        if (p == null) { Pendiente("Voz.Realtime.ProtocoloGptLive", "071·56"); return; }
+        if (p == null) { Pendiente("Voz.Realtime.ProtocoloGptLive", "078·56"); return; }
         var utensilios = new List<Utensilio> { new("map_look", "Mira la pantalla", new List<Argumento>()) };
         string persona = Campo(Mensaje(p.Apertura("ERES Ü. LAS DE LA APERTURA, SIN MEMORIA", utensilios, "").First()), "session", "instructions");
 
         string deAhora = InstruccionesComoLasDeU("ERES Ü. LAS DE SIEMPRE, AHORA CON LA MEMORIA Y EL HILO");
         var vuelta = VueltaDeModo(p, deAhora, utensilios)?.Select(Mensaje).ToList();
-        if (vuelta == null) { Pendiente("IProtocolo.VueltaDeModo", "071·56"); return; }
+        if (vuelta == null) { Pendiente("IProtocolo.VueltaDeModo", "078·56"); return; }
         string tipos = string.Join(" · ", vuelta.Select(x => Campo(x, "type")));
         Debe(vuelta.Count == 2 && Campo(vuelta[0], "type") == "session.update" && Campo(vuelta[1], "type") == "session.instructions.append",
             $"volver es UN session.update de la delegación y detrás UN session.instructions.append a la voz (salió: {tipos})");
@@ -2000,7 +2000,7 @@ internal static class Contrato
         Debe(Campo(vuelta[0], "session", "delegation", "responses", "tools").Contains("map_look", StringComparison.Ordinal),
             "con su catálogo");
         string aLaVoz = Campo(vuelta[1], "content");
-        Debe(persona.Length > 0 && aLaVoz == AlVolver071 + persona,
+        Debe(persona.Length > 0 && aLaVoz == AlVolver078 + persona,
             "y la voz recibe su persona de siempre detrás del prefijo medido de la vuelta, letra por letra");
         Debe(!aLaVoz.Contains("LAS DE SIEMPRE", StringComparison.Ordinal),
             "nunca las instrucciones de operar: la voz no las lleva, y en un append no caben");
@@ -2008,7 +2008,7 @@ internal static class Contrato
         // Por el cambio de modo, que sí compara, serían «CAMBIO DE MODO…» + las de operar.
         var corta = VueltaDeModo(p, "LAS DE SIEMPRE, CORTAS Y DISTINTAS", utensilios);
         string conCortas = corta == null ? "" : LoAnadido(corta);
-        Debe(conCortas == AlVolver071 + persona,
+        Debe(conCortas == AlVolver078 + persona,
             $"volver no compara con la apertura: con unas de siempre cortas y distintas, la voz recibe igual su persona («{conCortas[..Math.Min(60, conCortas.Length)]}»)");
 
         var rt = VueltaDeModo(new ProtocoloOpenAI(), "LAS DE SIEMPRE CON LA MEMORIA", utensilios)?.Select(Mensaje).ToList() ?? new List<JsonElement>();
@@ -2031,22 +2031,22 @@ internal static class Contrato
             ?.GetField("TopeDelAppend", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)?.GetRawConstantValue();
         var pExtra = DeGptLive("PersonaExtra");
         if (p == null || valor is not int tope || pExtra == null)
-        { Pendiente("ProtocoloGptLive.TopeDelAppend · PersonaExtra", "071·57"); return; }
+        { Pendiente("ProtocoloGptLive.TopeDelAppend · PersonaExtra", "078·57"); return; }
         Debe(tope == 1_756, $"el tope es el append más largo que se midió aceptado, 1.756 caracteres (dice {tope})");
 
         var utensilios = new List<Utensilio>();
         string persona = Campo(Mensaje(p.Apertura("LAS DE LA APERTURA", utensilios, "").First()), "session", "instructions");
 
-        string reglas = new string('r', tope - AlCambiarDeModo071.Length);
+        string reglas = new string('r', tope - AlCambiarDeModo078.Length);
         var alAprendiz = CambioDeModo(p, reglas, utensilios, false);
-        if (alAprendiz == null) { Pendiente("IProtocolo.CambioDeModo", "071·57"); return; }
-        Debe(LoAnadido(alAprendiz) == AlCambiarDeModo071 + reglas,
+        if (alAprendiz == null) { Pendiente("IProtocolo.CambioDeModo", "078·57"); return; }
+        Debe(LoAnadido(alAprendiz) == AlCambiarDeModo078 + reglas,
             "unas reglas que con el prefijo miden justo el tope —como el aprendiz medido— salen enteras");
 
         string operar = InstruccionesComoLasDeU("LAS DE SIEMPRE CON LA MEMORIA DE AHORA");
         var conOperar = CambioDeModo(p, operar, utensilios, false)!;
         string anadido = LoAnadido(conOperar);
-        Debe(anadido.Length <= tope && anadido == AlVolver071 + persona,
+        Debe(anadido.Length <= tope && anadido == AlVolver078 + persona,
             $"unas instrucciones de operar que no caben en un append no se mandan a la voz: se le devuelve su persona (se mandaron {anadido.Length} caracteres)");
         Debe(MismosBytes(Campo(Mensaje(conOperar[0]), "session", "delegation", "responses", "instructions"), operar),
             "mientras el delegado sí las recibe enteras");
@@ -2055,9 +2055,9 @@ internal static class Contrato
         pExtra.SetValue(q, new string('x', 2_000));
         q.Apertura("LAS DE LA APERTURA", utensilios, "").ToList();
         var vuelta = VueltaDeModo(q, "LAS DE SIEMPRE", utensilios);
-        if (vuelta == null) { Pendiente("IProtocolo.VueltaDeModo", "071·57"); return; }
+        if (vuelta == null) { Pendiente("IProtocolo.VueltaDeModo", "078·57"); return; }
         string conExtra = LoAnadido(vuelta);
-        Debe(conExtra.Length <= tope && conExtra == AlVolver071 + ProtocoloGptLive.InstruccionesDeLaVoz,
+        Debe(conExtra.Length <= tope && conExtra == AlVolver078 + ProtocoloGptLive.InstruccionesDeLaVoz,
             $"y una frase de perfil que haría pasar la vuelta del tope deja la persona base, entera (se mandaron {conExtra.Length})");
     }
 
@@ -2070,7 +2070,7 @@ internal static class Contrato
     {
         var p = GptLive();
         var pExtra = DeGptLive("PersonaExtra");
-        if (p == null || pExtra == null) { Pendiente("ProtocoloGptLive.PersonaExtra", "071·58"); return; }
+        if (p == null || pExtra == null) { Pendiente("ProtocoloGptLive.PersonaExtra", "078·58"); return; }
         string Abre() => Campo(Mensaje(p.Apertura("INSTRUCCIONES DEL DELEGADO", new List<Utensilio>(), "").First()), "session", "instructions");
 
         Debe(Abre() == ProtocoloGptLive.InstruccionesDeLaVoz, "sin perfil la persona con la que abre es la base, exacta: la voz de antes");
@@ -2079,7 +2079,7 @@ internal static class Contrato
         string conPerfil = Abre();
         Debe(conPerfil == ProtocoloGptLive.InstruccionesDeLaVoz + medico, "con perfil, su frase va pegada detrás de la base al abrir");
         var vuelta = VueltaDeModo(p, "LAS DE SIEMPRE", new List<Utensilio>());
-        Debe(vuelta != null && LoAnadido(vuelta) == AlVolver071 + ProtocoloGptLive.InstruccionesDeLaVoz + medico,
+        Debe(vuelta != null && LoAnadido(vuelta) == AlVolver078 + ProtocoloGptLive.InstruccionesDeLaVoz + medico,
             "y al volver de un modo también: la voz no olvida con quién habla");
         foreach (string regla in new[] { "NO ANUNCIES LO QUE VAS A HACER", "HABLA EN PASADO", "«voy a…»", "«vamos a…»", "«dame un momento»", "DELEGA" })
             Debe(conPerfil.Contains(regla, StringComparison.Ordinal), $"y con perfil sigue diciendo «{regla}» (46 y 55)");
@@ -2088,8 +2088,8 @@ internal static class Contrato
     }
 
     /// <remarks>
-    /// LA PERSONALIDAD QUE SE OYE (spec 071 de Windows): decía «este ordenador, sobre todo SAP». El presupuesto es el
-    /// de la vuelta: el prefijo, la base y la frase de perfil más larga que se deja escribir (300, promesa 659 del
+    /// LA PERSONALIDAD QUE SE OYE (spec 078 de Windows): decía «este ordenador, sobre todo SAP». El presupuesto es el
+    /// de la vuelta: el prefijo, la base y la frase de perfil más larga que se deja escribir (300, promesa 709 del
     /// grafo) tienen que caber en 1.700, con margen bajo el tope medido de 1.756.
     /// </remarks>
     private static void LaPersonaEsLaDeU()
@@ -2100,7 +2100,7 @@ internal static class Contrato
         Debe(voz.Contains("Colombia", StringComparison.Ordinal), "y sabe que habla el español de Colombia");
         Debe(!voz.Contains("sobre todo SAP", StringComparison.OrdinalIgnoreCase), "y no le habla a todo el mundo como a un usuario de SAP");
         Debe(!voz.Any(c => char.IsSurrogate(c) || (c >= '\u2600' && c <= '\u27BF')), "sin emojis");
-        int conLaMasLarga = AlVolver071.Length + voz.Length + 300;
+        int conLaMasLarga = AlVolver078.Length + voz.Length + 300;
         Debe(conLaMasLarga <= 1_700, $"con el prefijo de la vuelta y la frase de perfil más larga cabe en 1.700 caracteres (mide {conLaMasLarga})");
     }
 

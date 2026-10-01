@@ -102,7 +102,7 @@ public static class PeticionASystemOne
 
             w.WriteStartObject(IdPeligro);
             w.WriteString("type", "noul");
-            // LA MISMA PREGUNTA QUE LA MANO DEL PLAN (spec 071, D6, promesa 680): una sola frase de lo peligroso.
+            // LA MISMA PREGUNTA QUE LA MANO DEL PLAN (spec 078, D6, promesa 730): una sola frase de lo peligroso.
             w.WriteString("instructions", U.Ciclo.Jev.PreguntaDePeligro);
             w.WriteStartObject("criteria");
             w.WriteString("true", "Deja un efecto que no se puede deshacer o que afecta a otros");

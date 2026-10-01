@@ -58,7 +58,7 @@ public sealed class ElPlanPorObjetivos
     public Action<string>? AlTerminarPaso { get; set; }
 
     /// <summary>
-    /// VARIOS CON ESE NOMBRE (promesa 691): si el último «pulsa: X» no pulsó porque hay más de un «X» a la vista, la lista
+    /// VARIOS CON ESE NOMBRE (promesa 741): si el último «pulsa: X» no pulsó porque hay más de un «X» a la vista, la lista
     /// numerada con que contestó el ciclo rápido; si no, null. Sin ella, lo de antes: el paso pasa a Jev.
     /// </summary>
     /// <remarks>
@@ -160,7 +160,7 @@ public sealed class ElPlanPorObjetivos
     /// <summary>
     /// A DÓNDE VA UN PASO QUE NO ES UN GESTO (promesa 516): «pulsa: &lt;nombre&gt;» por el ciclo rápido, sin Jev —Luna ya
     /// vio ese nombre—; si no está a la vista, pasa a Jev como objetivo, y si hay varios con ese nombre, el plan para con
-    /// la lista (691). Cualquier otra frase es un objetivo para Jev.
+    /// la lista (741). Cualquier otra frase es un objetivo para Jev.
     /// </summary>
     public Recorrido Objetivo(string paso, IReadOnlyList<string> hecho)
     {
@@ -185,7 +185,7 @@ public sealed class ElPlanPorObjetivos
             if (nombre.Length > 0)
             {
                 if (_pulsarPorNombre(nombre)) return Pulsado(nombre);
-                // VARIOS NO ES «NO ESTÁ» (promesa 691): ni se espera ni se le pasa a Jev; el plan para con la lista.
+                // VARIOS NO ES «NO ESTÁ» (promesa 741): ni se espera ni se le pasa a Jev; el plan para con la lista.
                 if (Varios(nombre) is { } varios) return varios;
                 // SI NO ESTÁ, PUEDE QUE LA PÁGINA AÚN CARGUE (promesa 524): una espera a que se quede quieta y otra búsqueda,
                 // antes de pedirle a Jev que adivine sobre una pantalla a medias.
@@ -209,7 +209,7 @@ public sealed class ElPlanPorObjetivos
         return new Recorrido(Array.Empty<Vuelta>(), $"cumplido: pulsé «{nombre}» por el ciclo rápido", true);
     }
 
-    /// <summary>El paso que para porque hay varios con ese nombre (promesa 691); null si no fue por eso.</summary>
+    /// <summary>El paso que para porque hay varios con ese nombre (promesa 741); null si no fue por eso.</summary>
     private Recorrido? Varios(string nombre)
     {
         string? lista = Homonimos?.Invoke(nombre);

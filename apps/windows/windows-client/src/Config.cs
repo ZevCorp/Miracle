@@ -5,7 +5,7 @@ namespace U.WindowsClient;
 
 /// <summary>
 /// Configuración del cliente: dónde está el cerebro (Graph), quién es la persona y cómo usa Ü (spec
-/// 071), y sus preferencias. La credencial de Graph no vive aquí sino en graph.json (GraphConfig): el
+/// 078), y sus preferencias. La credencial de Graph no vive aquí sino en graph.json (GraphConfig): el
 /// token del backend viejo que había aquí se fue con él (2026-10-01). Ninguna key de modelo, ningún
 /// prompt, ningún parámetro del cerebro vive aquí — todo
 /// eso es del servidor, incluida la key de Gemini que usa la enseñanza por video (🎓): el backend
@@ -21,7 +21,7 @@ public sealed class Config
     public const string GraphPorDefecto = "https://graph-eight-pied.vercel.app";
 
     /// <summary>
-    /// La URL del backend viejo (u-windows-backend), que se RETIRA con la spec 071 (2026-10-01): su
+    /// La URL del backend viejo (u-windows-backend), que se RETIRA con la spec 078 (2026-10-01): su
     /// despliegue llevaba muerto desde septiembre y nada del cliente lo necesitaba. Queda la
     /// constante solo para la migración de <see cref="Load"/>: un config.json que todavía la traiga
     /// vuelve a Graph.
@@ -46,7 +46,7 @@ public sealed class Config
     /// La URL con la que habla ESTA ejecución: U_BACKEND_URL si está puesta, y si no la de disco.
     /// </summary>
     /// <remarks>
-    /// APARTE DE <see cref="BackendUrl"/> A PROPÓSITO (promesa 658). Antes la variable pisaba
+    /// APARTE DE <see cref="BackendUrl"/> A PROPÓSITO (promesa 708). Antes la variable pisaba
     /// <see cref="BackendUrl"/> en memoria y el siguiente <see cref="Save"/> —la posición de la carita
     /// se guarda con un temporizador— la escribía en disco: después de un <c>dev-local.ps1</c>, la Ü
     /// de todos los días se quedaba apuntando a localhost para siempre.
@@ -68,7 +68,7 @@ public sealed class Config
 
     /// <summary>
     /// Quién usa Ü en este equipo: <c>""</c> (todavía no lo dijo) · <c>"medico"</c> · <c>"persona"</c>
-    /// (spec 071). TEXTO y no enum: config.json lo leen personas, y un enum se guardaría como número.
+    /// (spec 078). TEXTO y no enum: config.json lo leen personas, y un enum se guardaría como número.
     /// Se lee siempre a través de <see cref="Cuenta.PerfilDeUso.Normalizar"/>, y quien decide el
     /// perfil de la sesión es <see cref="Cuenta.PerfilDeUso.Resolver"/>: si hay médico con su cuenta
     /// Miracle dentro, manda la cuenta.
@@ -171,7 +171,7 @@ public sealed class Config
         // Migración silenciosa a Graph: los config.json guardados antes del cambio traen el backend
         // viejo persistido, y sin esto ninguna instalación existente se movería sola. Un localhost
         // guardado también vuelve: nunca lo puso nadie a mano, era la U_BACKEND_URL de un
-        // dev-local.ps1 que se colaba en disco (promesa 658). Una URL puesta a mano se respeta.
+        // dev-local.ps1 que se colaba en disco (promesa 708). Una URL puesta a mano se respeta.
         if (EsBackendQueNoSeGuarda(cfg.BackendUrl))
             cfg.BackendUrl = GraphPorDefecto;
 
@@ -184,7 +184,7 @@ public sealed class Config
             cfg.UpdateFeedUrl = "https://github.com/ZevCorp/U-Windows-App";
 
         // `set U_BACKEND_URL=<url>` (dev-local.ps1: un Graph local) manda en ESTE proceso y no se
-        // escribe nunca en disco: vive en un campo aparte que Save no ve (promesa 658).
+        // escribe nunca en disco: vive en un campo aparte que Save no ve (promesa 708).
         string? fromEnv = Environment.GetEnvironmentVariable("U_BACKEND_URL");
         cfg._backendDelEntorno = string.IsNullOrWhiteSpace(fromEnv) ? null : fromEnv.Trim();
 

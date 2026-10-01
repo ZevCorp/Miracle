@@ -47,7 +47,7 @@ public sealed class ProtocoloGptLive : IProtocolo
     /// la voz. Sin ella, en la sonda del 2026-09-12 dijo «Vale. Dame un momento para revisarlo.» antes de
     /// que el delegado hiciera nada. Promesa 46 de la voz.
     ///
-    /// AQUÍ VIVE LA PERSONALIDAD QUE SE OYE (spec 071, 2026-10-01): cálida, clara y breve, en español de
+    /// AQUÍ VIVE LA PERSONALIDAD QUE SE OYE (spec 078, 2026-10-01): cálida, clara y breve, en español de
     /// Colombia, humor ligero solo en la charla. Decía «este ordenador, sobre todo SAP»: le hablaba igual a
     /// un médico de un hospital que a quien ordena sus fotos. Lo que cambia por perfil va aparte, en
     /// <see cref="PersonaExtra"/>. Mide 1.288 caracteres; con <see cref="AlVolver"/> y la frase del perfil
@@ -72,7 +72,7 @@ public sealed class ProtocoloGptLive : IProtocolo
     /// <summary>
     /// LO QUE LA VOZ SABE DE CON QUIÉN HABLA: una frase que va pegada detrás de
     /// <see cref="InstruccionesDeLaVoz"/> («Le hablas a un médico…», «Le hablas a una persona…»), o nada.
-    /// La pone la conversación según el perfil (spec 071). Propiedad y no parámetro del constructor: la
+    /// La pone la conversación según el perfil (spec 078). Propiedad y no parámetro del constructor: la
     /// promesa 208 construye este protocolo con dos parámetros, y el perfil puede cambiar con la voz creada.
     /// </summary>
     public string PersonaExtra
@@ -246,7 +246,7 @@ public sealed class ProtocoloGptLive : IProtocolo
     /// su persona, no las instrucciones de operar: no las lleva (promesa 40) y no caben — un append de más
     /// de 500 fichas se rechaza. Promesa 47.
     ///
-    /// Y LO QUE NO CABE EN UN APPEND NO ES UN MODO (spec 071, promesa 57 de la voz): unas instrucciones que con
+    /// Y LO QUE NO CABE EN UN APPEND NO ES UN MODO (spec 078, promesa 57 de la voz): unas instrucciones que con
     /// el prefijo pasan de <see cref="TopeDelAppend"/> son las de operar —las de siempre con la memoria, que ya
     /// no son idénticas a las de la apertura—, y a la voz se le devuelve su persona. Hasta el 2026-10-01 se le
     /// mandaban enteras, 25.000 caracteres, el servidor las rechazaba y la voz se quedaba con las reglas del
@@ -272,7 +272,7 @@ public sealed class ProtocoloGptLive : IProtocolo
     }
 
     /// <summary>
-    /// VOLVER AL MODO DE SIEMPRE (D2 de la spec 071, promesa 56 de la voz): la delegación con las instrucciones
+    /// VOLVER AL MODO DE SIEMPRE (D2 de la spec 078, promesa 56 de la voz): la delegación con las instrucciones
     /// que se le den, ÍNTEGRAS, y a la voz su persona detrás de <see cref="AlVolver"/>. Sin comparar con las de la
     /// apertura: al volver, las de siempre llevan la memoria y el hilo de ahora, y casi nunca son idénticas.
     /// </summary>

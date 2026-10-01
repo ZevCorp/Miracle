@@ -84,7 +84,7 @@ public sealed class SesionMiracle
     /// <summary>
     /// Su especialidad, tal como está en `profiles.specialty_code` («cardiologia»). Vacía si la cuenta
     /// no la tiene. Viaja dentro de sesion.dat para que la carita la sepa SIN RED al arrancar
-    /// (spec 071, promesa 654): <c>FaceWindow.EnsureOnboarded</c> restaura la sesión de disco.
+    /// (spec 078, promesa 704): <c>FaceWindow.EnsureOnboarded</c> restaura la sesión de disco.
     /// </summary>
     public string MedicoEspecialidad => _credencial?.Especialidad ?? "";
 
@@ -260,7 +260,7 @@ public sealed class SesionMiracle
                 EspecialidadNombre = actual.EspecialidadNombre,
             };
 
-            // Una sesión guardada antes de la spec 071 no trae la especialidad. Se pide UNA vez al
+            // Una sesión guardada antes de la spec 078 no trae la especialidad. Se pide UNA vez al
             // renovar: así el médico que ya tenía la sesión abierta la recibe sin cerrar sesión.
             if (string.IsNullOrEmpty(_credencial.Especialidad) && !_perfilPedidoAlRenovar)
             {
@@ -538,7 +538,7 @@ public sealed class SesionMiracle
     /// De la BASE y no de lo que teclee el usuario. El popup anterior pedía el nombre y lo guardaba
     /// en config.json, así que dos instalaciones del mismo médico podían llamarle distinto y
     /// ninguna coincidir con lo que ve en el portal. La especialidad, por lo mismo: es la que el
-    /// médico puso en el portal, y con ella Ü sabe con quién habla (spec 071).
+    /// médico puso en el portal, y con ella Ü sabe con quién habla (spec 078).
     /// </remarks>
     private async Task CompletarPerfilAsync(CancellationToken ct)
     {
@@ -652,7 +652,7 @@ public enum ResultadoDeAlta
 /// nueva y no mutar la de al lado a media llamada.
 /// </summary>
 /// <remarks>
-/// <c>Especialidad</c> y <c>EspecialidadNombre</c> llegan con la spec 071 y son OPCIONALES a propósito:
+/// <c>Especialidad</c> y <c>EspecialidadNombre</c> llegan con la spec 078 y son OPCIONALES a propósito:
 /// un sesion.dat guardado antes no los trae, y System.Text.Json usa el valor por defecto del
 /// parámetro para lo que falta. Esa sesión sigue sirviendo y la especialidad llega al renovar.
 /// </remarks>

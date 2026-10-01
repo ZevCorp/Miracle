@@ -72,7 +72,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private AgentLoop _loop = null!;
     private BackendClient? _backend;
     /// <summary>
-    /// Con quién habla Ü en esta sesión (spec 071): médico con su especialidad, uso personal, o sin
+    /// Con quién habla Ü en esta sesión (spec 078): médico con su especialidad, uso personal, o sin
     /// elegir —la Ü de antes—. Lo decide <see cref="EnsureOnboarded"/> antes de que nazcan el backend
     /// y la voz, y lo cambia el menú (<see cref="OnCambiarPerfil"/>). Se reparte con
     /// <see cref="AplicarElPerfil"/>.
@@ -496,7 +496,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 {
                     var vivo = _vivo;
                     if (vivo == null) { LogBus.Log("tramo", "sin sesión de voz: la cuenta queda para map_tramo_estado"); return; }
-                    // UNA NOTA DEL SISTEMA, NO DE LA PERSONA (spec 071, D7): por EnviarTextoAsync se guardaba en el hilo
+                    // UNA NOTA DEL SISTEMA, NO DE LA PERSONA (spec 078, D7): por EnviarTextoAsync se guardaba en el hilo
                     // como dicha por el usuario y la carita la pintaba «Tú: [el tramo terminó]…».
                     _ = vivo.AvisarAlModeloAsync("[el tramo terminó] " + cuenta);
                 };
@@ -518,7 +518,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // ubicación, la verificación de llegadas y los vetos — y duplicar una protección es la
             // forma más segura de que una de las dos copias se quede atrás.
             _vivo = new ConversacionEnVivo(mcp.Map);
-            // CON QUIÉN HABLA (spec 071): el bloque «QUIÉN TE HABLA» del delegado y la frase de la voz de GPT-Live.
+            // CON QUIÉN HABLA (spec 078): el bloque «QUIÉN TE HABLA» del delegado y la frase de la voz de GPT-Live.
             _vivo.Perfil = _perfil;
             // «Cállate», «ocúltate», «ciérrate»: van al chrome de la ventana, no al mapa de
             // pantallas — por eso se resuelven aquí y no dentro de SurfaceMapTools.
@@ -913,7 +913,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 // gestos van por las manos de u/, «pulsa:» por este mismo ciclo, y los objetivos por el motor de u/ con Jev.
                 var manosDelPlan = new Navigation.ManosDelPlan(_lectorRapido, () => DondeDelPlan()?.Ventana ?? IntPtr.Zero);
                 var mapaDelPlan = mcp.Map;
-                // DOS DEL MISMO NOMBRE (promesa 691): lo que contestó el ciclo cuando no pulsó porque había varios —la marca
+                // DOS DEL MISMO NOMBRE (promesa 741): lo que contestó el ciclo cuando no pulsó porque había varios —la marca
                 // es la misma con que map_take reconoce su lista—, para que el plan pare con ella en vez de dársela a Jev.
                 string? variosDelPlan = null;
                 var planDeLuna = new Navigation.ElPlanPorObjetivos(
@@ -1342,7 +1342,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // El backend es Graph: la credencial (X-API-Key) sale del MISMO GraphConfig que usa la
         // ventana de workflows — una sola fuente de key para toda la app.
         _backend = new BackendClient(_config, _graphConfig);
-        AplicarElPerfil(_perfil);   // el perfil viaja en el primer turno y en la enseñanza (spec 071)
+        AplicarElPerfil(_perfil);   // el perfil viaja en el primer turno y en la enseñanza (spec 078)
         if (_vivo != null)
         {
             var memoriaPersonal = new MemoriaPersonal(_config.UserId);
@@ -1544,7 +1544,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             //
             // La sesión se restaura de disco aquí mismo, sin red: es leer un archivo cifrado. La
             // carita no se queda esperando a nadie. La especialidad del médico viaja en ese archivo
-            // (promesa 654), así que también se sabe sin red.
+            // (promesa 704), así que también se sabe sin red.
             var sesion = new Cuenta.SesionMiracle(Cuenta.Nube.SupabaseUrl, Cuenta.Nube.ClavePublicable);
             bool hayMedico = sesion.Restaurar();
 
@@ -1564,9 +1564,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 }
 
                 // Quien entró con su cuenta Miracle es médico: no se le pregunta nunca en este
-                // equipo, tampoco cuando cierre sesión. Su especialidad NO se copia (promesa 692):
+                // equipo, tampoco cuando cierre sesión. Su especialidad NO se copia (promesa 742):
                 // config.json es del equipo y no de la cuenta, y en un PC compartido la de la Dra. A
-                // se le aplicaba al Dr. B. La del médico viaja en su sesión (654); la guardada aquí
+                // se le aplicaba al Dr. B. La del médico viaja en su sesión (704); la guardada aquí
                 // es solo la que alguien eligió en este equipo.
                 if (Cuenta.PerfilDeUso.Normalizar(_config.Perfil).Length == 0)
                 {
@@ -3012,13 +3012,13 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 var cierre = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
                 cierre.Tick += (_, __) => { cierre.Stop(); Application.Current.Shutdown(); };
                 cierre.Start();
-                // LO QUE PASA, NO UNA DESPEDIDA (spec 071, D10): las instrucciones ya piden despedirse ANTES de
+                // LO QUE PASA, NO UNA DESPEDIDA (spec 078, D10): las instrucciones ya piden despedirse ANTES de
                 // llamarla, y «Cerrándome. Hasta luego.» la hacía despedirse dos veces.
                 return "Me cierro en dos segundos. Si todavía no te despediste, hazlo ahora en una frase corta; si ya lo hiciste, no digas nada más.";
 
             case "self_update":
                 _ = AplicarActualizacionConNarrativaAsync();
-                // EN PASADO Y CIERTO (spec 071, D10): «Voy a buscar…» le daba a la voz justo el futuro que tiene prohibido.
+                // EN PASADO Y CIERTO (spec 078, D10): «Voy a buscar…» le daba a la voz justo el futuro que tiene prohibido.
                 return "Empecé a buscar la actualización: el halo morado dice que está en marcha, y antes de reiniciarme cuento qué trae.";
 
             // No es autocontrol —no se acciona a sí misma— pero se despacha por aquí porque mira
@@ -3098,7 +3098,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 }
 
                 LogBus.Log("presentacion", $"voz lista en {crono.ElapsedMilliseconds} ms · mandando el saludo");
-                // NOTA DEL SISTEMA (spec 071, D7) y según con quién habla: por EnviarTextoAsync quedaba en el hilo
+                // NOTA DEL SISTEMA (spec 078, D7) y según con quién habla: por EnviarTextoAsync quedaba en el hilo
                 // como dicha por la persona, y volvía en cada sesión siguiente.
                 await _vivo.AvisarAlModeloAsync(Onboarding.Presentacion.Saludo(_config.DisplayName, _perfil));
                 LogBus.Log("presentacion", "saludo entregado. Lo que Ü diga a partir de aquí sale en «voz-viva»; "
@@ -3115,7 +3115,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private Decision.InterruptorDelDecisor? _interruptorDelDecisor;
 
     /// <summary>
-    /// Instrucciones y catálogo, otra vez a la sesión, con la memoria y el hilo (spec 071, D2). Sin sesión de
+    /// Instrucciones y catálogo, otra vez a la sesión, con la memoria y el hilo (spec 078, D2). Sin sesión de
     /// voz no hay nada que re-mandar; la próxima apertura ya lee el catálogo nuevo. Y en un modo especial
     /// tampoco: encender Jev a mitad de una enseñanza le devolvía las manos al aprendiz; la vuelta lo leerá.
     /// </summary>
@@ -3791,7 +3791,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         {
             try
             {
-                // CON LA MEMORIA Y EL HILO (spec 071, D2): volver con las instrucciones a secas los perdía, y con
+                // CON LA MEMORIA Y EL HILO (spec 078, D2): volver con las instrucciones a secas los perdía, y con
                 // GPT-Live dejaba a la voz con las reglas del aprendiz el resto de la sesión.
                 await _vivo.VolverAlModoNormalAsync();
             }
@@ -5988,7 +5988,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private async Task DevolverLaVozAsync(string etiqueta)
     {
         if (_vivo is not { Viva: true }) return;
-        try { await _vivo.VolverAlModoNormalAsync(); }   // con la memoria y el hilo (spec 071, D2)
+        try { await _vivo.VolverAlModoNormalAsync(); }   // con la memoria y el hilo (spec 078, D2)
         catch (Exception ex) { LogBus.Log(etiqueta, $"no pude devolver la voz: {ex.Message}"); }
     }
 

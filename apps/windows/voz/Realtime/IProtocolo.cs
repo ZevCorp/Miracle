@@ -135,7 +135,7 @@ public interface IProtocolo
     /// GetMethod, y una sobrecarga lo haría ambiguo (promesas 42 y 47 de la voz). Por defecto es cambiar de modo
     /// a las de siempre, que en Realtime es su apertura reenviada. GPT-Live lo declara: a la voz le devuelve su
     /// persona sin comparar con la apertura, porque las de siempre con la memoria de ahora casi nunca son
-    /// idénticas a las de entonces (D2 de la spec 071, promesa 56 de la voz). Implementación por defecto porque
+    /// idénticas a las de entonces (D2 de la spec 078, promesa 56 de la voz). Implementación por defecto porque
     /// los protocolos de mentira de los contratos implementan esta interfaz y no lo declaran.
     /// </remarks>
     IEnumerable<string> VueltaDeModo(string instrucciones, IReadOnlyList<Utensilio> utensilios)

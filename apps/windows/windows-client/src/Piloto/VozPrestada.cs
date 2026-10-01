@@ -26,7 +26,7 @@ public static class VozPrestada
     public static IReadOnlyList<Utensilio> Utensilios(IReadOnlyList<Utensilio> todos) => Array.Empty<Utensilio>();
 
     /// <remarks>
-    /// CITA EL DICTADO TAL CUAL LLEGA (spec 071, D10, promesa 684): decía «Di exactamente esto: …» y lo que
+    /// CITA EL DICTADO TAL CUAL LLEGA (spec 078, D10, promesa 734): decía «Di exactamente esto: …» y lo que
     /// llega es <c>ConversacionEnVivo.PrefijoDelDictado</c>, «Di exactamente esto, sin añadir nada ni
     /// comentarlo: …». Coincidía como prefijo y no como frase, y una regla que cita mal lo que va a oír es
     /// una regla que el modelo tiene que adivinar.

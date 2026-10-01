@@ -194,7 +194,7 @@ public sealed class TeachSession : IAsyncDisposable
             {
                 FileUri = fileUri,
                 UserId = _userId,
-                // Con quién habla Ü (spec 071, promesa 656): Graph elige con esto el dominio del prompt
+                // Con quién habla Ü (spec 078, promesa 706): Graph elige con esto el dominio del prompt
                 // —consultas e historias clínicas, o el día a día—. Null sin elegir: no viaja.
                 Profile = _backend.Perfil,
                 // LOS PASOS DE ESTA DEMO Y NADA MÁS (promesa 135). Van como HECHOS: el criterio y
@@ -382,7 +382,7 @@ public sealed record InterpretRequest
 {
     [JsonPropertyName("startsAt")]
     public string StartsAt { get; set; } = "";
-    /// <summary>Con quién habla Ü (spec 071). Null sin elegir: no viaja.</summary>
+    /// <summary>Con quién habla Ü (spec 078). Null sin elegir: no viaja.</summary>
     [JsonPropertyName("profile")]
     public PerfilEnElCable? Profile { get; set; }
     [JsonPropertyName("steps")]
@@ -404,7 +404,7 @@ public sealed record ProcessRequest
     /// <summary>Los pasos de esta demo. Null cuando no hay ninguna: el contrato viejo sigue vivo.</summary>
     [JsonPropertyName("steps")]
     public List<StepToRead>? Steps { get; set; }
-    /// <summary>Con quién habla Ü (spec 071). Null sin elegir: no viaja.</summary>
+    /// <summary>Con quién habla Ü (spec 078). Null sin elegir: no viaja.</summary>
     [JsonPropertyName("profile")]
     public PerfilEnElCable? Profile { get; set; }
 }

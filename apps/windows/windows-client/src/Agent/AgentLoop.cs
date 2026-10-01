@@ -72,7 +72,7 @@ public sealed class AgentLoop
     /// criterio», que es justo lo contrario de la constitución de Ü («si preguntaste y no te contestan, no
     /// repites la pregunta ni la contestas tú: el dato no se inventa y lo que no se puede deshacer no se
     /// hace»): se preguntó porque era un dato que solo sabe la persona, o algo irreversible que nadie
-    /// pidió, y el silencio no lo convierte en una elección de Ü (spec 071, 2026-10-01). Empieza como
+    /// pidió, y el silencio no lo convierte en una elección de Ü (spec 078, 2026-10-01). Empieza como
     /// el «(sin respuesta)» que Graph pone cuando no llega nada, para que los dos caminos digan lo mismo.
     /// </summary>
     internal const string SinRespuesta = "(sin respuesta: la persona no contestó)";
@@ -182,7 +182,7 @@ public sealed class AgentLoop
             await Task.Delay(300, ct);
         }
 
-        // LAS FRASES FIJAS NO TUTEAN (spec 071): este bucle corre también en el puente clínico, y Speak sale por la voz viva,
+        // LAS FRASES FIJAS NO TUTEAN (spec 078): este bucle corre también en el puente clínico, y Speak sale por la voz viva,
         // que puede estar hablándole de usted a un médico. «¿Me lo dices de otra forma?» le hablaba de tú.
         if (!string.IsNullOrWhiteSpace(summary)) _voice.Speak(summary);
         else if (actions == 0)
@@ -301,7 +301,7 @@ public sealed class AgentLoop
             "tap" => InputExecutor.Tap(a.X, a.Y) ? "ok" : "no se pudo ejecutar la acción",
             // Un `type` sin punto (Graph lo manda con x=-1, y=-1: el `type` de computer-use no lleva
             // coordenadas) teclea donde ya está el foco. Antes se hacía clic en (-1,-1), que el
-            // sistema lleva a la esquina (0,0): el foco se iba del campo antes de escribir (spec 071).
+            // sistema lleva a la esquina (0,0): el foco se iba del campo antes de escribir (spec 078).
             "type" => (TieneDondeTocar(a.X, a.Y)
                     ? InputExecutor.Type(a.X, a.Y, a.Text ?? "")
                     : InputExecutor.TypeText(a.Text ?? "")) ? "ok" : "no se pudo ejecutar la acción",
@@ -319,7 +319,7 @@ public sealed class AgentLoop
 
     /// <summary>
     /// ¿Trae la acción un punto de la pantalla donde tocar? Un negativo es «sin punto»: el `type` de
-    /// computer-use llega con x=-1, y=-1 y se teclea donde está el foco (promesa 660). (0,0) sí es un
+    /// computer-use llega con x=-1, y=-1 y se teclea donde está el foco (promesa 710). (0,0) sí es un
     /// punto: la esquina de arriba a la izquierda.
     /// </summary>
     internal static bool TieneDondeTocar(int x, int y) => x >= 0 && y >= 0;

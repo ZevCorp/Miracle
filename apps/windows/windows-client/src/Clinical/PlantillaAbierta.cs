@@ -84,7 +84,7 @@ public static class PlantillaAbierta
             label = "Hallazgos y datos objetivos",
             order = 2,
             instruction =
-                // SIN «deja la sección vacía» (spec 071, promesa 662): qué se escribe cuando no se
+                // SIN «deja la sección vacía» (spec 078, promesa 712): qué se escribe cuando no se
                 // dijo nada lo decide Graph —exactamente «No mencionado en la consulta.»— y una
                 // instrucción de sección que pide otra cosa le obliga al modelo a desobedecer una.
                 "Signos vitales, medidas, resultados y hallazgos del examen que se hayan MENCIONADO, "

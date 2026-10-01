@@ -20,7 +20,7 @@ namespace U.WindowsClient.Voice;
 /// lleva una persona corta y ahí vive la personalidad que se oye; su <c>{ESPECIALIDAD_CORTA}</c> es
 /// « de &lt;Nombre&gt;» o nada (<see cref="U.WindowsClient.Cuenta.PerfilDeUso.ParaLaVoz"/>).
 ///
-/// Diseño del 2026-10-01 (spec 071). La versión viaja igual en las tres copias.
+/// Diseño del 2026-10-01 (spec 078). La versión viaja igual en las tres copias.
 /// </remarks>
 internal static class ConstitucionDeU
 {

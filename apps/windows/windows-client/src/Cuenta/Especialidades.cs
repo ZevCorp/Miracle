@@ -9,7 +9,7 @@ namespace U.WindowsClient.Cuenta;
 /// </summary>
 /// <remarks>
 /// ES UNA COPIA de <c>apps/web/lib/clinical/specialties.ts</c> (los 49 pares código/nombre, en su
-/// orden), hecha el 2026-10-01 para la spec 071. Copia y no import porque la regla 2 del monorepo
+/// orden), hecha el 2026-10-01 para la spec 078. Copia y no import porque la regla 2 del monorepo
 /// prohíbe leer archivos de otro proyecto con <c>../</c> y <c>packages/</c> todavía no existe. Si el
 /// portal añade una especialidad, se añade aquí también; Graph tiene la suya en
 /// <c>src/domain/clinical/specialtyNames.js</c> (en snake_case: la normaliza por su cuenta).
