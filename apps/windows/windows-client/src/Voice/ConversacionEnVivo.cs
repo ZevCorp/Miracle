@@ -446,7 +446,19 @@ public sealed class ConversacionEnVivo : IDisposable
     /// mide lo que la persona VE es quien lo pinta.
     /// </summary>
     public void LaEstelaSePinto(bool encendida)
-        => (encendida ? _relojDeEncender : _relojDeApagar)?.Marca("estela");
+    {
+        var reloj = encendida ? _relojDeEncender : _relojDeApagar;
+        if (reloj == null) return;
+        reloj.Marca("estela");
+        // AL APAGAR, LA LÍNEA ESPERA A LAS DOS COSAS: que el socket esté cerrado y que la estela se haya ido.
+        // Cuál llega antes depende de la máquina; la escribe la que llega después.
+        if (!encendida && reloj.Tiene("socket")) DecirElApagado(reloj);
+    }
+
+    private static void DecirElApagado(RelojDelClic reloj)
+    {
+        if (reloj.Reclamar()) LogBus.Log("voz-clic", reloj.Linea());
+    }
 
     /// <summary>
     /// Espera a que el servidor confirme la sesión que se está abriendo. Falso si no hay voz encendida, si se
@@ -870,7 +882,7 @@ public sealed class ConversacionEnVivo : IDisposable
         if (ultimaMedida != null) LogBus.Log("voz-turno", ultimaMedida);
 
         // EL ENCENDIDO QUE NO LLEGÓ A CONFIRMAR DEJA SU LÍNEA IGUAL (promesa 666), con lo que no llegó dicho.
-        if (encendido is { Dicha: false })
+        if (encendido != null && encendido.Reclamar())
             LogBus.Log("voz-clic", encendido.Linea(tirados > 0
                 ? $"se apagó antes de confirmar: {tirados} ms guardados que no se mandan"
                 : "se apagó antes de confirmar"));
@@ -909,7 +921,10 @@ public sealed class ConversacionEnVivo : IDisposable
         reloj.Marca("socket");
         // Lo que estuviera llegando mientras se cancelaba pudo encolar una sílaba más. Solo si nadie volvió a encender.
         if (!Viva) _audio.Callar();
-        LogBus.Log("voz-clic", reloj.Linea());
+        // LA LÍNEA, cuando también se sepa cuándo se apagó la estela. Si nadie la pinta —una sesión sin carita, el
+        // contrato—, sale igual un instante después, con ese tramo dicho como «sin llegar».
+        if (reloj.Tiene("estela")) DecirElApagado(reloj);
+        else _ = Task.Delay(300).ContinueWith(_ => DecirElApagado(reloj), TaskScheduler.Default);
 
         await RetirarAsync(mirada).ConfigureAwait(false);
         await guardado.ConfigureAwait(false);
@@ -2201,7 +2216,7 @@ public sealed class ConversacionEnVivo : IDisposable
     {
         int guardados = _preEscucha.MsGuardados, perdidos = _preEscucha.MsPerdidos;
         var reloj = _relojDeEncender;
-        if (reloj is { Dicha: false })
+        if (reloj != null && reloj.Reclamar())
         {
             reloj.Marca("confirmada");
             LogBus.Log("voz-clic", reloj.Linea(

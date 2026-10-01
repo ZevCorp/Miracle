@@ -210,7 +210,8 @@ de capturas de pantalla lo que el archivo decía literalmente. Una captura no di
 correcto con desplazamiento constante" de "filas equivocadas" de "otra caja pintada encima" — el log sí.
 
 Líneas útiles: `shell subType=`, `filas del árbol ·`, `fila seleccionada`, `CONTRASTE geometría`,
-`✋ no se llegó a`, `⏱ TIEMPOS`.
+`✋ no se llegó a`, `⏱ TIEMPOS`. Y para la voz, `voz-clic:` — una por cada encendido y cada apagado,
+con los milisegundos de cada tramo desde el gesto (las horas del log van al segundo, y no bastan).
 
 ## Estado actual (2026-08-08)
 

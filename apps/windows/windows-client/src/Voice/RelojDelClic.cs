@@ -64,13 +64,18 @@ public sealed class RelojDelClic
 
     public bool Tiene(string tramo) { lock (_candado) return _marcas.ContainsKey(tramo); }
 
-    /// <summary>Si la línea ya se escribió: cada gesto deja una, no una por cada sitio que podría escribirla.</summary>
-    public bool Dicha { get; private set; }
+    private int _reclamada;
+
+    /// <summary>
+    /// QUIÉN ESCRIBE LA LÍNEA: el primero que la reclama, y nadie más. Cada gesto deja UNA, y hay más de un
+    /// sitio que puede llegar a escribirla —el que confirma, el que apaga antes de tiempo, el que pinta—, en
+    /// hilos distintos. Verdadero solo la primera vez.
+    /// </summary>
+    public bool Reclamar() => Interlocked.Exchange(ref _reclamada, 1) == 0;
 
     /// <summary>La línea entera. <paramref name="cola"/> es lo que haya que añadir que no es un tramo.</summary>
     public string Linea(string cola = "")
     {
-        Dicha = true;
         var partes = new List<string> { _gesto };
         lock (_candado)
         {
