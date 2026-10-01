@@ -198,6 +198,11 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         _acciones ??= new PanelDeAcciones();
         _acciones.TextoEnviado += OnNotchTextoEnviado;
         Closed += (_, __) => _acciones.TextoEnviado -= OnNotchTextoEnviado;
+        // LA ONDA DEL NOTCH ES OTRO CLIC EN LA CARITA (promesa 540): va al mismo StartMicByFace que el
+        // clic, el doble Ctrl y el botón del collar. Un solo sitio decide qué es «alternar», así que
+        // ningún gesto puede quedar desincronizado — con este son cuatro.
+        _acciones.VozSolicitada += StartMicByFace;
+        Closed += (_, __) => _acciones.VozSolicitada -= StartMicByFace;
 
         Closed += (_, __) =>
         {

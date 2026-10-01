@@ -89,6 +89,7 @@ public sealed class PanelDeAcciones : Window
     private readonly Border _notch;      // la pieza que se ve, con el contenido dentro
     private readonly Grid _contenidoCompacto;
     private readonly Grid _contenidoChat;
+    private readonly Button _botonVoz;
     private readonly Button _botonMensajes;
     private readonly Button _botonCerrarChat;
     private readonly TextBox _entradaChat;
@@ -121,6 +122,12 @@ public sealed class PanelDeAcciones : Window
 
     /// <summary>Señal del botón de mensajes; la conversación vive en esta misma ventana.</summary>
     public event Action? ChatSolicitado;
+
+    /// <summary>
+    /// Señal del botón de la onda: pide alternar la voz (promesa 540). El notch no sabe abrirla ni
+    /// colgarla; quien escucha es la carita, que la lleva al mismo sitio que su propio clic.
+    /// </summary>
+    public event Action? VozSolicitada;
 
     /// <summary>Texto enviado desde la caja del chat embebido.</summary>
     public event Action<string>? TextoEnviado;
@@ -162,6 +169,7 @@ public sealed class PanelDeAcciones : Window
         Focusable = true;
         ShowActivated = false;
         Title = Titulo;
+        ToquesDeU.Proteger(this);   // su onda abre o cuelga la voz: un clic de Ü no es la persona (promesas 508 y 540)
 
         // LA SOMBRA VA EN UNA PLACA GEMELA SIN HIJOS, no en la pieza que lleva el texto. Un Effect es
         // un shader: WPF rasteriza a una textura intermedia todo el subárbol que cuelgue de él, y ahí
@@ -225,6 +233,27 @@ public sealed class PanelDeAcciones : Window
         };
         _ventanaDelTexto.Children.Add(_texto);
 
+        // LA ONDA ES UN BOTÓN, igual que el de mensajes (promesa 540, pedido del dueño 2026-09-30: «que
+        // tenga el mismo funcionamiento que el de mensaje pero para activar y desactivar la voz»). Envuelve
+        // al icono del estado, sea el que sea: lo que se pulsa es el sitio, no el dibujo.
+        _botonVoz = BotonDelNotch("Activar o desactivar la voz", cajaDelIcono);
+        // EL BLANCO CRECE HACIA FUERA, tres por lado, y el icono no se mueve: la columna sigue midiendo
+        // los 26 del icono —de ahí sale el ancho del texto (promesa 249)— y el margen negativo le da al
+        // botón los 32 del de mensajes sin que la celda lo recorte.
+        double sobra = (MedidaDelNotch.CajaDelChat - MedidaDelNotch.CajaDelIcono) / 2;
+        _botonVoz.Margin = new Thickness(-sobra, 0, -sobra, 0);
+        // SIN FOCO DE TECLADO: el de mensajes lo toma y da igual, porque al pulsarlo desaparece bajo el
+        // chat. La onda se queda a la vista después del clic, y la plantilla le dibujaría el filete de
+        // «enfocado» alrededor hasta que el notch se fuera.
+        _botonVoz.Focusable = false;
+        _botonVoz.Click += (_, __) =>
+        {
+            // QUEDA DICHO DE DÓNDE VINO: una voz que se abre sola se investiga preguntando quién la abrió
+            // (2026-09-27, cinco sesiones en un día), y el clic en la carita no deja ninguna línea propia.
+            Diagnostics.LogBus.Log("notch", "onda pulsada: se pide alternar la voz");
+            VozSolicitada?.Invoke();
+        };
+
         _botonMensajes = BotonMensajes();
         _botonMensajes.Click += (_, __) => AbrirChat(true);
 
@@ -234,10 +263,10 @@ public sealed class PanelDeAcciones : Window
         rejilla.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         rejilla.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(MedidaDelNotch.AireDelChat) });
         rejilla.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(MedidaDelNotch.CajaDelChat) });
-        Grid.SetColumn(cajaDelIcono, 0);
+        Grid.SetColumn(_botonVoz, 0);
         Grid.SetColumn(_ventanaDelTexto, 2);
         Grid.SetColumn(_botonMensajes, 4);
-        rejilla.Children.Add(cajaDelIcono);
+        rejilla.Children.Add(_botonVoz);
         rejilla.Children.Add(_ventanaDelTexto);
         rejilla.Children.Add(_botonMensajes);
 
@@ -324,6 +353,12 @@ public sealed class PanelDeAcciones : Window
         // volvía a pasar por aquí un instante después—. Desde que nace al arrancar la app (promesa
         // 257, para que el asomo funcione desde el primer segundo), ese mismo Aparecer() sin querer
         // sacaba el notch a pantalla en cuanto Ü abría, sin que nadie hubiera dicho nada todavía.
+        //
+        // EL ICONO SE PINTA AQUÍ A MANO (promesa 541): PintarContenido solo lo cambia cuando el estado
+        // CAMBIA, y un notch nace ya en «voz». Sin esto el hueco de la izquierda salía vacío hasta el
+        // primer paso —fotografiado el 2026-09-30 sobre una Ü recién arrancada—, y desde que ese hueco es
+        // el botón de la voz, vacío significa un botón que no se ve.
+        PintarIcono();
         PintarContenido();
     }
 
@@ -466,7 +501,11 @@ public sealed class PanelDeAcciones : Window
         _caducar.Start();
     }
 
-    private Button BotonMensajes()
+    /// <summary>
+    /// Un botón de la pieza compacta. Los dos —la onda y el de mensajes— salen de aquí, para que «el
+    /// mismo funcionamiento» no dependa de acordarse de copiar siete propiedades (promesa 540).
+    /// </summary>
+    private static Button BotonDelNotch(string nombre, UIElement contenido)
     {
         var boton = new Button
         {
@@ -479,9 +518,15 @@ public sealed class PanelDeAcciones : Window
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             Cursor = System.Windows.Input.Cursors.Hand,
+            Content = contenido,
         };
-        AutomationProperties.SetName(boton, "Abrir conversación");
+        AutomationProperties.SetName(boton, nombre);
         EstilizarBoton(boton, 10);
+        return boton;
+    }
+
+    private static Button BotonMensajes()
+    {
         var glifo = new Path
         {
             Data = Geometry.Parse("M3,4 A2,2 0 0 1 5,2 H19 A2,2 0 0 1 21,4 V13 A2,2 0 0 1 19,15 H10 L6,19 V15 H5 A2,2 0 0 1 3,13 Z"),
@@ -492,8 +537,7 @@ public sealed class PanelDeAcciones : Window
             Width = 19,
             Height = 19,
         };
-        boton.Content = glifo;
-        return boton;
+        return BotonDelNotch("Abrir conversación", glifo);
     }
 
     private (Grid, Button, TextBox, ScrollViewer, StackPanel) CrearChat()
@@ -799,14 +843,7 @@ public sealed class PanelDeAcciones : Window
 
         if (_pintado != _dice.Estado)
         {
-            _pintado = _dice.Estado;
-            _icono.Data = Geometry.Parse(IconosDelNotch.De(_dice.Estado));
-            _giro.BeginAnimation(RotateTransform.AngleProperty, null);
-            _giro.Angle = 0;
-            if (IconosDelNotch.Gira(_dice.Estado))
-                _giro.BeginAnimation(RotateTransform.AngleProperty,
-                    new DoubleAnimation(0, 360, TimeSpan.FromMilliseconds(1100))
-                    { RepeatBehavior = RepeatBehavior.Forever });
+            PintarIcono();
             Restaña(_texto);
         }
 
@@ -814,6 +851,38 @@ public sealed class PanelDeAcciones : Window
         // cursor rondaba el borde (promesa 260), deja de estarlo — ya no hay que retirarlo cuando el
         // cursor se aleje, porque ahora lo sostiene el contenido, con su propia caducidad.
         _asomadoSoloPorHover = false;
+    }
+
+    /// <summary>El dibujo del estado que toca, puesto ya, y girando solo si ese estado gira.</summary>
+    private void PintarIcono()
+    {
+        _pintado = _dice.Estado;
+        _icono.Data = Geometry.Parse(IconosDelNotch.De(_dice.Estado));
+        _giro.BeginAnimation(RotateTransform.AngleProperty, null);
+        _giro.Angle = 0;
+        if (IconosDelNotch.Gira(_dice.Estado))
+            _giro.BeginAnimation(RotateTransform.AngleProperty,
+                new DoubleAnimation(0, 360, TimeSpan.FromMilliseconds(1100))
+                { RepeatBehavior = RepeatBehavior.Forever });
+    }
+
+    /// <summary>
+    /// Vuelve a como estaba al abrirse: sin tarea, sin paso y con la onda quieta (promesa 541).
+    /// </summary>
+    /// <remarks>
+    /// EL ICONO TAMBIÉN SE OLVIDA. Antes aquí se reponía el texto y no el dibujo: el notch se retiraba
+    /// con el visto —o con el aro girando— del último paso, y al llamarlo desde el borde volvía diciendo
+    /// «Ü» junto al icono de algo que ya no estaba pasando.
+    /// </remarks>
+    private void Olvidar()
+    {
+        _dice.Olvida();
+        _texto.Text = _dice.Texto;
+        PintarIcono();
+        PrepararMarquesina();
+        _textoX = 0;
+        _desplazamientoDelTexto.X = 0;
+        _marquesina.Stop();
     }
 
     /// <summary>Pinta el contenido Y trae la pieza a pantalla si hacía falta. Esto es lo que llaman
@@ -861,12 +930,7 @@ public sealed class PanelDeAcciones : Window
             Opacity = 1;
             _baja.BeginAnimation(TranslateTransform.YProperty, null);
             _baja.Y = 0;
-            _dice.Olvida();
-            _texto.Text = _dice.Texto;
-            PrepararMarquesina();
-            _textoX = 0;
-            _desplazamientoDelTexto.X = 0;
-            _marquesina.Stop();
+            Olvidar();
             Hide();
         };
         BeginAnimation(OpacityProperty, irse);
