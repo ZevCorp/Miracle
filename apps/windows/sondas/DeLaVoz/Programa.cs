@@ -217,12 +217,16 @@ internal static class Programa
         // Medido el 2026-10-01 en la Ü de pruebas: una orden escrita, sin un solo trozo de audio, murió a los 30 s
         // exactos de abrir («sesión cerrada: expired») con el delegado a mitad del trabajo.
         bool conSilencio = args.Contains("--con-silencio");
+        // --silencio-cada <ms>: cada cuánto sale un trozo de 100 ms de silencio. A 100 es el ritmo de un micrófono; más
+        // espaciado mide si la sesión vive igual y si la voz deja de hablar sola (2026-10-01: con el caño a ritmo de
+        // micrófono y sin avances, la voz dijo por su cuenta «¿Te pongo otra canción de las que tienes por acá?»).
+        int silencioCada = int.Parse(Arg("--silencio-cada", "100"));
         var microfono = escrita && !conSilencio ? Task.CompletedTask : escrita ? Task.Run(async () =>
         {
             while (!fin.IsCancellationRequested && _ws.State == WebSocketState.Open)
             {
                 await MandarAsync(new { type = "session.input_audio.append", audio = Convert.ToBase64String(new byte[4800]) }, fin.Token);
-                await Task.Delay(100, fin.Token);
+                await Task.Delay(silencioCada, fin.Token);
             }
         }) : Task.Run(async () =>
         {

@@ -152,6 +152,13 @@ public sealed class ProtocoloGptLive : IProtocolo
     public bool SabeVolver => false;
 
     /// <summary>
+    /// SÍ: A LOS 30 SEGUNDOS. Medido el 2026-10-01 con la frase escrita y sin un solo trozo de audio:
+    /// «session.closed: expired» a los 30.975 ms, con el delegado trabajando. Con silencio por el caño, 47 s y el
+    /// trabajo terminado. Promesa 71.
+    /// </summary>
+    public bool CaducaSinAudio => true;
+
+    /// <summary>
     /// SÍ: session.started. Hasta que llega, la sesión no está abierta, y un error antes de él es que no
     /// abrió: sin crédito, el servidor contestó credit_balance_exhausted en vez de session.started y a los
     /// ~2,0 s abortó el socket (medido el 2026-09-12, dos veces); con unas instrucciones de más de 16.384
@@ -426,15 +433,37 @@ public sealed class ProtocoloGptLive : IProtocolo
                 role = "user",
                 content = new object[]
                 {
-                    new { type = "input_text", text = MarcaDeLaPantalla + " Foto de la pantalla en el momento de pedirlo, con el cursor dibujado donde apuntaba." + lugar },
+                    // PARA QUIÉN ES (promesa 73). La conversación la lee también quien habla: el 2026-10-01, con música en
+                    // la pantalla de la persona, la voz contestó a «abre la Configuración…» con «¿Te pongo otra canción de
+                    // las que tienes por acá?». Sin foto, la misma voz dijo «Sí.» y nada más (sonda, dos corridas).
+                    new { type = "input_text", text = MarcaDeLaPantalla + " Foto de la pantalla en el momento de pedirlo, con el cursor dibujado donde apuntaba. "
+                        + ParaQuienEsLaPantalla + lugar },
                     new { type = "input_image", file_id = idDelArchivo.Trim(), detail = "high" },
                 },
             },
         });
     }
 
+    /// <summary>
+    /// LA META EN CURSO, PARA QUIEN ACTÚA (spec 082, promesa 72): un mensaje de usuario con el texto, sin pedir turno.
+    /// Es el mismo camino por el que viaja la pantalla del pedido (69), que está medido: lo que se mete en la
+    /// conversación antes del pedido le llega al delegado, y la voz no lo dice.
+    /// </summary>
+    public string ContextoParaQuienActua(string texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return "";
+        return JsonSerializer.Serialize(new
+        {
+            type = "response.item.create",
+            item = new { type = "message", role = "user", content = new object[] { new { type = "input_text", text = texto.Trim() } } },
+        });
+    }
+
     /// <summary>Con qué empieza el texto que acompaña a la pantalla del pedido. Las instrucciones del delegado la nombran.</summary>
     public const string MarcaDeLaPantalla = "[PANTALLA: esto no lo dijo la persona]";
+
+    /// <summary>Lo que la foto del pedido dice de sí misma a quien la lea (promesa 73 de la voz).</summary>
+    public const string ParaQuienEsLaPantalla = "ES PARA QUIEN ACTÚA: quien habla no la comenta ni ofrece nada por lo que se ve en ella; contesta solo a lo que la persona pida.";
 
     /// <summary>
     /// LA FOTO POR REFERENCIA (promesa 54, spec 027): entra el identificador, no la imagen.

@@ -223,6 +223,11 @@ internal static class Contrato
         // Spec 079: Ü ve. La pantalla del momento del pedido viaja sola, y lo que devuelve el delegado no se confunde con la voz.
         Prueba("69. la pantalla del momento del pedido viaja en un solo mensaje: delante el texto que dice que es la pantalla, que no lo dijo la persona y dónde está, y detrás la foto por referencia con detalle alto; sin identificador no se manda nada, y un protocolo que no ve por referencia no manda nada", LaPantallaViajaConElPedido);
         Prueba("70. lo que devuelve el delegado se distingue de lo que dice la voz: response.output_text.done llega marcado como del delegado, y la transcripción de la voz no", LoDelDelegadoSeDistingue);
+        // Spec 081: una orden escrita moría a los 30 s. Quién caduca sin audio lo dice el protocolo, no la conversación.
+        Prueba("71. GPT-Live declara que su sesión caduca sin audio, y los demás protocolos no", GptLiveCaducaSinAudio);
+        // Spec 082: la meta en curso le llega a quien actúa por la conversación, como la pantalla del pedido.
+        Prueba("72. lo que quien actúa tiene que saber y la persona no dijo viaja como un mensaje en la conversación, sin pedir turno; vacío no se manda nada, y un protocolo de una sola voz no manda nada", ElContextoDeQuienActuaViajaSinPedirTurno);
+        Prueba("73. la pantalla del pedido dice para quién es: es de quien actúa, y quien habla no la comenta ni ofrece nada por lo que se ve en ella", LaPantallaDelPedidoDiceParaQuienEs);
 
         Console.WriteLine();
         if (_pendientes > 0)
@@ -1641,6 +1646,28 @@ internal static class Contrato
     /// inmuta: 5 s callada tras recibirla. El texto va delante para que nadie la tome por algo dicho por la
     /// persona, y dice dónde está según el mapa: una foto nunca decide dónde se está.
     /// </remarks>
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE, medido el 2026-10-01 en el banco de metas: la foto de la pantalla entra en la
+    /// conversación, y la conversación la lee también quien habla. A «abre la Configuración y dime la resolución»,
+    /// con música en la pantalla de la persona, la voz dijo «¿Te pongo otra canción de las que tienes por acá?»; y a
+    /// «en Wikipedia, busca Bogotá…», con el Explorador a la vista, «Okey, abriendo el Explorador...». En la sonda,
+    /// sin foto, la misma voz contestó «Sí.» y nada más (dos corridas). La foto es el contexto de quien actúa.
+    /// </remarks>
+    private static void LaPantallaDelPedidoDiceParaQuienEs()
+    {
+        var p = GptLive();
+        var m = typeof(IProtocolo).GetMethod("PantallaAlPedir");
+        if (p == null || m == null) { Pendiente("IProtocolo.PantallaAlPedir", "spec 079"); return; }
+        string json = m.Invoke(p, new object[] { "file-abc123", "uia://Notepad.exe/pendientes" }) as string ?? "";
+        var partes = json.Length > 0 ? Nodo(Mensaje(json), "item", "content") : null;
+        string texto = partes is { ValueKind: JsonValueKind.Array } c && c.GetArrayLength() > 0 ? Campo(c[0], "text") : "";
+        if (!texto.Contains("ES PARA QUIEN ACTÚA", StringComparison.Ordinal)) { Pendiente("la pantalla del pedido dice para quién es", "spec 082"); return; }
+        Debe(texto.Contains("quien habla no la comenta", StringComparison.Ordinal), $"quien habla no la comenta («{texto}»)");
+        Debe(texto.Contains("ni ofrece nada por lo que se ve en ella", StringComparison.Ordinal), "ni ofrece nada por lo que se ve en ella");
+        Debe(texto.IndexOf("ES PARA QUIEN ACTÚA", StringComparison.Ordinal) < texto.IndexOf("uia://Notepad.exe/pendientes", StringComparison.Ordinal),
+            "y lo dice antes del lugar: es lo primero que tiene que saber quien la lea");
+    }
+
     private static void LaPantallaViajaConElPedido()
     {
         var p = GptLive();
@@ -2515,6 +2542,49 @@ internal static class Contrato
         Debe(!voz.Any(c => char.IsSurrogate(c) || (c >= '\u2600' && c <= '\u27BF')), "sin emojis");
         int conLaMasLarga = AlVolver078.Length + voz.Length + 300;
         Debe(conLaMasLarga <= 1_700, $"con el prefijo de la vuelta y la frase de perfil más larga cabe en 1.700 caracteres (mide {conLaMasLarga})");
+    }
+
+    /// <remarks>
+    /// MEDIDO EL 2026-10-01 CONTRA EL SERVIDOR: una sesión de GPT-Live sin un solo trozo de audio —una orden escrita—
+    /// contestó «session.closed: expired» a los 30.975 ms, con el delegado a mitad del trabajo; con silencio por el
+    /// caño vivió 47 s y terminó. De GPT Realtime no hay medida, y no se le manda lo que no se sabe que necesita.
+    /// </remarks>
+    private static void GptLiveCaducaSinAudio()
+    {
+        var p = typeof(IProtocolo).GetProperty("CaducaSinAudio");
+        var live = GptLive();
+        if (p == null || live == null) { Pendiente("IProtocolo.CaducaSinAudio", "081"); return; }
+        Debe((bool)p.GetValue(live)!, "GPT-Live declara que su sesión caduca sin audio: a los 30 s, medido");
+        Debe(!(bool)p.GetValue(new ProtocoloOpenAI())!, "GPT Realtime no lo declara: no está medido que caduque");
+        Debe(!(bool)p.GetValue(new ProtocoloQueNoLoDeclara())!, "y un protocolo que no dice nada no caduca: por defecto no se manda silencio a nadie");
+    }
+
+    /// <remarks>
+    /// POR DÓNDE: el mismo camino que la pantalla del pedido (69), medido el 2026-10-01 con la sonda: lo que se mete en
+    /// la conversación antes del pedido le llega al delegado, y la voz no lo dice. Sin response.create: acompaña a lo
+    /// que viene detrás —lo que la persona dice, o la nota que hace que la voz delegue otra vez—.
+    /// </remarks>
+    private static void ElContextoDeQuienActuaViajaSinPedirTurno()
+    {
+        var p = GptLive();
+        var m = typeof(IProtocolo).GetMethod("ContextoParaQuienActua");
+        if (p == null || m == null) { Pendiente("IProtocolo.ContextoParaQuienActua", "082"); return; }
+        string Manda(IProtocolo a, string texto) => m.Invoke(a, new object[] { texto }) as string ?? "";
+
+        string json = Manda(p, "  [META ACTIVA: esto no lo dijo la persona] Sigue trabajando en la meta.  ");
+        Debe(json.Length > 0, "GPT-Live manda el contexto");
+        if (json.Length == 0) return;
+        var msg = Mensaje(json);
+        Debe(Campo(msg, "type") == "response.item.create" && Campo(msg, "item", "role") == "user" && Campo(msg, "item", "type") == "message",
+            "es un mensaje en la conversación: por ahí le llega al delegado");
+        var partes = Nodo(msg, "item", "content");
+        Debe(partes is { ValueKind: JsonValueKind.Array } c && c.GetArrayLength() == 1 && Campo(c[0], "type") == "input_text"
+             && Campo(c[0], "text") == "[META ACTIVA: esto no lo dijo la persona] Sigue trabajando en la meta.",
+            "con el texto tal cual, sin espacios de sobra");
+        Debe(!json.Contains("\"response.create\"", StringComparison.Ordinal), "y no pide turno: acompaña a lo que viene detrás");
+        Debe(Manda(p, "   ").Length == 0, "vacío no se manda nada");
+        Debe(Manda(new ProtocoloOpenAI(), "la meta").Length == 0 && Manda(new ProtocoloQueNoLoDeclara(), "la meta").Length == 0,
+            "y un protocolo de una sola voz no manda nada por aquí: allí quien habla es quien actúa, y lo recibe en su propio texto");
     }
 
     // ── El arnés ─────────────────────────────────────────────────────────────

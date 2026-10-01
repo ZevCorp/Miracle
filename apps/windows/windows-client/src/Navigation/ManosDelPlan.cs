@@ -48,13 +48,16 @@ public sealed class ManosDelPlan
         {
             var rp = Stopwatch.StartNew();
             string antes = _lector.Leer(aqui.Ventana).Huella;
-            if (_lector.EscribirEnLaBarra(aqui.Ventana, app) && Raton.Tecla("Enter"))
+            bool escrita = _lector.EscribirEnLaBarra(aqui.Ventana, app);
+            if (escrita && Raton.Tecla("Enter"))
             {
                 var a = Asentado.Esperar(() => _lector.Leer(aqui.Ventana).Huella, antes, 3000, () => rp.ElapsedMilliseconds);
                 LogBus.Log("plan", $"   abrir «{app}» en la misma pestaña: {(a.Cambio ? "cargó" : "sin cambio visible")} en {rp.ElapsedMilliseconds} ms");
                 return true;
             }
-            LogBus.Log("plan", $"   abrir «{app}»: no encontré la barra de direcciones; la abro aparte");
+            // EL PASO QUE FALLÓ, y no una conclusión (aprendizaje nº2): escribir en la barra y pulsar Enter son dos cosas.
+            LogBus.Log("plan", $"   abrir «{app}»: " + (escrita ? "escribí la dirección en la barra, pero no pude pulsar Enter"
+                : $"no pude escribir en la barra de direcciones de «{aqui.Proceso}» ({_lector.PorQueNoLaBarra})") + "; la abro aparte");
         }
         var (llego, ms) = Apps.Abrir(app);
         if (!llego) { LogBus.Log("plan", $"   abrir «{app}»: no llegó delante en {ms} ms"); return false; }

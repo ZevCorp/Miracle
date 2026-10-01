@@ -193,6 +193,19 @@ public interface IProtocolo
     bool ActuaUnDelegado => false;
 
     /// <summary>
+    /// SI LA SESIÓN SE CIERRA SOLA CUANDO NO LE LLEGA AUDIO (spec 081, promesa 71). Quien lo declara recibe silencio
+    /// mientras no salga audio de verdad; por defecto no se le manda a nadie lo que no se sabe que necesita.
+    /// </summary>
+    bool CaducaSinAudio => false;
+
+    /// <summary>
+    /// ALGO QUE QUIEN ACTÚA TIENE QUE SABER Y QUE LA PERSONA NO DIJO (spec 082, promesa 72): la meta en curso con lo
+    /// ya hecho. Un mensaje en la conversación, que no pide turno: acompaña a lo que venga detrás. Vacío si este
+    /// protocolo no tiene a quien actúa separado de quien habla: allí va en el propio texto que se le manda.
+    /// </summary>
+    string ContextoParaQuienActua(string texto) => "";
+
+    /// <summary>
     /// Un avance del trabajo en curso, para que quien habla lo sepa SIN que lo diga tal cual. Vacío si este
     /// protocolo no tiene ese canal o no lo necesita (<see cref="ActuaUnDelegado"/> falso): mandar algo de
     /// más abriría un turno que nadie pidió.

@@ -48,6 +48,77 @@ public sealed class Ejecutor
         return "abre: " + (url.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? "https://" + url : url);
     }
 
+    private static readonly System.Text.RegularExpressions.Regex NombreDeLoElegido = new(@"^\d+\)\s*(?<nombre>.*?)\s*\([^()]*\)$");
+
+    /// <summary>
+    /// LO QUE LAS MANOS PULSARON DENTRO DE UN OBJETIVO, con su nombre (spec 082, promesa 800). El relato decía solo
+    /// «cumplido»: quien planea no sabía qué se pulsó ni con qué nombre, y volvía a un trabajo que no había visto —lo que
+    /// el dueño llamó «no tiene contexto suficiente de lo que pasó en la ejecución»—. Vale también cuando falla: lo que se
+    /// alcanzó a pulsar antes de parar es justo lo que hay que saber para seguir desde ahí.
+    /// </summary>
+    public static string LoPulsado(Recorrido r)
+    {
+        var nombres = (r?.Vueltas ?? Array.Empty<Vuelta>()).Where(v => v.Elegida.Length > 0)
+            .Select(v => NombreDeLoElegido.Match(v.Elegida) is { Success: true } m ? m.Groups["nombre"].Value : v.Elegida).ToList();
+        if (nombres.Count == 0) return "";
+        return " — pulsé " + string.Join(", ", nombres.Select(n => $"«{n}»")) + (nombres.Count > 1 ? $" ({nombres.Count} clics)" : "");
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex EntreGestos =
+        new(@"\s*(?:;|→|\n)\s*(?=(?:pulsa|escribe|tecla|abre|desplaza)\s*:)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// VARIOS GESTOS PEGADOS EN UN PASO SON VARIOS PASOS (spec 081, promesa 802). Medido el 2026-10-01: quien planea
+    /// mandó UN paso, «pulsa: Más; pulsa: Dos; pulsa: Ocho; … pulsa: Es igual a». Se buscó un botón con ese nombre
+    /// entero, no estaba, las manos eligieron uno «de un tiro» y el paso quedó CUMPLIDO con un clic de nueve: la
+    /// cuenta salió mal, hubo que borrarla y repetirla, y la meta tardó 30 s en vez de 18. Solo se parte donde detrás
+    /// del separador empieza otro gesto: lo que se escribe conserva sus puntos y comas.
+    /// </summary>
+    public static IReadOnlyList<string> Partir(IReadOnlyList<string> pasos)
+    {
+        var salida = new List<string>();
+        foreach (string paso in pasos ?? Array.Empty<string>())
+        {
+            if (paso == null) continue;
+            var trozos = EntreGestos.Split(paso).Select(t => t.Trim()).Where(t => t.Length > 0).ToList();
+            if (trozos.Count <= 1) salida.Add(paso); else salida.AddRange(trozos);
+        }
+        return salida;
+    }
+
+    private static readonly string[] TeclasDeLaBarra = { "ctrl+l", "alt+d", "f6" };
+
+    /// <summary>
+    /// UNA DIRECCIÓN VA EN UN PASO (spec 081, promesa 792): la tecla de la barra de direcciones, una dirección escrita y
+    /// Enter son «abre:» esa dirección. Lo demás queda como viene.
+    /// </summary>
+    /// <remarks>
+    /// En la investigación en Google del 2026-10-01, 3 de los 7 planes eran «tecla: Ctrl+L», «escribe: https://…»,
+    /// «tecla: Enter»: 1,6 a 2,2 s, porque cada gesto lee la página antes y después. «abre:» con el navegador delante
+    /// ya escribe en la barra y espera a que cargue (473), en un paso. Decírselo a quien planea se puede ignorar; esto
+    /// no (como <see cref="Normalizar"/>, 467). Solo se toca cuando lo escrito ES una dirección: buscar palabras en la
+    /// barra es otra cosa, y escribir una dirección en un campo de la página, también.
+    /// </remarks>
+    public static IReadOnlyList<string> Compactar(IReadOnlyList<string> pasos)
+    {
+        var salida = new List<string>();
+        pasos = Partir(pasos);
+        for (int i = 0; i < pasos.Count; i++)
+        {
+            if (i + 2 < pasos.Count
+                && Prefijo(pasos[i], "tecla:", out var barra) && TeclasDeLaBarra.Contains(barra.Replace(" ", "").ToLowerInvariant())
+                && Prefijo(pasos[i + 1], "escribe:", out var escrito) && SoloDireccion.IsMatch(escrito)
+                && Prefijo(pasos[i + 2], "tecla:", out var enter) && enter.Trim().ToLowerInvariant() is "enter" or "intro")
+            {
+                salida.Add(Normalizar(escrito));
+                i += 2;
+                continue;
+            }
+            salida.Add(pasos[i]);
+        }
+        return salida;
+    }
+
     /// <summary>La rueda del ratón, en muescas: negativas hacia abajo (promesa 462). Sin ella, «desplaza:» falla y lo dice.</summary>
     public Func<int, bool>? Desplazar { get; set; }
 
@@ -74,6 +145,7 @@ public sealed class Ejecutor
 
     public EjecucionDelPlan Ejecutar(IReadOnlyList<string> pasos)
     {
+        pasos = Compactar(pasos);   // el plan que se cuenta es el que se ejecuta (promesa 792, patrón nº10)
         var hechos = new List<bool>();
         var hecho = new List<string>();     // lo que se hizo, en la voz de quien lo cuenta: viaja a Jev
         var detalle = new List<string>();
@@ -125,7 +197,7 @@ public sealed class Ejecutor
             {
                 var r = _objetivo(paso, hecho.ToArray());
                 ok = r.Cumplido;
-                linea = $"«{paso}»: " + (ok ? "cumplido" : r.PorQueParo);
+                linea = $"«{paso}»: " + (ok ? "cumplido" : r.PorQueParo) + LoPulsado(r);
             }
 
             hechos.Add(ok);

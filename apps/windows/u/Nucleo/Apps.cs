@@ -13,7 +13,7 @@ public static class Apps
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
 
     /// <summary>Los nombres con los que se pide, a lo que Windows sabe abrir.</summary>
-    public static string Comando(string nombre) => (nombre ?? "").Trim().ToLowerInvariant() switch
+    public static string Comando(string nombre) => SinAdornos((nombre ?? "").Trim().ToLowerInvariant()) switch
     {
         "bloc de notas" or "notepad" or "bloc" => "notepad.exe",
         "configuración" or "configuracion" or "ajustes" or "settings" => "ms-settings:",
@@ -24,6 +24,31 @@ public static class Apps
         "paint" => "mspaint.exe",
         var otro => otro,
     };
+
+    private static readonly System.Text.RegularExpressions.Regex Adorno =
+        new(@"^(?:(?:una?|otr[ao]|la|el|nuev[ao])\s+)+|(?:\s+nuev[ao])+$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// EL ARTÍCULO Y EL ADJETIVO NO SON PARTE DEL NOMBRE DE LA APP (spec 081, promesa 803). El 2026-10-01, a «abre una
+    /// calculadora nueva y…», quien planea mandó «abre: calculadora nueva»: nada se llama así, el paso falló y el plan
+    /// con él —dos de tres metas de calculadora—. Una dirección, una ruta o un esquema no se tocan: ahí «nueva» sí es
+    /// parte del nombre.
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex Nueva =
+        new(@"(?:^|\s)(?:nuev[ao]|otr[ao])(?:\s|$)", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// ¿PIDE OTRA COPIA? «calculadora nueva», «otra calculadora». Entonces no vale traer al frente la que ya había
+    /// (promesa 472): se espera a la que se acaba de lanzar. Una dirección o una ruta no piden nada.
+    /// </summary>
+    public static bool PideNueva(string nombre)
+    {
+        string n = (nombre ?? "").Trim().ToLowerInvariant();
+        return SinAdornos(n) != n && Nueva.IsMatch(n);
+    }
+
+    private static string SinAdornos(string n) =>
+        n.Contains(':') || n.Contains('\\') || n.Contains('/') || n.StartsWith("www.", StringComparison.Ordinal) ? n : Adorno.Replace(n, "").Trim();
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr h, System.Text.StringBuilder s, int max);
 
@@ -140,7 +165,10 @@ public static class Apps
         // (Luna pidió «abre: comando de Windows» el 2026-09-24, 23:29, y el Win32Exception subió hasta arriba).
         try { Process.Start(new ProcessStartInfo(Comando(nombre)) { UseShellExecute = true })?.Dispose(); }
         catch (System.ComponentModel.Win32Exception) { return (false, r.ElapsedMilliseconds); }
-        int techo = Techo(yaDelante);
+        // SI PIDE OTRA COPIA, SE ESPERA A LA NUEVA (promesa 803): con una calculadora ya abierta, a los 300 ms se traía
+        // esa al frente —la de la persona— en vez de la que se acababa de lanzar, que tarda más en pintar.
+        bool otraCopia = PideNueva(nombre);
+        int techo = otraCopia ? 3000 : Techo(yaDelante);
         long proximaBusqueda = 300;
         while (r.ElapsedMilliseconds < techo)
         {
@@ -148,7 +176,7 @@ public static class Apps
             if (Llego(antes, tituloAntes, ahora, Titulo(ahora))) return (true, r.ElapsedMilliseconds);
             // ABIERTA PERO DETRÁS (promesa 472): si su ventana ya existe y no pasó al frente, se trae. Solo se busca
             // cuando no llegó sola en 300 ms; lo normal no paga la búsqueda.
-            if (!yaDelante && r.ElapsedMilliseconds >= proximaBusqueda)
+            if (!yaDelante && !otraCopia && r.ElapsedMilliseconds >= proximaBusqueda)
             {
                 proximaBusqueda = r.ElapsedMilliseconds + 150;
                 var suya = Candidata(Ventanas(), nombre);

@@ -86,6 +86,13 @@ public sealed class CicloRapido
     /// <summary>Por qué el último Pulsar no se encargó (null), para que el log lo diga: tres causas, tres frases (aprendizaje nº2).</summary>
     public string PorQueNo { get; private set; } = "";
 
+    /// <summary>
+    /// Del último Pulsar que NO encontró el nombre: si las dos lecturas con que lo buscó eran la misma pantalla
+    /// (spec 081, promesa 791). Entonces <see cref="Ultima"/> es una lectura quieta, y sobre ella se puede elegir sin
+    /// esperar. Falso si la pantalla cambió entre las dos —puede estar cargando— o si no se dejó leer.
+    /// </summary>
+    public bool QuietaAlNoEncontrar { get; private set; }
+
     /// <summary>La última lectura, para quien quiera contar lo que se ve sin volver a leer.</summary>
     public Lectura? Ultima => _ultima;
     public IntPtr UltimaVentana => _ultimaVentana;
@@ -98,7 +105,7 @@ public sealed class CicloRapido
     public string? Pulsar(string exit, int cual)
     {
         Pulso = false; Cambio = false; Pulsado = ""; ClaveDelPulsado = ""; Tiempos = default;
-        PorQueNo = ""; AvisoFallido = ""; MsLibrar = 0;
+        PorQueNo = ""; AvisoFallido = ""; MsLibrar = 0; QuietaAlNoEncontrar = false;
         if (!QueSePide(exit, out string nombre, out string tipo)) { PorQueNo = "no es un clic por nombre en UIA"; return null; }
         IntPtr v = _ventana();
         if (v == IntPtr.Zero) { PorQueNo = "no hay ventana de trabajo delante (ni se pudo traer)"; return null; }
@@ -111,7 +118,14 @@ public sealed class CicloRapido
         var iguales = Buscar(antes, nombre, tipo);
         // Se busca en una lectura nueva solo si la de antes LEYÓ algo: una vacía es «no se dejó leer a tiempo» (494), y
         // repetirla eran otros 4 s para lo mismo (14 s por clic en Edge, 2026-09-27).
-        if (iguales.Count == 0 && antes.Accionables.Count > 0) { antes = Leer(v); iguales = Buscar(antes, nombre, tipo); }
+        if (iguales.Count == 0 && antes.Accionables.Count > 0)
+        {
+            string huellaDeAntes = antes.Huella;
+            antes = Leer(v); iguales = Buscar(antes, nombre, tipo);
+            // DOS LECTURAS SEGUIDAS, Y LA MISMA PANTALLA (spec 081, promesa 791): está quieta, que es justo lo que
+            // una espera comprobaría con dos lecturas más. Quien resuelve el nombre de un tiro mira esto.
+            QuietaAlNoEncontrar = iguales.Count == 0 && antes.Accionables.Count > 0 && antes.Huella == huellaDeAntes;
+        }
         // LO QUE NO ESTÁ SE DICE AL MOMENTO (promesa 493), como u/. Caer al camino de siempre costaba 60 s por clic en
         // Edge (2026-09-27): el grafo que ese camino consultaba ya no se alimenta, y su lector no aguanta una página.
         if (iguales.Count == 0)

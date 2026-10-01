@@ -119,6 +119,9 @@ os.makedirs(os.path.join(datos, "roaming", "U"), exist_ok=True)
 os.makedirs(os.path.join(datos, "feed"), exist_ok=True)
 cfg = json.load(io.open(SEMILLA, encoding="utf-8-sig"))
 cfg["UpdateFeedUrl"] = os.path.join(datos, "feed")
+# CON EL PERFIL YA ELEGIDO: un equipo con correo y sin perfil lo pregunta una vez (spec 078 de main), y esa ventana le
+# salía en pantalla a la persona en cada corrida de una Ü de pruebas. U_NIVEL4_PERFIL=medico prueba el otro.
+cfg["Perfil"] = os.environ.get("U_NIVEL4_PERFIL", "persona")
 json.dump(cfg, io.open(os.path.join(datos, "roaming", "U", "config.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=2)
 
 

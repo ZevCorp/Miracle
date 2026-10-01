@@ -60,10 +60,16 @@ ve la pantalla por su equipo, cuenta los resultados con los datos del delegado s
 distingue «espera» (calla y escucha) de «apaga la voz» (lo delega).
 
 Quien actúa recibe las instrucciones de siempre —la constitución y la operación de Windows— y, **detrás**,
-lo que la conversación le añade (`ConversacionEnVivo.LoQueSeAnade`): las habilidades (cómo se hace algo a la
+lo que la conversación le añade (`ConversacionEnVivo.LoQueSeAnade`): a qué ritmo van sus manos —«pulsa:» con
+un nombre leído, un objetivo si no, las direcciones por «abre:» (spec 081)—, que las tareas largas llevan
+meta y no se sueltan hasta cerrarla con evidencia (spec 082), las habilidades (cómo se hace algo a la
 manera de esta persona, spec 074) y, cuando otro habla por él (GPT-Live), que él no habla y devuelve el
 resultado (spec 073) y que ya ve la pantalla del momento del pedido (spec 079). Después van la fecha, lo
-aprendido, la memoria y el hilo.
+aprendido, la memoria y el hilo, que dice que lo pedido y sin contestar es de antes y no se retoma solo.
+
+Con una meta activa viajan además dos textos que no son instrucciones (`Voice/LaMeta.cs`): la continuación
+—cuando quien actúa termina su turno sin cerrarla— y la meta con el pedido, cuando la persona dice algo a
+mitad. Los dos empiezan por `[META ACTIVA: esto no lo dijo la persona]`.
 
 El repaso de la sesión (`Voice/ElRepaso.cs`, `gpt-6-luna`) lee el diario al cerrar la voz y propone qué se
 queda: habilidades, preferencias, datos. El código solo aplica lo que trae una cita literal de la persona.
