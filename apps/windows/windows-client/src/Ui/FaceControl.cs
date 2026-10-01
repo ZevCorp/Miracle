@@ -217,6 +217,14 @@ public sealed class FaceControl : FrameworkElement
         double CornerL, double CornerR);
 
     /// <summary>
+    /// La cara de ATENDER: quieta y mirando de frente, «te estoy viendo» y «te estoy oyendo». La quietud
+    /// es la señal, y sin el rojo que tuvo la boca se encoge para que se distinga del reposo de un
+    /// vistazo. Una sola pose para grabar y para conversar, a propósito: que no puedan separarse sin
+    /// querer. Declarada ANTES que la tabla: los estáticos se inicializan en el orden en que están escritos.
+    /// </summary>
+    private static readonly FacePose Atenta = new(2, 2, 0.3, 0.3, 0.95, 0.10, 0.4, 34 * 0.7, 0.2, 0.2);
+
+    /// <summary>
     /// Reposo y Trabajando conservan EXACTAMENTE los valores que tenían como <c>thinking</c> false y
     /// true: el rediseño no debe cambiar cómo se ve lo que ya existía.
     ///
@@ -234,13 +242,13 @@ public sealed class FaceControl : FrameworkElement
         [FaceMood.Trabajando] = new(-1, 4, 0.1, 0.5, 0.75, 0.20, 0.7, 34 * 0.95, 0.2, 0.1),
         // Cejas altas y ojos bien abiertos: la cara de estar prestando atención.
         [FaceMood.Escuchando] = new(6, 6, 0.35, 0.35, 1.00, 0.05, 0.6, 34 * 1.05, 0.35, 0.35),
-        // Casi el reposo, con la ceja un pelo más alta. A propósito: es lo que se ve durante toda una
-        // conversación —el rato en que no dice nada es la mayor parte— y tiene que poder mirarse sin
-        // cansar. Quien quiera saber si el micrófono sigue abierto lo tiene en el botón, en rojo.
-        [FaceMood.Conversando] = new(3, 3.5, 0.3, 0.4, 0.90, 0.12, 0.7, 34 * 1.1, 0.3, 0.45),
-        // Quieta y mirando de frente: «te estoy viendo». La quietud es la señal — ahora sin el rojo,
-        // así que la boca se encoge más que antes para que se distinga del reposo de un vistazo.
-        [FaceMood.Grabando] = new(2, 2, 0.3, 0.3, 0.95, 0.10, 0.4, 34 * 0.7, 0.2, 0.2),
+        // ATENDER (spec 077, promesa 691). Desde agosto conversar era «casi el reposo» a propósito: es lo
+        // que se ve durante toda una conversación y tenía que poder mirarse sin cansar, y la alternativa
+        // de entonces eran los ojos como platos y un jadeo continuo. El dueño, el 2026-10-01: «quiero que
+        // cuando estemos hablando tenga algún tipo de gesto […] el que dice grabando, justamente». La de
+        // grabar es quieta, así que cumple las dos cosas.
+        [FaceMood.Conversando] = Atenta,
+        [FaceMood.Grabando] = Atenta,
         // Asimetría interrogativa: una ceja sube, la otra baja. Y además ladea la cabeza (OnMoodChanged).
         [FaceMood.Esperando] = new(6, -1, 0.45, 0.15, 0.9, 0.10, 0.2, 34 * 0.95, 0.4, 0.1),
         [FaceMood.Hablando] = new(2, 2.5, 0.3, 0.4, 0.85, 0.15, 0.9, 34 * 1.25, 0.4, 0.4),
@@ -498,15 +506,16 @@ public sealed class FaceControl : FrameworkElement
         Animar(this, PresionProperty, a, final: 0);
     }
 
-    /* ---------- Lo que hace sola: parpadear, y muy de vez en cuando saludar ---------- */
+    /* ---------- Lo que hace sola: parpadear ---------- */
 
     private readonly Random _rng = new();
-    private DispatcherTimer? _blinkTimer, _saludoTimer;
+    private DispatcherTimer? _blinkTimer;
 
     /// <summary>
     /// Arranca lo que la carita hace SOLA (<see cref="GestosDeLaCarita"/>, promesa 444): parpadear cada
-    /// 8-18 s, a veces doble, y saludar entre hora y media y tres horas. Nada más: girar la cabeza y el
-    /// pulso responden a algo que pasó (mirar lo que Ü toca, un toque), no a un reloj.
+    /// 8-18 s, a veces doble. Nada más: girar la cabeza y el pulso responden a algo que pasó, y cuándo
+    /// saluda lo decide la ventana con <see cref="ReglaDelSaludo"/> — había un reloj de saludo aquí, uno
+    /// por cada dibujo de la carita, y ninguno sabía del otro (spec 077, promesa 692).
     /// </summary>
     public void StartIdle()
     {
@@ -518,16 +527,6 @@ public sealed class FaceControl : FrameworkElement
             _blinkTimer!.Interval = TimeSpan.FromSeconds(GestosDeLaCarita.ProximoParpadeo(_rng.NextDouble()));
         };
         _blinkTimer.Start();
-
-        _saludoTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(GestosDeLaCarita.ProximoSaludo(_rng.NextDouble())) };
-        _saludoTimer.Tick += (_, _) =>
-        {
-            // Solo si está a la vista, en reposo y sin mirar nada: saludar en mitad de un trabajo o de
-            // una conversación sería interrumpir. Si no toca, se salta: ya habrá otro.
-            if (IsVisible && Mood == FaceMood.Reposo && !_mirandoFijo) Saludar();
-            _saludoTimer!.Interval = TimeSpan.FromSeconds(GestosDeLaCarita.ProximoSaludo(_rng.NextDouble()));
-        };
-        _saludoTimer.Start();
     }
 
     /// <summary>
@@ -537,7 +536,6 @@ public sealed class FaceControl : FrameworkElement
     /// seguir mirando al frente es raro, casi desatento (2026-08-05, pedido por el usuario). Hasta el
     /// 2026-09-30 corría solo los ojos; ahora gira la cabeza entera (spec 052).
     ///
-    /// Mientras está fija no saluda: no se puede estar mirando algo y distraerse.
     /// </summary>
     public void MirarHacia(bool izquierda)
     {
