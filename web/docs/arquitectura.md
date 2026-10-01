@@ -80,6 +80,11 @@ Todo lo clínico cuelga de la organización → aislamiento total entre clientes
 - Las únicas llamadas directas a un proveedor desde esta web son de **visión** (fotos:
   `app/api/parse-schedule`, `app/api/clinical/template-from-image`, `app/api/snippets/categorize`)
   con `ANTHROPIC_API_KEY` (env, **solo servidor**). Son excepciones declaradas del escudo.
+- **Asistente clínico (chat):** `components/app/MedicalChat.tsx` lee el contexto que publica la página de la
+  consulta (`lib/assistant/context.tsx`: nota en pantalla, códigos, edad/sexo, si admite cambios) y arma el
+  payload en `lib/assistant/payload.ts`. Graph responde estructurado (respaldo, fuentes de guías clínicas,
+  abstención, alarmas, seguimientos y propuesta de nota que se aplica con un botón). Decisión D22; contrato en
+  `docs/backend-clinical-api-contract.md` («Asistente clínico v2»).
 - Planeado: **recomendador de diagnósticos** mientras habla el médico (en la pestaña Codificación).
 
 ## 6. Flujo de una consulta

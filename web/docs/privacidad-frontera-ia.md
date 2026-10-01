@@ -46,7 +46,7 @@ Esta web tuvo un redactor propio (`lib/privacy/redact.ts`, retirado el
 | Canal | Qué sale | Hacia | Protección |
 |---|---|---|---|
 | Transcripción y nota (`lib/api/clinical.ts`) | texto real | Graph (infraestructura de Miracle) → escudo → proveedor de IA | **escudo de Graph** |
-| Asistente (chat, ajuste, sugerencias) | mensaje, historial, instrucción | Graph → escudo → proveedor | **escudo de Graph** |
+| Asistente (chat, ajuste, sugerencias) | mensaje, historial, instrucción y, desde el chat v2, la **nota tal como está en pantalla** (guardada o no), los códigos CIE-10/CUPS y la edad y el sexo del paciente registrado (`lib/assistant/payload.ts`) | Graph → escudo → proveedor | **escudo de Graph**. El borrador siembra el escudo (`noteContent`): un nombre recién escrito en la nota sale tapado aunque no esté en la transcripción. Edad, sexo y descripciones de códigos no se tapan (no son identificadores directos). Nombre y documento nunca viajan como campo aparte. Los extractos de guías clínicas que Graph añade al prompt no llevan datos de nadie (`verify-guideline-corpus.js` lo exige) |
 | Audio de la consulta (`lib/stt/*`) | audio crudo, por WebSocket con token efímero | Deepgram / Soniox | **ninguna posible sobre el audio**; contrato de encargado (pendiente, legal) |
 | Foto del horario (`app/api/parse-schedule`) | imagen con nombres y documentos de la agenda | Anthropic, directo | **ninguna**: la función existe para extraer esos datos. Excepción declarada; alternativa pendiente: importación por texto/CSV sin IA |
 | Nota desde foto (`app/api/clinical/note-from-photo`) | foto de hoja manuscrita con nombre y cédula | Graph → proveedor de visión | **ninguna** sobre la imagen. Excepción declarada; a futuro OCR local + escudo de texto |

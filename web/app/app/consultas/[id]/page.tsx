@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import type { AssistantNoteProposal } from "@/lib/api/clinical";
+import { useAssistantContextPublisher } from "@/lib/assistant/context";
+import { detectSectionDrift, proposalToSectionChanges } from "@/lib/assistant/apply";
+import { codesToContext, consultationNoteToClinicalNote, patientToContext } from "@/lib/assistant/payload";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -79,6 +84,7 @@ export default function ConsultaDetallePage() {
     setCodeStatus,
     addCode,
     updateNote,
+    applyNoteSections,
     upsertConsultation,
     listAddenda,
     addAddendum,
@@ -163,6 +169,53 @@ export default function ConsultaDetallePage() {
   useEffect(() => {
     if (serverEstado) applyServerConsultationEstado(id, serverEstado);
   }, [serverEstado, id, applyServerConsultationEstado]);
+
+  // --- Asistente clínico: contexto de ESTA consulta y «Aplicar a la nota» ---
+  // Va antes de cualquier return para no romper el orden de hooks. La nota
+  // del historial (NoteSection[]) viaja con la forma del backend; al aplicar,
+  // cada sección cambiada vuelve a su forma (texto o lista) y se guarda como
+  // cualquier edición manual de esta página, en una sola escritura. Igual que
+  // la edición manual, no escribe en `clinical_encounters.note_json`.
+  const confirm = useConfirm();
+  const assistantEditable = c ? !signed && role !== "secretaria" && !isDemoConsultation(c) : false;
+  const assistantPatient = getPatient(c?.pacienteId);
+  const applyAssistantProposal = useCallback(
+    async (proposal: AssistantNoteProposal) => {
+      const current = getConsultation(id);
+      if (!current) return false;
+      const drift = detectSectionDrift(current.note, proposal);
+      if (drift.length) {
+        const ok = await confirm({
+          titulo: "Esa sección cambió después de la propuesta",
+          descripcion: `Editaste «${drift.map((section) => section.label).join("», «")}» después de pedir la propuesta. Aplicarla reemplaza lo que escribiste ahí.`,
+          confirmLabel: "Aplicar de todos modos",
+          tono: "peligro",
+        });
+        if (!ok) return false;
+      }
+      const changes = proposalToSectionChanges(current.note, proposal);
+      if (!changes.length && !proposal.summary) return false;
+      applyNoteSections(id, changes, proposal.summary ?? null);
+      showToast("Propuesta del asistente aplicada. Revisa los cambios.", "success");
+      return true;
+    },
+    [id, getConsultation, confirm, applyNoteSections, showToast],
+  );
+  useAssistantContextPublisher(
+    c
+      ? {
+          encounterId: c.id,
+          specialtyCode: c.especialidad || null,
+          templateName: c.plantilla || undefined,
+          note: consultationNoteToClinicalNote(c.note, c.resumen),
+          codes: codesToContext(c.codigos),
+          patient: patientToContext(assistantPatient),
+          editable: assistantEditable,
+          hasTranscript: c.transcript.length > 0,
+          applyProposal: applyAssistantProposal,
+        }
+      : null,
+  );
 
   if (!c) {
     // Mientras el store carga —o mientras se pide la consulta suelta— aún no

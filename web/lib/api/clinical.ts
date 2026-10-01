@@ -913,6 +913,41 @@ export interface AssistantDoctorContext {
   detail?: string;
 }
 
+/**
+ * La nota tal como está EN PANTALLA, guardada o no. Graph la prefiere sobre la
+ * persistida: el médico pregunta por lo que está viendo, no por la foto de
+ * hace cinco minutos. Solo key/label/content: grounding y evidencia los
+ * recalcula el servidor si propone un cambio.
+ */
+export interface AssistantNoteDraftSection {
+  key: string;
+  label: string;
+  content: string;
+}
+
+export interface AssistantNoteDraft {
+  summary?: string;
+  sections: AssistantNoteDraftSection[];
+}
+
+/**
+ * Código de la pestaña Codificación. Los nombres de campo importan: el escudo
+ * de privacidad de Graph salta las claves estructurales (`id`, `name`, `key`)
+ * al tapar, así que aquí ninguna lleva texto bajo esos nombres.
+ */
+export interface AssistantCodeContext {
+  sistema: "CIE-10" | "CUPS";
+  codigo: string;
+  descripcion: string;
+  estado: "sugerido" | "aceptado";
+}
+
+/** Edad y sexo: lo que el razonamiento clínico necesita. Nunca nombre ni documento. */
+export interface AssistantPatientContext {
+  edad?: number;
+  sexo?: "F" | "M";
+}
+
 export interface AssistantChatPayload {
   /** Pregunta o instrucción del médico (máx. 8000 caracteres). */
   message: string;
@@ -923,6 +958,53 @@ export interface AssistantChatPayload {
   specialty?: string;
   screen_context?: AssistantScreenContext;
   doctor?: AssistantDoctorContext;
+  /** Nota en pantalla (manda sobre la persistida). */
+  note_json_draft?: AssistantNoteDraft;
+  /** Códigos aceptados o sugeridos de la consulta (máx. 20). */
+  codes?: AssistantCodeContext[];
+  patient_context?: AssistantPatientContext;
+  /** false cuando la nota está firmada: el asistente explica, no propone. */
+  note_editable?: boolean;
+}
+
+/**
+ * Con qué respalda el asistente su respuesta. `insuficiente` es una respuesta
+ * válida y deseable: prefiere no contestar a contestar mal.
+ */
+export type AssistantSupport = "consulta" | "guia" | "general" | "insuficiente";
+
+/** Fragmento de guía clínica que el asistente citó de verdad ([G1], [G2]…). */
+export interface AssistantSource {
+  ref: string;
+  guideline_id: string;
+  title: string;
+  organism?: string;
+  year?: number | string;
+  section?: string;
+  source?: string;
+}
+
+/** Una sección que la propuesta cambia, con lo que había para detectar deriva. */
+export interface AssistantProposedSection {
+  key: string;
+  label: string;
+  content: string;
+  previous_content: string;
+}
+
+/**
+ * Propuesta de cambio de la nota que viaja con la respuesta del chat. NUNCA se
+ * aplica sola: el médico pulsa «Aplicar a la nota» y después guarda como
+ * siempre. `proposed_note_json` viene validada por Graph (mismo validador que
+ * el ajuste), pero la pantalla aplica solo `changed_sections` por clave sobre la
+ * nota actual, para no pisar el resto de ediciones ni perder `discharge`.
+ */
+export interface AssistantNoteProposal {
+  proposed_note_json: ClinicalNoteJson;
+  changed_sections: AssistantProposedSection[];
+  summary?: string | null;
+  explanation: string;
+  requires_physician_review: boolean;
 }
 
 export interface AssistantChatResult {
@@ -934,20 +1016,42 @@ export interface AssistantChatResult {
     encounter?: boolean;
     transcript?: boolean;
     note_json?: boolean;
+    note_draft?: boolean;
+    codes?: boolean;
+    patient?: boolean;
+    guidelines?: number;
     screen_context?: boolean;
   };
   safety_notice?: string;
   suggested_actions?: unknown[];
+  // --- v2 (Graph con RAG). Todo opcional: un Graph anterior no los manda. ---
+  support?: AssistantSupport;
+  sources?: AssistantSource[];
+  missing_information?: string[];
+  alarm_signs?: string[];
+  follow_up_questions?: string[];
+  note_proposal?: AssistantNoteProposal | null;
 }
 
 export async function sendAssistantChat(
   payload: AssistantChatPayload,
 ): Promise<AssistantChatResult> {
-  return clinicalRequest<AssistantChatResult>("/api/clinical/assistant/chat", {
+  const result = await clinicalRequest<AssistantChatResult>("/api/clinical/assistant/chat", {
     method: "POST",
     body: payload,
     timeoutMs: ASSISTANT_TIMEOUT_MS,
   });
+  // La propuesta cruza la misma frontera que cualquier nota: documento canónico.
+  if (result?.note_proposal?.proposed_note_json) {
+    return {
+      ...result,
+      note_proposal: {
+        ...result.note_proposal,
+        proposed_note_json: conDocumentoCanonico(result.note_proposal.proposed_note_json),
+      },
+    };
+  }
+  return result;
 }
 
 export type NoteAdjustmentKind = "rewrite" | "dictation";

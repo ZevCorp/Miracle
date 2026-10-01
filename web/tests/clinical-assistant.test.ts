@@ -63,6 +63,57 @@ describe("cliente del asistente clínico", () => {
     });
   });
 
+  it("sendAssistantChat v2: los campos de contexto viajan tal cual y la propuesta vuelve canonizada", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        answer: "Plan ajustado.",
+        mode: "clinical_chat",
+        support: "consulta",
+        sources: [],
+        note_proposal: {
+          proposed_note_json: {
+            summary: "s",
+            sections: [
+              { key: "identificacion_del_paciente", label: "Identificación", content: "Nombre: Ana\nDocumento: 23-45-67-75-43" },
+              { key: "plan", label: "Plan", content: "Nuevo plan." },
+            ],
+            warnings: [],
+            missing_required_sections: [],
+          },
+          changed_sections: [{ key: "plan", label: "Plan", content: "Nuevo plan.", previous_content: "Viejo." }],
+          summary: null,
+          explanation: "x",
+          requires_physician_review: true,
+        },
+      }),
+    );
+    const result = await sendAssistantChat({
+      message: "Cambia el plan",
+      history: [],
+      encounter_id: "enc-1",
+      note_json_draft: { summary: "s", sections: [{ key: "plan", label: "Plan", content: "Viejo." }] },
+      codes: [{ sistema: "CIE-10", codigo: "R51", descripcion: "Cefalea", estado: "aceptado" }],
+      patient_context: { edad: 34, sexo: "F" },
+      note_editable: true,
+    });
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body as string);
+    expect(body.note_json_draft.sections[0].key).toBe("plan");
+    expect(body.codes[0].codigo).toBe("R51");
+    expect(body.patient_context).toEqual({ edad: 34, sexo: "F" });
+    expect(body.note_editable).toBe(true);
+    // El documento de la propuesta cruza la misma frontera que cualquier nota.
+    const identidad = result.note_proposal?.proposed_note_json.sections[0].content ?? "";
+    expect(identidad).toContain("Documento: 2345677543");
+    expect(result.note_proposal?.changed_sections[0].previous_content).toBe("Viejo.");
+  });
+
+  it("sendAssistantChat v1 (Graph anterior): una respuesta sin campos nuevos se devuelve intacta", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { answer: "Solo texto", mode: "clinical_chat" }));
+    const result = await sendAssistantChat({ message: "hola" });
+    expect(result).toEqual({ answer: "Solo texto", mode: "clinical_chat" });
+  });
+
   it("adjustNoteWithAssistant envía encounter_id + instruction y devuelve la propuesta", async () => {
     const proposed: ClinicalNoteJson = {
       summary: "Resumen ajustado",

@@ -192,6 +192,17 @@ interface StoreValue {
   setCodeStatus: (id: string, codeId: string, estado: CodeStatus) => void;
   addCode: (id: string, code: Omit<ClinicalCode, "id" | "estado">) => void;
   updateNote: (id: string, sectionId: string, next: Partial<NoteSection>) => void;
+  /**
+   * Aplica una propuesta del asistente clínico: varias secciones (y el
+   * resumen, si vino) en UNA sola escritura y un solo evento de auditoría.
+   * Misma persistencia que la edición manual del detalle; nunca reemplaza
+   * la nota entera.
+   */
+  applyNoteSections: (
+    id: string,
+    changes: { id: string; next: Partial<NoteSection> }[],
+    resumen?: string | null,
+  ) => void;
   addConsultation: (c: Consultation) => void;
   /**
    * Inserta o actualiza (por id) una consulta. Lo usa el puente del backend
@@ -1393,6 +1404,24 @@ export function MiracleProvider({
     [mutate],
   );
 
+  const applyNoteSections = useCallback(
+    (id: string, changes: { id: string; next: Partial<NoteSection> }[], resumen?: string | null) => {
+      if (!changes.length && !resumen) return;
+      const byId = new Map(changes.map((change) => [change.id, change.next]));
+      mutate(
+        id,
+        (c) => ({
+          ...c,
+          note: c.note.map((s) => (byId.has(s.id) ? { ...s, ...byId.get(s.id) } : s)),
+          resumen: resumen ?? c.resumen,
+        }),
+        "Propuesta del asistente aplicada",
+        changes.length ? `Secciones: ${changes.map((change) => change.id).join(", ")}` : "Resumen",
+      );
+    },
+    [mutate],
+  );
+
   const resetDemo = useCallback(() => {
     setLoading(true);
     load().finally(() => showToast("Datos recargados.", "info"));
@@ -1431,6 +1460,7 @@ export function MiracleProvider({
       setCodeStatus,
       addCode,
       updateNote,
+      applyNoteSections,
       addConsultation,
       upsertConsultation,
       listAddenda,
@@ -1472,6 +1502,7 @@ export function MiracleProvider({
       setCodeStatus,
       addCode,
       updateNote,
+      applyNoteSections,
       addConsultation,
       upsertConsultation,
       listAddenda,

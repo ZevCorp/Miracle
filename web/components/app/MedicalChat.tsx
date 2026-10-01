@@ -1,19 +1,34 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle, RefreshCw, Send, Sparkles, X } from "lucide-react";
 import {
   ClinicalApiError,
   friendlyClinicalMessage,
   sendAssistantChat,
+  type AssistantChatMessage,
+  type AssistantChatResult,
 } from "@/lib/api/clinical";
 import { buildDoctorContext } from "@/lib/preferences/assistant";
 import { useUserPreferences } from "@/lib/preferences/client";
+import { useAssistantContext, type AssistantEncounterContext } from "@/lib/assistant/context";
+import { buildAssistantChatPayload } from "@/lib/assistant/payload";
+import { normalizeAssistantResult, type AssistantTurnData } from "@/lib/assistant/normalize";
+import { starterQuestions } from "@/lib/assistant/starters";
+import { AssistantTurnCard, type ProposalState } from "@/components/app/AssistantTurnCard";
 
-type Msg = { role: "user" | "assistant"; content: string };
+type UserTurn = { role: "user"; content: string };
+type AssistantTurn = {
+  role: "assistant";
+  /** El texto de la respuesta: es lo único que vuelve a viajar como historial. */
+  content: string;
+  data: AssistantTurnData;
+  proposalState: ProposalState;
+};
+type Turn = UserTurn | AssistantTurn;
 
-/** Fallo de la última pregunta. Vive aparte de `messages` a propósito. */
+/** Fallo de la última pregunta. Vive aparte de `turns` a propósito. */
 type Failure = {
   /** Se guarda para poder reintentar sin que el médico la reescriba. */
   question: string;
@@ -33,14 +48,20 @@ const RETRYABLE_CODES = new Set([
   "ASSISTANT_EMPTY",
   "RATE_LIMITED",
   "NETWORK_ERROR",
+  "TIMEOUT",
   "INTERNAL_ERROR",
 ]);
 
-const SUGERENCIAS = [
-  "Diagnósticos diferenciales de dolor torácico",
-  "Dosis de amoxicilina en adultos",
-  "¿Qué CIE-10 uso para cefalea tensional?",
-];
+/** Al backend solo viaja el texto de cada turno, nunca la estructura. */
+function toHistory(turns: Turn[]): AssistantChatMessage[] {
+  return turns.map((turn) => ({ role: turn.role, content: turn.content }));
+}
+
+function contextLabel(context: AssistantEncounterContext | null): string {
+  if (!context) return "Sin consulta abierta";
+  if (context.encounterId) return "Con contexto de esta consulta";
+  return "Con la nota en pantalla";
+}
 
 export function MedicalChat({
   embedded = false,
@@ -55,49 +76,86 @@ export function MedicalChat({
 }) {
   const pathname = usePathname();
   const { preferences, firstName, specialtyCode } = useUserPreferences();
+  // Lo que la página de la consulta publicó: nota en pantalla, códigos,
+  // paciente (edad/sexo), si la nota admite cambios y cómo aplicarlos.
+  const context = useAssistantContext();
   const [openInterno, setOpenInterno] = useState(false);
   const open = openProp ?? openInterno;
   const setOpen = onOpenChange ?? setOpenInterno;
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState<number | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Encounters que Graph no conoce (consulta anterior al puente, supervisor):
+  // tras un ENCOUNTER_NOT_FOUND se recuerdan para no gastar dos llamadas por
+  // turno contra el límite de 20 por minuto.
+  const sinBackend = useRef(new Set<string>());
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, loading, failure, open]);
+  }, [turns, loading, failure, open]);
+
+  const starters = useMemo(
+    () =>
+      starterQuestions({
+        hasEncounter: Boolean(context?.encounterId || context?.note),
+        hasNote: Boolean(context?.note),
+        hasTranscript: Boolean(context?.hasTranscript),
+        specialtyCode: context?.specialtyCode ?? specialtyCode ?? null,
+      }),
+    [context, specialtyCode],
+  );
 
   /**
-   * Habla directo con el asistente clínico del backend Miracle (token Supabase
-   * del médico). Respuesta completa (sin streaming): el indicador de "puntos"
+   * Habla con el asistente clínico del backend Miracle (token Supabase del
+   * médico). Respuesta completa (sin streaming): el indicador de "puntos"
    * cubre la espera.
    *
-   * El fallo NUNCA entra en `messages`, y eso importa por dos razones. En
+   * El fallo NUNCA entra en `turns`, y eso importa por dos razones. En
    * pantalla, un error pintado como burbuja del asistente es indistinguible de
-   * una respuesta clínica real. Y hacia el backend, `messages` es el `history`
+   * una respuesta clínica real. Y hacia el backend, `turns` es el `history`
    * de la siguiente pregunta: meter ahí "no pude responder" envenenaba el
    * contexto de toda la conversación posterior.
    */
-  async function ask(content: string, history: Msg[]) {
+  async function ask(content: string, history: Turn[]) {
     setLoading(true);
     try {
-      const result = await sendAssistantChat({
-        message: content,
-        history,
-        screen_context: pathname ? { route: pathname } : undefined,
-        // `specialty` estaba en el contrato desde el principio y el backend SÍ
-        // lo usa para adaptar el razonamiento (pediatría, gineco-obstetricia,
-        // psiquiatría tienen reglas propias en su prompt). Nadie se lo mandaba,
-        // así que todo el mundo recibía la respuesta "general".
-        specialty: specialtyCode ?? undefined,
-        doctor: buildDoctorContext(preferences, firstName),
-      });
-      const reply = result.answer?.trim();
-      if (!reply) {
+      const doctor = buildDoctorContext(preferences, firstName);
+      const payloadContext = context
+        ? {
+            encounterId: context.encounterId,
+            specialtyCode: context.specialtyCode,
+            note: context.note,
+            codes: context.codes,
+            patient: context.patient,
+            editable: context.editable,
+          }
+        : null;
+      const base = { message: content, history: toHistory(history), pathname, specialtyCode, doctor, context: payloadContext };
+      const encounterId = context?.encounterId ?? null;
+      const includeEncounter = Boolean(encounterId) && !sinBackend.current.has(encounterId!);
+
+      let result: AssistantChatResult;
+      try {
+        result = await sendAssistantChat(buildAssistantChatPayload({ ...base, includeEncounter }));
+      } catch (error) {
+        // Graph no tiene este encounter (o no es de este médico): se pregunta
+        // igual con la nota en pantalla y los códigos, una sola vez más.
+        if (includeEncounter && error instanceof ClinicalApiError && error.code === "ENCOUNTER_NOT_FOUND") {
+          sinBackend.current.add(encounterId!);
+          result = await sendAssistantChat(buildAssistantChatPayload({ ...base, includeEncounter: false }));
+        } else {
+          throw error;
+        }
+      }
+
+      const data = normalizeAssistantResult(result);
+      if (!data.answer) {
         // 200 con cuerpo vacío: para el médico es un fallo, no una respuesta.
         setFailure({
           question: content,
@@ -107,12 +165,16 @@ export function MedicalChat({
         });
         return;
       }
-      setMessages([...history, { role: "user", content }, { role: "assistant", content: reply }]);
+      setTurns([
+        ...history,
+        { role: "user", content },
+        { role: "assistant", content: data.answer, data, proposalState: "pendiente" },
+      ]);
     } catch (error) {
       const code = error instanceof ClinicalApiError ? error.code : "INTERNAL_ERROR";
       // La pregunta se conserva en pantalla: el médico ve qué preguntó y puede
       // reintentar sin volver a escribirla.
-      setMessages([...history, { role: "user", content }]);
+      setTurns([...history, { role: "user", content }]);
       setFailure({
         question: content,
         code,
@@ -132,16 +194,42 @@ export function MedicalChat({
     if (!content || loading) return;
     setInput("");
     setFailure(null);
-    await ask(content, messages);
+    await ask(content, turns);
   }
 
   async function retry() {
     if (!failure || loading) return;
-    // `messages` termina en la pregunta que falló: el historial es todo menos ella.
-    const history = messages.slice(0, -1);
+    // `turns` termina en la pregunta que falló: el historial es todo menos ella.
+    const history = turns.slice(0, -1);
     const question = failure.question;
     setFailure(null);
     await ask(question, history);
+  }
+
+  function setProposalState(index: number, state: ProposalState) {
+    setTurns((current) =>
+      current.map((turn, position) =>
+        position === index && turn.role === "assistant" ? { ...turn, proposalState: state } : turn,
+      ),
+    );
+  }
+
+  /**
+   * «Aplicar a la nota»: la página de la consulta fusiona las secciones
+   * cambiadas sobre la nota actual y la deja como cambios sin guardar. Si el
+   * médico canceló (editó esa sección entre la propuesta y el clic), la
+   * propuesta sigue pendiente.
+   */
+  async function applyProposal(index: number) {
+    const turn = turns[index];
+    if (!turn || turn.role !== "assistant" || !turn.data.proposal || !context?.applyProposal || applying !== null) return;
+    setApplying(index);
+    try {
+      const ok = await context.applyProposal(turn.data.proposal);
+      if (ok) setProposalState(index, "aplicada");
+    } finally {
+      setApplying(null);
+    }
   }
 
   // Durante una consulta activa el asistente se muestra embebido en el panel
@@ -149,18 +237,25 @@ export function MedicalChat({
   if (!embedded && (pathname === "/app/consultas/en-vivo" || pathname === "/app/plantillas")) return null;
 
   const visible = embedded || open;
+  const canApply = Boolean(context?.editable && context?.applyProposal);
+  const applyHint = context
+    ? context.editable
+      ? undefined
+      : "La nota está firmada: regístralo como adenda."
+    : "Abre la consulta para aplicarla a la nota.";
+  const lastAssistantIndex = turns.length - 1 >= 0 && turns[turns.length - 1].role === "assistant" ? turns.length - 1 : -1;
 
   // Embebido en el panel lateral, el alto se ajusta a lo que hay dentro:
   // sin conversación el panel solo mide lo que ocupan las sugerencias, así
   // el campo "Escribe tu pregunta…" queda a la vista sin bajar la página.
   // Al empezar a conversar sí toma un alto fijo y el historial hace scroll.
-  const hasConversation = messages.length > 0 || loading;
+  const hasConversation = turns.length > 0 || loading;
   const embeddedHeight = hasConversation
-    ? "xl:h-[min(460px,calc(100vh-13rem))] xl:min-h-[320px]"
+    ? "xl:h-[min(520px,calc(100vh-13rem))] xl:min-h-[320px]"
     : "xl:h-auto";
   const panelClass = embedded
     ? `${open ? "fixed inset-0 z-[80] flex h-dvh w-full" : "hidden"} flex-col overflow-hidden bg-surface xl:static xl:flex xl:w-auto xl:rounded-[16px] xl:border xl:border-line xl:shadow-[var(--elev-1)] ${embeddedHeight}`
-    : "fixed inset-0 z-[80] flex h-dvh w-full flex-col overflow-hidden bg-surface sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[min(560px,calc(100vh-2.5rem))] sm:w-[min(380px,calc(100vw-2.5rem))] sm:rounded-[24px] sm:border sm:border-line sm:shadow-[var(--elev-3)]";
+    : "fixed inset-0 z-[80] flex h-dvh w-full flex-col overflow-hidden bg-surface sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[min(600px,calc(100vh-2.5rem))] sm:w-[min(400px,calc(100vw-2.5rem))] sm:rounded-[24px] sm:border sm:border-line sm:shadow-[var(--elev-3)]";
 
   return (
     <>
@@ -193,8 +288,12 @@ export function MedicalChat({
               </span>
               <div className="leading-tight">
                 <div className="text-sm font-semibold">Asistente clínico</div>
-                <div className="text-[12px] text-muted">
-                  Apoyo clínico con IA
+                <div className="flex items-center gap-1.5 text-[12px] text-muted">
+                  <span
+                    aria-hidden
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${context ? "bg-success" : "bg-muted/50"}`}
+                  />
+                  {contextLabel(context)}
                 </div>
               </div>
             </div>
@@ -217,13 +316,15 @@ export function MedicalChat({
               hasConversation ? "" : "xl:basis-auto"
             }`}
           >
-            {messages.length === 0 ? (
+            {turns.length === 0 ? (
               <div className="space-y-2.5">
                 <p className="text-[13px] leading-snug text-muted">
-                  Pregunta sobre diagnóstico, codificación o manejo clínico.
+                  {context
+                    ? "Pregunta sobre esta consulta: diagnóstico, guías, codificación o cambios en la nota."
+                    : "Pregunta sobre diagnóstico, codificación o manejo clínico. Con una consulta abierta, el asistente la tiene en cuenta."}
                 </p>
                 <div className="space-y-2">
-                  {SUGERENCIAS.map((s) => (
+                  {starters.map((s) => (
                     <button
                       key={s}
                       type="button"
@@ -236,35 +337,63 @@ export function MedicalChat({
                 </div>
               </div>
             ) : (
-              messages.map((m, i) => (
+              turns.map((turn, index) => (
                 <div
-                  key={i}
-                  className={
-                    m.role === "user" ? "flex justify-end" : "flex justify-start"
-                  }
+                  key={index}
+                  className={turn.role === "user" ? "flex justify-end" : "flex flex-col items-start gap-2"}
                 >
                   <div
                     className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
-                      m.role === "user"
+                      turn.role === "user"
                         ? "bg-accent text-white"
                         : "border border-line bg-pearl text-ink"
                     }`}
                   >
-                    {m.content}
+                    {turn.content}
                   </div>
+                  {turn.role === "assistant" ? (
+                    <AssistantTurnCard
+                      data={turn.data}
+                      proposalState={turn.proposalState}
+                      canApply={canApply}
+                      applyHint={applyHint}
+                      applying={applying === index}
+                      onApply={() => void applyProposal(index)}
+                      onDiscard={() => setProposalState(index, "descartada")}
+                    />
+                  ) : null}
+                  {turn.role === "assistant" && index === lastAssistantIndex && !loading && turn.data.followUps.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {turn.data.followUps.map((question) => (
+                        <button
+                          key={question}
+                          type="button"
+                          onClick={() => send(question)}
+                          className="rounded-full border border-line bg-surface px-3 py-1.5 text-left text-[12px] text-deep transition-colors hover:border-mist hover:bg-ice-soft"
+                        >
+                          {question}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ))
             )}
             {loading ? (
               <div className="flex justify-start">
-                <div className="flex items-center gap-1 rounded-2xl border border-line bg-pearl px-3.5 py-3">
-                  {[0, 0.15, 0.3].map((d) => (
-                    <span
-                      key={d}
-                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted"
-                      style={{ animationDelay: `${d}s`, animationDuration: "0.8s" }}
-                    />
-                  ))}
+                <div className="flex items-center gap-2 rounded-2xl border border-line bg-pearl px-3.5 py-3">
+                  <span className="flex items-center gap-1">
+                    {[0, 0.15, 0.3].map((d) => (
+                      <span
+                        key={d}
+                        className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted"
+                        style={{ animationDelay: `${d}s`, animationDuration: "0.8s" }}
+                      />
+                    ))}
+                  </span>
+                  <span className="text-[12px] text-muted">
+                    {context ? "Consultando guías y la consulta…" : "Consultando guías…"}
+                  </span>
                 </div>
               </div>
             ) : null}
@@ -306,7 +435,7 @@ export function MedicalChat({
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Escribe tu pregunta…"
+              placeholder={context ? "Pregunta sobre esta consulta…" : "Escribe tu pregunta…"}
               aria-label="Pregunta para el asistente clínico"
               className="clinical-control min-w-0 flex-1 px-3.5 text-base outline-none sm:text-sm"
             />

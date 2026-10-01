@@ -15,6 +15,7 @@ import { StartProvider } from "./StartContext";
 import { BillingBanner } from "./BillingBanner";
 import { MobileBottomNavigation } from "./MobileBottomNavigation";
 import { MedicalChat } from "./MedicalChat";
+import { AssistantContextProvider } from "@/lib/assistant/context";
 import { QuickConsultationLauncher } from "./QuickConsultationLauncher";
 import { CommandPalette } from "./CommandPalette";
 import { StatusDock } from "./StatusDock";
@@ -70,6 +71,10 @@ export function AppShell({
   }
 
   return (
+    // El puente del asistente envuelve a TODO el shell: la página de la
+    // consulta (children) publica su contexto y el chat (flotante o embebido)
+    // lo lee. Ver lib/assistant/context.tsx.
+    <AssistantContextProvider>
     <PeekProvider>
     <RunwayProvider>
     <StartProvider
@@ -183,5 +188,6 @@ export function AppShell({
     </StartProvider>
     </RunwayProvider>
     </PeekProvider>
+    </AssistantContextProvider>
   );
 }

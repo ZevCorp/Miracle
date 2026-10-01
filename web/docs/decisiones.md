@@ -269,3 +269,36 @@ sigue sin tocarse. Lo que el escudo NO cubre —audio hacia el proveedor de voz,
 fotos hacia modelos de visión, capturas de pantalla de Operations— queda escrito
 como excepción, no disimulado, y el claim comercial espera a que el escudo esté
 en modo `enforce` con el informe de evidencia en verde sobre consultas reales.
+
+## D22 · El asistente clínico razona sobre la consulta en pantalla, cita guías de un corpus curado y prefiere no responder a responder mal
+**Decisión:** el chat del asistente deja de ser un chat general. Esta web le
+publica el contexto de la consulta abierta (`lib/assistant/context.tsx`): la nota
+**tal como está en pantalla** —guardada o no—, los códigos de Codificación, la
+edad y el sexo del paciente registrado y si la nota admite cambios. Graph
+responde con una estructura (`lib/api/clinical.ts`, `AssistantChatResult`):
+`support` (consulta · guía · general · insuficiente), las fuentes citadas,
+signos de alarma, lo que falta por confirmar, preguntas de seguimiento y, cuando
+el médico pidió cambiar la nota, una **propuesta por secciones** que se aplica
+con un botón y nunca sola. Las guías salen de un corpus curado en Graph
+(`knowledge/guias-clinicas/*.md`, resúmenes con fuente y año) recuperado con
+búsqueda léxica (BM25 con sinónimos), sin proveedor de embeddings.
+**Por qué el cerebro sigue en Graph:** es donde está el escudo de privacidad
+(D21). Traer la lógica a esta web y llamar a Anthropic con la transcripción
+habría obligado a resucitar el redactor del navegador que se retiró el
+2026-09-07. El borrador de la nota viaja a Graph como siempre viajó la
+instrucción de ajuste, y además siembra el escudo.
+**Por qué la abstención es parte del contrato:** `support: "insuficiente"` es
+una respuesta válida y deseable; el prompt la exige para cifras, dosis y
+umbrales sin respaldo, Graph garantiza que nunca llegue sin `missing_information`
+y la pantalla la pinta como tarjeta de aviso, no como burbuja de respuesta.
+**Por qué «Aplicar» y no aplicar solo:** la propuesta llega validada por el
+mismo validador del ajuste, pero sin `discharge` y calculada sobre lo que había
+al preguntar. La pantalla fusiona por clave SOLO las secciones cambiadas sobre
+la nota actual (`lib/assistant/apply.ts`), avisa si el médico editó esa sección
+entre la propuesta y el clic (`previous_content`) y deja la nota como cambios
+sin guardar: el guardado sigue siendo el de siempre.
+**Consecuencia:** cada rama se despliega sola. Un Graph anterior ignora los
+campos nuevos del payload y esta web pinta como texto plano una respuesta sin
+los nuevos. Las preguntas de inicio dependen del contexto y la especialidad
+(`lib/assistant/starters.ts`). Lo que no viaja en v1: la transcripción sin
+guardar (el chat usa la persistida, que se autoguarda cada 2,5 s).

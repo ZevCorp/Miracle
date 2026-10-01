@@ -36,6 +36,9 @@ import { PatientHeader } from "@/components/app/PatientHeader";
 import { EncounterNote, type VoiceTarget } from "@/components/app/EncounterNote";
 import { DictationPanel } from "@/components/app/DictationPanel";
 import { MedicalChat } from "@/components/app/MedicalChat";
+import { useAssistantContextPublisher } from "@/lib/assistant/context";
+import { applyProposalToNote, detectProposalDrift } from "@/lib/assistant/apply";
+import { patientToContext } from "@/lib/assistant/payload";
 import { AgentPairPanel } from "@/components/app/AgentPairPanel";
 import { EncounterAuditPanel } from "@/components/app/EncounterAuditPanel";
 import { PlanDischargePanel } from "@/components/app/PlanDischargePanel";
@@ -89,6 +92,7 @@ import {
   updateNoteSectionContent,
   CLINICAL_ERROR_MESSAGES,
   MAX_TRANSCRIPT_LENGTH,
+  type AssistantNoteProposal,
   type ClinicalEncounter,
   type ClinicalDischarge,
   type ClinicalNoteJson,
@@ -158,6 +162,11 @@ function ConsultaActivaInner() {
   const [associatedPatientId, setAssociatedPatientId] = useState(pacienteId || null);
   const [patientAssociationOpen, setPatientAssociationOpen] = useState(false);
   const patient = getPatient(associatedPatientId);
+  // Edad/sexo para el asistente, derivados aquí mismo (justo después de obtener
+  // `patient`): si la conversión se hiciera más abajo, el compilador de React
+  // alargaría el rango mutable de `patient` por encima de los useCallback
+  // intermedios y dejaría de compilar la página.
+  const assistantPatient = patientToContext(patient);
 
   // Privacidad hacia la IA: la protección ocurre en el SERVIDOR (Graph tapa
   // los identificadores en el último salto antes del proveedor y devuelve los
@@ -1105,6 +1114,54 @@ function ConsultaActivaInner() {
       setPhase("idle");
     }
   }
+
+  // --- Asistente clínico: contexto de ESTA consulta y «Aplicar a la nota» ---
+  // Publica la nota tal como está en pantalla (guardada o no), el paciente
+  // (edad/sexo) y si admite cambios. «Aplicar» fusiona por clave SOLO las
+  // secciones propuestas sobre `noteRef` (lo último que hay), sin pisar el
+  // plan de egreso ni otras ediciones, y deja la nota como cambios sin
+  // guardar: el médico la revisa y guarda con el flujo normal. A diferencia de
+  // `pedirAjuste`, no reemplaza la nota entera, así que no hay que avisar por
+  // cambios sin guardar; sí se avisa si el médico editó justo esa sección
+  // después de pedir la propuesta.
+  const applyAssistantProposal = useCallback(
+    async (proposal: AssistantNoteProposal) => {
+      const current = noteRef.current;
+      if (!current) return false;
+      const drift = detectProposalDrift(current, proposal);
+      if (drift.length) {
+        const ok = await confirm({
+          titulo: "Esa sección cambió después de la propuesta",
+          descripcion: `Editaste «${drift.map((section) => section.label).join("», «")}» después de pedir la propuesta. Aplicarla reemplaza lo que escribiste ahí.`,
+          confirmLabel: "Aplicar de todos modos",
+          tono: "peligro",
+        });
+        if (!ok) return false;
+      }
+      setNote((prev) => (prev ? applyProposalToNote(prev, proposal) : prev));
+      setNoteDirty(true);
+      setNoteSaved(false);
+      setFlowError(null);
+      setAiExplanation(proposal.explanation || "Propuesta del asistente aplicada.");
+      return true;
+    },
+    [confirm],
+  );
+  useAssistantContextPublisher(
+    encounterId
+      ? {
+          encounterId,
+          specialtyCode: encounter?.template_snapshot?.specialty ?? null,
+          templateName: encounter?.template_snapshot?.name,
+          note,
+          codes: [],
+          patient: assistantPatient,
+          editable: Boolean(note) && !busy && !signedMirror,
+          hasTranscript: Boolean(transcriptDraft.trim() || savedTranscript.trim()),
+          applyProposal: applyAssistantProposal,
+        }
+      : null,
+  );
 
   if (!encounterId) return null;
 
