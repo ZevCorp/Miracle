@@ -55,6 +55,7 @@ public static class FueraDelAltTab
     {
         typeof(ConsultaWindow),
         typeof(EstudiosWindow),
+        typeof(MemoriaWindow),       // se lee con calma y se vuelve a ella: como los estudios (spec 071)
         typeof(LoginWindow),
         typeof(OnboardingWindow),
         typeof(LogWindow),

@@ -1,6 +1,6 @@
 # Plan de implementación: el panel se queda con lo justo —Memoria, el collar y de qué lado vive—, y Memoria abre todo lo que Ü sabe de ti
 
-Estado: **implementado, sin commitear** (2026-09-30) · Nace de la petición del dueño del 2026-09-30 · Rama: `jose/memoria-en-el-panel`
+Estado: **implementado** (2026-09-30) · Nace de la petición del dueño del 2026-09-30 · Rama: `jose/memoria-en-el-panel`
 
 > «Quiero que el panel flotante de la derecha pierda todos los botones que tiene (excepto el del
 > collar que abre una ventana fija) y quiero allí un botón que se llame "Memoria" que abra todo lo
@@ -126,9 +126,10 @@ demás es una ventana bonita sobre una parte de los datos.
   borra, de dónde, y si el servidor se entera— y merece su spec.
 - **Enumerar lo que hay en el servidor** (workflows de Graph, el registro copiado). La Memoria dice
   que existe y qué es; no lo lista, porque hoy no hay una puerta que lo devuelva por persona.
-- **Que `MemoriaPersonal`, `ConversacionPersonal`, el álbum, las fotos y las skills respeten
-  `U_DATA_DIR`.** Hoy escriben siempre en el perfil real aunque la app corra como instancia de
-  pruebas. Es un hallazgo, no parte de esto.
+- ~~**Que `MemoriaPersonal`, `ConversacionPersonal`, el álbum, las fotos y las skills respeten
+  `U_DATA_DIR`.**~~ Lo arregló `main` esa misma noche, por su lado: al poner la rama al día, esos
+  almacenes ya seguían a `UserPaths`. La Memoria les pregunta a ellos dónde escriben, así que se
+  mudó sin tocarse.
 - **Un guardia que ponga rojo el contrato cuando aparezca un almacén nuevo sin apartado.** Sería lo
   que mantiene cierto el «TODO» de la 622 con el tiempo; hoy el plan está completo por inventario.
 
@@ -321,9 +322,21 @@ de 1536x816:
 [22:52:02] muelle: ahora vive a la izquierda               ← y `LadoDelMuelle: "izquierda"` en su config.json
 ```
 
+**Al poner la rama al día con `main` (23:30, siete commits nuevos).** Cuatro choques, los cuatro en la
+línea que dice dónde escribe cada almacén: se quedó la ruta de `main` (`UserPaths`) con el acceso de
+esta rama encima. Y el contrato, que es para lo que se vuelve a correr tras un rebase, salió ROJO:
+
+```
+   ✘ toda ventana de Ü está declarada flotante o de trabajo — faltan: MemoriaWindow
+✘ 531. las piezas flotantes de Ü … no salen en Alt+Tab …
+```
+
+La 531 nació en `main` esa noche (spec 064). `MemoriaWindow` se declaró de trabajo, como la de los
+estudios: se lee con calma y se vuelve a ella con Alt+Tab. Después: `CONTRATO INTACTO`, 379 ✔.
+
 ## Cierre
 
-- [x] Todas las promesas verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO, 323 ✔)
+- [x] Todas las promesas verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO, 379 ✔ sobre `main` `e0ceac4e`)
 - [x] Sabotaje: las diez se ponen rojas, cada una por lo suyo
 - [x] Probado con los datos reales de este PC: el óvalo vestido y la ventana de la Memoria, por una sonda
 - [x] La app entera, con el ratón del dueño: el muelle con su hover, el collar, y el panel cambiando de lado
