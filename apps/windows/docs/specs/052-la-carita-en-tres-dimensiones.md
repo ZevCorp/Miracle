@@ -190,9 +190,11 @@ Era el tercer pilar de la referencia («nada va lineal») y solo se había aplic
 | 10 — la boca | 448 | `FaceControl` (poses que se mezclan, fuera la boca abierta), `FaceWindow` (el pulso de la voz ya no mueve boca) | 448 verde |
 
 **Sitios con cada clase** (contados con grep el 2026-10-01): quién hace mirar a la carita, 1
-(`FaceWindow.Visitar`); quién la deja de hacer mirar, 3; quién abre el micrófono al tocarla, 1 función
-(`StartMicByFace`) con 2 llamadores —la del muelle y la suelta—; quién escribía la boca, 1
-(`MoverLaBoca`); quién avisa de una visita, 2 (`Senalador.Senala` y `UiaSurface.Pulso`).
+(`FaceWindow.Visitar`); quién la deja de hacer mirar, 3; quién prende o apaga la voz, 1 función
+(`StartMicByFace`) con 7 llamadores —la carita suelta, la del muelle, la onda del notch, el doble
+Ctrl, el botón del collar, la presentación y el saludo de arranque—, y los siete la hacen rebotar;
+quién escribía la boca, 1 (`MoverLaBoca`); quién avisa de una visita, 2 (`Senalador.Senala` y
+`UiaSurface.Pulso`).
 
 ## Decisiones tomadas sin preguntar (encargo nocturno)
 
@@ -262,10 +264,16 @@ Era el tercer pilar de la referencia («nada va lineal») y solo se había aplic
 - **`instancia: nueva` del Bloc de notas trajo al frente la nota sin guardar del dueño.** No se
   escribió ni se cerró nada; la segunda pantalla pasó a ser un Explorador nuevo. Y Configuración no se
   dejó traer al frente desde una sonda.
+- **`main` cambió el toque mientras se probaba.** La spec 075 (#149) entró esa misma noche y dejó
+  dicho que nada va delante de la voz al primer clic: ni el carrillón. El rebote, que estaba delante,
+  pasó detrás de `OnMic`. Y ese camino no es solo el toque: por `StartMicByFace` entran también la
+  onda, el doble Ctrl y el collar. Medido tras el rebase, con el rebote ya puesto: `voz-clic:
+  encender · estela +17 ms · micrófono +23 ms`.
 
 ## Cierre
 
-- [x] Promesas 440-448 verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO, 389 ✔ · 0 ✘)
+- [x] Promesas 440-448 verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO, 404 ✔ · 0 ✘
+  sobre el `main` del 2026-10-01 02:20; eran 389 antes del último rebase)
 - [x] `.\scripts\verificar.ps1` pasa, con la tabla en el PR
 - [x] Nivel 4 de la segunda vuelta, sobre U.exe real (build de esta rama, 2026-10-01 02:06-02:15,
   `C:\U-versiones\carita-3d`, con sus datos y su puerto), **dos pantallas**: en la Calculadora, Ü
@@ -274,6 +282,8 @@ Era el tercer pilar de la referencia («nada va lineal») y solo se había aplic
   sale al posarse, en N ms` (seis a la izquierda, uno a la derecha); las fotos con `PrintWindow`
   enseñan la cabeza girada y la mano fuera, entera dentro de la ventana. Señalar «Uno» visitó sin
   presionar. Un clic real sobre la carita: `toque: la carita rebota`, y la foto la enseña aplastada.
+  Repetido a las 02:24-02:27 con el build ya rebasado sobre la spec 075: un toque y dos pulsos más
+  («Ocho» y «Cerrar») en la Calculadora, con las mismas líneas en el log.
   **No se probó en la app**: la sonrisa al hablar (pide una sesión de voz de pago; se miró en la
   ventana de prueba y la juzga la 448), el saludo espontáneo (sale cada hora y media a tres horas) y
   la carita sentada en el muelle.
