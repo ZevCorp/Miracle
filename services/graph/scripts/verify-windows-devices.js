@@ -28,7 +28,9 @@
 //  412  un administrador enciende y apaga la compuerta desde el panel: queda escrita
 //      en Vercel, se redespliega y esta instancia la obedece ya;
 //  413  la compuerta no se enciende para una etiqueta que no existe, ni para una sin
-//      ninguna instalación aprobada salvo que se pida a sabiendas.
+//      ninguna instalación aprobada salvo que se pida a sabiendas;
+//  414  con la compuerta puesta, las claves de terceros solo se entregan a una
+//      instalación aprobada o a una etiqueta nombrada aparte.
 // Los sabotajes (cada G con su rojo) se aplican de a uno desde fuera de este
 // archivo: quedan anotados en la spec 076 de apps/windows.
 const assert = require('assert');
@@ -36,12 +38,23 @@ const crypto = require('crypto');
 const http = require('http');
 const express = require('express');
 
-const { promesa, cerrar } = require('./lib/promesas');
+const { promesa, pendiente, cerrar } = require('./lib/promesas');
 
 const WindowsDeviceService = require('../src/application/use-cases/WindowsDeviceService');
 const registerWindowsDeviceRoutes = require('../web/api/registerWindowsDeviceRoutes');
 
 const { createDeviceGate } = registerWindowsDeviceRoutes;
+
+// La ruta que entrega las claves de terceros, la de verdad. Null mientras no exista como pieza aparte:
+// la promesa que la necesita se declara pendiente.
+function cargarLaRutaDeLasClaves() {
+  try {
+    return require('../web/api/registerAgentKeysRoute');
+  } catch (error) {
+    if (error.code === 'MODULE_NOT_FOUND') return null;
+    throw error;
+  }
+}
 
 const ETIQUETA_DEL_INSTALADOR = 'windows-instalador';
 const ETIQUETA_DEL_PORTAL = 'portal-web';
@@ -135,7 +148,10 @@ function relojFalso() {
 // requireApiKey: deja la etiqueta en req.apiClient), la compuerta, las rutas de
 // las instalaciones y tres rutas «de las de siempre» detrás, para ver qué entra.
 async function levantar(opciones = {}) {
-  const { env = {}, limitePorIp, admin = true } = opciones;
+  const { limitePorIp, admin = true } = opciones;
+  // Un entorno PROPIO por servidor: el panel escribe en él al encender la compuerta, y uno compartido
+  // entre promesas dejaría a la siguiente con la compuerta de la anterior.
+  const env = { OPENAI_API_KEY: 'sk-de-mentira', ...(opciones.env || {}) };
   const supabase = opciones.supabase || supabaseFalso();
   const vercel = opciones.vercel || vercelFalso();
   const reloj = relojFalso();
@@ -166,7 +182,9 @@ async function levantar(opciones = {}) {
     vercelEnvService: vercel,
     etiquetasConocidas: () => [...new Set(CLAVES.values())]
   });
-  app.get('/api/v1/agent/claves', (req, res) => res.json({ openai: 'sk-de-mentira' }));
+  const registerAgentKeysRoute = cargarLaRutaDeLasClaves();
+  if (registerAgentKeysRoute) registerAgentKeysRoute(app, { env, logger });
+  else app.get('/api/v1/agent/claves', (req, res) => res.json({ openai: 'sk-de-mentira' }));
   app.post('/api/v1/agent/turn', (req, res) => res.json({ ok: true, device: req.windowsDevice ? req.windowsDevice.deviceId : null }));
   app.post('/api/v1/operations/exports/claim', (req, res) => res.json({ nota: 'una nota clínica' }));
 
@@ -192,7 +210,7 @@ async function levantar(opciones = {}) {
 
   const compuerta = (etiquetas, extra = {}) => pedir('POST', '/api/windows/devices/gate', { clave: null, cuerpo: { etiquetas, ...extra } });
 
-  return { pedir, presentarse, decidir, compuerta, supabase, vercel, servicio, reloj, lineas, cerrar: () => new Promise((resolve) => server.close(resolve)) };
+  return { pedir, presentarse, decidir, compuerta, supabase, vercel, servicio, reloj, lineas, env, cerrar: () => new Promise((resolve) => server.close(resolve)) };
 }
 
 async function con(opciones, fn) {
@@ -512,6 +530,53 @@ async function main() {
       await h.decidir(alta.device_id, 'aprobada');
       await h.compuerta([]);
       assert.strictEqual((await h.compuerta([ETIQUETA_DEL_INSTALADOR])).status, 200, 'y con una aprobada de esa etiqueta, se enciende sin más');
+    });
+  });
+
+  await promesa(414, 'con la compuerta puesta, las claves de terceros solo se entregan a una instalación aprobada o a una etiqueta nombrada aparte', async () => {
+    if (!cargarLaRutaDeLasClaves()) pendiente('web/api/registerAgentKeysRoute.js (la ruta de las claves como pieza que se puede juzgar)');
+
+    await con({ env: COMPUERTA }, async (h) => {
+      const alta = (await h.presentarse()).json;
+      await h.decidir(alta.device_id, 'aprobada');
+
+      // La clave de OTRA app (Android, Mac, la extensión): también va embebida en algo que se reparte.
+      const otra = await h.pedir('GET', '/api/v1/agent/claves', { clave: 'clave-del-portal' });
+      assert.strictEqual(otra.status, 403, `con la compuerta puesta, otra etiqueta ya no recibe las claves crudas (contestó ${otra.status})`);
+      assert.strictEqual(otra.json.code, 'claves_no_permitidas', 'y el código dice por qué');
+      assert.ok(!otra.texto.includes('sk-de-mentira'), 'sin dejar escapar ninguna');
+      assert.strictEqual((await h.pedir('POST', '/api/v1/agent/turn', { clave: 'clave-del-portal', cuerpo: {} })).status, 200, 'lo demás de /api/v1 le sigue abierto: solo se cierran las claves');
+
+      const aprobada = await h.pedir('GET', '/api/v1/agent/claves', { credencial: alta.token });
+      assert.strictEqual(aprobada.status, 200, `la instalación aprobada sí las recibe (contestó ${aprobada.status})`);
+      assert.strictEqual(aprobada.json.openai, 'sk-de-mentira');
+      assert.ok(h.lineas.some((l) => l.includes('[agent/claves]') && l.includes(ETIQUETA_DEL_PORTAL) && l.includes('no se le sirven')), 'el rechazo deja su línea, con la etiqueta');
+      assert.ok(!h.lineas.join('\n').includes('sk-de-mentira'), 'y ninguna clave en el log');
+    });
+
+    // La excepción se nombra: quien de verdad las necesite sin ser una instalación de Windows.
+    await con({ env: { ...COMPUERTA, AGENT_KEYS_ALLOWED_LABELS: ` ${ETIQUETA_DEL_PORTAL} ` } }, async (h) => {
+      assert.strictEqual((await h.pedir('GET', '/api/v1/agent/claves', { clave: 'clave-del-portal' })).status, 200, 'una etiqueta nombrada en AGENT_KEYS_ALLOWED_LABELS las sigue recibiendo');
+      const alta = (await h.presentarse()).json;
+      await h.decidir(alta.device_id, 'aprobada');
+      assert.strictEqual((await h.pedir('GET', '/api/v1/agent/claves', { credencial: alta.token })).status, 200, 'y la instalación aprobada también, sin tener que nombrar su etiqueta');
+    });
+
+    // Con la compuerta APAGADA nada cambia: es como se despliega.
+    await con({ env: {} }, async (h) => {
+      assert.strictEqual((await h.pedir('GET', '/api/v1/agent/claves', { clave: 'clave-del-portal' })).status, 200, 'apagada y sin lista, cualquier clave válida las recibe, como hoy');
+    });
+    await con({ env: { AGENT_KEYS_ALLOWED_LABELS: ETIQUETA_DEL_PORTAL } }, async (h) => {
+      assert.strictEqual((await h.pedir('GET', '/api/v1/agent/claves')).status, 403, 'apagada y con lista, solo la lista: lo que ya hacía');
+      assert.strictEqual((await h.pedir('GET', '/api/v1/agent/claves', { clave: 'clave-del-portal' })).status, 200);
+    });
+
+    // Y encenderla desde el panel lo cierra en el mismo gesto.
+    await con({ env: {} }, async (h) => {
+      const alta = (await h.presentarse()).json;
+      await h.decidir(alta.device_id, 'aprobada');
+      assert.strictEqual((await h.compuerta([ETIQUETA_DEL_INSTALADOR])).status, 200);
+      assert.strictEqual((await h.pedir('GET', '/api/v1/agent/claves', { clave: 'clave-del-portal' })).status, 403, 'encender la compuerta en el panel cierra también las claves a las demás etiquetas');
     });
   });
 

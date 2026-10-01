@@ -35,6 +35,7 @@ pago. No hace falta ser usuario: basta descargar el instalador.
 | 411 | cada instalación guarda con qué clave se presentó, y el panel lo dice junto al estado de la compuerta | `verify-windows-devices.js` |
 | 412 | un administrador enciende y apaga la compuerta desde el panel: queda escrita en Vercel, se redespliega y esta instancia la obedece ya | `verify-windows-devices.js` |
 | 413 | la compuerta no se enciende para una etiqueta que no existe, ni para una sin ninguna instalación aprobada salvo que se pida a sabiendas | `verify-windows-devices.js` |
+| 414 | con la compuerta puesta, las claves de terceros solo se entregan a una instalación aprobada o a una etiqueta nombrada aparte | `verify-windows-devices.js` |
 
 **La que cierra el asunto es la 404.** Mientras la clave embebida abra algo más que presentarse, lo
 demás es cosmético: el instalador público sigue siendo una llave.
