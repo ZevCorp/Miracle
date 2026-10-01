@@ -60,7 +60,7 @@ cada una en algo que se rompe si alguien lo contradice.
 
 | # | Promesa | Fase |
 |---|---|---|
-| 440 | la carita es siempre blanca o negra: en todos sus estados —también grabando, esperando, detenida, en fallo y hablando con la boca abierta—, en los dos temas y con las manos fuera, todo lo que pinta es gris (rojo, verde y azul valen lo mismo); el estado se dice con el gesto, no con el tono | 1 |
+| 440 | la carita es siempre blanca o negra: en todos sus estados —también grabando, esperando, detenida, en fallo y hablando—, en los dos temas, con las manos fuera y presionando, todo lo que pinta es gris (rojo, verde y azul valen lo mismo); el estado se dice con el gesto, no con el tono | 1 |
 | 441 | girar la cabeza no es correr los ojos: los rasgos se proyectan sobre una cara curva, así que al girar todos se van hacia donde mira, el ojo que se acerca al borde se estrecha más que el otro y los dos quedan más juntos; ningún rasgo se sale de la cara; sin giro todo queda donde siempre estuvo; y lo pintado se mueve de verdad hacia ese lado | 2 |
 | 442 | las manos asoman y se esconden: en reposo no se ven; al saludar salen por detrás de la cara —lo que la cara tapa no cambia—, una saluda mientras la otra se queda, y al terminar vuelven a esconderse solas en menos de dos segundos y medio | 3 |
 | 443 | la carita tiene volumen: con luz arriba, el cuerpo es más claro arriba que abajo y más oscuro en el borde que hacia dentro, en los dos temas | 4 |
@@ -71,7 +71,8 @@ cada una en algo que se rompe si alguien lo contradice.
 | 448 | al hablar la boca no se abre: es una línea en todos los estados, sin relleno ni lengua; hablar se ve en la sonrisa, que se ensancha poco a poco al empezar una frase y se relaja al callar, sin parpadear en cada frase | 10 |
 
 La 444 se REESCRIBIÓ el 2026-10-01, antes de llegar a `main` (ver «La segunda vuelta»): decía «parpadea
-sola cada 3 a 7 segundos […] los gestos grandes siguen espaciados 8 segundos o más y los tres salen».
+sola cada 3 a 7 segundos […] los gestos grandes siguen espaciados 8 segundos o más y los tres salen». Y
+a la 440 se le quitó «con la boca abierta» —ya no hay boca que abrir— y se le añadió «presionando».
 
 ### Con qué se juzga
 
@@ -79,15 +80,26 @@ sola cada 3 a 7 segundos […] los gestos grandes siguen espaciados 8 segundos o
 verdad, lo mide, lo pinta en un `RenderTargetBitmap` y mira los píxeles. Una paleta en grises que
 nadie usara pasaría una prueba de paleta; los píxeles no se pueden engañar así.
 
-- **440**: cada estado × cada tema × boca abierta y manos fuera → todo píxel con R = G = B.
+- **440**: cada estado × cada tema, con las manos fuera y con una mano presionando → todo píxel con
+  R = G = B.
 - **441**: `Ui.CabezaDeLaCarita.Proyectar` sobre los rasgos de siempre (ojos a ±30, cejas a ±20 y
   ±40, comisuras a ±19) para giros de −1 a 1; y en los píxeles, el centro de la tinta se desplaza
   hacia el lado del giro.
 - **442**: `Ui.ManosDeLaCarita` sobre la línea de tiempo del saludo; y en los píxeles, con las manos
   fuera aparece tinta **fuera** del cuerpo y todo lo que el cuerpo cubre queda idéntico.
 - **443**: luminancia muestreada en el cuerpo, lejos de los rasgos.
-- **444**: `Ui.GestosDeLaCarita` (la cadencia es pura: recibe el dado, devuelve el plazo) y la
-  propiedad `Animando` del control recién creado.
+- **444**: `Ui.GestosDeLaCarita` (la cadencia es pura: recibe el dado, devuelve el plazo), la
+  propiedad `Animando` del control recién creado y, `[cableado]`, que `StartIdle` solo parpadea y
+  saluda.
+- **445**: luminancia en seis puntos del cuerpo lejos de los rasgos, y ningún píxel a 255.
+- **446**: `Ui.ManosDeLaCarita.Presion` sobre su línea de tiempo; el alcance de la mano —al presionar
+  y al saludar— contra el aire que dice `ReglaDelHalo`; en los píxeles, una sola mano, por su lado y
+  por detrás; y `[cableado]`, que el pulso presiona y señalar no.
+- **447**: una carita girada sigue girada tras cambiar de estado; y `[cableado]`, que el toque rebota
+  y la visita mira.
+- **448**: la tinta de la boca en cada estado y tema —su columna más alta no pasa de 9, o sea que es
+  una línea—; el ancho de la sonrisa con `Llegada` en 0, 0,5 y 1; y los tiempos y el parpadeo de
+  `Ui.GestosDeLaCarita` (`CuantoTardaEnLlegar`, `ParpadeaAlCambiar`).
 
 **Sobre la máquina** (nivel 4, a mano): abrir U.exe y mirar la carita girar y saludar. Que *se vea
 bien* no lo juzga ninguna promesa; lo dice el ojo.
@@ -185,12 +197,16 @@ Era el tercer pilar de la referencia («nada va lineal») y solo se había aplic
 ## Decisiones tomadas sin preguntar (encargo nocturno)
 
 - **La lengua pasa a gris.** Era rosa. «Siempre blanco o negro» no deja excepciones, y una lengua
-  rosa en una cara en grises es justo lo que el ojo ve primero.
+  rosa en una cara en grises es justo lo que el ojo ve primero. *(Deshecha en la segunda vuelta: la
+  lengua se fue con la boca abierta.)*
 - **El parpadeo se separa de los gestos.** El 2026-08 la carita «se veía ansiosa» con gestos
   frecuentes y se espaciaron a 8-18 s. Aquello eran gestos grandes. Un parpadeo de 200 ms cada 3-7 s
   es lo que hace una cara real y no se lee como ansiedad; los gestos grandes se quedan en 8-18 s.
-- **Las manos pueden salirse del control.** La ventana de la carita flotante deja 28 de margen
-  transparente alrededor (para la sombra); las manos caben en él.
+  *(Deshecha en la segunda vuelta: el parpadeo vuelve a 8-18 s y los gestos grandes ya no salen
+  solos.)*
+- **Las manos pueden salirse del control.** La ventana de la carita flotante deja aire transparente
+  alrededor y las manos caben en él. Eran 28 de aire al escribirlo; `main` lo bajó a 17 el mismo día,
+  y desde la segunda vuelta la promesa 446 lo mide contra `ReglaDelHalo` en vez de darlo por hecho.
 - **La mirada fija (`MirarHacia`) ahora gira la cabeza** en vez de correr los ojos: es lo que pidió
   el dueño y es el mismo gesto con más cuerpo.
 
@@ -221,11 +237,47 @@ Era el tercer pilar de la referencia («nada va lineal») y solo se había aplic
   `PrintWindow` sobre el HWND de la carita sí, y en un proceso *DPI-aware*: sin eso la pantalla al
   125 % recorta la captura y parece que la carita se sale de su ventana.
 
+### De la segunda vuelta (2026-10-01)
+
+- **El rojo antes del código, medido.** CONTRATO ROTO con las 444-448 y ninguna otra. La 445 midió lo
+  que el dueño había dicho con los ojos: centro 234 de 255, abajo 195, junto al borde 199 y 196. La
+  447, que cada cambio de estado dejaba el giro en 0.
+- **El sabotaje, comprobado por diff y por el veredicto.** Cinco roturas a la vez: parpadeo otra vez a
+  3-7 s → 444 roja; la paleta vieja → 445 roja (232, 222, 194, 197, 194); las dos manos al presionar →
+  446 roja («por el otro lado no sale nada: 840 px»); el giro a 0 al cambiar de estado → 447 roja;
+  la pose sin mezclar → 448 roja («46 → 46 → 46 de ancho»). 384 ✔ y 5 ✘: ninguna otra se movió.
+  `git diff --stat` enseñó las tres fuentes tocadas antes de juzgar, y `git checkout` las devolvió.
+- **Las manos se dibujaron con 28 de aire y `main` lo bajó a 17 el mismo día.** Nadie lo había
+  medido. Caben: al saludar llegan a 1,40 radios y al presionar a 1,48, de 1,54 que hay hasta el
+  canto de la ventana. Ahora lo dice el contrato, anclado a `ReglaDelHalo`.
+- **La promesa 504 anclaba la firma de `Visitar`** con una expresión regular (`Visitar\(Rect fisico\)`).
+  Al añadirle `pulsa` se puso roja sin que lo que promete —el cuerpo entero dentro del `try`— hubiera
+  cambiado. Se amplió el ancla, no la promesa.
+- **Cada cambio de estado cortaba lo que la carita estuviera haciendo**: soltaba el pulso y el salto
+  además de lo continuo. Con el rebote al toque se habría visto, porque tocarla abre la voz y la voz
+  cambia el estado. Ahora solo para lo continuo del estado anterior, y vuelve andando.
+- **Tres Ü a la vez en la pantalla.** Otra sesión levantó su Ü de pruebas mientras corría el nivel 4
+  y su carita cayó exactamente encima de la de esta rama: el clic habría sido para ella. Se comprueba
+  con `WindowFromPoint` antes de tocar, y la propia sube lo justo para el clic.
+- **`instancia: nueva` del Bloc de notas trajo al frente la nota sin guardar del dueño.** No se
+  escribió ni se cerró nada; la segunda pantalla pasó a ser un Explorador nuevo. Y Configuración no se
+  dejó traer al frente desde una sonda.
+
 ## Cierre
 
-- [x] Promesas 440-444 verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO, 318 ✔ · 0 ✘)
-- [ ] `.\scripts\verificar.ps1` pasa, con evidencia en `out\evidencia.md`
-- [x] Nivel 4, sobre U.exe real (build de esta rama, 2026-09-30 06:22-06:27): en 40 s de captura la
+- [x] Promesas 440-448 verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO, 389 ✔ · 0 ✘)
+- [x] `.\scripts\verificar.ps1` pasa, con la tabla en el PR
+- [x] Nivel 4 de la segunda vuelta, sobre U.exe real (build de esta rama, 2026-10-01 02:06-02:15,
+  `C:\U-versiones\carita-3d`, con sus datos y su puerto), **dos pantallas**: en la Calculadora, Ü
+  pulsó «Cinco», «Siete», «Nueve» y «Cerrar»; en el Explorador, «Descargas», «Documentos» y «Cerrar».
+  Siete pulsos, y en los siete el log dice `visita «…»` y `presiona a la izquierda|derecha: la mano
+  sale al posarse, en N ms` (seis a la izquierda, uno a la derecha); las fotos con `PrintWindow`
+  enseñan la cabeza girada y la mano fuera, entera dentro de la ventana. Señalar «Uno» visitó sin
+  presionar. Un clic real sobre la carita: `toque: la carita rebota`, y la foto la enseña aplastada.
+  **No se probó en la app**: la sonrisa al hablar (pide una sesión de voz de pago; se miró en la
+  ventana de prueba y la juzga la 448), el saludo espontáneo (sale cada hora y media a tres horas) y
+  la carita sentada en el muelle.
+- [x] Nivel 4 de la primera vuelta, sobre U.exe real (build de esta rama, 2026-09-30 06:22-06:27): en 40 s de captura la
   carita flotante giró a la derecha dos veces y a la izquierda una, parpadeó, y en otra captura asomó
   una mano en un saludo espontáneo. Log de la instancia sin excepciones. **Una pantalla** (la carita
   flotante); la carita del muelle (`Face`, 66 px) comparte el control pero no se miró abierta.
