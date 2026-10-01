@@ -89,15 +89,6 @@ public static class LecturaCardio
 
     // ── Los cuerpos (Responses API) ───────────────────────────────────────────────────────────────
 
-    /// <summary>Las fotos en lotes de <see cref="TamanoDeLote"/>, en su orden.</summary>
-    public static List<string[]> Lotes(IReadOnlyList<string> ids)
-    {
-        var lotes = new List<string[]>();
-        for (int i = 0; i < ids.Count; i += TamanoDeLote)
-            lotes.Add(ids.Skip(i).Take(TamanoDeLote).ToArray());
-        return lotes;
-    }
-
     /// <summary>
     /// Un lote de fotos. Cada imagen va DETRÁS de su etiqueta «Imagen n — id: X»: sin ella el modelo
     /// devuelve ids inventados y el emparejado tiene que caer al orden, que es la red, no el camino.

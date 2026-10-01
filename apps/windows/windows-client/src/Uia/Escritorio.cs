@@ -27,16 +27,6 @@ public static class Escritorio
     /// <summary>Las clases de ventana del shell. WorkerW aparece con fondo dinámico.</summary>
     private static readonly string[] Clases = { "Progman", "WorkerW" };
 
-    /// <summary>¿Este identificador de superficie es el escritorio? Ej.: uia://explorer.exe/program-manager</summary>
-    public static bool EsId(string id)
-    {
-        if (string.IsNullOrWhiteSpace(id)) return false;
-        // Por CONTENIDO y no por final: al escritorio le puede llegar su sufijo de sección, y
-        // comparar por el final no reconocía «program-manager#imágenes-acceso-directo» (2026-08-04).
-        return id.Contains("/program-manager", StringComparison.OrdinalIgnoreCase)
-            || id.StartsWith("uia://desktop", StringComparison.OrdinalIgnoreCase);
-    }
-
     /// <summary>¿Este nombre de proceso o de destino se refiere al escritorio?</summary>
     public static bool EsProceso(string proc) =>
         !string.IsNullOrWhiteSpace(proc)

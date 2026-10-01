@@ -59,14 +59,6 @@ public static class EscritorioVirtual
         return m.GetWindowDesktopId(hwnd, out var id) == 0 ? id : Guid.Empty;
     }
 
-    /// <summary>¿La ventana está en el escritorio que se ve? Sin API, se supone que sí (es lo de siempre).</summary>
-    public static bool EstaEnElActual(IntPtr hwnd)
-    {
-        var m = Manager();
-        if (m == null || hwnd == IntPtr.Zero) return true;
-        return m.IsWindowOnCurrentVirtualDesktop(hwnd, out int on) != 0 || on != 0;
-    }
-
     /// <summary>Mueve una ventana PROPIA a un escritorio. Devuelve el HRESULT: 0 si se movió; 0x80070005 si es ajena.</summary>
     public static int Mover(IntPtr hwnd, Guid destino)
     {

@@ -62,8 +62,6 @@ public sealed class HighlightOverlay : Window
         SetWindowLong(h, GWL_EXSTYLE, GetWindowLong(h, GWL_EXSTYLE) | WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_TOOLWINDOW);
     }
 
-    public void ShowRect(Rect fisico) => ShowRects(new[] { fisico });
-
     /// <summary>
     /// Enciende VARIOS recuadros a la vez.
     ///

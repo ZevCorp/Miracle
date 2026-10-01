@@ -46,11 +46,6 @@ public static class Propio
         !string.IsNullOrWhiteSpace(proc)
         && proc.Equals(Proceso, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>¿Esta superficie es de nuestra propia interfaz? Ej.: uia://u.exe/…</summary>
-    public static bool EsSuperficie(string idUOrigen) =>
-        !string.IsNullOrWhiteSpace(idUOrigen)
-        && idUOrigen.Contains($"//{Proceso}.exe", StringComparison.OrdinalIgnoreCase);
-
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
 }

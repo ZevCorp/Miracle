@@ -1733,17 +1733,6 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         OnMic(this, new RoutedEventArgs());
     }
 
-    /// <summary>
-    /// Devuelve el teclado a donde estaba. Sin esto, el operador que invoca a Ü y se arrepiente tiene
-    /// que buscar SAP con el ratón — justo lo que el atajo venía a evitar.
-    /// </summary>
-    private void DevolverElFoco()
-    {
-        if (_prevForeground == IntPtr.Zero) return;
-        try { SetForegroundWindow(_prevForeground); } catch { }
-        _prevForeground = IntPtr.Zero;
-    }
-
     private void OnNotchTextoEnviado(string texto) => _ = EnviarTextoDesdeElNotchAsync(texto);
 
     /// <summary>
@@ -4018,13 +4007,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             _menuOpenTimer.Stop(); _menuCloseTimer.Stop();
             if (_saveTimer != null) { _saveTimer.Stop(); _config.Save(); }
         };
-
-        // A partir del primer ciclo ocioso, el foco ya es intención del usuario y no reparto inicial.
-        Dispatcher.BeginInvoke(new Action(() => _uiReady = true),
-            System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
-
-    private bool _uiReady;
 
     private void ScheduleMenuClose()
     {

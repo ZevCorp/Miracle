@@ -66,49 +66,6 @@ public sealed class SurfaceMapTools
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool IsWindowVisible(IntPtr h);
 
-    /// <summary>Superficies del propio Windows que se ponen delante solas y tapan la app.</summary>
-    /// <summary>«uia://explorer.exe/loquesea» → «explorer».</summary>
-    /// <summary>
-    /// Devuelve el foco a la app con la que se está trabajando si algo se lo ha llevado.
-    ///
-    /// El centro de notificaciones, el buscador o cualquier aviso de Windows se ponen delante solos
-    /// y la secuencia se rompe: el asistente pedía «Nuevo» y se le contestaba con las opciones del
-    /// centro de notificaciones (2026-08-02). El recorrido automático ya se recolocaba; esta capa
-    /// no, y es la que usa el asistente para hacer tareas de verdad. No se lanza nada: si la app no
-    /// está viva, se dice y punto — abrir aplicaciones por iniciativa propia no es recuperarse.
-    /// </summary>
-    /// <summary>
-    /// Qué hay seleccionado ahora mismo en la pantalla.
-    ///
-    /// Existe porque una acción como «Cortar» opera sobre LO SELECCIONADO, y el asistente no tenía
-    /// forma de saber qué era. En una tarea de organizar archivos, un paso previo falló, la
-    /// selección se quedó en una carpeta recién creada, y el siguiente «Cortar» la cortó a ella:
-    /// se intentó pegar la carpeta dentro de sí misma (2026-08-02). Nadie mintió —cada paso
-    /// reportó su fallo— pero el que actuaba no sabía sobre qué actuaba. Decirlo convierte un
-    /// encadenamiento a ciegas en algo comprobable antes de tocar nada.
-    /// </summary>
-    /// <summary>
-    /// Al bajar a una carpeta, aprende también la SUBIDA a su padre.
-    ///
-    /// «Subir» (aid=upButton) es estructural: desde una carpeta siempre lleva a la que la contiene,
-    /// se haya llegado como se haya llegado. Eso lo hace una arista legítima, al contrario que
-    /// «Atrás», que depende del historial y por eso NO se aprende. Sin esto el grafo bajaba y no
-    /// subía: al pedir volver de «facturas» a su padre la respuesta era «no conozco una ruta
-    /// COMPLETA», y una tarea que creaba carpetas hermanas acababa creándolas anidadas — Windows
-    /// mismo lo paró con «la carpeta de destino es una subcarpeta de la de origen» (2026-08-02).
-    ///
-    /// Solo cuando la bajada fue por un elemento de LISTA —una carpeta de contenido—: pulsar algo
-    /// del panel lateral no es descender, y su padre no es de donde veníamos.
-    /// </summary>
-    /// <summary>
-    /// Aprende una app ENTERA: la trae al frente ella sola (o la abre) y la recorre.
-    ///
-    /// Antes, mapear dependía de quién tuviera el foco al pulsar el botón, y eso es frágil hasta el
-    /// absurdo: cualquier ventana que se pusiera delante en ese instante —incluida la de quien
-    /// lanzaba la prueba— hacía que se mapeara la app equivocada (2026-08-03). Decir QUÉ app se
-    /// quiere aprender y que el sistema se encargue del resto es la forma correcta: la intención
-    /// la pone quien pide, no el azar del escritorio.
-    /// </summary>
     /// <summary>
     /// Abre una aplicación (o la trae al frente si ya estaba) y dice dónde quedamos.
     ///
@@ -121,19 +78,6 @@ public sealed class SurfaceMapTools
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool GetCursorPos(out System.Drawing.Point p);
 
-    /// <summary>
-    /// LO QUE HAY EN PANTALLA AHORA, leído en vivo, y qué sabe el mapa de cada cosa.
-    ///
-    /// Hasta ahora el asistente solo podía consultar su MEMORIA: todas las herramientas respondían
-    /// desde el grafo guardado. Eso deja un hueco que ya nos mordió —una carpeta recién creada es
-    /// invisible para quien solo recuerda, y el modelo pedía entrar en algo que «no existe» con la
-    /// carpeta delante (2026-08-03)— y además impide lo que el usuario quiere hacer ahora: señalar
-    /// cosas de la interfaz viva para colocarlas en un nivel.
-    ///
-    /// Se marca CADA elemento con lo que el mapa sabe de él, porque mezclar «lo que veo» con «lo que
-    /// recuerdo» sin distinguirlos sería peor que no tener esto: el modelo no podría saber si algo
-    /// es terreno conocido o una novedad.
-    /// </summary>
     /// <summary>
     /// LAS PUERTAS DEL TERRENO QUE UIA NO NOMBRÓ. Promesa 183. Pura: dos listas, una respuesta.
     /// </summary>
@@ -356,17 +300,6 @@ public sealed class SurfaceMapTools
     }
 
     /// <summary>
-    /// ¿Veo esto? Si sí, lo SEÑALA: enciende el recuadro y lleva la carita a su lado.
-    ///
-    /// «¿Ves el botón Nuevo?» tenía una respuesta insuficiente: decir que sí. Quien pregunta no está
-    /// pidiendo un sí — está pidiendo comprobar que los dos miran lo mismo, y para eso hay que
-    /// apuntar (2026-08-05, pedido por el usuario). Señalar convierte una afirmación en algo
-    /// verificable de un vistazo: si el recuadro cae sobre otra cosa, se ve al instante.
-    ///
-    /// Se busca en lo que hay AHORA en pantalla, no en el mapa: la pregunta es «¿lo ves?», no
-    /// «¿te acuerdas de él?».
-    /// </summary>
-    /// <summary>
     /// Todo lo que se llama así, SIN agrupar y en el orden en que se lee la pantalla: de arriba
     /// abajo y de izquierda a derecha. Ese orden es el que hace que «el primero» y «el segundo»
     /// signifiquen lo mismo para quien mira y para quien señala.
@@ -572,14 +505,6 @@ public sealed class SurfaceMapTools
     }
 
     /// <summary>
-    /// El elemento que hay BAJO EL CURSOR, ahora mismo.
-    ///
-    /// Es la forma barata y exacta de resolver «esto que estoy señalando»: la alternativa era
-    /// mandarle vídeo de la pantalla al modelo y confiar en que acertara mirando píxeles, cuando el
-    /// sistema ya puede preguntarle a Windows qué hay en ese punto y obtener el nombre exacto
-    /// (2026-08-04, a propuesta del usuario de señalar con el ratón).
-    /// </summary>
-    /// <summary>
     /// Si lo que hay bajo el cursor es una ventana NUESTRA, devuelve lo que hay debajo de ella.
     /// Null si debajo tampoco hay nada que no seamos nosotros.
     /// </summary>
@@ -645,17 +570,6 @@ public sealed class SurfaceMapTools
         return debajo;
     }
 
-    /// <summary>
-    /// Ilumina en pantalla las candidatas de un nombre ambiguo, para que se pueda elegir mirando.
-    /// </summary>
-    /// <remarks>
-    /// Se buscan por SELECTOR y no por etiqueta: si hay dos que se llaman igual —que es justo el
-    /// caso— buscar por nombre volvería a devolver las dos y no se sabría cuál es cuál.
-    ///
-    /// Si alguna no se puede localizar en pantalla no se dice nada y se enseñan las demás: el aviso
-    /// útil es la respuesta que ya se está devolviendo, y un «no pude iluminar la segunda» sobra
-    /// cuando la persona tiene la primera delante.
-    /// </remarks>
     /// <summary>
     /// Guarda la ventana que se está mirando, junto al recuerdo que se acaba de crear. Devuelve la
     /// ruta, o vacío.
@@ -1164,14 +1078,6 @@ public sealed class SurfaceMapTools
         return cuenta;
     }
 
-    /// <summary>Enciende UN elemento por su selector. False si ya no está en pantalla.</summary>
-    /// <remarks>
-    /// SOLO EL RECUADRO, SIN EL TEXTO. Se probó enseñando también la nota mientras se narra y
-    /// estorbaba: la voz ya está diciendo lo mismo, así que el texto encima es una segunda copia
-    /// tapando la pantalla (2026-08-24, dicho por el usuario: «ahora que muestra el texto es
-    /// incómodo»). El texto se lee cuando se pide con los ojos —el botón del panel—, no cuando se
-    /// está escuchando.
-    /// </remarks>
     /// <summary>
     /// Enciende el recuadro de un elemento y lleva la carita a su lado. Devuelve si se pudo.
     /// </summary>
@@ -1565,35 +1471,6 @@ public sealed class SurfaceMapTools
     private static string Marcados(IReadOnlyList<(System.Windows.Rect Caja, string Que)> xs) =>
         string.Join(", ", xs.Take(25).Select(x => $"«{x.Que}»")) + (xs.Count > 25 ? "…" : "");
 
-    /// <summary>
-    /// Mueve de nivel UNO o VARIOS, separados por comas.
-    /// </summary>
-    /// <remarks>
-    /// Corregir la jerarquía es una tarea de lista —«todos estos son del nivel principal»— y hacerlo
-    /// de uno en uno son veinte llamadas y veinte confirmaciones habladas. El modelo lo intentó por
-    /// su cuenta: mandó los diecinueve de la barra lateral separados por comas y la herramienta
-    /// buscó una salida llamada «Inicio,Galería,OneDrive - Personal,…», que por supuesto no existe.
-    /// Contestó que no podía, y luego los fue haciendo de uno en uno; las dos cosas eran verdad y
-    /// por eso la respuesta pareció contradecirse (2026-08-05).
-    ///
-    /// Se informa de cada uno por separado: fijar quince y fallar en uno no es ni éxito ni fracaso,
-    /// y quien pregunta necesita saber exactamente cuál se quedó fuera.
-    /// </remarks>
-    /// <summary>
-    /// Anota lo que hay en pantalla y DESPUÉS fija el nivel.
-    /// </summary>
-    /// <remarks>
-    /// Los puntos y el mapa son dos lectores distintos: el punto se dibuja leyendo la pantalla en
-    /// vivo, y el mapa solo anota cuando alguna herramienta se lo pide. De ahí el punto GRIS —visible
-    /// pero no registrado— y de ahí que fijarle el nivel respondiera «no lo veo en la pantalla»
-    /// teniéndolo delante. Ver y recordar no son lo mismo, pero para el usuario tienen que serlo.
-    /// </remarks>
-    /// <summary>Procesos que dibujan páginas web. Una superficie web:// es legítima si delante hay
-    /// uno de estos: su app es el dominio, no el proceso. La lista vive en un solo sitio
-    /// (<see cref="Uia.PestanasAbiertas.EsNavegador"/>): había tres copias y a «vivaldi» solo lo
-    /// conocía una, así que la misma ventana era web para el localizador y no para el mapa.</summary>
-    private static bool EsNavegador(string proc) => Uia.PestanasAbiertas.EsNavegador(proc);
-
 
     private string OpenApp(string app, string instancia)
     {
@@ -1602,104 +1479,6 @@ public sealed class SurfaceMapTools
         // pestaña del navegador o SAP — sin adivinar jamás qué lanzar. Y con conciencia de lo que
         // ya hay abierto (promesa 232): «instancia» lo decide el modelo.
         return AbrirPorElNucleo != null ? AbrirPorElNucleo(app, instancia) : "todavía no sé abrir: el núcleo no está conectado.";
-    }
-
-    /// <summary>
-    /// ¿Lo que hay delante NO es una ventana de la app —el escritorio, o algo sin identidad—?
-    ///
-    /// Qué es el escritorio lo sabe <see cref="Escritorio"/>, para toda la app. Aquí se añade el
-    /// caso propio de abrir una app: una superficie vacía o «/ventana» —una ventana sin título que
-    /// no identifica nada— cuenta igual, porque la decisión que se toma con esto es la misma: abrir
-    /// una ventana de verdad.
-    /// </summary>
-
-    /// <summary>¿La app de delante tiene el botón «Subir un nivel»? Solo el explorador lo tiene.</summary>
-
-    /// <summary>
-    /// ¿Esta acción puede DESTAPAR elementos nuevos (un menú, un desplegable, un diálogo)?
-    /// Solo entonces vale la pena releer la pantalla: lo demás no cambia las puertas y releer
-    /// cuesta un recorrido completo del árbol de UI.
-    /// </summary>
-    /// <summary>
-    /// Registra SOLO los elementos de menú visibles. Consulta dirigida, no una relectura completa.
-    ///
-    /// Tras pulsar «Nuevo» lo único que interesa es lo que acaba de aparecer —«Carpeta», «Acceso
-    /// directo»…—, no las 300 puertas que la pantalla ya tenía. Releerlo todo costaba ~7 s por
-    /// acción de menú; pedirle a UIA los MenuItem de una vez lo resuelve en una fracción.
-    /// </summary>
-    /// <summary>
-    /// Espera a que HAYA menú abierto, y vuelve en cuanto lo hay. Devuelve false si no apareció.
-    ///
-    /// Es la diferencia entre esperar el efecto y esperar el reloj: un menú se abre en unos
-    /// 200 ms, así que un plazo fijo de 800 ms desperdiciaba medio segundo cada vez y aun así se
-    /// quedaba corto en un equipo cargado. Preguntar por lo que se espera sirve para las dos cosas.
-    /// </summary>
-    /// <summary>Cuántos elementos de menú hay ahora en la ventana de delante.</summary>
-
-    /// <summary>
-    /// ¿Es de los que al pulsarlos despliegan un menú? Se espera el menú y, si no sale, no se sigue.
-    /// </summary>
-    /// <remarks>
-    /// Se miraba por TROZO de texto, y un trozo no distingue una cosa de otra: «Ver» casa con
-    /// «Volver», y «Más» casa igual con «Más opciones» —que sí abre menú— que con el «Más» de
-    /// sumar. Pidiéndole una suma a la Calculadora, el sistema pulsó «Más» dos veces esperando un
-    /// menú que nunca iba a salir y detuvo la operación a medias (2026-08-05).
-    ///
-    /// Ahora se compara por PALABRA COMPLETA, y las palabras que solas no significan menú —«más»,
-    /// «ver»— solo cuentan cuando acompañan a algo: «Más opciones», «Ver más». Una etiqueta de una
-    /// sola palabra ambigua es un botón normal, que es lo que casi siempre es.
-    /// </remarks>
-    /// <summary>Acciones que operan sobre lo seleccionado: antes de ejecutarlas hay que saber qué es.</summary>
-    /// <summary>
-    /// ¿Estoy donde quien me pide la acción cree que estoy? Devuelve "" si sí (o si no lo dijo),
-    /// y el motivo del desacuerdo si no.
-    ///
-    /// Es el ancla de la ejecución. Sin ella, un paso que falla deja el recorrido en otra pantalla
-    /// y los siguientes se ejecutan perfectamente… en el sitio equivocado: así se pegaron archivos
-    /// dentro de su propia carpeta de origen y se crearon carpetas anidadas (2026-08-02). Se
-    /// recupera el foco primero, porque «no estoy donde creía» y «algo me tapó» son cosas distintas
-    /// y solo la segunda tiene arreglo automático.
-    /// </summary>
-    /// <summary>
-    /// Cuántas letras hay que cambiar para pasar de una a otra. Se corta pronto: solo interesa
-    /// saber si es «lo mismo mal escrito», y para eso no hace falta medir distancias grandes.
-    /// </summary>
-
-    /// <summary>
-    /// ¿Lo que hay delante es una CAPA sobre la pantalla esperada —un menú, un desplegable— y no
-    /// otro sitio? Se exige que sea de la MISMA app: una ventana emergente de otro programa sí es
-    /// irse a otra parte, y ahí el ancla debe seguir negándose.
-    /// </summary>
-    /// <summary>El sistema y el localizador dicen los dos que estamos en esta app.</summary>
-    /// <summary>
-    /// ¿Está delante la app que pido? Se exigen LAS DOS FUENTES —el proceso en primer plano y la
-    /// superficie que ve el localizador— porque conformarse con la primera dejaba calcular rutas
-    /// desde un sitio donde ya no estábamos: tras cerrarse un panel del shell el foco ya era
-    /// correcto pero el localizador seguía diciendo «SearchHost» (2026-08-02).
-    /// </summary>
-    /// <remarks>
-    /// UN NAVEGADOR MOSTRANDO UNA PÁGINA SE LLAMA COMO LA PÁGINA, y eso rompía la segunda fuente
-    /// para siempre: con YouTube delante la superficie es «web://youtube.com», cuya app es
-    /// «youtube.com» y nunca «chrome». Así que `map_open_app chrome` no podía tener éxito jamás
-    /// estando Chrome delante — esperaba tres segundos, relanzaba Chrome, volvía a esperar, y a los
-    /// 16,7 s contestaba «no pude traer chrome al frente; ahora hay chrome» (2026-08-16, en el log
-    /// del usuario). Y mientras tanto peleaba por el foco con las demás llamadas, que es lo que hizo
-    /// aparecer el explorador en medio de la tarea.
-    ///
-    /// La garantía no se afloja: para una app nativa siguen exigiéndose las dos. Lo que se añade es
-    /// que una superficie web EN el navegador pedido cuenta como estar en ese navegador, que es lo
-    /// que cualquiera diría mirando la pantalla.
-    /// </remarks>
-
-    private static string AppEnFrente()
-    {
-        try
-        {
-            GetWindowThreadProcessId(GetForegroundWindow(), out uint pid);
-            using var p = System.Diagnostics.Process.GetProcessById((int)pid);
-            return p.ProcessName;
-        }
-        catch { return ""; }
     }
 
     /// <summary>
@@ -2428,26 +2207,6 @@ public sealed class SurfaceMapTools
              + "\n  INCIDENTE registrado — si este diálogo se repite, es una regla que falta.";
     }
 
-    /// <summary>
-    /// La opción que se puede tomar SIN decidir nada, o "" si hay que preguntar al consciente.
-    ///
-    /// Solo hay un caso: el aviso informativo, el que tiene una única salida. Ahí no se elige nada
-    /// —se acusa recibo— y automatizarlo no arriesga.
-    ///
-    /// En cuanto hay dos opciones hay una DECISIÓN, y no es de esta capa. La versión anterior
-    /// prefería siempre la que «no compromete» (Cancelar/No/Cerrar), y eso parecía prudente y era
-    /// falso: si la tarea quería continuar de verdad, cancelar por regla la rompe igual, solo que
-    /// en silencio y con aire de cautela. Si continuar o no depende de lo que se estuviera
-    /// intentando, y eso solo lo sabe quien tiene la intención (2026-08-03, corregido por el
-    /// usuario). Se prefiere preguntar a acertar por casualidad.
-    /// </summary>
-    /// <remarks>
-    /// La X del título NO es una opción: es la salida. Contarla como tal hacía que un aviso con un
-    /// solo botón —«Ubicación no disponible», con «Aceptar» y la X— pareciera una decisión de dos
-    /// caminos, así que se escalaba al consciente, nadie lo cerraba y el diálogo se quedaba delante
-    /// envenenando todas las corridas siguientes (2026-08-03, visto en pantalla). Las opciones son
-    /// lo que el aviso PROPONE, no las formas de deshacerse de él.
-    /// </remarks>
     /// <summary>
     /// La opción que se puede pulsar SIN preguntarle a nadie.
     ///

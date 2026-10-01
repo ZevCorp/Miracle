@@ -315,8 +315,8 @@ Herramientas nuevas para diagnosticar, todas en el panel de la carita:
 3. **Se queda en bucle** cuando la compuerta lo frena y no consigue traer SAP al frente: 14 turnos
    rebotando y gastando `wait`.
 4. `topNode` no resuelve en algunas pantallas. Sin él no hay cajas por fila en el inspector.
-5. **Código inerte:** la supresión de sub-elementos dentro de árboles mide `0 sub-elementos`. Nació de
-   una hipótesis falsa; borrar o justificar.
+5. ~~**Código inerte:** la supresión de sub-elementos dentro de árboles~~ — quitada el 2026-09-30:
+   medía `0 sub-elementos` en los 16 repartos de shells SAP que guardaban los logs.
 6. La **huella es ciega al contenido** de un shell salvo por su tamaño: dos pantallas con el mismo
    número de filas dan la misma huella.
 
