@@ -117,12 +117,20 @@ function main() {
   assert.ok(proxyAt >= 0, 'server.js registra el proxy del orquestador de voz');
   const proxyEnd = server.indexOf('\n});', proxyAt);
   const proxy = server.slice(proxyAt, proxyEnd);
-  assert.ok(/privacyShield\.protectTexts/.test(proxy), 'el proxy del orquestador tapa transcripción y nota antes de llamar al runtime');
+  assert.ok(/privacyShield\.protectTexts/.test(proxy), 'el proxy del orquestador pasa transcripción y nota por el escudo antes de llamar al runtime');
+  // E14: con un runtime que guarda historial y un mapa por llamada, tapar cambia el
+  // paciente entre segmentos. Hasta que haya mapa por sesión, el techo es shadow y
+  // la excepción está escrita en el registro.
+  assert.ok(/maxMode: ORCHESTRATOR_SHIELD_MAX_MODE/.test(proxy)
+    && /const ORCHESTRATOR_SHIELD_MAX_MODE = PrivacyShieldService\.MODES\.SHADOW;/.test(server),
+    'el proxy del orquestador declara su techo de shadow (E14) en vez de tapar con un mapa por llamada');
+  assert.ok(/\| \*\*E14\*\* \|/.test(fs.readFileSync(path.join(ROOT, 'docs/privacy-egress-gateway.md'), 'utf8')),
+    'y la excepción E14 está en el registro');
   assert.ok(!/proxyMiracleRuntimeRequest/.test(proxy), 'el proxy del orquestador no reenvía el cuerpo original');
   assert.ok(/restoreOrchestratorPayload\(/.test(proxy), 'el proxy del orquestador rehidrata lo que vuelve');
   const proxyRestoreAt = server.indexOf('function restoreOrchestratorPayload(');
   assert.ok(proxyRestoreAt >= 0 && /privacyShield\.restoreText/.test(server.slice(proxyRestoreAt, server.indexOf('\n}', proxyRestoreAt))), 'la rehidratación del proxy usa el escudo');
-  ok('el salto Node → runtime Python pasa por el escudo (pipeline y proxy /api/voice/orchestrator/events)');
+  ok('el salto Node → runtime Python pasa por el escudo (pipeline tapado; proxy /api/voice/orchestrator/events medido, E14)');
 
   // 4. Las excepciones declaradas están escritas en el registro de excepciones.
   const doc = fs.readFileSync(path.join(ROOT, 'docs/privacy-egress-gateway.md'), 'utf8');

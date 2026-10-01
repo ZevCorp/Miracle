@@ -894,10 +894,18 @@ app.post('/api/voice/stream-session', async (req, res) => {
 
 // Cada segmento dictado en el editor (la extensión y web/public/miracle) pasa
 // por aquí hacia el orquestador de voz Python, que llama al proveedor por su
-// cuenta. Se tapa en este salto, igual que la etapa `note` del pipeline
-// (registerPublicApiRoutes): transcripción y nota salen con marcadores y lo
-// que vuelve se rehidrata antes de llegar al editor. Antes iba sin escudo y sin
-// declararse como excepción.
+// cuenta.
+//
+// EXCEPCIÓN E14 (docs/privacy-egress-gateway.md): este salto se MIDE con el
+// escudo pero NO se tapa, ni con PRIVACY_SHIELD_MODE=enforce. El runtime guarda
+// entre segmentos el historial y el bloque de la nota tal como le llegaron, y el
+// mapa del escudo es por llamada: el [PACIENTE_NOMBRE_1] de un segmento puede ser
+// otra persona en el siguiente, y la nota saldría con el nombre de otro paciente
+// o con marcadores a la vista. Se levanta el techo cuando haya un mapa estable
+// por voice_session_id. La forma (tapar → runtime → rehidratar) se queda, para
+// que levantar el techo sea cambiar una línea.
+const ORCHESTRATOR_SHIELD_MAX_MODE = PrivacyShieldService.MODES.SHADOW;
+
 app.post('/api/voice/orchestrator/events', async (req, res) => {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   const segment = body.segment && typeof body.segment === 'object' ? body.segment : null;
@@ -908,7 +916,7 @@ app.post('/api/voice/orchestrator/events', async (req, res) => {
   try {
     protection = await withPrivacyScope(
       { noteContent },
-      () => privacyShield.protectTexts({ transcript, noteContent }, { feature: FEATURES.CLINICAL_STRUCTURING })
+      () => privacyShield.protectTexts({ transcript, noteContent }, { feature: FEATURES.CLINICAL_STRUCTURING, maxMode: ORCHESTRATOR_SHIELD_MAX_MODE })
     );
   } catch (error) {
     console.error(`[Voice Orchestrator Proxy] escudo: ${error.message}`);
@@ -950,11 +958,14 @@ function restoreOrchestratorPayload(payload, protection) {
     ));
   }
   if (Array.isArray(payload.agent_tasks)) {
-    restored.agent_tasks = payload.agent_tasks.map((task) => (
-      task && typeof task === 'object'
-        ? Object.fromEntries(Object.entries(task).map(([key, value]) => [key, restore(value)]))
-        : task
-    ));
+    // A fondo: el texto de la tarea va anidado (task.payload.summary) y el editor lo pinta.
+    const restoreDeep = (value, depth = 0) => {
+      if (typeof value === 'string') return restore(value);
+      if (depth > 6 || !value || typeof value !== 'object') return value;
+      if (Array.isArray(value)) return value.map((item) => restoreDeep(item, depth + 1));
+      return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, restoreDeep(item, depth + 1)]));
+    };
+    restored.agent_tasks = payload.agent_tasks.map((task) => restoreDeep(task));
   }
   restored.privacy = privacyShield.publicSummaryFor(protection);
   return restored;

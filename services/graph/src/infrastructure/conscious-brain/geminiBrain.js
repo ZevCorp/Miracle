@@ -14,7 +14,7 @@
 //  - Las herramientas MCP, ask_user, speak y list_apps se declaran igual que en OpenAI.
 
 const { goalPrompt, describeState, geminiComputerUse, promptVersionFor, PROMPT_VERSION } = require('./prompt');
-const { platformOfSession } = require('../../domain/agent/platform');
+const { PLATFORMS, platformOfSession } = require('../../domain/agent/platform');
 const { profileOfSession } = require('../../domain/agent/profile');
 const { toScreen } = require('../../domain/agent/screenScale');
 const { ASSISTANT_TOOLS } = require('./tools');
@@ -125,16 +125,24 @@ function fn(name, description, props, required) {
   return { name, description, parameters: { type: 'OBJECT', properties: props, required } };
 }
 
+// Las teclas que computer_key declara. El teléfono solo sabe ENTER y BACK
+// (GraphAccessibilityService.pressKey busca «back» y «home» dentro del nombre):
+// declararle 'backspace' sería salir de la pantalla en vez de borrar una letra, y
+// el prompt de Android ya dice que esas son las únicas.
+const DESKTOP_KEYS = Object.freeze(['enter', 'back', 'tab', 'backspace', 'delete', 'up', 'down', 'left', 'right', 'home', 'end', 'space']);
+const ANDROID_KEYS = Object.freeze(['enter', 'back']);
+
 /** Las funciones de computer-use + utilitarias que solo existen en el provider Gemini. */
-function builtinFns() {
+function builtinFns(platform) {
   const INT = { type: 'INTEGER' };
+  const keys = platform === PLATFORMS.ANDROID ? ANDROID_KEYS : DESKTOP_KEYS;
   return [
     fn('look', 'Toma una captura de la pantalla para VERLA antes de decidir dónde tocar. Úsala cuando necesites mirar.', {}, []),
     fn('computer_tap', 'Haz clic en un punto de la pantalla (píxeles de la imagen actual).', { x: INT, y: INT }, ['x', 'y']),
     fn('computer_type', 'Haz clic en un punto y escribe texto ahí.', { x: INT, y: INT, text: { type: 'STRING' } }, ['x', 'y', 'text']),
     fn('computer_scroll', 'Desliza la rueda del ratón.', { direction: { type: 'STRING', enum: ['up', 'down'] } }, ['direction']),
     fn('computer_swipe', 'Arrastra de un punto a otro.', { x1: INT, y1: INT, x2: INT, y2: INT }, ['x1', 'y1', 'x2', 'y2']),
-    fn('computer_key', 'Pulsa una tecla especial.', { key: { type: 'STRING', enum: ['enter', 'back', 'tab', 'backspace', 'delete', 'up', 'down', 'left', 'right', 'home', 'end', 'space'] } }, ['key']),
+    fn('computer_key', 'Pulsa una tecla especial.', { key: { type: 'STRING', enum: [...keys] } }, ['key']),
     fn('computer_wait', 'Espera unos milisegundos a que la pantalla reaccione.', { ms: INT }, ['ms']),
     // ask_user / speak / list_apps: misma declaración que en OpenAI (tools.js).
     ...ASSISTANT_TOOLS.map((tool) => fn(
@@ -205,7 +213,7 @@ async function runGeminiTurn(inp) {
   const body = {
     system_instruction: { parts: [{ text: systemPrompt(s.goal, tools, memory, state.width, state.height, platform, profile) }] },
     contents: g.history,
-    tools: [{ function_declarations: [...tools.map(mcpFn), ...builtinFns()] }],
+    tools: [{ function_declarations: [...tools.map(mcpFn), ...builtinFns(platform)] }],
     tool_config: { function_calling_config: { mode: 'AUTO' } },
     generationConfig: { temperature: 0.6 }
   };

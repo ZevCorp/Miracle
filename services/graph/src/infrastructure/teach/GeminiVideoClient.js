@@ -29,7 +29,8 @@ const { PROFILE_KINDS, PROFILE_NONE } = require('../../domain/agent/profile');
 const { promptParaElVideo, respuesta, INTERPRETACION_VERSION } = require('../../domain/teach/interpretarPasos');
 
 // La versión lleva la de las reglas de interpretación: cambiarlas también cambia lo que se le pide al video.
-const PROMPT_VERSION = clauses.promptVersion('teach-video', `2026-10-01.1+interp.${INTERPRETACION_VERSION}`);
+// 2026-10-01.2: el trato del summary y de las preguntas sigue a la constitución (sin «doctor» si no se sabe cuál; de tú, nunca de vos).
+const PROMPT_VERSION = clauses.promptVersion('teach-video', `2026-10-01.2+interp.${INTERPRETACION_VERSION}`);
 
 const BASE = 'https://generativelanguage.googleapis.com';
 
@@ -129,7 +130,9 @@ const TEACH_DOMAINS = Object.freeze({
     ],
     apps: '"HIS - Admisiones", "Laboratorio"',
     privacyExtra: ', números de historia clínica, diagnósticos, resultados de laboratorio o medicamentos de un caso',
-    address: ' Háblale de usted.'
+    // El perfil no trae el nombre ni si es médico o médica: el título no se sabe, y la constitución
+    // dice que entonces no se pone.
+    address: 'En "summary" y en "questions" le hablas de usted, sin «doctor» ni «doctora»: no sabes cuál.'
   }),
   [PROFILE_KINDS.PERSONA]: Object.freeze({
     who: () => 'una persona haciendo una tarea de su computador en su día a día (correo, banco, trámites, archivos)',
@@ -140,7 +143,7 @@ const TEACH_DOMAINS = Object.freeze({
     ],
     apps: '"Gmail", "Portal del banco"',
     privacyExtra: ', números de cuenta o de tarjeta',
-    address: ' Háblale de tú.'
+    address: 'En "summary" y en "questions" le hablas de tú, nunca de vos.'
   }),
   none: Object.freeze({
     who: () => 'alguien usando un programa',
@@ -194,9 +197,9 @@ REGLAS DE LAS NOTAS (calidad sobre cantidad):
   reutilizable), deja items y questions vacíos.
 
 "summary": lo que ENTENDISTE de cómo se hace, en 1 a 3 frases cortas, en primera persona y con tu
-voz (cálida, clara, sin frases de máquina ni emojis), dirigido a quien te enseñó.${domain.address} Si no
-aprendiste nada útil, dilo con naturalidad.
-
+voz (cálida, clara, sin frases de máquina ni emojis), dirigido a quien te enseñó. Si no aprendiste
+nada útil, dilo con naturalidad.
+${domain.address ? `\n${domain.address}\n` : ''}
 Tu respuesta sigue el esquema: summary, items ({app, note}) y questions.
 `.trim();
 }

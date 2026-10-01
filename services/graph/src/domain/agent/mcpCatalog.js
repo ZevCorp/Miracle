@@ -49,6 +49,12 @@ const gestureTools = [
  * UI). El cliente las implementa con `Process.Start`, protocolos (`mailto:`,
  * `ms-settings:`), el portapapeles, etc. El modelo las prefiere sobre
  * computer-use para tareas del sistema.
+ *
+ * Varias solo ABREN su app y no hacen la tarea (WindowsSystemApi.cs): el correo,
+ * el SMS y la llamada abren mailto:/sms:/tel:, la alarma y el temporizador abren
+ * el Reloj sin la hora, el evento abre el calendario sin el evento, y share_text
+ * solo copia al portapapeles. Su descripción lo dice, para que el modelo termine
+ * la tarea en la pantalla en vez de darla por hecha.
  */
 const systemTools = [
   {
@@ -58,7 +64,7 @@ const systemTools = [
   },
   {
     name: 'set_alarm', via: SYSTEM,
-    description: 'Crea una alarma en la app Reloj de Windows / Tareas programadas.',
+    description: 'Abre la app Reloj. NO crea la alarma: la hora y la etiqueta no llegan. Si te la pidieron, créala tú en el Reloj y mira que quedó en la lista.',
     params: [
       { name: 'hour', description: 'Hora 0-23' },
       { name: 'minute', description: 'Minuto 0-59' },
@@ -67,7 +73,7 @@ const systemTools = [
   },
   {
     name: 'set_timer', via: SYSTEM,
-    description: 'Inicia un temporizador.',
+    description: 'Abre la app Reloj. NO inicia el temporizador: ponlo tú en el Reloj y mira que quedó corriendo.',
     params: [
       { name: 'seconds', description: 'Duración en segundos' },
       { name: 'message', description: 'Etiqueta (opcional)', optional: true }
@@ -75,7 +81,7 @@ const systemTools = [
   },
   {
     name: 'create_event', via: SYSTEM,
-    description: 'Crea un evento de calendario (protocolo del calendario / Outlook).',
+    description: 'Abre el calendario de Outlook. NO crea el evento: el título, la hora y el lugar no llegan. Créalo tú en la pantalla, guárdalo y mira que quedó en el calendario.',
     params: [
       { name: 'title', description: 'Título del evento' },
       { name: 'start', description: 'Inicio ISO-8601 local, p.ej. 2026-07-06T15:00 (opcional)', optional: true },
@@ -84,12 +90,12 @@ const systemTools = [
   },
   {
     name: 'dial', via: SYSTEM,
-    description: 'Abre el marcador (tel:) con un número.',
+    description: 'Abre la app de llamadas de este PC con el número (tel:). NO llama: si te pidieron llamar, da clic en Llamar en la pantalla.',
     params: [{ name: 'number', description: 'Número de teléfono' }]
   },
   {
     name: 'send_sms', via: SYSTEM,
-    description: 'Abre un SMS prellenado (protocolo sms:) — el usuario confirma el envío.',
+    description: 'Abre la app de mensajes de este PC con el SMS ya escrito (sms:). NO lo envía: si te pidieron mandarlo, envíalo tú en la pantalla y mira que salió.',
     params: [
       { name: 'number', description: 'Destinatario' },
       { name: 'message', description: 'Texto (opcional)', optional: true }
@@ -97,7 +103,7 @@ const systemTools = [
   },
   {
     name: 'send_email', via: SYSTEM,
-    description: 'Abre un correo prellenado (mailto:).',
+    description: 'Abre la app de correo de este PC con un correo nuevo ya escrito (mailto:). NO lo envía: si te pidieron mandarlo, da clic en Enviar en la pantalla y mira que salió; si solo te pidieron escribirlo, lo dejas abierto. No adjunta archivos: si hay que adjuntar algo, lo adjuntas tú en la pantalla antes de Enviar y miras que esté.',
     params: [
       { name: 'to', description: 'Destinatario (opcional)', optional: true },
       { name: 'subject', description: 'Asunto (opcional)', optional: true },
@@ -106,7 +112,7 @@ const systemTools = [
   },
   {
     name: 'web_search', via: SYSTEM,
-    description: 'Busca en la web en el navegador por defecto.',
+    description: 'Abre en el navegador predeterminado la búsqueda de Google. NO devuelve resultados: para contestar, mira la página en la pantalla siguiente, y un dato (el clima, un precio) solo lo das si lo leíste ahí. Si la persona nombró un navegador, ábrelo con launch_app y busca en su barra de direcciones.',
     params: [{ name: 'query', description: 'Qué buscar' }]
   },
   {
@@ -136,7 +142,7 @@ const systemTools = [
   },
   {
     name: 'share_text', via: SYSTEM,
-    description: 'Abre el diálogo de compartir de Windows con un texto.',
+    description: 'En este PC solo copia el texto al portapapeles: no abre ningún diálogo de compartir.',
     params: [{ name: 'text', description: 'Texto a compartir' }]
   },
   {
@@ -147,11 +153,11 @@ const systemTools = [
   {
     name: 'set_volume', via: SYSTEM,
     description: 'Ajusta el volumen del sistema directamente (sin UI) a un porcentaje 0-100.',
-    params: [{ name: 'percent', description: 'Nivel 0-100 (usa 100 para asegurar que se oiga)' }]
+    params: [{ name: 'percent', description: 'Nivel 0-100 que pidió la persona. Para «súbele» o «bájale» sin cifra, usa adjust_volume.' }]
   },
   {
     name: 'adjust_volume', via: SYSTEM,
-    description: 'Sube, baja, muda o restaura el volumen del sistema con un solo golpe (como la tecla física).',
+    description: 'Sube o baja el volumen del sistema un paso, como la tecla física. mute y unmute pulsan la misma tecla de silencio, que lo ALTERNA: si el sonido ya estaba como te lo piden, queda al revés.',
     params: [{ name: 'direction', description: 'Acción', options: ['raise', 'lower', 'mute', 'unmute'] }]
   }
 ];
@@ -213,7 +219,7 @@ const androidSystemTools = [
   { name: 'show_alarms', via: ANDROID_SYSTEM, params: [], description: 'Abre la lista de alarmas del reloj.' },
   {
     name: 'create_event', via: ANDROID_SYSTEM,
-    description: 'Crea un evento de calendario vía Intent (prellenado).',
+    description: 'Abre en el calendario el formulario de un evento nuevo, ya lleno. NO lo guarda: si te lo pidieron, toca Guardar y mira que quedó.',
     params: [
       { name: 'title', description: 'Título del evento' },
       { name: 'start', description: 'Inicio ISO-8601 local, p.ej. 2026-07-06T15:00 (opcional)', optional: true },
@@ -232,7 +238,7 @@ const androidSystemTools = [
   },
   {
     name: 'send_sms', via: ANDROID_SYSTEM,
-    description: 'Abre un SMS prellenado a un número (el usuario confirma el envío).',
+    description: 'Abre la app de mensajes con el SMS ya escrito. NO lo envía: si te pidieron mandarlo, toca Enviar en la pantalla y mira que salió.',
     params: [
       { name: 'number', description: 'Destinatario' },
       { name: 'message', description: 'Texto (opcional)', optional: true }
@@ -240,7 +246,7 @@ const androidSystemTools = [
   },
   {
     name: 'send_email', via: ANDROID_SYSTEM,
-    description: 'Abre un correo prellenado.',
+    description: 'Abre la app de correo con un correo nuevo ya escrito. NO lo envía: si te pidieron mandarlo, toca Enviar en la pantalla y mira que salió; si solo te pidieron escribirlo, lo dejas abierto. No adjunta archivos: si hay que adjuntar algo, lo adjuntas tú en la pantalla antes de Enviar y miras que esté.',
     params: [
       { name: 'to', description: 'Destinatario (opcional)', optional: true },
       { name: 'subject', description: 'Asunto (opcional)', optional: true },
@@ -249,7 +255,7 @@ const androidSystemTools = [
   },
   {
     name: 'web_search', via: ANDROID_SYSTEM,
-    description: 'Busca en la web vía el Intent de búsqueda del sistema.',
+    description: 'Abre la búsqueda del sistema (por lo general, la app de Google) con lo que le pases. NO devuelve resultados: para contestar, mira la página en la pantalla siguiente, y un dato (el clima, un precio) solo lo das si lo leíste ahí. Si la persona nombró un navegador, ábrelo con launch_app y busca en su barra de direcciones.',
     params: [{ name: 'query', description: 'Qué buscar' }]
   },
   {
@@ -259,7 +265,7 @@ const androidSystemTools = [
   },
   {
     name: 'check_simit_fines', via: ANDROID_SYSTEM, params: [],
-    description: 'Abre el portal OFICIAL de SIMIT (Sistema Nacional de Información de Comparendos de Tránsito, simit.org.co) para consultar comparendos/multas de tránsito en Colombia por cédula o placa. Úsala cuando el usuario pida revisar sus comparendos o multas, o evaluar si uno prescribió/caducó. Tras abrir, sigue con computer-use: busca por cédula o placa (pregunta con ask_user cuál usar si no lo sabes) y lee, de cada infracción, su ESTADO (comparendo/pendiente de resolución VS. resolución o multa YA en firme) y su FECHA. CONOCIMIENTO LEGAL para razonar (Código Nacional de Tránsito, Ley 769 de 2002; SIEMPRE aclara al usuario que esto NO es asesoría legal definitiva y que debe confirmarlo con el organismo de tránsito): la CADUCIDAD (art. 161) es de 1 año desde el hecho — si sigue como "comparendo" SIN resolución sancionatoria en firme pasado ese año, la autoridad pudo haber perdido la facultad de sancionar; la PRESCRIPCIÓN (art. 159) es de 3 años, pero aplica al COBRO de una multa que YA está en firme (otro escenario distinto). Ninguna de las dos opera sola en el portal: hay que ALEGARLA mediante un derecho de petición ante el organismo de tránsito que impuso el comparendo (NO ante SIMIT, que solo consulta). LÍMITES ESTRICTOS: JAMÁS pagues, envíes ni radiques ningún formulario/recurso/derecho de petición en nombre del usuario — es una gestión legal ante un tercero y debe hacerla él mismo. Solo informa lo que encontraste y, si lo pide, redacta el TEXTO del derecho de petición (por chat o con send_email/share_text) para que él lo revise y presente.'
+    description: 'Abre el portal OFICIAL de SIMIT (simit.org.co) para consultar comparendos y multas de tránsito en Colombia por cédula o placa. Úsala cuando la persona pida revisar sus comparendos o multas, o saber si uno caducó o prescribió. Después sigue en la pantalla: busca por cédula o placa (si no sabes cuál, pregúntalo) y lee de cada infracción su ESTADO (comparendo pendiente de resolución, o resolución o multa YA en firme) y su FECHA. PARA RAZONAR (Código Nacional de Tránsito, Ley 769 de 2002; di siempre que no es asesoría legal definitiva y que lo confirme con el organismo de tránsito): la CADUCIDAD (art. 161) es de 1 año desde el hecho: si sigue como comparendo SIN resolución sancionatoria pasado ese año, la autoridad pudo perder la facultad de sancionar. La PRESCRIPCIÓN de la multa (art. 159, modificado por la Ley 1383 de 2010, art. 26) es de 3 años contados desde la ocurrencia del hecho, y se interrumpe con la notificación del mandamiento de pago: si el portal muestra cobro coactivo, no la des por prescrita sin saber cuándo le notificaron ese mandamiento. Ninguna se aplica sola en el portal: se pide con un derecho de petición ante el organismo de tránsito que impuso el comparendo (NO ante SIMIT, que solo consulta). SI TE PIDEN PAGAR: llegas con ese comparendo hasta la pasarela oficial de pago, y ahí sigue la persona. SI TE PIDEN RADICAR el derecho de petición: lo radicas en el canal oficial de ese organismo de tránsito, con los datos de la persona. Si te piden el texto, lo redactas completo.'
   },
   {
     name: 'open_maps', via: ANDROID_SYSTEM,
@@ -289,12 +295,12 @@ const androidSystemTools = [
   },
   {
     name: 'set_volume', via: ANDROID_SYSTEM,
-    description: 'Ajusta el volumen de un canal de audio directamente (sin UI). Útil para asegurar que una alarma/llamada/medio se oiga.',
-    params: [ANDROID_STREAM, { name: 'percent', description: 'Nivel 0-100 (usa 100 para asegurar que se oiga)' }]
+    description: 'Pone el volumen de un canal de audio en el porcentaje que pidió la persona, directamente (sin UI).',
+    params: [ANDROID_STREAM, { name: 'percent', description: 'Nivel 0-100 que pidió la persona. Para «súbele» o «bájale» sin cifra, usa adjust_volume.' }]
   },
   {
     name: 'adjust_volume', via: ANDROID_SYSTEM,
-    description: 'Sube, baja, muda o restaura el volumen de un canal de audio con un solo golpe (como el botón físico), sin necesitar un porcentaje exacto. Úsala, por ejemplo, para bajar el volumen tras poner música/un video si crees que puede molestar, o subirlo si el usuario no lo va a escuchar bien.',
+    description: 'Sube, baja, silencia o restaura el volumen de un canal de audio con un solo golpe, como el botón físico, y muestra el panel de volumen. Sirve para «súbele» o «bájale» sin cifra.',
     params: [ANDROID_STREAM, { name: 'direction', description: 'Acción', options: ['raise', 'lower', 'mute', 'unmute'] }]
   }
 ];
@@ -306,8 +312,9 @@ const androidSystemTools = [
  *
  * No se declara lo que el Mac no tiene o hace a medias: alarmas, temporizadores, calendario,
  * notificaciones, volumen, `share_text` (copia al portapapeles, no comparte), `dial`, la cámara, el
- * mapa del computador de Windows (`map_places`, `map_routes_from`, `map_take`, `map_go_to`) ni las
- * lecturas (`map_where_am_i`, `read_screen`), que sobran: cada turno ya trae la pantalla. Tampoco
+ * mapa del computador de Windows (`map_take`, `map_go_to`) ni las lecturas (`map_where_am_i`,
+ * `read_screen`), que sobran: cada turno ya trae la pantalla (también con OpenAI cuando el turno
+ * anterior terminó en funciones: openaiBrain la manda detrás de sus salidas). Tampoco
  * hay workflows: los grabados son de Windows y el Mac no tiene quien los reproduzca.
  */
 const MAC_AX = 'control de accesibilidad (AX) de macOS';
@@ -316,15 +323,15 @@ const MAC_SYSTEM = 'acción de macOS (sin navegar la pantalla)';
 const macTools = [
   {
     name: 'map_click', via: MAC_AX,
-    description: 'Pulsa un control de la app al frente (AXPress). Es lo más fiable: no depende de coordenadas. Usa el id de la ÚLTIMA lectura de la pantalla o la etiqueta exacta del control.',
+    description: 'Pulsa un control de la app al frente (AXPress). Es lo más fiable: no depende de coordenadas. Usa el id de la <pantalla> de este turno (los de una lectura anterior ya no valen) o la etiqueta exacta del control.',
     params: [{ name: 'exit', description: 'Id del control en la última lectura, o su etiqueta exacta' }]
   },
   {
     name: 'map_type', via: MAC_AX,
-    description: 'Escribe texto. Con exit deja ese texto completo en ese campo; sin exit teclea donde esté el foco.',
+    description: 'Escribe texto. Con exit REEMPLAZA todo lo que tenga ese campo por este texto; sin exit teclea donde esté el foco, sin borrar nada.',
     params: [
       { name: 'exit', description: 'Id o etiqueta exacta del campo; vacío para teclear en el foco', optional: true },
-      { name: 'text', description: 'El texto completo' }
+      { name: 'text', description: 'Con exit, el contenido entero que debe quedar en el campo; sin exit, lo que se teclea' }
     ]
   },
   {
@@ -358,7 +365,7 @@ const macTools = [
   },
   {
     name: 'web_search', via: MAC_SYSTEM,
-    description: 'Busca en la web en el navegador.',
+    description: 'Abre en el navegador predeterminado la búsqueda de Google. NO devuelve resultados: para contestar, mira la página en la lectura siguiente, y un dato (el clima, un precio) solo lo das si lo leíste ahí. Si la persona nombró un navegador, ábrelo con launch_app y busca en su barra (cmd+l).',
     params: [{ name: 'query', description: 'Qué buscar' }]
   },
   {
@@ -373,7 +380,7 @@ const macTools = [
   },
   {
     name: 'send_email', via: MAC_SYSTEM,
-    description: 'Abre un borrador en Mail con lo que le pases. No lo envía: el envío se hace en la ventana de Mail.',
+    description: 'Abre en Mail un correo nuevo ya escrito. NO lo envía: si te pidieron mandarlo, en la lectura siguiente pulsa Enviar en esa ventana y mira que salió; si solo te pidieron escribirlo, lo dejas abierto. No adjunta archivos: si hay que adjuntar algo, lo adjuntas tú en esa ventana antes de Enviar y miras que esté.',
     params: [
       { name: 'to', description: 'Destinatario', optional: true },
       { name: 'subject', description: 'Asunto', optional: true },
@@ -382,7 +389,7 @@ const macTools = [
   },
   {
     name: 'send_sms', via: MAC_SYSTEM,
-    description: 'Abre un borrador en Mensajes con el número y el texto. No lo envía.',
+    description: 'Abre en Mensajes el mensaje ya escrito, con el número. NO lo envía: si te pidieron mandarlo, en la lectura siguiente envíalo tú en esa ventana y mira que salió.',
     params: [
       { name: 'number', description: 'Número del destinatario' },
       { name: 'message', description: 'Texto', optional: true }
@@ -446,24 +453,14 @@ const mapTools = [
     description: 'Dice en qué pantalla está el usuario ahora mismo y cuántas salidas conocidas tiene.'
   },
   {
-    name: 'map_places', via: MAP_VIA,
-    description: 'Lista las pantallas que el mapa conoce, las más visitadas primero. Útil para saber a dónde se PUEDE ir antes de intentarlo.',
-    params: [{ name: 'app', description: 'Filtrar por app o dominio (opcional), p.ej. "explorer.exe" o "github.com"', optional: true }]
-  },
-  {
-    name: 'map_routes_from', via: MAP_VIA,
-    description: 'Salidas conocidas de una pantalla y con qué elemento se recorre cada una. Indica explícitamente las que se observaron pero cuya acción se desconoce.',
-    params: [{ name: 'surface', description: 'Id de superficie; si se omite, la pantalla actual', optional: true }]
-  },
-  {
     name: 'map_take', via: MAP_VIA,
-    description: 'Toma UNA salida de la pantalla actual, elegida por su nombre tal como lo devuelve map_routes_from (p.ej. "Videos", "Documentos"). Es la forma natural de navegar el mapa: pide las salidas, elige la que sirva, y toma esa. Si el nombre coincide con varias, las devuelve para que elijas en vez de adivinar. Verifica la llegada.',
-    params: [{ name: 'exit', description: 'Nombre de la salida, como aparece en map_routes_from' }]
+    description: 'Toma UNA salida de la pantalla actual, elegida por su nombre tal como aparece en la pantalla (p.ej. "Videos", "Documentos"). Si el nombre coincide con varias, las devuelve para que elijas en vez de adivinar. Verifica la llegada.',
+    params: [{ name: 'exit', description: 'Nombre de la salida, como aparece en la pantalla' }]
   },
   {
     name: 'map_go_to', via: MAP_VIA,
     description: 'Navega hasta una pantalla conocida recorriendo la ruta aprendida, verificando la llegada en cada paso. Solo usa rutas COMPLETAS: si falta saber cómo se recorre algún tramo, no se mueve y lo dice. Si un paso no llega a donde debía, se detiene e informa dónde quedó.',
-    params: [{ name: 'surface', description: 'Id de superficie destino, tal como aparece en map_places' }]
+    params: [{ name: 'surface', description: 'Id de superficie destino (el que da map_where_am_i)' }]
   }
 ];
 

@@ -18,9 +18,12 @@ from .models import (
 
 
 class ProductLLMAdapterError(RuntimeError):
-    def __init__(self, message: str, *, status_code: int = 502) -> None:
+    def __init__(self, message: str, *, status_code: int = 502, usage: object | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
+        # Lo que costó la respuesta que no se pudo usar (truncada o con JSON
+        # inválido): el proveedor la cobró igual y el ledger tiene que verla.
+        self.usage = usage
 
 
 class ProductLLMPlanner(Protocol):
@@ -61,9 +64,18 @@ class ProductLLMOrchestratorAdapter:
         except ProductLLMAdapterError as exc:
             # Respuesta truncada (max_output_tokens) o JSON inválido: antes la
             # consulta FALLABA aquí en vez de degradar como ante un 429/5xx.
+            # Pero si ya hay un bloque estructurado, no se aplana con el volcado
+            # de todo el dictado: se conserva y se le añade solo este segmento.
             if self._uses_remote_llm:
-                fallback = _HeuristicPlanner(self._settings).orchestrate(request)
-                return replace(fallback, backend_status=f"heuristic-fallback:{exc.status_code}")
+                if (request.last_applied_note_block or "").strip():
+                    fallback = _append_latest_segment(request)
+                else:
+                    fallback = _HeuristicPlanner(self._settings).orchestrate(request)
+                return replace(
+                    fallback,
+                    backend_status=f"heuristic-fallback:{exc.status_code}",
+                    usage=exc.usage,
+                )
             raise
 
     def _planner_from_settings(self, settings: ProductLLMSettings) -> ProductLLMPlanner:
@@ -141,14 +153,18 @@ class _OpenAICompatiblePlanner:
         payload: dict[str, object],
         request: ProductLLMOrchestratorInput,
     ) -> ProductLLMOrchestratorOutput:
-        text = _extract_response_text(payload)
-        decoded = _decode_structured_text(text)
+        usage = _extract_usage_metrics(payload, fallback_model=self._settings.model)
+        try:
+            text = _extract_response_text(payload)
+            decoded = _decode_structured_text(text)
+        except ProductLLMAdapterError as exc:
+            raise ProductLLMAdapterError(str(exc), status_code=exc.status_code, usage=usage) from exc
         note_updates, agent_tasks = _note_and_task_lists(decoded)
         return ProductLLMOrchestratorOutput(
             note_updates=note_updates,
             agent_tasks=agent_tasks,
             backend_status="product-llm",
-            usage=_extract_usage_metrics(payload, fallback_model=self._settings.model),
+            usage=usage,
         )
 
 
@@ -192,14 +208,18 @@ class _GeminiChatPlanner:
         payload: dict[str, object],
         request: ProductLLMOrchestratorInput,
     ) -> ProductLLMOrchestratorOutput:
-        text = _extract_chat_completion_text(payload)
-        decoded = _decode_structured_text(text)
+        usage = _extract_chat_usage_metrics(payload, fallback_model=self._settings.model)
+        try:
+            text = _extract_chat_completion_text(payload)
+            decoded = _decode_structured_text(text)
+        except ProductLLMAdapterError as exc:
+            raise ProductLLMAdapterError(str(exc), status_code=exc.status_code, usage=usage) from exc
         note_updates, agent_tasks = _note_and_task_lists(decoded)
         return ProductLLMOrchestratorOutput(
             note_updates=note_updates,
             agent_tasks=agent_tasks,
             backend_status="product-llm",
-            usage=_extract_chat_usage_metrics(payload, fallback_model=self._settings.model),
+            usage=usage,
         )
 
 
@@ -378,6 +398,26 @@ def _extract_chat_usage_metrics(
         input_tokens=max(0, input_tokens),
         output_tokens=max(0, output_tokens),
         total_tokens=max(0, total_tokens),
+    )
+
+
+def _append_latest_segment(request: ProductLLMOrchestratorInput) -> ProductLLMOrchestratorOutput:
+    """El bloque que ya estaba, intacto, y detrás el segmento de ahora tal cual se dictó."""
+    block = (request.last_applied_note_block or "").rstrip()
+    latest = " ".join(request.segment.transcript.split()).strip()
+    content = block if not latest or latest.lower() in block.lower() else f"{block}\n\n{latest}"
+    return ProductLLMOrchestratorOutput(
+        note_updates=[
+            ProductLLMNoteUpdate(
+                type="replace_active_note_session_block",
+                target={"mode": "active_note", "scope": "voice_session_block"},
+                content=content,
+                reason="voice_session_append_after_unusable_output",
+                confidence=0.42,
+            )
+        ],
+        agent_tasks=[],
+        backend_status="heuristic",
     )
 
 

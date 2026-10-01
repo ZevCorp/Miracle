@@ -47,7 +47,7 @@ const { PLATFORMS, platformFromApp, platformOfSession } = require('../../domain/
 const { normalizeProfile } = require('../../domain/agent/profile');
 const { imageSize, screenScale } = require('../../domain/agent/screenScale');
 const { baseCatalog, catalogNames } = require('../../domain/agent/mcpCatalog');
-const { workflowToMcp, InMemoryAgentLearningStore } = require('../../domain/agent/learning');
+const { workflowToMcp, workflowRunsOn, InMemoryAgentLearningStore } = require('../../domain/agent/learning');
 const { runProviderTurn } = require('../../infrastructure/conscious-brain');
 const { resolveConsciousConfig } = require('../../infrastructure/conscious-brain/config');
 
@@ -96,15 +96,18 @@ class AgentTurnService {
    * es para el modelo; el cliente ejecuta por id (WorkflowPlayer), así que el
    * turno inyecta el id en los args de la llamada (ver handleTurn).
    *
-   * La base depende de la plataforma. Los workflows son iguales en Windows y en
-   * Android; el Mac no los lleva (no tiene quien los reproduzca y los grabados
-   * son de Windows). `workflowAccess` es el de la API key que llama: cada key ve
-   * sus workflows y los globales.
+   * La base depende de la plataforma, y los workflows también: cada cliente recibe
+   * solo los que su dispositivo sabe reproducir (learning.js, workflowRunsOn). Un
+   * workflow grabado en U.exe (uia://, sapgui://, web://, una app .exe) no le llega
+   * al teléfono, ni uno del teléfono (android://) a Windows; el Mac no lleva
+   * ninguno. Lo que no dice de dónde es se declara, como siempre. `workflowAccess`
+   * es el de la API key que llama: cada key ve sus workflows y los globales.
    */
   async assembleTools(userId, apps, surface = null, platform = PLATFORMS.WINDOWS, workflowAccess = null) {
     const workflows = platform === PLATFORMS.MAC
       ? []
-      : await this.learningStore.workflows(userId, apps, surface, workflowAccess);
+      : (await this.learningStore.workflows(userId, apps, surface, workflowAccess, platform))
+        .filter((workflow) => workflowRunsOn(workflow, platform));
     const workflowTools = workflows.map(workflowToMcp);
     const workflowIdByTool = new Map(
       workflowTools.map((tool, i) => [tool.name, `${workflows[i].id || workflows[i].name || ''}`])

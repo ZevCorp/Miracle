@@ -67,6 +67,7 @@ class NoteFieldMatcher {
     ]));
     const isAllowedOption = (m) => Boolean(optionsByStep.get(m.stepOrder)?.has(m.value));
     let withToken = 0;
+    let prudent = 0;
     const clean = matches
       .map((m) => {
         const level = grounding.normalizeGrounding(m?.grounding);
@@ -85,8 +86,14 @@ class NoteFieldMatcher {
       // Una frase prudente no es un valor: escribirla en SAP pondría «No
       // mencionado en la consulta.» en la historia clínica como si fuera el
       // dato. Salvo que sea, literalmente, una opción del select de ese paso.
-      .filter((m) => Number.isFinite(m.stepOrder) && m.value !== '' && m.accepted
-        && (!isPrudentEmptyContent(m.value) || isAllowedOption(m)))
+      .filter((m) => {
+        if (!Number.isFinite(m.stepOrder) || m.value === '' || !m.accepted) return false;
+        if (isPrudentEmptyContent(m.value) && !isAllowedOption(m)) {
+          prudent += 1;
+          return false;
+        }
+        return true;
+      })
       // GUARDA DE MARCADORES: un valor con `[PACIENTE_NOMBRE_1]` que no se
       // pudo rehidratar NUNCA se devuelve. El cliente Windows escribe lo que
       // recibe en SAP sin mirarlo (RellenadorSap.cs), lo relee no vacío y lo
@@ -102,10 +109,14 @@ class NoteFieldMatcher {
     const submitReason = `${parsed.submitReason || ''}`.slice(0, 200);
     return {
       matches: clean,
-      readyToSubmit: Boolean(parsed.readyToSubmit) && withToken === 0,
+      // El modelo contó como lleno lo que se acaba de descartar: si se quitó un
+      // marcador o una frase prudente, el formulario ya no está listo para enviar.
+      readyToSubmit: Boolean(parsed.readyToSubmit) && withToken === 0 && prudent === 0,
       submitReason: withToken > 0
         ? `${withToken} valor(es) descartado(s) por traer un marcador de privacidad sin resolver`
-        : (containsToken(submitReason) ? '' : submitReason),
+        : prudent > 0
+          ? `${prudent} campo(s) sin dato en la nota: quedan vacíos para que el médico los llene`
+          : (containsToken(submitReason) ? '' : submitReason),
       usage
     };
   }

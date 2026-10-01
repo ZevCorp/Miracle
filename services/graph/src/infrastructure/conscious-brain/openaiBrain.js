@@ -204,6 +204,17 @@ async function runOpenAiTurn(inp) {
       }
     });
     s.informText = '';
+    // La pantalla de ESTE turno, también cuando el anterior terminó en funciones:
+    // el prompt promete que cada turno trae <pantalla>, y sin esto, con OpenAI, el
+    // modelo solo veía la lectura vieja de la herramienta (en el Mac, con ids que
+    // ya no existen) y la captura que pidió map_look no le llegaba nunca. Si hubo
+    // una computer_call, la captura ya va en su salida: aquí va solo el texto.
+    const screenshotSent = s.pending.some((call) => call.isComputer);
+    const content = [{ type: 'input_text', text: stateText }];
+    if (state.screenshot && !screenshotSent) {
+      content.push({ type: 'input_image', image_url: dataUri(state.screenshot), detail: 'original' });
+    }
+    input.push({ type: 'message', role: 'user', content });
   }
 
   const reqBody = {

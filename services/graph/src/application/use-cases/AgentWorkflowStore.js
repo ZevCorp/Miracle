@@ -11,6 +11,12 @@
 // La superficie solo ORDENA: los workflows del lugar donde está parado van
 // primero y los demás detrás, anotados con su app. Lo que de verdad acota es el
 // acceso de la API key que llama: sin dueño no se declara ningún workflow.
+//
+// La plataforma del turno también acota: cada cliente reproduce solo lo que grabó su
+// dispositivo (domain/agent/learning.js, workflowRunsOn), y se filtra ANTES del tope
+// para que 30 workflows del PC no dejen al teléfono sin los suyos.
+const { workflowRunsOn } = require('../../domain/agent/learning');
+
 const MAX_WORKFLOW_TOOLS = 30;
 
 class AgentWorkflowStore {
@@ -33,8 +39,9 @@ class AgentWorkflowStore {
    *
    * `access` es el de la API key que llama (requireApiKey: `api-client:<label>` + globales). El
    * catálogo sin acceso es el de TODAS las keys, así que sin dueño no se consulta: devuelve [].
+   * Con `platform`, solo los que ese dispositivo sabe reproducir.
    */
-  async workflows(userId, apps, surface = null, access = null) {
+  async workflows(userId, apps, surface = null, access = null, platform = null) {
     const origin = `${surface?.origin || ''}`.trim();
     const pathname = `${surface?.pathname || ''}`.trim();
     if (!`${access?.ownerId || ''}`.trim()) return [];
@@ -46,7 +53,9 @@ class AgentWorkflowStore {
       return []; // sin Neo4j no hay workflows; el turno sigue con el catálogo base
     }
 
-    const usable = catalog.filter((wf) => Array.isArray(wf.steps) && wf.steps.length > 0);
+    const usable = catalog
+      .filter((wf) => Array.isArray(wf.steps) && wf.steps.length > 0)
+      .filter((wf) => !platform || workflowRunsOn(wf, platform));
     const current = [];
     const others = [];
     for (const wf of usable) {
@@ -85,6 +94,7 @@ class AgentWorkflowStore {
       id: wf.id,
       name: wf.id, // el nombre MCP sale de sanitize(name): con el id es determinista y reversible
       description: `${wf.summary || wf.description || 'Workflow aprendido.'}`.slice(0, 300),
+      sourceOrigin: `${wf.sourceOrigin || ''}`.trim(), // de qué dispositivo es (workflowRunsOn)
       steps
     };
   }

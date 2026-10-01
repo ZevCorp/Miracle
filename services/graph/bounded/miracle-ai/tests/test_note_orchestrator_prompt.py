@@ -63,3 +63,30 @@ def test_truncated_output_degrades_instead_of_failing() -> None:
     ))
     assert out.backend_status.startswith("heuristic-fallback")
     assert ProductLLMSettings().max_output_tokens == 2000
+
+
+def test_truncated_output_keeps_the_structured_block_and_records_the_spend() -> None:
+    """Con un bloque ya estructurado, una salida truncada no lo aplana con el
+    volcado de todo el dictado: lo conserva y le añade solo el segmento nuevo. Y
+    lo que costó la respuesta inservible queda en usage."""
+    from miracle_agent.integrations.product_llm.config import ProductLLMSettings
+    from miracle_agent.integrations.product_llm.models import ProductLLMOrchestratorInput, VoiceTranscriptSegment
+    from miracle_agent.integrations.product_llm.note_orchestrator_adapter import ProductLLMOrchestratorAdapter
+
+    adapter = ProductLLMOrchestratorAdapter(ProductLLMSettings(provider="openai", base_url="https://x", api_key="k", model="m"))
+    adapter._planner._client.call_responses_api = lambda payload: {  # type: ignore[attr-defined]
+        "status": "incomplete",
+        "output": [{"content": [{"type": "output_text", "text": '{"note_updates":[{"content":"## Motivo'}]}],
+        "usage": {"input_tokens": 900, "output_tokens": 2000, "total_tokens": 2900},
+    }
+    block = "## Motivo de consulta\nDolor torácico de dos días."
+    seg = VoiceTranscriptSegment(segment_id="s2", kind="final", transcript="  irradiado al brazo   izquierdo ")
+    out = adapter.orchestrate(ProductLLMOrchestratorInput(
+        voice_session_id="v", note_path=None, note_title="n", note_content=block,
+        last_applied_note_block=block, transcript_history=["dolor torácico de dos días", "irradiado al brazo izquierdo"],
+        segment=seg,
+    ))
+    assert out.backend_status.startswith("heuristic-fallback")
+    [update] = out.note_updates
+    assert update.content == block + "\n\nirradiado al brazo izquierdo"
+    assert out.usage is not None and out.usage.output_tokens == 2000

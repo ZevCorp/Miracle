@@ -54,6 +54,15 @@ const UNIT_WORDS = Object.freeze({
 // fidelidad. Sin esto la casilla de identificación de una plantilla literal
 // recibía «no coincide con el dictado» por cumplir la regla. Una cifra cambiada
 // sigue siendo otro número.
+//
+// SOLO se unen cifras que el texto separaba con espacios. Un decimal no es un
+// grupo: «2.5», «2,5» y «dos punto cinco» quedan como «2 DECIMAL 5», y una
+// fecha o una tensión («1/12/2024», «120/80») llevan su barra como token. Antes
+// todo eso se borraba y se pegaba: «2.5 mg» y «25 mg» salían iguales, y una
+// dosis diez veces mayor pasaba la comprobación literal sin aviso.
+const DECIMAL_TOKEN = 'DECIMAL';
+const SLASH_TOKEN = 'BARRA';
+
 function joinDigitRuns(tokens) {
   const joined = [];
   for (const token of tokens) {
@@ -73,8 +82,20 @@ function joinDigitRuns(tokens) {
  * «por» y «x» entre cifras equivalentes, números en palabra pasados a cifra,
  * unidades abreviadas y cifras seguidas unidas en un solo número.
  */
+function markNumberSeparators(text) {
+  const number = `(?:\\d+|${Object.keys(NUMBER_WORDS).join('|')})`;
+  let marked = text;
+  // Puntos de miles a la colombiana: «1.036.457.892» es un número, no tres decimales.
+  marked = marked.replace(/\b[1-9]\d{0,2}(?:\.\d{3})+\b/g, (match) => match.replace(/\./g, ''));
+  marked = marked.replace(/(\d)[.,](?=\d)/g, `$1 ${DECIMAL_TOKEN} `);
+  marked = marked.replace(new RegExp(`\\b(${number}) (?:punto|coma) (?=${number}\\b)`, 'g'), `$1 ${DECIMAL_TOKEN} `);
+  marked = marked.replace(/(\d) ?\/ ?(?=\d)/g, `$1 ${SLASH_TOKEN} `);
+  marked = marked.replace(new RegExp(`\\b(${number}) sobre (?=${number}\\b)`, 'g'), `$1 ${SLASH_TOKEN} `);
+  return marked;
+}
+
 function normalizeForVerbatim(value = '') {
-  let text = normalizeComparable(value);
+  let text = markNumberSeparators(normalizeComparable(value));
   for (const word of PUNCTUATION_WORDS) {
     text = text.replace(new RegExp(`\\b${word}\\b`, 'g'), ' ');
   }

@@ -28,7 +28,12 @@ const ENV_FALLBACKS = [
 ];
 
 const MEMORY = 'WhatsApp:\n- "Sebas" es Sebastián Ríos';
-const WORKFLOWS = [{ id: 'wf_demo', name: 'wf_demo', description: 'Abre el HIS en admisiones.', steps: [{ action: 'Abrir HIS', app: 'his.exe' }] }];
+// wf_demo es del PC (his.exe) y wf_tel del teléfono (android://): cada plataforma recibe solo el
+// suyo (learning.js, workflowRunsOn), así que Windows ve lo mismo que antes de existir wf_tel.
+const WORKFLOWS = [
+  { id: 'wf_demo', name: 'wf_demo', description: 'Abre el HIS en admisiones.', steps: [{ action: 'Abrir HIS', app: 'his.exe' }] },
+  { id: 'wf_tel', name: 'wf_tel', description: 'Le escribe a Sebas por WhatsApp.', sourceOrigin: 'android://com.whatsapp', steps: [{ action: 'Abrir el chat', app: 'com.whatsapp' }] }
+];
 
 // La hora, como la manda U.exe en cada turno (AgentLoop.cs): fija, para que el
 // «Ahora: …» del estado no cambie entre corridas.

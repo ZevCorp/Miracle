@@ -27,8 +27,10 @@ const plain = (value) => `${value ?? ''}`.normalize('NFD').replace(/[\u0300-\u03
 function catalogCode(value) {
   const code = normalizeSpecialtyCode(`${value ?? ''}`.slice(0, 80));
   if (!code) return '';
-  if (SPECIALTY_NAMES[code]) return code;
-  return CODE_BY_NAME[code] || '';
+  // hasOwn y no `SPECIALTY_NAMES[code]`: «constructor» o «toString» son claves
+  // heredadas de Object y meterían «function Object() { [native code] }» en el prompt.
+  if (Object.hasOwn(SPECIALTY_NAMES, code)) return code;
+  return Object.hasOwn(CODE_BY_NAME, code) ? CODE_BY_NAME[code] : '';
 }
 
 /**

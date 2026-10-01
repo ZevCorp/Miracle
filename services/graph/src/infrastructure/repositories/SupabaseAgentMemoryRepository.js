@@ -22,6 +22,9 @@
 const MAX_STORED_PER_APP = 50;
 const MAX_NOTES_PER_APP = 20;
 const MAX_PROMPT_CHARS = 4000;
+// Una nota es una frase que le sirve a quien opere después; más larga que esto
+// es un volcado (una lista de códigos), y al prompt no le cabría junto a las demás.
+const MAX_NOTE_CHARS = 500;
 const GENERAL_TITLE = 'General';
 
 const NO_USER = new Set(['', 'anon']);
@@ -86,7 +89,9 @@ class SupabaseAgentMemoryRepository {
       let section = header;
       for (const note of notes) {
         const line = `- ${note}\n`;
-        if (out.length + section.length + line.length > MAX_PROMPT_CHARS) break;
+        // continue y no break: una nota que no cabe no esconde las más cortas
+        // que vienen detrás (antes, una sola nota larga dejaba la app sin memoria).
+        if (out.length + section.length + line.length > MAX_PROMPT_CHARS) continue;
         section += line;
       }
       if (section !== header) out += `${section}\n`;
@@ -100,7 +105,7 @@ class SupabaseAgentMemoryRepository {
    */
   async remember(userId, app, note) {
     const userKey = userKeyOf(userId);
-    const text = `${note ?? ''}`.trim();
+    const text = `${note ?? ''}`.trim().slice(0, MAX_NOTE_CHARS);
     if (!userKey || !text) return;
     const key = `${app || ''}`.trim(); // "" agrupa las notas generales
     const memory = await this.loadMemory(userKey);

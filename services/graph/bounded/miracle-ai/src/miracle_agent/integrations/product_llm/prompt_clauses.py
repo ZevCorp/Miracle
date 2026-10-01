@@ -11,7 +11,7 @@ side, bump the version on both.
 """
 from __future__ import annotations
 
-CLAUSES_VERSION = "2026-10-01.1"
+CLAUSES_VERSION = "2026-10-01.2"
 
 ROLE_BOUNDARY_EN = "\n".join(
     [
@@ -26,9 +26,10 @@ NO_INVENTION_EN = "\n".join(
     [
         "NO INVENTION:",
         "- Use only information explicitly present in the source.",
-        "- Never invent or complete vital signs, physical exam, history, medications, doses, allergies, results, dates or diagnoses.",
+        "- Never invent or complete age, sex, vital signs, physical exam, history, medications, doses, routes, frequencies, durations, allergies, results, dates or diagnoses.",
+        "- Do not complete a datum with what is usual: if the route was not said, do not write \"orally\".",
         "- If something was not mentioned, do not deduce it: leave it out of the block.",
-        "- Never turn a possibility, a suspicion or a question into a fact. Any diagnostic impression is probabilistic and pending clinician judgment.",
+        "- Never turn a possibility, a suspicion or a question into a fact. A diagnosis is established only if the clinician stated it or it comes from the record or a report the clinician cites; any other diagnostic impression OF THE CLINICIAN is probabilistic and pending their judgment. Never write a diagnostic impression of your own: no \"compatible with\", no \"suggests\", no \"probable\".",
     ]
 )
 

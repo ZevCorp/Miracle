@@ -120,7 +120,8 @@ function assertAndroidRequest(request) {
   assert.ok(!names.includes('switch_window'), 'switch_window llegó a Android');
   assert.ok(!names.some((name) => name.startsWith('map_')), 'una herramienta map_* llegó a Android');
   for (const name of ANDROID_TOOLS) assert.ok(names.includes(name), `falta ${name}`);
-  assert.ok(names.includes('workflow_wf_demo'), 'los workflows tienen que seguir llegando');
+  assert.ok(names.includes('workflow_wf_tel'), 'los workflows del teléfono tienen que seguir llegando');
+  assert.ok(!names.includes('workflow_wf_demo'), 'un workflow grabado en el PC (his.exe) llegó al teléfono');
   const settings = declarationsOf(request).find((tool) => tool.name === 'open_settings');
   assert.deepStrictEqual(settings.parameters.properties.section.enum, ANDROID_SETTINGS);
 }
