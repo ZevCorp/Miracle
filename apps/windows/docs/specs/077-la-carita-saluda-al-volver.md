@@ -1,6 +1,6 @@
 # Plan de implementación: la carita saluda cuando vuelves, y atiende mientras conversas
 
-Estado: **propuesto** · Nace de lo que el dueño dijo el 2026-10-01 al ver la carita de la spec 052 · Rama: `jose/la-carita-saluda-al-volver` · Promesas **690-692** (reservadas 690-699)
+Estado: **implementado; en la app solo se vio el saludo de arranque** · Nace de lo que el dueño dijo el 2026-10-01 al ver la carita de la spec 052 · Rama: `jose/la-carita-saluda-al-volver` · Promesas **690-692** (reservadas 690-699)
 
 > El dueño, en un audio del 2026-10-01, con la carita de la spec 052 ya en `main`: «quiero que
 > cuando estemos hablando tenga algún tipo de gesto; puede ser, en la vitrina de la carita, el que
@@ -96,12 +96,42 @@ dos veces); quién pone la cara de conversar, 1 (la tabla de poses).
 - Saludar al volver de una suspensión por su cuenta: la suspensión acaba en un desbloqueo o en una
   primera tecla, y esos dos ya saludan.
 - Otro gesto distinto para la conversación (asentir, ladear): el dueño eligió la cara de grabar.
-- La carita sentada en el muelle no saluda al acercarle el ratón: ahí el ratón abre el muelle.
+- La carita sentada en el muelle no saluda: el saludo pide que la ventana de la carita esté a la vista, y
+  sentada no lo está. Ahí el ratón abre el muelle.
+- El saludo del rato a una silla vacía: si llevas cinco minutos sin tocar el PC no sale, y al volver te
+  saluda la vuelta.
 
 ## Hallazgos
 
+- **2026-10-01, el rojo antes del código, medido.** CONTRATO ROTO con la 690, la 691 y la 692, y la
+  444 —ya sin su parte del saludo— verde. La 691 midió por qué conversar no se distinguía: la boca
+  conversando daba 41 de ancho, lo mismo que en reposo, contra 28 grabando; 635 píxeles separaban las
+  dos caras.
+- **El sabotaje, comprobado por diff y por el veredicto.** Tres roturas a la vez: sin la guarda entre
+  saludos → 690 roja («a los 5 s de un saludo no saluda otra vez», «ni a los 85 s»); conversar otra
+  vez con la pose de agosto → 691 roja; el dibujo saludando por su cuenta → 692 roja. 414 ✔ y 3 ✘:
+  ninguna otra se movió.
+- **Una Ü de pruebas a la vista se toca como si fuera la de verdad.** A los 73 segundos de levantarla,
+  alguien le prendió la voz cuatro veces en 23 segundos (07:12:43 a 07:13:06): el dueño, tocándola o
+  con el doble Ctrl, que es global y lo oyen todas las Ü abiertas. Tenía la voz desactivada a
+  propósito, así que cada vez falló. Se cerró en el acto, y con ella la prueba de acercarle el ratón,
+  que pedía diez minutos sin que nadie la tratara.
+- **Acercarle el ratón nada más aparecer no sirve de atajo.** Se intentó para no esperar los diez
+  minutos: el cursor estaba sobre la carita a las 07:15:20,4 y el único saludo fue el de arranque, a
+  las 07:15:21. El aviso de «el ratón entró» solo llega cuando el ratón se MUEVE sobre algo que ya
+  está pintado; colocado antes de que la carita exista, no hay entrada que contar.
+
 ## Cierre
 
-- [ ] Promesas 690-692 verdes (`.\scripts\contrato-del-grafo.ps1`)
-- [ ] `.\scripts\verificar.ps1` pasa
-- [ ] Nivel 4, sobre U.exe real
+- [x] Promesas 690-692 verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO, 417 ✔ · 0 ✘)
+- [x] `.\scripts\verificar.ps1` pasa, con la tabla en el PR
+- [x] Nivel 4, sobre U.exe real (build de esta rama, `C:\U-versiones\carita-saludo`, 2026-10-01
+  07:11): **el saludo de arranque**, dos veces. El log: `[07:11:30] ui-anim: saluda: se abrió Ü`, un
+  segundo después de aparecer la carita; las fotos con `PrintWindow` la enseñan con las dos manos
+  fuera y la derecha arriba. Y los cuatro toques del dueño siguen rebotando (`toque: la carita
+  rebota`), con el saludo ya cableado en ese mismo sitio.
+- [ ] **No se vio en la app**, y lo sostienen la regla pura y el `[cableado]` de la 690: el saludo al
+  desbloquear (habría que bloquearle el computador al dueño), al volver tras cinco minutos sin tocar
+  el PC, al acercarle el ratón tras diez sin tratarla y el del rato (20-40 minutos). Tampoco la cara
+  de conversar, que pide una sesión de voz de pago: se miró en la ventana de prueba y la juzga la 691
+  con los píxeles.
