@@ -1,4 +1,4 @@
-# 001 — «Distribuir App» publica: manda el mensaje que el workflow exige
+# 002 — «Distribuir App» publica: manda el mensaje que el workflow exige
 
 Estado: **implementado** (2026-10-01) · Nace del diagnóstico del 2026-09-30 · Rama: `jose/la-actualizacion-llega`
 
@@ -21,19 +21,19 @@ lo vio.
 
 | # | Promesa | Juez |
 |---|---|---|
-| 101 | «Distribuir App» lanza el workflow de Windows con todos los datos que el workflow declara obligatorios, el mensaje para la persona incluido y sin espacios de sobra | `verify-windows-release.js` |
-| 102 | sin mensaje no se llama a GitHub: se rechaza antes, con un 400 que dice qué falta | `verify-windows-release.js` |
-| 103 | la ruta que usa el botón le pasa al servicio el mensaje que llega en el cuerpo | `verify-windows-release.js` |
+| 201 | «Distribuir App» lanza el workflow de Windows con todos los datos que el workflow declara obligatorios, el mensaje para la persona incluido y sin espacios de sobra | `verify-windows-release.js` |
+| 202 | sin mensaje no se llama a GitHub: se rechaza antes, con un 400 que dice qué falta | `verify-windows-release.js` |
+| 203 | la ruta que usa el botón le pasa al servicio el mensaje que llega en el cuerpo | `verify-windows-release.js` |
 
-La que cierra el asunto es la 101, y lee los obligatorios del propio `.yml` cuando lo tiene a mano: si
+La que cierra el asunto es la 201, y lee los obligatorios del propio `.yml` cuando lo tiene a mano: si
 mañana el workflow exige un cuarto dato, se pone roja en vez de enterarnos por un 422.
 
 ## Las fases
 
 | Fase | Promesa que pone verde | Qué toca | Sitios con esta clase de error |
 |---|---|---|---|
-| 1 | 101, 102 | `src/application/use-cases/WindowsAppReleaseService.js` | 1 dispatch |
-| 2 | 103 | `web/api/registerWindowsDistributionRoutes.js`, `web/public/provider-studio.js` | 1 ruta, 1 botón |
+| 1 | 201, 202 | `src/application/use-cases/WindowsAppReleaseService.js` | 1 dispatch |
+| 2 | 203 | `web/api/registerWindowsDistributionRoutes.js`, `web/public/provider-studio.js` | 1 ruta, 1 botón |
 
 ## Lo que NO entra
 

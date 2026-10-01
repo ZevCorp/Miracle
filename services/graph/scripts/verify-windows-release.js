@@ -1,4 +1,4 @@
-// «Distribuir App» lanza el workflow de Windows con TODO lo que el workflow exige (spec 001).
+// «Distribuir App» lanza el workflow de Windows con TODO lo que el workflow exige (spec 002).
 //
 // Por qué importa: `windows-release.yml` declara `user_message` como input obligatorio (lo que Ü le
 // cuenta a la persona sobre la versión). El servicio mandaba solo `version` y `request_id`, GitHub
@@ -51,7 +51,7 @@ function requiredInputs() {
 }
 
 (async () => {
-  await promesa(101, '«Distribuir App» lanza el workflow de Windows con todos los datos que el workflow declara obligatorios, el mensaje para la persona incluido y sin espacios de sobra', async () => {
+  await promesa(201, '«Distribuir App» lanza el workflow de Windows con todos los datos que el workflow declara obligatorios, el mensaje para la persona incluido y sin espacios de sobra', async () => {
     const calls = [];
     const result = await service(calls).triggerBuild({ userMessage: '  Ahora Ü se actualiza sola.  ' });
     const dispatch = calls.find((c) => c.url.endsWith('/dispatches'));
@@ -67,7 +67,7 @@ function requiredInputs() {
     assert.strictEqual(body.inputs.request_id, result.requestId);
   });
 
-  await promesa(102, 'sin mensaje no se llama a GitHub: se rechaza antes, con un 400 que dice qué falta', async () => {
+  await promesa(202, 'sin mensaje no se llama a GitHub: se rechaza antes, con un 400 que dice qué falta', async () => {
     for (const userMessage of [undefined, '', '   ']) {
       const calls = [];
       await assert.rejects(
@@ -81,7 +81,7 @@ function requiredInputs() {
     assert.strictEqual(calls.length, 0);
   });
 
-  await promesa(103, 'la ruta que usa el botón le pasa al servicio el mensaje que llega en el cuerpo', async () => {
+  await promesa(203, 'la ruta que usa el botón le pasa al servicio el mensaje que llega en el cuerpo', async () => {
     const registrar = require('../web/api/registerWindowsDistributionRoutes');
     const rutas = {};
     const app = { get: () => {}, post: (ruta, ...manejadores) => { rutas[ruta] = manejadores; } };
