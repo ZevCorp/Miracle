@@ -1028,7 +1028,9 @@ internal static class Contrato
         // tres cosas: el blanco («muy opaco»), CUÁNDO hace los gestos («prefiero que sea mucho más basada
         // en acciones reales») y la boca al hablar («extremadamente horrible»). La 444 se reescribió antes
         // de llegar a main: decía «cada 3 a 7 segundos» y «los tres gestos grandes salen».
-        Prueba("444. la carita está viva sin estar ansiosa: sola solo parpadea, cada 8 a 18 segundos —cerrar es más rápido que abrir y el parpadeo entero dura menos de un cuarto de segundo—; girar la cabeza y el pulso no salen solos; el saludo sale solo muy rara vez, entre hora y media y tres horas; y quieta no pide cuadros", LaCaritaEstaVivaSinAnsiedad);
+        // El saludo salió de la 444 el 2026-10-01 (spec 077): decía «sale solo muy rara vez, entre hora y media y tres
+        // horas», y el dueño: «creo que exageramos». Cuándo saluda lo promete ahora la 690.
+        Prueba("444. la carita está viva sin estar ansiosa: sola solo parpadea, cada 8 a 18 segundos —cerrar es más rápido que abrir y el parpadeo entero dura menos de un cuarto de segundo—; girar la cabeza y el pulso no salen solos; y quieta no pide cuadros", LaCaritaEstaVivaSinAnsiedad);
         Prueba("445. la carita blanca es casi blanca sin ser blanca: su cuerpo no llega al blanco puro en ningún punto ni se apaga —el centro no baja de 240 de 255, y arriba, abajo y a los lados no baja de 225—, y conserva el volumen", LaCaritaBlancaEsCasiBlanca);
         Prueba("446. cuando Ü pulsa algo, la carita lo presiona con la mano: saca solo la mano de ese lado, la empuja hacia fuera y la esconde sola en menos de un segundo, por detrás de la cara; la mano no se sale del aire que la ventana de la carita le deja, tampoco al saludar; y solo presiona cuando el pulso es de Ü: señalar no saca la mano", LaCaritaPresionaLoQueUPulsa);
         Prueba("447. los gestos responden a lo que pasa: tocar la carita la hace rebotar, y al ir junto a lo que Ü toca gira la cabeza hacia ello y la sigue teniendo girada aunque cambie de estado", LosGestosRespondenALoQuePasa);
@@ -1048,6 +1050,15 @@ internal static class Contrato
         Prueba("687. unas claves negadas porque la instalación espera aprobación se dicen como espera y no como clave que falta, y se vuelven a pedir cuando hacen falta en vez de darse por perdidas", LasClavesNegadasPorEsperaSeVuelvenAPedir);
         Prueba("688. el instalador no lleva embebida ninguna clave de terceros: en el binario solo viajan la clave para presentarse y el token de actualizaciones", ElInstaladorNoLlevaClavesDeTerceros);
         Prueba("689. encender la voz sin clave se la vuelve a pedir a Graph en ese mismo gesto: si la instalación sigue esperando lo dice con su código y no enciende, y si ya la aprobaron enciende sin reiniciar Ü", EncenderSinClaveLaVuelveAPedir);
+
+        // ── Spec 077: la carita saluda cuando vuelves, y atiende mientras conversas ────────────────
+        // 690-699 reservadas el 2026-10-01. El saludo salía cada 8-18 s, se mandó a cada dos horas y al
+        // día siguiente «exageramos»: lo que el dueño pide no es un número, es que salude cuando hay a
+        // quién saludar.
+        Console.WriteLine();
+        Prueba("690. la carita saluda cuando vuelves: al abrir Ü, al desbloquear el computador, al volver a tocarlo tras cinco minutos sin hacerlo y al acercarle el ratón tras diez minutos sin tratarla; y sola, cada 20 a 40 minutos; nunca dos veces en menos de minuto y medio, ni en mitad de una conversación o de un trabajo", LaCaritaSaludaCuandoVuelves);
+        Prueba("691. mientras conversas con ella y te escucha, la carita atiende: pone la cara quieta y de boca pequeña de cuando graba, distinta de la del reposo; y al hablar sonríe ancho, como siempre", MientrasConversaLaCaritaAtiende);
+        Prueba("692. hay un solo reloj del saludo y vive en la ventana: el dibujo de la carita, solo, únicamente parpadea", HayUnSoloRelojDelSaludo);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -18236,24 +18247,19 @@ internal static class Contrato
         // invasiva»— y saluda «como cada dos horas, con rangos aleatorios pero largos».
         var g = Capacidad("U.WindowsClient.Ui.GestosDeLaCarita");
         var parpadeo = g?.GetMethod("ProximoParpadeo");
-        var saludo = g?.GetMethod("ProximoSaludo");
         var doble = g?.GetMethod("EsDoble");
         var cierra = g?.GetField("CierraMs");
         var abre = g?.GetField("AbreMs");
         var animando = Cara?.GetProperty("Animando");
-        if (parpadeo == null || saludo == null || doble == null || cierra == null || abre == null || animando == null)
+        if (parpadeo == null || doble == null || cierra == null || abre == null || animando == null)
         {
-            Pendiente("Ui.GestosDeLaCarita (ProximoParpadeo, ProximoSaludo, EsDoble, CierraMs, AbreMs) y FaceControl.Animando", "444", "052");
+            Pendiente("Ui.GestosDeLaCarita (ProximoParpadeo, EsDoble, CierraMs, AbreMs) y FaceControl.Animando", "444", "052");
             return;
         }
         double Pp(double d) => (double)parpadeo.Invoke(null, new object[] { d })!;
-        double Ps(double d) => (double)saludo.Invoke(null, new object[] { d })!;
 
         var dados = Enumerable.Range(0, 1000).Select(i => i / 1000.0).ToList();
         Debe(dados.All(d => Pp(d) >= 8 && Pp(d) <= 18), $"sola parpadea cada 8 a 18 s, la cadencia de la carita de siempre ({dados.Min(Pp):0.#}-{dados.Max(Pp):0.#})");
-        Debe(dados.All(d => Ps(d) >= 5400 && Ps(d) <= 10800),
-            $"el saludo sale solo entre hora y media y tres horas ({dados.Min(Ps) / 60:0}-{dados.Max(Ps) / 60:0} min)");
-        Debe(Ps(0.9) - Ps(0.1) > 1800, $"y su plazo cambia de una vez a otra: no es un reloj ({(Ps(0.9) - Ps(0.1)) / 60:0} min entre un dado bajo y uno alto)");
 
         int c = Convert.ToInt32(cierra.GetValue(null)), a = Convert.ToInt32(abre.GetValue(null));
         Debe(c < a, $"cerrar es más rápido que abrir ({c} ms contra {a} ms): así parpadea una cara, no un semáforo");
@@ -18269,8 +18275,7 @@ internal static class Contrato
         if (FuenteDeLaInterfaz("FaceControl.cs") is { } fuente)
         {
             string sola = CuerpoDe(fuente, "public void StartIdle()");
-            Debe(sola.Contains("Blink(") && sola.Contains("Saludar("),
-                "[cableado] lo que la carita hace sola es parpadear y, muy de vez en cuando, saludar (StartIdle)");
+            Debe(sola.Contains("Blink("), "[cableado] lo que la carita hace sola es parpadear (StartIdle)");
             Debe(!sola.Contains("Pulse(") && !sola.Contains("Girar(") && !sola.Contains("MirarHacia(") && !sola.Contains("DoIdleGesture"),
                 "[cableado] sola no gira la cabeza ni da pulsos: eso responde a algo que pasó (StartIdle)");
             Debe(!fuente.Contains("LookAround"), "[cableado] y el mirar a los lados porque sí ya no existe (LookAround)");
@@ -19113,6 +19118,138 @@ internal static class Contrato
             "(el arnés ve los secretos embebidos: si no viera ni la clave de Graph, esta promesa pasaría sin mirar nada)");
         var sobran = embebidos.Where(x => !permitidos.Contains(x.Key)).Select(x => $"{x.Key} en {x.Donde}.dll").ToList();
         Debe(sobran.Count == 0, $"el binario tiene sitio para secretos que no debería llevar: {string.Join(", ", sobran)}");
+    }
+
+    // ── El saludo y la cara de atender (spec 077) ───────────────────────────
+
+    private static void LaCaritaSaludaCuandoVuelves()
+    {
+        // CUÁNDO HAY A QUIÉN SALUDAR. El dueño, el 2026-10-01: «apenas abres el app, o apenas interactúas
+        // como que la estás viendo por primera vez en el día o en el rato, o desbloqueas el computador […]
+        // y luego que vuelva a saludar espontáneamente cada media hora». La regla es pura: el reloj se le
+        // da, y cuánto lleva el PC sin tocarse también.
+        var regla = Capacidad("U.WindowsClient.Ui.ReglaDelSaludo");
+        var motivos = Capacidad("U.WindowsClient.Ui.MotivoDelSaludo");
+        var toca = regla?.GetMethod("Toca");
+        var volvio = regla?.GetMethod("Volvio");
+        var proximo = regla?.GetMethod("ProximoEspontaneo");
+        if (regla == null || motivos == null || toca == null || volvio == null || proximo == null)
+        {
+            Pendiente("Ui.ReglaDelSaludo (Toca, Volvio, ProximoEspontaneo) y Ui.MotivoDelSaludo", "690", "077");
+            return;
+        }
+
+        long ahora = 1_000_000;
+        object Nueva() => Activator.CreateInstance(regla, new object[] { (Func<long>)(() => ahora) })!;
+        bool Toca(object r, string motivo, bool libre = true) => (bool)toca.Invoke(r, new[] { Enum.Parse(motivos, motivo), (object)libre })!;
+        bool Volvio(object r, double quietoSeg) => (bool)volvio.Invoke(r, new object[] { quietoSeg })!;
+        void Pasan(double segundos) => ahora += (long)(segundos * 1000);
+
+        foreach (var m in new[] { "Arranque", "Desbloqueo", "Vuelta", "Acercarse" })
+            Debe(Toca(Nueva(), m), $"«{m}» saluda: es uno de los momentos en que vuelves");
+        Debe(Toca(Nueva(), "Rato"), "y pasado el rato, sola, también saluda");
+
+        // NUNCA DOS SEGUIDOS. Volver de un bloqueo da dos avisos a la vez: el desbloqueo y la primera tecla.
+        var r = Nueva();
+        Debe(Toca(r, "Arranque"), "saluda al abrir Ü");
+        Pasan(5);
+        Debe(!Toca(r, "Desbloqueo"), "a los 5 s de un saludo no saluda otra vez");
+        Pasan(80);
+        Debe(!Toca(r, "Vuelta"), "ni a los 85 s");
+        Pasan(10);
+        Debe(Toca(r, "Vuelta"), "pasado minuto y medio sí (95 s)");
+
+        // NO INTERRUMPE, y no haber podido no es haber saludado.
+        r = Nueva();
+        Debe(!Toca(r, "Desbloqueo", libre: false), "en mitad de una conversación o de un trabajo no saluda");
+        Debe(Toca(r, "Rato"), "y no haber podido no cuenta como saludo: el siguiente motivo sí saluda");
+
+        // LA VUELTA: cinco minutos sin tocar el PC es haberse ido; la primera tecla después, haber vuelto.
+        r = Nueva();
+        Debe(!Volvio(r, 0) && !Volvio(r, 120) && !Volvio(r, 299), "con menos de cinco minutos sin tocar el PC no se ha ido nadie");
+        Debe(!Volvio(r, 300) && !Volvio(r, 900), "mientras sigue sin tocarlo sigue fuera: todavía no ha vuelto");
+        Debe(Volvio(r, 0.4), "la primera vez que lo toca tras cinco minutos, ha vuelto");
+        Debe(!Volvio(r, 2) && !Volvio(r, 0.1), "y vuelve una vez, no en cada tecla");
+        r = Nueva();
+        Volvio(r, 250);
+        Debe(!Volvio(r, 1), "cuatro minutos leyendo la pantalla no es haberse ido");
+
+        // SOLA NO SALUDA A UNA SILLA VACÍA: si te fuiste, el saludo del rato espera, y al volver te saluda la vuelta.
+        r = Nueva();
+        Volvio(r, 400);
+        Debe(!Toca(r, "Rato"), "si llevas cinco minutos sin tocar el PC, el saludo del rato no sale: no hay a quién");
+        Debe(Volvio(r, 1) && Toca(r, "Vuelta"), "y al volver, te saluda la vuelta");
+
+        // ACERCARLE EL RATÓN: solo si hacía diez minutos que no la trataba, y acercárselo ya es tratarla.
+        r = Nueva();
+        Debe(Toca(r, "Arranque"), "saluda al abrir Ü (antes de acercarle el ratón)");
+        Pasan(120);
+        Debe(!Toca(r, "Acercarse"), "acercarle el ratón a los dos minutos de un saludo no saluda");
+        Pasan(9 * 60);
+        Debe(!Toca(r, "Acercarse"), "y acercárselo cuenta como tratarla: nueve minutos después tampoco");
+        Pasan(10 * 60 + 1);
+        Debe(Toca(r, "Acercarse"), "tras diez minutos sin tratarla, acercarle el ratón sí saluda");
+
+        // SOLA: cada media hora, algo así.
+        double P(double d) => (double)proximo.Invoke(null, new object[] { d })!;
+        var dados = Enumerable.Range(0, 1000).Select(i => i / 1000.0).ToList();
+        Debe(dados.All(d => P(d) >= 1200 && P(d) <= 2400), $"sola saluda cada 20 a 40 minutos ({dados.Min(P) / 60:0}-{dados.Max(P) / 60:0})");
+        Debe(P(0.9) - P(0.1) > 600, $"y el plazo cambia de una vez a otra: no es un reloj ({(P(0.9) - P(0.1)) / 60:0} min entre un dado bajo y uno alto)");
+
+        if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } ventana)
+        {
+            Debe(ventana.Contains("SystemEvents.SessionSwitch +=", StringComparison.Ordinal),
+                "[cableado] la ventana se entera de que el computador se desbloqueó (SystemEvents.SessionSwitch)");
+            foreach (var m in new[] { "Arranque", "Desbloqueo", "Vuelta", "Acercarse", "Rato" })
+                Debe(ventana.Contains("MotivoDelSaludo." + m, StringComparison.Ordinal), $"[cableado] la ventana saluda por «{m}»");
+            Debe(ventana.Contains("_saludo.Volvio(", StringComparison.Ordinal), "[cableado] y pregunta cada poco si volviste (ReglaDelSaludo.Volvio)");
+            Debe(CuerpoDe(ventana, "private void OnCollapsedHoverIn(").Contains("MotivoDelSaludo.Acercarse", StringComparison.Ordinal),
+                "[cableado] acercarle el ratón a la carita suelta pasa por la regla del saludo");
+        }
+    }
+
+    private static void MientrasConversaLaCaritaAtiende()
+    {
+        // «QUE CUANDO ESTEMOS HABLANDO TENGA ALGÚN TIPO DE GESTO […] EL QUE DICE GRABANDO, JUSTAMENTE» (el
+        // dueño, 2026-10-01). Desde agosto, conversar era «casi el reposo» a propósito: la alternativa de
+        // entonces eran los ojos como platos y un jadeo continuo. La cara de grabar es quieta.
+        if (Cara == null) { Pendiente("Ui.FaceControl", "691", "077"); return; }
+        byte[] Pinta(string estado) => Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); Poner(c, "Mood", estado); }));
+        int Boca(string estado) => TintaDeLaBoca(Pinta(estado), false).Ancho;
+
+        int reposo = Boca("Reposo"), conversando = Boca("Conversando"), grabando = Boca("Grabando"), hablando = Boca("Hablando");
+        Debe(conversando == grabando, $"conversando pone la boca de cuando graba ({conversando} contra {grabando} de ancho)");
+        Debe(conversando <= reposo - 8, $"distinta de la del reposo: bastante más pequeña ({conversando} contra {reposo})");
+        Debe(hablando >= conversando + 12, $"y al hablar sonríe ancho ({hablando} contra {conversando})");
+
+        var a = Pinta("Conversando"); var b = Pinta("Grabando");
+        int distintos = 0;
+        for (int i = 0; i < a.Length; i += 4)
+            if (a[i] != b[i] || a[i + 1] != b[i + 1] || a[i + 2] != b[i + 2] || a[i + 3] != b[i + 3]) distintos++;
+        Debe(distintos == 0, $"es la misma cara entera, no solo la boca: cejas y ojos también ({distintos} píxel(es) distintos)");
+    }
+
+    private static void HayUnSoloRelojDelSaludo()
+    {
+        // HABÍA DOS, uno por cada dibujo de la carita —la suelta y la del muelle—, sin saber el uno del
+        // otro: ninguna guarda entre saludos puede valer así. El saludo es de la ventana, que es quien sabe
+        // si hay conversación, si la persona volvió y cuándo fue el último.
+        if (Capacidad("U.WindowsClient.Ui.ReglaDelSaludo") == null) { Pendiente("Ui.ReglaDelSaludo", "692", "077"); return; }
+        Debe(Capacidad("U.WindowsClient.Ui.GestosDeLaCarita")?.GetMethod("ProximoSaludo") == null,
+            "el dibujo ya no tiene plazo de saludo (GestosDeLaCarita.ProximoSaludo)");
+        if (FuenteDeLaInterfaz("FaceControl.cs") is { } cara)
+        {
+            string sola = CuerpoDe(cara, "public void StartIdle()");
+            Debe(sola.Contains("Blink(") && !sola.Contains("Saludar("), "[cableado] el dibujo, solo, únicamente parpadea (StartIdle)");
+        }
+        if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } ventana)
+        {
+            string saludar = CuerpoDe(ventana, "private void Saludar(");
+            int llamadas = System.Text.RegularExpressions.Regex.Matches(ventana, @"\.Saludar\(\)").Count;
+            Debe(saludar.Contains("Face.Saludar()") && saludar.Contains("CollapsedFace.Saludar()") && llamadas == 2,
+                $"[cableado] la ventana saluda desde un solo sitio, y a las dos caritas a la vez ({llamadas} llamada(s) a Saludar())");
+            Debe(saludar.Contains("_saludo.Toca("), "[cableado] y ese sitio le pregunta a la regla antes de saludar");
+        }
     }
 
     private static void Debe(bool condicion, string promesa)

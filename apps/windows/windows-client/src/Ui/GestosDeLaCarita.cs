@@ -17,8 +17,7 @@ namespace U.WindowsClient.Ui;
 /// invasivo»—, con la forma nueva: cierra en 70 ms y abre en 130, como en Coucou (<c>blink</c>). La
 /// onda simétrica de 340 ms que había antes se leía como un párpado mecánico.
 ///
-/// El saludo es lo único grande que sale solo, y «como cada dos horas, con rangos aleatorios pero
-/// largos: que sea raro de ver».
+/// El saludo no vive aquí: cuándo saluda lo decide <see cref="ReglaDelSaludo"/>, en la ventana (spec 077).
 ///
 /// Pura: recibe el dado y devuelve el plazo, para que la cadencia se juzgue sin esperar ni azar.
 /// </summary>
@@ -34,9 +33,6 @@ public static class GestosDeLaCarita
 
     /// <summary>Uno de cada cinco parpadeos, más o menos, es doble (Coucou: el 22 %).</summary>
     public static bool EsDoble(double dado) => dado < 0.22;
-
-    /// <summary>Segundos hasta el próximo saludo espontáneo: de hora y media a tres horas.</summary>
-    public static double ProximoSaludo(double dado) => (90 + 90 * Math.Clamp(dado, 0, 1)) * 60;
 
     // ── Cambiar de cara ───────────────────────────────────────────────────────────────────────
     //

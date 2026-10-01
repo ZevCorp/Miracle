@@ -1470,8 +1470,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         LoadSounds();
         WireFaceGestures();
         ApplyTheme(Enum.TryParse(_config.FaceTheme, out FaceTheme t) ? t : FaceTheme.Light);
-        Face.StartIdle();          // lo que hace sola: parpadear y, muy de vez en cuando, saludar
+        Face.StartIdle();          // lo que hace sola: parpadear
         CollapsedFace.StartIdle();
+        EmpezarASaludar();         // y saluda cuando la persona vuelve, y cada media hora (spec 077)
 
         // SE ARRANCA EN LA CARITA, no en la barra. Abrir la aplicación desplegaba las siete
         // herramientas de golpe sobre el trabajo de alguien que no ha pedido ninguna todavía: lo
@@ -2087,6 +2088,112 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             ? $"carita fantasma: el ratón la atraviesa · exstyle=0x{estilo:X}"
             : $"carita en casa: vuelve a dejarse tocar · exstyle=0x{estilo:X}");
     }
+
+    // ── El saludo (spec 077) ──────────────────────────────────────────────────────────────────────────────────────
+
+    private readonly ReglaDelSaludo _saludo = new(() => Environment.TickCount64);
+    private readonly Random _dadoDelSaludo = new();
+    private System.Windows.Threading.DispatcherTimer? _latidoDelSaludo;
+    private long _proximoSaludoSolo;
+
+    /// <summary>
+    /// SALUDA CUANDO VUELVES, Y CADA MEDIA HORA (promesa 690). Un solo reloj y en la ventana (692): había uno por cada
+    /// dibujo de la carita, de hora y media a tres horas, y el dueño: «exageramos […] que salude apenas abres el app, o
+    /// desbloqueas el computador, o apenas estás volviendo a interactuar con ella». Los cuatro avisos entran por
+    /// <see cref="Saludar"/>, que le pregunta a <see cref="ReglaDelSaludo"/>:
+    ///   · abrir Ü: aquí mismo, segundo y medio después de aparecer, para que se la vea llegar;
+    ///   · desbloquear: <c>SystemEvents.SessionSwitch</c>;
+    ///   · volver a tocar el PC: el latido le dice a la regla cuánto lleva sin tocarse (<c>GetLastInputInfo</c>);
+    ///   · acercarle el ratón: <see cref="OnCollapsedHoverIn"/>.
+    /// El latido va cada 2 s y no lee la pantalla: una pregunta a Windows y una comparación de relojes.
+    /// </summary>
+    private void EmpezarASaludar()
+    {
+        if (_latidoDelSaludo != null) return;
+        ProgramarElSaludoSolo();
+        _latidoDelSaludo = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _latidoDelSaludo.Tick += (_, _) =>
+        {
+            if (_saludo.Volvio(SegundosSinTocarElPc())) Saludar(MotivoDelSaludo.Vuelta);
+            else if (Environment.TickCount64 >= _proximoSaludoSolo)
+            {
+                Saludar(MotivoDelSaludo.Rato);
+                ProgramarElSaludoSolo();   // salude o no: si no era el momento, el siguiente llega a su hora
+            }
+        };
+        _latidoDelSaludo.Start();
+
+        // El aviso del desbloqueo llega por el hilo de SystemEvents, y es un evento ESTÁTICO: sin soltarlo al cerrar, la
+        // ventana se quedaría colgada de él.
+        Microsoft.Win32.SystemEvents.SessionSwitch += AlCambiarLaSesion;
+        Closed += (_, __) =>
+        {
+            Microsoft.Win32.SystemEvents.SessionSwitch -= AlCambiarLaSesion;
+            _latidoDelSaludo?.Stop();
+        };
+
+        DentroDe(1500, () => Saludar(MotivoDelSaludo.Arranque));
+    }
+
+    private void AlCambiarLaSesion(object? sender, Microsoft.Win32.SessionSwitchEventArgs e)
+    {
+        if (e.Reason != Microsoft.Win32.SessionSwitchReason.SessionUnlock) return;
+        // Un momento después: al desbloquear, el escritorio tarda en pintarse y el saludo se perdería detrás.
+        Dispatcher.BeginInvoke(() => DentroDe(900, () => Saludar(MotivoDelSaludo.Desbloqueo)));
+    }
+
+    /// <summary>
+    /// EL ÚNICO SITIO QUE SALUDA. Pregunta a la regla, saluda a las dos caritas —es un solo dibujo en dos sitios y solo
+    /// se ve la que está a la vista— y lo anota: el log es lo único que hace medible un gesto.
+    /// </summary>
+    private void Saludar(MotivoDelSaludo motivo)
+    {
+        try
+        {
+            // Libre: a la vista, en reposo y en casa. En una conversación o trabajando no interrumpe, y de visita
+            // junto a lo que Ü pulsa tampoco.
+            bool libre = IsVisible && _mood == FaceMood.Reposo && _visita.Tocable;
+            if (!_saludo.Toca(motivo, libre)) return;
+            Face.Saludar();
+            CollapsedFace.Saludar();
+            ProgramarElSaludoSolo();
+            LogBus.Log("ui-anim", $"saluda: {PorQueSaluda(motivo)}");
+        }
+        // Un saludo que revienta no puede abrir el diálogo de «Ü tropezó»: llega desde un reloj y desde un evento del sistema.
+        catch (Exception e) { LogBus.Log("ui-anim", $"el saludo reventó: {e.GetType().Name}: {e.Message}"); }
+    }
+
+    private static string PorQueSaluda(MotivoDelSaludo motivo) => motivo switch
+    {
+        MotivoDelSaludo.Arranque => "se abrió Ü",
+        MotivoDelSaludo.Desbloqueo => "se desbloqueó el computador",
+        MotivoDelSaludo.Vuelta => $"volviste a tocar el PC tras {ReglaDelSaludo.AusenciaSeg / 60} minutos o más",
+        MotivoDelSaludo.Acercarse => $"le acercaste el ratón tras {ReglaDelSaludo.RatoSinTratarlaSeg / 60} minutos sin tratarla",
+        _ => "pasó el rato",
+    };
+
+    private void ProgramarElSaludoSolo() =>
+        _proximoSaludoSolo = Environment.TickCount64 + (long)(ReglaDelSaludo.ProximoEspontaneo(_dadoDelSaludo.NextDouble()) * 1000);
+
+    private void DentroDe(int ms, Action hacer)
+    {
+        var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms) };
+        t.Tick += (_, _) => { t.Stop(); hacer(); };
+        t.Start();
+    }
+
+    /// <summary>Cuánto hace de la última tecla o movimiento de ratón en este PC, en segundos.</summary>
+    private static double SegundosSinTocarElPc()
+    {
+        var info = new LASTINPUTINFO { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<LASTINPUTINFO>() };
+        return GetLastInputInfo(ref info) ? unchecked((uint)Environment.TickCount - info.dwTime) / 1000.0 : 0;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetLastInputInfo(ref LASTINPUTINFO info);
 
     private System.Windows.Threading.DispatcherTimer? _latidoDeVisita;
 
@@ -2709,6 +2816,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </remarks>
     private void OnCollapsedHoverIn(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        Saludar(MotivoDelSaludo.Acercarse);   // «apenas la estás viendo por primera vez en el rato» (spec 077)
         PintarHalo();   // que aparezca ya con el aspecto que toca, no con el de la vez anterior
         _prevForeground = GetForegroundWindow();   // para que Esc devuelva el teclado a donde estaba
     }
@@ -2860,6 +2968,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // sitios y solo se ve la que está a la vista.
         Face.Pulse();
         CollapsedFace.Pulse();
+        _saludo.Tratada();
         LogBus.Log("ui-anim", "toque: la carita rebota");
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, PlayChime);
     }
