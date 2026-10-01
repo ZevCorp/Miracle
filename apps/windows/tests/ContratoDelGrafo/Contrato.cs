@@ -10905,49 +10905,54 @@ internal static class Contrato
     private static void ElNotchNoQuitaElTeclado()
     {
         var t = Capacidad("U.WindowsClient.Ui.PanelDeAcciones");
-        var responde = t?.GetMethod("AlPreguntarSiActiva", BindingFlags.Public | BindingFlags.Static);
-        if (t == null || responde == null) { Pendiente("PanelDeAcciones.AlPreguntarSiActiva (qué contesta el notch cuando Windows pregunta si un clic lo activa)", "542", "066"); return; }
+        var estilo = t?.GetMethod("EstiloSegunElChat", BindingFlags.Public | BindingFlags.Static);
+        if (t == null || estilo == null) { Pendiente("PanelDeAcciones.EstiloSegunElChat (el estilo de la ventana del notch, con el chat abierto y sin él)", "542", "066"); return; }
+        int Estilo(int ex, bool chatAbierto) => (int)estilo.Invoke(null, new object[] { ex, chatAbierto })!;
 
-        // LA PREGUNTA ES WM_MOUSEACTIVATE: Windows la hace antes de entregar el clic, y de la respuesta
-        // depende quién se queda el teclado. 3 es «no me actives, pero dame el clic»; 4 sería «ni me
-        // actives ni me lo des», y con 4 la onda dejaría de pulsarse.
-        const int WM_MOUSEACTIVATE = 0x21;
-        const long MA_NOACTIVATE = 3, MA_NOACTIVATEANDEAT = 4;
-        (long Respuesta, bool Manejado) Pregunta(int msg, bool chatAbierto)
-        {
-            var args = new object[] { msg, chatAbierto, false };
-            var r = (IntPtr)responde.Invoke(null, args)!;
-            return (r.ToInt64(), (bool)args[2]);
-        }
+        // EL ESTILO, Y NO LA RESPUESTA AL CLIC. La primera versión contestaba MA_NOACTIVATE a WM_MOUSEACTIVATE, el
+        // contrato la dio por buena y el PC la desmintió (2026-09-30, 23:40): tras pulsar la onda, delante no quedaba
+        // el notch… ni la app, sino NINGUNA ventana, y la letra tecleada después no llegaba a nadie. Con
+        // WS_EX_NOACTIVATE en la ventana, medido tres minutos después, las letras caen en la app de delante.
+        const int NOACTIVATE = 0x08000000, LAYERED = 0x80000, TOOLWINDOW = 0x80, TOPMOST = 0x8, TRANSPARENT = 0x20;
+        int deSiempre = LAYERED | TOOLWINDOW | TOPMOST;   // 0x80088: el que trae el notch, leído de su log
 
-        var compacto = Pregunta(WM_MOUSEACTIVATE, false);
-        Debe(compacto.Manejado && compacto.Respuesta == MA_NOACTIVATE,
-            $"compacto, el notch contesta que el clic no lo activa: la app de delante se queda el teclado (contestó {compacto.Respuesta}, manejado: {compacto.Manejado})");
-        Debe(compacto.Respuesta != MA_NOACTIVATEANDEAT,
-            "y no se come el clic: la onda tiene que seguir pulsándose");
+        int compacto = Estilo(deSiempre, false);
+        Debe((compacto & NOACTIVATE) != 0, $"compacto, la ventana del notch no se activa al pulsarla: lleva WS_EX_NOACTIVATE (quedó en 0x{compacto:X})");
+        Debe((compacto & deSiempre) == deSiempre, $"sin perder lo que ya llevaba: en capas, de herramienta y siempre encima (quedó en 0x{compacto:X})");
+        Debe(Estilo(compacto, false) == compacto, "y ponerlo dos veces deja lo mismo que una");
 
-        var conChat = Pregunta(WM_MOUSEACTIVATE, true);
-        Debe(!conChat.Manejado && conChat.Respuesta == 0,
-            $"con el chat abierto no contesta nada y Windows lo activa como a cualquier ventana: ahí se escribe (contestó {conChat.Respuesta}, manejado: {conChat.Manejado})");
+        int conChat = Estilo(compacto, true);
+        Debe((conChat & NOACTIVATE) == 0, $"con el chat abierto se le quita: ahí se escribe, y una ventana que no se activa no recibe el teclado (quedó en 0x{conChat:X})");
+        Debe(conChat == deSiempre, $"y solo se le quita eso (quedó en 0x{conChat:X}, se esperaba 0x{deSiempre:X})");
+        Debe(Estilo(conChat, false) == compacto, "al cerrar el chat vuelve a no activarse");
 
-        // SOLO ESA PREGUNTA. Un gancho que se quedara con el botón, la activación de verdad o el pintado del
-        // marco dejaría al notch sordo o a medio activar; ninguno de esos es suyo.
-        foreach (var (msg, nombre) in new[] { (0x201, "el botón que baja"), (0x202, "el botón que sube"), (0x06, "WM_ACTIVATE"), (0x86, "WM_NCACTIVATE"), (0x200, "el movimiento") })
-            foreach (bool chat in new[] { false, true })
-            {
-                var otro = Pregunta(msg, chat);
-                Debe(!otro.Manejado && otro.Respuesta == 0, $"no se queda con {nombre} (chat abierto: {chat}): contestó {otro.Respuesta}, manejado: {otro.Manejado}");
-            }
+        // EL NOTCH APARTADO (promesa 527) es otro bit sobre la misma ventana: ninguno de los dos pisa al otro.
+        Debe((Estilo(deSiempre | TRANSPARENT, false) & TRANSPARENT) != 0 && (Estilo(compacto | TRANSPARENT, true) & TRANSPARENT) != 0,
+            "ni al ponerlo ni al quitarlo se lleva por delante el bit del notch apartado");
 
-        // [cableado] La respuesta tiene que estar enganchada a la ventana de verdad y leer el estado vivo; y
-        // abrir el chat tiene que seguir pidiendo el teclado A MANO, porque el clic que lo abre ya no lo trae.
+        // [cableado] El estilo se ajusta en los TRES momentos en que cambia la respuesta: al nacer la ventana, al
+        // abrir el chat y al cerrarlo. Y abrir el chat sigue pidiendo el teclado A MANO, porque el clic que lo
+        // abre cae en una ventana que no se activa.
         if (FuenteDe("windows-client", "src", "Ui", "PanelDeAcciones.cs") is not { } panel) return;
         string Metodo(string firma) => System.Text.RegularExpressions.Regex.Match(panel, System.Text.RegularExpressions.Regex.Escape(firma) + @"[\s\S]*?\r?\n    }\r?\n").Value;
-        string alNacer = Metodo("protected override void OnSourceInitialized(EventArgs e)");
-        Debe(alNacer.Contains("AddHook(", StringComparison.Ordinal) && panel.Contains("AlPreguntarSiActiva(msg, ChatAbierto, ref manejado)", StringComparison.Ordinal),
-            "[cableado] la respuesta no está enganchada a la ventana del notch con el estado vivo del chat: Windows no llega a preguntarle");
+        bool Despues(string metodo, string primero, string luego)
+        {
+            int i = metodo.IndexOf(primero, StringComparison.Ordinal);
+            return i >= 0 && metodo.IndexOf(luego, i, StringComparison.Ordinal) > i;
+        }
+        Debe(Metodo("private void AjustarActivacion()").Contains("EstiloSegunElChat(", StringComparison.Ordinal)
+             && Metodo("private void AjustarActivacion()").Contains("ChatAbierto", StringComparison.Ordinal),
+            "[cableado] quien ajusta el estilo de la ventana no pregunta a la regla con el estado vivo del chat");
+        Debe(Metodo("protected override void OnSourceInitialized(EventArgs e)").Contains("AjustarActivacion();", StringComparison.Ordinal),
+            "[cableado] al nacer la ventana del notch no se le pone el estilo: el primer clic le quitaría el teclado a la app");
+        Debe(Despues(Metodo("public void AbrirChat(bool enfocar)"), "ChatAbierto = true;", "AjustarActivacion();"),
+            "[cableado] al abrir el chat no se le quita el estilo: se abriría una caja de texto en una ventana que no recibe el teclado");
+        Debe(Despues(Metodo("public void CerrarChat()"), "ChatAbierto = false;", "AjustarActivacion();"),
+            "[cableado] al cerrar el chat no se le vuelve a poner el estilo: el notch compacto volvería a quitar el teclado");
         Debe(Metodo("private void EnfocarEntrada()").Contains("Activate();", StringComparison.Ordinal),
             "[cableado] abrir el chat ya no pide el teclado a mano: el clic que lo abre cae en el notch compacto y no lo trae");
+        Debe(!panel.Contains("GanchoDeActivacion", StringComparison.Ordinal) && !panel.Contains("AlPreguntarSiActiva", StringComparison.Ordinal),
+            "[cableado] sigue ahí el gancho que contestaba al clic, que el PC desmintió: lo que no sirve se borra, no se deja de adorno");
     }
 
     /// <summary>Promesa 531.</summary>
