@@ -1,13 +1,13 @@
 name: Android · APK
 
-# Compila el APK release (firmado con la clave compartida del repo) y lo publica como artefacto
-# descargable. Se dispara a mano (workflow_dispatch), en cada push a main que toque apps/android/, y en
-# cada PR que lo toque.
+# Juzga el contrato de Android y compila el APK release (firmado con la clave compartida del repo),
+# que publica como artefacto descargable. Se dispara a mano (workflow_dispatch), en cada push a main
+# que toque apps/android/, y en cada PR que lo toque (lo llama la compuerta, monorepo.yml).
 #
-# Venía de ZevCorp/Android (.github/workflows/build-apk.yml) y entró al monorepo el 2026-09-28. Lo
-# único nuevo es el disparo en PR: en el repo propio el portero local ya compilaba antes de empujar,
-# pero en el monorepo quien toca apps/android/ puede no tener el SDK, y un APK que no compila se tiene que
-# ver antes de main, no después.
+# Venía de ZevCorp/Android (.github/workflows/build-apk.yml) y entró al monorepo el 2026-09-28. En
+# el repo propio el portero local ya compilaba y juzgaba antes de empujar, pero en el monorepo quien
+# toca apps/android/ puede no tener el SDK: aquí es donde se ve antes de main, no después. El
+# contrato (scripts/contrato.sh) corre aquí desde el 2026-09-30; hasta entonces el CI solo compilaba.
 #
 # La OpenAI API key (y las demás) se hornean desde SECRETS del repo, nunca desde git. Configúralos en
 # Settings → Secrets and variables → Actions:  OPENAI_KEY, GEMINI_KEY, DEEPGRAM_KEY (todos opcionales;
@@ -20,9 +20,8 @@ on:
   push:
     branches: [main]
     paths: ['apps/android/**', '!apps/android/**/*.md', '.github/workflows/android-apk.yml']
-  pull_request:
-    branches: [main]
-    paths: ['apps/android/**', '!apps/android/**/*.md', '.github/workflows/android-apk.yml']
+  # En un PR lo llama la compuerta (monorepo.yml) cuando el PR toca Android.
+  workflow_call:
 
 jobs:
   build:
@@ -55,11 +54,18 @@ jobs:
             echo "deepgramKey=${{ secrets.DEEPGRAM_KEY }}"
           } > apikey.properties
 
+      # El mismo juez que corre el portero local. Su última línea es el veredicto.
+      - name: El contrato
+        run: ./scripts/contrato.sh
+
+      # Aunque el contrato esté roto: que el APK compile o no es otra pregunta, y conviene saber las dos.
       - name: Build release APK
+        if: ${{ !cancelled() }}
         run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
 
       # upload-artifact no mira working-directory: la ruta es desde la raíz del repo.
       - name: Upload APK
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: miracle-release-apk

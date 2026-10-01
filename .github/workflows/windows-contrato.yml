@@ -15,9 +15,9 @@ name: Windows · contrato
 # que esperar al runner de Windows, ni uno de Windows al build de Next.js.
 
 on:
-  pull_request:
-    branches: [main]
-    paths: ['apps/windows/**', '.github/workflows/windows-contrato.yml']
+  # En un PR lo llama la compuerta (monorepo.yml) cuando el PR toca Windows: es el único check que
+  # main exige, y un workflow con filtro de rutas que no corre lo dejaría pendiente para siempre.
+  workflow_call:
   push:
     branches: [main]
     paths: ['apps/windows/**', '.github/workflows/windows-contrato.yml']

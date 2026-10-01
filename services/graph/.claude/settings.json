@@ -1,9 +1,4 @@
 {
-  "permissions": {
-    "allow": [
-      "PowerShell(Get-Process -Name U -ErrorAction SilentlyContinue)"
-    ]
-  },
   "hooks": {
     "PreToolUse": [
       {
