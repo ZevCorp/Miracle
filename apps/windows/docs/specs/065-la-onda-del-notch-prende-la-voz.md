@@ -86,7 +86,9 @@ Lo que no se puede pulsar sin la app entera —que `FaceWindow` cuelgue esa señ
 **Contrato:** cada promesa roja antes de su código (`⧗ PENDIENTE: «PanelDeAcciones.VozSolicitada
 (la señal del botón de la onda)» todavía no existe`, con 365 en verde; después `⧗ PENDIENTE:
 «PanelDeAcciones.Olvidar (volver a la onda al retirarse)»`, con 366), e INTACTO al final: 367 en
-verde, 0 rotas. Corrido en Release, en esta máquina (1920 × 1080 al 125 %).
+verde, 0 rotas. Corrido en Release, en esta máquina (1920 × 1080 al 125 %). Tras el rebase sobre
+`main` —que trajo las dos promesas de la spec 070—, `verificar.ps1`: contrato 369/369 y contrato de
+la voz 46/46, 0 pendientes. Los escenarios no se corrieron: el único que hay es de `explorer`.
 
 **Sabotaje, comprobado que se aplicó** (la línea saboteada se buscó en el archivo antes de cada
 corrida, y los archivos se restauraron de una copia, no con `git checkout`):
