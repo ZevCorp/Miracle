@@ -340,6 +340,9 @@ estudios: se lee con calma y se vuelve a ella con Alt+Tab. Después: `CONTRATO I
 - [x] Sabotaje: las diez se ponen rojas, cada una por lo suyo
 - [x] Probado con los datos reales de este PC: el óvalo vestido y la ventana de la Memoria, por una sonda
 - [x] La app entera, con el ratón del dueño: el muelle con su hover, el collar, y el panel cambiando de lado
-- [ ] **Sin hacer:** en la app entera y con el ratón, el segundo toque en «Memoria» (que la quite si
-      estaba delante y la traiga si llevaba rato detrás), y volver a abrir Ü para ver que nace a la izquierda.
-- [ ] `.\scripts\verificar.ps1`: exige el árbol commiteado, y esta rama está sin commitear
+- [ ] **Sin hacer:** en la app entera y con el ratón, pulsar «Memoria» y su segundo toque (que la quite
+      si estaba delante y la traiga si llevaba rato detrás), y volver a abrir Ü para ver que nace a la
+      izquierda. En su prueba con la app entera el dueño cambió el panel de lado once veces y abrió el
+      collar; «Memoria» no la pulsó.
+- [x] `.\scripts\verificar.ps1` con el árbol commiteado (23:39): contrato 379/379, contrato de la voz
+      46/46, 0 pendientes. Escenarios: NO CORRIDO.
