@@ -98,3 +98,40 @@ contaron las líneas saboteadas en el archivo antes de cada corrida):
 
 Sitios donde cambia si el notch debe activarse: 3 (nace la ventana, se abre el chat, se cierra), y
 los 3 llaman a `AjustarActivacion`.
+
+**Sobre el PC real** (una Ü de pruebas aparte en `C:\U-versiones\onda`, con datos propios y clave
+de voz inventada; una ventana testigo con una caja de texto; clics con `mouse_event`, letras con
+`keybd_event`, y antes de cada clic se comprobó con `WindowFromPoint` qué ventana había debajo;
+1 pantalla, 1920 × 1080 al 125 %; se esperó a que el PC llevara más de 20 s sin tocarse). Tres
+pasadas, y la que vale es la última:
+
+| Hora | Qué llevaba el notch | Tras pulsar la onda, delante queda | La letra tecleada después |
+|---|---|---|---|
+| 23:40 | la respuesta `MA_NOACTIVATE` (primera versión) | una ventana sin título, o ninguna | no se tecleó: lo de delante ya no era de la prueba |
+| 23:43 | lo mismo, más `WS_EX_NOACTIVATE` puesto desde fuera | el testigo | cae en el testigo |
+| 00:03 | solo el estilo, puesto por la propia app (build definitivo) | el testigo | cae en el testigo |
+
+La pasada de las 00:03, del diario de la prueba y del log de esa Ü:
+
+```
+00:02:59.396  tecla 't' con el testigo delante -> CAYO EN EL TESTIGO (su caja dice 't')
+00:03:00.449  notch asomado a los 614 ms, exstyle 0x8080088 -> delante sigue el testigo
+00:03:02.004  clic [onda, firmado por U] -> delante queda el testigo
+[00:03:01] toque: toque de Ü sobre 0x1A04E2 (msg 0x201): descartado, no es la persona
+00:03:02.451  tecla 'f' -> CAYO EN EL TESTIGO (su caja dice 'tf')
+00:03:03.206  clic [onda, la persona] -> delante queda el testigo
+[00:03:02] notch: onda pulsada: se pide alternar la voz
+[00:03:03] voz-viva: no se pudo abrir la sesión: The server returned status code '401' …
+00:03:03.651  tecla 'o' -> CAYO EN EL TESTIGO (su caja dice 'tfo')
+00:03:09.325  clic [mensajes, la persona] -> delante queda 'Ü Acciones'
+00:03:10.498  tecla 'c' con 'Ü Acciones' delante -> NO cayo en el testigo (su caja sigue diciendo 'tfo')
+00:03:10.668  NO SE PULSA [cerrar el chat]: bajo el punto esta 'Ü Acciones', no la ventana esperada
+```
+
+El 401 es la clave inventada: la onda pidió la voz y la sesión no llegó a abrirse. El último clic
+no se dio, y está bien que no se diera: debajo del punto estaba el notch de OTRA Ü
+(`C:\U-versiones\main\U.exe`, abierta en el mismo PC a las 23:52), que asoma en el mismo sitio.
+
+**Lo que NO se midió sobre el PC:** una segunda pantalla u otra escala; una app a pantalla completa
+debajo; y, en esa pasada, cerrar el chat con el build definitivo (sí se cerró en la de las 23:43).
+Una pantalla es un dato incompleto.
