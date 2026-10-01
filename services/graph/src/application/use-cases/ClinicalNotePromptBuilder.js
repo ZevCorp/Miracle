@@ -22,7 +22,8 @@ const { GROUNDING_LEVELS } = require('../../domain/clinical/grounding');
 const speakerLabels = require('../../domain/clinical/speakerLabels');
 
 // 6: hablantes etiquetados y prioridad del médico (spec 070).
-const PROMPT_VERSION = clauses.promptVersion('clinical-note', '6');
+// 7: lo que sólo dice el paciente no es un diagnóstico conocido (promesa 610).
+const PROMPT_VERSION = clauses.promptVersion('clinical-note', '7');
 // Vocabulario de la columna user_preferences.note_detail en producción
 // (concisa | estandar | detallada). 'estandar' no emite nada.
 const NOTE_DETAILS = Object.freeze(['concisa', 'estandar', 'detallada']);
@@ -54,6 +55,14 @@ const DOCTOR_PRIORITY = [
   '- Hallazgos del examen, interpretación de estudios, diagnósticos, decisiones, medicamentos, dosis y órdenes se toman de lo que dijo el médico.',
   '- Si el paciente o un acompañante afirma algo que el médico corrige, precisa o descarta, prevalece lo que dice el médico. Lo del paciente sólo se conserva, como referido por el paciente, si aporta al relato ("refiere que pensó que era una alergia").',
   '- Un síntoma, antecedente o diagnóstico que sólo menciona el paciente o su acompañante se documenta como referido por el paciente, nunca como hallazgo ni como diagnóstico.',
+  '- Lo mismo con un dato: si el paciente da una dosis, una fecha o una cifra y el médico da otra (de la historia, de un informe o de lo que mide), el dato de la nota es el del médico, y el del paciente sólo aparece con su fuente: "Losartán 50 mg al día según la historia clínica; el paciente refiere tomar 100 mg". Nunca "Toma losartán 100 mg".',
+  // Medido el 2026-09-30 (gpt-4.1-mini): con sólo la regla de arriba, «yo tengo
+  // gastritis» y «él es diabético» salían como «paciente con diagnóstico conocido
+  // de gastritis y diabetes» en 3 de 3. El modelo necesita la frase prohibida,
+  // la frase correcta y el caso de la conducta, no el principio.
+  '- Que el paciente o su acompañante diga que tiene una enfermedad ("yo tengo gastritis", "él es diabético", "soy hipertenso") NO es un diagnóstico conocido si el médico no lo confirma ni lo lee de la historia o de un informe. Se escribe SIEMPRE con su fuente, en todas las secciones: "Refiere antecedente de gastritis", "La acompañante refiere que es diabético", "Refiere hipertensión en tratamiento con losartán". Están prohibidas las formas que lo dan por cierto: "paciente con gastritis", "diagnóstico conocido de…", "paciente diabético", "antecedente de diabetes" a secas.',
+  '- Un diagnóstico así tampoco se usa como motivo de una conducta. La conducta se justifica con el síntoma, el hallazgo o lo que dijo el médico: omeprazol "por ardor epigástrico", no "para la gastritis"; glicemia "porque nunca se le ha medido la glucosa y la acompañante refiere que es diabético", no "por su diabetes". Un estudio que se pide para saber si existe una enfermedad que sólo refiere el paciente o su acompañante se escribe "para confirmar o descartar" esa enfermedad: "glicemia en ayunas para confirmar o descartar diabetes".',
+  '- Sí son diagnósticos conocidos los que el médico afirma, los que lee de la historia clínica ("veo en su historia que es hipertenso") y los que cita de un informe o estudio.',
   '- Si no puedes saber si algo clínicamente relevante lo dijo el médico, no se lo atribuyas: documéntalo como referido y añade un warning.'
 ].join('\n');
 
@@ -78,12 +87,12 @@ const CLINICAL_REASONING = [
   'RAZONAMIENTO CLÍNICO (SEMIOLOGÍA) — aplica a las secciones interpretativas:',
   '- Una pregunta del médico no es un síntoma. "¿Le duele el pecho al caminar?" sólo se documenta según lo que el paciente respondió, con sus palabras y sus matices ("pasajero", "a veces", "antes sí, ahora no").',
   '- Caracteriza cada síntoma con los atributos que el relato aporte: inicio y tiempo de evolución, localización, carácter, intensidad, irradiación, desencadenantes, atenuantes, síntomas acompañantes y evolución. Solo los que se dijeron.',
-  '- Distingue signo, sospecha y diagnóstico. Un diagnóstico sólo se escribe como tal si el médico lo afirmó o ya venía establecido en la historia. Lo que el médico describe como hallazgo o probabilidad ("tiene signos de", "parece que tiene", "lo más probable", "vamos a descartar") se escribe como hallazgo o sospecha, junto con los signos que lo sustentan: "Signos de insuficiencia venosa en pierna izquierda (venas tortuosas, piel ocre en tercio distal), en estudio", nunca "Insuficiencia venosa".',
+  '- Distingue signo, sospecha y diagnóstico. Un diagnóstico sólo se escribe como tal si el médico lo afirmó, o si ya venía establecido en la historia clínica o en un informe que el médico cita; que lo diga el paciente no lo establece. Lo que el médico describe como hallazgo o probabilidad ("tiene signos de", "parece que tiene", "lo más probable", "vamos a descartar") se escribe como hallazgo o sospecha, junto con los signos que lo sustentan: "Signos de insuficiencia venosa en pierna izquierda (venas tortuosas, piel ocre en tercio distal), en estudio", nunca "Insuficiencia venosa".',
   '- Si no queda claro si algo ya es un diagnóstico, escríbelo como sospecha y añade un warning que lo pregunte: "¿Confirmas el diagnóstico de …?".',
   '',
   'SECCIÓN DE ANÁLISIS (la que la plantilla dedica al análisis, la impresión diagnóstica, la evolución o el concepto; su key cambia entre plantillas):',
   'Es el corazón de la nota: un médico que lea SOLO esta sección debe saber en qué está el paciente, por qué vino, qué se decidió, por qué y cuál es el paso siguiente. Se redacta como texto cohesionado, en este orden y nunca al revés:',
-  '  1. Contexto: quién es el paciente (edad, sexo) con sus diagnósticos conocidos NOMBRADOS uno por uno (nunca "antecedentes anotados"), y por qué consulta o quién lo remite.',
+  '  1. Contexto: quién es el paciente (edad, sexo) con sus diagnósticos conocidos NOMBRADOS uno por uno (nunca "antecedentes anotados"; conocidos son los que afirma el médico o trae la historia: los que sólo refiere el paciente o su acompañante van como "refiere…"), y por qué consulta o quién lo remite.',
   '  2. Desarrollo: lo que refirió el paciente, lo que se encontró al examen, los estudios relevantes con sus cifras y lo que significan tal como el médico los interpretó. Agrupa por problema. Incluye lo que el médico dijo del control ("cifras fuera de metas pese a cuatro antihipertensivos").',
   '  3. Conclusión y conducta: cada decisión con su justificación ("Por … se solicita …"). Agrupa los estudios bajo el problema o la hipótesis que investigan. Las decisiones de NO hacer algo también son conducta y llevan su motivo ("no se aumenta la antihipertensiva hasta descartar causas secundarias"). Cierra con el paso siguiente.',
   '- Si la plantilla tiene otra sección para el plan, en el análisis la conducta va resumida y justificada; el detalle (dosis, lista de órdenes) queda en el plan.',
@@ -99,7 +108,7 @@ const CLINICAL_REASONING = [
   '- Dentro de un grupo, un elemento por línea precedido de "- " (una orden, un medicamento, un hallazgo). Si un grupo lleva encabezado, va en su propia línea y termina en dos puntos ("Estudios para hipertensión secundaria:").',
   '- Nada de markdown: ni asteriscos, ni numerales, ni negritas. Nunca un bloque único y largo si la sección trae más de una idea.',
   '',
-  'CONTRADICCIONES: si dos datos de la consulta se contradicen (p. ej. un informe dice "hipertensión pulmonar" y otro "baja probabilidad de hipertensión pulmonar"), consigna ambos con su fuente y añade un warning. No elijas uno.'
+  'CONTRADICCIONES: si dos datos de la consulta se contradicen (p. ej. un informe dice "hipertensión pulmonar" y otro "baja probabilidad de hipertensión pulmonar"), consigna ambos con su fuente y añade un warning. No elijas uno. Esto vale entre dos fuentes del mismo peso (dos informes, dos afirmaciones del médico). Entre lo que dice el paciente y lo que dice el médico no hay empate: aplica la PRIORIDAD DEL MÉDICO.'
 ].join('\n');
 
 const PUNCTUATION_RULES = [
