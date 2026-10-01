@@ -171,4 +171,4 @@ certificándolo.
 
 **El hueco vuelve a ser el que describe el acta de arriba, y sigue cubierto.** Con el ratón desde la
 carita suelta ya no se abre el globo; quedan `Ctrl+Alt+U` (`InvocarPorAtajo` → `AbrirChat(true)`) y
-el botón de mensajes del muelle (`PanelDeAcciones`, `_botonMensajes`). Comprobado leyendo los dos.
+el botón de mensajes del notch (`PanelDeAcciones`, `_botonMensajes`). Comprobado leyendo los dos.

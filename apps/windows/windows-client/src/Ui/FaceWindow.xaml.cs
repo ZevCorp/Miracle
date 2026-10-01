@@ -2521,7 +2521,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// Hasta el 2026-09-02 aquí asomaban tres pastillas —hablar, escribir, dictar a SAP— (spec 011),
     /// y hasta el 2026-09-30 la línea «Escríbele…» tras segundo y medio de ratón quieto (promesa
     /// 167). La quitó el dueño: «no nos gusta». Para escribirle quedan Ctrl+Alt+U y el botón de
-    /// mensajes del muelle, y así el hover deja de abrir nada encima del trabajo de nadie.
+    /// mensajes del notch, y así el hover deja de abrir nada encima del trabajo de nadie.
     /// </remarks>
     private void OnCollapsedHoverIn(object sender, System.Windows.Input.MouseEventArgs e)
     {

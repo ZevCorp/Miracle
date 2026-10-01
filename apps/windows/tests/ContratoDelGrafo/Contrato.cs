@@ -460,7 +460,7 @@ internal static class Contrato
         // 167 RETIRADA el 2026-09-30 por el dueño (spec 011, acta de la 167): la línea «Escríbele…»
         // que asomaba tras segundo y medio de ratón quieto sobre la carita se quitó entera —«no nos
         // gusta»—, y con ella ReglaDeLaLinea, que era lo único que esta promesa juzgaba. Escribirle
-        // sigue a mano por Ctrl+Alt+U y por el botón de mensajes del muelle. Los números no se reciclan.
+        // sigue a mano por Ctrl+Alt+U y por el botón de mensajes del notch. Los números no se reciclan.
 
         // LA LECCIÓN QUE CLAUDE VE (spec 013, 2026-09-06). El pantallazo por paso se disparaba AL
         // OBSERVAR el paso —después del clic y de su efecto—, que es la carrera que el dueño lleva
