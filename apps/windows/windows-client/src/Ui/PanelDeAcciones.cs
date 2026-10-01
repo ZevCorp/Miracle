@@ -422,6 +422,41 @@ public sealed class PanelDeAcciones : Window
         var h = new WindowInteropHelper(this).Handle;
         SetWindowLong(h, GWL_EXSTYLE,
             GetWindowLong(h, GWL_EXSTYLE) | WS_EX_LAYERED | WS_EX_TOOLWINDOW);
+        AjustarActivacion();
+    }
+
+    private const int WS_EX_NOACTIVATE = 0x08000000;
+
+    /// <summary>
+    /// EL ESTILO DE LA VENTANA DEL NOTCH SEGÚN ESTÉ EL CHAT (promesa 542, spec 066). Compacto lleva
+    /// WS_EX_NOACTIVATE: el clic llega, pero la ventana no se activa y la app de delante se queda el
+    /// teclado. Con el chat abierto se le quita, porque ahí se escribe. No toca ningún otro bit.
+    /// </summary>
+    /// <remarks>
+    /// LO QUE PASABA, medido el 2026-09-30: pulsar la onda para prender la voz dejaba de delante a
+    /// «Ü Acciones» en vez de la app en la que se estaba escribiendo, y había que volver a hacerle clic.
+    ///
+    /// Y LO QUE NO LO ARREGLÓ, medido ese mismo día a las 23:40: contestar «no me actives» a la pregunta
+    /// que Windows hace antes de cada clic. El notch dejó de activarse, sí, pero la app de delante
+    /// perdió el teclado igual: delante dejó de estar ella —quedó una ventana sin título, o ninguna:
+    /// la sonda de esa pasada no las distinguía—. Con este estilo —el de los teclados en pantalla, y el que ya lleva
+    /// <see cref="AuraDeAprendizaje"/>— las letras tecleadas tras pulsar la onda cayeron en la app.
+    ///
+    /// Abrir el chat no depende de que el clic active: <see cref="EnfocarEntrada"/> pide el teclado a
+    /// mano con Activate(), que es justo lo que hace falta ahora que el clic no lo trae.
+    ///
+    /// Pura y estática para que el contrato la juzgue sin ventana.
+    /// </remarks>
+    public static int EstiloSegunElChat(int exstyle, bool chatAbierto) =>
+        chatAbierto ? exstyle & ~WS_EX_NOACTIVATE : exstyle | WS_EX_NOACTIVATE;
+
+    /// <summary>Pone en la ventana viva el estilo que toca. Sin ventana todavía, no hay nada que
+    /// ajustar: lo hará <see cref="OnSourceInitialized"/> cuando nazca.</summary>
+    private void AjustarActivacion()
+    {
+        var h = new WindowInteropHelper(this).Handle;
+        if (h == IntPtr.Zero) return;
+        SetWindowLong(h, GWL_EXSTYLE, EstiloSegunElChat(GetWindowLong(h, GWL_EXSTYLE), ChatAbierto));
     }
 
     /// <summary>Empieza un paso: se pinta YA, antes de saber cómo acaba. Ese instante es el tiempo real.</summary>
@@ -469,6 +504,7 @@ public sealed class PanelDeAcciones : Window
         ChatSolicitado?.Invoke();
         if (ChatAbierto) { if (enfocar) EnfocarEntrada(); return; }
         ChatAbierto = true;
+        AjustarActivacion();   // ahí se escribe: la ventana vuelve a poder quedarse el teclado (promesa 542)
         _caducar.Stop();
         _asomadoSoloPorHover = false;
         _contenidoCompacto.Visibility = Visibility.Collapsed;
@@ -490,6 +526,7 @@ public sealed class PanelDeAcciones : Window
     {
         if (!ChatAbierto) return;
         ChatAbierto = false;
+        AjustarActivacion();   // compacto otra vez: pulsarlo no le quita el teclado a nadie (promesa 542)
         _contenidoChat.Visibility = Visibility.Collapsed;
         _contenidoCompacto.Visibility = Visibility.Visible;
         _notch.Width = MedidaDelNotch.Ancho;
