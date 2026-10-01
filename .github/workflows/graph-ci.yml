@@ -2,18 +2,19 @@ name: Graph · CI
 
 # Graph es el servicio del que dependen los cuatro clientes, y hasta el 2026-09-28 no tenía ninguna
 # compuerta automática: sus intentos de CI (best-practices, frontend-build-step, chore/portero) se
-# quedaron en ramas sin mergear. Este workflow no inventa nada: corre el `npm test` que Graph ya tenía
-# (33 verificaciones offline con dobles de Supabase y del LLM), que pasó en local tal cual el día que
-# entró al monorepo.
+# quedaron en ramas sin mergear. Este workflow corre `npm test`, que es el contrato de Graph
+# (scripts/contrato.js): sus verificaciones offline con dobles de Supabase y del LLM, cruzadas con
+# las promesas de docs/specs/. Sale en rojo si una promesa no se cumple, y también si un verify no
+# es juez de ninguna fila.
 #
-# Node 24, la versión del proyecto en Vercel. Los tests SQL (test:sql) necesitan una base real y no
-# corren aquí. Desde el 2026-10-01 corre también el pytest del orquestador de voz Python
-# (bounded/miracle-ai), que tenía pruebas y no corrían en ningún CI.
+# Node 24, la versión del proyecto en Vercel. La promesa 22 necesita un Postgres real y aquí no lo
+# hay: el veredicto la nombra como sin juzgar, no la cuenta como cumplida.
+# Desde el 2026-10-01 corre también el pytest del orquestador de voz Python (bounded/miracle-ai), que
+# tenía pruebas y no corrían en ningún CI.
 
 on:
-  pull_request:
-    branches: [main]
-    paths: ['services/graph/**', '.github/workflows/graph-ci.yml']
+  # En un PR lo llama la compuerta (monorepo.yml) cuando el PR toca Graph.
+  workflow_call:
   push:
     branches: [main]
     paths: ['services/graph/**', '.github/workflows/graph-ci.yml', '.github/workflows/vercel-desplegar.yml']

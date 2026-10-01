@@ -9,7 +9,8 @@
 # Por qué un despachador y no un portero único (2026-09-28): cada proyecto se verifica con su propia
 # herramienta —Windows con dotnet y su contrato, Android con Gradle y el suyo— y exigirle a una rama
 # que solo toca el portal que compile WPF bloqueaba a quien empuja desde un Mac. Un proyecto sin
-# portero local (hoy web, graph y mac) lo juzga su CI en el PR; aquí se dice, no se calla.
+# portero local (hoy solo el portal) lo juzga su CI en el PR; aquí se dice, no se calla. Los de
+# Windows, Mac y Graph declaran lo suyo y cargan el motor común (tools/monorepo/portero.sh).
 #
 # Qué toca cada push sale de LO QUE SE EMPUJA (las refs que git pasa por stdin), no del árbol de
 # trabajo. Sin stdin (corrido a mano) se mira HEAD.
@@ -93,6 +94,18 @@ if [ "$todo" -eq 1 ] || printf '%s\n' "$tocado" | grep -vE '^(apps|services)/' |
     verde "  ✔  la raíz sigue en orden"
   else
     fallos=$((fallos+1))
+  fi
+  # Las herramientas comunes tienen su contrato (el guardia de los árboles, el motor de los
+  # porteros y el mapa de graphify). Se juzga solo cuando la rama las toca: tarda ~1 min en Windows.
+  if [ "$todo" -eq 1 ] || printf '%s\n' "$tocado" | grep -qE '^(tools/monorepo/|tools/graphify/|\.githooks/)'; then
+    gris "  … el contrato de la raíz"
+    if salida="$(bash tools/monorepo/contrato.sh 2>&1)" && printf '%s' "$salida" | grep -q "CONTRATO INTACTO"; then
+      verde "  ✔  $(printf '%s\n' "$salida" | grep -o 'CONTRATO INTACTO: [0-9]* promesas' | tail -1)"
+    else
+      rojo  "  ✘  CONTRATO DE LA RAÍZ ROTO"
+      printf '%s\n' "$salida" | grep -E "✘|ROTO|NO SE PUDO" | head -6 | cut -c1-160 | sed 's/^/     /'
+      fallos=$((fallos+1))
+    fi
   fi
 fi
 

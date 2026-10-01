@@ -16,14 +16,16 @@ porque su ausencia costó un diagnóstico.
 <!-- Las promesas del contrato del proyecto, con su número y su enunciado:
      Windows: apps/windows/tests/ContratoDelGrafo/Contrato.cs (spec en apps/windows/docs/specs/)
      Android: apps/android/core/src/commonTest/.../contrato (spec en apps/android/docs/specs/)
-     Mac: apps/mac/Tests/UCoreTests
+     Mac: apps/mac/Tests/UCoreTests (spec en apps/mac/docs/specs/)
+     Graph: services/graph/scripts/verify-*.js (spec en services/graph/docs/specs/)
      Si no toca ninguna promesa, dilo y explica por qué no hacía falta. -->
 
 ## Evidencia
 
 <!-- Pegada, no resumida. Un nivel que no se corrió va como NO CORRIDO con su motivo, nunca como OK.
      Windows: la tabla de apps/windows/scripts/verificar.ps1 (out\evidencia.md).
-     Los demás: el CI de su carpeta y lo que se probó a mano. -->
+     Los demás: el veredicto de su juez (la última línea), la compuerta y lo que se probó a mano.
+     Cada promesa nueva: se vio en rojo antes de su código, y otra vez al romperlo a propósito. -->
 
 | Nivel | Resultado | Detalle |
 |---|---|---|

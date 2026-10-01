@@ -51,6 +51,9 @@ public sealed class ConversacionEnVivo : IDisposable
         _protocolo = protocolo ?? ProtocoloPorDefecto(Environment.GetEnvironmentVariable);
         _audio = new LiveAudio(_protocolo.RitmoDeEntrada);
         _compuerta = new CompuertaDeEco(GraciaEcoMs, _protocolo.RitmoDeEntrada);
+        _preEscucha = new PreEscucha(_protocolo.RitmoDeEntrada);
+        _audio.MicrofonoGrabando += preparado => _relojDeEncender?.Marca("micrófono", preparado ? "estaba preparado" : "hubo que inicializarlo");
+        _audio.MicrofonoFallo += ElMicrofonoNoAbrio;
         EmpezarLosTurnosDeLaSesion();
 
         // UN VALOR QUE NO SE CONOCE SE DICE, no se obedece a medias: abre la voz por defecto y el log lo
@@ -376,10 +379,128 @@ public sealed class ConversacionEnVivo : IDisposable
     private string _sesionId = "";
     private DateTime _inicioSesion = DateTime.UtcNow;
 
-    public async Task AlternarAsync()
+    // ── Encender y apagar (spec 075) ────────────────────────────────────────
+
+    /// <summary>
+    /// Guarda el cambio de estado: <see cref="Viva"/>, el socket y la cancelación de la sesión vigente se
+    /// cambian juntos y de una vez. Nunca se sostiene mientras se espera a nadie ni mientras se avisa.
+    /// </summary>
+    private readonly object _candadoDelEstado = new();
+
+    /// <summary>Lo que se dice mientras la sesión abre: se guarda y sale al confirmar (promesa 661).</summary>
+    private readonly PreEscucha _preEscucha;
+
+    /// <summary>Los tiempos del encendido y del apagado en curso, para su línea voz-clic (promesa 666).</summary>
+    private RelojDelClic? _relojDeEncender, _relojDeApagar;
+
+    /// <summary>
+    /// Lo último dicho en la sesión que se cerró, camino del disco. La sesión siguiente lo espera antes de
+    /// leer la historia: encender justo después de apagar no puede abrir sin la última frase.
+    /// </summary>
+    private Task _guardadoDelCierre = Task.CompletedTask;
+
+    /// <summary>
+    /// CÓMO SE CONECTA. Nula en la app, que abre el socket; el contrato la cambia por una espera que suelta
+    /// cuando quiere, para juzgar lo que pasa mientras el servidor no contesta (promesas 660 a 664).
+    /// </summary>
+    private Func<CancellationToken, Task>? _abreElCable = null;
+
+    /// <summary>
+    /// QUIÉN ABRE Y CIERRA EL MICRÓFONO. Nula en la app, que es <see cref="LiveAudio"/>; el contrato la cambia
+    /// por una lista para juzgar cuándo se pide y cuándo se suelta sin tocar un dispositivo.
+    /// </summary>
+    private Action<bool>? _elMicro = null;
+
+    private void ElMicro(bool abrir)
     {
-        if (Viva) { await TerminarAsync(); return; }
-        await ArrancarAsync();
+        if (_elMicro != null) { _elMicro(abrir); return; }
+        if (abrir) _audio.AbrirMicrofono(); else _audio.CerrarMicrofono();
+    }
+
+    /// <summary>
+    /// UN GESTO, UN CAMBIO (promesa 662). Encender y apagar CONSTAN antes de devolver el hilo: quien pulse otra
+    /// vez mientras la red contesta encuentra ya el estado nuevo, y hace lo contrario.
+    /// </summary>
+    /// <remarks>
+    /// Hasta el 2026-10-01 esto preguntaba <see cref="Viva"/>, que no se ponía a verdadero hasta conectar y no
+    /// se ponía a falso hasta borrar las miradas. Entre medias, otro clic hacía lo mismo que el anterior: dos
+    /// sockets en el mismo segundo (log del 2026-09-30, 10:03:16), o un apagado que «no cogía» hasta el segundo
+    /// clic.
+    /// </remarks>
+    /// <param name="gesto">La marca de <see cref="System.Diagnostics.Stopwatch.GetTimestamp"/> al recibir el
+    /// gesto, para medir desde él. Con cero se mide desde aquí.</param>
+    public Task AlternarAsync(long gesto = 0)
+        => Viva ? ApagarAsync(gesto) : ArrancarAsync(conMicrofono: true, gesto: gesto);
+
+    /// <summary>
+    /// DEJA EL MICRÓFONO PREPARADO para el próximo encendido: inicializado y parado, sin captar. Lo llama
+    /// quien monta la voz, una vez; después de cada conversación se mantiene solo (promesa 665).
+    /// </summary>
+    public void PrepararElMicrofono() { if (_elMicro == null) _audio.Preparar(); }
+
+    /// <summary>
+    /// La interfaz ya pintó la estela (encendida o apagada). Solo es una marca en el reloj del gesto: quien
+    /// mide lo que la persona VE es quien lo pinta.
+    /// </summary>
+    public void LaEstelaSePinto(bool encendida)
+    {
+        var reloj = encendida ? _relojDeEncender : _relojDeApagar;
+        if (reloj == null) return;
+        reloj.Marca("estela");
+        // AL APAGAR, LA LÍNEA ESPERA A LAS DOS COSAS: que el socket esté cerrado y que la estela se haya ido.
+        // Cuál llega antes depende de la máquina; la escribe la que llega después.
+        if (!encendida && reloj.Tiene("socket")) DecirElApagado(reloj);
+    }
+
+    private static void DecirElApagado(RelojDelClic reloj)
+    {
+        if (reloj.Reclamar()) LogBus.Log("voz-clic", reloj.Linea());
+    }
+
+    /// <summary>
+    /// Espera a que el servidor confirme la sesión que se está abriendo. Falso si no hay voz encendida, si se
+    /// apaga antes o si no confirma en el plazo.
+    /// </summary>
+    /// <remarks>
+    /// ENCENDIDA YA NO ES ABIERTA: <see cref="Viva"/> es cierto desde el clic. Quien necesite la sesión abierta
+    /// para mandar algo —el saludo de la presentación— espera aquí, y no mirando <see cref="Viva"/>.
+    /// </remarks>
+    public async Task<bool> EsperarAbiertaAsync(TimeSpan plazo)
+    {
+        var espera = _aperturaConfirmada;
+        if (!Viva) return false;
+        if (_confirmada) return true;
+        if (espera == null) return false;
+        try { return await espera.Task.WaitAsync(plazo).ConfigureAwait(false); }
+        catch (TimeoutException) { return false; }
+    }
+
+    private void ElMicrofonoNoAbrio(string causa)
+    {
+        if (!Viva) return;
+        Dice?.Invoke($"No pude abrir el micrófono: {causa}");
+        _ = TerminarAsync();
+    }
+
+    /// <summary>La sesión de <paramref name="cts"/> sigue siendo la vigente: nadie la apagó ni abrió otra.</summary>
+    private bool EsLaSesion(CancellationTokenSource cts)
+        => Viva && ReferenceEquals(_cts, cts) && !cts.IsCancellationRequested;
+
+    /// <summary>
+    /// Lo que termina es de una sesión que ya no manda: o la cancelaron (la apagaron), o hay otra vigente.
+    /// </summary>
+    private bool EsDeOtraSesion(CancellationToken ct)
+    {
+        if (ct.IsCancellationRequested) return true;
+        var vigente = _cts;
+        return vigente != null && vigente.Token != ct;
+    }
+
+    private static void Soltar(ClientWebSocket? ws)
+    {
+        if (ws == null) return;
+        try { ws.Abort(); } catch { }
+        try { ws.Dispose(); } catch { }
     }
 
     /// <summary>Abre la sesión viva si hace falta y habla por el mismo canal GPT-Live de Ü.</summary>
@@ -408,7 +529,7 @@ public sealed class ConversacionEnVivo : IDisposable
     public async Task ArrancarSoloTextoAsync()
     {
         _respuestaDeTexto = true;
-        await ArrancarAsync(0, conMicrofono: false);
+        await ArrancarAsync(conMicrofono: false);
     }
 
     /// <summary>
@@ -431,37 +552,69 @@ public sealed class ConversacionEnVivo : IDisposable
         // En la máquina de quien desarrolla no cambia nada, porque su variable sigue mandando.
         Credenciales.ClavesDelBackend.DeLaApp(Credenciales.ClavesDelBackend.Voz);
 
-    /// <param name="intento">
-    /// Cuántas veces se ha probado ya (0 la primera). Solo lo usa el reintento de más abajo: sirve
-    /// para que un corte de red pasajero no se le note al usuario, y para que tampoco se convierta
-    /// en un bucle si la red no vuelve.
-    /// </param>
-    public async Task ArrancarAsync(int intento = 0, bool conMicrofono = true)
+    /// <summary>
+    /// ENCIENDE LA VOZ. Lo que la persona ve y lo que la oye pasa AQUÍ, en el gesto; la red va detrás.
+    /// </summary>
+    /// <remarks>
+    /// Hasta el 2026-10-01 nada constaba hasta conectar el socket: la estela se veía a los 666–1.027 ms del
+    /// clic y el micrófono abría a los 673–987 (medido en main con un juez de fuera, tres rondas). Ninguna de
+    /// las dos cosas depende del servidor. Ahora, al volver de aquí: <see cref="Viva"/> es cierto,
+    /// <see cref="Cambio"/> avisó —es lo que pinta la estela—, el micrófono está pedido y lo que se capte se
+    /// guarda hasta que el servidor confirme (promesas 660 y 661). La tarea que se devuelve es la conexión.
+    /// </remarks>
+    /// <param name="gesto">La marca del gesto que la pide; con cero se mide desde aquí.</param>
+    public Task ArrancarAsync(bool conMicrofono = true, long gesto = 0)
     {
-        if (Viva) return;
-        Interlocked.Exchange(ref _parandoPorOrden, 0);
+        if (Viva) return Task.CompletedTask;
         string clave = Clave();
+        // SI NO LLEGÓ PORQUE LA INSTALACIÓN ESPERABA APROBACIÓN, SE PIDE AHORA (promesa 687): entre el
+        // arranque y este momento la pueden haber aprobado. Si ya se pidió y falló por otra cosa, esa
+        // llamada no viaja — eso sigue siendo de la 300.
+        //
+        // ES EL ÚNICO CAMINO QUE ESPERA A LA RED ANTES DEL GESTO, y solo se toma SIN clave: con ella en la
+        // mano el encendido sigue siendo síncrono, que es lo que prometen la 660 y la 661.
+        if (clave.Length == 0 && Credenciales.ClavesDelBackend.Viva is { } claves)
+            return ArrancarTrasPedirLaClaveAsync(claves, conMicrofono, gesto);
+        return ArrancarCon(clave, conMicrofono, gesto);
+    }
+
+    private async Task ArrancarTrasPedirLaClaveAsync(Credenciales.ClavesDelBackend claves, bool conMicrofono, long gesto)
+    {
+        await claves.TraerAsync();
+        await ArrancarCon(Clave(), conMicrofono, gesto);
+    }
+
+    private Task ArrancarCon(string clave, bool conMicrofono, long gesto)
+    {
         if (clave.Length == 0)
         {
+            // A UNA PERSONA EN UN HOSPITAL NO SE LE DICE «setx OPENAI_API_KEY»: no puede, y no es su
+            // problema. Si lo que pasa es que la instalación espera aprobación o la revocaron, se dice eso,
+            // con el código que tiene que dictarle al administrador (spec 076).
+            var instalacion = U.Graph.CredencialDeInstalacion.Viva;
+            bool esLaInstalacion = instalacion != null
+                && instalacion.Situacion is U.Graph.CredencialDeInstalacion.Pendiente or U.Graph.CredencialDeInstalacion.Revocada;
+            if (esLaInstalacion)
+            {
+                Dice?.Invoke($"No hay voz todavía: {instalacion!.Estado}.");
+                // El prefijo de siempre, porque los guiones de nivel 4 leen esta línea para saber que la voz no abrió.
+                LogBus.Log("voz-viva", $"sin OPENAI_API_KEY: no se arranca ({instalacion.Estado})");
+                return Task.CompletedTask;
+            }
             Dice?.Invoke($"No hay voz en vivo: falta la clave de {_protocolo.Quien}. "
                        + "Una sola vez: setx OPENAI_API_KEY \"tu_key\" y reinicia Ü.");
             LogBus.Log("voz-viva", "sin OPENAI_API_KEY: no se arranca");
-            return;
+            return Task.CompletedTask;
         }
 
-        try
+        var cts = new CancellationTokenSource();
+        var reloj = RelojDelClic.DeVerdad("encender", RelojDelClic.AlEncender, gesto);
+        lock (_candadoDelEstado)
         {
-            _cts = new CancellationTokenSource();
-            _ws = new ClientWebSocket();
-            // SIN ESTO, UN APRETÓN DE MANOS RECHAZADO NO DICE CON QUÉ: HttpStatusCode vale 0. Medido el 2026-09-13 con
-            // una clave falsa por /v1/live/sessions: 401 con la opción, 0 sin ella, y la misma WebSocketException.
-            _ws.Options.CollectHttpResponseDetails = true;
-            foreach (var (k, v) in _protocolo.Cabeceras(clave)) _ws.Options.SetRequestHeader(k, v);
-            await _ws.ConnectAsync(_protocolo.Direccion(), _cts.Token);
-            string instrucciones = await InstruccionesConMemoriaAsync(_cts.Token);
-            var historial = Conversacion?.Historial() ?? Array.Empty<(string Role, string Text)>();
-            foreach (string msg in _protocolo.Apertura(instrucciones, Herramientas(), "", historial, false))
-                await EnviarAsync(msg, _cts.Token);
+            if (Viva) { cts.Dispose(); return Task.CompletedTask; }
+            Interlocked.Exchange(ref _parandoPorOrden, 0);
+            _cts = cts;
+            _relojDeEncender = reloj;
 
             // Sesión nueva, cuentas nuevas: ni llamadas retiradas de antes, ni el pase de la
             // conversación anterior —volver con él nos devolvería a una charla que ya terminó.
@@ -476,54 +629,139 @@ public sealed class ConversacionEnVivo : IDisposable
             _sesionId = Guid.NewGuid().ToString("n");
             _inicioSesion = DateTime.UtcNow;
 
+            // ENCENDIDA, Y TODAVÍA SIN CONFIRMAR: quien espere la confirmación la espera desde el gesto.
+            _confirmada = false;
+            _aperturaConfirmada = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _fallaAntesDeAbrir = "";
+            _porQueNoSeReintenta = _loQueDijoAlNoPoder = "";
+            _alConfirmar = "";
+            _preEscucha.Empezar();
             Viva = true;
-            Cambio?.Invoke(true);
-            // «SESIÓN ABIERTA» YA NO SE ESCRIBE AQUÍ: aquí solo se sabe que el socket conectó (promesa 220).
-            EmpiezaUnaConexion("Te escucho.");   // cuando el servidor lo confirme (49 con GPT-Live, 50 con GPT Realtime)
 
+            // EL MICRÓFONO SE PIDE DENTRO, con el cambio de estado: pedirlo no espera al dispositivo, y así un
+            // apagado que llegue por otro hilo no puede quedar a medias entre «consta encendida» y «tiene oído».
             if (conMicrofono)
             {
+                _audio.Capturado -= MandarTrozo;
                 _audio.Capturado += MandarTrozo;
-                _audio.AbrirMicrofono();
-                ObedecerAlMicrofonoDeLaApp();
-                if (_oyendoElCambioDeMicrofono == null)
-                {
-                    _oyendoElCambioDeMicrofono = () => { try { ObedecerAlMicrofonoDeLaApp(); } catch { } };
-                    ElMicrofonoDeLaApp.Cambio += _oyendoElCambioDeMicrofono;
-                }
+                ElMicro(true);
             }
-
-            // NO HAY VÍDEO EN DIRECTO. Ver es ahora un GESTO, no un caño abierto: una foto sale al
-            // señalar algo, y otra cuando el propio modelo pide mirar (map_look). Las dos pasan por
-            // EjecutarNucleoAsync, no por aquí.
-            _ = Task.Run(() => RecibirAsync(_cts.Token));
         }
-        catch (Exception e)
-        {
-            LogBus.Log("voz-viva", $"no se pudo abrir la sesión: {e.Message}");
-            string porque = NoConecto(e, (int)(_ws?.HttpStatusCode ?? 0));   // antes de TerminarAsync, que suelta el socket
-            await TerminarAsync();
 
-            // UN CORTE DE RED DE UNOS SEGUNDOS NO DEBERÍA COSTARLE UN GESTO AL USUARIO. Solo se
-            // reintenta lo que puede arreglarse solo: una clave inválida o un permiso denegado van a
-            // fallar igual las tres veces, y reintentarlos solo retrasa el momento de enterarse.
-            if (porque.Length == 0 && EsDeRed(e) && intento < 2)
+        // FUERA DEL CANDADO: quien oye este aviso pinta, y pintar es cosa del hilo de la interfaz.
+        Cambio?.Invoke(true);
+
+        if (conMicrofono)
+        {
+            ObedecerAlMicrofonoDeLaApp();
+            if (_oyendoElCambioDeMicrofono == null)
             {
-                await Task.Delay(TimeSpan.FromSeconds(1 + intento));
-                LogBus.Log("voz-viva", $"reintentando abrir la voz ({intento + 2}/3)…");
-                await ArrancarAsync(intento + 1, conMicrofono);
+                _oyendoElCambioDeMicrofono = () => { try { ObedecerAlMicrofonoDeLaApp(); } catch { } };
+                ElMicrofonoDeLaApp.Cambio += _oyendoElCambioDeMicrofono;
+            }
+        }
+
+        // NO HAY VÍDEO EN DIRECTO. Ver es ahora un GESTO, no un caño abierto: una foto sale al
+        // señalar algo, y otra cuando el propio modelo pide mirar (map_look). Las dos pasan por
+        // EjecutarNucleoAsync, no por aquí.
+        return ConectarAsync(cts, clave, reloj);
+    }
+
+    /// <summary>
+    /// LA RED DE UN ENCENDIDO: conectar, mandar la apertura y poner a escuchar. Todo lo que hace lo hace para
+    /// SU sesión; si mientras tanto la apagaron o abrieron otra, suelta lo suyo y se va sin tocar nada.
+    /// </summary>
+    private async Task ConectarAsync(CancellationTokenSource cts, string clave, RelojDelClic reloj)
+    {
+        // LO QUE NO ES LA RED, A LA VEZ QUE LA RED: las instrucciones y la historia se leen del disco mientras
+        // el socket conecta, no después. Y detrás de lo que el cierre anterior esté guardando.
+        var guardado = _guardadoDelCierre;
+        var preparado = Task.Run(async () =>
+        {
+            try { await guardado.ConfigureAwait(false); } catch { }
+            string instrucciones = await InstruccionesConMemoriaAsync(cts.Token).ConfigureAwait(false);
+            var historial = Conversacion?.Historial() ?? Array.Empty<(string Role, string Text)>();
+            return (instrucciones, historial);
+        });
+
+        for (int intento = 0; ; intento++)
+        {
+            ClientWebSocket? ws = null;
+            try
+            {
+                if (_abreElCable != null) await _abreElCable(cts.Token).ConfigureAwait(false);
+                else
+                {
+                    ws = new ClientWebSocket();
+                    // SIN ESTO, UN APRETÓN DE MANOS RECHAZADO NO DICE CON QUÉ: HttpStatusCode vale 0. Medido el 2026-09-13 con
+                    // una clave falsa por /v1/live/sessions: 401 con la opción, 0 sin ella, y la misma WebSocketException.
+                    ws.Options.CollectHttpResponseDetails = true;
+                    foreach (var (k, v) in _protocolo.Cabeceras(clave)) ws.Options.SetRequestHeader(k, v);
+                    // EN OTRO HILO desde el principio: resolver el nombre y negociar el TLS no son cosa del hilo que
+                    // acaba de recibir el clic y todavía tiene que pintar la estela.
+                    var socket = ws;
+                    await Task.Run(() => socket.ConnectAsync(_protocolo.Direccion(), cts.Token)).ConfigureAwait(false);
+                }
+
+                // LA PERSONA PUDO APAGAR MIENTRAS CONECTABA, y una conexión puede contestar después de eso. La que
+                // llega tarde se suelta sin mandar su apertura (promesa 662).
+                lock (_candadoDelEstado)
+                {
+                    if (!EsLaSesion(cts)) { Soltar(ws); return; }
+                    _ws = ws;
+                }
+                reloj.Marca("socket");
+
+                var (instrucciones, historial) = await preparado.ConfigureAwait(false);
+                if (!EsLaSesion(cts)) return;   // quien la apagó ya soltó el socket
+                foreach (string msg in _protocolo.Apertura(instrucciones, Herramientas(), "", historial, false))
+                    await EnviarAsync(msg, cts.Token).ConfigureAwait(false);
+                if (!EsLaSesion(cts)) return;
+
+                // «SESIÓN ABIERTA» YA NO SE ESCRIBE AQUÍ: aquí solo se sabe que el socket conectó (promesa 220).
+                EmpiezaUnaConexion("Te escucho.");   // cuando el servidor lo confirme (49 con GPT-Live, 50 con GPT Realtime)
+                if (ws != null) { var socket = ws; _ = Task.Run(() => RecibirAsync(socket, cts.Token)); }
                 return;
             }
+            catch (Exception e)
+            {
+                // APAGAR NO ES FALLAR: si la sesión ya no es la vigente, la excepción es la de haberla cancelado.
+                if (!EsLaSesion(cts)) { Soltar(ws); return; }
 
-            // CON LA CAUSA, NO CON LA FRASE DE .NET: con una clave falsa, GPT-Live rechaza el apretón de manos y lo único
-            // que había que decir era «The server returned status code '401' when status code '101' was expected.»
-            // (medido el 2026-09-13), que no dice qué hacer.
-            Dice?.Invoke(porque.Length > 0
-                ? $"No pude abrir la voz en vivo: {porque} ({e.Message})."
-                : EsDeRed(e)
-                ? "No pude abrir la voz: no hay conexión con el servidor. Lo intenté 3 veces — "
-                + "revisa tu internet y vuelve a pulsar el micrófono."
-                : $"No pude abrir la voz en vivo: {e.Message}");
+                LogBus.Log("voz-viva", $"no se pudo abrir la sesión: {e.Message}");
+                string porque = NoConecto(e, (int)(ws?.HttpStatusCode ?? 0));
+                lock (_candadoDelEstado) { if (ReferenceEquals(_ws, ws)) _ws = null; }
+                Soltar(ws);
+
+                // UN CORTE DE RED DE UNOS SEGUNDOS NO DEBERÍA COSTARLE UN GESTO AL USUARIO. Solo se
+                // reintenta lo que puede arreglarse solo: una clave inválida o un permiso denegado van a
+                // fallar igual las tres veces, y reintentarlos solo retrasa el momento de enterarse.
+                //
+                // Y SE REINTENTA SIN APAGAR (promesa 660). Hasta el 2026-10-01 cada intento pasaba por
+                // TerminarAsync: la estela se apagaba y volvía a encenderse, el micrófono se cerraba y se
+                // abría, y lo dicho entre un intento y otro se perdía.
+                if (porque.Length == 0 && EsDeRed(e) && intento < 2)
+                {
+                    try { await Task.Delay(TimeSpan.FromSeconds(1 + intento), cts.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { return; }
+                    if (!EsLaSesion(cts)) return;
+                    LogBus.Log("voz-viva", $"reintentando abrir la voz ({intento + 2}/3)…");
+                    continue;
+                }
+
+                await TerminarAsync().ConfigureAwait(false);
+
+                // CON LA CAUSA, NO CON LA FRASE DE .NET: con una clave falsa, GPT-Live rechaza el apretón de manos y lo único
+                // que había que decir era «The server returned status code '401' when status code '101' was expected.»
+                // (medido el 2026-09-13), que no dice qué hacer.
+                Dice?.Invoke(porque.Length > 0
+                    ? $"No pude abrir la voz en vivo: {porque} ({e.Message})."
+                    : EsDeRed(e)
+                    ? "No pude abrir la voz: no hay conexión con el servidor. Lo intenté 3 veces — "
+                    + "revisa tu internet y vuelve a pulsar el micrófono."
+                    : $"No pude abrir la voz en vivo: {e.Message}");
+                return;
+            }
         }
     }
 
@@ -601,50 +839,133 @@ public sealed class ConversacionEnVivo : IDisposable
         });
     }
 
-    public async Task TerminarAsync()
+    public Task TerminarAsync() => ApagarAsync(0);
+
+    /// <summary>
+    /// APAGA LA VOZ. Como al encender, lo que la persona ve y lo que la oye pasa en el gesto: al volver de
+    /// aquí la voz consta apagada, <see cref="Cambio"/> avisó, el micrófono está soltado y Ü calla. Lo que
+    /// espera a alguien —cerrar el socket, retirar las miradas, escribir en el disco— va detrás (promesa 663).
+    /// </summary>
+    /// <remarks>
+    /// Hasta el 2026-10-01 lo primero era «await mirada.SoltarAsync()»: un DELETE por HTTP por cada mirada, con
+    /// treinta segundos de plazo, ANTES de Viva = false. La estela seguía encendida mientras tanto, la persona
+    /// volvía a pulsar, y era ese segundo clic el que apagaba.
+    ///
+    /// Y TODO LO QUE CIERRA ES DE LA SESIÓN QUE SE APAGA (promesa 664): su socket y su cancelación se sacan de
+    /// los campos en el mismo instante en que deja de constar, así que el final de este cierre no puede tocar
+    /// a la sesión que otro gesto abra mientras tanto. Antes acababa con «_ws?.Dispose(); _ws = null» después
+    /// de sus esperas, fuera de quien fuera ya ese socket.
+    /// </remarks>
+    private async Task ApagarAsync(long gesto)
     {
-        // LAS MIRADAS SE RETIRAN AQUÍ, y antes del portillo de abajo: cerrar dos veces no puede dejar
-        // copias en la cuenta de nadie, y soltar dos veces no borra dos veces (promesa 250).
-        if (_mirada != null)
+        var reloj = RelojDelClic.DeVerdad("apagar", RelojDelClic.AlApagar, gesto);
+        MiradaSubida? mirada;
+        ClientWebSocket? ws;
+        CancellationTokenSource? cts;
+        RelojDelClic? encendido;
+        Action? oyendo;
+        bool habia;
+        string dichoPorTi = "", dichoPorU = "";
+        int tirados = 0;
+        lock (_candadoDelEstado)
         {
-            var mirada = _mirada;
-            _mirada = null;
-            try { await mirada.SoltarAsync(); }
-            catch (Exception e) { LogBus.Log("voz-viva", $"no pude retirar las miradas: {e.Message}"); }
+            // LAS MIRADAS SE RETIRAN SIEMPRE, haya o no sesión: cerrar dos veces no puede dejar copias en la
+            // cuenta de nadie, y soltar dos veces no borra dos veces (promesa 250).
+            mirada = _mirada; _mirada = null;
+            oyendo = _oyendoElCambioDeMicrofono; _oyendoElCambioDeMicrofono = null;
+            ws = _ws; cts = _cts;
+            habia = Viva || ws != null;
+            encendido = _relojDeEncender;
+            if (habia)
+            {
+                // ── EN EL GESTO, y de una vez: desde aquí no consta, no oye y no suena ──
+                Viva = false;
+                _ws = null;
+                _cts = null;
+                _relojDeEncender = null;
+                _relojDeApagar = reloj;
+                // Apagar la voz a mitad de un turno no debe cortar el hilo narrativo. El cierre normal ya
+                // guarda estas frases en CierraElTurno; aquí solo quedan las que aún no alcanzaron ese evento.
+                dichoPorTi = _fraseUsuario.ToString(); dichoPorU = _fraseU.ToString();
+                _fraseUsuario.Clear();
+                _fraseU.Clear();
+                tirados = _preEscucha.Tirar();   // lo guardado de una sesión que no confirmó no se manda a nadie (661)
+                _aperturaConfirmada?.TrySetResult(false);
+                _aperturaConfirmada = null;
+                _audio.Capturado -= MandarTrozo;
+                ElMicro(false);
+                reloj.Marca("micrófono");
+                _audio.Callar();
+            }
+        }
+        if (oyendo != null) ElMicrofonoDeLaApp.Cambio -= oyendo;
+        if (!habia)
+        {
+            await RetirarAsync(mirada).ConfigureAwait(false);
+            return;
         }
 
-        if (_oyendoElCambioDeMicrofono != null)
-        {
-            ElMicrofonoDeLaApp.Cambio -= _oyendoElCambioDeMicrofono;
-            _oyendoElCambioDeMicrofono = null;
-        }
-        if (!Viva && _ws == null) return;
-        // Apagar la voz a mitad de un turno no debe cortar el hilo narrativo. El cierre normal ya
-        // guarda estas frases en CierraElTurno; aquí solo quedan las que aún no alcanzaron ese evento.
-        Conversacion?.Agregar("usuario", _fraseUsuario.ToString());
-        Conversacion?.Agregar("asistente", _fraseU.ToString());
-        _fraseUsuario.Clear();
-        _fraseU.Clear();
-        ReportarConsumo();
-        Viva = false;
-        _aperturaConfirmada?.TrySetResult(false);
-        _aperturaConfirmada = null;
+        // FUERA DEL CANDADO: quien oye este aviso pinta.
         Cambio?.Invoke(false);
-        _audio.Capturado -= MandarTrozo;
-        _audio.CerrarMicrofono();
-        _audio.Callar();
-        try { _cts?.Cancel(); } catch { }
-        try
-        {
-            if (_ws?.State == WebSocketState.Open)
-                await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "fin", CancellationToken.None);
-        }
-        catch { }
-        try { _ws?.Dispose(); } catch { }
-        _ws = null;
+        ReportarConsumo();
         string? ultimaMedida = _cuenta.Cerrar();   // el último turno también deja su línea (spec 017)
         if (ultimaMedida != null) LogBus.Log("voz-turno", ultimaMedida);
+
+        // EL ENCENDIDO QUE NO LLEGÓ A CONFIRMAR DEJA SU LÍNEA IGUAL (promesa 666), con lo que no llegó dicho.
+        if (encendido != null && encendido.Reclamar())
+            LogBus.Log("voz-clic", encendido.Linea(tirados > 0
+                ? $"se apagó antes de confirmar: {tirados} ms guardados que no se mandan"
+                : "se apagó antes de confirmar"));
+
+        // ── DETRÁS, SIN QUE EL GESTO LO ESPERE ───────────────────────────────
+        var conversacion = Conversacion;
+        var guardado = Task.Run(() =>
+        {
+            try
+            {
+                conversacion?.Agregar("usuario", dichoPorTi);
+                conversacion?.Agregar("asistente", dichoPorU);
+            }
+            catch (Exception e) { LogBus.Log("voz-viva", $"no pude guardar lo último dicho: {e.Message}"); }
+        });
+        _guardadoDelCierre = guardado;
+
+        await Task.Run(async () =>
+        {
+            try { cts?.Cancel(); } catch { }
+            try
+            {
+                // CON PLAZO: el saludo de cierre espera a que el servidor conteste, y uno que no contesta
+                // dejaba este cierre abierto para siempre.
+                if (ws?.State == WebSocketState.Open)
+                {
+                    using var plazo = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "fin", plazo.Token).ConfigureAwait(false);
+                }
+            }
+            catch { }
+            Soltar(ws);
+            // LA CANCELACIÓN NO SE DESECHA: la conexión de esta sesión puede estar aún volviendo, y pedirle el
+            // testigo a una cancelación desechada lanza. Cancelada basta; no guarda nada que haya que soltar.
+        }).ConfigureAwait(false);
+        reloj.Marca("socket");
+        // Lo que estuviera llegando mientras se cancelaba pudo encolar una sílaba más. Solo si nadie volvió a encender.
+        if (!Viva) _audio.Callar();
+        // LA LÍNEA, cuando también se sepa cuándo se apagó la estela. Si nadie la pinta —una sesión sin carita, el
+        // contrato—, sale igual un instante después, con ese tramo dicho como «sin llegar».
+        if (reloj.Tiene("estela")) DecirElApagado(reloj);
+        else _ = Task.Delay(300).ContinueWith(_ => DecirElApagado(reloj), TaskScheduler.Default);
+
+        await RetirarAsync(mirada).ConfigureAwait(false);
+        await guardado.ConfigureAwait(false);
         LogBus.Log("voz-viva", "sesión cerrada");
+    }
+
+    private static async Task RetirarAsync(MiradaSubida? mirada)
+    {
+        if (mirada == null) return;
+        try { await mirada.SoltarAsync().ConfigureAwait(false); }
+        catch (Exception e) { LogBus.Log("voz-viva", $"no pude retirar las miradas: {e.Message}"); }
     }
 
     // ── Lo que se le dice al modelo al empezar ───────────────────────────────
@@ -1172,7 +1493,8 @@ public sealed class ConversacionEnVivo : IDisposable
 
     private async void MandarTrozo(byte[] pcm)
     {
-        if (!Viva || _ws?.State != WebSocketState.Open) return;
+        if (!Viva) return;
+        _relojDeEncender?.Marca("primer audio");   // la primera marca es la que vale
 
         // LA COMPUERTA DE ECO (spec 002). Mientras nuestra cola de reproducción suena —más la
         // gracia—, el micrófono viaja como silencio del mismo tamaño: así el semantic_vad del
@@ -1229,6 +1551,12 @@ public sealed class ConversacionEnVivo : IDisposable
             }
             pcm = filtrado;
         }
+
+        // LO DICHO MIENTRAS LA SESIÓN ABRE SE GUARDA (promesa 661): el servidor tira lo que le llega antes de
+        // confirmar (medido el 2026-09-30), y entre el clic y esa confirmación pasa segundo y medio. Sale
+        // entero, y en orden, cuando confirma. Mientras quede algo guardado, lo nuevo se pone detrás.
+        if (_preEscucha.Guardar(pcm)) return;
+        if (!SalidaAbierta) return;
 
         try
         {
@@ -1483,6 +1811,9 @@ public sealed class ConversacionEnVivo : IDisposable
 
     private async Task EnviarTextoInternoAsync(string texto, bool soloTexto)
     {
+        // ENCENDIDA Y TODAVÍA ABRIENDO (spec 075): la voz consta encendida desde el gesto, así que lo escrito
+        // puede llegar antes que el socket. No se tira: espera a que el servidor confirme, igual que lo dicho.
+        if (Viva && !_confirmada) await EsperarAbiertaAsync(TimeSpan.FromSeconds(10));
         if (!SalidaAbierta || string.IsNullOrWhiteSpace(texto)) return;
         if (soloTexto) _respuestaDeTexto = true;
         EmpiezaUnTurnoDelUsuario("texto");   // escribir también es pedir algo nuevo (spec 017)
@@ -1624,21 +1955,22 @@ public sealed class ConversacionEnVivo : IDisposable
     {
         if (json.Length == 0) return;
         if (_puerta != null) { await _puerta(json, ct); return; }
-        if (_ws == null) return;
+        var ws = _ws;   // el de ahora: quien apague a media espera no deja esto mandando por un campo vacío
+        if (ws == null) return;
         await _envio.WaitAsync(ct);
-        try { await _ws.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, ct); }
+        try { await ws.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, ct); }
         finally { _envio.Release(); }
     }
 
-    private async Task RecibirAsync(CancellationToken ct)
+    private async Task RecibirAsync(ClientWebSocket ws, CancellationToken ct)
     {
         var buf = new byte[32 * 1024];
         var acumulado = new MemoryStream();
         try
         {
-            while (!ct.IsCancellationRequested && _ws?.State == WebSocketState.Open)
+            while (!ct.IsCancellationRequested && ws.State == WebSocketState.Open)
             {
-                var r = await _ws.ReceiveAsync(buf, ct);
+                var r = await ws.ReceiveAsync(buf, ct);
                 if (r.MessageType == WebSocketMessageType.Close)
                 {
                     CerroElServidor((int?)r.CloseStatus ?? 0, r.CloseStatusDescription ?? "");
@@ -1649,6 +1981,8 @@ public sealed class ConversacionEnVivo : IDisposable
 
                 string texto = Encoding.UTF8.GetString(acumulado.ToArray());
                 acumulado.SetLength(0);
+                // LO QUE LLEGA DESPUÉS DE APAGAR NO ES DE NADIE: ni suena, ni se transcribe, ni pide herramientas.
+                if (EsDeOtraSesion(ct)) break;
                 try { Procesar(texto, ct); }
                 catch (Exception e) { LogBus.Log("voz-viva", $"mensaje ilegible: {e.Message}"); }
             }
@@ -1668,6 +2002,10 @@ public sealed class ConversacionEnVivo : IDisposable
     /// </remarks>
     private async Task SeAcaboLaEscuchaAsync(CancellationToken ct)
     {
+        // SOLO DECIDE LA ESCUCHA DE LA SESIÓN VIGENTE (promesa 664). La de una sesión que ya se apagó termina
+        // unos milisegundos después de apagarla, y hasta el 2026-10-01 llegaba aquí y cerraba «la voz» si
+        // constaba encendida: la de otro gesto, que ya había vuelto a encender.
+        if (EsDeOtraSesion(ct)) return;
         bool sigue = Viva && !ct.IsCancellationRequested;
         // LA CUENTA, LA CLAVE O EL MODELO, PRIMERO, y confirmada o no. Iba detrás de «no abrió» cuando GPT Realtime no
         // confirmaba; al pasar a confirmar con session.created (la 50), un invalid_api_key —que llega sin session.created,
@@ -1749,7 +2087,8 @@ public sealed class ConversacionEnVivo : IDisposable
     {
         _cayoSolo = false;
         string clave = Clave();
-        if (clave.Length == 0 || _cts == null) { await TerminarAsync(); return; }
+        var cts = _cts;   // la sesión que se cayó: todo lo de abajo es para ella, o no es
+        if (clave.Length == 0 || cts == null) { await TerminarAsync(); return; }
 
         if (++_reintentos > 4)
         {
@@ -1759,19 +2098,30 @@ public sealed class ConversacionEnVivo : IDisposable
             return;
         }
 
+        ClientWebSocket? ws = null;
         try
         {
-            await Task.Delay(300 * _reintentos, _cts.Token);
+            await Task.Delay(300 * _reintentos, cts.Token);
 
-            try { _ws?.Dispose(); } catch { }
-            _ws = new ClientWebSocket();
-            _ws.Options.CollectHttpResponseDetails = true;   // sin esto un 401 llega como estado 0 (ver ArrancarAsync)
-            foreach (var (k, v) in _protocolo.Cabeceras(clave)) _ws.Options.SetRequestHeader(k, v);
-            await _ws.ConnectAsync(_protocolo.Direccion(), _cts.Token);
-            string instrucciones = await InstruccionesConMemoriaAsync(_cts.Token);
+            ws = new ClientWebSocket();
+            ws.Options.CollectHttpResponseDetails = true;   // sin esto un 401 llega como estado 0 (ver ConectarAsync)
+            foreach (var (k, v) in _protocolo.Cabeceras(clave)) ws.Options.SetRequestHeader(k, v);
+            await ws.ConnectAsync(_protocolo.Direccion(), cts.Token);
+
+            ClientWebSocket? caido;
+            lock (_candadoDelEstado)
+            {
+                if (!EsLaSesion(cts)) { Soltar(ws); return; }   // la apagaron mientras volvía
+                caido = _ws;
+                _ws = ws;
+            }
+            Soltar(caido);
+
+            string instrucciones = await InstruccionesConMemoriaAsync(cts.Token);
             var historial = Conversacion?.Historial() ?? Array.Empty<(string Role, string Text)>();
             foreach (string msg in _protocolo.Apertura(instrucciones, Herramientas(), _pase, historial, false))
-                await EnviarAsync(msg, _cts.Token);
+                await EnviarAsync(msg, cts.Token);
+            if (!EsLaSesion(cts)) return;
 
             if (_protocolo.SabeVolver && _pase.Length > 0)
             {
@@ -1788,20 +2138,25 @@ public sealed class ConversacionEnVivo : IDisposable
                 EmpiezaUnaConexion("Se cortó un instante; ya volví.");
             }
 
-            _ = Task.Run(() => RecibirAsync(_cts.Token), _cts.Token);
+            var socket = ws;
+            _ = Task.Run(() => RecibirAsync(socket, cts.Token));
             // Y SI ESTABA EN UN MODO, VUELVE A ÉL (D4, promesa 729): la apertura de arriba es la de siempre, y el
             // modo se le pone encima cuando el servidor confirme — que llega por la escucha que acaba de arrancar.
             if (_modo != null) _ = Task.Run(() => ReaplicarElModoAsync());
         }
-        catch (OperationCanceledException) { await TerminarAsync(); }
         catch (Exception e)
         {
+            // SI YA NO ES LA SESIÓN VIGENTE, NO HAY NADA QUE DECIDIR: la apagaron, y lo que aquí salta es su
+            // cancelación. Hasta el 2026-10-01 una cancelación llamaba a TerminarAsync, que cerraba la voz que
+            // constara encendida — la de otro gesto, si ya había vuelto a encender (promesa 664).
+            if (!EsLaSesion(cts)) { if (!ReferenceEquals(_ws, ws)) Soltar(ws); return; }
             LogBus.Log("voz-viva", $"no pude reconectar: {e.Message}");
-            NoConecto(e, (int)(_ws?.HttpStatusCode ?? 0));
+            NoConecto(e, (int)(ws?.HttpStatusCode ?? 0));
+            if (!ReferenceEquals(_ws, ws)) Soltar(ws);
             _cayoSolo = true;
             // POR EL SITIO QUE DECIDE (promesa 224), y no llamándose a sí mismo: hasta el 2026-09-13 cualquier excepción
             // volvía a reconectar, también un 401 con la misma clave, y lo único que lo paraba era el tope de cuatro.
-            await SeAcaboLaEscuchaAsync(_cts.Token);
+            await SeAcaboLaEscuchaAsync(cts.Token);
         }
     }
 
@@ -1817,16 +2172,17 @@ public sealed class ConversacionEnVivo : IDisposable
         _segundosDeConexionesAnteriores += _segundosDeLaConexion;
         _segundosDeLaConexion = 0;
         _confirmada = !_protocolo.ConfirmaQueAbrio;
-        // LA ESPERA PENDIENTE PASA A LA CONEXIÓN NUEVA (promesa 743). Antes se creaba otra y la de la conexión muerta
-        // no la resolvía nadie: quien la esperaba (volver de un modo, empezar a enseñar, hablar) se rendía a los 15 s
-        // aunque la nueva ya estuviera confirmada, y el aprendiz quedaba puesto. TerminarAsync la sigue cerrando en false.
-        _aperturaConfirmada = _aperturaConfirmada is { Task.IsCompleted: false } pendiente
-            ? pendiente
-            : new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        // LA MISMA ESPERA QUE NACIÓ EN EL GESTO, si sigue pendiente: quien la esperaba desde el clic no se
+        // queda mirando una que ya nadie va a cumplir. Una nueva solo al reconectar, con la anterior cumplida.
+        if (_aperturaConfirmada == null || _aperturaConfirmada.Task.IsCompleted)
+            _aperturaConfirmada = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (_confirmada) _aperturaConfirmada.TrySetResult(true);
         _fallaAntesDeAbrir = "";
         _porQueNoSeReintenta = _loQueDijoAlNoPoder = "";   // la causa era de la conexión anterior (224)
         _alConfirmar = _confirmada ? "" : alConfirmar;
+        // HASTA QUE CONFIRME, LO CAPTADO SE GUARDA (promesa 661), también al reconectar: el servidor tira lo
+        // que le llega antes. Si ya se venía guardando desde el gesto, se conserva.
+        if (!_confirmada) _preEscucha.Empezar();
         // CONECTAR NO ES ABRIR (promesa 220). Hasta el 2026-09-13 «sesión abierta con «…»» se escribía en ArrancarAsync al
         // conectar el socket, y en el nivel 4 del 12, sin crédito, salió en el mismo segundo que el error: el conductor la
         // tomó por voz abierta (patrón nº2). Con un protocolo que confirma, aquí solo se sabe que el socket conectó, y la
@@ -1836,6 +2192,44 @@ public sealed class ConversacionEnVivo : IDisposable
             ? $"sesión abierta con {QuienAbre}, sin confirmación: este protocolo no la manda"
             : $"socket conectado, esperando confirmación de {QuienAbre}");
         if (_confirmada && alConfirmar.Length > 0) Dice?.Invoke(alConfirmar);
+        if (_confirmada) _ = SoltarLoGuardadoAsync();   // un protocolo que no confirma no tiene a qué esperar
+    }
+
+    /// <summary>
+    /// EL SERVIDOR CONFIRMÓ: lo dicho desde el gesto sale ahora, entero y en orden, y el encendido deja su línea.
+    /// </summary>
+    /// <remarks>
+    /// De uno en uno y esperando cada envío: <see cref="PreEscucha.Siguiente"/> deja de guardar en el instante
+    /// en que se vacía, así que lo que el micrófono traiga mientras esto corre se pone detrás y no se adelanta.
+    /// </remarks>
+    private async Task SoltarLoGuardadoAsync()
+    {
+        int guardados = _preEscucha.MsGuardados, perdidos = _preEscucha.MsPerdidos;
+        var reloj = _relojDeEncender;
+        if (reloj != null && reloj.Reclamar())
+        {
+            reloj.Marca("confirmada");
+            LogBus.Log("voz-clic", reloj.Linea(
+                (guardados > 0 ? $"lo dicho desde el gesto sale ahora: {guardados} ms guardados" : "nada guardado que mandar")
+                + (perdidos > 0 ? $", {perdidos} ms perdidos por el tope" : "")));
+        }
+        else if (perdidos > 0)
+            LogBus.Log("voz-viva", $"la espera tiró {perdidos} ms de lo captado: no cabían en el tope");
+
+        try
+        {
+            while (_preEscucha.Siguiente() is { } trozo)
+            {
+                if (!Viva) { _preEscucha.Tirar(); return; }
+                await EnviarAsync(_protocolo.Audio(trozo), _cts?.Token ?? CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        catch (Exception e)
+        {
+            int tirados = _preEscucha.Tirar();
+            LogBus.Log("voz-viva", $"lo guardado no llegó entero al servidor ({e.GetType().Name}: {e.Message}); "
+                + $"{tirados} ms sin mandar");
+        }
     }
 
     /// <summary>Con qué abre, tal como lo dicen las líneas de apertura: el modelo de la voz y el proveedor.</summary>
@@ -2035,6 +2429,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 _aperturaConfirmada?.TrySetResult(true);
                 LogBus.Log("voz-viva", $"sesión abierta con {QuienAbre}: el servidor la confirmó");   // la única que lo afirma (220)
                 if (_alConfirmar.Length > 0) { Dice?.Invoke(_alConfirmar); _alConfirmar = ""; }
+                _ = SoltarLoGuardadoAsync();   // lo dicho desde el gesto, que esperaba a esto (promesa 661)
                 break;
         }
     }
@@ -2132,12 +2527,14 @@ public sealed class ConversacionEnVivo : IDisposable
     {
         if (Interlocked.Exchange(ref _parandoPorOrden, 1) != 0) return;
         LogBus.Log("voz-viva", "orden de autocontrol: cierro micrófono y dejo una confirmación breve");
-        _audio.CerrarMicrofono();
+        ElMicro(false);
+        var cts = _cts;   // la sesión que lo pidió: dos segundos después puede haber otra, y esa no se cierra
         _ = Task.Run(async () =>
         {
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(2));
+                if (cts != null && !ReferenceEquals(_cts, cts)) return;
                 await TerminarAsync();
             }
             catch (Exception e) { LogBus.Log("voz-viva", $"no pude cerrar la voz tras la orden: {e.Message}"); }

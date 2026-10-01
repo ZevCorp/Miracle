@@ -163,6 +163,6 @@ class Contrato007WakeWordEnApp {
             ?: fail("no encuentro $raizRelativa subiendo desde $desde")
         val archivo = raiz.walkTopDown().firstOrNull { it.isFile && it.name == nombre }
             ?: fail("no encuentro $nombre en $raiz")
-        return archivo.readText()
+        return archivo.readText().replace("\r\n", "\n")
     }
 }

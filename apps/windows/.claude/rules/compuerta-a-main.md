@@ -1,6 +1,6 @@
 # La compuerta: qué tiene que ser cierto para que algo entre a `main`
 
-`main` roto bloquea a los tres. Esto es lo que separa una rama de `main`, y **el orden importa**:
+`main` roto bloquea a todos. Esto es lo que separa una rama de `main`, y **el orden importa**:
 lo barato primero, para que un fallo de veinte segundos no espere a una prueba de veinte minutos.
 
 ## Los cuatro niveles

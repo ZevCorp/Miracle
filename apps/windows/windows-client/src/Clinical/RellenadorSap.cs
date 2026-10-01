@@ -38,7 +38,7 @@ public sealed class RellenadorSap
 {
     private readonly GraphConfig _config;
     private readonly SapGuiSurface _sap;
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(45) };
+    private static readonly HttpClient Http = U.Graph.RedDeGraph.Cliente(TimeSpan.FromSeconds(45));   // con el sello (promesa 686)
 
     /// <summary>
     /// La pantalla donde esto tiene sentido. Se compara por PROGRAMA y número de dynpro, no por la

@@ -943,6 +943,21 @@ internal static class Contrato
         // CUÁNDO, y asomaba en el primer sondeo: subir a una pestaña del navegador lo hacía caer encima
         // de ella. «Que solo aparezca al mantener el mouse allá arriba por 0,5 segs o algo así».
         Prueba("530. el notch se hace esperar: medio segundo con el cursor quieto en la franja de arriba lo asoma, y una sola vez por visita; pasar por ella, recorrerla de lado como quien busca una pestaña o hacer clic dentro no lo asoman, y tras un clic no vuelve hasta salir de la franja", ElNotchSeHaceEsperar);
+
+        // LA ONDA DEL NOTCH PRENDE Y APAGA LA VOZ (spec 065, 2026-09-30). El icono de la izquierda se pintaba
+        // y no se podía pulsar. «Que tenga el mismo funcionamiento que el de mensaje pero para activar y
+        // desactivar la voz (misma acción que cuando hago clic en la carita)». Las 532–535 son de otra rama
+        // sin mergear (exportar al HIS web): no se reciclan.
+        Prueba("540. la onda del notch es un botón como el de mensajes: pulsarla alterna la voz por el mismo camino que el clic en la carita y no abre el chat; su blanco mide lo mismo que el de mensajes sin mover el icono; y, como su clic ya abre o cuelga la voz, el notch lleva el mismo gancho que tira los clics de Ü", LaOndaDelNotchPrendeLaVoz);
+        // Y UN BOTÓN QUE NO SE VE NO ES UN BOTÓN. La primera prueba sobre el PC real (2026-09-30, 22:07) fotografió
+        // un notch recién arrancado: «Ü» en el centro, el de mensajes a la derecha y NADA a la izquierda. El dibujo
+        // solo se ponía al CAMBIAR de estado, y un notch nace en el estado en que ya está.
+        Prueba("541. el icono del notch es siempre el del estado que toca: recién nacido enseña la onda —no un hueco—, y al retirarse vuelve a la onda quieta, no se queda con el dibujo ni con el giro del último paso", ElIconoDelNotchEsElDelEstado);
+        // Y PULSARLA NO LE QUITA EL TECLADO A NADIE (spec 066, 2026-09-30). Medido el día que la onda se hizo
+        // botón: tras el clic, la ventana de delante pasaba de la app en uso a «Ü Acciones», y había que volver
+        // a hacer clic en la app para seguir escribiendo. «Arregla lo del teclado».
+        Prueba("542. pulsar el notch compacto no le quita el teclado a la app de delante: el clic llega —la onda sigue alternando la voz— pero no activa la ventana del notch; con el chat abierto sí la activa, porque ahí se escribe, y abrirlo con su botón se lo sigue dando", ElNotchNoQuitaElTeclado);
+
         // 600-609 reservadas el 2026-09-29 para la spec 070 (quién dijo qué), por encima de lo que
         // ya ocupan otras ramas abiertas (hasta la 529). La 600-606 las juzgan Graph y la web.
         Prueba("607. de Soniox, el hablante viaja con el texto hasta el verbatim: una línea «[Hablante N]» cada vez que cambia la voz, numerada por orden de aparición y sin repetirse mientras habla la misma, también en la frase que quedó sin cerrar; sin hablante, el texto de siempre", ElHablanteViajaConElTexto);
@@ -999,6 +1014,104 @@ internal static class Contrato
         Prueba("741. dos del mismo nombre no los elige el plan: si «pulsa: X» encuentra varios «X» a la vista, el paso para con su lista numerada y dice cómo pulsar uno (map_take con which), sin esperar ni pasárselo a Jev; si no hay varios, lo de siempre (516, 524, 525)", DosDelMismoNombreNoLosEligeElPlan);
         Prueba("742. en un equipo compartido la especialidad de un médico no se le pega al siguiente: al entrar con su cuenta, la carita guarda que en ese equipo se usa Ü como médico, pero no copia a config.json la especialidad de la cuenta; la que queda guardada es solo la que alguien eligió allí (700)", LaEspecialidadDeUnaCuentaNoSeQuedaEnElEquipo);
         Prueba("743. una reconexión no deja a nadie esperando a una conexión muerta: si al empezar otra conexión la confirmación de la anterior seguía pendiente, la nueva la hereda, y quien esperaba (volver de un modo, empezar a enseñar, hablar) despierta con la confirmación de la conexión viva en vez de rendirse a los 15 s", LaReconexionNoDejaEsperasHuerfanas);
+
+        // ── Spec 071: el panel se queda con Memoria, el collar y de qué lado vive; Memoria abre todo lo que Ü sabe de ti ──
+        // 620-629 reservadas el 2026-09-30: main va por la 423 y hay ramas vivas hasta la 609 (spec 070).
+        // Una ventana que dice «esto es todo lo que sé de ti» puede ser falsa de tres formas sin que nada
+        // falle: callarse un almacén, enseñar como vacío uno que no pudo leer, o enseñar la clave que vive
+        // en el mismo archivo que el nombre. Por eso lo que se juzga es lo que la ventana va a pintar.
+        Console.WriteLine();
+        // La 620 nació con «tres botones». El 2026-10-01 el dueño pidió el cuarto, el de actualizar, con el dibujo
+        // del mismo lápiz que los otros (spec 072): el enunciado cambia con él, y el número se queda.
+        Prueba("620. el panel en reposo ofrece cuatro botones y nada más: «Memoria», el collar, el de actualizar y el de cambiar de lado; Learn, Work, Subir y Jev ya no están en él", ElPanelTieneTresBotones);
+        Prueba("621. lo que salió del panel no se pierde: subir estudios y encender Jev siguen teniendo su puerta en el panel de desarrollo, con el mismo manejador", LoQueSalioDelPanelNoSePierde);
+        Prueba("622. la Memoria cuenta TODO lo que Ü guarda de ti: cada almacén tiene su apartado con su cuenta, y un almacén sin nada dice «todavía nada» en vez de desaparecer", LaMemoriaCuentaTodoLoGuardado);
+        Prueba("623. un almacén que no se pudo leer dice que no se pudo leer y por qué; no se enseña como vacío", LoQueNoSePudoLeerSeDice);
+        Prueba("624. la Memoria habla como una persona: ni rutas, ni nombres de archivo, ni identificadores, ni direcciones internas; las fechas se dicen «hoy», «ayer» o con día y mes", LaMemoriaHablaComoUnaPersona);
+        Prueba("625. lo secreto no se enseña: ni la clave del cliente, ni el identificador de la instalación, ni el código del teléfono", LoSecretoNoSeEnsena);
+        Prueba("626. abrir la Memoria no cambia nada de lo guardado: los archivos quedan byte a byte como estaban", AbrirLaMemoriaNoCambiaNada);
+        Prueba("627. el botón «Memoria» abre su ventana, y volver a pulsarlo la trae al frente o la quita, con la misma regla que el del collar", ElBotonMemoriaAbreYQuitaSuVentana);
+        // La 627 salió verde y el segundo clic NO quitaba la ventana (medido el 2026-09-30 con el óvalo en una
+        // ventana como el muelle): tocar el óvalo le da el foco al óvalo, así que al llegar el clic la Memoria
+        // ya «no estaba delante» y la regla contestaba «tráela». La regla estaba bien; lo que se le decía, no.
+        Prueba("628. tocar el botón desde otra ventana no cuenta como haber dejado la Memoria: si perdió el foco por ese mismo toque sigue estando al frente y el botón la quita; si lo había perdido antes, la trae", TocarElBotonNoEsDejarLaVentana);
+        // Pedido por el dueño el 2026-09-30, al probarlo: un botón en el panel para tenerlo a la izquierda o a
+        // la derecha de la pantalla. Hasta ese día el muelle vivía clavado al borde derecho.
+        Prueba("629. el panel se puede mandar al otro lado de la pantalla: a la izquierda queda a la misma distancia de su borde que tenía del derecho y entra desde ese borde; el lado elegido es el que se encuentra al volver a abrir Ü, y un lado guardado que no se entiende es la derecha", ElPanelCambiaDeLado);
+
+        // LA ACTUALIZACIÓN LLEGA, Y CUANDO NO LLEGA LO DICE (spec 072, 2026-09-30). En los equipos reales la versión
+        // nueva se descargaba y no se aplicaba: cquintero bajó la 1.3.5 tres veces en dos días. Reproducido con
+        // Velopack de verdad: un programa abierto por Ü hereda su carpeta de trabajo, `current`, y mientras vive
+        // Update.exe no puede renombrarla. Volvía la versión vieja sin una línea en el log. Las 620-629 son de la
+        // spec 071.
+        Prueba("640. al arrancar, Ü suelta su carpeta de instalación: si la carpeta de trabajo del proceso está dentro, pasa a la primera candidata que existe y queda fuera, así que un programa que Ü abra sin carpeta propia no hereda `current` ni le impide a Velopack renombrarla; si ya estaba fuera no se toca, y una carpeta vecina cuyo nombre empieza igual no cuenta como dentro", USueltaSuCarpetaDeInstalacion);
+        Prueba("641. un intento de aplicar deja rastro antes de empezar, y el arranque siguiente lo juzga: con la versión que se quería, «aplicada»; con la de antes, «no se aplicó» y la causa leída del log de Velopack —su línea de error, cuántas veces reintentó—; sin log, o con un log sin ese intento, lo dice tal cual en vez de inventar una causa; el rastro se consume, así que un mismo intento no se juzga dos veces", UnIntentoDeAplicarDejaRastro);
+        Prueba("642. la versión que Ü declara es la instalada: la de Velopack cuando hay instalación y la del ensamblado solo cuando no la hay; vacío no es ausente, y sin ninguna de las dos dice «dev»", LaVersionDeclaradaEsLaInstalada);
+        Prueba("643. si GitHub rechaza el token embebido (401 o 403), Ü busca la actualización sin token en vez de rendirse; cualquier otro fallo —sin red, 404, 500— no pasa por ese camino", UnTokenRechazadoNoDejaSinActualizar);
+        Prueba("644. abrir Ü por segunda vez no mata a la que ya está trabajando: al arrancar, la actualización descargada se aplica solo si no hay otra Ü viva de la misma instalación —la ruta se compara sin mirar mayúsculas, y una Ü de otra carpeta no cuenta—; y tras un intento que acaba de fallar no se reintenta en ese mismo arranque, para no entrar en bucle", AbrirOtraVezNoMataALaQueTrabaja);
+        // EL REPO CAMBIA DE NOMBRE (2026-10-01): es un monorepo y ya no se llama «U-Windows-App». Las Ü instaladas
+        // llevan escrito el nombre viejo; GitHub lo redirige, pero una versión que no supiera caer al otro nombre
+        // dependería de que el cambio y la versión salieran en un orden exacto.
+        Prueba("645. el feed se busca por el nombre nuevo del repositorio y, si GitHub contesta que no existe (404), por el anterior; una dirección guardada con un nombre viejo pasa a la nueva al cargar, y una puesta a mano se respeta", ElFeedSobreviveAlCambioDeNombre);
+        Prueba("646. el botón de actualizar del panel hace el trabajo entero con un toque: con una versión lista la aplica, sin ella busca, descarga y aplica, y mientras trabaja un segundo toque no hace nada; su dibujo dice el estado —en reposo, trabajando, hay versión— y cada desenlace tiene su frase, también la del intento que no llegó a aplicarse", ElBotonDeActualizarHaceElTrabajoEntero);
+        // LA VOZ AL PRIMER CLIC (spec 075, 2026-10-01). «Se demora varios segundos en aparecer la estela y muchos
+        // más en que me escuche… la cliqueo para cerrarla y no se cierra, me toca volver a hacer clic». Medido en
+        // main con un juez de fuera: estela a los 666–1.027 ms del clic, sesión confirmada a los 1.509–1.902, y lo
+        // que el servidor recibe antes de confirmar lo tira. Encender y apagar esperaban a la red para CONSTAR, y
+        // entre medias otro clic hacía lo contrario de lo que se quería. 660 en adelante: 620–629 y 640–648 son de
+        // otras ramas sin mergear.
+        Prueba("660. un clic enciende la voz sin esperar a la red: con el servidor todavía sin contestar, la voz ya consta encendida, avisó una sola vez y pidió el micrófono; un corte de red al conectar se reintenta sin apagarla, y si no hay manera se apaga y lo dice", UnClicEnciendeSinEsperarALaRed);
+        Prueba("661. lo que se dice mientras la sesión abre no se pierde ni se adelanta: nada sale antes de que el servidor confirme, y al confirmar sale entero y en orden, por delante de lo que se capte después; lo que no quepa en la espera se tira por lo más viejo y queda contado", LoDichoMientrasAbreNoSePierde);
+        Prueba("662. cada clic alterna la voz exactamente una vez: una ráfaga de N clics la deja encendida si N es impar y apagada si es par, los avisos alternan sin repetirse, y la conexión que llega tarde se suelta sin abrir sesión", CadaClicAlternaUnaVez);
+        Prueba("663. apagar no espera a nadie: con el borrado de las miradas colgado, al volver del clic la voz ya consta apagada, avisó, soltó el micrófono y no manda un trozo más; las miradas se retiran igual", ApagarNoEsperaANadie);
+        Prueba("664. apagar y volver a encender seguido deja viva la segunda: ni el cierre de la sesión vieja ni su escucha que termina cierran la nueva", ApagarYEncenderSeguidoDejaVivaLaSegunda);
+        Prueba("665. el micrófono preparado entrega lo que pide el protocolo, venga como venga de Windows: de 48 kHz estéreo en coma flotante o de 16 kHz mono sale PCM16 mono al ritmo pedido, con la misma duración y el mismo tono, igual a trozos de 10 ms que de una vez", ElMicrofonoPreparadoEntregaLoQuePideElProtocolo);
+        Prueba("666. cada encendido y cada apagado dejan una línea voz-clic con los milisegundos de cada tramo desde el gesto, y el tramo que no llegó lo dice en vez de faltar", CadaGestoDejaSuLineaDeTiempos);
+        Prueba("667. la historia que se manda al abrir cabe siempre en lo que el servidor acepta: se queda con los turnos más recientes que entren en el presupuesto, enteros y en orden", LaHistoriaCabeSiempre);
+        // ── Spec 052: la carita gira la cabeza, saca las manos y nunca cambia de color ──────────
+        // 440-449 reservadas el 2026-09-30. Se juzga LO PINTADO: cada promesa pinta un FaceControl
+        // de verdad en un bitmap y mira los píxeles, porque una paleta en grises que nadie usara
+        // pasaría una prueba de paleta.
+        Console.WriteLine();
+        Prueba("440. la carita es siempre blanca o negra: en todos sus estados —también grabando, esperando, detenida, en fallo y hablando—, en los dos temas, con las manos fuera y presionando, todo lo que pinta es gris (rojo, verde y azul valen lo mismo); el estado se dice con el gesto, no con el tono", LaCaritaEsBlancaONegra);
+        Prueba("441. girar la cabeza no es correr los ojos: los rasgos se proyectan sobre una cara curva, así que al girar todos se van hacia donde mira, el ojo que se acerca al borde se estrecha más que el otro y los dos quedan más juntos; ningún rasgo se sale de la cara; sin giro todo queda donde siempre estuvo; y lo pintado se mueve de verdad hacia ese lado", GirarLaCabezaNoEsCorrerLosOjos);
+        Prueba("442. las manos asoman y se esconden: en reposo no se ven; al saludar salen por detrás de la cara —lo que la cara tapa no cambia—, una saluda mientras la otra se queda, y al terminar vuelven a esconderse solas en menos de dos segundos y medio", LasManosAsomanYSeEsconden);
+        Prueba("443. la carita tiene volumen: con luz arriba, el cuerpo es más claro arriba que abajo y más oscuro en el borde que hacia dentro, en los dos temas", LaCaritaTieneVolumen);
+        // LA SEGUNDA VUELTA (2026-10-01). El dueño vio la carita de la primera junto a la de main y cambió
+        // tres cosas: el blanco («muy opaco»), CUÁNDO hace los gestos («prefiero que sea mucho más basada
+        // en acciones reales») y la boca al hablar («extremadamente horrible»). La 444 se reescribió antes
+        // de llegar a main: decía «cada 3 a 7 segundos» y «los tres gestos grandes salen».
+        // El saludo salió de la 444 el 2026-10-01 (spec 077): decía «sale solo muy rara vez, entre hora y media y tres
+        // horas», y el dueño: «creo que exageramos». Cuándo saluda lo promete ahora la 690.
+        Prueba("444. la carita está viva sin estar ansiosa: sola solo parpadea, cada 8 a 18 segundos —cerrar es más rápido que abrir y el parpadeo entero dura menos de un cuarto de segundo—; girar la cabeza y el pulso no salen solos; y quieta no pide cuadros", LaCaritaEstaVivaSinAnsiedad);
+        Prueba("445. la carita blanca es casi blanca sin ser blanca: su cuerpo no llega al blanco puro en ningún punto ni se apaga —el centro no baja de 240 de 255, y arriba, abajo y a los lados no baja de 225—, y conserva el volumen", LaCaritaBlancaEsCasiBlanca);
+        Prueba("446. cuando Ü pulsa algo, la carita lo presiona con la mano: saca solo la mano de ese lado, la empuja hacia fuera y la esconde sola en menos de un segundo, por detrás de la cara; la mano no se sale del aire que la ventana de la carita le deja, tampoco al saludar; y solo presiona cuando el pulso es de Ü: señalar no saca la mano", LaCaritaPresionaLoQueUPulsa);
+        Prueba("447. los gestos responden a lo que pasa: tocar la carita la hace rebotar, y al ir junto a lo que Ü toca gira la cabeza hacia ello y la sigue teniendo girada aunque cambie de estado", LosGestosRespondenALoQuePasa);
+        Prueba("448. al hablar la boca no se abre: es una línea en todos los estados, sin relleno ni lengua; hablar se ve en la sonrisa, que se ensancha poco a poco al empezar una frase y se relaja al callar, sin parpadear en cada frase", AlHablarLaBocaNoSeAbre);
+
+        // ── Spec 076: cada instalación tiene su credencial ──────────────────────────────────────
+        // Nacieron el 2026-09-30 como 640-648 en una rama que no llegó a commitearse; al entrar a main ya estaban
+        // tomadas (spec 072, la actualización), y pasaron a 680-688, por encima de la 667 de la spec 075. El lado
+        // de Graph (spec 004, promesas 401-410) lo juzga services/graph/scripts/verify-windows-devices.js.
+        Prueba("680. una instalación sin credencial se presenta a Graph UNA vez —con la clave embebida y diciendo quién es— y guarda la credencial que recibe; con credencial guardada no se vuelve a presentar, y sin correo todavía no se presenta", LaInstalacionSePresentaUnaVez);
+        Prueba("681. la credencial de la instalación viaja en cada petición a Graph y en ninguna a otro sitio; sin credencial no viaja nada", ElSelloViajaSoloAGraph);
+        Prueba("682. la credencial no aparece en el log ni en el estado, y lo que queda en disco no la lleva en claro", LaCredencialNoSeVe);
+        Prueba("683. una instalación que espera aprobación, una revocada y una que no pudo presentarse se dicen cada una con su nombre, y la que espera da el código con el que el administrador la reconoce", CadaSituacionConSuNombre);
+        Prueba("684. no poder presentarse no tumba la app ni deja nada guardado a medias, y se reintenta con pausas cada vez más largas: nunca dos intentos seguidos sin esperar; a un Graph que todavía no sabe de instalaciones no se le insiste", NoPoderPresentarseNoSeAtasca);
+        Prueba("685. mientras espera aprobación pregunta de vez en cuando y deja de preguntar en cuanto la aprueban o la revocan; si Graph ya no la conoce, se vuelve a presentar", EsperandoAprobacionPregunta);
+        Prueba("686. los seis clientes HTTP que hablan con Graph llevan el sello de la instalación: ninguno se queda sin él", LosSeisClientesLlevanElSello);
+        Prueba("687. unas claves negadas porque la instalación espera aprobación se dicen como espera y no como clave que falta, y se vuelven a pedir cuando hacen falta en vez de darse por perdidas", LasClavesNegadasPorEsperaSeVuelvenAPedir);
+        Prueba("688. el instalador no lleva embebida ninguna clave de terceros: en el binario solo viajan la clave para presentarse y el token de actualizaciones", ElInstaladorNoLlevaClavesDeTerceros);
+        Prueba("689. encender la voz sin clave se la vuelve a pedir a Graph en ese mismo gesto: si la instalación sigue esperando lo dice con su código y no enciende, y si ya la aprobaron enciende sin reiniciar Ü", EncenderSinClaveLaVuelveAPedir);
+
+        // ── Spec 077: la carita saluda cuando vuelves, y atiende mientras conversas ────────────────
+        // 690-699 reservadas el 2026-10-01. El saludo salía cada 8-18 s, se mandó a cada dos horas y al
+        // día siguiente «exageramos»: lo que el dueño pide no es un número, es que salude cuando hay a
+        // quién saludar.
+        Console.WriteLine();
+        Prueba("690. la carita saluda cuando vuelves: al abrir Ü, al desbloquear el computador, al volver a tocarlo tras cinco minutos sin hacerlo y al acercarle el ratón tras diez minutos sin tratarla; y sola, cada 20 a 40 minutos; nunca dos veces en menos de minuto y medio, ni en mitad de una conversación o de un trabajo", LaCaritaSaludaCuandoVuelves);
+        Prueba("691. mientras conversas con ella y te escucha, la carita atiende: pone la cara quieta y de boca pequeña de cuando graba, distinta de la del reposo; y al hablar sonríe ancho, como siempre", MientrasConversaLaCaritaAtiende);
+        Prueba("692. hay un solo reloj del saludo y vive en la ventana: el dibujo de la carita, solo, únicamente parpadea", HayUnSoloRelojDelSaludo);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -1129,8 +1242,11 @@ internal static class Contrato
         int hasta = desde < 0 ? -1 : fuente.IndexOf("_fallaAntesDeAbrir = \"\";", desde, StringComparison.Ordinal);
         if (desde < 0 || hasta < 0) { Pendiente("ConversacionEnVivo.EmpiezaUnaConexion", "743", "voz"); return; }
         string empieza = fuente[desde..hasta];
-        Debe(empieza.Contains("_aperturaConfirmada is { Task.IsCompleted: false }", StringComparison.Ordinal),
-            "la confirmación pendiente de la conexión anterior pasa a la nueva en vez de quedar huérfana");
+        // La forma da igual (main la escribió con un if, esta rama con un patrón): lo que se juzga es que la
+        // espera nueva solo nace si no hay una pendiente.
+        bool hereda = empieza.Contains("_aperturaConfirmada is { Task.IsCompleted: false }", StringComparison.Ordinal)
+            || empieza.Contains("if (_aperturaConfirmada == null || _aperturaConfirmada.Task.IsCompleted)", StringComparison.Ordinal);
+        Debe(hereda, "la confirmación pendiente de la conexión anterior pasa a la nueva en vez de quedar huérfana");
         Debe(empieza.Contains("if (_confirmada) _aperturaConfirmada.TrySetResult(true);", StringComparison.Ordinal),
             "y un protocolo que no confirma la deja resuelta en el acto, como siempre");
     }
@@ -10790,6 +10906,259 @@ internal static class Contrato
         Debe(clic(true, arriba, false, ms * 7), "pero al salir de la franja y volver, el gesto vuelve a funcionar");
     }
 
+    /// <summary>Promesa 540.</summary>
+    private static void LaOndaDelNotchPrendeLaVoz()
+    {
+        var t = Capacidad("U.WindowsClient.Ui.PanelDeAcciones");
+        var senal = t?.GetEvent("VozSolicitada");
+        if (t == null || senal == null) { Pendiente("PanelDeAcciones.VozSolicitada (la señal del botón de la onda)", "540", "065"); return; }
+
+        // SE CONSTRUYE EL NOTCH DE VERDAD, sin enseñarlo: el contrato corre en un hilo STA y lo que se
+        // promete es lo que pasa al pulsar, no cómo se llama un método. Si esta máquina no puede ni
+        // construirlo, eso NO es la promesa rota y se dice aparte (aprendizaje nº17).
+        System.Windows.Window notch;
+        try { notch = (System.Windows.Window)Activator.CreateInstance(t)!; }
+        catch (Exception e)
+        {
+            _fallos++;
+            Console.WriteLine("   ⚠ NO PUDE JUZGAR la 540: el notch no se pudo construir en esta máquina.");
+            for (var x = e; x != null; x = x.InnerException) Console.WriteLine($"     {x.GetType().Name}: {x.Message}");
+            return;
+        }
+
+        try
+        {
+            var botones = new List<System.Windows.Controls.Button>();
+            void Recorrer(object nodo)
+            {
+                if (nodo is System.Windows.Controls.Button b) botones.Add(b);
+                if (nodo is not System.Windows.DependencyObject d) return;
+                foreach (object hijo in System.Windows.LogicalTreeHelper.GetChildren(d)) Recorrer(hijo);
+            }
+            Recorrer(notch.Content);
+            System.Windows.Controls.Button? Por(string nombre) =>
+                botones.FirstOrDefault(b => System.Windows.Automation.AutomationProperties.GetName(b) == nombre);
+
+            var voz = Por("Activar o desactivar la voz");
+            var mensajes = Por("Abrir conversación");
+            Debe(mensajes != null, "el botón de mensajes sigue en el notch, con el nombre por el que lo encuentra UIA");
+            Debe(voz != null,
+                "la onda es un botón con nombre —«Activar o desactivar la voz»—: hay "
+                + $"{botones.Count} botón(es) en el notch ({string.Join(" · ", botones.Select(b => "«" + System.Windows.Automation.AutomationProperties.GetName(b) + "»"))}) y ninguno es ese");
+            if (voz == null || mensajes == null) return;
+
+            // PULSARLA: sale la señal UNA vez, y el chat no se abre. El cruce es lo que importa —un botón
+            // nuevo colgado del manejador del vecino pasaría cualquier prueba que solo mirase que existe—.
+            int veces = 0;
+            senal.AddEventHandler(notch, new Action(() => veces++));
+            bool ChatAbierto() => (bool)t.GetProperty("ChatAbierto")!.GetValue(notch)!;
+            voz.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Debe(veces == 1, $"pulsar la onda pide alternar la voz una vez (salió {veces})");
+            Debe(!ChatAbierto(), "y no abre el chat: eso es del otro botón");
+            voz.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Debe(veces == 2, $"pulsarla otra vez lo vuelve a pedir —activar y desactivar son el mismo gesto— (van {veces})");
+
+            // «EL MISMO FUNCIONAMIENTO QUE EL DE MENSAJE»: el mismo blanco, la misma mano, la misma plantilla.
+            Debe(voz.Cursor == mensajes.Cursor && voz.Cursor == System.Windows.Input.Cursors.Hand, "enseña la mano al pasar, como el de mensajes");
+            Debe(voz.Template != null && mensajes.Template != null && voz.Template.TargetType == mensajes.Template.TargetType
+                 && voz.Background == mensajes.Background && voz.BorderThickness == mensajes.BorderThickness,
+                "va vestido como el de mensajes: sin el cromo gris del botón de Windows");
+            Debe(voz.Content is System.Windows.FrameworkElement, "y lo que lleva dentro es el icono del estado, no otro dibujo");
+
+            // SIN MOVER EL ICONO. El blanco crece de 26 a 32 hacia fuera; el dibujo se queda donde estaba —pegado
+            // al inicio de la fila y centrado en el alto— y el blanco no sale recortado por la celda.
+            var raiz = (System.Windows.FrameworkElement)notch.Content;
+            raiz.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+            raiz.Arrange(new System.Windows.Rect(raiz.DesiredSize));
+            raiz.UpdateLayout();
+            var medidas = Capacidad("U.WindowsClient.Ui.MedidaDelNotch")!;
+            double C(string campo) => (double)medidas.GetField(campo, BindingFlags.Public | BindingFlags.Static)!.GetRawConstantValue()!;
+            Debe(Math.Abs(voz.ActualWidth - mensajes.ActualWidth) < 1 && Math.Abs(voz.ActualHeight - mensajes.ActualHeight) < 1
+                 && Math.Abs(voz.ActualWidth - C("CajaDelChat")) < 1,
+                $"el blanco de la onda mide lo mismo que el de mensajes ({voz.ActualWidth}×{voz.ActualHeight} frente a {mensajes.ActualWidth}×{mensajes.ActualHeight})");
+
+            // «NO LO RECORTA» SE MIDE POR LO QUE QUEDA A LA VISTA, no por si hay recorte. La primera versión
+            // exigía que no hubiera ninguno y salió roja sin que faltara un píxel: al 125 % la columna de 26 se
+            // redondea a 25,6, WPF le pone al botón un recorte de 32 × 39,2 y ese recorte lo contiene entero
+            // (medido 2026-09-30). Un recorte que no corta nada no es el fallo; quedarse en 26 de ancho, sí.
+            var recorte = System.Windows.Controls.Primitives.LayoutInformation.GetLayoutClip(voz);
+            var blanco = new System.Windows.Rect(0, 0, voz.ActualWidth, voz.ActualHeight);
+            var aLaVista = recorte == null ? blanco : System.Windows.Rect.Intersect(recorte.Bounds, blanco);
+            Debe(!aLaVista.IsEmpty && aLaVista.Width > blanco.Width - 1 && aLaVista.Height > blanco.Height - 1,
+                $"y cabe entero: la celda del icono no le recorta el blanco (de {blanco.Width:0.#}×{blanco.Height:0.#} quedan a la vista {(aLaVista.IsEmpty ? "0×0" : $"{aLaVista.Width:0.#}×{aLaVista.Height:0.#}")})");
+
+            // Y SE PUEDE PULSAR EN EL BORDE, que es lo que el blanco más grande compra: a un punto de cada
+            // lado del botón, fuera de la caja del icono, lo que hay bajo el cursor sigue siendo la onda.
+            //
+            // POR LA GEOMETRÍA (VisualTreeHelper.HitTest) y no por InputHitTest: una pieza que nunca se enseñó
+            // no cuelga de ninguna ventana viva, WPF la da por no visible e InputHitTest contesta «nada» en
+            // todas partes —en los tres puntos de la onda, centro incluido, medido 2026-09-30—. El de mensajes
+            // va de testigo: si la sonda no lo encuentra a él, la que no puede mirar es la sonda.
+            bool Bajo(System.Windows.Controls.Button boton, double x)
+            {
+                var punto = boton.TranslatePoint(new System.Windows.Point(x, boton.ActualHeight / 2), raiz);
+                System.Windows.DependencyObject? bajo = System.Windows.Media.VisualTreeHelper.HitTest(raiz, punto)?.VisualHit;
+                while (bajo != null && !ReferenceEquals(bajo, boton)) bajo = System.Windows.Media.VisualTreeHelper.GetParent(bajo);
+                return bajo != null;
+            }
+            if (!Bajo(mensajes, mensajes.ActualWidth / 2))
+            {
+                _fallos++;
+                Console.WriteLine("   ⚠ NO PUDE JUZGAR dónde se puede pulsar: la sonda no encuentra ni el botón de mensajes en su propio centro.");
+            }
+            else
+                Debe(Bajo(voz, 1) && Bajo(voz, voz.ActualWidth / 2) && Bajo(voz, voz.ActualWidth - 1),
+                    $"se puede pulsar en todo el blanco, también fuera del dibujo (borde izquierdo: {Bajo(voz, 1)}, centro: {Bajo(voz, voz.ActualWidth / 2)}, borde derecho: {Bajo(voz, voz.ActualWidth - 1)})");
+
+            // UN PUNTO DE HOLGURA en las posiciones, y no medio: con la maquetación redondeada al píxel del
+            // monitor, dos redondeos seguidos pueden sumar casi uno. Mover el icono de verdad son 3 o más.
+            var fila = (System.Windows.FrameworkElement)voz.Parent;
+            var icono = (System.Windows.FrameworkElement)voz.Content;
+            var dondeElIcono = icono.TranslatePoint(new System.Windows.Point(0, 0), fila);
+            var dondeMensajes = mensajes.TranslatePoint(new System.Windows.Point(0, 0), fila);
+            Debe(Math.Abs(dondeElIcono.X) < 1 && Math.Abs(icono.ActualWidth - C("CajaDelIcono")) < 1,
+                $"el icono no se mueve: sigue al inicio de la fila y mide {C("CajaDelIcono")} (está en x={dondeElIcono.X:0.#}, mide {icono.ActualWidth:0.#})");
+            Debe(Math.Abs(dondeElIcono.Y + icono.ActualHeight / 2 - fila.ActualHeight / 2) < 1,
+                $"ni sube ni baja: sigue centrado en el alto (su centro está en y={dondeElIcono.Y + icono.ActualHeight / 2:0.#} de {fila.ActualHeight:0.#})");
+            Debe(Math.Abs(dondeMensajes.X + mensajes.ActualWidth - fila.ActualWidth) < 1,
+                $"y el de mensajes sigue pegado al final de la fila: hacerle sitio a un botón no le quita el suyo al otro (acaba en x={dondeMensajes.X + mensajes.ActualWidth:0.#} de {fila.ActualWidth:0.#})");
+        }
+        finally { notch.Close(); }   // suelta sus relojes: una promesa posterior que bombee el hilo no los hereda
+
+        // [cableado] Lo que no se puede pulsar sin la app entera. Un solo sitio decide qué es «alternar»: el
+        // clic en la carita, el doble Ctrl y el botón del collar ya entran por StartMicByFace, y la onda es el cuarto.
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(cara.Contains("SingleTap = StartMicByFace", StringComparison.Ordinal),
+            "[cableado] el clic en la carita ya no entra por StartMicByFace: «el mismo camino» dejó de tener a qué referirse");
+        Debe(cara.Contains("_acciones.VozSolicitada += StartMicByFace", StringComparison.Ordinal),
+            "[cableado] la carita no cuelga la onda del notch del mismo StartMicByFace que su propio clic");
+        if (FuenteDe("windows-client", "src", "Ui", "PanelDeAcciones.cs") is not { } panel) return;
+        Debe(panel.Contains("ToquesDeU.Proteger(this)", StringComparison.Ordinal),
+            "[cableado] el notch abre la voz con un clic y no tiene su propio gancho: un bucle modal se salta el filtro de hilo (promesa 508; eran 3 ventanas, con el notch son 4)");
+    }
+
+    /// <summary>Promesa 541.</summary>
+    private static void ElIconoDelNotchEsElDelEstado()
+    {
+        const BindingFlags privado = BindingFlags.NonPublic | BindingFlags.Instance;
+        var t = Capacidad("U.WindowsClient.Ui.PanelDeAcciones");
+        var olvidar = t?.GetMethod("Olvidar", privado);
+        var pintar = t?.GetMethod("PintarContenido", privado);
+        var campoIcono = t?.GetField("_icono", privado);
+        var campoDice = t?.GetField("_dice", privado);
+        var campoTexto = t?.GetField("_texto", privado);
+        var iconos = Capacidad("U.WindowsClient.Ui.IconosDelNotch")?.GetMethod("De");
+        var estados = Capacidad("U.WindowsClient.Ui.EstadoDelNotch");
+        if (t == null || olvidar == null) { Pendiente("PanelDeAcciones.Olvidar (volver a la onda al retirarse)", "541", "065"); return; }
+        if (pintar == null || campoIcono == null || campoDice == null || campoTexto == null || iconos == null || estados == null)
+        {
+            _fallos++;
+            Console.WriteLine("   ⚠ NO PUDE JUZGAR la 541: el notch ya no tiene «PintarContenido», «_icono», «_dice» o «_texto», o falta «IconosDelNotch.De». La sonda mira por esos nombres.");
+            return;
+        }
+
+        System.Windows.Window notch;
+        try { notch = (System.Windows.Window)Activator.CreateInstance(t)!; }
+        catch (Exception e)
+        {
+            _fallos++;
+            Console.WriteLine("   ⚠ NO PUDE JUZGAR la 541: el notch no se pudo construir en esta máquina.");
+            for (var x = e; x != null; x = x.InnerException) Console.WriteLine($"     {x.GetType().Name}: {x.Message}");
+            return;
+        }
+
+        try
+        {
+            var icono = (System.Windows.Shapes.Path)campoIcono.GetValue(notch)!;
+            object dice = campoDice.GetValue(notch)!;
+            var texto = (System.Windows.Controls.TextBlock)campoTexto.GetValue(notch)!;
+            var cultura = System.Globalization.CultureInfo.InvariantCulture;
+            string Dibujo(string estado) => System.Windows.Media.Geometry.Parse(
+                (string)iconos.Invoke(null, new[] { Enum.Parse(estados, estado) })!).ToString(cultura);
+            string Pintado() => icono.Data?.ToString(cultura) ?? "(nada)";
+            bool Girando() => icono.RenderTransform is System.Windows.Media.RotateTransform g
+                && (g.HasAnimatedProperties || Math.Abs(g.Angle) > 0.001);
+            void Pasa(string metodo, params object[] args)
+            {
+                dice.GetType().GetMethod(metodo)!.Invoke(dice, args);
+                pintar.Invoke(notch, null);
+            }
+
+            // RECIÉN NACIDO: la onda, y quieta.
+            Debe(Pintado() == Dibujo("Voz"), $"recién nacido enseña la onda, no un hueco (lo pintado es {Pintado()})");
+            Debe(!Girando(), "y la onda no gira");
+
+            // EL TESTIGO: la sonda ve cambiar el dibujo cuando cambia el estado. Sin esto, «sigue siendo la onda»
+            // de más abajo lo pasaría también un notch que no repinta nunca.
+            Pasa("Termina", "listo", true);
+            Debe(Pintado() == Dibujo("Hecho"), $"al terminar un paso enseña el visto (lo pintado es {Pintado()})");
+            olvidar.Invoke(notch, null);
+            Debe(Pintado() == Dibujo("Voz"), $"al retirarse vuelve a la onda: no se queda con el visto del último paso (lo pintado es {Pintado()})");
+            Debe(texto.Text == "Ü", $"y con el texto de quien no tiene tarea («{texto.Text}»)");
+
+            // EL QUE GIRA: retirarse en mitad de un paso no puede dejar la onda dando vueltas.
+            Pasa("Empieza", "abriendo algo");
+            Debe(Pintado() == Dibujo("EnCurso") && Girando(), "en curso enseña el aro y gira");
+            olvidar.Invoke(notch, null);
+            Debe(Pintado() == Dibujo("Voz") && !Girando(), $"al retirarse en mitad de un paso vuelve a la onda QUIETA (lo pintado es {Pintado()}, girando: {Girando()})");
+        }
+        finally { notch.Close(); }
+    }
+
+    /// <summary>Promesa 542.</summary>
+    private static void ElNotchNoQuitaElTeclado()
+    {
+        var t = Capacidad("U.WindowsClient.Ui.PanelDeAcciones");
+        var estilo = t?.GetMethod("EstiloSegunElChat", BindingFlags.Public | BindingFlags.Static);
+        if (t == null || estilo == null) { Pendiente("PanelDeAcciones.EstiloSegunElChat (el estilo de la ventana del notch, con el chat abierto y sin él)", "542", "066"); return; }
+        int Estilo(int ex, bool chatAbierto) => (int)estilo.Invoke(null, new object[] { ex, chatAbierto })!;
+
+        // EL ESTILO, Y NO LA RESPUESTA AL CLIC. La primera versión contestaba MA_NOACTIVATE a WM_MOUSEACTIVATE, el
+        // contrato la dio por buena y el PC la desmintió (2026-09-30, 23:40): tras pulsar la onda, delante no quedaba
+        // el notch… ni la app: quedaba una ventana sin título, o ninguna (la sonda de esa pasada no las distinguía). Con
+        // WS_EX_NOACTIVATE en la ventana, medido tres minutos después, las letras caen en la app de delante.
+        const int NOACTIVATE = 0x08000000, LAYERED = 0x80000, TOOLWINDOW = 0x80, TOPMOST = 0x8, TRANSPARENT = 0x20;
+        int deSiempre = LAYERED | TOOLWINDOW | TOPMOST;   // 0x80088: el que trae el notch, leído de su log
+
+        int compacto = Estilo(deSiempre, false);
+        Debe((compacto & NOACTIVATE) != 0, $"compacto, la ventana del notch no se activa al pulsarla: lleva WS_EX_NOACTIVATE (quedó en 0x{compacto:X})");
+        Debe((compacto & deSiempre) == deSiempre, $"sin perder lo que ya llevaba: en capas, de herramienta y siempre encima (quedó en 0x{compacto:X})");
+        Debe(Estilo(compacto, false) == compacto, "y ponerlo dos veces deja lo mismo que una");
+
+        int conChat = Estilo(compacto, true);
+        Debe((conChat & NOACTIVATE) == 0, $"con el chat abierto se le quita: ahí se escribe, y una ventana que no se activa no recibe el teclado (quedó en 0x{conChat:X})");
+        Debe(conChat == deSiempre, $"y solo se le quita eso (quedó en 0x{conChat:X}, se esperaba 0x{deSiempre:X})");
+        Debe(Estilo(conChat, false) == compacto, "al cerrar el chat vuelve a no activarse");
+
+        // EL NOTCH APARTADO (promesa 527) es otro bit sobre la misma ventana: ninguno de los dos pisa al otro.
+        Debe((Estilo(deSiempre | TRANSPARENT, false) & TRANSPARENT) != 0 && (Estilo(compacto | TRANSPARENT, true) & TRANSPARENT) != 0,
+            "ni al ponerlo ni al quitarlo se lleva por delante el bit del notch apartado");
+
+        // [cableado] El estilo se ajusta en los TRES momentos en que cambia la respuesta: al nacer la ventana, al
+        // abrir el chat y al cerrarlo. Y abrir el chat sigue pidiendo el teclado A MANO, porque el clic que lo
+        // abre cae en una ventana que no se activa.
+        if (FuenteDe("windows-client", "src", "Ui", "PanelDeAcciones.cs") is not { } panel) return;
+        string Metodo(string firma) => System.Text.RegularExpressions.Regex.Match(panel, System.Text.RegularExpressions.Regex.Escape(firma) + @"[\s\S]*?\r?\n    }\r?\n").Value;
+        bool Despues(string metodo, string primero, string luego)
+        {
+            int i = metodo.IndexOf(primero, StringComparison.Ordinal);
+            return i >= 0 && metodo.IndexOf(luego, i, StringComparison.Ordinal) > i;
+        }
+        Debe(Metodo("private void AjustarActivacion()").Contains("EstiloSegunElChat(", StringComparison.Ordinal)
+             && Metodo("private void AjustarActivacion()").Contains("ChatAbierto", StringComparison.Ordinal),
+            "[cableado] quien ajusta el estilo de la ventana no pregunta a la regla con el estado vivo del chat");
+        Debe(Metodo("protected override void OnSourceInitialized(EventArgs e)").Contains("AjustarActivacion();", StringComparison.Ordinal),
+            "[cableado] al nacer la ventana del notch no se le pone el estilo: el primer clic le quitaría el teclado a la app");
+        Debe(Despues(Metodo("public void AbrirChat(bool enfocar)"), "ChatAbierto = true;", "AjustarActivacion();"),
+            "[cableado] al abrir el chat no se le quita el estilo: se abriría una caja de texto en una ventana que no recibe el teclado");
+        Debe(Despues(Metodo("public void CerrarChat()"), "ChatAbierto = false;", "AjustarActivacion();"),
+            "[cableado] al cerrar el chat no se le vuelve a poner el estilo: el notch compacto volvería a quitar el teclado");
+        Debe(Metodo("private void EnfocarEntrada()").Contains("Activate();", StringComparison.Ordinal),
+            "[cableado] abrir el chat ya no pide el teclado a mano: el clic que lo abre cae en el notch compacto y no lo trae");
+        Debe(!panel.Contains("GanchoDeActivacion", StringComparison.Ordinal) && !panel.Contains("AlPreguntarSiActiva", StringComparison.Ordinal),
+            "[cableado] sigue ahí el gancho que contestaba al clic, que el PC desmintió: lo que no sirve se borra, no se deja de adorno");
+    }
+
     /// <summary>Promesa 531.</summary>
     private static void UNoEstorbaEnAltTab()
     {
@@ -10834,6 +11203,357 @@ internal static class Contrato
             Debe(V(nombre) is Type v && Flotante(v), $"«{nombre}» es una pieza flotante: no sale en Alt+Tab");
         foreach (string nombre in new[] { "ConsultaWindow", "EstudiosWindow", "LoginWindow" })
             Debe(V(nombre) is Type v && DeTrabajo(v), $"«{nombre}» es una ventana de trabajo: sigue saliendo en Alt+Tab, que es donde se la busca");
+    }
+
+    // ── Spec 072: la actualización llega, y cuando no llega lo dice ──────────
+
+    /// <summary>Promesa 640.</summary>
+    private static void USueltaSuCarpetaDeInstalacion()
+    {
+        var t = Capacidad("U.WindowsClient.Update.CarpetaDeTrabajo");
+        var soltar = t?.GetMethod("Soltar", new[] { typeof(string), typeof(string[]) });
+        var estaDentro = t?.GetMethod("EstaDentro", new[] { typeof(string), typeof(string) });
+        if (soltar == null || estaDentro == null) { Pendiente("Update.CarpetaDeTrabajo.Soltar/EstaDentro", "640", "072"); return; }
+        string Soltar(string instalacion, params string[] candidatas) => (string)soltar.Invoke(null, new object[] { instalacion, candidatas })!;
+        bool Dentro(string carpeta, string de) => (bool)estaDentro.Invoke(null, new object[] { carpeta, de })!;
+        static bool Misma(string a, string b) => string.Equals(
+            Path.GetFullPath(a).TrimEnd(Path.DirectorySeparatorChar), Path.GetFullPath(b).TrimEnd(Path.DirectorySeparatorChar),
+            StringComparison.OrdinalIgnoreCase);
+
+        // La forma de una instalación de Velopack: <raíz>\current es lo que Update.exe renombra al actualizar.
+        string raiz = Path.Combine(_raiz, "carpeta-de-trabajo");
+        string current = Path.Combine(raiz, "U", "current");
+        string dentro = Path.Combine(current, "runtimes");
+        string vecina = Path.Combine(raiz, "U", "current-vieja");
+        string fuera = Path.Combine(raiz, "perfil");
+        string otra = Path.Combine(raiz, "otra");
+        foreach (string d in new[] { dentro, vecina, fuera, otra }) Directory.CreateDirectory(d);
+
+        string antes = Environment.CurrentDirectory;
+        try
+        {
+            // El acceso directo que crea el instalador arranca a Ü con la carpeta de trabajo en current.
+            Environment.CurrentDirectory = current;
+            string donde = Soltar(current, fuera);
+            Debe(Misma(Environment.CurrentDirectory, fuera) && Misma(donde, fuera),
+                "arrancada desde su acceso directo —carpeta de trabajo = current—, Ü pasa a la candidata de fuera, y dice a cuál");
+
+            Environment.CurrentDirectory = dentro;
+            Soltar(current, fuera);
+            Debe(Misma(Environment.CurrentDirectory, fuera), "desde una subcarpeta de la instalación también se suelta");
+
+            Environment.CurrentDirectory = otra;
+            Soltar(current, fuera);
+            Debe(Misma(Environment.CurrentDirectory, otra), "si ya estaba fuera no se toca: quien lanzó a Ü desde otra carpeta la conserva");
+
+            Environment.CurrentDirectory = vecina;
+            Soltar(current, fuera);
+            Debe(Misma(Environment.CurrentDirectory, vecina),
+                "«current-vieja» empieza igual que «current» y no es la instalación: comparar por prefijo de texto la daría por dentro");
+            Debe(Dentro(dentro, current) && Dentro(current, current) && !Dentro(vecina, current) && !Dentro(fuera, current),
+                "dentro es la carpeta misma o lo que cuelga de ella; ni la vecina ni la de fuera");
+
+            Environment.CurrentDirectory = current;
+            Soltar(current.ToUpperInvariant() + Path.DirectorySeparatorChar, Path.Combine(raiz, "no-existe"), dentro, fuera);
+            Debe(Misma(Environment.CurrentDirectory, fuera),
+                "se elige la primera candidata que EXISTE y queda FUERA —la que no existe y la que está dentro se saltan—, y la instalación dicha con otras mayúsculas y barra final es la misma carpeta");
+
+            Environment.CurrentDirectory = current;
+            string sola = Soltar(current);
+            Debe(!Dentro(Environment.CurrentDirectory, current) && Directory.Exists(sola),
+                "sin candidatas elige ella una carpeta que existe y queda fuera: en la app de verdad nadie se las pasa");
+
+            // LO QUE CIERRA EL ASUNTO: el hijo. Así lanza Ü un navegador o una app del menú Inicio —sin carpeta de
+            // trabajo—, y es ese proceso, vivo horas, el que le sujetaba `current` a Update.exe.
+            Environment.CurrentDirectory = current;
+            Soltar(current, fuera);
+            using var hijo = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c cd")
+            { UseShellExecute = false, RedirectStandardOutput = true, CreateNoWindow = true })!;
+            string carpetaDelHijo = hijo.StandardOutput.ReadToEnd().Trim();
+            hijo.WaitForExit(5000);
+            Debe(Directory.Exists(carpetaDelHijo) && !Dentro(carpetaDelHijo, current),
+                $"un programa lanzado sin carpeta propia nace fuera de la instalación (nació en «{carpetaDelHijo}»)");
+        }
+        finally { Environment.CurrentDirectory = antes; }
+    }
+
+    /// <summary>
+    /// Lo que Update.exe dejó escrito el 2026-09-30 cuando no pudo renombrar `current` (banco de actualización,
+    /// escenario S2). Son sus líneas, sin tocar: diez reintentos y el error, seguidas del arranque de la app vieja.
+    /// </summary>
+    private const string LogDeVelopackQueNoPudoRenombrar =
+        "[update:33596] [22:08:51] [INFO] Command: Apply\n" +
+        "[update:33596] [22:08:51] [INFO]     Restart: true\n" +
+        "[update:33596] [22:08:51] [INFO]     Wait: WaitPid(30448)\n" +
+        "[update:33596] [22:08:51] [INFO] Applying package 9.0.2 to current: 9.0.1\n" +
+        "[update:33596] [22:08:52] [INFO] Backing up current dir to \"C:\\\\U-banco\\\\inst\\\\packages\\\\VelopackTemp\\\\tmp_tG3VB9gQm8DQd1Xd\"\n" +
+        "[update:33596] [22:08:52] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:53] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:54] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:55] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:56] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:57] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:58] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:08:59] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:09:00] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:09:01] [WARN] Retrying operation in 1000ms... (error was: Some(Os { code: 32, kind: Uncategorized, message: \"El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.\" }))\n" +
+        "[update:33596] [22:09:02] [ERROR] Apply error: Error applying package: Unable to start the update, because one or more running processes prevented it. Try again later, or if the issue persists, restart your computer.\n" +
+        "[update:33596] [22:09:02] [ERROR] An error has occurred: Apply error: Error applying package: Unable to start the update, because one or more running processes prevented it. Try again later, or if the issue persists, restart your computer.\n" +
+        "[lib-csharp:38452] [22:09:03] [Information] Initialized WindowsVelopackLocator for USonda v9.0.1\n" +
+        "[lib-csharp:38452] [22:09:03] [Information] Starting VelopackApp.Run (library version 1.2.0).\n";
+
+    /// <summary>Promesa 641.</summary>
+    private static void UnIntentoDeAplicarDejaRastro()
+    {
+        var t = Capacidad("U.WindowsClient.Update.RastroDeActualizacion");
+        var anotar = t?.GetMethod("Anotar", new[] { typeof(string), typeof(string), typeof(string), typeof(string) });
+        var juzgar = t?.GetMethod("Juzgar", new[] { typeof(string), typeof(string), typeof(string) });
+        if (anotar == null || juzgar == null) { Pendiente("Update.RastroDeActualizacion.Anotar/Juzgar", "641", "072"); return; }
+        void Anotar(string carpeta, string desde, string hacia, string via) => anotar.Invoke(null, new object[] { carpeta, desde, hacia, via });
+        object Juzgar(string carpeta, string actual, string? log) => juzgar.Invoke(null, new object?[] { carpeta, actual, log })!;
+        static string Que(object v) => Prop(v, "Que")!.ToString()!;
+        static string Causa(object v) => (string)Prop(v, "Causa")!;
+
+        string carpeta = Path.Combine(_raiz, "rastro-de-actualizacion");
+        Directory.CreateDirectory(carpeta);
+
+        Debe(Que(Juzgar(carpeta, "1.3.6", LogDeVelopackQueNoPudoRenombrar)) == "SinIntento",
+            "sin rastro no se juzga nada: un arranque cualquiera no es un intento, por más errores viejos que tenga el log");
+
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        var bien = Juzgar(carpeta, "1.3.7", null);
+        Debe(Que(bien) == "Aplicada" && (string)Prop(bien, "Desde")! == "1.3.6" && (string)Prop(bien, "Hacia")! == "1.3.7"
+             && (string)Prop(bien, "Via")! == "pastilla",
+            "arrancar en la versión que se quería es «aplicada», y el veredicto dice de cuál a cuál y por qué camino");
+        Debe(Que(Juzgar(carpeta, "1.3.7", null)) == "SinIntento", "el rastro se consume: el mismo intento no se cuenta dos veces");
+
+        Anotar(carpeta, "1.3.6", "1.3.7", "al cerrar");
+        var mal = Juzgar(carpeta, "1.3.6", LogDeVelopackQueNoPudoRenombrar);
+        Debe(Que(mal) == "NoAplicada", "arrancar en la versión de antes es «no se aplicó»: esto es lo que hasta hoy no dejaba ni una línea");
+        Debe(Causa(mal).Contains("one or more running processes prevented it"),
+            $"y la causa es la línea de error de Update.exe, citada, no una frase nuestra (dijo: «{Causa(mal)}»)");
+        Debe(Causa(mal).Contains("10"), "con cuántas veces reintentó antes de rendirse: diez, que son diez segundos de arranque perdidos");
+        Debe(Que(Juzgar(carpeta, "1.3.6", LogDeVelopackQueNoPudoRenombrar)) == "SinIntento", "y el fallo tampoco se cuenta dos veces");
+
+        // TRES SITUACIONES, TRES FRASES (patrón nº2). Un mensaje que no distingue sus causas manda la investigación
+        // al sitio equivocado: «no hay log» se arregla en un sitio, «Update.exe ni arrancó» en otro.
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        string sinLog = Causa(Juzgar(carpeta, "1.3.6", null));
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        string sinIntento = Causa(Juzgar(carpeta, "1.3.6",
+            "[lib-csharp:1] [10:00:00] [Information] Starting VelopackApp.Run (library version 1.2.0).\n"));
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        string sinError = Causa(Juzgar(carpeta, "1.3.6",
+            "[update:7] [10:00:00] [INFO] Command: Apply\n[update:7] [10:00:01] [INFO] Applying package 1.3.7 to current: 1.3.6\n"));
+        var frases = new[] { Causa(mal), sinLog, sinIntento, sinError };
+        Debe(frases.All(f => !string.IsNullOrWhiteSpace(f)) && frases.Distinct().Count() == 4,
+            "sin log, con un log donde Update.exe ni llegó a intentarlo, con un intento sin línea de error y con el error: cuatro frases distintas");
+        Debe(!sinLog.Contains("prevented") && !sinIntento.Contains("prevented") && !sinError.Contains("prevented"),
+            "y ninguna de las tres inventa la causa que no leyó");
+
+        // SOLO CUENTA EL ÚLTIMO INTENTO. El log de Velopack no se borra nunca: citar el error de ayer para el
+        // intento de hoy es una causa que miente.
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        string viejoYNuevo = LogDeVelopackQueNoPudoRenombrar
+            + "[update:9] [09:00:00] [INFO] Command: Apply\n[update:9] [09:00:01] [INFO] Applying package 1.3.7 to current: 1.3.6\n";
+        Debe(!Causa(Juzgar(carpeta, "1.3.6", viejoYNuevo)).Contains("prevented"),
+            "el error de un intento anterior no se le cuelga al último");
+
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        Debe(Que(Juzgar(carpeta, "1.3.8", null)) == "Aplicada", "y si la versión se movió a otra más nueva todavía, el intento no falló");
+
+        Anotar(carpeta, "1.3.6", "1.3.7", "pastilla");
+        string[] escritos = Directory.GetFiles(carpeta);
+        Debe(escritos.Length == 1, $"el rastro es un archivo, uno, en la carpeta que se le dice (hay {escritos.Length})");
+        foreach (string f in escritos) File.WriteAllText(f, "{ esto no es un rastro");
+        Debe(Que(Juzgar(carpeta, "1.3.6", null)) == "SinIntento",
+            "un rastro ilegible no tumba el arranque ni se da por intento: se descarta");
+    }
+
+    /// <summary>Promesa 642.</summary>
+    private static void LaVersionDeclaradaEsLaInstalada()
+    {
+        var m = Capacidad("U.WindowsClient.Update.Updater")?.GetMethod("VersionDeclarada", new[] { typeof(string), typeof(string) });
+        if (m == null) { Pendiente("Update.Updater.VersionDeclarada", "642", "072"); return; }
+        string V(string? instalada, string? ensamblado) => (string)m.Invoke(null, new object?[] { instalada, ensamblado })!;
+
+        Debe(V("1.3.7", "1.0.0.0") == "1.3.7",
+            "con instalación manda la versión de Velopack: los 36 equipos del panel decían 1.0.0.0, que es la del ensamblado y no cambia nunca");
+        Debe(V(null, "1.0.0.0") == "1.0.0.0", "sin instalación —un build de desarrollo— se dice la del ensamblado");
+        Debe(V("", "1.0.0.0") == "1.0.0.0" && V("   ", "1.0.0.0") == "1.0.0.0", "vacío no es ausente: una versión instalada en blanco no tapa a la otra");
+        Debe(V(null, null) == "dev" && V("", " ") == "dev", "y sin ninguna de las dos dice «dev», no una cadena vacía");
+        Debe(V(" 1.3.7 ", null) == "1.3.7", "sin espacios alrededor: se compara con ella");
+    }
+
+    /// <summary>Promesa 643.</summary>
+    private static void UnTokenRechazadoNoDejaSinActualizar()
+    {
+        var m = Capacidad("U.WindowsClient.Update.Updater")?.GetMethod("SeReintentaSinToken", new[] { typeof(Exception), typeof(bool) });
+        if (m == null) { Pendiente("Update.Updater.SeReintentaSinToken", "643", "072"); return; }
+        bool Reintenta(Exception e, bool ibaConToken = true) => (bool)m.Invoke(null, new object[] { e, ibaConToken })!;
+        static HttpRequestException Http(HttpStatusCode? codigo) => new("Response status code does not indicate success.", null, codigo);
+
+        // Lo que Velopack lanza de verdad cuando GitHub no acepta el token (medido el 2026-09-30 contra el repo real):
+        // HttpRequestException con StatusCode = Unauthorized.
+        Debe(Reintenta(Http(HttpStatusCode.Unauthorized)), "un 401 con el token embebido se reintenta sin token: el repo es público y contesta igual");
+        Debe(Reintenta(Http(HttpStatusCode.Forbidden)), "y un 403 también: es lo que da un token al que le quitaron el permiso");
+        Debe(Reintenta(new InvalidOperationException("envuelta", Http(HttpStatusCode.Unauthorized))), "aunque llegue envuelta en otra excepción");
+        Debe(!Reintenta(Http(HttpStatusCode.NotFound)) && !Reintenta(Http(HttpStatusCode.InternalServerError)),
+            "un 404 o un 500 no son cosa del token: reintentar sin él solo gastaría el cupo anónimo");
+        Debe(!Reintenta(Http(null)) && !Reintenta(new TaskCanceledException()), "sin red o con el plazo vencido tampoco");
+        Debe(!Reintenta(Http(HttpStatusCode.Unauthorized), ibaConToken: false) && !Reintenta(Http(HttpStatusCode.Forbidden), ibaConToken: false),
+            "y si ya iba sin token no hay nada que quitar: un 403 anónimo es el cupo agotado, y repetirlo sería un bucle");
+    }
+
+    /// <summary>Promesa 644.</summary>
+    private static void AbrirOtraVezNoMataALaQueTrabaja()
+    {
+        var t = Capacidad("U.WindowsClient.Update.ArranqueDeActualizacion");
+        var hayOtra = t?.GetMethod("HayOtraViva", new[] { typeof(string), typeof(int), typeof(IEnumerable<(int, string)>) });
+        var aplica = t?.GetMethod("AplicaAlArrancar", new[] { typeof(bool), typeof(bool), typeof(bool) });
+        if (hayOtra == null || aplica == null) { Pendiente("Update.ArranqueDeActualizacion.HayOtraViva/AplicaAlArrancar", "644", "072"); return; }
+        bool Otra(params (int Pid, string? Ruta)[] procesos) =>
+            (bool)hayOtra.Invoke(null, new object[] { @"C:\Users\ana\AppData\Local\U\current\U.exe", 10, procesos.AsEnumerable() })!;
+        bool Aplica(bool hayPendiente, bool acabaDeFallar, bool hayOtraViva) =>
+            (bool)aplica.Invoke(null, new object[] { hayPendiente, acabaDeFallar, hayOtraViva })!;
+
+        const string yo = @"C:\Users\ana\AppData\Local\U\current\U.exe";
+        Debe(!Otra((10, yo)), "yo sola no soy «otra»");
+        Debe(Otra((10, yo), (11, yo)), "otra Ü de la misma instalación sí: es la carita que ya estaba trabajando");
+        Debe(Otra((10, yo), (11, @"c:\users\ana\appdata\local\u\CURRENT\u.exe")),
+            "la misma ruta con otras mayúsculas es la misma instalación (aprendizaje nº16: dos identidades de distinta forma dan falso en silencio)");
+        Debe(!Otra((10, yo), (11, @"C:\U-versiones\otra\U.exe")),
+            "una Ü de otra carpeta —un build de desarrollo, otra instalación— no cuenta: actualizar ésta no la toca");
+        Debe(!Otra((10, yo), (11, null), (12, "")), "ni un proceso cuya ruta no se pudo leer: no se sabe que sea de aquí");
+
+        Debe(Aplica(hayPendiente: true, acabaDeFallar: false, hayOtraViva: false),
+            "con la actualización descargada y sin nadie más, se aplica al arrancar: es lo que cura un equipo que se apagó sin aplicarla");
+        Debe(!Aplica(hayPendiente: true, acabaDeFallar: false, hayOtraViva: true),
+            "con otra Ü viva NO: aplicar la mataría, y puede estar grabando una consulta");
+        Debe(!Aplica(hayPendiente: true, acabaDeFallar: true, hayOtraViva: false),
+            "tras un intento que acaba de fallar tampoco: reintentar en el mismo arranque es un bucle de doce segundos por vuelta");
+        Debe(!Aplica(hayPendiente: false, acabaDeFallar: false, hayOtraViva: false), "y sin nada descargado no hay nada que aplicar");
+    }
+
+    /// <summary>Promesa 645.</summary>
+    private static void ElFeedSobreviveAlCambioDeNombre()
+    {
+        var up = Capacidad("U.WindowsClient.Update.Updater");
+        var nombres = up?.GetMethod("NombresDelFeed", new[] { typeof(string) });
+        var porOtro = up?.GetMethod("SeBuscaPorOtroNombre", new[] { typeof(Exception) });
+        if (nombres == null || porOtro == null) { Pendiente("Update.Updater.NombresDelFeed/SeBuscaPorOtroNombre", "645", "072"); return; }
+        List<string> Nombres(string feed) => ((IEnumerable<string>)nombres.Invoke(null, new object[] { feed })!).ToList();
+        bool PorOtro(Exception e) => (bool)porOtro.Invoke(null, new object[] { e })!;
+        static HttpRequestException Http(HttpStatusCode? codigo) => new("Response status code does not indicate success.", null, codigo);
+
+        const string nuevo = "https://github.com/ZevCorp/Miracle", viejo = "https://github.com/ZevCorp/U-Windows-App";
+        var delNuevo = Nombres(nuevo);
+        Debe(delNuevo.Count == 2 && delNuevo[0] == nuevo && delNuevo[1] == viejo,
+            $"con el nombre nuevo se prueba primero ése y después el anterior: {string.Join(" → ", delNuevo)}");
+        var delViejo = Nombres(viejo + "/");
+        Debe(delViejo.Count == 2 && delViejo[0] == viejo && delViejo[1] == nuevo,
+            $"quien todavía trae el viejo —con su barra final— lo prueba primero y luego el nuevo, sin repetirse: {string.Join(" → ", delViejo)}");
+        Debe(Nombres("https://github.com/otra/cosa").SequenceEqual(new[] { "https://github.com/otra/cosa" }),
+            "un repositorio puesto a mano no tiene otros nombres: no se le cambia por el nuestro");
+        Debe(Nombres(@"C:\feed").SequenceEqual(new[] { @"C:\feed" }), "y una carpeta tampoco: es lo que usan las pruebas locales");
+
+        Debe(PorOtro(Http(HttpStatusCode.NotFound)), "un 404 del repositorio se busca por el otro nombre");
+        Debe(PorOtro(new InvalidOperationException("envuelta", Http(HttpStatusCode.NotFound))), "aunque llegue envuelto");
+        Debe(!PorOtro(Http(HttpStatusCode.Unauthorized)) && !PorOtro(Http(HttpStatusCode.InternalServerError)) && !PorOtro(Http(null)),
+            "un 401, un 500 o no tener red no son cosa del nombre: probar el otro solo gastaría peticiones");
+
+        // LO GUARDADO. config.json lleva escrita la dirección con la que nació cada instalación: sin migrarla, la
+        // versión nueva seguiría preguntando por el nombre viejo para siempre, y sin el token tras la redirección.
+        string? antes = Environment.GetEnvironmentVariable("U_DATA_DIR");
+        string tmp = Path.Combine(_raiz, "feed-renombrado");
+        try
+        {
+            Environment.SetEnvironmentVariable("U_DATA_DIR", tmp);
+            string cfg = U.WindowsClient.Config.Archivo;
+            Directory.CreateDirectory(Path.GetDirectoryName(cfg)!);
+            string Cargar(string? guardada)
+            {
+                File.WriteAllText(cfg, guardada == null ? "{}" : JsonSerializer.Serialize(new { UpdateFeedUrl = guardada }));
+                return U.WindowsClient.Config.Load().UpdateFeedUrl;
+            }
+            Debe(Cargar(null) == nuevo, $"una instalación nueva nace con el nombre nuevo: {Cargar(null)}");
+            Debe(Cargar(viejo) == nuevo && Cargar(viejo.ToUpperInvariant() + "/") == nuevo,
+                "la dirección guardada con el nombre anterior pasa a la nueva al cargar, también con otras mayúsculas y barra final");
+            Debe(Cargar("https://zyvfamlhlmztliexvmej.supabase.co/storage/v1/object/public/windows") == nuevo,
+                "y la del bucket de Supabase, que fue la primera, también llega a la de hoy y no a la de en medio");
+            Debe(Cargar("https://github.com/otra/cosa") == "https://github.com/otra/cosa" && Cargar(@"C:\feed") == @"C:\feed",
+                "una dirección puesta a mano se respeta");
+        }
+        finally { Environment.SetEnvironmentVariable("U_DATA_DIR", antes); }
+    }
+
+    /// <summary>Promesa 646.</summary>
+    private static void ElBotonDeActualizarHaceElTrabajoEntero()
+    {
+        var t = Capacidad("U.WindowsClient.Update.BotonDeActualizar");
+        var estado = t?.GetMethod("Estado", new[] { typeof(bool), typeof(bool) });
+        var alPulsar = t?.GetMethod("AlPulsar");
+        var deLaBusqueda = t?.GetMethod("FraseDeLaBusqueda");
+        var delIntento = t?.GetMethod("FraseDelIntento");
+        var tBusqueda = Capacidad("U.WindowsClient.Update.Updater+Busqueda");
+        if (estado == null || alPulsar == null || deLaBusqueda == null || delIntento == null || tBusqueda == null)
+        { Pendiente("Update.BotonDeActualizar.Estado/AlPulsar/FraseDeLaBusqueda/FraseDelIntento", "646", "072"); return; }
+        object Estado(bool hayVersionLista, bool trabajando) => estado.Invoke(null, new object[] { hayVersionLista, trabajando })!;
+        string Gesto(object e) => alPulsar.Invoke(null, new[] { e })!.ToString()!;
+        string Frase(string que, string detalle) => (string)deLaBusqueda.Invoke(null, new object[] { Enum.Parse(tBusqueda, que), detalle })!;
+
+        // UN TOQUE, EL TRABAJO ENTERO. Hasta hoy eran dos botones en dos sitios: 🔄 buscaba y ⬇ aplicaba, y el
+        // segundo solo existía a ratos. «No hay un botón confiable para actualizar», dijo el dueño.
+        Debe(Estado(false, false).ToString() == "EnReposo" && Gesto(Estado(false, false)) == "BuscarYAplicar",
+            "en reposo, pulsarlo busca, descarga y aplica: no hace falta saber si hay versión para pedirla");
+        Debe(Estado(true, false).ToString() == "HayVersionLista" && Gesto(Estado(true, false)) == "Aplicar",
+            "con una versión ya descargada, la aplica sin volver a buscar");
+        Debe(Estado(false, true).ToString() == "Trabajando" && Estado(true, true).ToString() == "Trabajando"
+             && Gesto(Estado(true, true)) == "Nada",
+            "mientras trabaja lo dice, y un segundo toque no hace nada: un botón que no responde se pulsa tres veces");
+
+        // CADA DESENLACE, SU FRASE, y para una persona: ni «Update.exe» ni el nombre de una excepción.
+        string alDia = Frase("AlDia", "1.3.7"), noAplica = Frase("NoAplica", "x"), fallo = Frase("Fallo", "Host desconocido. (api.github.com:443)");
+        Debe(alDia.Contains("1.3.7") && new[] { alDia, noAplica, fallo }.Distinct().Count() == 3,
+            $"al día dice con qué versión, y las tres frases son distintas: «{alDia}» · «{noAplica}» · «{fallo}»");
+        Debe(!fallo.Contains("api.github.com") && !fallo.Contains("Exception"), "la de no haber podido buscar no le enseña a la persona la dirección ni el error crudo");
+
+        var rastro = Capacidad("U.WindowsClient.Update.RastroDeActualizacion");
+        var anotar = rastro?.GetMethod("Anotar", new[] { typeof(string), typeof(string), typeof(string), typeof(string) });
+        var juzgar = rastro?.GetMethod("Juzgar", new[] { typeof(string), typeof(string), typeof(string) });
+        if (anotar == null || juzgar == null) { Pendiente("Update.RastroDeActualizacion", "646", "072"); return; }
+        string carpeta = Path.Combine(_raiz, "boton-de-actualizar");
+        Directory.CreateDirectory(carpeta);
+        object Veredicto(string actual, string? log)
+        {
+            anotar.Invoke(null, new object[] { carpeta, "1.3.7", "1.3.8", "pastilla" });
+            return juzgar.Invoke(null, new object?[] { carpeta, actual, log })!;
+        }
+        string DelIntento(object v) => (string)delIntento.Invoke(null, new[] { v })!;
+
+        string bloqueada = DelIntento(Veredicto("1.3.7", LogDeVelopackQueNoPudoRenombrar));
+        string sinCausa = DelIntento(Veredicto("1.3.7", null));
+        string llego = DelIntento(Veredicto("1.3.8", null));
+        Debe(bloqueada.Contains("1.3.8") && !bloqueada.Contains("Update.exe") && !bloqueada.Contains("Apply error"),
+            $"el intento que no se aplicó dice qué versión no pudo instalar, sin el error crudo del actualizador: «{bloqueada}»");
+        Debe(bloqueada != sinCausa && !string.IsNullOrWhiteSpace(sinCausa),
+            "y no afirma «otro programa tiene abierta mi carpeta» cuando el log no lo dice");
+        Debe(llego.Contains("1.3.8") && llego != bloqueada, $"el que sí llegó lo cuenta al volver: «{llego}»");
+
+        // [cableado] El óvalo tiene UNA puerta para actualizar, dibujada con el lápiz de las otras.
+        var (vista, codigo) = FuentesDeLaCarita();
+        if (vista == null) return;
+        var panel = ConNombre(vista, "BarPanel");
+        var boton = panel == null ? null : ConNombre(panel, "ActualizarBtn");
+        Debe(boton != null, "[cableado] el botón de actualizar vive en el óvalo");
+        if (boton == null) return;
+        Debe((string?)boton.Attribute("Click") == "OnActualizar", "[cableado] y pulsarlo llama a su manejador");
+        Debe(boton.Attribute("Content") == null && boton.Descendants().Any(e => e.Name.LocalName == "Path"),
+            "[cableado] está dibujado con trazos, no con un emoji: un emoji trae su propio color y su propio peso");
+        Debe(panel!.Descendants().All(e => NombreDe(e) != "UpdateBtn"),
+            "[cableado] la pastilla ⬇ de antes ya no está: dos botones para lo mismo es no saber cuál pulsar");
+        Debe(codigo.Contains("BotonDeActualizar.AlPulsar(") && codigo.Contains("BotonDeActualizar.Estado("),
+            "[cableado] la ventana no decide por su cuenta: pregunta a la regla qué toca hacer y cómo pintarse");
     }
 
     private static void LaZonaDelNotchMantieneLaIntencion()
@@ -12070,6 +12790,510 @@ internal static class Contrato
             => m.TryGetProperty("type", out var t) && t.GetString() == "trozo"
                 ? new Voz.Realtime.Hecho[] { new Voz.Realtime.Hecho.DiceElUsuario(m.GetProperty("delta").GetString() ?? "") }
                 : Array.Empty<Voz.Realtime.Hecho>();
+    }
+
+    // ── Spec 071: el panel con dos puertas y la Memoria ──────────────────────────────────────────
+
+    private const string UsuarioDeLaMemoria = "ana@ejemplo.co";
+
+    /// <summary>Las doce cosas que la Memoria tiene que contar, en el orden en que se leen. Es la lista
+    /// de la spec, escrita aquí a mano a propósito: si el plan de la app pierde un apartado, esto no se
+    /// entera por el plan —que es quien lo perdió— sino por esta lista.</summary>
+    private static readonly string[] ApartadosDeLaMemoria =
+    {
+        "quien", "datos", "recordatorios", "conversacion", "habilidades", "lecciones",
+        "pantalla", "sitios", "explicado", "aparatos", "registro", "fuera",
+    };
+
+    private static System.Xml.Linq.XElement? ConNombre(System.Xml.Linq.XElement raiz, string nombre) =>
+        raiz.DescendantsAndSelf().FirstOrDefault(e => NombreDe(e) == nombre);
+
+    private static string NombreDe(System.Xml.Linq.XElement e) =>
+        (string?)e.Attribute(System.Xml.Linq.XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) ?? "";
+
+    /// <summary>La vista de la carita ya leída como árbol, y su código. Null si no se pudo: el juez dice
+    /// que NO PUDO, no que la promesa falló (aprendizaje nº17).</summary>
+    private static (System.Xml.Linq.XElement? Vista, string Codigo) FuentesDeLaCarita()
+    {
+        string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
+        string xaml = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml");
+        string codigo = Path.Combine(repo, "windows-client", "src", "Ui", "FaceWindow.xaml.cs");
+        if (!File.Exists(xaml) || !File.Exists(codigo))
+        {
+            _fallos++;
+            Console.WriteLine("   ⚠ NO PUDE JUZGARLA: sin U_REPO no hay FaceWindow.xaml que mirar (lo pone scripts/contrato-del-grafo.ps1).");
+            return (null, "");
+        }
+        return (System.Xml.Linq.XDocument.Load(xaml).Root, File.ReadAllText(codigo));
+    }
+
+    private static void ElPanelTieneTresBotones()
+    {
+        var (vista, _) = FuentesDeLaCarita();
+        if (vista == null) return;
+        var panel = ConNombre(vista, "BarPanel");
+        Debe(panel != null, "el óvalo (BarPanel) sigue existiendo");
+        if (panel == null) return;
+
+        // Lo que solo existe a ratos —detener, actualizar, rehacer, comprobar— no cuenta: la promesa
+        // habla del panel EN REPOSO. Y un botón que nace Collapsed tampoco es una puerta.
+        var aRatos = ConNombre(panel, "ContextZone");
+        var enReposo = panel.Descendants()
+            .Where(e => e.Name.LocalName == "Button")
+            .Where(b => aRatos == null || !b.Ancestors().Contains(aRatos))
+            .Where(b => (string?)b.Attribute("Visibility") != "Collapsed")
+            .Select(NombreDe).ToList();
+        Debe(enReposo.Count == 4 && enReposo.Contains("MemoriaBtn") && enReposo.Contains("CollarModoBtn")
+             && enReposo.Contains("ActualizarBtn") && enReposo.Contains("LadoBtn"),
+            $"en reposo se ven cuatro botones —Memoria, el collar, el de actualizar y el de lado—: hay {enReposo.Count} ({string.Join(", ", enReposo)})");
+        Debe(enReposo.IndexOf("CollarModoBtn") < enReposo.IndexOf("ActualizarBtn") && enReposo.IndexOf("ActualizarBtn") < enReposo.IndexOf("LadoBtn"),
+            "el de actualizar va entre el collar y el de lado: abajo queda lo que menos se usa");
+        foreach (string ido in new[] { "LearnBtn", "WorkBtn", "SubirBtn", "JevBtn" })
+            Debe(ConNombre(panel, ido) == null, $"«{ido}» ya no vive en el óvalo");
+
+        var memoria = ConNombre(panel, "MemoriaBtn");
+        Debe((string?)memoria?.Attribute("Content") == "Memoria", "el botón nuevo dice «Memoria», con esa palabra a la vista");
+        Debe(enReposo.IndexOf("MemoriaBtn") >= 0 && enReposo.IndexOf("MemoriaBtn") < enReposo.IndexOf("CollarModoBtn"),
+            "Memoria va arriba y el collar debajo, donde estaba");
+    }
+
+    private static void ElPanelCambiaDeLado()
+    {
+        var regla = Cliente.GetType("U.WindowsClient.Ui.ReglaDelMuelle");
+        var tLado = Cliente.GetType("U.WindowsClient.Ui.LadoDelMuelle");
+        var sitio = regla?.GetMethod("IzquierdaDeLaVentana");
+        var entra = regla?.GetMethod("DeDondeEntra");
+        var elOtro = regla?.GetMethod("ElOtro");
+        var ladoDe = regla?.GetMethod("LadoDe");
+        var comoSeGuarda = regla?.GetMethod("ComoSeGuarda");
+        var guardado = typeof(U.WindowsClient.Config).GetProperty("LadoDelMuelle");
+        if (tLado == null || sitio == null || entra == null || elOtro == null || ladoDe == null || comoSeGuarda == null || guardado == null)
+        { Pendiente("ReglaDelMuelle.IzquierdaDeLaVentana/DeDondeEntra/ElOtro/LadoDe/ComoSeGuarda + Config.LadoDelMuelle", "629", "071"); return; }
+
+        object derecha = Enum.Parse(tLado, "Derecha"), izquierda = Enum.Parse(tLado, "Izquierda");
+        double Sitio(object lado, System.Windows.Rect area, double ancho, double separacion) =>
+            (double)sitio.Invoke(null, new object[] { lado, area, ancho, separacion })!;
+        object LadoDe(string? texto) => ladoDe.Invoke(null, new object?[] { texto })!;
+
+        // La pantalla de esta máquina en unidades de WPF (1920x1080 al 125 %), y otra que no empieza en cero:
+        // una barra de tareas a la izquierda, o un segundo monitor.
+        var pantalla = new System.Windows.Rect(0, 0, 1536, 816);
+        var corrida = new System.Windows.Rect(120, 0, 1416, 816);
+        Debe(Sitio(derecha, pantalla, 174, 10) == 1352, $"a la derecha, la ventana acaba a 10 del borde derecho: {Sitio(derecha, pantalla, 174, 10)}");
+        Debe(Sitio(izquierda, pantalla, 174, 10) == 10, $"a la izquierda, empieza a 10 del borde izquierdo: {Sitio(izquierda, pantalla, 174, 10)}");
+        Debe(Sitio(izquierda, corrida, 174, 10) == 130, $"el borde izquierdo es el del área de trabajo, no el cero: {Sitio(izquierda, corrida, 174, 10)}");
+        double holguraDerecha = pantalla.Right - (Sitio(derecha, pantalla, 400, 10) + 400), holguraIzquierda = Sitio(izquierda, pantalla, 400, 10) - pantalla.Left;
+        Debe(holguraDerecha == holguraIzquierda, $"desplegado mide más y sigue igual de separado en los dos lados: {holguraDerecha} y {holguraIzquierda}");
+
+        Debe((double)entra.Invoke(null, new object[] { derecha, 24.0 })! == 24 && (double)entra.Invoke(null, new object[] { izquierda, 24.0 })! == -24,
+            "el panel entra desde el borde donde vive: desde la derecha a la derecha, desde la izquierda a la izquierda");
+        Debe(elOtro.Invoke(null, new[] { derecha })!.Equals(izquierda) && elOtro.Invoke(null, new[] { izquierda })!.Equals(derecha),
+            "el botón alterna: de la derecha a la izquierda y vuelta");
+
+        Debe(LadoDe("izquierda").Equals(izquierda) && LadoDe("  IZQUIERDA ").Equals(izquierda), "lo guardado se entiende con mayúsculas y espacios de más");
+        foreach (string? raro in new[] { "derecha", "", "   ", null, "arriba" })
+            Debe(LadoDe(raro).Equals(derecha), $"«{raro ?? "(nada)"}» es la derecha: es donde ha vivido siempre, y un valor roto no puede esconder el panel");
+        Debe(LadoDe((string)comoSeGuarda.Invoke(null, new[] { izquierda })!).Equals(izquierda) && LadoDe((string)comoSeGuarda.Invoke(null, new[] { derecha })!).Equals(derecha),
+            "lo que se guarda se vuelve a leer como el mismo lado");
+
+        // QUE SE RECUERDE. Por el archivo de verdad, en el directorio de esta prueba.
+        var nueva = U.WindowsClient.Config.Load();
+        Debe(LadoDe((string?)guardado.GetValue(nueva)).Equals(derecha), "una instalación nueva nace con el panel a la derecha");
+        guardado.SetValue(nueva, (string)comoSeGuarda.Invoke(null, new[] { izquierda })!);
+        nueva.Save();
+        Debe(LadoDe((string?)guardado.GetValue(U.WindowsClient.Config.Load())).Equals(izquierda), "elegida la izquierda, al volver a abrir sigue a la izquierda");
+
+        // Y que la regla sea la que corre: el muelle se coloca y entra por ella, y el botón guarda lo elegido.
+        var (vista, codigo) = FuentesDeLaCarita();
+        if (vista == null) return;
+        string muelle = File.ReadAllText(Path.Combine(Environment.GetEnvironmentVariable("U_REPO") ?? "", "windows-client", "src", "Ui", "Muelle.cs"));
+        Debe(muelle.Contains("ReglaDelMuelle.IzquierdaDeLaVentana(", StringComparison.Ordinal) && muelle.Contains("ReglaDelMuelle.DeDondeEntra(", StringComparison.Ordinal),
+            "el muelle se coloca y se desliza por la regla, no con el borde derecho escrito a mano");
+        var boton = ConNombre(vista, "LadoBtn");
+        Debe(boton != null && ConNombre(vista, "BarPanel")!.Descendants().Contains(boton) && (string?)boton.Attribute("Click") == "OnCambiarDeLado",
+            "el botón de lado vive en el panel y llama a OnCambiarDeLado");
+        string alCambiar = CuerpoDe(codigo, "private void OnCambiarDeLado(");
+        Debe(alCambiar.Contains("ReglaDelMuelle.ElOtro(", StringComparison.Ordinal) && alCambiar.Contains("_config.Save()", StringComparison.Ordinal),
+            "pulsarlo pasa al otro lado y lo deja guardado en ese mismo gesto");
+        Debe(codigo.Contains("ReglaDelMuelle.LadoDe(_config.LadoDelMuelle)", StringComparison.Ordinal),
+            "al arrancar, el muelle nace en el lado guardado");
+    }
+
+    private static void LoQueSalioDelPanelNoSePierde()
+    {
+        var (vista, codigo) = FuentesDeLaCarita();
+        if (vista == null) return;
+        var menu = ConNombre(vista, "MenuPanel");
+        Debe(menu != null, "el panel de desarrollo (MenuPanel) sigue existiendo");
+        if (menu == null) return;
+
+        foreach (var (manejador, que) in new[] { ("OnSubirEstudios", "subir estudios"), ("OnToggleJev", "encender Jev") })
+        {
+            Debe(menu.Descendants().Any(e => e.Name.LocalName == "Button" && (string?)e.Attribute("Click") == manejador),
+                $"{que} tiene su botón en el panel de desarrollo");
+            Debe(codigo.Contains($"private void {manejador}(", StringComparison.Ordinal),
+                $"{que} sigue llegando al manejador de siempre ({manejador}), no a uno nuevo");
+        }
+        Debe(ConNombre(menu, "JevBtn") != null,
+            "el botón de Jev conserva su nombre: es donde el código pinta si está encendido o apagado");
+    }
+
+    private static void ElBotonMemoriaAbreYQuitaSuVentana()
+    {
+        var (vista, codigo) = FuentesDeLaCarita();
+        if (vista == null) return;
+        if (Cliente.GetType("U.WindowsClient.Ui.MemoriaWindow") == null) { Pendiente("Ui.MemoriaWindow", "627", "071"); return; }
+
+        Debe((string?)ConNombre(vista, "MemoriaBtn")?.Attribute("Click") == "OnMemoria", "el botón «Memoria» llama a OnMemoria");
+        string cuerpo = CuerpoDe(codigo, "private void OnMemoria(");
+        Debe(cuerpo.Length > 0, "OnMemoria existe en la carita");
+        Debe(cuerpo.Contains("MemoriaWindow.AlTocarSuBoton(", StringComparison.Ordinal),
+            "la carita no decide qué hacer con la ventana: se lo pide a la ventana, que es quien sabe cómo está");
+
+        // Dónde se decide. Vive en la ventana y no en la carita porque para decidir hace falta saber cuándo
+        // perdió el foco, y eso solo lo sabe ella (promesa 628).
+        string decide = CuerpoDe(FuenteDeLaMemoria(), "public static void AlTocarSuBoton(");
+        Debe(decide.Length > 0, "MemoriaWindow.AlTocarSuBoton existe");
+        Debe(decide.Contains("ReglaDeLaVentana.AlPulsarSuBoton", StringComparison.Ordinal),
+            "qué hacer al pulsarlo lo decide la misma regla que el botón del collar, no una cuenta nueva");
+        Debe(decide.Contains("QueHacerConLaVentana.Abrir", StringComparison.Ordinal)
+             && decide.Contains("QueHacerConLaVentana.TraerAlFrente", StringComparison.Ordinal)
+             && decide.Contains("QueHacerConLaVentana.Ocultar", StringComparison.Ordinal),
+            "las tres respuestas de la regla tienen su caso: abrir, traer al frente y quitar");
+    }
+
+    /// <summary>Desde la firma de un método hasta el siguiente miembro. Vacío si no está.</summary>
+    private static string CuerpoDe(string codigo, string firma)
+    {
+        int desde = codigo.IndexOf(firma, StringComparison.Ordinal);
+        if (desde < 0) return "";
+        int hasta = new[] { "\n    private ", "\n    public ", "\n    internal ", "\n    /// <summary>" }
+            .Select(m => codigo.IndexOf(m, desde + firma.Length, StringComparison.Ordinal))
+            .Where(i => i > desde).DefaultIfEmpty(codigo.Length).Min();
+        return codigo[desde..hasta];
+    }
+
+    private static string FuenteDeLaMemoria()
+    {
+        string archivo = Path.Combine(Environment.GetEnvironmentVariable("U_REPO") ?? "", "windows-client", "src", "Ui", "MemoriaWindow.cs");
+        return File.Exists(archivo) ? File.ReadAllText(archivo) : "";
+    }
+
+    private static void TocarElBotonNoEsDejarLaVentana()
+    {
+        var regla = Cliente.GetType("U.WindowsClient.Ui.ReglaDeLaVentana");
+        var estaba = regla?.GetMethod("EstabaAlFrente", new[] { typeof(bool), typeof(bool), typeof(long) });
+        var pulsar = regla?.GetMethod("AlPulsarSuBoton");
+        if (estaba == null || pulsar == null) { Pendiente("ReglaDeLaVentana.EstabaAlFrente(seVe, activa, msEntrePerderElFocoYElToque)", "628", "071"); return; }
+        bool AlFrente(bool seVe, bool activa, long ms) => (bool)estaba.Invoke(null, new object[] { seVe, activa, ms })!;
+        string AlPulsar(bool existe, bool alFrente) => pulsar.Invoke(null, new object[] { existe, alFrente })!.ToString()!;
+
+        Debe(AlFrente(true, true, -1), "una ventana que se ve y tiene el foco está al frente, sin más cuentas");
+        Debe(AlFrente(true, false, 4), "perdió el foco 4 ms antes del toque: se lo quitó el toque, así que seguía al frente");
+        Debe(!AlFrente(true, false, 1500), "lo perdió segundo y medio antes: ya estaba detrás cuando se tocó el botón");
+        Debe(!AlFrente(true, false, -1), "nunca tuvo el foco, o lo perdió después del toque: no estaba al frente");
+        Debe(!AlFrente(false, true, 0) && !AlFrente(false, false, 4), "lo que no se ve —escondida o minimizada— no está al frente, tenga el foco que tenga");
+
+        // El margen separa «me lo quitó este toque» de «ya lo había perdido». Tiene que caber el salto
+        // de una ventana a otra (milésimas) y no alcanzar a un cambio de ventana hecho por la persona.
+        long margen = Enumerable.Range(0, 5000).Select(i => (long)i).TakeWhile(ms => AlFrente(true, false, ms)).Count();
+        Debe(margen is >= 100 and <= 500, $"el margen del toque está entre 100 y 500 ms: {margen}");
+
+        // Y lo que eso cambia, que es lo que se vio fallar: con la Memoria delante, el botón la QUITA.
+        Debe(AlPulsar(true, AlFrente(true, false, 4)) == "Ocultar",
+            "con la Memoria delante, tocar su botón en el óvalo la quita, aunque el óvalo se haya quedado con el foco");
+        Debe(AlPulsar(true, AlFrente(true, false, 1500)) == "TraerAlFrente",
+            "con la Memoria detrás desde hace rato, tocar su botón la trae: no se esconde algo que no se estaba mirando");
+
+        // Que la ventana le diga a la regla la verdad: cuándo perdió el foco, y cuándo se tocó el botón.
+        var (vista, codigo) = FuentesDeLaCarita();
+        if (vista == null) return;
+        string ventana = FuenteDeLaMemoria();
+        Debe(ventana.Contains("Deactivated +=", StringComparison.Ordinal) && ventana.Contains("ReglaDeLaVentana.EstabaAlFrente(", StringComparison.Ordinal),
+            "la ventana apunta cuándo pierde el foco y se lo pasa a la regla");
+        Debe((string?)ConNombre(vista, "MemoriaBtn")?.Attribute("PreviewMouseLeftButtonDown") == "OnMemoriaSeToca"
+             && codigo.Contains("private void OnMemoriaSeToca(", StringComparison.Ordinal),
+            "el instante del toque es el de apoyar el ratón, no el de soltarlo: una pulsación larga no cambia la respuesta");
+    }
+
+    /// <summary>Lo que la Memoria va a pintar para esta persona, o null si la capacidad todavía no existe.</summary>
+    private static List<dynamic>? LeerLaMemoria(DateTimeOffset ahora)
+    {
+        var enCarpetas = Cliente.GetType("U.WindowsClient.Memoria.Fuentes")
+            ?.GetMethod("EnCarpetas", new[] { typeof(string), typeof(string), typeof(string) });
+        var leer = Cliente.GetType("U.WindowsClient.Memoria.LoQueUSabe")?.GetMethod("Leer");
+        if (enCarpetas == null || leer == null) return null;
+        object fuentes = enCarpetas.Invoke(null, new object[] { UserPaths.Roaming, UserPaths.Local, UsuarioDeLaMemoria })!;
+        return ((System.Collections.IEnumerable)leer.Invoke(null, new object[] { fuentes, ahora })!).Cast<dynamic>().ToList();
+    }
+
+    private static dynamic? Apartado(List<dynamic> apartados, string clave) =>
+        apartados.FirstOrDefault(a => (string)a.Clave == clave);
+
+    /// <summary>Todo lo que un apartado enseña, junto: título, resumen y cada entrada con su detalle.</summary>
+    private static List<string> TextosDe(IEnumerable<dynamic> apartados)
+    {
+        var textos = new List<string>();
+        foreach (var a in apartados)
+        {
+            textos.Add((string)a.Titulo);
+            textos.Add((string)a.Resumen);
+            foreach (var e in a.Entradas) { textos.Add((string)e.Texto); textos.Add((string)e.Detalle); }
+        }
+        return textos;
+    }
+
+    private static List<string> DetallesDe(IEnumerable<dynamic> apartados)
+    {
+        var detalles = new List<string>();
+        foreach (var a in apartados) foreach (var e in a.Entradas) detalles.Add((string)e.Detalle);
+        return detalles;
+    }
+
+    /// <summary>
+    /// Llena los almacenes POR LAS CLASES QUE LOS ESCRIBEN EN LA APP, no a mano: la Memoria lee los
+    /// archivos por su cuenta —tiene que poder decir «no pude leerlo»—, así que el formato vive en dos
+    /// sitios, y lo que impide que se separen es escribir por un camino y leer por el otro (nº16).
+    /// A mano solo va lo que la app escribe en una ruta fija del perfil y no se deja redirigir.
+    /// </summary>
+    private static void SembrarLaMemoria()
+    {
+        string roaming = Path.Combine(UserPaths.Roaming, "U"), local = Path.Combine(UserPaths.Local, "U");
+        Directory.CreateDirectory(roaming);
+        Directory.CreateDirectory(local);
+
+        var cfg = U.WindowsClient.Config.Load();
+        cfg.DisplayName = "Ana Restrepo";
+        cfg.Email = UsuarioDeLaMemoria;
+        cfg.UserId = UsuarioDeLaMemoria;
+        cfg.ClientToken = "tok-secreto-123";
+        cfg.InstallId = "inst-999-zzz";
+        cfg.Save();
+
+        string archivoMemoria = Path.Combine(roaming, "memoria-personal.json");
+        var memoria = new MemoriaPersonal(UsuarioDeLaMemoria, archivoMemoria);
+        memoria.EjecutarAsync("recuerda que soy alérgica a la penicilina", default).Wait();
+        memoria.EjecutarAsync("recuerda que mi consultorio es el 204", default).Wait();
+        memoria.EjecutarAsync("recuérdame llamar al laboratorio en 30 minutos", default).Wait();
+        // Y lo de OTRA persona en el mismo archivo, que no es de quien abre la Memoria.
+        new MemoriaPersonal("otro@ejemplo.co", archivoMemoria).EjecutarAsync("recuerda que esto es de otra persona", default).Wait();
+
+        var charla = new ConversacionPersonal(UsuarioDeLaMemoria, Path.Combine(roaming, "conversacion-personal.json"));
+        charla.Agregar("usuario", "¿qué tengo pendiente?");
+        charla.Agregar("asistente", "Llamar al laboratorio.");
+        charla.Agregar("usuario", "gracias");
+
+        long ms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        byte[] jpeg = { 0xFF, 0xD8, 0xFF, 0xE0, 0, 0 };
+        var album = new AlbumDeMiradas(Path.Combine(local, "recuerdos", "miradas"), () => ms,
+            AlbumDeMiradas.DosGigas, AlbumDeMiradas.SieteDiasMs);
+        album.Guardar(jpeg, "uia://Notepad.exe/sin-título-bloc-de-notas", "pasando por aquí");
+        album.Guardar(jpeg, "web://google.com/search", "pasando por aquí");
+        album.Guardar(jpeg, "web://google.com/search", "miró la pantalla");
+
+        SkillEnsenada.Empaquetar("Enviar un correo en Gmail", "Úsala cuando haya que mandar un correo",
+            "web://mail.google.com", new[] { new PasoEnsenado("Redactar") })!.Guardar(Path.Combine(local, "skills"));
+
+        string leccion = U.WindowsClient.Teach.LeccionEnDisco.NuevaCarpeta("leccion_20260923_143605");
+        U.WindowsClient.Teach.LeccionEnDisco.Guardar(new U.WindowsClient.Teach.Leccion(
+            "leccion_20260923_143605", "uia://chrome.exe/Plataforma · Miracle - Google Chrome", "uia://omi-windows.exe/omi",
+            29_587, "", Array.Empty<U.WindowsClient.Teach.EventoDeLaLeccion>(), Array.Empty<FraseDicha>(),
+            Array.Empty<U.WindowsClient.Teach.CuadroDeLaLeccion>()), leccion);
+
+        U.WindowsClient.Uia.PestanasAbiertas.Apunta("github.com", "chrome", "ZevCorp/Mensaje: el monorepo - Google Chrome", "https");
+        new NombresDeDispositivos().Poner("{0.0.1.00000000}.{9f3c}", "Micrófono de la consulta");
+
+        string fotos = Path.Combine(local, "recuerdos", "fotos");
+        Directory.CreateDirectory(fotos);
+        File.WriteAllBytes(Path.Combine(fotos, "20260919-081646-permitir-una-vez.jpg"), jpeg);
+        File.WriteAllBytes(Path.Combine(fotos, "20260919-085515-barra-de-direcciones-y-de-búsqueda.jpg"), jpeg);
+        File.WriteAllText(Path.Combine(local, "collar.json"), "{\"permanente\":true,\"enlazado\":true}");
+        File.WriteAllText(Path.Combine(roaming, "omi-telefono.json"), "{\"codigo\":\"48291357\",\"emitido\":1790194811470}");
+        Directory.CreateDirectory(Path.Combine(local, "logs"));
+        File.WriteAllText(Path.Combine(local, "logs", "u-20260929.log"), "[10:00:00] arranque\n");
+        File.WriteAllText(Path.Combine(local, "logs", "u-20260930-instalada-p40028-020208.log"), "[02:02:08] arranque\n");
+    }
+
+    private static void LaMemoriaCuentaTodoLoGuardado()
+    {
+        var vacia = LeerLaMemoria(DateTimeOffset.Now);
+        if (vacia == null) { Pendiente("Memoria.LoQueUSabe.Leer(fuentes, ahora) + Fuentes.EnCarpetas", "622", "071"); return; }
+
+        // SIN NADA GUARDADO, LOS DOCE SIGUEN AHÍ. El denominador es el plan, nunca lo que había (nº10):
+        // un apartado que desaparece cuando está vacío no se distingue de uno que nadie escribió.
+        var claves = vacia.Select(a => (string)a.Clave).ToList();
+        Debe(claves.SequenceEqual(ApartadosDeLaMemoria),
+            $"sin nada guardado se cuentan los doce apartados, en su orden: {string.Join(", ", claves)}");
+        foreach (var a in vacia.Where(a => (string)a.Clave != "fuera"))
+        {
+            string clave = (string)a.Clave, estado = a.Estado.ToString(), resumen = (string)a.Resumen;
+            int cuenta = (int)a.Cuenta;
+            Debe(estado == "Vacio" && cuenta == 0 && resumen.Contains("odavía", StringComparison.Ordinal),
+                $"«{clave}» sin nada dice «todavía nada»: {estado}, {cuenta}, «{resumen}»");
+        }
+        var fuera = Apartado(vacia, "fuera");
+        string estadoDeFuera = fuera?.Estado.ToString() ?? "(no está)";
+        int cuentaDeFuera = (int)(fuera?.Cuenta ?? 0);
+        Debe(estadoDeFuera == "ConDatos" && cuentaDeFuera >= 1,
+            "lo que sale de este computador se dice siempre, haya o no algo guardado aquí");
+
+        SembrarLaMemoria();
+        var llena = LeerLaMemoria(DateTimeOffset.Now)!;
+        int Cuenta(string clave) => (int)(Apartado(llena, clave)?.Cuenta ?? -1);
+        string Estado(string clave) => Apartado(llena, clave)?.Estado.ToString() ?? "(no está)";
+
+        Debe(llena.Select(a => (string)a.Clave).SequenceEqual(ApartadosDeLaMemoria), "con todo guardado siguen siendo los mismos doce");
+        foreach (string clave in ApartadosDeLaMemoria)
+            Debe(Estado(clave) == "ConDatos", $"«{clave}» tiene datos y lo dice: {Estado(clave)}");
+
+        Debe(Cuenta("datos") == 2, $"lo contado son 2 cosas —lo de otra persona no cuenta, ni el recordatorio—: {Cuenta("datos")}");
+        Debe(Cuenta("recordatorios") == 1, $"hay 1 recordatorio: {Cuenta("recordatorios")}");
+        Debe(Cuenta("conversacion") == 3, $"lo hablado son 3 turnos: {Cuenta("conversacion")}");
+        Debe(Cuenta("habilidades") == 1, $"hay 1 habilidad enseñada: {Cuenta("habilidades")}");
+        Debe(Cuenta("lecciones") == 1, $"hay 1 lección grabada: {Cuenta("lecciones")}");
+        Debe(Cuenta("pantalla") == 3, $"se miró la pantalla 3 veces: {Cuenta("pantalla")}");
+        Debe(((IEnumerable<dynamic>)Apartado(llena, "pantalla")!.Entradas).Count() == 2,
+            "las 3 miradas se cuentan por sitio: el Bloc de notas y google.com, no una fila por foto");
+        Debe(Cuenta("explicado") == 2, $"hay 2 cosas explicadas señalándolas: {Cuenta("explicado")}");
+        Debe(Cuenta("aparatos") == 2, $"hay 2 aparatos, el collar y el micrófono bautizado: {Cuenta("aparatos")}");
+        Debe(Cuenta("registro") == 2, $"el registro tiene 2 días: {Cuenta("registro")}");
+
+        // Los sitios web los apunta una clase con memoria estática compartida entre promesas: cuántos
+        // hay se le pregunta al archivo que ella misma escribió, no se supone.
+        using var sitios = JsonDocument.Parse(File.ReadAllText(Path.Combine(UserPaths.Local, "U", "titulos-web.json")));
+        int dominios = sitios.RootElement.EnumerateObject().Count();
+        Debe(dominios >= 1 && Cuenta("sitios") == dominios, $"los sitios web son los {dominios} que hay apuntados: {Cuenta("sitios")}");
+
+        var textos = TextosDe(llena);
+        foreach (string dicho in new[] { "Ana Restrepo", UsuarioDeLaMemoria, "soy alérgica a la penicilina", "mi consultorio es el 204",
+                     "llamar al laboratorio en 30 minutos", "Llamar al laboratorio.", "Enviar un correo en Gmail", "github.com",
+                     "Micrófono de la consulta" })
+            Debe(textos.Any(t => t.Contains(dicho, StringComparison.Ordinal)), $"lo guardado se LEE, no solo se cuenta: «{dicho}»");
+        Debe(!textos.Any(t => t.Contains("otra persona", StringComparison.Ordinal)), "lo que recordó otra persona en este PC no se enseña");
+    }
+
+    private static void LoQueNoSePudoLeerSeDice()
+    {
+        if (LeerLaMemoria(DateTimeOffset.Now) == null) { Pendiente("Memoria.LoQueUSabe.Leer", "623", "071"); return; }
+        SembrarLaMemoria();
+        string roaming = Path.Combine(UserPaths.Roaming, "U"), local = Path.Combine(UserPaths.Local, "U");
+
+        // DAÑADOS: un JSON cortado a la mitad, que es lo que deja un apagón a media escritura.
+        foreach (string roto in new[]
+                 {
+                     Path.Combine(roaming, "config.json"), Path.Combine(roaming, "memoria-personal.json"),
+                     Path.Combine(local, "recuerdos", "miradas", "album.json"), Path.Combine(local, "titulos-web.json"),
+                     Path.Combine(local, "collar.json"),
+                 })
+            File.WriteAllText(roto, "{ \"items\": [ { \"text\": \"a med");
+        // Y entre las habilidades, una buena y una rota: la buena se sigue contando.
+        File.WriteAllText(Path.Combine(local, "skills", "Otra-cosa.skill.json"), "{ \"Nombre\": ");
+
+        string conversacion = Path.Combine(roaming, "conversacion-personal.json");
+        List<dynamic> leido;
+        // OCUPADO: otro programa lo tiene abierto en exclusiva. No es lo mismo que dañado, y se dice distinto.
+        using (new FileStream(conversacion, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            leido = LeerLaMemoria(DateTimeOffset.Now)!;
+
+        string Estado(string clave) => Apartado(leido, clave)?.Estado.ToString() ?? "(no está)";
+        string Resumen(string clave) => (string)(Apartado(leido, clave)?.Resumen ?? "");
+        foreach (string clave in new[] { "quien", "datos", "recordatorios", "pantalla", "sitios", "conversacion" })
+        {
+            Debe(Estado(clave) == "NoSePudoLeer", $"«{clave}» no se pudo leer y lo dice, en vez de decir «vacío»: {Estado(clave)}");
+            Debe(Resumen(clave).Contains("no pude leer", StringComparison.OrdinalIgnoreCase),
+                $"«{clave}» lo dice con esas palabras: «{Resumen(clave)}»");
+        }
+        Debe(Resumen("datos") != Resumen("conversacion"),
+            $"dañado y ocupado no se dicen igual: «{Resumen("datos")}» / «{Resumen("conversacion")}»");
+        Debe(Estado("aparatos") == "ConDatos" && Resumen("aparatos").Contains("no pude leer", StringComparison.OrdinalIgnoreCase),
+            $"de los aparatos se enseña el que se leyó y se dice que el collar no: {Estado("aparatos")}, «{Resumen("aparatos")}»");
+        Debe(Estado("habilidades") == "ConDatos" && (int)Apartado(leido, "habilidades")!.Cuenta == 1
+             && Resumen("habilidades").Contains("no pude leer", StringComparison.OrdinalIgnoreCase),
+            $"la habilidad buena se cuenta y la rota se nombra como no leída: {Estado("habilidades")}, «{Resumen("habilidades")}»");
+        Debe(Estado("lecciones") == "ConDatos" && Estado("explicado") == "ConDatos" && Estado("registro") == "ConDatos",
+            "lo que sí se pudo leer se sigue enseñando: un almacén roto no tumba a los demás");
+    }
+
+    private static void LaMemoriaHablaComoUnaPersona()
+    {
+        if (LeerLaMemoria(DateTimeOffset.Now) == null) { Pendiente("Memoria.LoQueUSabe.Leer", "624", "071"); return; }
+        SembrarLaMemoria();
+        var ahora = DateTimeOffset.Now;
+        var hoy = LeerLaMemoria(ahora)!;
+
+        // Las filas de los sitios web quedan fuera de este repaso, y solo ellas: son direcciones y títulos de
+        // páginas copiados tal cual, y quien los apunta guarda memoria entre promesas. Lo que Ü dice POR SU
+        // CUENTA de ese apartado —título y resumen— sí entra.
+        var textos = TextosDe(hoy.Where(a => (string)a.Clave != "sitios"));
+        textos.Add((string)Apartado(hoy, "sitios")!.Titulo);
+        textos.Add((string)Apartado(hoy, "sitios")!.Resumen);
+        foreach (string interno in new[] { "\\", "://", ".json", ".exe", ".jpg", ".log", ".skill", "local_", "leccion_", "{0.0.1" })
+        {
+            var culpables = textos.Where(t => t.Contains(interno, StringComparison.OrdinalIgnoreCase)).Take(2).ToList();
+            Debe(culpables.Count == 0, $"nada de lo que se enseña lleva «{interno}»: {string.Join(" | ", culpables)}");
+        }
+        var conReloj = textos.Where(t => System.Text.RegularExpressions.Regex.IsMatch(t, @"\d{4}-\d{2}-\d{2}T|\d{13}")).Take(2).ToList();
+        Debe(conReloj.Count == 0, $"ninguna fecha sale como la guarda la máquina: {string.Join(" | ", conReloj)}");
+        Debe(textos.Any(t => t.Contains("Bloc de notas", StringComparison.Ordinal)), "un programa se llama por su nombre, no por su proceso: «Bloc de notas»");
+        Debe(textos.Any(t => t.Contains("google.com", StringComparison.Ordinal)), "un sitio web se llama por su dirección corta: «google.com»");
+
+        string[] meses = { "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre" };
+        bool Dice(IEnumerable<string> detalles, string palabra) => detalles.Any(d => d.Contains(palabra, StringComparison.OrdinalIgnoreCase));
+        // Las tres fechas se piden sobre lo MISMO, moviendo el «ahora»: lo guardado no cambia de día.
+        var conversacionHoy = DetallesDe(new[] { Apartado(hoy, "conversacion")! });
+        var conversacionManana = DetallesDe(new[] { Apartado(LeerLaMemoria(ahora.AddDays(1))!, "conversacion")! });
+        var conversacionLejos = DetallesDe(new[] { Apartado(LeerLaMemoria(ahora.AddDays(40))!, "conversacion")! });
+        Debe(Dice(conversacionHoy, "hoy"), $"lo hablado hoy dice «hoy»: {string.Join(" | ", conversacionHoy)}");
+        Debe(Dice(conversacionManana, "ayer") && !Dice(conversacionManana, "hoy"),
+            $"un día después dice «ayer»: {string.Join(" | ", conversacionManana)}");
+        Debe(!Dice(conversacionLejos, "hoy") && !Dice(conversacionLejos, "ayer") && meses.Any(m => Dice(conversacionLejos, " de " + m)),
+            $"cuarenta días después dice el día y el mes: {string.Join(" | ", conversacionLejos)}");
+    }
+
+    private static void LoSecretoNoSeEnsena()
+    {
+        if (LeerLaMemoria(DateTimeOffset.Now) == null) { Pendiente("Memoria.LoQueUSabe.Leer", "625", "071"); return; }
+        SembrarLaMemoria();
+        var textos = TextosDe(LeerLaMemoria(DateTimeOffset.Now)!);
+
+        // La prueba tiene que poder fallar: el nombre vive en el MISMO archivo que la clave, y se lee.
+        Debe(textos.Any(t => t.Contains("Ana Restrepo", StringComparison.Ordinal)), "el archivo de la clave sí se leyó: el nombre sale");
+        foreach (var (secreto, que) in new[]
+                 {
+                     ("tok-secreto-123", "la clave del cliente"), ("inst-999-zzz", "el identificador de la instalación"),
+                     ("48291357", "el código del teléfono"),
+                 })
+            Debe(!textos.Any(t => t.Contains(secreto, StringComparison.Ordinal)), $"{que} no se enseña");
+    }
+
+    private static void AbrirLaMemoriaNoCambiaNada()
+    {
+        if (LeerLaMemoria(DateTimeOffset.Now) == null) { Pendiente("Memoria.LoQueUSabe.Leer", "626", "071"); return; }
+        SembrarLaMemoria();
+
+        // EL CEBO. Un dato viejo que dice una hora y no tiene fecha: leer la memoria por la puerta de la voz
+        // (ContextoAsync, Pendientes) lo convierte en recordatorio Y REESCRIBE el archivo. Mirar no puede hacer eso.
+        string memoria = Path.Combine(UserPaths.Roaming, "U", "memoria-personal.json");
+        File.WriteAllText(memoria, "{\"items\":[{\"id\":\"local_viejo\",\"userId\":\"" + UsuarioDeLaMemoria
+            + "\",\"text\":\"llamar a mamá a las 8\",\"kind\":\"fact\",\"createdAt\":\"2026-09-01T10:00:00+00:00\","
+            + "\"dueAt\":null,\"timeZone\":\"\",\"delivered\":false}]}");
+
+        string raiz = Environment.GetEnvironmentVariable("U_DATA_DIR") ?? "";
+        Dictionary<string, string> Foto() => Directory.EnumerateFiles(raiz, "*", SearchOption.AllDirectories)
+            .ToDictionary(f => f, f => File.GetLastWriteTimeUtc(f).Ticks + ":"
+                + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(f))));
+
+        var antes = Foto();
+        var leido = LeerLaMemoria(DateTimeOffset.Now)!;
+        LeerLaMemoria(DateTimeOffset.Now.AddDays(3));
+        var despues = Foto();
+
+        Debe((int)Apartado(leido, "datos")!.Cuenta == 1, "el dato viejo se leyó: la prueba miró el archivo de verdad");
+        var tocados = antes.Keys.Union(despues.Keys)
+            .Where(f => !antes.TryGetValue(f, out var a) || !despues.TryGetValue(f, out var d) || a != d)
+            .Select(f => Path.GetFileName(f)).ToList();
+        Debe(antes.Count > 10, $"había archivos que vigilar: {antes.Count}");
+        Debe(tocados.Count == 0, $"abrir la Memoria dos veces no escribe, no borra y no crea nada: {string.Join(", ", tocados)}");
     }
 
     private static void Prueba(string nombre, Action cuerpo)
@@ -14554,7 +15778,7 @@ internal static class Contrato
         var bloque = System.Text.RegularExpressions.Regex.Match(c, @"var ciclo = new Navigation\.CicloRapido\([\s\S]*?mcp\.Map\.CicloRapido = ");
         Debe(bloque.Success && bloque.Value.Contains("TrasPulsar = Navigation.CicloRapido.AvisarALaCarita"), "[cableado] el ciclo de la cara no avisa a la carita tras el clic");
         var visita = System.Text.RegularExpressions.Regex.Match(c, @"private void Visitar\(Rect [\s\S]*?\r?\n    }\r?\n");
-        Debe(visita.Success && System.Text.RegularExpressions.Regex.IsMatch(visita.Value, @"^private void Visitar\(Rect fisico\)\r?\n    \{\r?\n        try\r?\n")
+        Debe(visita.Success && System.Text.RegularExpressions.Regex.IsMatch(visita.Value, @"^private void Visitar\(Rect fisico(, bool pulsa = false)?\)\r?\n    \{\r?\n        try\r?\n")
              && visita.Value.Contains("catch (Exception"), "[cableado] un fallo de la visita sube al diálogo de «Ü tropezó» en mitad de un clic (el cuerpo entero tiene que ir dentro del try)");
         var sus = System.Text.RegularExpressions.Regex.Matches(c, @"UiaSurface\.Pulso \+= [^;]*;");
         Debe(sus.Count == 1 && sus[0].Value.Contains("Dispatcher.BeginInvoke(") && sus[0].Value.Contains("Visitar(") && !sus[0].Value.Contains("Dispatcher.Invoke("),
@@ -17961,6 +19185,1906 @@ internal static class Contrato
                         $"con {nombre}, ni nada más: lo decide el modelo con memory_remember, no un vigilante");
                 }
             }
+
+    // ── LA VOZ AL PRIMER CLIC (spec 075) ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Una conversación de verdad con las puertas cambiadas: el CABLE —lo que tarda el servidor en contestar la
+    /// conexión— lo suelta el contrato cuando quiere; el MICRÓFONO solo se anota; lo que sale, a una lista.
+    /// </summary>
+    /// <remarks>
+    /// EL CABLE NO OBEDECE A LA CANCELACIÓN, y es a propósito: una conexión de verdad puede contestar DESPUÉS de
+    /// que la persona ya apagó. Un cable de mentira que se cancelara solo dejaría sin juzgar justo ese caso, que es
+    /// el del log del 2026-09-30 a las 10:03:16 («socket conectado» dos veces en el mismo segundo).
+    /// </remarks>
+    private sealed class VozDePrueba : IDisposable
+    {
+        private const BindingFlags Privado = BindingFlags.NonPublic | BindingFlags.Instance;
+        public readonly IDisposable Conv;
+        public readonly Type Tipo;
+        public readonly List<bool> Avisos = new();
+        public readonly List<bool> Micro = new();
+        public readonly List<string> Mandados = new();
+        public readonly List<string> Dichos = new();
+        public readonly List<string> Borradas = new();
+        public readonly List<TaskCompletionSource<bool>> Cables = new();
+        /// <summary>Si no es null, el borrado de las miradas espera a que el contrato lo suelte.</summary>
+        public TaskCompletionSource<bool>? Borrado;
+
+        private readonly MethodInfo _alternar, _procesar, _trozo;
+        private readonly MethodInfo? _foto;
+        private readonly PropertyInfo _viva;
+        private readonly string? _claveDeAntes;
+        private TaskCompletionSource<bool>? _cableDeAhora;
+        private int _subidas;
+
+        private VozDePrueba(IDisposable conv, Type tipo, MethodInfo alternar, MethodInfo procesar, MethodInfo trozo, PropertyInfo viva, string? claveDeAntes)
+        { Conv = conv; Tipo = tipo; _alternar = alternar; _procesar = procesar; _trozo = trozo; _viva = viva; _claveDeAntes = claveDeAntes; _foto = tipo.GetMethod("MandarFotoAsync", Privado); }
+
+        public static VozDePrueba? Nueva(string promesa)
+        {
+            var tc = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+            var tLive = typeof(Voz.Realtime.IProtocolo).Assembly.GetType("Voz.Realtime.ProtocoloGptLive");
+            var cable = tc?.GetField("_abreElCable", Privado);
+            var micro = tc?.GetField("_elMicro", Privado);
+            var puerta = tc?.GetField("_puerta", Privado);
+            var abierta = tc?.GetField("_puertaAbierta", Privado);
+            var sube = tc?.GetField("_subeLaMirada", Privado);
+            var borra = tc?.GetField("_borraLaMirada", Privado);
+            var alternar = tc?.GetMethod("AlternarAsync");
+            var procesar = tc?.GetMethod("Procesar", Privado);
+            var trozo = tc?.GetMethod("MandarTrozo", Privado);
+            var viva = tc?.GetProperty("Viva");
+            if (tc == null || tLive == null || cable == null || micro == null || puerta == null || abierta == null || sube == null
+                || borra == null || alternar == null || procesar == null || trozo == null || viva == null)
+            {
+                Pendiente("ConversacionEnVivo._abreElCable y _elMicro (las puertas del cable y del micrófono)", promesa, "075");
+                return null;
+            }
+
+            // SIN CLAVE NO SE ARRANCA, y el contrato no lleva ninguna: se pone una de mentira, que no sale del proceso
+            // porque el cable es de mentira también.
+            string? antes = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+            Environment.SetEnvironmentVariable("OPENAI_API_KEY", "clave-del-contrato");
+
+            var live = Activator.CreateInstance(tLive,
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.CreateInstance | BindingFlags.OptionalParamBinding,
+                null, new[] { Type.Missing, Type.Missing }, null)!;
+            var conv = (IDisposable)Activator.CreateInstance(tc, new object?[] { new SurfaceMapTools(() => null), live })!;
+            var v = new VozDePrueba(conv, tc, alternar, procesar, trozo, viva, antes);
+
+            cable.SetValue(conv, (Func<CancellationToken, Task>)(_ =>
+            {
+                var c = new TaskCompletionSource<bool>();
+                lock (v.Cables) { v.Cables.Add(c); v._cableDeAhora = c; }
+                return c.Task;
+            }));
+            micro.SetValue(conv, (Action<bool>)(abre => { lock (v.Micro) v.Micro.Add(abre); }));
+            puerta.SetValue(conv, (Func<string, CancellationToken, Task>)((j, _) => { lock (v.Mandados) v.Mandados.Add(j); return Task.CompletedTask; }));
+            abierta.SetValue(conv, (Func<bool>)(() => v.Viva && v._cableDeAhora?.Task.IsCompletedSuccessfully == true));
+            sube.SetValue(conv, (Func<byte[], Task<string>>)(_ => Task.FromResult($"file-{Interlocked.Increment(ref v._subidas)}")));
+            borra.SetValue(conv, (Func<string, Task>)(async id =>
+            {
+                var espera = v.Borrado;
+                if (espera != null) await espera.Task.ConfigureAwait(false);
+                lock (v.Borradas) v.Borradas.Add(id);
+            }));
+            tc.GetEvent("Cambio")!.AddEventHandler(conv, (Action<bool>)(x => { lock (v.Avisos) v.Avisos.Add(x); }));
+            tc.GetEvent("Dice")!.AddEventHandler(conv, (Action<string>)(x => { lock (v.Dichos) v.Dichos.Add(x); }));
+            return v;
+        }
+
+        public bool Viva => (bool)_viva.GetValue(Conv)!;
+
+        /// <summary>Un clic: alterna, y vuelve en cuanto la conversación le devuelve el hilo.</summary>
+        public Task Alterna() => (Task)_alternar.Invoke(Conv, _alternar.GetParameters().Select(p => p.DefaultValue).ToArray())!;
+
+        /// <summary>El servidor contesta la conexión que se pidió en el puesto <paramref name="cual"/> (la última, si no se dice).</summary>
+        public void Conecta(int cual = -1)
+        {
+            TaskCompletionSource<bool> c;
+            lock (Cables) c = Cables[cual < 0 ? Cables.Count - 1 : cual];
+            c.TrySetResult(true);
+        }
+
+        public void FallaElCable(Exception e)
+        {
+            TaskCompletionSource<bool> c;
+            lock (Cables) c = Cables[^1];
+            c.TrySetException(e);
+        }
+
+        public int Conexiones { get { lock (Cables) return Cables.Count; } }
+        public void Llega(string json) => _procesar.Invoke(Conv, new object[] { json, CancellationToken.None });
+        public void Confirma() => Llega("{\"type\":\"session.started\"}");
+
+        /// <summary>Un trozo de micrófono de 100 ms que lleva su número en la primera muestra.</summary>
+        public void Capta(byte marca)
+        {
+            var pcm = new byte[4800];
+            pcm[0] = marca;
+            _trozo.Invoke(Conv, new object[] { pcm });
+        }
+
+        /// <summary>Los trozos que salieron por el cable, por su número y en el orden en que salieron.</summary>
+        public List<int> Audios()
+        {
+            var l = new List<int>();
+            string[] copia; lock (Mandados) copia = Mandados.ToArray();
+            foreach (string m in copia)
+            {
+                using var doc = JsonDocument.Parse(m);
+                if (doc.RootElement.TryGetProperty("type", out var t) && t.GetString() == "session.input_audio.append")
+                    l.Add(Convert.FromBase64String(doc.RootElement.GetProperty("audio").GetString()!)[0]);
+            }
+            return l;
+        }
+
+        public int Aperturas { get { lock (Mandados) return Mandados.Count(m => m.Contains("\"session.start\"", StringComparison.Ordinal)); } }
+        public bool[] LosAvisos() { lock (Avisos) return Avisos.ToArray(); }
+        public bool[] ElMicro() { lock (Micro) return Micro.ToArray(); }
+
+        /// <summary>Una mirada subida en esta conversación: lo que el cierre tendrá que retirar.</summary>
+        public bool Mira()
+        {
+            if (_foto == null) return false;
+            ((Task)_foto.Invoke(Conv, new object[] { new byte[] { 1, 2, 3 }, CancellationToken.None })!).GetAwaiter().GetResult();
+            return true;
+        }
+
+        /// <summary>Encendida, conectada y confirmada, como queda tras un clic con el servidor contestando.</summary>
+        public bool EnciendeDelTodo()
+        {
+            Alterna();
+            if (!Espera(() => Conexiones > 0, 2000)) return false;
+            Conecta();
+            if (!Espera(() => Aperturas > 0, 3000)) return false;
+            Confirma();
+            return Viva;
+        }
+
+        public void Dispose()
+        {
+            // QUE NADA QUEDE COLGADO: Dispose cierra la conversación esperándola, y una espera que el contrato dejó
+            // sin soltar lo colgaría a él.
+            Borrado?.TrySetResult(true);
+            lock (Cables) foreach (var c in Cables) c.TrySetException(new OperationCanceledException());
+            try { Conv.Dispose(); } catch { }
+            Environment.SetEnvironmentVariable("OPENAI_API_KEY", _claveDeAntes);
+        }
+    }
+
+    /// <summary>Espera a que algo que ocurre en otro hilo llegue a ser cierto. Falso si no llegó en el plazo.</summary>
+    private static bool Espera(Func<bool> condicion, int plazoMs)
+    {
+        long fin = Environment.TickCount64 + plazoMs;
+        while (Environment.TickCount64 < fin) { if (condicion()) return true; Thread.Sleep(5); }
+        return condicion();
+    }
+
+    private static string Lista(IEnumerable<bool> l) => "[" + string.Join(", ", l.Select(x => x ? "enciende" : "apaga")) + "]";
+
+    /// <summary>Promesa 660.</summary>
+    /// <remarks>
+    /// EN MAIN, «ENCENDIDA» CONSTABA DESPUÉS DE LA RED (medido el 2026-10-01 con un juez de fuera, tres rondas): la
+    /// estela se veía a los 666–1.027 ms del clic y el micrófono abría a los 673–987, porque Viva y Cambio(true)
+    /// iban detrás de ConnectAsync. Nada de lo que la persona ve o hace en el clic depende del servidor.
+    /// </remarks>
+    private static void UnClicEnciendeSinEsperarALaRed()
+    {
+        using (var v = VozDePrueba.Nueva("660"))
+        {
+            if (v == null) return;
+            var clic = v.Alterna();   // el servidor todavía no contestó la conexión
+            Debe(v.Viva, "al volver del clic la voz ya consta encendida, con el servidor todavía sin contestar");
+            Debe(v.LosAvisos().SequenceEqual(new[] { true }), $"y avisó UNA vez de que encendió: es lo que pinta la estela (avisos: {Lista(v.LosAvisos())})");
+            Debe(v.ElMicro().SequenceEqual(new[] { true }), $"y pidió el micrófono en el mismo clic, no al conectar (micrófono: {Lista(v.ElMicro())})");
+            Debe(v.Conexiones == 1 && !clic.IsCompleted, $"la conexión se pidió una vez y sigue pendiente (pedidas: {v.Conexiones})");
+            Debe(v.Mandados.Count == 0, $"y nada ha salido por un cable que todavía no existe (salieron {v.Mandados.Count})");
+
+            v.Conecta();
+            Debe(Espera(() => v.Aperturas == 1, 3000), $"cuando el servidor contesta, se manda la apertura, una (aperturas: {v.Aperturas})");
+            v.Confirma();
+            Debe(v.Viva && v.LosAvisos().SequenceEqual(new[] { true }),
+                $"y ni conectar ni confirmar vuelven a avisar: la estela ya estaba (avisos: {Lista(v.LosAvisos())})");
+        }
+
+        // UN CORTE DE RED AL CONECTAR NO APAGA NADA. En main cada reintento pasaba por TerminarAsync: la estela se
+        // apagaba y se volvía a encender, el micrófono se cerraba y se abría, y lo dicho entre medias se perdía.
+        using (var v = VozDePrueba.Nueva("660"))
+        {
+            if (v == null) return;
+            v.Alterna();
+            v.FallaElCable(new System.Net.Http.HttpRequestException("sin red"));
+            Debe(Espera(() => v.Conexiones == 2, 4000), $"un corte de red al conectar se reintenta solo (conexiones pedidas: {v.Conexiones})");
+            Debe(v.Viva && v.LosAvisos().SequenceEqual(new[] { true }) && v.ElMicro().SequenceEqual(new[] { true }),
+                $"y mientras se reintenta la voz sigue encendida y el micrófono abierto: ni un aviso más (avisos: {Lista(v.LosAvisos())}, micrófono: {Lista(v.ElMicro())})");
+            v.Conecta();
+            Debe(Espera(() => v.Aperturas == 1, 3000), "y el reintento que conecta abre la sesión");
+        }
+
+        // Y SI NO HAY MANERA, SE APAGA Y LO DICE. Lo que no es de red no se reintenta: fallaría igual.
+        using (var v = VozDePrueba.Nueva("660"))
+        {
+            if (v == null) return;
+            v.Alterna();
+            v.FallaElCable(new InvalidOperationException("el servidor dijo que no"));
+            Debe(Espera(() => !v.Viva, 3000), "si la conexión falla sin remedio, la voz se apaga");
+            Debe(v.LosAvisos().SequenceEqual(new[] { true, false }) && v.ElMicro().SequenceEqual(new[] { true, false }),
+                $"avisando una vez y soltando el micrófono (avisos: {Lista(v.LosAvisos())}, micrófono: {Lista(v.ElMicro())})");
+            Debe(Espera(() => { lock (v.Dichos) return v.Dichos.Any(d => d.Contains("No pude abrir la voz", StringComparison.Ordinal)); }, 2000),
+                "y lo dice: una estela que se apaga sola sin una palabra es el mismo «no me oye» de antes");
+            Debe(v.Aperturas == 0, $"sin haber mandado ninguna apertura (aperturas: {v.Aperturas})");
+        }
+    }
+
+    /// <summary>Promesa 661.</summary>
+    /// <remarks>
+    /// LO QUE LLEGA ANTES DE session.started, EL SERVIDOR LO TIRA. Medido el 2026-09-30 con una sonda: de «Manzana.
+    /// Repite solamente la primera palabra que dije», mandado justo detrás de session.start, no transcribió nada y
+    /// contestó «Repite.»; guardado y mandado en ráfaga tras session.started, transcribió «Manzana. Re…» y contestó
+    /// «Manzana.». Por eso lo dicho mientras abre se guarda, y por eso no puede salir antes de tiempo.
+    /// </remarks>
+    private static void LoDichoMientrasAbreNoSePierde()
+    {
+        using (var v = VozDePrueba.Nueva("661"))
+        {
+            if (v == null) return;
+            v.Alterna();
+            v.Capta(1); v.Capta(2);          // dicho con la conexión todavía sin contestar
+            Debe(v.Audios().Count == 0, $"lo dicho antes de conectar no sale: no hay por dónde (salieron {v.Audios().Count} trozo(s))");
+            v.Conecta();
+            Debe(Espera(() => v.Aperturas == 1, 3000), "la apertura sale al conectar");
+            v.Capta(3);                      // conectado, pero el servidor aún no confirmó
+            Debe(v.Audios().Count == 0,
+                $"y con el socket ya conectado tampoco sale nada antes de que el servidor confirme: lo tiraría (salieron: {string.Join(", ", v.Audios())})");
+            v.Confirma();
+            Debe(Espera(() => v.Audios().Count == 3, 2000) && v.Audios().SequenceEqual(new[] { 1, 2, 3 }),
+                $"al confirmar sale TODO lo guardado, en orden (salieron: {string.Join(", ", v.Audios())})");
+            v.Capta(4);
+            Debe(Espera(() => v.Audios().Count == 4, 2000) && v.Audios().SequenceEqual(new[] { 1, 2, 3, 4 }),
+                $"y lo que se capta después va detrás, sin adelantarse a lo guardado (salieron: {string.Join(", ", v.Audios())})");
+            string[] orden; lock (v.Mandados) orden = v.Mandados.ToArray();
+            Debe(orden.Length > 0 && orden[0].Contains("\"session.start\"", StringComparison.Ordinal),
+                "y lo primero que sale por el cable es la apertura, no un trozo de micrófono");
+        }
+
+        // Y LO ESCRITO TAMPOCO SE PIERDE: con la voz encendida desde el gesto, una frase escrita puede llegar antes
+        // que el socket. Espera a la confirmación y sale entonces, detrás de la apertura.
+        using (var v = VozDePrueba.Nueva("661"))
+        {
+            if (v == null) return;
+            var escribir = v.Tipo.GetMethod("EnviarTextoAsync", BindingFlags.Public | BindingFlags.Instance);
+            if (escribir == null) { Pendiente("ConversacionEnVivo.EnviarTextoAsync", "661", "075"); return; }
+            v.Alterna();
+            var escrito = (Task)escribir.Invoke(v.Conv, new object[] { "frase escrita de la 661" })!;
+            int Escritos() { lock (v.Mandados) return v.Mandados.Count(m => m.Contains("frase escrita de la 661", StringComparison.Ordinal)); }
+            Debe(Escritos() == 0 && !escrito.IsCompleted, "lo escrito con la conexión sin contestar no se tira ni sale: espera");
+            v.Conecta();
+            string Cuales() { lock (v.Mandados) return string.Join(" ¦ ", v.Mandados.Where(m => m.Contains("frase escrita de la 661", StringComparison.Ordinal)).Select(m => m.Length > 90 ? m[..90] : m)); }
+            Debe(Espera(() => v.Aperturas == 1, 3000) && Escritos() == 0, $"conectado y sin confirmar, sigue esperando (salió {Escritos()} vez/veces: {Cuales()})");
+            v.Confirma();
+            Debe(escrito.Wait(3000) && Escritos() == 1, $"y al confirmar el servidor, sale (salió {Escritos()} vez/veces)");
+            string[] orden; lock (v.Mandados) orden = v.Mandados.ToArray();
+            Debe(orden.Length > 1 && orden[0].Contains("\"session.start\"", StringComparison.Ordinal), "detrás de la apertura, no delante");
+        }
+
+        // APAGADA ANTES DE CONFIRMAR, lo guardado no sale nunca: ni al apagar ni si el servidor confirma tarde.
+        using (var v = VozDePrueba.Nueva("661"))
+        {
+            if (v == null) return;
+            v.Alterna();
+            v.Capta(1);
+            v.Conecta();
+            Espera(() => v.Aperturas == 1, 3000);
+            var apaga = v.Alterna();
+            apaga.Wait(3000);
+            v.Confirma();   // el servidor confirma una sesión que ya se apagó
+            Thread.Sleep(150);
+            Debe(v.Audios().Count == 0, $"lo guardado de una sesión que se apagó sin confirmar no se manda a nadie (salieron: {string.Join(", ", v.Audios())})");
+        }
+
+        // EL TOPE: la espera no puede crecer sin fin si el servidor no contesta, y lo que se tira queda contado.
+        var t = typeof(Voz.Realtime.IProtocolo).Assembly.GetType("Voz.Realtime.PreEscucha");
+        var empezar = t?.GetMethod("Empezar");
+        var guardar = t?.GetMethod("Guardar");
+        var siguiente = t?.GetMethod("Siguiente");
+        var perdidos = t?.GetProperty("MsPerdidos");
+        var guardados = t?.GetProperty("MsGuardados");
+        if (t == null || empezar == null || guardar == null || siguiente == null || perdidos == null || guardados == null)
+        { Pendiente("Voz.Realtime.PreEscucha (Empezar, Guardar, Siguiente, MsGuardados, MsPerdidos)", "661", "075"); return; }
+        var pre = Activator.CreateInstance(t, new object[] { 24000, 1000 })!;   // 24 kHz, un segundo de tope
+        byte[] Trozo(byte n) { var b = new byte[4800]; b[0] = n; return b; }
+        Debe(!(bool)guardar.Invoke(pre, new object[] { Trozo(0) })!, "sin haber empezado no guarda nada: el trozo es de quien lo trae");
+        empezar.Invoke(pre, null);
+        for (byte n = 1; n <= 15; n++)
+            Debe((bool)guardar.Invoke(pre, new object[] { Trozo(n) })!, $"mientras espera, guarda cada trozo (el {n})");
+        Debe((int)guardados.GetValue(pre)! == 1000 && (int)perdidos.GetValue(pre)! == 500,
+            $"con un segundo de tope y 1,5 s captados, guarda 1.000 ms y cuenta 500 perdidos (guarda {guardados.GetValue(pre)}, perdidos {perdidos.GetValue(pre)})");
+        var salen = new List<int>();
+        while (siguiente.Invoke(pre, null) is byte[] b) salen.Add(b[0]);
+        Debe(salen.SequenceEqual(Enumerable.Range(6, 10)), $"y lo que se tira es lo más viejo: quedan los diez últimos, en orden (salen: {string.Join(", ", salen)})");
+        Debe(!(bool)guardar.Invoke(pre, new object[] { Trozo(99) })!, "y una vez vaciada deja de guardar: lo siguiente va directo");
+    }
+
+    /// <summary>Promesa 662.</summary>
+    /// <remarks>
+    /// EL CLIC PREGUNTABA UN ESTADO QUE CAMBIABA TARDE. AlternarAsync miraba Viva, que no se ponía a verdadero hasta
+    /// conectar: un segundo clic mientras abría veía «apagada» y abría OTRA sesión (log del 2026-09-30, 10:03:16:
+    /// «socket conectado» dos veces en el mismo segundo). Con N clics el resultado dependía de cuándo cayera cada uno.
+    /// </remarks>
+    private static void CadaClicAlternaUnaVez()
+    {
+        for (int n = 1; n <= 6; n++)
+        {
+            using var v = VozDePrueba.Nueva("662");
+            if (v == null) return;
+            for (int i = 0; i < n; i++) v.Alterna();   // seguidos, sin que el servidor llegue a contestar ninguna conexión
+            bool impar = n % 2 == 1;
+            var esperados = Enumerable.Range(0, n).Select(i => i % 2 == 0).ToArray();
+            Debe(v.Viva == impar, $"{n} clic(s) seguidos la dejan {(impar ? "encendida" : "apagada")} (quedó {(v.Viva ? "encendida" : "apagada")})");
+            Debe(v.LosAvisos().SequenceEqual(esperados), $"con {n} clic(s) los avisos alternan sin repetirse (avisos: {Lista(v.LosAvisos())})");
+            Debe(v.ElMicro().SequenceEqual(esperados), $"y el micrófono se pide y se suelta en el mismo orden (micrófono: {Lista(v.ElMicro())})");
+
+            // AHORA CONTESTAN TODAS LAS CONEXIONES, las vigentes y las que ya nadie espera.
+            for (int c = 0; c < v.Conexiones; c++) v.Conecta(c);
+            Espera(() => v.Aperturas == (impar ? 1 : 0), 1500);
+            Thread.Sleep(120);
+            Debe(v.Viva == impar, $"y que las conexiones contesten después no cambia nada: tras {n} clic(s) sigue {(impar ? "encendida" : "apagada")}");
+            Debe(v.LosAvisos().Length == n, $"sin un aviso de más (con {n} clic(s) hubo {v.LosAvisos().Length} avisos)");
+            Debe(v.Aperturas == (impar ? 1 : 0),
+                $"y solo abre sesión la conexión vigente: la que llega tarde se suelta sin mandar su apertura (con {n} clic(s), aperturas: {v.Aperturas})");
+        }
+    }
+
+    /// <summary>Promesa 663.</summary>
+    /// <remarks>
+    /// APAGAR ESPERABA A LA RED ANTES DE CONSTAR: TerminarAsync hacía «await mirada.SoltarAsync()» —un DELETE por
+    /// HTTP por cada mirada, con 30 s de plazo— ANTES de Viva = false. La estela seguía encendida, la persona volvía
+    /// a hacer clic, y ese segundo clic era el que apagaba. «Me toca volver a hacer clic» (el dueño, 2026-09-30).
+    /// </remarks>
+    private static void ApagarNoEsperaANadie()
+    {
+        using var v = VozDePrueba.Nueva("663");
+        if (v == null) return;
+        Debe(v.EnciendeDelTodo(), "[preparación] la voz enciende, conecta y confirma");
+        Debe(v.Mira() && v.Borradas.Count == 0, "[preparación] hay una mirada subida, sin retirar todavía");
+        v.Capta(1);
+        Debe(Espera(() => v.Audios().Count == 1, 2000), "[preparación] encendida, lo que se capta sale");
+
+        v.Borrado = new TaskCompletionSource<bool>();   // el borrado de las miradas se queda colgado
+        var clic = v.Alterna();
+        Debe(!v.Viva, "al volver del clic la voz ya consta apagada, con el borrado de las miradas todavía colgado");
+        Debe(v.LosAvisos().SequenceEqual(new[] { true, false }), $"y avisó: es lo que apaga la estela (avisos: {Lista(v.LosAvisos())})");
+        Debe(v.ElMicro().SequenceEqual(new[] { true, false }), $"y soltó el micrófono en el mismo clic (micrófono: {Lista(v.ElMicro())})");
+        Debe(!clic.IsCompleted && v.Borradas.Count == 0, "sin esperar al borrado, que sigue sin contestar");
+        v.Capta(2);
+        Thread.Sleep(60);
+        Debe(v.Audios().Count == 1, $"y apagada no manda un trozo más (salieron: {string.Join(", ", v.Audios())})");
+
+        v.Borrado.SetResult(true);
+        Debe(clic.Wait(3000) && v.Borradas.SequenceEqual(new[] { "file-1" }),
+            $"las miradas se retiran igual, después: apagar deprisa no deja copias en la cuenta (borradas: {string.Join(", ", v.Borradas)})");
+        Debe(v.LosAvisos().Length == 2, $"y terminar de cerrar no avisa otra vez (avisos: {Lista(v.LosAvisos())})");
+    }
+
+    /// <summary>Promesa 664.</summary>
+    /// <remarks>
+    /// EL FINAL DE LA SESIÓN VIEJA TOCABA «LA» SESIÓN, FUERA LA QUE FUERA. TerminarAsync acababa con «_ws?.Dispose();
+    /// _ws = null» después de sus esperas, y SeAcaboLaEscuchaAsync, al terminar la escucha vieja, cerraba la voz si
+    /// Viva: con una sesión nueva ya abierta por otro clic, cerraban la nueva.
+    /// </remarks>
+    private static void ApagarYEncenderSeguidoDejaVivaLaSegunda()
+    {
+        using var v = VozDePrueba.Nueva("664");
+        if (v == null) return;
+        var acabo = v.Tipo.GetMethod("SeAcaboLaEscuchaAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+        if (acabo == null) { Pendiente("ConversacionEnVivo.SeAcaboLaEscuchaAsync (el final de una escucha)", "664", "075"); return; }
+
+        Debe(v.EnciendeDelTodo() && v.Mira(), "[preparación] la primera sesión enciende, confirma y sube una mirada");
+        v.Borrado = new TaskCompletionSource<bool>();   // su cierre se queda a medias
+        var apaga = v.Alterna();
+        var enciende = v.Alterna();                     // la persona vuelve a encender enseguida
+        Debe(v.Viva && v.Conexiones == 2, $"el segundo clic enciende otra vez y pide su propia conexión (conexiones: {v.Conexiones})");
+        v.Conecta();
+        Debe(Espera(() => v.Aperturas == 2, 3000), "la segunda sesión manda su apertura");
+        v.Confirma();
+
+        v.Borrado.SetResult(true);   // ahora termina el cierre de la vieja
+        Debe(apaga.Wait(3000), "el cierre de la sesión vieja termina");
+        Thread.Sleep(120);
+        Debe(v.Viva, "y la nueva sigue viva: el final del cierre viejo no la cierra");
+        Debe(v.LosAvisos().SequenceEqual(new[] { true, false, true }), $"sin un aviso de más (avisos: {Lista(v.LosAvisos())})");
+        Debe(v.ElMicro().SequenceEqual(new[] { true, false, true }), $"con el micrófono pedido para la nueva (micrófono: {Lista(v.ElMicro())})");
+
+        // LA ESCUCHA DE LA SESIÓN VIEJA TERMINA: su cancelación es otra, no la de la sesión que está viva.
+        using var vieja = new CancellationTokenSource();
+        vieja.Cancel();
+        ((Task)acabo.Invoke(v.Conv, new object[] { vieja.Token })!).Wait(3000);
+        Thread.Sleep(60);
+        Debe(v.Viva && v.LosAvisos().Length == 3,
+            $"y que termine la escucha de la vieja tampoco cierra la nueva (quedó {(v.Viva ? "encendida" : "apagada")}, avisos: {Lista(v.LosAvisos())})");
+
+        v.Capta(7);
+        Debe(Espera(() => v.Audios().Contains(7), 2000), "la nueva sigue oyendo: lo que se capta sale por su cable");
+    }
+
+    /// <summary>Promesa 665.</summary>
+    /// <remarks>
+    /// ABRIR EL MICRÓFONO TARDABA MEDIO SEGUNDO, Y CASI TODO ERA PREPARARLO. Medido el 2026-10-01 sobre «Varios
+    /// micrófonos (Realtek)»: inicializar el cliente de captura, 449 ms; arrancarlo ya inicializado, 240–257 ms,
+    /// también tras veinte segundos parado. Y un cliente inicializado y sin arrancar NO consta como micrófono en
+    /// uso (el registro de Windows que enciende el indicador solo lo apunta entre arrancar y parar). Así que el
+    /// micrófono se deja preparado desde que la app nace, y el clic solo lo arranca.
+    ///
+    /// EL PRECIO: un cliente preparado entrega el formato de la mezcla de Windows —48 kHz estéreo en coma
+    /// flotante en este equipo, 16 kHz mono con el micrófono de unos audífonos—, no el PCM16 mono al ritmo del
+    /// protocolo que antes pedía por nosotros la API vieja. Esa conversión es ahora nuestra, y es lo que se juzga.
+    /// Lo que no puede juzgar un contrato —cuánto tarda este dispositivo— lo juzga el nivel 4 sobre el PC.
+    /// </remarks>
+    private static void ElMicrofonoPreparadoEntregaLoQuePideElProtocolo()
+    {
+        var t = Cap004("U.WindowsClient.Voice.DeLaMezclaAPcm16");
+        var ctor = t?.GetConstructor(new[] { typeof(int), typeof(int), typeof(int) });
+        var convertir = t?.GetMethod("Convertir", new[] { typeof(byte[]), typeof(int) });
+        if (t == null || ctor == null || convertir == null)
+        { Pendiente("Voice.DeLaMezclaAPcm16 (ritmo de origen, canales, ritmo de destino; Convertir)", "665", "075"); return; }
+
+        // Un tono de 440 Hz a media escala, en coma flotante de 32 bits, intercalado por canales.
+        static byte[] Tono(int ritmo, int canales, double segundos, double amplitud = 0.5, bool soloElPrimero = false)
+        {
+            int cuadros = (int)(ritmo * segundos);
+            var b = new byte[cuadros * canales * 4];
+            for (int i = 0; i < cuadros; i++)
+            {
+                float m = (float)(amplitud * Math.Sin(2 * Math.PI * 440 * i / ritmo));
+                for (int c = 0; c < canales; c++)
+                    BitConverter.GetBytes(soloElPrimero && c > 0 ? 0f : m).CopyTo(b, (i * canales + c) * 4);
+            }
+            return b;
+        }
+        // Lo que sale, entero o a trozos del tamaño que entrega Windows.
+        byte[] Pasa(int ritmo, int canales, int destino, byte[] entrada, int cuadrosPorTrozo)
+        {
+            var conv = ctor.Invoke(new object[] { ritmo, canales, destino });
+            var salida = new MemoryStream();
+            int paso = cuadrosPorTrozo <= 0 ? entrada.Length : cuadrosPorTrozo * canales * 4;
+            for (int i = 0; i < entrada.Length; i += paso)
+            {
+                var trozo = entrada.AsSpan(i, Math.Min(paso, entrada.Length - i)).ToArray();
+                var pcm = (byte[])convertir.Invoke(conv, new object[] { trozo, trozo.Length })!;
+                salida.Write(pcm, 0, pcm.Length);
+            }
+            (conv as IDisposable)?.Dispose();
+            return salida.ToArray();
+        }
+        static short[] Muestras(byte[] pcm) => Enumerable.Range(0, pcm.Length / 2).Select(i => BitConverter.ToInt16(pcm, i * 2)).ToArray();
+        // Cuántas veces cruza el cero hacia arriba: en un tono, su frecuencia por los segundos que dura.
+        static int Subidas(short[] m) { int n = 0; for (int i = 1; i < m.Length; i++) if (m[i - 1] < 0 && m[i] >= 0) n++; return n; }
+        // El salto más grande entre dos muestras seguidas, lejos del principio: un corte entre trozos se ve como un escalón.
+        static int MayorSalto(short[] m) { int s = 0; for (int i = 200; i < m.Length; i++) s = Math.Max(s, Math.Abs(m[i] - m[i - 1])); return s; }
+        static int Pico(short[] m) => m.Skip(200).Select(x => Math.Abs((int)x)).DefaultIfEmpty(0).Max();
+
+        // ── LO DE ESTE EQUIPO: 48 kHz estéreo → 24 kHz mono, a trozos de 10 ms como los entrega Windows ──
+        var entrada = Tono(48000, 2, 1.0);
+        var m = Muestras(Pasa(48000, 2, 24000, entrada, 480));
+        Debe(Math.Abs(m.Length - 24000) <= 240, $"un segundo a 48 kHz estéreo sale como un segundo a 24 kHz mono (salieron {m.Length} muestras; se esperan 24.000 ± 1 %)");
+        Debe(Math.Abs(Subidas(m) - 440) <= 6, $"y el tono sigue siendo el mismo: 440 Hz (cruza el cero {Subidas(m)} veces en ese segundo)");
+        Debe(Pico(m) is > 14700 and < 18000, $"con su volumen: media escala (pico {Pico(m)} de 32.767; se espera ~16.384)");
+        // Un tono de 440 Hz a media escala y 24 kHz cambia como mucho ~1.900 entre dos muestras: un escalón mayor es un corte.
+        Debe(MayorSalto(m) < 2600, $"y sin escalones entre un trozo y el siguiente: el filtro conserva su estado (mayor salto {MayorSalto(m)})");
+
+        var deUnaVez = Muestras(Pasa(48000, 2, 24000, entrada, 0));
+        Debe(Math.Abs(deUnaVez.Length - m.Length) <= 48, $"a trozos de 10 ms sale lo mismo que de una vez (a trozos {m.Length}, de una vez {deUnaVez.Length})");
+
+        // ── EL MICRÓFONO DE UNOS AUDÍFONOS: 16 kHz mono → 24 kHz ──
+        var deAuriculares = Muestras(Pasa(16000, 1, 24000, Tono(16000, 1, 1.0), 160));
+        Debe(Math.Abs(deAuriculares.Length - 24000) <= 240 && Math.Abs(Subidas(deAuriculares) - 440) <= 6,
+            $"de 16 kHz mono también sale un segundo a 24 kHz con su tono ({deAuriculares.Length} muestras, {Subidas(deAuriculares)} subidas)");
+
+        // ── LA CONSULTA PIDE 16 kHz: 48 kHz estéreo → 16 kHz mono ──
+        var paraLaConsulta = Muestras(Pasa(48000, 2, 16000, entrada, 480));
+        Debe(Math.Abs(paraLaConsulta.Length - 16000) <= 160 && Math.Abs(Subidas(paraLaConsulta) - 440) <= 6,
+            $"y al ritmo de la consulta, 16 kHz, lo mismo ({paraLaConsulta.Length} muestras, {Subidas(paraLaConsulta)} subidas)");
+
+        // ── SIN CAMBIO DE RITMO no se inventa ni se pierde nada ──
+        var igual = Muestras(Pasa(24000, 1, 24000, Tono(24000, 1, 0.5), 240));
+        Debe(igual.Length == 12000, $"al mismo ritmo y un solo canal salen exactamente las muestras que entran ({igual.Length} de 12.000)");
+
+        // ── LA MEZCLA A MONO ES LA MEDIA: una voz que solo entra por un canal no se pierde ni satura ──
+        var unCanal = Muestras(Pasa(48000, 2, 24000, Tono(48000, 2, 1.0, 0.8, soloElPrimero: true), 480));
+        Debe(Pico(unCanal) is > 11500 and < 14500, $"con la voz en un solo canal de dos, sale a la mitad: la media de los canales (pico {Pico(unCanal)}; se espera ~13.107)");
+
+        // ── LO QUE SATURA SE RECORTA, no da la vuelta ──
+        var fuerte = Muestras(Pasa(24000, 1, 24000, Tono(24000, 1, 0.2, 1.6), 240));
+        Debe(fuerte.Max() == short.MaxValue && fuerte.Min() <= -32767 && Subidas(fuerte) is >= 86 and <= 90,
+            $"una entrada por encima de la escala se recorta en el tope en vez de dar la vuelta (máx {fuerte.Max()}, mín {fuerte.Min()}, subidas {Subidas(fuerte)})");
+
+        // [cableado] El micrófono de la conversación tiene que ser el preparado, con el de siempre de respaldo.
+        if (FuenteDe("windows-client", "src", "Voice", "LiveAudio.cs") is not { } audio) return;
+        Debe(audio.Contains("MicrofonoPreparado", StringComparison.Ordinal),
+            "[cableado] LiveAudio no usa el micrófono preparado: cada clic volvería a inicializar el dispositivo");
+        Debe(audio.Contains("new WaveInEvent", StringComparison.Ordinal),
+            "[cableado] LiveAudio se quedó sin el micrófono de respaldo: si Windows no deja preparar el dispositivo, no habría con qué oír");
+    }
+
+    /// <summary>Promesa 666.</summary>
+    /// <remarks>
+    /// EL LOG NO PODÍA DECIR CUÁNTO TARDABA: sus horas van al segundo y el clic no dejaba línea. La queja era de
+    /// milisegundos y hubo que montar un juez de fuera para medirla. Y UN TRAMO QUE NO LLEGÓ SE DICE (patrón nº10):
+    /// una línea que solo trae los tramos cumplidos se lee igual con la sesión confirmada que sin confirmar.
+    /// </remarks>
+    private static void CadaGestoDejaSuLineaDeTiempos()
+    {
+        var t = Cap004("U.WindowsClient.Voice.RelojDelClic");
+        var ctor = t?.GetConstructor(new[] { typeof(string), typeof(IReadOnlyList<string>), typeof(Func<long>) });
+        var marca = t?.GetMethod("Marca");
+        var linea = t?.GetMethod("Linea");
+        if (t == null || ctor == null || marca == null || linea == null)
+        { Pendiente("Voice.RelojDelClic (el gesto, sus tramos y un reloj; Marca y Linea)", "666", "075"); return; }
+
+        long ahora = 1000;
+        var r = ctor.Invoke(new object[] { "encender", new[] { "estela", "micrófono", "socket", "confirmada" }, (Func<long>)(() => ahora) });
+        void Marca(string tramo, string nota = "") => marca.Invoke(r, new object[] { tramo, nota });
+        string Linea() => (string)linea.Invoke(r, linea.GetParameters().Select(p => p.DefaultValue).ToArray())!;
+        ahora = 1012; Marca("estela");
+        ahora = 1080; Marca("micrófono", "ya estaba en guardia");
+        ahora = 1300; Marca("estela");   // una segunda marca del mismo tramo no pisa la primera
+        ahora = 1510; Marca("socket");
+        Debe(Linea() == "encender · estela +12 ms · micrófono +80 ms (ya estaba en guardia) · socket +510 ms · confirmada: sin llegar",
+            $"la línea trae TODOS los tramos, en su orden, con los milisegundos desde el gesto; el que no llegó lo dice (dio: «{Linea()}»)");
+
+        // Y LA CONVERSACIÓN LA ESCRIBE: una por encendido y una por apagado, lleguen hasta donde lleguen.
+        var anotado = Cap004("U.WindowsClient.Diagnostics.LogBus")?.GetEvent("Anotado");
+        if (anotado == null) { Pendiente("LogBus.Anotado", "666", "075"); return; }
+        var lineas = new List<string>();
+        Action<string, string> oye = (tag, msg) => { if (tag == "voz-clic") lock (lineas) lineas.Add(msg); };
+        string[] Lineas() { lock (lineas) return lineas.ToArray(); }
+        // LA VOZ DE LA PROMESA ANTERIOR TODAVÍA TIENE UNA LÍNEA POR ESCRIBIR. La 664 termina con la voz encendida
+        // y su Dispose la apaga; un apagado al que nadie le pinta la estela escribe su voz-clic 300 ms DESPUÉS de
+        // cerrar el socket (ConversacionEnVivo, el Task.Delay(300) de después del apagado). LogBus es de todo el
+        // proceso, así que esa línea caía aquí dentro: el 2026-10-01, en dos corridas seguidas, «dejó 3» con un
+        // «apagar» por delante del encendido. Se espera a que pase ANTES de empezar a escuchar.
+        Thread.Sleep(450);
+        anotado.AddEventHandler(null, oye);
+        try
+        {
+            using (var v = VozDePrueba.Nueva("666"))
+            {
+                if (v == null) return;
+                Debe(v.EnciendeDelTodo(), "[preparación] la voz enciende, conecta y confirma");
+                Debe(Espera(() => Lineas().Length == 1, 2000), $"un encendido confirmado deja UNA línea voz-clic (dejó {Lineas().Length})");
+                string enc = Lineas().FirstOrDefault() ?? "";
+                Debe(enc.StartsWith("encender · ", StringComparison.Ordinal) && enc.Contains("socket +", StringComparison.Ordinal)
+                    && enc.Contains("confirmada +", StringComparison.Ordinal),
+                    $"que dice que es un encendido y cuándo conectó y cuándo confirmó el servidor (dio: «{enc}»)");
+                Debe(enc.Contains("estela: sin llegar", StringComparison.Ordinal),
+                    $"y la estela, que aquí nadie pintó, consta como sin llegar en vez de faltar (dio: «{enc}»)");
+                v.Alterna().Wait(3000);
+                Debe(Espera(() => Lineas().Length == 2, 2000) && (Lineas().LastOrDefault() ?? "").StartsWith("apagar · ", StringComparison.Ordinal),
+                    $"y el apagado deja la suya (líneas: {string.Join(" | ", Lineas())})");
+            }
+
+            lock (lineas) lineas.Clear();
+            using (var v = VozDePrueba.Nueva("666"))
+            {
+                if (v == null) return;
+                v.Alterna();            // encender, y el servidor no contesta
+                v.Alterna().Wait(3000); // apagar antes de que conecte
+                Debe(Espera(() => Lineas().Length == 2, 2000), $"un encendido que se apaga antes de conectar deja igual sus dos líneas (dejó {Lineas().Length}: {string.Join(" | ", Lineas())})");
+                string enc = Lineas().FirstOrDefault(l => l.StartsWith("encender", StringComparison.Ordinal)) ?? "";
+                Debe(enc.Contains("socket: sin llegar", StringComparison.Ordinal) && enc.Contains("confirmada: sin llegar", StringComparison.Ordinal),
+                    $"y la del encendido dice que ni conectó ni confirmó, no se calla los tramos (dio: «{enc}»)");
+            }
+        }
+        finally { anotado.RemoveEventHandler(null, oye); }
+    }
+
+    /// <summary>Promesa 667.</summary>
+    /// <remarks>
+    /// LA VOZ NO ABRÍA Y NO ERA LA RED: 14 aperturas rechazadas entre el 29 y el 30 de septiembre de 2026 con
+    /// «Initial items must not exceed 8192 tokens». Historial() mandaba los últimos 56 turnos sin mirar cuánto
+    /// pesaban —hasta 4.000 caracteres cada uno—; el día que falló sumaban 34.564 caracteres. Para la persona es el
+    /// mismo fallo que un clic que no enciende: la estela aparece dos segundos y se va.
+    /// </remarks>
+    private static void LaHistoriaCabeSiempre()
+    {
+        var historial = typeof(ConversacionPersonal).GetMethod("Historial");
+        var tope = historial?.GetParameters().FirstOrDefault(p => p.Name == "maxCaracteres");
+        if (historial == null || tope == null || !tope.HasDefaultValue)
+        { Pendiente("ConversacionPersonal.Historial(maxTurnos, maxCaracteres): el presupuesto de la historia", "667", "075"); return; }
+        int presupuesto = (int)tope.DefaultValue!;
+        Debe(presupuesto > 0 && presupuesto <= 24_000,
+            $"el presupuesto por defecto deja margen bajo las 8.192 fichas del servidor: con 34.564 caracteres se rechazó, y a ~4 caracteres por ficha el límite ronda los 32.000 (es {presupuesto})");
+
+        string archivo = Path.Combine(_raiz, "historia-667.json");
+        // Cada turno, con su fecha: escritos seguidos, Agregar juntaría los del mismo rol y el orden no se podría juzgar.
+        var turnos = Enumerable.Range(0, 60).Select(i => new
+        {
+            userId = "contrato-667",
+            role = i % 2 == 0 ? "usuario" : "asistente",
+            text = $"turno {i:00} " + new string((char)('a' + i % 26), 2990),
+            createdAt = new DateTimeOffset(2026, 9, 30, 8, 0, 0, TimeSpan.Zero).AddMinutes(i),
+        }).ToArray();
+        File.WriteAllText(archivo, JsonSerializer.Serialize(new { turnos }));
+        var c = new ConversacionPersonal("contrato-667", archivo);
+
+        IReadOnlyList<(string Role, string Text)> Pide(int maxTurnos, int maxCaracteres)
+            => (IReadOnlyList<(string Role, string Text)>)historial.Invoke(c, new object[] { maxTurnos, maxCaracteres })!;
+        var h = (IReadOnlyList<(string Role, string Text)>)historial.Invoke(c, historial.GetParameters().Select(p => p.DefaultValue).ToArray())!;
+        int suma = h.Sum(x => x.Text.Length);
+        Debe(suma <= presupuesto, $"con 60 turnos de 3.000 caracteres, lo que se manda cabe en el presupuesto (manda {suma} de {presupuesto})");
+        Debe(h.Count >= 2 && suma > presupuesto - 3_100, $"y lo aprovecha: no se queda corto dejando sitio para un turno más (manda {h.Count} turno(s), {suma} caracteres)");
+        var esperados = turnos.Skip(60 - h.Count).Select(x => x.text).ToArray();
+        Debe(h.Select(x => x.Text).SequenceEqual(esperados),
+            $"son los MÁS RECIENTES, enteros y en orden: del turno {60 - h.Count} al 59 (primero: «{(h.Count > 0 ? h[0].Text[..8] : "")}», último: «{(h.Count > 0 ? h[^1].Text[..8] : "")}»)");
+
+        var uno = Pide(56, 1000);
+        Debe(uno.Count == 1 && uno[0].Text.Length == 1000 && turnos[59].text.EndsWith(uno[0].Text, StringComparison.Ordinal),
+            $"si ni el turno más reciente cabe, se manda su final y no una historia vacía ({uno.Count} turno(s), {(uno.Count > 0 ? uno[0].Text.Length : 0)} caracteres)");
+        var pocos = Pide(3, presupuesto);
+        Debe(pocos.Count == 3 && pocos[^1].Text == turnos[59].text, $"y el tope de turnos sigue mandando cuando es el más estrecho de los dos ({pocos.Count} turno(s))");
+    }
+
+    // ── La carita (spec 052) ─────────────────────────────────────────────────
+
+    /// <summary>Lado del FaceControl al pintarlo: 150 = el viewBox del dibujo, un píxel por unidad.</summary>
+    private const int LadoCara = 150;
+
+    /// <summary>
+    /// Aire alrededor al pintar: las manos se salen del control a propósito (la ventana flotante les deja
+    /// aire, ReglaDelHalo.AirePx), y un bitmap del tamaño justo las recortaría — y con ellas la 442 y la 446.
+    /// </summary>
+    private const int AireCara = 45;
+
+    private static Type? Cara => Capacidad("U.WindowsClient.Ui.FaceControl");
+
+    private static object NuevaCara(Action<object>? ajustar = null)
+    {
+        var cara = Activator.CreateInstance(Cara!)!;
+        var fe = (System.Windows.FrameworkElement)cara;
+        fe.Width = LadoCara;
+        fe.Height = LadoCara;
+        ajustar?.Invoke(cara);
+        return cara;
+    }
+
+    private static void Poner(object o, string prop, object valor)
+    {
+        var p = o.GetType().GetProperty(prop) ?? throw new MissingMemberException(o.GetType().Name, prop);
+        p.SetValue(o, valor is string s && p.PropertyType.IsEnum ? Enum.Parse(p.PropertyType, s) : valor);
+    }
+
+    /// <summary>Pinta la carita y devuelve sus píxeles BGRA premultiplicados, con el aire alrededor.</summary>
+    private static byte[] Pintar(object cara)
+    {
+        int lado = LadoCara + 2 * AireCara;
+        var marco = new System.Windows.Controls.Border
+        {
+            Padding = new System.Windows.Thickness(AireCara),
+            Child = (System.Windows.UIElement)cara,
+        };
+        marco.Measure(new System.Windows.Size(lado, lado));
+        marco.Arrange(new System.Windows.Rect(0, 0, lado, lado));
+        marco.UpdateLayout();
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(lado, lado, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(marco);
+        var px = new byte[lado * lado * 4];
+        rtb.CopyPixels(px, lado * 4, 0);
+        return px;
+    }
+
+    private static int LadoPintado => LadoCara + 2 * AireCara;
+
+    /// <summary>Luminancia media (0-255) de un cuadrado de 5×5 alrededor de (x, y) en unidades del viewBox (0 = centro).</summary>
+    private static double Luz(byte[] px, double ux, double uy)
+    {
+        int cx = AireCara + LadoCara / 2 + (int)Math.Round(ux), cy = AireCara + LadoCara / 2 + (int)Math.Round(uy);
+        double suma = 0; int n = 0;
+        for (int y = cy - 2; y <= cy + 2; y++)
+            for (int x = cx - 2; x <= cx + 2; x++)
+            {
+                int i = (y * LadoPintado + x) * 4;
+                suma += 0.114 * px[i] + 0.587 * px[i + 1] + 0.299 * px[i + 2];
+                n++;
+            }
+        return suma / n;
+    }
+
+    private static void LaCaritaEsBlancaONegra()
+    {
+        // QUITAR EL COLOR SE DESHACE SOLO, y aquí ya pasó una vez: la spec 023 limpió el notch y la
+        // carita siguió tiñéndose de rojo al grabar y de ámbar al esperar. Por eso se mira lo PINTADO
+        // en cada estado, y con las manos y la lengua fuera — lo que más fácil se colaría con tono.
+        var t = Cara;
+        Debe(t != null, "no existe «Ui.FaceControl»: la carita no se puede pintar");
+        if (t == null) return;
+        bool hayManos = t.GetProperty("Manos") != null;
+        Debe(hayManos, "todavía no existe «FaceControl.Manos» (spec 052, promesa 440): sin manos fuera, "
+            + "la promesa no puede juzgar su color. Está escrita y en rojo, que es donde tiene que estar");
+
+        // La mano que presiona (promesa 446) también pinta: se mira a mitad del gesto, que es cuando
+        // está fuera del todo. Si la capacidad no existe todavía, la 446 es quien lo dice.
+        bool hayPresion = t.GetProperty("Presion") != null;
+        double mitadDePresionar = Convert.ToDouble(
+            Capacidad("U.WindowsClient.Ui.ManosDeLaCarita")?.GetField("DuracionDePresionar")?.GetValue(null) ?? 0.0) / 2;
+
+        var estados = t.GetProperty("Mood")!.PropertyType;
+        foreach (var tema in new[] { "Light", "Dark" })
+            foreach (var estado in Enum.GetNames(estados))
+                foreach (var presionando in hayPresion ? new[] { false, true } : new[] { false })
+                {
+                    var cara = NuevaCara(c =>
+                    {
+                        Poner(c, "Theme", tema);
+                        Poner(c, "Mood", estado);
+                        // Mientras exista con qué abrir la boca, se abre: la lengua es lo que tenía tono.
+                        if (t.GetProperty("MouthOpen") != null) { Poner(c, "MouthOpen", 1.0); Poner(c, "MouthRound", 0.3); }
+                        if (presionando) Poner(c, "Presion", mitadDePresionar);
+                        else if (hayManos) Poner(c, "Manos", 1.0);
+                    });
+                    var px = Pintar(cara);
+                    int conTono = 0; string? primero = null;
+                    for (int i = 0; i < px.Length; i += 4)
+                    {
+                        if (px[i] == px[i + 1] && px[i + 1] == px[i + 2]) continue;
+                        conTono++;
+                        primero ??= $"#{px[i + 2]:X2}{px[i + 1]:X2}{px[i]:X2}";
+                    }
+                    Debe(conTono == 0,
+                        $"{estado} en tema {tema}{(presionando ? ", presionando" : "")}: {conTono} píxel(es) con tono (el primero, {primero}); la carita es blanca o negra y el estado lo dice el gesto");
+                }
+    }
+
+    private static void GirarLaCabezaNoEsCorrerLosOjos()
+    {
+        // HOY LOS OJOS SE CORREN 3,5 UNIDADES Y NADA MÁS (EyeShift). La referencia (Coucou) no corre
+        // nada: proyecta cada rasgo sobre una superficie curva — seno para dónde cae, coseno para
+        // cuánto se estrecha. Esa es toda la diferencia entre «mira con los ojos» y «gira la cabeza».
+        var cabeza = Capacidad("U.WindowsClient.Ui.CabezaDeLaCarita");
+        var proyectar = cabeza?.GetMethod("Proyectar");
+        bool hayGiro = Cara?.GetProperty("Giro") != null;
+        if (proyectar == null || !hayGiro) { Pendiente("Ui.CabezaDeLaCarita.Proyectar y FaceControl.Giro", "441", "052"); return; }
+
+        (double X, double Escala) P(double x, double giro)
+        {
+            var r = proyectar.Invoke(null, new object[] { x, giro })!;
+            return ((double)r.GetType().GetField("Item1")!.GetValue(r)!, (double)r.GetType().GetField("Item2")!.GetValue(r)!);
+        }
+
+        var rasgos = new[] { -40.0, -30, -20, -19, 0, 19, 20, 30, 40 };   // cejas, ojos, comisuras y el centro
+        foreach (var x in rasgos)
+        {
+            var (X, e) = P(x, 0);
+            Debe(Math.Abs(X - x) < 1e-9 && Math.Abs(e - 1) < 1e-9, $"sin giro el rasgo de {x} queda donde estuvo siempre (cae en {X:0.###}, escala {e:0.###})");
+        }
+        foreach (var giro in new[] { 0.3, 0.6, 1.0 })
+        {
+            foreach (var x in rasgos)
+            {
+                Debe(P(x, giro).X > x, $"girando a la derecha ({giro}), el rasgo de {x} se va a la derecha (cae en {P(x, giro).X:0.#})");
+                Debe(P(x, -giro).X < x, $"y girando a la izquierda, a la izquierda ({P(x, -giro).X:0.#})");
+                Debe(Math.Abs(P(-x, -giro).X + P(x, giro).X) < 1e-9, $"girar a un lado es el espejo de girar al otro ({x}, {giro})");
+            }
+            Debe(P(30, giro).Escala < P(-30, giro).Escala,
+                $"el ojo que se acerca al borde se estrecha más que el otro ({P(30, giro).Escala:0.##} contra {P(-30, giro).Escala:0.##})");
+            Debe(P(30, giro).X - P(-30, giro).X < 60, $"y los ojos quedan más juntos: se ven de lado ({P(30, giro).X - P(-30, giro).X:0.#} < 60)");
+        }
+        for (double g = -1; g <= 1.0001; g += 0.1)
+            foreach (var x in rasgos)
+                Debe(Math.Abs(P(x, g).X) <= 66, $"ningún rasgo se sale de la cara: {x} con giro {g:0.#} cae en {P(x, g).X:0.#} (la cara llega a ±74)");
+
+        // Y LO PINTADO SE MUEVE: una proyección que OnRender no usara pasaría todo lo de arriba.
+        double CentroDeLaTinta(double giro)
+        {
+            var px = Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); Poner(c, "Giro", giro); }));
+            double suma = 0; int n = 0;
+            for (int y = 0; y < LadoPintado; y++)
+                for (int x = 0; x < LadoPintado; x++)
+                {
+                    int i = (y * LadoPintado + x) * 4;
+                    if (px[i + 3] > 200 && px[i] < 90) { suma += x; n++; }   // tinta: oscuro y opaco
+                }
+            return n == 0 ? double.NaN : suma / n;
+        }
+        double c0 = CentroDeLaTinta(0), cd = CentroDeLaTinta(0.8), ci = CentroDeLaTinta(-0.8);
+        Debe(cd - c0 > 6, $"girada a la derecha, la tinta se desplaza a la derecha más de 6 px ({cd - c0:0.#})");
+        Debe(c0 - ci > 6, $"y girada a la izquierda, a la izquierda ({c0 - ci:0.#})");
+    }
+
+    private static void LasManosAsomanYSeEsconden()
+    {
+        var manos = Capacidad("U.WindowsClient.Ui.ManosDeLaCarita");
+        var asomo = manos?.GetMethod("Asomo");
+        var mano = manos?.GetMethod("Mano");
+        var duracion = manos?.GetField("Duracion");
+        bool hayControl = Cara?.GetProperty("Manos") != null && Cara?.GetMethod("Saludar") != null;
+        if (asomo == null || mano == null || duracion == null || !hayControl)
+        {
+            Pendiente("Ui.ManosDeLaCarita (Asomo, Mano, Duracion) y FaceControl.Manos/Saludar", "442", "052");
+            return;
+        }
+        double D = (double)duracion.GetValue(null)!;
+        double A(double t) => (double)asomo.Invoke(null, new object[] { t })!;
+        (double X, double Y, double Angulo) M(double t, int lado)
+        {
+            var r = mano.Invoke(null, new object[] { t, lado })!;
+            double F(string n) => (double)r.GetType().GetField(n)!.GetValue(r)!;
+            return (F("Item1"), F("Item2"), F("Item3"));
+        }
+
+        Debe(D > 0.6 && D <= 2.5, $"el saludo termina solo en menos de dos segundos y medio ({D:0.##} s)");
+        Debe(A(0) == 0, $"antes de saludar no se ven ({A(0):0.##})");
+        Debe(A(D / 2) > 0.99, $"a mitad del saludo están fuera del todo ({A(D / 2):0.##})");
+        Debe(A(D) == 0 && A(D + 1) == 0 && A(D + 60) == 0, $"y al terminar vuelven a esconderse solas ({A(D):0.##}, {A(D + 1):0.##})");
+
+        // UNA SALUDA, LA OTRA SE QUEDA: la derecha oscila (su ángulo cambia de signo varias veces) y
+        // sube por encima de donde reposa la izquierda; la izquierda apenas se mece.
+        int cambios = 0; double? antes = null;
+        double yDerMin = double.MaxValue, yIzqMin = double.MaxValue, yIzqMax = double.MinValue;
+        for (double t = D * 0.3; t <= D * 0.7; t += D / 200)
+        {
+            var d = M(t, 1); var i = M(t, -1);
+            if (antes is double a && Math.Sign(a) != Math.Sign(d.Angulo) && d.Angulo != 0) cambios++;
+            antes = d.Angulo;
+            yDerMin = Math.Min(yDerMin, d.Y);
+            yIzqMin = Math.Min(yIzqMin, i.Y); yIzqMax = Math.Max(yIzqMax, i.Y);
+        }
+        Debe(cambios >= 2, $"la derecha saluda: su ángulo va y viene ({cambios} cambios de sentido)");
+        Debe(yDerMin < yIzqMin - 0.2, $"y sube por encima de la otra ({yDerMin:0.##} contra {yIzqMin:0.##}, en radios de la cara)");
+        Debe(yIzqMax - yIzqMin < 0.12, $"la izquierda se queda: apenas se mece ({yIzqMax - yIzqMin:0.##})");
+
+        // SALEN POR DETRÁS: lo que la cara cubre (opaco sin manos) no cambia con ellas, y aparece
+        // tinta fuera del cuerpo. Una mano pintada encima pasaría el resto de esta promesa.
+        var sin = Pintar(NuevaCara(c => Poner(c, "Manos", 0.0)));
+        var con = Pintar(NuevaCara(c => Poner(c, "Manos", 1.0)));
+        int tapadoCambia = 0, fuera = 0, sinFuera = 0;
+        int x0 = LadoPintado, x1 = 0;
+        for (int i = 0; i < sin.Length; i += 4)
+            if (sin[i + 3] == 255) { int x = (i / 4) % LadoPintado; x0 = Math.Min(x0, x); x1 = Math.Max(x1, x); }
+        for (int i = 0; i < sin.Length; i += 4)
+        {
+            int x = (i / 4) % LadoPintado;
+            if (sin[i + 3] == 255 && (sin[i] != con[i] || sin[i + 3] != con[i + 3])) tapadoCambia++;
+            if ((x < x0 - 2 || x > x1 + 2) && con[i + 3] > 128) fuera++;
+            if ((x < x0 - 2 || x > x1 + 2) && sin[i + 3] > 0) sinFuera++;
+        }
+        Debe(sinFuera == 0, $"en reposo no se ven: nada pintado fuera del cuerpo ({sinFuera} px)");
+        Debe(fuera > 40, $"con las manos fuera, asoman a los lados del cuerpo ({fuera} px fuera)");
+        Debe(tapadoCambia == 0, $"y por DETRÁS: lo que la cara tapa no cambia ({tapadoCambia} px cambiaron)");
+
+        var cara = NuevaCara();
+        Cara!.GetMethod("Saludar")!.Invoke(cara, null);
+        Debe((bool)(Cara.GetProperty("Animando")?.GetValue(cara) ?? false), "saludar pone la carita en movimiento");
+    }
+
+    private static void LaCaritaTieneVolumen()
+    {
+        // TRES CAPAS HACEN UN OBJETO DE UN SQUIRCLE (Coucou, engine.ts): luz de arriba, borde en sombra y
+        // un brillo. Hoy el tema claro es blanco sobre blanco: plano por construcción.
+        if (Cara == null) { Pendiente("Ui.FaceControl", "443", "052"); return; }
+        foreach (var tema in new[] { "Light", "Dark" })
+        {
+            var px = Pintar(NuevaCara(c => Poner(c, "Theme", tema)));
+            double arriba = Luz(px, 0, -60), abajo = Luz(px, 0, 60);
+            double dentro = Luz(px, 48, 0), borde = Luz(px, 68, 0);
+            double dentroI = Luz(px, -48, 0), bordeI = Luz(px, -68, 0);
+            Debe(arriba > abajo + 6, $"tema {tema}: más claro arriba que abajo ({arriba:0} contra {abajo:0})");
+            Debe(borde < dentro - 4 && bordeI < dentroI - 4,
+                $"tema {tema}: el borde, más oscuro que hacia dentro, a los dos lados ({borde:0}<{dentro:0}, {bordeI:0}<{dentroI:0})");
+        }
+    }
+
+    private static void LaCaritaEstaVivaSinAnsiedad()
+    {
+        // LA REFERENCIA ESTÁ HECHA PARA GUSTAR MIRÁNDOLA, Y GESTICULA SIN PARAR. El dueño, al ver la
+        // primera vuelta (2026-10-01): «prefiero que nuestra interacción sea mucho más basada en acciones
+        // reales». Sola, la carita solo parpadea —a la cadencia de la de siempre, que «no se siente
+        // invasiva»— y saluda «como cada dos horas, con rangos aleatorios pero largos».
+        var g = Capacidad("U.WindowsClient.Ui.GestosDeLaCarita");
+        var parpadeo = g?.GetMethod("ProximoParpadeo");
+        var doble = g?.GetMethod("EsDoble");
+        var cierra = g?.GetField("CierraMs");
+        var abre = g?.GetField("AbreMs");
+        var animando = Cara?.GetProperty("Animando");
+        if (parpadeo == null || doble == null || cierra == null || abre == null || animando == null)
+        {
+            Pendiente("Ui.GestosDeLaCarita (ProximoParpadeo, EsDoble, CierraMs, AbreMs) y FaceControl.Animando", "444", "052");
+            return;
+        }
+        double Pp(double d) => (double)parpadeo.Invoke(null, new object[] { d })!;
+
+        var dados = Enumerable.Range(0, 1000).Select(i => i / 1000.0).ToList();
+        Debe(dados.All(d => Pp(d) >= 8 && Pp(d) <= 18), $"sola parpadea cada 8 a 18 s, la cadencia de la carita de siempre ({dados.Min(Pp):0.#}-{dados.Max(Pp):0.#})");
+
+        int c = Convert.ToInt32(cierra.GetValue(null)), a = Convert.ToInt32(abre.GetValue(null));
+        Debe(c < a, $"cerrar es más rápido que abrir ({c} ms contra {a} ms): así parpadea una cara, no un semáforo");
+        Debe(c + a < 250, $"y el parpadeo entero dura menos de un cuarto de segundo ({c + a} ms)");
+
+        double dobles = dados.Count(d => (bool)doble.Invoke(null, new object[] { d })!) / (double)dados.Count;
+        Debe(dobles > 0.1 && dobles < 0.35, $"a veces parpadea dos veces, no siempre ({dobles:P0})");
+
+        // LO QUE YA NO SALE SOLO. El dado que elegía un gesto grande y el reloj que lo disparaba se van:
+        // dejarlos «sin usar» es la forma en que vuelven.
+        Debe(g!.GetMethod("Elegir") == null && g.GetMethod("ProximoGesto") == null,
+            "ya no hay dado que elija un gesto grande ni reloj que lo dispare (GestosDeLaCarita.Elegir y ProximoGesto)");
+        if (FuenteDeLaInterfaz("FaceControl.cs") is { } fuente)
+        {
+            string sola = CuerpoDe(fuente, "public void StartIdle()");
+            Debe(sola.Contains("Blink("), "[cableado] lo que la carita hace sola es parpadear (StartIdle)");
+            Debe(!sola.Contains("Pulse(") && !sola.Contains("Girar(") && !sola.Contains("MirarHacia(") && !sola.Contains("DoIdleGesture"),
+                "[cableado] sola no gira la cabeza ni da pulsos: eso responde a algo que pasó (StartIdle)");
+            Debe(!fuente.Contains("LookAround"), "[cableado] y el mirar a los lados porque sí ya no existe (LookAround)");
+        }
+
+        var quieta = NuevaCara(x => Poner(x, "Mood", "Reposo"));
+        Debe(!(bool)animando.GetValue(quieta)!, "quieta no pide cuadros: nada animado en una carita en reposo");
+    }
+
+    /// <summary>La fuente de una pieza de la interfaz, para lo que solo se puede juzgar leyéndola ([cableado]).</summary>
+    private static string? FuenteDeLaInterfaz(string archivo) => FuenteDe("windows-client", "src", "Ui", archivo);
+
+    private static void LaCaritaBlancaEsCasiBlanca()
+    {
+        // EL BLANCO PURO LASTIMA Y EL GRIS APAGA. La primera vuelta puso volumen con un degradado de
+        // #FFFFFF a #D6D6D6 y una viñeta del 20 %: el centro daba 234 y el dueño lo vio «muy opaco»
+        // («quiero que sea prácticamente blanco sin que sea blanco»). Se mide lo pintado, lejos de los
+        // rasgos: el centro entre los ojos, arriba, abajo y a los dos lados, dentro y junto al borde.
+        if (Cara == null) { Pendiente("Ui.FaceControl", "445", "052"); return; }
+        var px = Pintar(NuevaCara(c => Poner(c, "Theme", "Light")));
+
+        int puros = 0;
+        for (int i = 0; i < px.Length; i += 4)
+            if (px[i + 3] == 255 && px[i] == 255 && px[i + 1] == 255 && px[i + 2] == 255) puros++;
+        Debe(puros == 0, $"no llega al blanco puro en ningún punto ({puros} píxel(es) a 255)");
+
+        double centro = Luz(px, 0, 0);
+        Debe(centro >= 240 && centro < 255, $"el centro es casi blanco: entre 240 y 254 (da {centro:0})");
+        foreach (var (nombre, x, y) in new[] { ("arriba", 0.0, -60.0), ("abajo", 0, 60), ("a la derecha", 48, 0), ("a la izquierda", -48, 0),
+                                               ("junto al borde derecho", 68, 0), ("junto al borde izquierdo", -68, 0) })
+        {
+            double luz = Luz(px, x, y);
+            Debe(luz >= 225 && luz < 255, $"{nombre} tampoco se apaga ni llega a blanco: entre 225 y 254 (da {luz:0})");
+        }
+        Debe(Luz(px, 0, -60) > Luz(px, 0, 60) && Luz(px, 68, 0) < Luz(px, 48, 0),
+            $"y conserva el volumen: más claro arriba ({Luz(px, 0, -60):0}) que abajo ({Luz(px, 0, 60):0}), y el borde ({Luz(px, 68, 0):0}) más oscuro que hacia dentro ({Luz(px, 48, 0):0})");
+    }
+
+    private static void LaCaritaPresionaLoQueUPulsa()
+    {
+        // «CUANDO HAGA CLIC, QUE SAQUE LAS MANOS Y HAGA EL CLIC» (el dueño, 2026-10-01). La carita ya iba
+        // junto a lo que Ü pulsa (spec 061); ahora, al posarse, lo presiona con la mano de ese lado.
+        var manos = Capacidad("U.WindowsClient.Ui.ManosDeLaCarita");
+        var presion = manos?.GetMethod("Presion");
+        var duracion = manos?.GetField("DuracionDePresionar");
+        var mano = manos?.GetMethod("Mano");
+        var regla = Capacidad("U.WindowsClient.Ui.ReglaDelHalo");
+        bool hayControl = Cara?.GetProperty("Presion") != null && Cara?.GetMethod("Presionar") != null;
+        if (presion == null || duracion == null || mano == null || regla == null || !hayControl)
+        {
+            Pendiente("Ui.ManosDeLaCarita (Presion, DuracionDePresionar) y FaceControl.Presion/Presionar", "446", "052");
+            return;
+        }
+        double D = Convert.ToDouble(duracion.GetValue(null));
+        (double X, double Y, double Asomo) P(double t, int lado)
+        {
+            var r = presion.Invoke(null, new object[] { t, lado })!;
+            double F(string n) => (double)r.GetType().GetField(n)!.GetValue(r)!;
+            return (F("Item1"), F("Item2"), F("Item4"));
+        }
+        double Xsaludo(double t, int lado)
+        {
+            var r = mano.Invoke(null, new object[] { t, lado })!;
+            return (double)r.GetType().GetField("Item1")!.GetValue(r)!;
+        }
+        double ancho = Convert.ToDouble(manos!.GetField("Ancho")!.GetValue(null));
+        double saludoD = Convert.ToDouble(manos.GetField("Duracion")!.GetValue(null));
+
+        Debe(D > 0.3 && D < 1, $"presionar termina solo en menos de un segundo ({D:0.##} s)");
+        Debe(P(0, 1).Asomo == 0 && P(D, 1).Asomo == 0 && P(D + 5, 1).Asomo == 0, "antes y después de presionar la mano no se ve");
+
+        var tiempos = Enumerable.Range(1, 199).Select(i => D * i / 200).ToList();
+        double tPico = tiempos.OrderByDescending(t => P(t, 1).X).First();
+        Debe(P(tPico, 1).Asomo > 0.99, $"en lo más lejos está fuera del todo ({P(tPico, 1).Asomo:0.##})");
+        double reposo = Xsaludo(saludoD / 2, -1);   // la mano que NO saluda: donde descansa una mano fuera
+        Debe(P(tPico, 1).X > Math.Abs(reposo) + 0.1,
+            $"la EMPUJA: llega más lejos que una mano que solo asoma ({P(tPico, 1).X:0.##} contra {Math.Abs(reposo):0.##}, en radios de la cara)");
+        Debe(tPico < D * 0.6, $"y empuja con decisión: llega a lo más lejos antes del 60 % del gesto (a {tPico / D:P0})");
+        Debe(tiempos.All(t => Math.Abs(P(t, 1).X + P(t, -1).X) < 1e-9), "presionar a la izquierda es el espejo de presionar a la derecha");
+
+        // NO SE SALE DE SU VENTANA. La carita suelta vive en una ventana de CaritaPx + 2·AirePx, y el aire
+        // bajó de 28 a 17 el 2026-09-30, DESPUÉS de que se dibujaran las manos: lo que se salga, Windows lo
+        // corta en seco. El radio de la cara es medio lado menos una unidad del dibujo (FaceControl.OnRender).
+        double carita = Convert.ToDouble(regla.GetField("CaritaPx")!.GetValue(null)), aire = Convert.ToDouble(regla.GetField("AirePx")!.GetValue(null));
+        double limite = (carita / 2 + aire) / (carita / 2 - carita / 150);
+        const double loQueSeCorreAlGirar = 0.03;   // el cuerpo acompaña al giro 2,5 unidades (FaceControl)
+        double lejosAlPresionar = tiempos.Max(t => Math.Abs(P(t, 1).X) + ancho * P(t, 1).Asomo) + loQueSeCorreAlGirar;
+        double lejosAlSaludar = Enumerable.Range(0, 400).Select(i => saludoD * i / 400)
+            .Max(t => Math.Max(Math.Abs(Xsaludo(t, 1)), Math.Abs(Xsaludo(t, -1))) + ancho) + loQueSeCorreAlGirar;
+        Debe(lejosAlPresionar <= limite, $"al presionar la mano cabe en el aire de la ventana ({lejosAlPresionar:0.###} de {limite:0.###} radios)");
+        Debe(lejosAlSaludar <= limite, $"y al saludar también ({lejosAlSaludar:0.###} de {limite:0.###} radios)");
+
+        // LO PINTADO: una sola mano, la de ese lado, y por detrás.
+        var sin = Pintar(NuevaCara());
+        foreach (int lado in new[] { 1, -1 })
+        {
+            var con = Pintar(NuevaCara(c => Poner(c, "Presion", lado * tPico)));
+            int x0 = LadoPintado, x1 = 0, deSuLado = 0, delOtro = 0, tapadoCambia = 0;
+            for (int i = 0; i < sin.Length; i += 4)
+                if (sin[i + 3] == 255) { int x = (i / 4) % LadoPintado; x0 = Math.Min(x0, x); x1 = Math.Max(x1, x); }
+            for (int i = 0; i < sin.Length; i += 4)
+            {
+                int x = (i / 4) % LadoPintado;
+                if (sin[i + 3] == 255 && (sin[i] != con[i] || sin[i + 3] != con[i + 3])) tapadoCambia++;
+                if (con[i + 3] > 128 && x > x1 + 2) { if (lado > 0) deSuLado++; else delOtro++; }
+                if (con[i + 3] > 128 && x < x0 - 2) { if (lado < 0) deSuLado++; else delOtro++; }
+            }
+            string cual = lado > 0 ? "derecha" : "izquierda";
+            Debe(deSuLado > 40, $"presionando a la {cual}, la mano asoma por ese lado ({deSuLado} px fuera del cuerpo)");
+            Debe(delOtro == 0, $"y solo esa: por el otro lado no sale nada ({delOtro} px)");
+            Debe(tapadoCambia == 0, $"por DETRÁS: lo que la cara tapa no cambia ({tapadoCambia} px cambiaron)");
+        }
+
+        var cara = NuevaCara();
+        Cara!.GetMethod("Presionar")!.Invoke(cara, new object[] { false, TimeSpan.Zero });
+        Debe((bool)(Cara.GetProperty("Animando")?.GetValue(cara) ?? false), "presionar pone la carita en movimiento");
+
+        // QUIÉN LA HACE PRESIONAR. Dos avisos entran por la misma visita: Ü pulsó algo, o Ü lo señala.
+        // Solo el primero es un clic.
+        if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } ventana)
+        {
+            string DondeSeSuscribe(string aviso) =>
+                ventana.Split('\n').FirstOrDefault(l => l.Contains(aviso + " +=", StringComparison.Ordinal)) ?? "";
+            Debe(DondeSeSuscribe("UiaSurface.Pulso").Contains("pulsa: true"), "[cableado] cuando Ü pulsa, la visita lo sabe (UiaSurface.Pulso → Visitar con pulsa: true)");
+            Debe(DondeSeSuscribe("Senalador.Senala").Contains("Visitar(") && !DondeSeSuscribe("Senalador.Senala").Contains("pulsa: true"),
+                "[cableado] señalar visita sin presionar (Senalador.Senala → Visitar a secas)");
+            string visita = CuerpoDe(ventana, "private void Visitar(");
+            Debe(visita.Contains("if (pulsa") && visita.Contains(".Presionar("), "[cableado] y la visita presiona solo si es un pulso (Visitar)");
+        }
+    }
+
+    private static void LosGestosRespondenALoQuePasa()
+    {
+        if (Cara?.GetProperty("Giro") is not { } giro) { Pendiente("FaceControl.Giro", "447", "052"); return; }
+
+        // GIRADA HACIA LO QUE Ü TOCÓ, SIGUE GIRADA. Mientras Ü trabaja y narra, el estado va y viene
+        // —trabajar, hablar, callar— cada pocos segundos, y cada cambio le devolvía la cabeza al frente
+        // de un salto. Con los ojos corridos 3,5 unidades casi no se veía; con la cabeza girada, sí.
+        foreach (var estado in new[] { "Hablando", "Conversando", "Trabajando" })
+        {
+            var cara = NuevaCara(c => Poner(c, "Giro", 0.75));
+            Poner(cara, "Mood", estado);
+            double queda = (double)giro.GetValue(cara)!;
+            Debe(Math.Abs(queda - 0.75) < 1e-9, $"girada hacia lo que Ü tocó, pasar a {estado} no le devuelve la cabeza al frente (queda en {queda:0.##})");
+        }
+
+        if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } ventana)
+        {
+            Debe(CuerpoDe(ventana, "private void StartMicByFace()").Contains(".Pulse()"),
+                "[cableado] tocar la carita la hace rebotar (StartMicByFace → Pulse)");
+            Debe(CuerpoDe(ventana, "private void Visitar(").Contains(".MirarHacia("),
+                "[cableado] al ir junto a lo que Ü toca, gira la cabeza hacia ello (Visitar → MirarHacia)");
+        }
+    }
+
+    /// <summary>¿Es tinta de un rasgo? En el tema claro, lo oscuro; en el oscuro, lo claro.</summary>
+    private static bool EsTinta(byte[] px, int i, bool temaOscuro) => px[i + 3] > 200 && (temaOscuro ? px[i + 1] > 170 : px[i + 1] < 90);
+
+    /// <summary>La tinta de la boca: cuánto mide de ancho, y la columna de tinta más alta que tiene.</summary>
+    private static (int Ancho, int Alto) TintaDeLaBoca(byte[] px, bool temaOscuro)
+    {
+        int cx = AireCara + LadoCara / 2, cy = AireCara + LadoCara / 2;
+        int x0 = int.MaxValue, x1 = int.MinValue, alto = 0;
+        for (int x = cx - 34; x <= cx + 34; x++)
+        {
+            int racha = 0;
+            for (int y = cy + 10; y <= cy + 52; y++)
+            {
+                if (!EsTinta(px, (y * LadoPintado + x) * 4, temaOscuro)) { racha = 0; continue; }
+                racha++;
+                alto = Math.Max(alto, racha);
+                x0 = Math.Min(x0, x); x1 = Math.Max(x1, x);
+            }
+        }
+        return (x1 >= x0 ? x1 - x0 + 1 : 0, alto);
+    }
+
+    private static void AlHablarLaBocaNoSeAbre()
+    {
+        // TRES BOCAS ABIERTAS, TRES RECHAZOS. La rellena con lengua («horrible» el 2026-09-06 y
+        // «extremadamente horrible» el 2026-10-01) y la hueca de trazo («parece que tuviera labios
+        // negros»). A 66 px y con un trazo de 1,8, una boca que cambia de forma a ritmo de sílaba es una
+        // mancha que tiembla. La referencia (Coucou) no tiene boca. Así que no se abre: la sonrisa se
+        // ensancha mientras dice una frase y se relaja al callar, a ritmo de frase y no de sílaba.
+        var t = Cara;
+        var g = Capacidad("U.WindowsClient.Ui.GestosDeLaCarita");
+        var tarda = g?.GetMethod("CuantoTardaEnLlegar");
+        var parpadea = g?.GetMethod("ParpadeaAlCambiar");
+        if (t?.GetProperty("Llegada") == null || tarda == null || parpadea == null)
+        {
+            Pendiente("FaceControl.Llegada y Ui.GestosDeLaCarita (CuantoTardaEnLlegar, ParpadeaAlCambiar)", "448", "052");
+            return;
+        }
+        Debe(t.GetProperty("MouthOpen") == null && t.GetProperty("MouthRound") == null,
+            "la carita ya no tiene con qué abrir la boca (FaceControl.MouthOpen y MouthRound)");
+
+        var estados = t.GetProperty("Mood")!.PropertyType;
+        foreach (var tema in new[] { "Light", "Dark" })
+            foreach (var estado in Enum.GetNames(estados))
+            {
+                var (ancho, alto) = TintaDeLaBoca(Pintar(NuevaCara(c => { Poner(c, "Theme", tema); Poner(c, "Mood", estado); })), tema == "Dark");
+                Debe(ancho >= 20 && alto >= 2 && alto <= 9,
+                    $"{estado} en tema {tema}: la boca es una línea — mide {ancho} de ancho y su tinta no pasa de 9 de alto (da {alto})");
+            }
+
+        // SE LLEGA A LA SONRISA DE HABLAR, NO SE SALTA A ELLA.
+        int Ancho(double llegada) => TintaDeLaBoca(Pintar(NuevaCara(c =>
+        {
+            Poner(c, "Theme", "Light");
+            Poner(c, "Mood", "Hablando");     // viene del reposo
+            Poner(c, "Llegada", llegada);
+        })), false).Ancho;
+        int reposo = Ancho(0), medio = Ancho(0.5), hablando = Ancho(1);
+        Debe(reposo < medio && medio < hablando, $"al empezar a hablar la sonrisa se ensancha poco a poco ({reposo} → {medio} → {hablando} de ancho)");
+        Debe(hablando - reposo >= 3, $"y se nota: hablando es más ancha que en reposo ({hablando} contra {reposo})");
+
+        int Ms(string desde, string hasta) => Convert.ToInt32(tarda.Invoke(null, new[] { Enum.Parse(estados, desde), Enum.Parse(estados, hasta) }));
+        bool P(string desde, string hasta) => (bool)parpadea.Invoke(null, new[] { Enum.Parse(estados, desde), Enum.Parse(estados, hasta) })!;
+        int abre = Ms("Conversando", "Hablando"), relaja = Ms("Hablando", "Conversando");
+        Debe(abre >= 200 && abre <= 400, $"ensancharse lleva un cuarto de segundo largo, a ritmo de frase y no de sílaba ({abre} ms)");
+        Debe(relaja > abre * 2 && relaja <= 1200, $"y relajarse es más lento que ensancharse ({relaja} ms contra {abre})");
+        foreach (var (desde, hasta) in new[] { ("Reposo", "Trabajando"), ("Trabajando", "Fallo"), ("Reposo", "Esperando"), ("Esperando", "Reposo") })
+            Debe(Ms(desde, hasta) >= 150 && Ms(desde, hasta) <= 600, $"de {desde} a {hasta} tampoco salta: tarda entre 150 y 600 ms ({Ms(desde, hasta)})");
+
+        Debe(!P("Conversando", "Hablando") && !P("Hablando", "Conversando"),
+            "entre hablar y callar no parpadea: en una conversación eso pasa cada pocos segundos");
+        Debe(P("Reposo", "Trabajando") && P("Trabajando", "Fallo") && P("Reposo", "Hablando"),
+            "los demás cambios de estado sí llevan su parpadeo");
+    }
+
+    // ── Spec 076: cada instalación tiene su credencial ───────────────────────────────────────────
+    //
+    // POR QUÉ EXISTEN ESTAS NUEVE (2026-09-30). El repo es público, así que el instalador se descarga
+    // sin credenciales, y lleva embebida UNA clave de Graph que comparten todas las instalaciones. Con
+    // ella, /api/v1/agent/claves entregaba las claves crudas de OpenAI y TypeSafe —medido contra
+    // producción— y todo /api/v1 quedaba abierto. Desde aquí la clave embebida solo sirve para
+    // PRESENTARSE: cada instalación recibe una credencial propia, que un administrador aprueba y puede
+    // revocar de una en una. Lo que exige Graph lo juzga su propio script; esto juzga a Ü.
+
+    /// <summary>Los tipos de la 076, que viven en windows-graph (U.Graph.dll).</summary>
+    private static Type? DeLaInstalacion(string nombre) => typeof(GraphConfig).Assembly.GetType("U.Graph." + nombre);
+
+    private const string DestinoDeLaInstalacion = "https://graph.contrato.test";
+    private const string CredencialDelContrato = "udev_SECRETO-DE-LA-INSTALACION-que-no-debe-verse-0123456789";
+    private const string CodigoDelContrato = "0A1B-2C3D";
+
+    private static Dictionary<string, string> DatosDeLaInstalacion(string email = "medico@hospital.test") => new()
+    {
+        ["email"] = email,
+        ["display_name"] = "Dra. Contrato",
+        ["install_id"] = "inst-del-contrato",
+        ["machine_name"] = "PC-TRIAGE",
+        ["os_version"] = "Windows 11",
+        ["app_version"] = "1.4.0",
+    };
+
+    /// <summary>
+    /// Una instalación con el disco, la red y el reloj DE MENTIRA, y que ANOTA en qué orden pasó cada cosa.
+    /// </summary>
+    /// <remarks>
+    /// El orden es lo que juzgan la 684 y la 685: «reintentó tres veces» no distingue tres intentos con sus
+    /// pausas de tres intentos seguidos, y lo segundo es el bucle del que ya se salió una vez.
+    /// </remarks>
+    private sealed class InstalacionDePrueba
+    {
+        public string? Disco;
+        public int Escrituras, Presentaciones, Preguntas;
+        public readonly List<string> Eventos = new();
+        public readonly List<string> Log = new();
+        public readonly List<string> Cambios = new();
+        public readonly List<string> Cuerpos = new();
+        public readonly List<string?> DiscoAlPresentar = new();
+        public readonly List<string> CredencialesPreguntadas = new();
+        public readonly List<int> Pausas = new();
+        public Func<int, (int, string)> AlPresentar = _ => (200, Alta(CredencialDelContrato));
+        public Func<int, (int, string)> AlPreguntar = _ => (200, Respuesta("aprobada"));
+        public object Objeto = null!;
+        public Type Tipo = null!;
+
+        private const string Id = "0a1b2c3d-1111-4222-8333-444455556666";
+        public static string Alta(string token) => "{\"device_id\":\"" + Id + "\",\"token\":\"" + token + "\",\"estado\":\"pendiente\",\"codigo\":\"" + CodigoDelContrato + "\"}";
+        public static string Respuesta(string estado) => "{\"device_id\":\"" + Id + "\",\"estado\":\"" + estado + "\",\"codigo\":\"" + CodigoDelContrato + "\"}";
+
+        /// <summary>Null si la capacidad todavía no existe entera: quien llama lo declara PENDIENTE.</summary>
+        public static InstalacionDePrueba? Nueva(string? disco = null)
+        {
+            var t = DeLaInstalacion("CredencialDeInstalacion");
+            var ctor = t?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 6);
+            if (t == null || ctor == null) return null;
+            foreach (string m in new[] { "PresentarseAsync", "PreguntarAsync", "VigilarAsync" }) if (t.GetMethod(m) == null) return null;
+            foreach (string p in new[] { "Valor", "Situacion", "Estado", "Codigo" }) if (t.GetProperty(p) == null) return null;
+
+            var i = new InstalacionDePrueba { Disco = disco, Tipo = t };
+            Func<string?> leer = () => i.Disco;
+            Action<string?> guardar = v => { i.Disco = v; i.Escrituras++; };
+            Func<string, CancellationToken, Task<(int, string)>> presentar = (cuerpo, _) =>
+            {
+                i.Presentaciones++; i.Eventos.Add("presentar"); i.Cuerpos.Add(cuerpo); i.DiscoAlPresentar.Add(i.Disco);
+                return Task.FromResult(i.AlPresentar(i.Presentaciones));
+            };
+            Func<string, CancellationToken, Task<(int, string)>> preguntar = (credencial, _) =>
+            {
+                i.Preguntas++; i.Eventos.Add("preguntar"); i.CredencialesPreguntadas.Add(credencial);
+                return Task.FromResult(i.AlPreguntar(i.Preguntas));
+            };
+            i.Objeto = ctor.Invoke(new object?[] { DestinoDeLaInstalacion, leer, guardar, presentar, preguntar, (Action<string>)(l => i.Log.Add(l)) });
+            t.GetEvent("AlCambiar")?.AddEventHandler(i.Objeto, (Action<string>)(s => i.Cambios.Add(s)));
+            return i;
+        }
+
+        private string Prop(string n) => (string)(Tipo.GetProperty(n)!.GetValue(Objeto) ?? "");
+        public string Valor => Prop("Valor");
+        public string Situacion => Prop("Situacion");
+        public string Estado => Prop("Estado");
+        public string Codigo => Prop("Codigo");
+
+        public string Presentarse(Dictionary<string, string> datos) =>
+            ((Task<string>)Tipo.GetMethod("PresentarseAsync")!.Invoke(Objeto, new object[] { datos, CancellationToken.None })!).GetAwaiter().GetResult();
+
+        public string Preguntar() =>
+            ((Task<string>)Tipo.GetMethod("PreguntarAsync")!.Invoke(Objeto, new object[] { CancellationToken.None })!).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Vigila con una pausa que NO espera: anota cuánto pidió esperar y sigue. Y con un tope, para que
+        /// un bucle de verdad acabe en un rojo que lo diga en vez de en un contrato colgado.
+        /// </summary>
+        public void Vigilar(Dictionary<string, string> datos, int tope = 40)
+        {
+            Func<int, CancellationToken, Task> pausa = (ms, _) =>
+            {
+                Pausas.Add(ms); Eventos.Add("pausa");
+                if (Pausas.Count > tope) throw new OperationCanceledException($"más de {tope} pausas");
+                return Task.CompletedTask;
+            };
+            try { ((Task)Tipo.GetMethod("VigilarAsync")!.Invoke(Objeto, new object[] { datos, pausa, CancellationToken.None })!).GetAwaiter().GetResult(); }
+            catch (OperationCanceledException) { }
+        }
+
+        public string Orden => string.Join(" ", Eventos);
+        public string TodoLoDicho => string.Join(" | ", Log) + " | " + Estado + " | " + Situacion + " | " + string.Join(" | ", Cambios);
+    }
+
+    private static void LaInstalacionSePresentaUnaVez()
+    {
+        var a = InstalacionDePrueba.Nueva();
+        if (a == null) { Pendiente("U.Graph.CredencialDeInstalacion(destino, leer, guardar, presentar, preguntar, log) + PresentarseAsync/PreguntarAsync/VigilarAsync", "680", "076"); return; }
+
+        // 1. SIN CREDENCIAL SE PRESENTA, Y DICE QUIÉN ES. Lo que manda es lo que el administrador va a ver
+        //    en el panel para decidir si la aprueba: sin máquina ni correo, aprobaría a ciegas.
+        Debe(a.Valor.Length == 0, "recién instalada no tiene credencial");
+        a.Presentarse(DatosDeLaInstalacion());
+        Debe(a.Presentaciones == 1, $"sin credencial se presenta una vez: {a.Presentaciones}");
+        string cuerpo = a.Cuerpos.FirstOrDefault() ?? "";
+        Debe(cuerpo.Contains("medico@hospital.test") && cuerpo.Contains("PC-TRIAGE") && cuerpo.Contains("inst-del-contrato"),
+            $"y dice quién es —correo, máquina, instalación—: «{cuerpo}»");
+        Debe(a.Valor == CredencialDelContrato, "la credencial que dio Graph es la que se usa desde ya");
+        Debe(a.Escrituras == 1 && (a.Disco ?? "").Contains(CredencialDelContrato), $"y se guarda, una vez ({a.Escrituras} escritura(s))");
+        Debe(a.Codigo == CodigoDelContrato, $"con el código que dio Graph, no uno calculado aquí: «{a.Codigo}»");
+
+        // 2. UNA VEZ. Presentarse deja una fila en el panel: una instalación que se presentara en cada
+        //    arranque llenaría la lista de pendientes de sí misma, y ninguna estaría aprobada.
+        a.Presentarse(DatosDeLaInstalacion());
+        a.Presentarse(DatosDeLaInstalacion());
+        Debe(a.Presentaciones == 1, $"con credencial no se vuelve a presentar: {a.Presentaciones} presentación(es) tras tres llamadas");
+
+        // 3. Y TAMPOCO AL VOLVER A ABRIR Ü: la credencial sale del disco, sin red.
+        var b = InstalacionDePrueba.Nueva(a.Disco)!;
+        Debe(b.Valor == CredencialDelContrato, "al volver a abrir, la credencial sale de lo guardado sin pedir nada");
+        b.Presentarse(DatosDeLaInstalacion());
+        Debe(b.Presentaciones == 0, $"y no se presenta otra vez: {b.Presentaciones}");
+
+        // 4. SIN CORREO NO SE PRESENTA. El primer arranque abre antes de que la persona diga quién es; una
+        //    fila sin correo en el panel no se puede aprobar ni reconocer.
+        foreach (string vacio in new[] { "", "   " })
+        {
+            var c = InstalacionDePrueba.Nueva()!;
+            c.Presentarse(DatosDeLaInstalacion(vacio));
+            Debe(c.Presentaciones == 0 && c.Disco == null && c.Valor.Length == 0, $"sin correo («{vacio}») no se presenta ni guarda nada");
+            Debe(c.Estado.Contains("correo", StringComparison.OrdinalIgnoreCase), $"y dice que es el correo lo que falta: «{c.Estado}»");
+        }
+
+        // 5. LO GUARDADO QUE NO SE ENTIENDE NO ES UNA CREDENCIAL. Un archivo a medias no puede dejar a la
+        //    instalación ni muerta ni mandando basura como credencial: se presenta de nuevo.
+        var d = InstalacionDePrueba.Nueva("esto no es lo que guardé")!;
+        Debe(d.Valor.Length == 0, "lo guardado que no se entiende no se usa como credencial");
+        d.Presentarse(DatosDeLaInstalacion());
+        Debe(d.Presentaciones == 1 && d.Valor == CredencialDelContrato, "y se presenta de nuevo");
+
+        // 6. UN ALTA SIN CREDENCIAL DENTRO NO ES UN ALTA (vacío no es ausente, patrón nº9).
+        foreach (string sinToken in new[] { "{\"estado\":\"pendiente\"}", "{\"token\":\"\",\"estado\":\"pendiente\"}", "{\"token\":\"   \"}" })
+        {
+            var e = InstalacionDePrueba.Nueva()!;
+            e.AlPresentar = _ => (200, sinToken);
+            e.Presentarse(DatosDeLaInstalacion());
+            Debe(e.Valor.Length == 0 && e.Disco == null, $"un alta que no trae credencial no deja nada guardado («{sinToken}»)");
+        }
+    }
+
+    private static void ElSelloViajaSoloAGraph()
+    {
+        var tSello = DeLaInstalacion("SelloDeInstalacion");
+        var a = InstalacionDePrueba.Nueva();
+        var ctor = a == null ? null : tSello?.GetConstructor(new[] { typeof(HttpMessageHandler), a.Tipo });
+        if (a == null || ctor == null) { Pendiente("U.Graph.SelloDeInstalacion(interno, credencial)", "681", "076"); return; }
+
+        HttpStatusCode codigo = HttpStatusCode.OK;
+        string respuesta = "{}";
+        var red = new BackendDeMentira(_ => (codigo, respuesta));
+        using var http = new HttpClient((HttpMessageHandler)ctor.Invoke(new object?[] { red, a.Objeto }));
+        string? Sello(string url)
+        {
+            http.GetAsync(url).GetAwaiter().GetResult().Dispose();
+            return red.UltimasCabeceras.TryGetValue("X-Device-Token", out var v) ? v : null;
+        }
+
+        // 1. SIN CREDENCIAL NO VIAJA NADA. Una cabecera vacía no es «sin cabecera»: Graph la leería como
+        //    una credencial inventada y contestaría «no te conozco» en vez de «preséntate».
+        Debe(Sello(DestinoDeLaInstalacion + "/api/v1/workflows") == null, "sin credencial no viaja la cabecera, ni vacía");
+
+        // 2. CON CREDENCIAL, EN CADA PETICIÓN A GRAPH.
+        a.Presentarse(DatosDeLaInstalacion());
+        foreach (string ruta in new[] { "/api/v1/workflows", "/api/v1/agent/claves", "/api/v1/agent/turn?x=1", "/API/V1/pipeline" })
+            Debe(Sello(DestinoDeLaInstalacion + ruta) == CredencialDelContrato, $"la credencial viaja en {ruta}");
+
+        // 3. Y EN NINGUNA A OTRO SITIO. Es un secreto de Graph: a OpenAI, a TypeSafe o a un dominio que solo
+        //    EMPIEZA igual no se le enseña.
+        foreach (string otro in new[]
+                 {
+                     "https://api.openai.com/v1/files",
+                     "https://api.typesafe.ai/v1/systemone",
+                     "https://graph.contrato.test.malo.example/api/v1/workflows",
+                     "https://malo.example/graph.contrato.test/api/v1",
+                     "http://graph.contrato.test/api/v1/workflows",
+                     "https://graph.contrato.test:8443/api/v1/workflows",
+                 })
+            Debe(Sello(otro) == null, $"la credencial NO viaja a {otro}");
+
+        // 4. LO QUE GRAPH DICE AL RECHAZAR SE ANOTA, y quien hizo la petición sigue pudiendo leer la respuesta.
+        codigo = HttpStatusCode.Forbidden;
+        respuesta = "{\"error\":\"espera\",\"code\":\"instalacion_revocada\",\"codigo\":\"" + CodigoDelContrato + "\"}";
+        using (var r = http.GetAsync(DestinoDeLaInstalacion + "/api/v1/workflows").GetAwaiter().GetResult())
+        {
+            string leido = r.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            Debe(leido == respuesta, $"quien pidió sigue leyendo el cuerpo entero: «{leido}»");
+        }
+        Debe(a.Situacion == "revocada", $"y la instalación se entera de que la revocaron por la primera respuesta que lo dice: «{a.Situacion}»");
+        respuesta = "{\"error\":\"otra cosa\",\"code\":\"no_es_de_instalaciones\"}";
+        http.GetAsync(DestinoDeLaInstalacion + "/api/v1/workflows").GetAwaiter().GetResult().Dispose();
+        Debe(a.Situacion == "revocada", $"un 403 por otro motivo no cambia la situación: «{a.Situacion}»");
+    }
+
+    private static void LaCredencialNoSeVe()
+    {
+        var a = InstalacionDePrueba.Nueva();
+        var tAlmacen = DeLaInstalacion("AlmacenProtegido");
+        var ctor = tAlmacen?.GetConstructor(new[] { typeof(string) });
+        var leer = tAlmacen?.GetMethod("Leer");
+        var guardar = tAlmacen?.GetMethod("Guardar");
+        if (a == null || ctor == null || leer == null || guardar == null) { Pendiente("U.Graph.AlmacenProtegido(ruta) + Leer/Guardar", "682", "076"); return; }
+
+        // 1. NI EN EL LOG NI EN EL ESTADO, pase lo que pase: alta, espera, aprobación, rechazo y fallo.
+        a.AlPreguntar = n => n == 1 ? (200, InstalacionDePrueba.Respuesta("pendiente")) : n == 2 ? (503, "caído") : (200, InstalacionDePrueba.Respuesta("aprobada"));
+        a.Vigilar(DatosDeLaInstalacion());
+        var b = InstalacionDePrueba.Nueva(a.Disco)!;
+        b.AlPreguntar = _ => (200, InstalacionDePrueba.Respuesta("revocada"));
+        b.Vigilar(DatosDeLaInstalacion());
+        foreach (var i in new[] { a, b })
+            Debe(!i.TodoLoDicho.Contains(CredencialDelContrato) && !i.TodoLoDicho.Contains("SECRETO"),
+                $"la credencial no aparece en el log ni en el estado: «{i.TodoLoDicho}»");
+        Debe(a.Log.Count > 0, "y aun así el log cuenta lo que pasó: sin líneas no hay forma de diagnosticar una instalación que no entra");
+        Debe(a.CredencialesPreguntadas.All(c => c == CredencialDelContrato), "a Graph sí se le enseña: es la única forma de preguntar por ella");
+
+        // 2. EN DISCO NO QUEDA EN CLARO. El almacén de verdad, sobre un archivo de verdad: se miran los bytes.
+        string ruta = Path.Combine(_raiz, "682", "instalacion.bin");
+        Directory.CreateDirectory(Path.GetDirectoryName(ruta)!);
+        object almacen = ctor.Invoke(new object[] { ruta });
+        string guardado = a.Disco ?? "";
+        Debe(guardado.Contains(CredencialDelContrato), "(lo que se le entrega al almacén sí lleva la credencial: si no, esta prueba no juzga nada)");
+        guardar.Invoke(almacen, new object?[] { guardado });
+        Debe(File.Exists(ruta), "el almacén escribe en la ruta que se le dio");
+        byte[] bytes = File.Exists(ruta) ? File.ReadAllBytes(ruta) : Array.Empty<byte>();
+        foreach (var (nombre, cod) in new[] { ("UTF-8", Encoding.UTF8), ("UTF-16", Encoding.Unicode), ("Latin-1", Encoding.Latin1) })
+            Debe(!cod.GetString(bytes).Contains(CredencialDelContrato) && !cod.GetString(bytes).Contains("udev_"),
+                $"lo que queda en disco no lleva la credencial en claro (leído como {nombre})");
+        Debe((string?)leer.Invoke(ctor.Invoke(new object[] { ruta }), null) == guardado, "y aun así otro arranque la recupera entera");
+
+        // 3. UN ARCHIVO ROTO NO TUMBA EL ARRANQUE: es «no hay credencial», y se presenta de nuevo.
+        File.WriteAllBytes(ruta, new byte[] { 1, 2, 3, 4, 5 });
+        string? roto = "sin leer";
+        try { roto = (string?)leer.Invoke(almacen, null); } catch (Exception e) { roto = "LANZÓ " + (e.InnerException ?? e).GetType().Name; }
+        Debe(roto == null, $"un archivo que no se puede abrir es «no hay credencial», no una excepción: «{roto}»");
+
+        // 4. GUARDAR NADA ES BORRAR: una credencial que Graph ya no conoce no se queda en disco.
+        guardar.Invoke(almacen, new object?[] { guardado });
+        guardar.Invoke(almacen, new object?[] { null });
+        Debe(!File.Exists(ruta), "guardar nada borra el archivo");
+        Debe((string?)leer.Invoke(almacen, null) == null, "y sin archivo no hay credencial");
+    }
+
+    private static void CadaSituacionConSuNombre()
+    {
+        if (InstalacionDePrueba.Nueva() == null) { Pendiente("U.Graph.CredencialDeInstalacion.Estado/Situacion/Codigo", "683", "076"); return; }
+
+        InstalacionDePrueba Con(string estado)
+        {
+            var i = InstalacionDePrueba.Nueva()!;
+            i.Presentarse(DatosDeLaInstalacion());
+            i.AlPreguntar = _ => (200, InstalacionDePrueba.Respuesta(estado));
+            i.Preguntar();
+            return i;
+        }
+        var espera = Con("pendiente");
+        var aprobada = Con("aprobada");
+        var revocada = Con("revocada");
+        var caido = InstalacionDePrueba.Nueva()!;
+        caido.AlPresentar = _ => (503, "{\"error\":\"No se pudo comprobar la instalación.\",\"code\":\"autorizacion_no_disponible\"}");
+        caido.Presentarse(DatosDeLaInstalacion());
+        var sinRed = InstalacionDePrueba.Nueva()!;
+        sinRed.AlPresentar = _ => throw new HttpRequestException("no hay red", new System.Net.Sockets.SocketException(11001));
+        sinRed.Presentarse(DatosDeLaInstalacion());
+        var frenada = InstalacionDePrueba.Nueva()!;
+        frenada.AlPresentar = _ => (429, "{\"code\":\"limite_de_uso\"}");
+        frenada.Presentarse(DatosDeLaInstalacion());
+
+        // LA SITUACIÓN, para la máquina: una palabra fija por caso.
+        Debe(espera.Situacion == "pendiente" && aprobada.Situacion == "aprobada" && revocada.Situacion == "revocada",
+            $"cada situación tiene su palabra: «{espera.Situacion}» · «{aprobada.Situacion}» · «{revocada.Situacion}»");
+        Debe(caido.Situacion == sinRed.Situacion && caido.Situacion != espera.Situacion && caido.Valor.Length == 0,
+            $"no poder presentarse es otra, y no deja credencial: «{caido.Situacion}»");
+
+        // EL ESTADO, para la persona. «Ü no funciona» sin nombre manda la llamada al sitio equivocado: esperar
+        // aprobación se arregla en el panel, una revocación se habla con quien revocó, y un fallo de red, con la red.
+        Debe(espera.Estado.Contains("aprobación") && espera.Estado.Contains(CodigoDelContrato),
+            $"la que espera lo dice, y da el código con el que el administrador la reconoce: «{espera.Estado}»");
+        Debe(revocada.Estado.Contains("revoc") && !revocada.Estado.Contains("espera"),
+            $"la revocada dice que la revocaron, no que espera: «{revocada.Estado}»");
+        Debe(aprobada.Estado.Contains("aprobada") && !aprobada.Estado.Contains("espera"), $"la aprobada lo dice: «{aprobada.Estado}»");
+        Debe(caido.Estado.Contains("503") && !caido.Estado.Contains("aprobación"),
+            $"la que no pudo presentarse dice el motivo real, y no que espera aprobación: «{caido.Estado}»");
+        Debe(sinRed.Estado.Contains("no hay red") && sinRed.Estado.Contains("SocketException"),
+            $"si fue la red, la cadena ENTERA de la excepción (patrón nº3): «{sinRed.Estado}»");
+        Debe(frenada.Estado.Contains("429"), $"y si Graph la frenó por presentarse demasiado, también: «{frenada.Estado}»");
+        var estados = new[] { espera.Estado, aprobada.Estado, revocada.Estado, caido.Estado, sinRed.Estado, frenada.Estado };
+        Debe(estados.Distinct().Count() == estados.Length, $"ningún estado se confunde con otro: [{string.Join(" ¦ ", estados)}]");
+    }
+
+    private static void NoPoderPresentarseNoSeAtasca()
+    {
+        var a = InstalacionDePrueba.Nueva();
+        if (a == null) { Pendiente("U.Graph.CredencialDeInstalacion.VigilarAsync", "684", "076"); return; }
+
+        // 1. TRES FALLOS Y DESPUÉS ENTRA. Graph caído al abrir Ü no puede dejar la instalación sin presentarse
+        //    hasta el siguiente arranque —con la compuerta puesta, eso es Ü muerta todo el día—, ni convertirse
+        //    en el bucle que ya se pagó una vez (14 turnos rebotando, pendiente nº3 de CLAUDE.md).
+        a.AlPresentar = n => n switch
+        {
+            1 => throw new HttpRequestException("no hay red"),
+            2 => (503, "{\"code\":\"autorizacion_no_disponible\"}"),
+            3 => (429, "{\"code\":\"limite_de_uso\"}"),
+            _ => (200, InstalacionDePrueba.Alta(CredencialDelContrato)),
+        };
+        string lanzo = "";
+        try { a.Vigilar(DatosDeLaInstalacion()); } catch (Exception e) { lanzo = (e.InnerException ?? e).GetType().Name + ": " + (e.InnerException ?? e).Message; }
+        Debe(lanzo.Length == 0, $"no poder presentarse no lanza hacia fuera: «{lanzo}»");
+        Debe(a.Presentaciones == 4 && a.Valor == CredencialDelContrato, $"tras tres fallos, al cuarto intento entra: {a.Presentaciones} intento(s), credencial {(a.Valor.Length > 0 ? "sí" : "no")}");
+        Debe(a.Orden.StartsWith("presentar pausa presentar pausa presentar pausa presentar"),
+            $"NUNCA dos intentos seguidos sin esperar entre ellos: «{a.Orden}»");
+        var esperas = a.Pausas.Take(3).ToList();
+        Debe(esperas.Count == 3 && esperas[0] >= 15_000 && esperas[1] > esperas[0] && esperas[2] > esperas[1],
+            $"y cada espera es más larga que la anterior: [{string.Join(", ", esperas)}] ms");
+        Debe(a.DiscoAlPresentar.All(d => d == null) && a.Escrituras == 1,
+            $"mientras falla no hay nada guardado a medias: {a.Escrituras} escritura(s), y solo la del alta buena");
+
+        // 2. LAS ESPERAS TIENEN TECHO. Un Graph caído una tarde no puede acabar en «vuelvo a probar mañana».
+        var b = InstalacionDePrueba.Nueva()!;
+        b.AlPresentar = _ => (503, "caído");
+        b.Vigilar(DatosDeLaInstalacion(), tope: 12);
+        Debe(b.Pausas.Count > 12 && b.Pausas.Max() <= 10 * 60_000, $"la espera entre intentos no pasa de diez minutos: máximo {b.Pausas.DefaultIfEmpty(0).Max()} ms");
+        Debe(b.Disco == null && b.Valor.Length == 0, "y trece fallos después sigue sin inventarse una credencial");
+
+        // 3. A UN GRAPH QUE TODAVÍA NO SABE DE INSTALACIONES NO SE LE INSISTE. Esta versión de Ü va a
+        //    convivir con un Graph anterior a la spec 076 —la producción se actualiza en su propio paso—, y
+        //    ahí presentarse da 404. No es un fallo que reintentar: es que no hace falta, y todo sigue como antes.
+        var c = InstalacionDePrueba.Nueva()!;
+        c.AlPresentar = _ => (404, "<html>Cannot POST /api/v1/agent/enroll</html>");
+        c.Vigilar(DatosDeLaInstalacion());
+        Debe(c.Presentaciones == 1 && c.Pausas.Count == 0, $"un 404 al presentarse no se reintenta: {c.Presentaciones} intento(s), {c.Pausas.Count} pausa(s)");
+        Debe(c.Valor.Length == 0 && c.Disco == null, "y no deja credencial");
+        Debe(c.Estado.Contains("404") && !c.Estado.Contains("aprobación"), $"dice lo que pasó sin decir que espera aprobación: «{c.Estado}»");
+
+        // 4. SIN CORREO NO SE QUEDA VIGILANDO: no hay nada que esperar hasta que la persona diga quién es.
+        var d = InstalacionDePrueba.Nueva()!;
+        d.Vigilar(DatosDeLaInstalacion(""));
+        Debe(d.Presentaciones == 0 && d.Pausas.Count == 0, $"sin correo ni se presenta ni se queda dando vueltas: {d.Pausas.Count} pausa(s)");
+    }
+
+    private static void EsperandoAprobacionPregunta()
+    {
+        var a = InstalacionDePrueba.Nueva();
+        if (a == null) { Pendiente("U.Graph.CredencialDeInstalacion.VigilarAsync + AlCambiar", "685", "076"); return; }
+
+        // 1. PENDIENTE, PENDIENTE, PENDIENTE, APROBADA. Quien instala llama al administrador, este aprueba en el
+        //    panel, y Ü tiene que enterarse sola: reiniciar para «que coja la aprobación» es la clase de paso
+        //    que nadie recuerda el día de la instalación.
+        a.AlPreguntar = n => (200, InstalacionDePrueba.Respuesta(n <= 3 ? "pendiente" : "aprobada"));
+        a.Vigilar(DatosDeLaInstalacion());
+        Debe(a.Presentaciones == 1 && a.Preguntas == 4, $"se presenta una vez y pregunta hasta que la aprueban: {a.Presentaciones} alta(s), {a.Preguntas} pregunta(s)");
+        // Recién presentada ya se sabe pendiente —lo dijo el alta—: preguntar en el mismo instante es un viaje
+        // para oír lo mismo. Primero se espera.
+        Debe(a.Orden == "presentar pausa preguntar pausa preguntar pausa preguntar pausa preguntar",
+            $"con una espera antes de cada pregunta, y ninguna después de aprobada: «{a.Orden}»");
+        Debe(a.Pausas.All(p => p >= 5_000), $"de vez en cuando, no a toda prisa: [{string.Join(", ", a.Pausas)}] ms");
+        Debe(a.Situacion == "aprobada", $"y termina aprobada: «{a.Situacion}»");
+        Debe(a.Cambios.Count(c => c == "aprobada") == 1 && a.Cambios.Count(c => c == "pendiente") == 1,
+            $"avisa de cada cambio UNA vez —no una por pregunta—: [{string.Join(", ", a.Cambios)}]");
+        int antes = a.Preguntas;
+        a.Vigilar(DatosDeLaInstalacion());
+        Debe(a.Preguntas - antes <= 1 && a.Pausas.Count == 4, $"aprobada, deja de preguntar: {a.Preguntas - antes} pregunta(s) más al volver a vigilar");
+
+        // 2. REVOCADA TAMBIÉN ES EL FINAL: preguntar más no la va a des-revocar.
+        var b = InstalacionDePrueba.Nueva(a.Disco)!;
+        b.AlPreguntar = n => (200, InstalacionDePrueba.Respuesta(n == 1 ? "pendiente" : "revocada"));
+        b.Vigilar(DatosDeLaInstalacion());
+        Debe(b.Preguntas == 2 && b.Pausas.Count == 1 && b.Situacion == "revocada", $"revocada, deja de preguntar: {b.Preguntas} pregunta(s), «{b.Situacion}»");
+        Debe(b.Presentaciones == 0 && b.Valor == CredencialDelContrato, "y NO se presenta de nuevo para saltarse la revocación");
+
+        // 3. SI GRAPH YA NO LA CONOCE, SE VUELVE A PRESENTAR. Pasa si se borra la fila, o si la base es otra:
+        //    seguir enseñando una credencial que nadie reconoce es quedarse fuera para siempre.
+        var c = InstalacionDePrueba.Nueva(a.Disco)!;
+        const string Nueva = "udev_OTRA-CREDENCIAL-NUEVA-del-contrato-9876543210";
+        c.AlPresentar = _ => (200, InstalacionDePrueba.Alta(Nueva));
+        c.AlPreguntar = n => n == 1 ? (404, "{\"code\":\"instalacion_desconocida\"}") : (200, InstalacionDePrueba.Respuesta(n == 2 ? "pendiente" : "aprobada"));
+        c.Vigilar(DatosDeLaInstalacion());
+        Debe(c.Presentaciones == 1 && c.Valor == Nueva, $"desconocida, se presenta de nuevo y usa la credencial nueva: {c.Presentaciones} alta(s)");
+        Debe((c.Disco ?? "").Contains(Nueva) && !(c.Disco ?? "").Contains(CredencialDelContrato), "y en disco queda la nueva, no la que ya nadie conoce");
+        Debe(c.CredencialesPreguntadas.Skip(1).All(x => x == Nueva), "y desde ahí pregunta con la nueva");
+        Debe(c.Situacion == "aprobada", $"hasta que la aprueban: «{c.Situacion}»");
+
+        // 4. NO PODER PREGUNTAR NO ES ESTAR REVOCADA: se espera y se vuelve a preguntar, con la misma credencial.
+        var d = InstalacionDePrueba.Nueva(a.Disco)!;
+        d.AlPreguntar = n => n switch
+        {
+            1 => throw new HttpRequestException("no hay red"),
+            2 => (503, "{\"code\":\"autorizacion_no_disponible\"}"),
+            _ => (200, InstalacionDePrueba.Respuesta("aprobada")),
+        };
+        d.Vigilar(DatosDeLaInstalacion());
+        Debe(d.Preguntas == 3 && d.Orden == "preguntar pausa preguntar pausa preguntar", $"un fallo al preguntar se espera y se repite: «{d.Orden}»");
+        Debe(d.Presentaciones == 0 && d.Valor == CredencialDelContrato && (d.Disco ?? "").Contains(CredencialDelContrato),
+            "sin tirar la credencial ni presentarse otra vez: un 503 no es «no te conozco»");
+    }
+
+    private static void LosSeisClientesLlevanElSello()
+    {
+        var tSello = DeLaInstalacion("SelloDeInstalacion");
+        if (tSello == null) { Pendiente("U.Graph.SelloDeInstalacion en los seis clientes de Graph", "686", "076"); return; }
+
+        // POR QUÉ SE CUENTAN, Y POR QUÉ SE MIRA CADA UNO (patrón nº5). El 2026-09-30 había SEIS sitios que
+        // construían su propio HttpClient hacia Graph, cada uno poniendo la X-API-Key a mano. Un séptimo sin
+        // sello es una parte de Ü que, con la compuerta puesta, falla con 403 mientras todo lo demás
+        // funciona — y eso se parece demasiado a «esa función está rota». Ya pasó: el diagnóstico de la
+        // superficie SAP se cableó en dos de los TRES sitios, y faltaba justo el que usa el operador.
+        var manejador = typeof(HttpMessageInvoker).GetField("_handler", BindingFlags.NonPublic | BindingFlags.Instance);
+        Debe(manejador != null, "(el arnés sabe mirar qué manejador lleva un HttpClient: sin esto, la promesa no juzga nada)");
+        if (manejador == null) return;
+
+        HttpClient? Estatico(string tipo, string campo)
+        {
+            var t = Cliente.GetType(tipo);
+            return t?.GetField(campo, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as HttpClient;
+        }
+        HttpClient? DeInstancia(object? o) =>
+            o?.GetType().GetField("_http", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(o) as HttpClient;
+
+        var clientes = new (string Quien, HttpClient? Http)[]
+        {
+            ("GraphClient", DeInstancia(new GraphClient(new GraphConfig { ApiKey = "clave-del-contrato" }))),
+            ("BackendClient", DeInstancia(new U.WindowsClient.Backend.BackendClient(new U.WindowsClient.Config(), new GraphConfig { ApiKey = "clave-del-contrato" }))),
+            ("EjecutorDeExportaciones", Estatico("U.WindowsClient.Clinical.EjecutorDeExportaciones", "Http")),
+            ("RellenadorSap", Estatico("U.WindowsClient.Clinical.RellenadorSap", "Http")),
+            ("DictadoEnVivo", Estatico("U.WindowsClient.Clinical.Transcripcion.DictadoEnVivo", "Http")),
+            ("ClavesDelBackend", Estatico("U.WindowsClient.Credenciales.ClavesDelBackend", "Red")),
+        };
+        foreach (var (quien, http) in clientes)
+        {
+            Debe(http != null, $"{quien}: no encuentro su HttpClient — si se movió, esta promesa hay que moverla con él, no borrarla");
+            if (http == null) continue;
+            object? lleva = manejador.GetValue(http);
+            Debe(lleva != null && tSello.IsInstanceOfType(lleva),
+                $"{quien} habla con Graph SIN el sello de la instalación: su manejador es {lleva?.GetType().Name ?? "ninguno"}");
+        }
+    }
+
+    private static void LasClavesNegadasPorEsperaSeVuelvenAPedir()
+    {
+        var t = Capacidad("U.WindowsClient.Credenciales.ClavesDelBackend");
+        var tNiega = DeLaInstalacion("GraphNiegaLaInstalacion");
+        var ctorNiega = tNiega?.GetConstructor(new[] { typeof(string), typeof(string) });
+        var ctor = t?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 3);
+        if (t == null || ctor == null || ctorNiega == null) { Pendiente("U.Graph.GraphNiegaLaInstalacion(code, codigo) + ClavesDelBackend que la entiende", "687", "076"); return; }
+
+        const string SecretoVoz = "sk-secreto-de-la-voz-que-no-debe-salir";
+        string cuerpo = "{\"openai\":\"" + SecretoVoz + "\",\"typesafe\":\"ts-secreto\"}";
+        Exception Niega(string code) => (Exception)ctorNiega.Invoke(new object[] { code, CodigoDelContrato });
+        object Crear(Func<int, string> pedir, List<string> log, out Func<int> peticiones)
+        {
+            int n = 0;
+            peticiones = () => n;
+            Func<CancellationToken, Task<string>> pedirCt = _ => { n++; return Task.FromResult(pedir(n)); };
+            return ctor.Invoke(new object[] { (Func<string, string?>)(_ => null), pedirCt, (Action<string>)(l => log.Add(l)) });
+        }
+        int Traer(object c) => ((Task<int>)t.GetMethod("TraerAsync")!.Invoke(c, new object[] { CancellationToken.None })!).GetAwaiter().GetResult();
+        string Estado(object c) => (string)t.GetProperty("Estado")!.GetValue(c)!;
+        string Resolver(object c, string n) => (string)t.GetMethod("Resolver")!.Invoke(c, new object[] { n })!;
+
+        // 1. PENDIENTE: NO ES UNA CLAVE QUE FALTA. Antes de esto, una instalación sin aprobar habría dicho
+        //    «No hay voz: falta la clave. setx OPENAI_API_KEY…» a una persona en un hospital — una instrucción
+        //    que no puede seguir, para un problema que no tiene.
+        var log = new List<string>();
+        var c1 = Crear(n => n == 1 ? throw Niega("instalacion_pendiente") : cuerpo, log, out var peticiones);
+        Debe(Traer(c1) == 0, "pendiente de aprobación no trae claves");
+        string espera = Estado(c1);
+        Debe(espera.Contains("aprobación") && espera.Contains(CodigoDelContrato), $"lo dice como espera, con el código: «{espera}»");
+        Debe(!espera.Contains("OPENAI_API_KEY") && !espera.Contains("HTTP"), $"y no como clave que falta ni como fallo de red: «{espera}»");
+
+        // 2. Y NO SE DAN POR PERDIDAS. La promesa 300 pide las claves UNA vez también cuando falla, para no
+        //    hacer bucle contra un backend caído. Aplicada a una espera, dejaría la voz muerta hasta reiniciar
+        //    Ü aunque la aprobaran al minuto.
+        Debe(Traer(c1) == 2 && peticiones() == 2, $"aprobada después, la siguiente vez que hacen falta se piden y llegan: {peticiones()} petición(es)");
+        Debe(Resolver(c1, "OPENAI_API_KEY") == SecretoVoz, "y la voz ya tiene su clave, sin reiniciar");
+        Traer(c1);
+        Debe(peticiones() == 2, $"con las claves ya traídas no se piden más: {peticiones()} petición(es)");
+
+        // 3. REVOCADA Y SIN PRESENTAR, CADA UNA CON SU NOMBRE.
+        var c2 = Crear(_ => throw Niega("instalacion_revocada"), new List<string>(), out _);
+        Traer(c2);
+        Debe(Estado(c2).Contains("revoc") && !Estado(c2).Contains("espera"), $"revocada se dice revocada: «{Estado(c2)}»");
+        var c3 = Crear(_ => throw Niega("instalacion_sin_credencial"), new List<string>(), out _);
+        Traer(c3);
+        Debe(Estado(c3).Contains("present") && Estado(c3) != Estado(c2) && Estado(c3) != espera,
+            $"y sin presentarse todavía, también con su nombre: «{Estado(c3)}»");
+
+        // 4. LO DEMÁS SIGUE COMO LO DEJÓ LA 300: un backend caído se intenta una vez.
+        var c4 = Crear(_ => throw new InvalidOperationException("HTTP 503"), new List<string>(), out var caidas);
+        Traer(c4); Traer(c4);
+        Debe(caidas() == 1, $"un backend caído NO se reintenta en cada llamada: {caidas()} intento(s)");
+        Debe(!string.Join(" ", log).Contains(SecretoVoz), "y ninguna clave en el log");
+    }
+
+    /// <summary>Promesa 689.</summary>
+    /// <remarks>
+    /// POR QUÉ EXISTE (2026-10-01). La 687 juzga a <c>ClavesDelBackend</c>; que la VOZ vuelva a pedirlas al
+    /// encender no lo juzgaba nadie, y ese camino se reescribió al poner esta spec sobre la 075: el encendido
+    /// pasó a ser síncrono y lo que antes era un <c>await</c> en medio dejó de compilar. Un camino reescrito y
+    /// sin juez es justo el que se rompe en silencio: la voz diría «falta la clave» a una instalación que
+    /// aprobaron hace un minuto, hasta reiniciar Ü.
+    /// </remarks>
+    private static void EncenderSinClaveLaVuelveAPedir()
+    {
+        var t = Capacidad("U.WindowsClient.Credenciales.ClavesDelBackend");
+        var tNiega = DeLaInstalacion("GraphNiegaLaInstalacion");
+        var tCred = DeLaInstalacion("CredencialDeInstalacion");
+        var ctorNiega = tNiega?.GetConstructor(new[] { typeof(string), typeof(string) });
+        var ctor = t?.GetConstructors().FirstOrDefault(c => c.GetParameters().Length == 3);
+        var clavesVivas = t?.GetProperty("Viva", BindingFlags.Public | BindingFlags.Static);
+        var instalacionViva = tCred?.GetProperty("Viva", BindingFlags.Public | BindingFlags.Static);
+        var inst = InstalacionDePrueba.Nueva();
+        if (ctor == null || ctorNiega == null || clavesVivas == null || instalacionViva == null || inst == null)
+        { Pendiente("ConversacionEnVivo que pide las claves al encender sin ellas (ClavesDelBackend.Viva + CredencialDeInstalacion.Viva)", "689", "076"); return; }
+
+        // Una instalación que se presentó y espera: es lo que la voz tiene que saber decir.
+        inst.AlPreguntar = _ => (200, InstalacionDePrueba.Respuesta("pendiente"));
+        inst.Presentarse(new Dictionary<string, string> { ["email"] = "medico@hospital.test" });
+        inst.Preguntar();
+        Debe(inst.Situacion == "pendiente", $"[preparación] la instalación de prueba espera aprobación (está «{inst.Situacion}»)");
+
+        // Un backend SIN nada en el entorno, que niega las claves mientras la instalación espera.
+        int peticiones = 0;
+        bool aprobada = false;
+        Func<CancellationToken, Task<string>> pedir = _ =>
+        {
+            peticiones++;
+            if (!aprobada) throw (Exception)ctorNiega.Invoke(new object[] { "instalacion_pendiente", CodigoDelContrato });
+            return Task.FromResult("{\"openai\":\"sk-del-backend-del-contrato\",\"typesafe\":\"ts-del-contrato\"}");
+        };
+        object claves = ctor.Invoke(new object[] { (Func<string, string?>)(_ => null), pedir, (Action<string>)(_ => { }) });
+
+        object? clavesDeAntes = clavesVivas.GetValue(null), instalacionDeAntes = instalacionViva.GetValue(null);
+        try
+        {
+            using var v = VozDePrueba.Nueva("689");
+            if (v == null) return;
+            clavesVivas.SetValue(null, claves);
+            instalacionViva.SetValue(null, inst.Objeto);
+
+            // 1. ESPERANDO: el gesto pregunta, y lo que dice es la espera, con el código.
+            v.Alterna().Wait(3000);
+            string[] dichos; lock (v.Dichos) dichos = v.Dichos.ToArray();
+            Debe(peticiones == 1, $"sin clave, el gesto se la pide a Graph: {peticiones} petición(es)");
+            Debe(!v.Viva && v.Conexiones == 0, $"y con la instalación esperando la voz no enciende ni abre cable (viva: {v.Viva}, conexiones: {v.Conexiones})");
+            Debe(dichos.Any(d => d.Contains("aprobación", StringComparison.Ordinal) && d.Contains(CodigoDelContrato, StringComparison.Ordinal)),
+                $"dice que espera aprobación, con el código que hay que dictarle al administrador (dijo: «{string.Join(" | ", dichos)}»)");
+            Debe(!dichos.Any(d => d.Contains("setx", StringComparison.Ordinal)),
+                $"y no le pide a una persona en un hospital que ponga una variable de entorno (dijo: «{string.Join(" | ", dichos)}»)");
+
+            // 2. APROBADA: el siguiente gesto vuelve a preguntar y enciende, sin reiniciar nada.
+            aprobada = true;
+            var clic = v.Alterna();
+            Debe(Espera(() => v.Viva, 3000), "aprobada después, el siguiente gesto enciende la voz sin reiniciar Ü");
+            Debe(peticiones == 2 && v.Conexiones == 1, $"pidiendo las claves otra vez y abriendo su cable ({peticiones} petición(es), {v.Conexiones} conexión(es))");
+            Debe(v.LosAvisos().SequenceEqual(new[] { true }), $"y avisó una vez de que encendió (avisos: {Lista(v.LosAvisos())})");
+
+            // 3. CON LA CLAVE YA EN LA MANO no se vuelve a preguntar: el encendido de siempre no espera a la red.
+            v.Alterna().Wait(3000);
+            v.Alterna();
+            Debe(v.Viva && peticiones == 2, $"con la clave ya traída, apagar y encender no la vuelve a pedir ({peticiones} petición(es))");
+        }
+        finally
+        {
+            clavesVivas.SetValue(null, clavesDeAntes);
+            instalacionViva.SetValue(null, instalacionDeAntes);
+        }
+    }
+
+    private static void ElInstaladorNoLlevaClavesDeTerceros()
+    {
+        // MEDIDO EL 2026-09-30: U.dll llevaba el atributo «GeminiDefaultApiKey», que el workflow de release
+        // rellenaba con una clave de pago de verdad, y que NADIE LEÍA desde que la voz pasó a GPT-Live (spec
+        // 018). Una clave en un instalador público es una clave publicada, la lea alguien o no.
+        //
+        // Se juzga el NOMBRE del atributo y no su valor: en el binario que compila el contrato todos van
+        // vacíos, y es el workflow quien los rellena. Si el atributo existe, tiene sitio donde viajar.
+        var permitidos = new HashSet<string>(StringComparer.Ordinal) { "GraphDefaultApiKey", "UpdateGithubToken" };
+        var secreto = new System.Text.RegularExpressions.Regex("key|token|secret|clave|password", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var embebidos = new[] { Cliente, typeof(GraphConfig).Assembly }
+            .SelectMany(a => a.GetCustomAttributes<AssemblyMetadataAttribute>().Select(m => (Donde: a.GetName().Name, m.Key)))
+            .Where(x => secreto.IsMatch(x.Key))
+            .ToList();
+        Debe(embebidos.Any(x => x.Key == "GraphDefaultApiKey"),
+            "(el arnés ve los secretos embebidos: si no viera ni la clave de Graph, esta promesa pasaría sin mirar nada)");
+        var sobran = embebidos.Where(x => !permitidos.Contains(x.Key)).Select(x => $"{x.Key} en {x.Donde}.dll").ToList();
+        Debe(sobran.Count == 0, $"el binario tiene sitio para secretos que no debería llevar: {string.Join(", ", sobran)}");
+    }
+
+    // ── El saludo y la cara de atender (spec 077) ───────────────────────────
+
+    private static void LaCaritaSaludaCuandoVuelves()
+    {
+        // CUÁNDO HAY A QUIÉN SALUDAR. El dueño, el 2026-10-01: «apenas abres el app, o apenas interactúas
+        // como que la estás viendo por primera vez en el día o en el rato, o desbloqueas el computador […]
+        // y luego que vuelva a saludar espontáneamente cada media hora». La regla es pura: el reloj se le
+        // da, y cuánto lleva el PC sin tocarse también.
+        var regla = Capacidad("U.WindowsClient.Ui.ReglaDelSaludo");
+        var motivos = Capacidad("U.WindowsClient.Ui.MotivoDelSaludo");
+        var toca = regla?.GetMethod("Toca");
+        var volvio = regla?.GetMethod("Volvio");
+        var proximo = regla?.GetMethod("ProximoEspontaneo");
+        if (regla == null || motivos == null || toca == null || volvio == null || proximo == null)
+        {
+            Pendiente("Ui.ReglaDelSaludo (Toca, Volvio, ProximoEspontaneo) y Ui.MotivoDelSaludo", "690", "077");
+            return;
+        }
+
+        long ahora = 1_000_000;
+        object Nueva() => Activator.CreateInstance(regla, new object[] { (Func<long>)(() => ahora) })!;
+        bool Toca(object r, string motivo, bool libre = true) => (bool)toca.Invoke(r, new[] { Enum.Parse(motivos, motivo), (object)libre })!;
+        bool Volvio(object r, double quietoSeg) => (bool)volvio.Invoke(r, new object[] { quietoSeg })!;
+        void Pasan(double segundos) => ahora += (long)(segundos * 1000);
+
+        foreach (var m in new[] { "Arranque", "Desbloqueo", "Vuelta", "Acercarse" })
+            Debe(Toca(Nueva(), m), $"«{m}» saluda: es uno de los momentos en que vuelves");
+        Debe(Toca(Nueva(), "Rato"), "y pasado el rato, sola, también saluda");
+
+        // NUNCA DOS SEGUIDOS. Volver de un bloqueo da dos avisos a la vez: el desbloqueo y la primera tecla.
+        var r = Nueva();
+        Debe(Toca(r, "Arranque"), "saluda al abrir Ü");
+        Pasan(5);
+        Debe(!Toca(r, "Desbloqueo"), "a los 5 s de un saludo no saluda otra vez");
+        Pasan(80);
+        Debe(!Toca(r, "Vuelta"), "ni a los 85 s");
+        Pasan(10);
+        Debe(Toca(r, "Vuelta"), "pasado minuto y medio sí (95 s)");
+
+        // NO INTERRUMPE, y no haber podido no es haber saludado.
+        r = Nueva();
+        Debe(!Toca(r, "Desbloqueo", libre: false), "en mitad de una conversación o de un trabajo no saluda");
+        Debe(Toca(r, "Rato"), "y no haber podido no cuenta como saludo: el siguiente motivo sí saluda");
+
+        // LA VUELTA: cinco minutos sin tocar el PC es haberse ido; la primera tecla después, haber vuelto.
+        r = Nueva();
+        Debe(!Volvio(r, 0) && !Volvio(r, 120) && !Volvio(r, 299), "con menos de cinco minutos sin tocar el PC no se ha ido nadie");
+        Debe(!Volvio(r, 300) && !Volvio(r, 900), "mientras sigue sin tocarlo sigue fuera: todavía no ha vuelto");
+        Debe(Volvio(r, 0.4), "la primera vez que lo toca tras cinco minutos, ha vuelto");
+        Debe(!Volvio(r, 2) && !Volvio(r, 0.1), "y vuelve una vez, no en cada tecla");
+        r = Nueva();
+        Volvio(r, 250);
+        Debe(!Volvio(r, 1), "cuatro minutos leyendo la pantalla no es haberse ido");
+
+        // SOLA NO SALUDA A UNA SILLA VACÍA: si te fuiste, el saludo del rato espera, y al volver te saluda la vuelta.
+        r = Nueva();
+        Volvio(r, 400);
+        Debe(!Toca(r, "Rato"), "si llevas cinco minutos sin tocar el PC, el saludo del rato no sale: no hay a quién");
+        Debe(Volvio(r, 1) && Toca(r, "Vuelta"), "y al volver, te saluda la vuelta");
+
+        // ACERCARLE EL RATÓN: solo si hacía diez minutos que no la trataba, y acercárselo ya es tratarla.
+        r = Nueva();
+        Debe(Toca(r, "Arranque"), "saluda al abrir Ü (antes de acercarle el ratón)");
+        Pasan(120);
+        Debe(!Toca(r, "Acercarse"), "acercarle el ratón a los dos minutos de un saludo no saluda");
+        Pasan(9 * 60);
+        Debe(!Toca(r, "Acercarse"), "y acercárselo cuenta como tratarla: nueve minutos después tampoco");
+        Pasan(10 * 60 + 1);
+        Debe(Toca(r, "Acercarse"), "tras diez minutos sin tratarla, acercarle el ratón sí saluda");
+
+        // SOLA: cada media hora, algo así.
+        double P(double d) => (double)proximo.Invoke(null, new object[] { d })!;
+        var dados = Enumerable.Range(0, 1000).Select(i => i / 1000.0).ToList();
+        Debe(dados.All(d => P(d) >= 1200 && P(d) <= 2400), $"sola saluda cada 20 a 40 minutos ({dados.Min(P) / 60:0}-{dados.Max(P) / 60:0})");
+        Debe(P(0.9) - P(0.1) > 600, $"y el plazo cambia de una vez a otra: no es un reloj ({(P(0.9) - P(0.1)) / 60:0} min entre un dado bajo y uno alto)");
+
+        if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } ventana)
+        {
+            Debe(ventana.Contains("SystemEvents.SessionSwitch +=", StringComparison.Ordinal),
+                "[cableado] la ventana se entera de que el computador se desbloqueó (SystemEvents.SessionSwitch)");
+            foreach (var m in new[] { "Arranque", "Desbloqueo", "Vuelta", "Acercarse", "Rato" })
+                Debe(ventana.Contains("MotivoDelSaludo." + m, StringComparison.Ordinal), $"[cableado] la ventana saluda por «{m}»");
+            Debe(ventana.Contains("_saludo.Volvio(", StringComparison.Ordinal), "[cableado] y pregunta cada poco si volviste (ReglaDelSaludo.Volvio)");
+            Debe(CuerpoDe(ventana, "private void OnCollapsedHoverIn(").Contains("MotivoDelSaludo.Acercarse", StringComparison.Ordinal),
+                "[cableado] acercarle el ratón a la carita suelta pasa por la regla del saludo");
+        }
+    }
+
+    private static void MientrasConversaLaCaritaAtiende()
+    {
+        // «QUE CUANDO ESTEMOS HABLANDO TENGA ALGÚN TIPO DE GESTO […] EL QUE DICE GRABANDO, JUSTAMENTE» (el
+        // dueño, 2026-10-01). Desde agosto, conversar era «casi el reposo» a propósito: la alternativa de
+        // entonces eran los ojos como platos y un jadeo continuo. La cara de grabar es quieta.
+        if (Cara == null) { Pendiente("Ui.FaceControl", "691", "077"); return; }
+        byte[] Pinta(string estado) => Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); Poner(c, "Mood", estado); }));
+        int Boca(string estado) => TintaDeLaBoca(Pinta(estado), false).Ancho;
+
+        int reposo = Boca("Reposo"), conversando = Boca("Conversando"), grabando = Boca("Grabando"), hablando = Boca("Hablando");
+        Debe(conversando == grabando, $"conversando pone la boca de cuando graba ({conversando} contra {grabando} de ancho)");
+        Debe(conversando <= reposo - 8, $"distinta de la del reposo: bastante más pequeña ({conversando} contra {reposo})");
+        Debe(hablando >= conversando + 12, $"y al hablar sonríe ancho ({hablando} contra {conversando})");
+
+        var a = Pinta("Conversando"); var b = Pinta("Grabando");
+        int distintos = 0;
+        for (int i = 0; i < a.Length; i += 4)
+            if (a[i] != b[i] || a[i + 1] != b[i + 1] || a[i + 2] != b[i + 2] || a[i + 3] != b[i + 3]) distintos++;
+        Debe(distintos == 0, $"es la misma cara entera, no solo la boca: cejas y ojos también ({distintos} píxel(es) distintos)");
+    }
+
+    private static void HayUnSoloRelojDelSaludo()
+    {
+        // HABÍA DOS, uno por cada dibujo de la carita —la suelta y la del muelle—, sin saber el uno del
+        // otro: ninguna guarda entre saludos puede valer así. El saludo es de la ventana, que es quien sabe
+        // si hay conversación, si la persona volvió y cuándo fue el último.
+        if (Capacidad("U.WindowsClient.Ui.ReglaDelSaludo") == null) { Pendiente("Ui.ReglaDelSaludo", "692", "077"); return; }
+        Debe(Capacidad("U.WindowsClient.Ui.GestosDeLaCarita")?.GetMethod("ProximoSaludo") == null,
+            "el dibujo ya no tiene plazo de saludo (GestosDeLaCarita.ProximoSaludo)");
+        if (FuenteDeLaInterfaz("FaceControl.cs") is { } cara)
+        {
+            string sola = CuerpoDe(cara, "public void StartIdle()");
+            Debe(sola.Contains("Blink(") && !sola.Contains("Saludar("), "[cableado] el dibujo, solo, únicamente parpadea (StartIdle)");
+        }
+        if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } ventana)
+        {
+            string saludar = CuerpoDe(ventana, "private void Saludar(");
+            int llamadas = System.Text.RegularExpressions.Regex.Matches(ventana, @"\.Saludar\(\)").Count;
+            Debe(saludar.Contains("Face.Saludar()") && saludar.Contains("CollapsedFace.Saludar()") && llamadas == 2,
+                $"[cableado] la ventana saluda desde un solo sitio, y a las dos caritas a la vez ({llamadas} llamada(s) a Saludar())");
+            Debe(saludar.Contains("_saludo.Toca("), "[cableado] y ese sitio le pregunta a la regla antes de saludar");
         }
     }
 

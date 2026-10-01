@@ -55,9 +55,12 @@ public sealed class BackendClient
     {
         _baseUrl = config.BackendUrlEnUso.TrimEnd('/');
         _userId = config.UserId;
+        // CON EL SELLO DE LA INSTALACIÓN (promesa 686). Contra el backend viejo no sella nada: solo
+        // pone la credencial en lo que va a Graph. El transporte del contrato (spec 078) va DEBAJO del
+        // sello: lo que se juzga es lo que de verdad saldría.
         _http = transporte == null
-            ? new HttpClient { Timeout = TimeSpan.FromMinutes(5) }
-            : new HttpClient(transporte, disposeHandler: false) { Timeout = TimeSpan.FromMinutes(5) };
+            ? RedDeGraph.Cliente(TimeSpan.FromMinutes(5))
+            : new HttpClient(new SelloDeInstalacion(transporte, null), disposeHandler: false) { Timeout = TimeSpan.FromMinutes(5) };
 
         // La X-API-Key (miracle_…) que ya usa windows-graph.
         if (!string.IsNullOrWhiteSpace(graphConfig.ApiKey))

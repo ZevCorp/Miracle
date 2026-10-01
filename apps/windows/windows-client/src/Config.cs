@@ -133,6 +133,13 @@ public sealed class Config
     public double? SavedWorkAreaHeight { get; set; }
 
     /// <summary>
+    /// En qué borde de la pantalla vive el panel: «derecha» o «izquierda» (promesa 629). Lo cambia el
+    /// botón de lado del propio panel. Se guarda como texto y lo lee
+    /// <c>Ui.ReglaDelMuelle.LadoDe</c>, que da la derecha ante cualquier valor que no entienda.
+    /// </summary>
+    public string LadoDelMuelle { get; set; } = "derecha";
+
+    /// <summary>
     /// De dónde baja la carita sus propias actualizaciones (ver <see cref="Update.Updater"/> y
     /// RELEASING-WINDOWS.md). Son las *releases* de este repositorio.
     ///
@@ -142,17 +149,20 @@ public sealed class Config
     /// desde el 2026-07-22, así que el botón de actualizar solo podía contestar «ya estás al día»:
     /// no mentía, es que al otro lado no había nada que encontrar (2026-08-16).
     ///
-    /// El repositorio es privado, así que esto ya NO se lee sin credenciales: el build de
-    /// distribución lleva embebido un token de solo lectura (WindowsClient.csproj → UpdateGithubToken).
+    /// El repositorio es público desde el monorepo, así que se lee sin credenciales; el build de
+    /// distribución lleva además un token de solo lectura (WindowsClient.csproj → UpdateGithubToken)
+    /// que le da 5000 consultas por hora en vez de las 60 por IP de quien pregunta sin identificarse.
     ///
     /// Sigue admitiendo una URL de carpeta estática: cualquier valor que no apunte a github.com se
     /// trata como antes.
     /// </summary>
-    public string UpdateFeedUrl { get; set; } =
-        "https://github.com/ZevCorp/U-Windows-App";
+    public string UpdateFeedUrl { get; set; } = Update.Updater.RepoDeHoy;
 
     private static string Path =>
         System.IO.Path.Combine(U.Graph.UserPaths.Roaming, "U", "config.json");
+
+    /// <summary>Dónde vive este archivo, para quien tenga que contarlo sin cargarlo (la Memoria, spec 071).</summary>
+    public static string Archivo => Path;
 
     public static Config Load()
     {
@@ -180,8 +190,14 @@ public sealed class Config
         // gratuito contra 80 MB del .nupkg—, así que sin esto se quedarían preguntando para siempre
         // a un sitio donde nunca va a haber nada. Igual que arriba, solo se migra el default exacto:
         // si alguien apuntó su propio feed a mano, se respeta.
-        if (string.Equals(cfg.UpdateFeedUrl?.TrimEnd('/'), LegacyUpdateFeedUrl, StringComparison.OrdinalIgnoreCase))
-            cfg.UpdateFeedUrl = "https://github.com/ZevCorp/U-Windows-App";
+        //
+        // Y CON EL NOMBRE DEL REPOSITORIO (2026-10-01): pasó de «U-Windows-App» a «Miracle». GitHub
+        // redirige el viejo, pero .NET descarta el token al seguir la redirección, y sin él el cupo es
+        // de 60 consultas por hora por IP — la de un hospital entero. Lo guardado se pone al día.
+        string guardado = cfg.UpdateFeedUrl?.Trim().TrimEnd('/') ?? "";
+        if (guardado.Equals(LegacyUpdateFeedUrl, StringComparison.OrdinalIgnoreCase)
+            || Update.Updater.NombresAnteriores.Any(n => n.Equals(guardado, StringComparison.OrdinalIgnoreCase)))
+            cfg.UpdateFeedUrl = Update.Updater.RepoDeHoy;
 
         // `set U_BACKEND_URL=<url>` (dev-local.ps1: un Graph local) manda en ESTE proceso y no se
         // escribe nunca en disco: vive en un campo aparte que Save no ve (promesa 708).

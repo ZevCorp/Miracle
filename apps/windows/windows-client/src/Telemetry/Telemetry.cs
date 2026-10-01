@@ -32,6 +32,9 @@ public static class TelemetryBus
 {
     private static TelemetryClient? _client;
 
+    /// <summary>¿Se está reportando al backend? Sin correo no hay cliente, y entonces nada sale de aquí.</summary>
+    public static bool Activa => _client != null;
+
     /// <summary>Arranca la telemetría. Sin correo (usuario no onboarded) queda deshabilitada: Emit es no-op.</summary>
     public static void Init(BackendClient backend, TelemetryIdentity identity)
     {

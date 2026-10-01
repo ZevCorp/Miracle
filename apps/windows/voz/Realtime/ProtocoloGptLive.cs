@@ -31,6 +31,18 @@ namespace Voz.Realtime;
 ///    las instrucciones no se respetó: la voz prestada (promesa 192) no se puede hacer con GPT-Live.
 ///
 ///  · NI PASE PARA VOLVER: una caída empieza de cero, y <see cref="SabeVolver"/> lo dice.
+///
+///  · EL AUDIO QUE LLEGA ANTES DE session.started SE TIRA, y el que llega después en ráfaga se oye
+///    entero. Medido el 2026-09-30: «Manzana. Repite solamente la primera palabra que dije», mandada
+///    justo detrás de session.start, no se transcribió y la voz contestó «Repite.»; guardada y
+///    mandada de golpe tras session.started —4,8 s de audio en 37 ms—, se transcribió y contestó
+///    «Manzana.». Por eso la conversación guarda lo captado hasta la confirmación
+///    (<see cref="PreEscucha"/>).
+///
+///  · CUÁNTO TARDA EN CONFIRMAR depende de lo que lleve session.start (2026-10-01, tres aperturas de
+///    cada una): 293–395 ms con la mínima, 586–656 con la delegación entera y sin historia, 849–1.235
+///    con la delegación y 11.450 caracteres de historia. Mandar la delegación aparte, detrás, no lo
+///    baja: lo que pesa es la historia.
 /// </remarks>
 public sealed class ProtocoloGptLive : IProtocolo
 {

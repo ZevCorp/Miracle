@@ -299,6 +299,23 @@
                                     AutomationProperties.Name="Buscar actualizaciones"/>
                         </UniformGrid>
 
+                        <!-- LO QUE SALIÓ DEL ÓVALO el 2026-09-30 (spec 071, promesa 621). El óvalo se
+                             quedó con Memoria y el collar; estos dos se mudan enteros, con su nombre y
+                             su manejador, igual que enseñar y silenciar el 2026-08-07: mover algo de
+                             sitio no es reescribirlo. Van como filas con texto y no como iconos porque
+                             Jev DICE su estado en su propio rótulo (PintarBotonJev).
+
+                             SUBIR (spec 046): fotos de estudios de cardiología → resumen y preguntas.
+                             Abre su panel junto al óvalo y, si no hay fotos, el explorador en el mismo
+                             clic. JEV (spec 036, promesa 290): enciende y apaga el decisor de TypeSafe
+                             sin reiniciar. -->
+                        <Button x:Name="SubirBtn" Content="Subir fotos de estudios" Style="{StaticResource MenuBtn}"
+                                Click="OnSubirEstudios" Margin="0,0,0,6"
+                                AutomationProperties.Name="Subir fotos de estudios"/>
+                        <Button x:Name="JevBtn" Content="Jev · off" Style="{StaticResource MenuBtn}"
+                                Click="OnToggleJev" Margin="0,0,0,10"
+                                AutomationProperties.Name="Jev: encender o apagar el decisor de TypeSafe"/>
+
                         <!-- ── Ejecutar workflow: lo que el operador usa a diario ─────────────── -->
                         <DockPanel LastChildFill="False" Margin="0,0,0,3">
                             <TextBlock DockPanel.Dock="Left" Text="Ejecutar workflow"
@@ -470,50 +487,29 @@
                                             HorizontalAlignment="Center" Margin="0,4,0,16"/>
                         </Decorator>
 
-                        <!-- LOS TRES. Live va separado y algo mas estrecho, como en el diseño: no
-                             es del mismo grupo que los otros dos — Learn y Work son lo que Ü hace
-                             POR TI en la pantalla; Live abre la consulta clinica, que es otra cosa. -->
-                        <Button x:Name="LearnBtn" Content="Learn" Height="38" Click="OnToggleTeach"
-                                AutomationProperties.Name="Enseñar"/>
-                        <!-- WORK NO HACE NADA TODAVÍA, y está dicho aquí y en su tooltip a
-                             propósito. El dueño lo pidió sin acción el 2026-09-05 para decidir más
-                             adelante qué cuelga de él. Un botón mudo que aparenta funcionar es
-                             justo lo que mató a los tres modos que vivieron en esta barra
-                             (2026-08-31): «un botón que no hace nada enseña a ignorar los
-                             botones». Si esto sigue así dentro de unos días, se quita. -->
-                        <Button x:Name="WorkBtn" Content="Work" Height="38" Margin="0,8,0,0"
-                                AutomationProperties.Name="Trabajar (sin función todavía)"/>
-                        <!-- SUBIR (spec 046): fotos de estudios de cardiología → resumen y preguntas.
-                             Del mismo grupo que Learn y Work, y vestido igual (VestirElPanelConElEstudio).
-                             Abre su panel pegado a la izquierda del óvalo y, si todavía no hay fotos,
-                             el explorador de Windows en el MISMO clic: sin ese segundo paso, «subir»
-                             sería «abrir un panel que te pide subir». -->
-                        <Button x:Name="SubirBtn" Height="38" Margin="0,8,0,0" Click="OnSubirEstudios"
-                                AutomationProperties.Name="Subir fotos de estudios">
-                            <StackPanel Orientation="Horizontal">
-                                <!-- Upload de Segoe MDL2, y no un emoji: un emoji trae su propio color
-                                     y rompe la tira (2026-08-07). -->
-                                <TextBlock Text="&#xE898;" FontFamily="Segoe MDL2 Assets"
-                                           FontSize="13" VerticalAlignment="Center" Margin="0,1,8,0"/>
-                                <TextBlock Text="Subir" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-                        <!-- JEV (spec 036, promesa 290): enciende y apaga el decisor de TypeSafe sin
-                             reiniciar. Dice su estado real en el texto y el motivo en el tooltip. Se
-                             llama Jev y no «Live» porque Live ya significa la consulta clinica. -->
-                        <Button x:Name="JevBtn" Content="Jev · off" Height="38" Margin="0,8,0,0" Click="OnToggleJev"
-                                AutomationProperties.Name="Jev: encender o apagar el decisor de TypeSafe"/>
+                        <!-- TRES BOTONES Y NADA MÁS (spec 071, promesa 620; pedido por el dueño el
+                             2026-09-30): Memoria aquí, y abajo el collar y el de cambiar el panel de
+                             lado, que pidió ese mismo día al probarlo. Hasta entonces vivían aquí
+                             Learn, Work, Subir y Jev. Learn ya tenía a su gemelo 🎓 en el panel de
+                             desarrollo; Subir y Jev se mudaron allí enteros, con su nombre y su
+                             manejador (promesa 621); y Work, que nunca hizo nada, se fue del todo:
+                             «un botón que no hace nada enseña a ignorar los botones».
+
+                             MEMORIA abre una ventana con todo lo que Ü guarda de la persona, dicho
+                             para leerlo: lo que se le contó, lo hablado, lo enseñado, lo que vio en
+                             la pantalla y lo que sale de este computador. Solo enseña; no borra. -->
+                        <Button x:Name="MemoriaBtn" Content="Memoria" Height="38" Click="OnMemoria"
+                                PreviewMouseLeftButtonDown="OnMemoriaSeToca"
+                                AutomationProperties.Name="Memoria: todo lo que Ü sabe de ti"/>
 
                     <StackPanel x:Name="ZonaSecundaria" Margin="0,12,0,0">
                         <!-- ZONA CONTEXTUAL: lo que solo existe a ratos. Va envuelta para que el
                              separador se colapse con ella (si no, queda una raya flotando sobre nada)
                              y para que su visibilidad se decida en UN sitio: UpdateContextZone(). -->
                         <StackPanel x:Name="ContextZone" Visibility="Collapsed">
-                            <!-- Pastilla de actualización: oculta salvo que ya haya una versión descargada
-                                 y lista. Si el usuario la ignora, se aplica sola al cerrar (ApplyOnExit). -->
-                            <Button x:Name="UpdateBtn" Content="⬇" Style="{StaticResource BarBtn}"
-                                    Margin="0" Background="#553B82F6" Visibility="Collapsed" Click="OnApplyUpdate"
-                                    AutomationProperties.Name="Aplicar la actualización"/>
+                            <!-- Aquí vivió la pastilla ⬇ de «hay versión lista». Desde el 2026-10-01
+                                 actualizar tiene un botón fijo abajo, ActualizarBtn (promesa 646): dos
+                                 botones para lo mismo es no saber cuál pulsar. -->
 
                             <!-- Solo visible mientras ejecuta algo: detener es detener, también la voz. -->
                             <Button x:Name="StopBtn" Content="⏹" Style="{StaticResource BarBtn}"
@@ -542,8 +538,12 @@
                         <!-- ACTIVADOR del menú extendido: hover lo abre (hacia arriba, justo encima),
                              clic lo fija, Esc lo cierra. El chevron apunta a donde va a nacer el menú;
                              girado significa «ciérralo». Ver UpdateChevron(). -->
+                        <!-- NACE ESCONDIDO, Y DICHO AQUÍ. Lo estaba desde el 2026-08-06, pero solo lo
+                             decía WireMenu en el código: quien leyera el XAML contaba un botón que
+                             nadie ve (lo contó la promesa 620 al nacer). El panel de desarrollo se
+                             pide con Ctrl+Shift dos veces. -->
                         <Button x:Name="MenuActivator" Height="26" Margin="0,4,0,0" Style="{StaticResource BarBtn}"
-                                Width="38" FontSize="11" Background="#00FFFFFF"
+                                Width="38" FontSize="11" Background="#00FFFFFF" Visibility="Collapsed"
                                 AutomationProperties.Name="Más herramientas">
                             <Path x:Name="ActivatorChevron" Data="M 0 5 L 6 0 L 12 5"
                                   Stroke="#CCFFFFFF" StrokeThickness="1.8" StrokeLineJoin="Round"
@@ -578,6 +578,51 @@
                                       Data="M 5,4 C 5,11.2 15,11.2 15,4"/>
                                 <Ellipse x:Name="CollarPunto" Canvas.Left="7.6" Canvas.Top="11.4"
                                          Width="4.8" Height="4.8" Fill="#E8FFFFFF"/>
+                            </Canvas>
+                        </Button>
+
+                        <!-- ACTUALIZAR Ü (promesa 646; lo pidió el dueño el 2026-10-01: «un icono con buen
+                             estilo como el del último panel, para que los usuarios actualicen la app»).
+                             Siempre aquí, y un toque hace el trabajo entero: si hay versión descargada
+                             la aplica, y si no, busca, descarga y aplica. Antes eran 🔄 en el panel de
+                             desarrollo y una pastilla ⬇ que solo existía a ratos.
+
+                             Mismo lápiz que el collar —trazo de 1,5, extremos redondos, sin emoji—: una
+                             flecha que baja a su bandeja. El dibujo dice el estado sin cartel (promesa
+                             164): en reposo, con la tinta de los demás; con una versión lista, en el
+                             color de acento y con un punto arriba, como la pieza del collar; mientras
+                             trabaja, a media tinta. Lo pinta PintarBotonDeActualizar. -->
+                        <Button x:Name="ActualizarBtn" Style="{StaticResource BarBtn}" Click="OnActualizar"
+                                AutomationProperties.Name="Buscar una versión nueva de Ü">
+                            <Canvas x:Name="ActualizarDibujo" Width="20" Height="20">
+                                <Path x:Name="ActualizarFlecha" Stroke="#E8FFFFFF" StrokeThickness="1.5"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                      Data="M 10,3.2 L 10,12 M 6.4,8.5 L 10,12.1 L 13.6,8.5"/>
+                                <Path x:Name="ActualizarBandeja" Stroke="#E8FFFFFF" StrokeThickness="1.5"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                      Data="M 4.4,13.4 L 4.4,16.4 L 15.6,16.4 L 15.6,13.4"/>
+                                <Ellipse x:Name="ActualizarPunto" Canvas.Left="15.4" Canvas.Top="0"
+                                         Width="4.8" Height="4.8" Fill="#E8FFFFFF" Visibility="Collapsed"/>
+                            </Canvas>
+                        </Button>
+
+                        <!-- DE QUÉ LADO DE LA PANTALLA VIVE EL PANEL (promesa 629; lo pidió el dueño el
+                             2026-09-30 con un dibujo: dos hojas, una al lado de la otra). Pulsarlo lo
+                             manda al otro borde y lo deja guardado. La hoja RELLENA es el lado donde
+                             está ahora: el dibujo dice el estado sin necesitar un cartel, que aquí no
+                             puede haber (promesa 164). El relleno lo pone PintarBotonDeLado.
+
+                             Mismo lápiz que el collar —trazo de 1,5, sin emoji— y debajo de él: la
+                             tira es vertical y lo de abajo es lo que menos se usa. -->
+                        <Button x:Name="LadoBtn" Style="{StaticResource BarBtn}" Click="OnCambiarDeLado"
+                                AutomationProperties.Name="Pasar el panel al otro lado de la pantalla">
+                            <Canvas Width="24" Height="20">
+                                <Rectangle x:Name="LadoHojaIzquierda" Canvas.Left="1" Canvas.Top="2.5"
+                                           Width="10" Height="15" RadiusX="2.6" RadiusY="2.6"
+                                           Stroke="#E8FFFFFF" StrokeThickness="1.5"/>
+                                <Rectangle x:Name="LadoHojaDerecha" Canvas.Left="13" Canvas.Top="2.5"
+                                           Width="10" Height="15" RadiusX="2.6" RadiusY="2.6"
+                                           Stroke="#E8FFFFFF" StrokeThickness="1.5"/>
                             </Canvas>
                         </Button>
 

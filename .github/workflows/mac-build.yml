@@ -6,8 +6,8 @@ on:
   push:
     branches: ['main']
     paths: ['apps/mac/**', '.github/workflows/mac-build.yml']
-  pull_request:
-    paths: ['apps/mac/**', '.github/workflows/mac-build.yml']
+  # En un PR lo llama la compuerta (monorepo.yml) cuando el PR toca la Mac.
+  workflow_call:
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,7 +23,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Contracts and packaged app
+      # El juez de la Mac: cruza docs/specs con los test… y corre el corredor. Es el único sitio
+      # donde este contrato se juzga de verdad cuando el PR sale de una máquina que no es un Mac.
+      - name: El contrato
+        run: ./contrato.sh release
+      - name: Packaged app
         run: ./build.sh release
       - name: Cross-compile Apple Silicon and Intel
         run: |

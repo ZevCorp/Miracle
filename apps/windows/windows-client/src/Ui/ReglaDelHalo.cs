@@ -46,15 +46,15 @@ public static class ReglaDelHalo
     /// Cuánto se agranda el halo. Al hablar late con la voz; callada, un latido lento que solo dice
     /// «sigo aquí» — porque un halo quieto y un micrófono cerrado se ven igual.
     /// </summary>
-    /// <param name="nivelVoz">El nivel que mueve la boca, para que lo que se ve pulsar sea
+    /// <param name="nivelVoz">El nivel real de la voz, para que lo que se ve pulsar sea
     /// exactamente lo que se está oyendo y no una animación con vida propia.</param>
-    /// <param name="pasoDeLaBoca">El contador de la boca, que da la fase del latido en reposo.</param>
-    public static double Escala(double nivelVoz, int pasoDeLaBoca)
+    /// <param name="pasoDeLaVoz">El contador del pulso de la voz, que da la fase del latido en reposo.</param>
+    public static double Escala(double nivelVoz, int pasoDeLaVoz)
     {
         // 1,12 + 0,38 topa en 1,50: 66·1,50 = 99 y la ventana mide 100. Era 0,43 (pico 1,55) con
         // 28 px de aire; al bajar el aire a 17 (2026-09-30) el pico baja con él, o el halo se corta
         // contra la ventana. El reposo no se toca: el latido lento de «sigo aquí» es el mismo.
-        return 1.12 + Fuerza(nivelVoz, pasoDeLaBoca) * 0.38;
+        return 1.12 + Fuerza(nivelVoz, pasoDeLaVoz) * 0.38;
     }
 
     /// <summary>
@@ -67,8 +67,8 @@ public static class ReglaDelHalo
     /// casi blanco», dicho así. Sigue siendo translúcido en su punto más bajo: el halo dice que hay
     /// voz, no tapa a quien la pone; pero en el pico casi no queda escritorio detrás.
     /// </remarks>
-    public static double Opacidad(double nivelVoz, int pasoDeLaBoca)
-        => 0.50 + Fuerza(nivelVoz, pasoDeLaBoca) * 0.42;
+    public static double Opacidad(double nivelVoz, int pasoDeLaVoz)
+        => 0.50 + Fuerza(nivelVoz, pasoDeLaVoz) * 0.42;
 
     /// <summary>
     /// De qué color: azul si te oye el collar, gris si te oye el micrófono del computador. No es
@@ -90,8 +90,8 @@ public static class ReglaDelHalo
     /// Cuánta señal hay ahora, entre 0 y 1. El umbral de 0,004 separa «hay voz» de «hay sala»: por
     /// debajo, el ruido de fondo haría latir el halo como si alguien estuviera hablando.
     /// </summary>
-    private static double Fuerza(double nivelVoz, int pasoDeLaBoca)
+    private static double Fuerza(double nivelVoz, int pasoDeLaVoz)
         => nivelVoz > 0.004
             ? Math.Min(1, Math.Pow(nivelVoz, 0.55) * 1.45)
-            : 0.18 + 0.10 * Math.Sin(pasoDeLaBoca * 0.16);
+            : 0.18 + 0.10 * Math.Sin(pasoDeLaVoz * 0.16);
 }

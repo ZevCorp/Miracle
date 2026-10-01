@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# EL PORTERO DE LA MAC. Lo llama el despachador de la raíz (.githooks/pre-push) cuando la rama toca
+# apps/mac/. Aquí solo se declara lo propio de la Mac; las cuatro comprobaciones y el modo de juzgar
+# lo que se empuja son del motor común (tools/monorepo/portero.sh).
+#
+# Swift con AppKit solo existe en macOS. Fuera de macOS este portero no puede compilar ni correr el
+# contrato, y no finge que lo hizo: comprueba el cruce (specs, tests y corredor cuadran) y deja el
+# resto al CI del PR (mac-build.yml, en un runner de macOS). La promesa propia se exige igual.
+#
+# Se prueba sin empujar:
+#     printf 'refs/heads/<rama> %s refs/heads/<rama> 0\n' "$(git rev-parse HEAD)" | bash apps/mac/.githooks/pre-push
+
+NOMBRE="Mac"
+CODIGO=('Sources')
+PROMESAS=('Tests')
+DONDE_PROMESAS="un test… en Tests/UCoreTests/, llamado desde ContractRunner.swift, con su fila en docs/specs/NNN-<slug>.md"
+JUICIO=('Sources' 'Tests' 'Package.swift' 'docs/specs' 'contrato.sh')
+
+if [ "$(uname -s)" = "Darwin" ]; then
+  # Se compila lo que se distribuye: la app, en release.
+  compilar() { swift build -c release --product U; }
+  juzgar()   { ./contrato.sh release; }
+else
+  # El nombre lo dice, para que un «en verde» de aquí no se lea como un contrato juzgado.
+  NOMBRE="Mac (solo el cruce: el contrato lo juzga el CI)"
+  VEREDICTO_OK="EL CRUCE CUADRA"
+  juzgar()   { bash contrato.sh --cruce; }
+fi
+
+# Dentro de un gancho, git trae GIT_DIR puesto, y con él `rev-parse --show-toplevel` contesta la
+# carpeta actual en vez de la raíz del repo. Así falló el primer empuje real (2026-09-30), después
+# de pasar todos los simulados.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
+. "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/monorepo/portero.sh"

@@ -10,8 +10,54 @@ namespace U.WindowsClient.Ui;
 /// pantalla, y <see cref="Muelle"/> pregunta a estas funciones en vez de llevar la decisión suelta
 /// entre los <c>MouseEnter</c>. Lo juzgado y lo que corre no pueden discrepar (aprendizaje nº16).
 /// </remarks>
+/// <summary>En qué borde de la pantalla vive el panel.</summary>
+public enum LadoDelMuelle
+{
+    /// <summary>Donde ha vivido siempre, y donde nace una instalación nueva.</summary>
+    Derecha,
+    Izquierda,
+}
+
 public static class ReglaDelMuelle
 {
+    // ── De qué lado vive (promesa 629, spec 071) ─────────────────────────────────────────────
+    //
+    // Hasta el 2026-09-30 el muelle estaba clavado al borde derecho, con el «derecho» escrito a mano
+    // en tres sitios: dónde se coloca, a qué lado se acopla la pestaña y desde dónde entra el panel.
+    // El dueño pidió un botón para tenerlo a la izquierda o a la derecha. Lo que depende del lado se
+    // decide aquí, para que el contrato lo juzgue sin pantalla y los tres sitios no puedan discrepar.
+
+    /// <summary>Dónde va el borde izquierdo de la ventana del muelle, en coordenadas de pantalla.</summary>
+    /// <param name="ancho">Lo que mide la ventana AHORA: plegada es la pestaña, desplegada es el panel.</param>
+    /// <param name="separacion">El aire entre el muelle y el borde. El mismo en los dos lados.</param>
+    public static double IzquierdaDeLaVentana(LadoDelMuelle lado, Rect areaDeTrabajo, double ancho, double separacion)
+        => lado == LadoDelMuelle.Izquierda
+            ? areaDeTrabajo.Left + separacion
+            : areaDeTrabajo.Right - ancho - separacion;
+
+    /// <summary>
+    /// Desde dónde se desliza el panel al desplegarse: desde su propio borde hacia dentro. A la
+    /// derecha arranca desplazado a la derecha; a la izquierda, a la izquierda.
+    /// </summary>
+    public static double DeDondeEntra(LadoDelMuelle lado, double recorrido)
+        => lado == LadoDelMuelle.Izquierda ? -recorrido : recorrido;
+
+    public static LadoDelMuelle ElOtro(LadoDelMuelle lado)
+        => lado == LadoDelMuelle.Izquierda ? LadoDelMuelle.Derecha : LadoDelMuelle.Izquierda;
+
+    /// <summary>
+    /// El lado que dice la configuración. Lo que no se entienda —vacío, nulo, un valor de otra
+    /// versión— es la DERECHA: un dato roto no puede mandar el panel a un sitio donde nadie lo busca.
+    /// </summary>
+    public static LadoDelMuelle LadoDe(string? guardado)
+        => string.Equals((guardado ?? "").Trim(), "izquierda", StringComparison.OrdinalIgnoreCase)
+            ? LadoDelMuelle.Izquierda
+            : LadoDelMuelle.Derecha;
+
+    /// <summary>Cómo se escribe un lado en la configuración. Lo lee <see cref="LadoDe"/>.</summary>
+    public static string ComoSeGuarda(LadoDelMuelle lado)
+        => lado == LadoDelMuelle.Izquierda ? "izquierda" : "derecha";
+
     /// <summary>
     /// ¿Tiene que estar desplegado ahora mismo?
     /// </summary>

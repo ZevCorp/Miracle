@@ -1,12 +1,21 @@
-name: Monorepo · la raíz
+name: Monorepo · la compuerta
 
-# Lo que es de todos: que la raíz solo tenga lo que le toca, que las reglas comunes digan lo mismo
-# para Codex (AGENTS.md) y para Claude (.claude/rules/monorepo.md), y que los porteros y los scripts
-# del repo al menos parseen. Corre en todos los PRs, sin filtro de rutas, y tarda segundos.
+# LA COMPUERTA: el único check que `main` exige. Corre en todos los PRs, mira qué proyectos toca, y
+# llama al CI de cada uno; al final, un trabajo —`compuerta`— dice si todo lo que tenía que juzgarse
+# quedó en verde.
 #
-# Si algún día se protege main con checks obligatorios, este es el sitio para la compuerta única:
-# un workflow con filtro de rutas que no llega a correr deja su check «pendiente» para siempre y
-# bloquea el merge (lo documenta GitHub). Uno que corre siempre y mira qué cambió, no.
+# Por qué una compuerta y no un check obligatorio por proyecto (2026-09-30): un workflow con filtro de
+# rutas que no llega a correr deja su check «pendiente» para siempre, y con `main` protegido eso
+# bloquea el merge de cualquier PR que no toque ese proyecto. Uno que corre siempre y decide él qué
+# llamar, no. Por eso los CI de proyecto ya no se disparan solos en un PR: los llama este
+# (`workflow_call`). En `main` siguen disparándose solos, por sus rutas, para desplegar.
+#
+# Un proyecto que el PR no toca sale «skipped», y eso es verde. Lo que no puede saltarse es `raiz` ni
+# `cambios`: si no se supo qué tocaba el PR, no se juzgó nada, y eso no es un verde.
+#
+# Además, la raíz: que solo tenga lo que le toca, que las reglas comunes digan lo mismo para Codex
+# (AGENTS.md) y para Claude (.claude/rules/monorepo.md), y que sus herramientas —el guardia de los
+# árboles y el motor de los porteros— cumplan su contrato (tools/monorepo/contrato.sh).
 
 on:
   pull_request:
@@ -14,10 +23,14 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: compuerta-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   raiz:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -27,8 +40,98 @@ jobs:
       - name: La constitución de Ü dice lo mismo en Windows, en Graph y en Android
         run: bash tools/monorepo/constitucion.sh
 
-      - name: Los porteros y los scripts del repo parsean
+      - name: Los porteros, los ganchos y los scripts del repo parsean
         run: |
-          for f in .githooks/pre-push apps/*/.githooks/pre-push tools/monorepo/*.sh; do
+          for f in .githooks/* apps/*/.githooks/* services/*/.githooks/* tools/monorepo/*.sh tools/graphify/*.sh apps/mac/contrato.sh apps/android/scripts/contrato.sh; do
+            [ -f "$f" ] || continue
             bash -n "$f" || { echo "::error file=$f::no parsea"; exit 1; }
           done
+
+      - name: El contrato de la raíz
+        run: bash tools/monorepo/contrato.sh
+
+  # Qué proyectos toca el PR. Sale de los archivos del PR según GitHub, no de un diff local: no hace
+  # falta bajar la historia. Si la consulta falla, el trabajo falla: no se decide «no toca nada».
+  cambios:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      windows: ${{ steps.toca.outputs.windows }}
+      android: ${{ steps.toca.outputs.android }}
+      mac: ${{ steps.toca.outputs.mac }}
+      web: ${{ steps.toca.outputs.web }}
+      graph: ${{ steps.toca.outputs.graph }}
+    steps:
+      - id: toca
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --jq '.[].filename' > archivos.txt
+          echo "El PR toca $(grep -c . archivos.txt || true) archivo(s)."
+          # Si cambia la compuerta misma, se llama a todos: es la única forma de probarla.
+          todo=no; grep -qE '^\.github/workflows/monorepo\.yml$' archivos.txt && todo=si
+          proyecto() {  # proyecto <nombre> <regex de lo que lo dispara> [<regex de lo que no cuenta>]
+            local toca=false
+            if [ "$todo" = si ] || grep -E "$2" archivos.txt | grep -vqE "${3:-^$}"; then toca=true; fi
+            echo "$1=$toca" | tee -a "$GITHUB_OUTPUT"
+          }
+          proyecto windows '^(apps/windows/|\.github/workflows/windows-contrato\.yml$)'
+          # Un cambio solo de documentación no vuelve a compilar el APK.
+          proyecto android '^(apps/android/|\.github/workflows/android-apk\.yml$)' '^apps/android/.*\.md$'
+          proyecto mac     '^(apps/mac/|\.github/workflows/mac-build\.yml$)'
+          proyecto web     '^(apps/web/|\.github/workflows/web-ci\.yml$)'
+          proyecto graph   '^(services/graph/|\.github/workflows/graph-ci\.yml$)'
+
+  windows:
+    needs: cambios
+    if: needs.cambios.outputs.windows == 'true'
+    uses: ./.github/workflows/windows-contrato.yml
+
+  android:
+    needs: cambios
+    if: needs.cambios.outputs.android == 'true'
+    uses: ./.github/workflows/android-apk.yml
+    secrets: inherit
+
+  mac:
+    needs: cambios
+    if: needs.cambios.outputs.mac == 'true'
+    uses: ./.github/workflows/mac-build.yml
+
+  web:
+    needs: cambios
+    if: needs.cambios.outputs.web == 'true'
+    uses: ./.github/workflows/web-ci.yml
+
+  graph:
+    needs: cambios
+    if: needs.cambios.outputs.graph == 'true'
+    uses: ./.github/workflows/graph-ci.yml
+
+  compuerta:
+    needs: [raiz, cambios, windows, android, mac, web, graph]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Todo lo que tenía que juzgarse quedó en verde
+        env:
+          NECESITA: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, sys
+          necesita = json.loads(os.environ["NECESITA"])
+          for nombre, trabajo in necesita.items():
+              print(f'{trabajo["result"]:>10}  {nombre}')
+          # «skipped» es un proyecto que el PR no toca. raiz y cambios no pueden saltarse.
+          rojos = [n for n, t in necesita.items() if t["result"] not in ("success", "skipped")]
+          rojos += [n for n in ("raiz", "cambios") if necesita[n]["result"] != "success" and n not in rojos]
+          if rojos:
+              print(f'::error::La compuerta no pasa: {", ".join(rojos)}.')
+              sys.exit(1)
+          print("La compuerta pasa.")
+          EOF

@@ -1,197 +1,178 @@
-# Graphify en el equipo
+# graphify en el equipo
 
-Este repo tiene un **grafo de conocimiento** generado con [graphify](https://github.com/safishamsi/graphify):
-un mapa del código y la documentación que permite preguntar cosas como *"¿dónde se maneja el audio?"*
-y obtener archivos y líneas exactas, sin que la IA tenga que leer el proyecto entero.
+[graphify](https://github.com/safishamsi/graphify) lee el código una vez y guarda un **mapa**: qué
+clases y funciones hay, dónde están y quién usa a quién, con el archivo y la línea de cada uso.
+Después se le pregunta al mapa en vez de leer el proyecto.
 
-El grafo vive en `graphify-out/graph.json` y **no se versiona** desde el 2026-08-21: cada commit que
-tocaba código arrastraba un diff de 138.000 líneas en `graph.json`, y con eso ningún PR se podía
-revisar. Tras clonar, o cuando quieras el grafo al día:
+Esta guía dice para qué sirve de verdad aquí, que no es lo que promete su README. Se midió.
+
+## Lo que se midió (2026-10-01)
+
+Cuatro preguntas reales sobre `apps/windows`, cada una resuelta por un agente nuevo, con tres
+configuraciones. «Trabajo» es lo que el agente tuvo que leer por encima de lo que carga al arrancar.
+
+| Configuración | Trabajo | Tiempo |
+|---|---|---|
+| Sin graphify (grep y lectura) | 109.500 tokens | 129 s |
+| graphify obligatorio antes de cada búsqueda (como estaba) | 124.700 tokens | 151 s |
+| graphify solo donde gana, con el mapa al día | 106.600 tokens | 149 s |
+
+Lo que salió de ahí, y es lo que gobierna todo lo demás:
+
+1. **Preguntarle al mapa antes de cada búsqueda no ahorra nada.** Con un nombre exacto, grep ya es
+   eficiente; el mapa solo añadía una llamada. Por eso se quitó el aviso «MANDATORY: run graphify
+   first» que instala `graphify install`.
+2. **Un mapa desfasado es peor que no tener mapa.** Dio una línea vieja (`FaceWindow` L4394 por
+   L4475) y el agente tuvo que comprobarlo todo a mano. Los ganchos que trae graphify solo rehacen
+   el mapa de la raíz, nunca tras un `git pull` y nunca dentro de un árbol de agente.
+3. **Donde gana es en las relaciones:** quién depende de esto, a quién afecta mi cambio. Con grep
+   eso es una cadena de búsquedas; con el mapa, una llamada.
+
+Y eso último también se midió, con la pregunta «¿a quién afecta el commit `ff880743`?» (10 archivos
+de Windows, 684 líneas), la misma para los tres y con la misma respuesta correcta:
+
+| Cómo | Llamadas | Trabajo | Tiempo |
+|---|---|---|---|
+| Sin graphify: `git diff` y grep | 11 | 38.500 tokens | 57 s |
+| `impacto.sh`, primera versión | 13 | 51.200 tokens | 51 s |
+| `impacto.sh`, como está ahora | 1 | 1.500 tokens | 10 s |
+
+La primera versión costó **más** que no usar nada, y por eso está en la tabla: repetía lo que dice el
+mapa, y el mapa se equivoca de tres maneras que hubo que corregir (están en el contrato de la raíz,
+promesas 41 a 43). Es una sola pregunta medida; léelo como una señal fuerte, no como una ley.
+
+## Instalarlo (una vez por PC)
+
+Desde la raíz del repo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\graphify\instalar.ps1     # Windows
+```
 
 ```bash
-graphify update .        # en la raíz, cubre todo el monorepo; dentro de apps/<proyecto>, solo ese
+bash tools/graphify/instalar.sh                                           # Mac o Linux
 ```
 
-### El hook de graphify, en tu máquina y no en el repo
+Deja tres cosas hechas, y se puede repetir sin miedo:
 
-Hasta el 2026-09-28 los `settings.json` versionados llamaban a
-`C:/Users/Jose David Jaramillo/.local/bin/graphify.EXE`, una ruta que solo existe en un PC: en los
-demás el hook fallaba sin avisar. Si lo quieres, ponlo en tu `.claude/settings.local.json` (no se
-versiona) con la ruta de TU graphify, en la carpeta donde abres Claude:
+- **uv y graphify, en la versión del equipo.** La versión está fijada en el script y es la misma del
+  CI: con versiones distintas, dos personas dejan de ver el mismo mapa.
+- **El portero activado** (`git config core.hooksPath .githooks`). Con él llegan los ganchos que
+  rehacen el mapa.
+- **El mapa de cada proyecto**, en `<proyecto>/graphify-out/`. Solo lee el código: no usa IA y no
+  cuesta nada. En Windows se saltan los de Mac, y al revés.
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      { "matcher": "Bash|Grep", "hooks": [{ "type": "command", "command": "graphify hook-guard search" }] },
-      { "matcher": "Read|Glob", "hooks": [{ "type": "command", "command": "graphify hook-guard read" }] }
-    ]
-  }
-}
+`graphify-out/` no se versiona. Cada quien construye el suyo a partir del mismo código.
+
+## El mapa se mantiene solo
+
+Tras cada **commit**, **cambio de rama** y **`git pull`**, los ganchos del repo
+(`.githooks/post-commit`, `post-checkout`, `post-merge`) llaman a `tools/graphify/refrescar.sh`, que
+rehace en segundo plano el mapa de cada proyecto que ya lo tiene. Git no espera.
+
+- **En un árbol de agente** (`tools/monorepo/arbol.sh nuevo`) el mapa se construye solo al crearlo,
+  para los proyectos que tu clon principal tiene mapeados. `apps/windows` tarda unos 40 segundos.
+- **No hay mapa de la raíz.** Uno de todo el monorepo tarda minutos y contesta peor que el del
+  proyecto. Se trabaja desde la carpeta del proyecto, y ahí está su mapa.
+- Qué hizo y cuándo: `~/.cache/graphify-rebuild.log`. Para apagarlo un momento: `GRAPHIFY_SKIP_HOOK=1`.
+- Sin graphify instalado los ganchos no hacen nada: a quien no lo usa no le cambia nada.
+
+## Para qué usarlo
+
+### 1. A quién afecta tu rama
+
+```bash
+bash tools/graphify/impacto.sh
 ```
 
----
+Mira las **líneas** que cambiaste contra `origin/main`, encuentra los símbolos que viven en ellas y
+lista quién los llama o referencia desde fuera de tu cambio, con archivo y línea. Los documentos y
+specs que los citan van aparte, para revisar si siguen diciendo la verdad.
 
-## Instalación (una sola vez, ~5 minutos)
+```
+### apps/windows
 
-### 1. Instalar uv
+2 símbolo(s) cambiado(s) en 1 archivo(s) de código que ya existían. **1 archivo(s) de código de fuera dependen de ellos**, y 6 documento(s) los citan.
 
-```powershell
-pip install uv
+- `.DondeEstaSap()` (windows-client/src/Clinical/RellenadorSap.cs:64) ← 1 uso(s) en 1 archivo(s)
+  - `windows-client/src/Clinical/EjecutorDeExportaciones.cs:220` — .AtenderAsync() (calls, inferido)
+- `.RellenarConNotaAsync()` (windows-client/src/Clinical/RellenadorSap.cs:155) ← 1 uso(s) en 1 archivo(s)
+  - `windows-client/src/Clinical/EjecutorDeExportaciones.cs:227` — .AtenderAsync() (calls, inferido)
+
+**Documentos** que citan lo cambiado (revisa si siguen diciendo la verdad):
+- `docs/specs/008-la-nota-llega-al-triage.md` — .RellenarConNotaAsync()
+- la clase `RellenadorSap`, de la que cambió algún método, sale en 4: `docs/specs/004-…` y 3 más
 ```
 
-Si `uv` no se reconoce después de instalar, cierra y abre la terminal.
+Es la salida real de tocar esos dos métodos, y coincide con lo que se había contado a mano.
 
-### 2. Instalar graphify
+Tres cosas que hace a propósito, porque el mapa a secas se equivoca en ellas:
 
-```powershell
-uv tool install graphifyy
+- **Deja fuera los archivos nuevos.** Nadie de fuera usa todavía lo que acaba de nacer; si el mapa
+  dice que sí, confundió un nombre.
+- **Avisa de las definiciones duplicadas.** Si dos clases tienen el mismo nombre completo —pasa con
+  las sondas que declaran su propio `LogBus`—, graphify le cuelga todos los usos a una sola: el
+  `LogBus` de verdad figuraba con cero y su copia con 348. `impacto` cuenta los de las dos y lo dice.
+- **Solo el código hace viejo al mapa.** Tocar un `.md` después no dispara el aviso.
+
+Cuándo correrlo: **antes de tocar algo compartido** (si la lista es larga, se avisa antes de abrir
+la rama) y **antes del PR** (es el punto «cuántos sitios tocan lo que cambiaste», ya contado).
+
+No hace falta acordarse en el PR: **cada PR recibe ese mismo informe como comentario**, y se
+actualiza con cada push (`.github/workflows/graphify-impacto.yml`). Ahí no hay que instalar nada.
+Es informativo: no bloquea el merge.
+
+Lo que no dice: si algo se rompe. Dice quién usa lo que cambiaste; si sigue funcionando lo dicen el
+contrato y la prueba. Y si no hay mapa, o es más viejo que tu código, lo dice en vez de callar.
+
+### 2. Quién depende de una pieza
+
+Dentro de la carpeta del proyecto (`cd apps/windows`):
+
+```bash
+graphify affected "RellenadorSap"       # quién la usa, hasta dos saltos
+graphify explain "RellenadorSap"        # su ficha: dónde vive y con qué se conecta
+graphify path "FaceWindow" "SapGuiSurface"   # cómo se llega de una a otra
 ```
 
-### 3. Registrar la skill y los hooks
+### 3. Ubicarse en una zona que no conoces
 
-```powershell
-graphify install
+```bash
+graphify god-nodes --top 10             # las piezas con más conexiones: se tocan con cuidado
+graphify query "cómo se reproduce un workflow en SAP"
 ```
 
-Y dentro de la carpeta del repo:
+`query` devuelve por dónde empezar, no la respuesta: después se lee el código. Si dice `TRUNCATED`,
+la pregunta era demasiado ancha; hazla más concreta. Para verlo dibujado, abre
+`graphify-out/graph.html` en el navegador.
 
-```powershell
-graphify hook install
-```
+### Cuándo no
 
-> **Este último paso es obligatorio y no se puede saltar.** Los hooks de git viven en `.git/`,
-> que nunca se sube a GitHub, así que cada persona los instala en su máquina.
-> Sin esto, el archivo `graph.json` genera conflictos de merge imposibles de resolver a mano.
+Si ya tienes el nombre exacto de una clase, un método o un texto de log, **busca directo**. Es lo
+que la medición dejó más claro.
 
-### 4. Traer el grafo
+## Para los agentes (Claude, Codex)
 
-```powershell
-git pull
-```
+La regla está en `AGENTS.md` de la raíz (§Herramientas) y llega a todos: Codex lee ese archivo y
+Claude recibe su copia. No hay que instalar la skill de graphify ni ningún gancho en
+`settings.json`. Si tienes en tu `.claude/settings.local.json` el gancho `graphify hook-guard` de
+antes, quítalo: es el aviso obligatorio que la medición mostró que no ayudaba.
 
-Listo. No necesitas API key ni escanear nada: el grafo ya viene hecho.
+## Si algo falla
 
----
-
-## Flujo de trabajo diario
-
-No cambia nada de lo que ya haces. El grafo se mantiene solo:
-
-| Cuando haces... | Pasa esto |
+| Lo que ves | Qué hacer |
 |---|---|
-| `git pull` | Recibes el código y el grafo actualizado del equipo |
-| Preguntas algo en Claude Code | Consulta el grafo antes de responder (configurado en `CLAUDE.md`) |
-| `git commit` | El hook actualiza el grafo con tus cambios, automáticamente |
-| `git push` | Tu grafo actualizado sube para los demás |
+| `graphify` no se reconoce | Abre una terminal nueva. Si sigue igual, corre otra vez el instalador. |
+| `Missing expected target directory for Python minor version link` | Pasa al instalar desde la app de Claude en Windows, que desvía lo que se escribe en AppData. `instalar.ps1` lo detecta y saca a uv de AppData. |
+| `impacto` dice «no hay mapa» | Ese proyecto no está mapeado en este árbol: `graphify update .` dentro de su carpeta. |
+| `impacto` avisa de que el mapa es más viejo | Hay cambios sin commitear posteriores al mapa: `graphify update .` en el proyecto. |
+| El mapa no se rehace tras un commit | `git config core.hooksPath` tiene que decir `.githooks`. Mira `~/.cache/graphify-rebuild.log`. |
+| Algunos `.kt` salen como «skipped» | Es un fallo de graphify 0.9.71 con ciertos archivos Kotlin: los deja fuera del mapa. Lo demás del proyecto sí entra. |
 
----
+## Qué no hacer
 
-## Comandos útiles
-
-### Preguntar por terminal
-
-```powershell
-graphify query "como funciona la autenticacion"
-```
-
-### Ver qué se rompe si cambias algo
-
-```powershell
-graphify affected "BackendClient"
-```
-
-### Encontrar los archivos más conectados (los críticos)
-
-```powershell
-graphify god-nodes --top 15
-```
-
-### Camino entre dos partes del sistema
-
-```powershell
-graphify path "FaceWindow" "BackendClient"
-```
-
-### Explicar un elemento y sus vecinos
-
-```powershell
-graphify explain "VoiceIO"
-```
-
----
-
-## Vista visual con Obsidian (opcional)
-
-Si prefieres navegar el grafo visualmente en vez de por terminal:
-
-1. Instala [Obsidian](https://obsidian.md) (`winget install Obsidian.Obsidian`)
-2. Genera tu bóveda:
-
-```powershell
-graphify export obsidian --dir C:\mi-vault
-```
-
-3. En Obsidian: **"Abrir una carpeta como bóveda"** → selecciona `C:\mi-vault`
-4. `Ctrl+G` para la vista de grafo
-
-> **La bóveda NO se comparte por git** — cada quien genera la suya desde el `graph.json`.
-> Son miles de archivos y no tiene sentido versionarlos.
-
-### Importante en Windows
-
-Windows limita las rutas a 260 caracteres. Usa una carpeta con ruta **corta**
-(`C:\mi-vault`, no `C:\Users\TuNombre\Documents\Proyectos\...`), o la exportación fallará
-con `FileNotFoundError` en algún archivo de nombre largo.
-
----
-
-## Actualizar el grafo a mano
-
-El hook lo hace solo al commitear, pero si quieres forzarlo:
-
-```powershell
-graphify update .
-```
-
-Rápido y gratis: solo re-analiza el código que cambió, sin usar IA.
-
-Si agregaste **documentación nueva** (`.md`) y quieres que entre al grafo, hace falta la
-versión completa, que sí usa IA:
-
-```powershell
-graphify extract . --backend claude-cli --max-concurrency 1
-```
-
-Requiere tener Claude Code autenticado (`claude auth login`) o una API key con saldo.
-
----
-
-## Problemas comunes
-
-**`graphify` no se reconoce como comando**
-La carpeta de instalación no está en el PATH. Corre `uv tool update-shell` y abre una terminal nueva.
-
-**`uv trampoline failed to canonicalize script path`**
-El entorno quedó a medias. Se arregla reinstalando:
-```powershell
-uv tool install graphifyy --force
-```
-
-**Conflicto de git en `graphify-out/graph.json`**
-No lo resuelvas a mano. Significa que te faltó el paso 3:
-```powershell
-graphify hook install
-```
-
-**La exportación a Obsidian falla con `FileNotFoundError`**
-Ruta demasiado larga. Exporta a una carpeta con ruta más corta (ver arriba).
-
----
-
-## Qué NO hacer
-
-- No edites `graphify-out/` a mano — se regenera solo
-- No escribas notas propias dentro de la bóveda generada — la próxima exportación las borra
-  (si quieres notas propias, ponlas en una subcarpeta aparte)
-- No te saltes `graphify hook install` — es lo que evita los conflictos de merge
+- No edites `graphify-out/` a mano ni lo commitees.
+- No corras `graphify hook install`: instala ganchos en `.git/hooks`, que con el portero activado no
+  se usan, y solo rehacían el mapa de la raíz. Los del repo ya lo cubren.
+- No corras `graphify extract` sin querer: esa sí usa IA y gasta saldo. Para el código basta
+  `graphify update .`.

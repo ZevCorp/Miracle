@@ -75,8 +75,10 @@ public sealed class AlbumDeMiradas
 
     /// <summary>El de la app: en los datos del usuario, con el reloj de verdad y los topes del dueño.</summary>
     public static AlbumDeMiradas DelUsuario() => new(
-        Path.Combine(U.Graph.UserPaths.Local, "U", "recuerdos", "miradas"),
-        () => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), DosGigas, SieteDiasMs);
+        CarpetaDelUsuario, () => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), DosGigas, SieteDiasMs);
+
+    /// <summary>Dónde vive el álbum de la app. Lo usa también la Memoria (spec 071), que lo cuenta sin podarlo.</summary>
+    public static string CarpetaDelUsuario => Path.Combine(U.Graph.UserPaths.Local, "U", "recuerdos", "miradas");
 
     private string Indice => Path.Combine(_carpeta, "album.json");
 
