@@ -913,7 +913,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     () => mapaDelPlan.LoQueVeoRapido?.Invoke() ?? "",
                     () => Environment.TickCount64)
                 {
-                    Desplazar = manosDelPlan.Desplazar, EsperarQuieta = manosDelPlan.EsperarQuieta, AlTerminarPaso = l => LogBus.Log("plan", "   " + l),
+                    // CADA PASO, AL LOG Y A LA VOZ (spec 073, promesa 682): sin lo segundo, un plan de diez pasos son diez cosas hechas de las que la voz no se entera.
+                    Desplazar = manosDelPlan.Desplazar, EsperarQuieta = manosDelPlan.EsperarQuieta, AlTerminarPaso = l => { LogBus.Log("plan", "   " + l); _vivo?.AvanceDelPlan(l); },
                     // «carpeta:» por el disco, con la misma regla que file_open (promesa 526).
                     AbrirCarpeta = ruta => SystemApi.Explorador.Navegar(SystemApi.Explorador.Expandir(ruta)).Length > 0,
                 };
@@ -3071,7 +3072,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </summary>
     private Task ReenviarCatalogoALaVozAsync() =>
         _vivo != null
-            ? _vivo.CambiarModoAsync(Voice.ConversacionEnVivo.InstruccionesNormales, Voice.ConversacionEnVivo.Herramientas())
+            ? _vivo.VolverAlModoNormalAsync(recomponer: true)   // el decisor cambia las instrucciones por dentro
             : Task.CompletedTask;
 
     /// <summary>
@@ -3743,8 +3744,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         {
             try
             {
-                await _vivo.CambiarModoAsync(Voice.ConversacionEnVivo.InstruccionesNormales,
-                    Voice.ConversacionEnVivo.Herramientas());
+                // CON LAS INSTRUCCIONES CON QUE ABRIÓ (spec 073): las de fábrica no llevan la memoria personal.
+                await _vivo.VolverAlModoNormalAsync();
             }
             catch (Exception ex) { LogBus.Log("teach", $"no pude devolver la voz a asistente: {ex.Message}"); }
         }
@@ -5939,7 +5940,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private async Task DevolverLaVozAsync(string etiqueta)
     {
         if (_vivo is not { Viva: true }) return;
-        try { await _vivo.CambiarModoAsync(Voice.ConversacionEnVivo.InstruccionesNormales, Voice.ConversacionEnVivo.Herramientas()); }
+        try { await _vivo.VolverAlModoNormalAsync(); }
         catch (Exception ex) { LogBus.Log(etiqueta, $"no pude devolver la voz: {ex.Message}"); }
     }
 

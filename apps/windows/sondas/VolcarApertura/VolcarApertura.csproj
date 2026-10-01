@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- VUELCA EL session.start QUE MANDA LA APP (spec 073): las instrucciones del delegado y su catálogo
+       entero, para que la sonda de la voz mida al servidor con lo que de verdad se distribuye. Con las dos
+       herramientas de mentira de la sonda gpt-6-luna pensó 1,0 s por vuelta; con las 28 de la app, 1,25 s.
+
+       Referencia los BINARIOS y no el proyecto, como la sonda del decisor: carga lo que de verdad se
+       ejecuta. Compila la app antes (dotnet build windows-client -c Release -o <carpeta>) y pasa -p:UBin.
+       Hay que copiar al lado las DLL de esa carpeta, o correrlo desde ella. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>volcar-apertura</AssemblyName>
+    <UBin Condition="'$(UBin)' == ''">C:\U-dev2\bin</UBin>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="U"><HintPath>$(UBin)\U.dll</HintPath></Reference>
+    <Reference Include="Voz.Realtime"><HintPath>$(UBin)\Voz.Realtime.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

@@ -169,6 +169,21 @@ public interface IProtocolo
     /// narre un recorrido que decide otro (el piloto) sin que hable el sintetizador del sistema.</param>
     string PedirRespuesta(string instrucciones = "");
 
+    /// <summary>
+    /// Si quien actúa es OTRO modelo que quien habla. Con GPT-Live sí: la voz conversa y un delegado lleva
+    /// las herramientas. Decide dos cosas arriba: qué instrucciones recibe quien actúa —las de trabajar y
+    /// devolver el resultado, no las de hablar— y si hace falta contarle a la voz lo que va pasando.
+    /// Por defecto falso: en Realtime el mismo modelo hace las dos cosas y ya sabe lo que hizo.
+    /// </summary>
+    bool ActuaUnDelegado => false;
+
+    /// <summary>
+    /// Un avance del trabajo en curso, para que quien habla lo sepa SIN que lo diga tal cual. Vacío si este
+    /// protocolo no tiene ese canal o no lo necesita (<see cref="ActuaUnDelegado"/> falso): mandar algo de
+    /// más abriría un turno que nadie pidió.
+    /// </summary>
+    string Avance(string texto) => "";
+
     /// <summary>Qué está diciendo el servidor, en hechos. Vacío si no dice nada que nos toque.</summary>
     IReadOnlyList<Hecho> Leer(JsonElement mensaje);
 }

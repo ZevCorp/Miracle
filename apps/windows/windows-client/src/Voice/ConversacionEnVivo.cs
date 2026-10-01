@@ -77,7 +77,34 @@ public sealed class ConversacionEnVivo : IDisposable
     /// valor (patrón nº9), y mayúsculas y espacios no cambian de voz: lo teclea una persona en setx.
     /// </remarks>
     public static IProtocolo ProtocoloPorDefecto(Func<string, string?> variable)
-        => VozPedida(variable) == VozRealtime ? new ProtocoloOpenAI() : new ProtocoloGptLive();
+        => VozPedida(variable) == VozRealtime ? new ProtocoloOpenAI() : GptLiveSegunElEntorno(variable);
+
+    private const string VariableDelDelegado = "U_DELEGADO";
+    private const string VariableDeLaPrisa = "U_DELEGADO_PRISA";
+    private const string VariableDelEsfuerzo = "U_DELEGADO_ESFUERZO";
+
+    /// <summary>
+    /// EL DELEGADO, SU PRISA Y CUÁNTO PIENSA, SIN RECOMPILAR (promesa 686): <c>U_DELEGADO</c> elige el modelo,
+    /// <c>U_DELEGADO_PRISA</c> quita priority con 0 y la pide con 1, y <c>U_DELEGADO_ESFUERZO</c> dice el
+    /// esfuerzo. Sin ellas, lo de por defecto del protocolo.
+    /// </summary>
+    /// <remarks>
+    /// Qué modelo piensa y con qué prisa se decide midiendo sobre la app de verdad, y para medir dos
+    /// combinaciones hacían falta dos instaladores. En blanco es sin valor (patrón nº9): un modelo vacío lo
+    /// rechazaría el servidor y la voz no abriría.
+    /// </remarks>
+    private static IProtocolo GptLiveSegunElEntorno(Func<string, string?> variable)
+    {
+        string delegado = (variable(VariableDelDelegado) ?? "").Trim().ToLowerInvariant();
+        string esfuerzo = (variable(VariableDelEsfuerzo) ?? "").Trim().ToLowerInvariant();
+        var deFabrica = new ProtocoloGptLive();
+        // Solo 0 y 1 dicen algo: con cualquier otra cosa no se adivina qué quiso decir, y queda lo de fábrica.
+        bool prisa = (variable(VariableDeLaPrisa) ?? "").Trim() switch { "0" => false, "1" => true, _ => deFabrica.ConPrioridad };
+        return delegado.Length == 0 && prisa == deFabrica.ConPrioridad && esfuerzo.Length == 0
+            ? deFabrica
+            : new ProtocoloGptLive(deFabrica.Modelo, delegado.Length > 0 ? delegado : deFabrica.Delegado, prisa,
+                esfuerzo.Length > 0 ? esfuerzo : deFabrica.Esfuerzo);
+    }
 
     /// <summary>La variable normalizada en UN solo sitio (aprendizaje nº16): quien decide y quien avisa leen lo mismo.</summary>
     private static string VozPedida(Func<string, string?> variable)
@@ -480,6 +507,7 @@ public sealed class ConversacionEnVivo : IDisposable
             // «SESIÓN ABIERTA» YA NO SE ESCRIBE AQUÍ: aquí solo se sabe que el socket conectó (promesa 220).
             EmpiezaUnaConexion("Te escucho.");   // cuando el servidor lo confirme (49 con GPT-Live, 50 con GPT Realtime)
 
+            _conMicrofono = conMicrofono;
             if (conMicrofono)
             {
                 _audio.Capturado += MandarTrozo;
@@ -654,10 +682,37 @@ public sealed class ConversacionEnVivo : IDisposable
     /// PROVEEDOR-AGNÓSTICO A PROPÓSITO. Estas palabras describen a Ü, no a Gemini ni a OpenAI: el
     /// día que se vuelva a cambiar de proveedor, esto no debería tener que tocarse.
     /// </summary>
-    private const string Instrucciones = """
+    private const string Instrucciones = CabeceraDeUnaVoz + Cuerpo + HablaDeUnaVoz + Cola;
+
+    /// <summary>
+    /// LAS DEL DELEGADO (spec 073, promesa 681): el mismo cuerpo, sin las reglas de habla. Con GPT-Live quien
+    /// actúa no suena —lo que devuelve lo dice la voz—, y las reglas de callar escritas para una sola voz
+    /// le llegaban a un modelo que no habla. La documentación de la delegación pide para él lo contrario de
+    /// un guion de habla: los hechos, el estado y el siguiente paso.
+    /// </summary>
+    private const string InstruccionesDelDelegadoSinDecisor = CabeceraDelDelegado + Cuerpo + HablaDelDelegado + Cola;
+
+    /// <summary>Quién es, cuando quien actúa es también quien habla (GPT Realtime).</summary>
+    private const string CabeceraDeUnaVoz = """
         Eres Ü, un asistente que maneja el ordenador de quien te habla. Respondes en español, en voz,
         con frases cortas: quien te escucha está mirando la pantalla, no esperando un discurso.
 
+
+        """;
+
+    /// <summary>Quién es, cuando otro habla por él (GPT-Live).</summary>
+    private const string CabeceraDelDelegado = """
+        Eres las manos y los ojos de Ü, un asistente que maneja el ordenador de una persona. TÚ NO HABLAS CON
+        ELLA: OTRA VOZ LE HABLA A LA PERSONA, en una conversación en vivo, y te pasa lo que pide. Lo que te
+        llega es la transcripción de lo que dijo: puede traer errores, frases a medias y correcciones, y manda
+        lo último que dijo. Tú trabajas y devuelves el resultado; la voz lo dice con sus palabras, en español.
+        Donde estas instrucciones digan «di», «dilo» o «cuenta», quiere decir: devuélvelo en tu resultado.
+
+
+        """;
+
+    /// <summary>Cómo se trabaja: igual para la voz única y para el delegado.</summary>
+    private const string Cuerpo = """
         NO PIDAS PERMISO. Es la regla que más se incumple y la que más molesta: pedirlo en cada paso
         convierte una orden en un interrogatorio, y quien te habla ya decidió cuando te lo pidió.
 
@@ -956,6 +1011,12 @@ public sealed class ConversacionEnVivo : IDisposable
         equivocarse de elemento. Ir pulsando carpeta por carpeta son varios saltos y cada uno puede
         fallar.
 
+
+        """;
+
+    /// <summary>CUÁNDO HABLA quien también actúa. La 161 lo juzga, y sigue valiendo para él: si anuncia
+    /// cada llamada, balbucea.</summary>
+    private const string HablaDeUnaVoz = """
         HAZ PRIMERO, HABLA DESPUÉS, Y HABLA POCO. Por cada cosa que digas tienes que haber hecho
         tres. Quien te escucha está MIRANDO LA PANTALLA: ya ve lo que pasa, y contárselo mientras
         pasa no le añade nada — le estorba.
@@ -976,6 +1037,30 @@ public sealed class ConversacionEnVivo : IDisposable
         y hay que decirlo · te falta un dato para seguir · lo que encontraste no se ve en pantalla.
         Fuera de eso, actúa.
 
+
+        """;
+
+    /// <summary>QUÉ DEVUELVE quien no habla. Medido el 2026-10-01: devolvió «El resultado es 69.104 y ya está
+    /// escrito en el Bloc de notas.», y la voz lo dijo con sus palabras.</summary>
+    private const string HablaDelDelegado = """
+        TRABAJA SIN ANUNCIAR, Y DEVUELVE EL RESULTADO. Mientras trabajas, la voz ya le va contando a la persona
+        cada paso que terminas: no lo repitas tú.
+
+          · ENCADENA las herramientas que hagan falta sin escribir nada entre una y otra. Nada de «voy a…» ni
+            de pedir permiso: quien actúa no narra antes de cada llamada.
+          · AL TERMINAR, DEVUELVE EL RESULTADO en una o dos frases, en pasado: qué quedó hecho y el dato que se
+            pidió («el resultado es 69.104», «estás en Descargas»), qué falló y por qué si algo no salió, y el
+            siguiente paso si queda alguno o hace falta un dato para seguir.
+          · NO TERMINES CON UNA PROMESA. «Lo corrijo ahora» sin corregirlo es dejarlo sin hacer y decir lo
+            contrario: si algo quedó mal, arréglalo ANTES de devolver el resultado, o di que quedó sin hacer.
+          · SIN RELLENO NI MENÚS. Ni «listo», ni «si quieres puedo…»: hechos y estado. El tono lo pone la voz.
+          · Si no había nada que hacer porque era una pregunta, contesta la pregunta y nada más.
+
+
+        """;
+
+    /// <summary>Lo que cierra las instrucciones, igual para los dos.</summary>
+    private const string Cola = """
         Y UNA COSA CADA VEZ mientras se conversa: si te dicen «ve a descargas» y luego «no, mejor
         documentos», ve allí — no te guardes los pasos para hacerlos todos juntos al final, que
         quien habla quiere poder corregirte a mitad de camino.
@@ -1330,16 +1415,7 @@ public sealed class ConversacionEnVivo : IDisposable
     private static string Terminado(string tool, IReadOnlyDictionary<string, string> a,
         string resultado, long ms)
     {
-        bool mal = resultado.StartsWith("No ", StringComparison.OrdinalIgnoreCase)
-                || resultado.StartsWith("Falta", StringComparison.OrdinalIgnoreCase)
-                || resultado.StartsWith("Nada ", StringComparison.OrdinalIgnoreCase)
-                || resultado.Contains("no existe", StringComparison.OrdinalIgnoreCase)
-                || resultado.Contains("falló", StringComparison.OrdinalIgnoreCase)
-                || resultado.Contains("no se pudo", StringComparison.OrdinalIgnoreCase)
-                // UNA TANDA QUE PARÓ A MEDIAS ES UN FALLO (promesa 267): «hice 0 de 1 y paré en el paso 1» salía con ✓
-                // en el notch, y el dueño lo veía como lo que era. El icono no puede mentir.
-                || resultado.StartsWith("hice 0 de", StringComparison.OrdinalIgnoreCase)
-                || resultado.Contains(" y paré en el paso ", StringComparison.Ordinal);
+        bool mal = SalioMal(resultado);
 
         string primera = resultado.Split('\n')[0].Trim();
         if (primera.Length > 70) primera = primera[..70] + "…";
@@ -1352,6 +1428,22 @@ public sealed class ConversacionEnVivo : IDisposable
 
         return $"{(mal ? "✋" : "✓")} {primera}  ({ms} ms)";
     }
+
+    /// <summary>
+    /// Si lo que devolvió una herramienta dice que no salió. Un solo criterio para el icono del panel (✓ o ✋)
+    /// y para lo que se le cuenta a la voz (promesa 682): lo que la persona ve y lo que oye no se contradicen.
+    /// </summary>
+    private static bool SalioMal(string resultado)
+        => resultado.StartsWith("No ", StringComparison.OrdinalIgnoreCase)
+        || resultado.StartsWith("Falta", StringComparison.OrdinalIgnoreCase)
+        || resultado.StartsWith("Nada ", StringComparison.OrdinalIgnoreCase)
+        || resultado.Contains("no existe", StringComparison.OrdinalIgnoreCase)
+        || resultado.Contains("falló", StringComparison.OrdinalIgnoreCase)
+        || resultado.Contains("no se pudo", StringComparison.OrdinalIgnoreCase)
+        // UNA TANDA QUE PARÓ A MEDIAS ES UN FALLO (promesa 267): «hice 0 de 1 y paré en el paso 1» salía con ✓
+        // en el notch, y el dueño lo veía como lo que era. El icono no puede mentir.
+        || resultado.StartsWith("hice 0 de", StringComparison.OrdinalIgnoreCase)
+        || resultado.Contains(" y paré en el paso ", StringComparison.Ordinal);
 
     /// <summary>CADA HERRAMIENTA, CON SU RELOJ, EN UN SITIO QUE SE PUEDA COMPARAR DESPUÉS.</summary>
     private static void Apuntar(string tool, IReadOnlyDictionary<string, string> args, string resultado, long ms)
@@ -1490,6 +1582,38 @@ public sealed class ConversacionEnVivo : IDisposable
     // Con el decisor encendido, un párrafo más (promesa 284). La constante `Instrucciones` no se toca:
     // la 263 la lee tal cual, y el párrafo solo tiene sentido cuando map_decidir existe.
     internal static string InstruccionesNormales => ConDecisor ? Instrucciones + ParrafoDelDecisor : Instrucciones;
+
+    /// <summary>Las del delegado de GPT-Live, con el mismo párrafo del decisor cuando está encendido (promesa 681).</summary>
+    internal static string InstruccionesDelDelegado => ConDecisor ? InstruccionesDelDelegadoSinDecisor + ParrafoDelDecisor : InstruccionesDelDelegadoSinDecisor;
+
+    /// <summary>
+    /// LAS QUE LE TOCAN A QUIEN ACTÚA con este protocolo: las del delegado si otro habla por él, las de
+    /// siempre si es el mismo modelo. Un solo sitio que lo decide (promesa 681): las dos aperturas y la
+    /// vuelta de un modo especial salen de aquí.
+    /// </summary>
+    internal static string InstruccionesPara(IProtocolo protocolo)
+        => protocolo.ActuaUnDelegado ? InstruccionesDelDelegado : InstruccionesNormales;
+
+    /// <summary>Las instrucciones con que se abrió ESTA sesión, con su memoria y su hilo dentro.</summary>
+    private string _instruccionesDeLaSesion = "";
+
+    /// <summary>
+    /// Vuelve al modo con el que se abrió la sesión, tras un modo especial (aprendiz, voz prestada).
+    /// </summary>
+    /// <remarks>
+    /// CON LAS MISMAS INSTRUCCIONES CON QUE ABRIÓ, no las de fábrica. Hasta la spec 073 los tres sitios que
+    /// vuelven mandaban <see cref="InstruccionesNormales"/>: sin la memoria personal ni el hilo, que solo
+    /// se componían al abrir — volver de enseñar dejaba a Ü sin memoria el resto de la sesión. Y tiene que
+    /// ser LA MISMA cadena: GPT-Live le devuelve su persona a la voz solo si lo que llega es lo que abrió.
+    /// </remarks>
+    /// <param name="recomponer">Las instrucciones cambiaron por dentro —se encendió o se apagó el decisor— y hay
+    /// que volver a componerlas, con la memoria de ahora, en vez de reenviar las de la apertura.</param>
+    public async Task VolverAlModoNormalAsync(bool recomponer = false)
+    {
+        if (recomponer || _instruccionesDeLaSesion.Length == 0)
+            _instruccionesDeLaSesion = await ComponerInstruccionesAsync(_cts?.Token ?? CancellationToken.None);
+        await CambiarModoAsync(_instruccionesDeLaSesion, Herramientas());
+    }
 
     /// <summary>
     /// Cambia quién es Ü a mitad de sesión: otras instrucciones y otro catálogo. Promesa 138.
@@ -2266,12 +2390,114 @@ public sealed class ConversacionEnVivo : IDisposable
         string? medida = _cuenta.Cerrar();
         if (medida != null) LogBus.Log("voz-turno", medida);
         _tope.NuevoTurno();
+        _avances.Olvidar();   // lo guardado era de la petición anterior: no se cuenta como si fuera de esta (promesa 64)
         _cuenta.Peticion();
         // Se dice POR QUÉ empezó: con altavoz, el eco de Ü también dispara speech_started y vaciaría el
         // tope a mitad de una petición. Si pasa, esta línea lo delata en el nivel 4; el arreglo de fondo
         // espera a medirlo (spec 017, hallazgos).
         LogBus.Log("voz-turno", $"turno nuevo (por {por}): el tope vuelve a cero");
     }
+
+    // ── Lo que se le cuenta a la voz mientras se trabaja (spec 073) ────────
+
+    /// <summary>
+    /// CUÁNDO se le cuenta: la regla vive en <see cref="AvancesParaLaVoz"/> (promesas 64–66 de la voz). Aquí,
+    /// QUÉ se le cuenta (682) y el envío.
+    /// </summary>
+    private readonly AvancesParaLaVoz _avances = new(() => Environment.TickCount64);
+
+    /// <summary>
+    /// Las que solo miran o preguntan. No son un avance que contar: una frase por mirada es el balbuceo
+    /// que la 161 quitó («habla un 80 % y hace un 30 %», 2026-09-05).
+    /// </summary>
+    private static readonly HashSet<string> SoloMiran = new(StringComparer.Ordinal)
+    {
+        "map_what_i_see", "map_where_am_i", "map_look", "map_look_back", "map_pointing_at", "map_pointed_trail",
+        "map_show", "map_recuerdos", "map_tramo_estado", "file_where", "file_list", "file_find", "memory_recall",
+        "scan_computer",
+    };
+
+    /// <summary>
+    /// LO QUE SE LE CUENTA A LA VOZ DE UNA HERRAMIENTA QUE TERMINÓ (promesa 682): la primera línea de lo que
+    /// devolvió, y si actuó. Vacío si no hay nada que contar.
+    /// </summary>
+    /// <remarks>
+    /// DEL RESULTADO, NO DE LA INTENCIÓN. Contarle lo que se va a hacer es darle el «ya abrí la calculadora»
+    /// de una calculadora que no abrió. Si actuó lo dice la mano cuando la hay (<paramref name="logro"/>);
+    /// sin mano, lo dice el resultado con la misma regla que pinta ✓ o ✋ en el panel — un solo criterio
+    /// para lo que la persona ve y lo que oye.
+    /// </remarks>
+    internal static (string Texto, bool Fallo) AvanceDe(string herramienta, string resultado, bool? logro)
+    {
+        // El plan cuenta sus pasos uno a uno (AvanceDelPlan); contarlo entero al final sería decirlo dos veces.
+        if (SoloMiran.Contains(herramienta) || herramienta == "map_hacer" || HerramientasDeAutocontrol.Contains(herramienta))
+            return ("", false);
+        string primera = (resultado ?? "").Split('\n')[0].Trim();
+        if (primera.Length == 0) return ("", false);
+        if (primera.Length > 160) primera = primera[..160] + "…";
+        return (primera, logro == false || (logro == null && SalioMal(resultado ?? "")));
+    }
+
+    /// <summary>Un paso de un plan, tal como lo entrega el ejecutor: «✔ lo que hizo» o «✘ lo que no pudo».</summary>
+    internal static (string Texto, bool Fallo) AvanceDelPaso(string linea)
+    {
+        string l = (linea ?? "").Trim();
+        if (l.Length == 0) return ("", false);
+        bool fallo = l.StartsWith('✘');
+        if (fallo || l.StartsWith('✔')) l = l[1..].Trim();
+        if (l.Length > 160) l = l[..160] + "…";
+        return (l, fallo);
+    }
+
+    /// <summary>
+    /// UN PASO DEL PLAN ACABA DE TERMINAR. Lo llama quien cumple map_hacer, paso a paso: sin esto, un plan
+    /// de diez pasos son diez cosas hechas de las que la voz no se entera hasta que el delegado termina.
+    /// </summary>
+    public void AvanceDelPlan(string linea) => ContarALaVoz(AvanceDelPaso(linea));
+
+    /// <summary>
+    /// A QUIÉN SE LE CUENTA (promesa 685): a una voz que no es quien actúa, y que está oyendo.
+    /// </summary>
+    /// <remarks>
+    /// SIN MICRÓFONO NO, y no es ahorro. Las órdenes escritas abren la sesión sin audio, y sin audio el
+    /// servidor no llega a inyectar el contexto: medido el 2026-10-01 con la frase escrita y ni un trozo de
+    /// audio, cuatro avances aceptados acabaron al cerrar como cuatro «context_injection_incomplete», y la voz
+    /// no dijo una palabra. Lo escrito ya se ve en el notch paso a paso.
+    /// </remarks>
+    internal static bool SeLeCuentaALaVoz(IProtocolo protocolo, bool conMicrofono)
+        => protocolo.ActuaUnDelegado && conMicrofono;
+
+    /// <summary>Si esta sesión abrió con el micrófono. Lo escrito en el chat abre sin él.</summary>
+    private bool _conMicrofono;
+
+    private void ContarALaVoz((string Texto, bool Fallo) avance)
+    {
+        if (avance.Texto.Length == 0 || !SeLeCuentaALaVoz(_protocolo, _conMicrofono)) return;
+        MandarAvance(avance.Fallo ? _avances.Fallo(avance.Texto) : _avances.Hecho(avance.Texto));
+    }
+
+    private void MandarAvance(string? aviso)
+    {
+        if (aviso == null || !SalidaAbierta) return;
+        string msg = _protocolo.Avance(aviso);
+        if (msg.Length == 0) return;
+        // EN EL LOG, CON SU HORA: es lo único que deja medir después cuánto tardó la voz en contarlo.
+        LogBus.Log("voz-viva", "avance a la voz: " + aviso);
+        _ = Task.Run(async () =>
+        {
+            try { await EnviarAsync(msg, _cts?.Token ?? CancellationToken.None); }
+            catch (Exception e) { LogBus.Log("voz-viva", $"no pude contarle el avance a la voz: {e.Message}"); }
+        });
+    }
+
+    /// <summary>
+    /// LAS QUE VAN CON FOTO (promesa 684): mirar, y señalar. La descripción de map_pointing_at promete «además
+    /// te llega una FOTO de ese instante» y la foto no se mandaba; el 2026-09-21 a «te estoy señalando algo
+    /// con mi mouse, quiero que lo veas» se le contestó que no podía ver.
+    /// </summary>
+    internal static bool VaConFoto(string herramienta) => herramienta is HerramientaMirar or HerramientaSenalar;
+
+    private const string HerramientaSenalar = "map_pointing_at";
 
     private const string HerramientaMirar = "map_look";
 
@@ -2493,10 +2719,16 @@ public sealed class ConversacionEnVivo : IDisposable
     }
 
     private async Task<string> InstruccionesConMemoriaAsync(CancellationToken ct)
+        => _instruccionesDeLaSesion = await ComponerInstruccionesAsync(ct);
+
+    private async Task<string> ComponerInstruccionesAsync(CancellationToken ct)
     {
         var memoria = Memoria;
         var conversacion = Conversacion;
-        if (memoria == null && conversacion == null) return Instrucciones;
+        // LAS QUE LE TOCAN A QUIEN ACTÚA (promesa 681). Antes salían de la constante de la voz única, sin
+        // el párrafo del decisor: con él encendido, la sesión abría con map_decidir y sin saber usarlo.
+        string deBase = InstruccionesPara(_protocolo);
+        if (memoria == null && conversacion == null) return deBase;
         try
         {
             using var limite = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -2505,7 +2737,7 @@ public sealed class ConversacionEnVivo : IDisposable
             limite.CancelAfter(TimeSpan.FromSeconds(10));
             string contexto = memoria == null ? "" : await memoria.ContextoAsync(limite.Token);
             string hilo = conversacion?.Contexto() ?? "";
-            string instrucciones = Instrucciones;
+            string instrucciones = deBase;
             if (!string.IsNullOrWhiteSpace(contexto))
                 instrucciones += "\n\nMEMORIA PERSONAL DISPONIBLE (úsala solo si es pertinente; no inventes). Los [recordatorio ...] pendientes son compromisos activos y debes reconocerlos si el usuario pregunta por el hilo: \n" + contexto;
             if (!string.IsNullOrWhiteSpace(hilo))
@@ -2515,7 +2747,7 @@ public sealed class ConversacionEnVivo : IDisposable
         catch (Exception e)
         {
             LogBus.Log("memoria", $"no pude cargar la memoria personal al abrir la voz: {e.Message}");
-            return Instrucciones;
+            return deBase;
         }
     }
 
@@ -2578,6 +2810,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 resultado = await EjecutarMemoriaPersonalAsync(f, ct);
                 relojPersonal.Stop();
                 Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, relojPersonal.ElapsedMilliseconds), true);
+                ContarALaVoz(AvanceDe(f.Nombre, resultado, null));
             }
             else if (HerramientasDeAutocontrol.Contains(f.Nombre))
             {
@@ -2598,6 +2831,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 LogBus.Log("voz-viva", $"tope: «{f.Nombre}» no se ejecuta — {frenada}");
                 _cuenta.Rechazada(f.Nombre, TopeDeIntentos.DestinoDe(f.Nombre, f.Args));
                 resultado = frenada;
+                ContarALaVoz(AvanceDe(f.Nombre, resultado, false));   // lo frenado tampoco se le oculta a la voz
             }
             else
             {
@@ -2633,6 +2867,13 @@ public sealed class ConversacionEnVivo : IDisposable
                 _cuenta.Resultado(f.Nombre, destino, !revento && mano is { Logro: true });
                 // El pulso lo apunta SurfaceMapTools.Call; contarlo aquí también sería contarlo dos veces.
                 Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, reloj.ElapsedMilliseconds), true);
+                // LA VOZ SE ENTERA DE CÓMO SALIÓ (promesa 682), con el mismo criterio que el tope: la mano
+                // cuando la hay —map_take y map_type—, y si no, lo que dice el resultado.
+                ContarALaVoz(AvanceDe(f.Nombre, resultado,
+                    revento ? false : f.Nombre is "map_take" or "map_type" ? mano?.Logro : null));
+                // SEÑALAR MANDA SU FOTO (promesa 684): lo prometía su descripción y no se mandaba.
+                if (VaConFoto(f.Nombre) && _protocolo.Mira && CapturaDePantalla.Capturar() is { } senalado)
+                    fotos.Add(senalado);
 
                 // UN RECUERDO NUEVO MANDA SU FOTO SOLA. La foto se toma en el momento de crear el
                 // recuerdo —no al señalar, que puede no terminar en nada— así que solo se envía
@@ -2660,6 +2901,9 @@ public sealed class ConversacionEnVivo : IDisposable
 
             hechas.Add((f.Id, f.Nombre, resultado));
         }
+
+        // LO QUE QUEDÓ GUARDADO SALE AL ACABAR LA TANDA (promesa 64): la voz no se queda sin el último paso.
+        MandarAvance(_avances.AlTerminar());
 
         if (hechas.Count == 0) return;
         try

@@ -922,7 +922,12 @@ internal static class Contrato
         Prueba("515. un plan se lee de una lista JSON (o una línea por paso); vacío o ilegible no ejecuta nada y lo dice; y cada plan deja su cuenta sobre el plan entero: ⏱ plan: N objetivo(s) · K cumplido(s) · F fallido(s) · O omitido(s) · A acción(es) · X ms", UnPlanSeLeeYSeCuenta);
         Prueba("516. «pulsa: <nombre>» va por el ciclo rápido, sin Jev; si no está a la vista, el paso pasa a Jev como objetivo; un paso sin prefijo es un objetivo para Jev", PulsaVaPorElCicloRapido);
         Prueba("517. la mano del plan no pulsa sobre una ventana de Ü: mira bajo el punto con la misma regla (510), y tras el clic avisa a la carita", LaManoDelPlanNoPulsaSobreU);
-        Prueba("518. Luna piensa en modo rápido: la delegación le pide reasoning.effort = low, al abrir y al cambiar de modo", LunaPiensaEnModoRapido);
+        // ── ACTA DE RETIRO: la 518 (spec 073, 2026-10-01) ───────────────────────────────────────────
+        // Decía: «Luna piensa en modo rápido: la delegación le pide reasoning.effort = low, al abrir y al cambiar de
+        // modo». Se midió con gpt-5.6-luna, que sin pedirlo pensaba unos 2 s por respuesta. Con gpt-6-luna, las
+        // instrucciones y el catálogo de la app, seis corridas por combinación: primer plan 1.250 ms en low y 1.380
+        // en medium —130 ms—; y sobre la Ü de verdad, seis pedidos: en low acertó 4 de 6, en medium 16 de 18. Bajar
+        // el esfuerzo ya no compra velocidad y cuesta aciertos. La hereda la 60 del contrato de la voz. No se recicla.
         Prueba("519. el plan trabaja sobre la misma ventana que el ciclo rápido: la de delante, y si delante está Ü o nada, la de trabajo; sin ninguna de las dos, dice que no hay ventana", ElPlanTrabajaDondeElCiclo);
         Prueba("521. abrir una app nunca lanza a la propia Ü: el acceso directo «U» no casa con nada, y un acceso cuyo nombre está DENTRO de lo pedido solo cuenta si tiene al menos 4 letras; lo exacto gana y lo que no casa no lanza nada", AbrirNuncaLanzaAU);
         Prueba("522. todo lo que Ü guarda de la persona vive donde dice U_DATA_DIR: la conversación se escribe bajo esa carpeta, y ningún archivo del cliente pide la carpeta de Windows por su cuenta", LoGuardadoVaDondeDiceUDataDir);
@@ -937,7 +942,12 @@ internal static class Contrato
         // por su cuenta; la carita y el muelle no, y salían dos «Ü» en cada cambio de ventana. La 530 es de otra
         // rama sin mergear (el notch se hace esperar): no se recicla.
         Prueba("531. las piezas flotantes de Ü —la carita, el muelle, el notch, el carrusel, las tarjetas y las superposiciones— no salen en Alt+Tab: su estilo lleva TOOLWINDOW y nunca APPWINDOW sin perder lo que ya tenía; las ventanas de trabajo siguen saliendo; y toda ventana de Ü está declarada flotante o de trabajo, así que una nueva no se cuela sin decirlo", UNoEstorbaEnAltTab);
-        Prueba("520. quien planea es GPT-6.1 Sol con el pensamiento en bajo y sin pagar de más por velocidad: delegado gpt-6.1-sol con reasoning.effort = low y sin service_tier priority, al abrir y al cambiar de modo", PlaneaGpt6SolAMaximaVelocidad);
+        // ── ACTA DE RETIRO: la 520 (spec 073, 2026-10-01) ───────────────────────────────────────────
+        // Decía: «quien planea es GPT-6.1 Sol con el pensamiento en bajo y sin pagar de más por velocidad».
+        // Sol entró el 2026-09-30 «sin medir en vivo» (spec 062). Medido el 2026-10-01 con la sonda de la voz:
+        // Sol pensó 2,9 y 2,5 s por vuelta; gpt-6-luna, entre 0,8 y 1,2 s en cuatro corridas, a la veinteava
+        // parte del precio de entrada. El dueño lo decidió el 2026-09-30: «pasemos a luna 6». La hereda la 60
+        // del contrato de la voz, que es donde vive el protocolo. El número no se recicla.
 
         // EL NOTCH SE HACE ESPERAR (spec 063, 2026-09-30). La 260 congela DÓNDE se pide; nada decía
         // CUÁNDO, y asomaba en el primer sondeo: subir a una pestaña del navegador lo hacía caer encima
@@ -983,6 +993,26 @@ internal static class Contrato
         // Pedido por el dueño el 2026-09-30, al probarlo: un botón en el panel para tenerlo a la izquierda o a
         // la derecha de la pantalla. Hasta ese día el muelle vivía clavado al borde derecho.
         Prueba("629. el panel se puede mandar al otro lado de la pantalla: a la izquierda queda a la misma distancia de su borde que tenía del derecho y entra desde ese borde; el lado elegido es el que se encuentra al volver a abrir Ü, y un lado guardado que no se entiende es la derecha", ElPanelCambiaDeLado);
+
+        // ── Spec 073: la voz conversa mientras el delegado trabaja (2026-10-01) ──
+        // 680-689 reservadas: main va por la 629 y hay ramas vivas con 640-648 y 660-667. «Siento que la voz no
+        // habla en tiempo real mientras ejecuta sino solo al principio y al final». Medido en los logs de
+        // septiembre: en 22 de 54 pedidos de tres o más acciones la voz no dijo nada durante 34,5 s de mediana.
+        // Lo que promete el protocolo (el delegado, la persona, el avance callado) vive en el contrato de la
+        // voz, 60-66; aquí, lo que es de la conversación.
+        Console.WriteLine();
+        Prueba("680. el historial con que abre la voz cabe siempre en lo que el servidor admite: a lo sumo 128 mensajes y un presupuesto de caracteres, quedándose con lo más reciente, y un turno más largo que el presupuesto se recorta en vez de dejar la apertura sin historia", ElHistorialDeAperturaCabe);
+        Prueba("681. con GPT-Live quien actúa no es quien habla: el delegado recibe sus propias instrucciones —encadena sin anunciar y devuelve hechos, estado y siguiente paso— sin las reglas de callar de la voz única, y las de la voz única no cambian", ElDelegadoTieneSusInstrucciones);
+        Prueba("682. lo que se le cuenta a la voz sale del resultado y no de la intención: una herramienta que actuó es un avance con su primera línea, una que no actuó es un avance de fallo, y un paso de plan fallido también", LoQueSeCuentaSaleDelResultado);
+        Prueba("683. la línea del turno dice si la voz habló mientras se trabajaba: cuántas frases dijo durante el trabajo y el silencio más largo", ElTurnoDiceSiLaVozHablo);
+        Prueba("684. señalar manda su foto: tras map_pointing_at la foto del momento viaja al delegado, como promete su descripción", SenalarMandaSuFoto);
+        // Encontrada en el nivel 4 (2026-10-01, 02:16): las órdenes escritas abren la sesión SIN micrófono, y sin
+        // audio el servidor no llega a inyectar el contexto — la sonda, con la frase escrita y sin un trozo de
+        // audio, recibió cuatro «context_injection_incomplete» al cerrar y la voz no dijo ni una palabra.
+        Prueba("685. sin micrófono no se le cuenta nada a la voz: una sesión abierta para lo escrito no recibe avances, que el servidor no llegaría a entregar; y una voz que también actúa tampoco", SinMicrofonoNoHayAvances);
+        // «La velocidad es extremadamente importante para nosotros» (el dueño, 2026-10-01). Qué delegado piensa y con
+        // qué prisa se decide midiendo, y medir sobre la app de verdad no puede costar un instalador por combinación.
+        Prueba("686. el delegado, su prisa y cuánto piensa se cambian sin recompilar: U_DELEGADO elige el modelo, U_DELEGADO_PRISA la quita con 0 y la pide con 1, y U_DELEGADO_ESFUERZO dice el esfuerzo; en blanco, ausentes o con otro valor queda lo de por defecto", ElDelegadoSeCambiaSinRecompilar);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -9191,8 +9221,8 @@ internal static class Contrato
         // salieron ✔ 210 y CONTRATO INTACTO, exit 0 (sabotaje G2 de la revisión, repetido en esta rama), y
         // en U.exe cada session.start pediría ese modelo y la voz no abriría. La 40 no lo ve: juzga una
         // instancia que construye ella. Se juzga lo que manda la apertura: modelo, delegado y dirección.
-        // El delegado es GPT-6 Sol desde el 2026-09-29 (decisión del dueño, spec 062, promesa 520).
-        const string gptLive = "ProtocoloGptLive · modelo gpt-live-1 · delegado gpt-6.1-sol · wss://api.openai.com/v1/live/sessions";
+        // El delegado es gpt-6-luna desde el 2026-10-01 (decisión del dueño, spec 073, promesa 60 de la voz). Fue GPT-6.1 Sol dos días.
+        const string gptLive = "ProtocoloGptLive · modelo gpt-live-1 · delegado gpt-6-luna · wss://api.openai.com/v1/live/sessions";
         const string realtime = "ProtocoloOpenAI · modelo gpt-realtime-2.1-mini · wss://api.openai.com/v1/realtime?model=gpt-realtime-2.1-mini";
         static string Abre(object? p)
         {
@@ -9205,7 +9235,9 @@ internal static class Contrato
         var preguntadas = new List<string>();
         string Sale(string? valor)
         {
-            Func<string, string?> variable = n => { preguntadas.Add(n); return valor; };
+            // Solo U_VOZ contesta: desde la 686 el protocolo pregunta también por el delegado y su prisa, y un
+            // doble que diera el mismo valor a toda variable le pondría «gpt-live» de delegado.
+            Func<string, string?> variable = n => { preguntadas.Add(n); return n == "U_VOZ" ? valor : null; };
             return Abre(m.Invoke(null, new object[] { variable }));
         }
         foreach (var (valor, como) in new (string?, string)[]
@@ -9220,8 +9252,8 @@ internal static class Contrato
         Debe(rtEscrito == realtime, $"y escrito a mano, con mayúscula o espacios, también: lo teclea una persona en setx (abre {rtEscrito})");
         string raro = Sale("gemini");
         Debe(raro == gptLive, $"un valor que no se conoce no elige otra voz por su cuenta: abre la de por defecto (abre {raro})");
-        Debe(preguntadas.Count > 0 && preguntadas.All(n => n == "U_VOZ"),
-            $"y la variable que se pregunta es U_VOZ (se preguntó: {string.Join(", ", preguntadas.Distinct())})");
+        Debe(preguntadas.Contains("U_VOZ") && preguntadas.All(n => n == "U_VOZ" || n.StartsWith("U_DELEGADO", StringComparison.Ordinal)),
+            $"y la variable que elige la voz es U_VOZ; las demás que se preguntan son las del delegado (686) (se preguntó: {string.Join(", ", preguntadas.Distinct())})");
 
         // EL CONSTRUCTOR SIN PROTOCOLO, que es como lo llama FaceWindow. Construirlo no abre ni micrófono
         // ni altavoz (LiveAudio se crea sin dispositivo), así que se juzga aquí y no se deja dicho.
@@ -15942,52 +15974,291 @@ internal static class Contrato
         Debe(E("paint") == null, $"lo que no casa lanzó algo («{E("paint")}»)");
     }
 
-    private static void PlaneaGpt6SolAMaximaVelocidad()
+    // ── Spec 073: la voz conversa mientras el delegado trabaja ────────────────────────────────────
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: una voz que no abre. El 29 y el 30 de septiembre de 2026 el servidor rechazó
+    /// 13 aperturas con «Initial items must not exceed 8192 tokens.»: Historial() mandaba los últimos 56
+    /// turnos sin mirar cuánto pesaban (34.564 caracteres ese día), y la sesión ni abría ni se reintentaba —
+    /// tocar la carita no hacía nada. La documentación de GPT-Live pone los dos topes: 128 mensajes y 8.192
+    /// fichas. Aquí no hay tokenizador, así que el presupuesto va en caracteres y con margen.
+    /// </remarks>
+    private static void ElHistorialDeAperturaCabe()
     {
-        // DECISIÓN DEL DUEÑO (2026-09-29): GPT-6 Sol por su calidad de planificación, a la máxima velocidad. MEDIDO ESE DÍA con
-        // las instrucciones y el catálogo de la voz (velocidad.py): primer plan, mediana 1.874 ms con low + priority (el
-        // servidor contesta service_tier «fast»), 3.546 ms sin priority, 3.766 ms con gpt-5.6-luna low. «ultrafast» se
-        // acepta al abrir la sesión pero la Responses API lo rechaza («Invalid service_tier argument»); «minimal» no existe
-        // para gpt-6-sol; «none» no es más rápido (2.339 ms).
-        var p = new Voz.Realtime.ProtocoloGptLive();
-        string Campo(string json, params string[] camino)
+        var t = typeof(ConversacionPersonal);
+        var historial = t.GetMethod("Historial");
+        const BindingFlags constantes = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        if (historial == null || historial.GetParameters().Length < 2
+            || t.GetField("PresupuestoDeApertura", constantes)?.GetRawConstantValue() is not int presupuesto
+            || t.GetField("MensajesDeApertura", constantes)?.GetRawConstantValue() is not int mensajes)
+        { Pendiente("ConversacionPersonal.Historial con presupuesto de apertura", "680", "073"); return; }
+        IReadOnlyList<(string Role, string Text)> H(ConversacionPersonal c, int? turnos = null, int? caracteres = null)
         {
-            using var d = System.Text.Json.JsonDocument.Parse(json);
-            var e = d.RootElement;
-            foreach (var c in camino) { if (e.ValueKind != System.Text.Json.JsonValueKind.Object || !e.TryGetProperty(c, out e)) return ""; }
-            return e.ValueKind == System.Text.Json.JsonValueKind.String ? e.GetString() ?? "" : e.GetRawText();
+            var porDefecto = historial.GetParameters();
+            return (IReadOnlyList<(string Role, string Text)>)historial.Invoke(c, new object[]
+                { turnos ?? porDefecto[0].DefaultValue!, caracteres ?? porDefecto[1].DefaultValue! })!;
         }
-        // SEGUNDA DECISIÓN DEL DUEÑO (2026-09-29, al cerrar): «el costo de priority nos puede salir muy caro, así que no es
-        // necesario; desde que tenga la cadena de pensamiento en bajo». Sin priority el primer plan medía 3.546 ms de mediana.
-        string apertura = p.Apertura("reglas", Array.Empty<Voz.Realtime.Utensilio>(), "").Single();
-        Debe(p.Delegado == "gpt-6.1-sol" && Campo(apertura, "session", "delegation", "responses", "model") == "gpt-6.1-sol",
-            $"quien planea no es gpt-6.1-sol (es «{Campo(apertura, "session", "delegation", "responses", "model")}»)");
-        Debe(Campo(apertura, "session", "delegation", "responses", "reasoning", "effort") == "low", "al abrir, el pensamiento no está en bajo");
-        Debe(Campo(apertura, "session", "delegation", "responses", "service_tier") is not ("priority" or "fast" or "ultrafast"),
-            "al abrir, la delegación paga de más por velocidad (service_tier de pago)");
-        string cambio = p.CambioDeModo("otras reglas", Array.Empty<Voz.Realtime.Utensilio>(), false).First();
-        Debe(Campo(cambio, "session", "delegation", "responses", "model") == "gpt-6.1-sol"
-             && Campo(cambio, "session", "delegation", "responses", "service_tier") is not ("priority" or "fast" or "ultrafast"),
-            "al cambiar de modo, la delegación pierde gpt-6.1-sol o paga de más por velocidad");
+
+        Debe(mensajes <= 128, $"el tope de mensajes no pasa de los 128 que admite el servidor (es {mensajes})");
+        Debe(presupuesto <= 20_000, $"el presupuesto no pasa de 20.000 caracteres: con 21.542 abrió y con 34.564 no (es {presupuesto})");
+
+        // 60 turnos de 1.000 caracteres: 60.000, casi el doble de lo que se rechazó.
+        var larga = new ConversacionPersonal("contrato-apertura", Path.Combine(_raiz, "apertura-larga.json"));
+        for (int i = 0; i < 60; i++)
+            larga.Agregar(i % 2 == 0 ? "usuario" : "asistente", $"turno {i:00} " + new string((char)('a' + i % 26), 990));
+        var abre = H(larga);
+        int peso = abre.Sum(x => x.Text.Length);
+        Debe(abre.Count > 0 && peso <= presupuesto, $"lo que viaja al abrir cabe en el presupuesto: {peso} de {presupuesto} caracteres, en {abre.Count} turnos");
+        Debe(abre.Count > 0 && abre[^1].Text.StartsWith("turno 59", StringComparison.Ordinal),
+            "y se queda con lo más reciente: el último turno es el último que se dijo");
+        var numeros = abre.Select(x => int.Parse(x.Text.Substring(6, 2))).ToList();
+        Debe(numeros.SequenceEqual(Enumerable.Range(60 - numeros.Count, numeros.Count)),
+            $"seguidos y en orden, sin huecos en medio: {string.Join(",", numeros)}");
+
+        // 150 turnos cortos: caben de sobra en caracteres, y aun así no pasan de los mensajes que admite el servidor.
+        var muchos = new ConversacionPersonal("contrato-apertura", Path.Combine(_raiz, "apertura-muchos.json"));
+        for (int i = 0; i < 150; i++) muchos.Agregar(i % 2 == 0 ? "usuario" : "asistente", $"corto {i}");
+        Debe(H(muchos, turnos: 500).Count <= mensajes, $"aunque se pidan 500 turnos, salen a lo sumo {mensajes} (salieron {H(muchos, turnos: 500).Count})");
+
+        // Un turno más largo que el presupuesto: se recorta, no se tira.
+        var uno = new ConversacionPersonal("contrato-apertura", Path.Combine(_raiz, "apertura-uno.json"));
+        uno.Agregar("usuario", new string('x', 3_000) + " y esto es lo último que dije");
+        var recortado = H(uno, caracteres: 1_000);
+        Debe(recortado.Count == 1 && recortado[0].Text.Length <= 1_000,
+            $"un turno más largo que el presupuesto sale recortado, no desaparece (salieron {recortado.Count} turnos)");
+        Debe(recortado.Count == 1 && recortado[0].Text.EndsWith("lo último que dije", StringComparison.Ordinal),
+            "y lo que se conserva es su final, que es lo más reciente");
     }
 
-    private static void LunaPiensaEnModoRapido()
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: dos modelos con la orden de callar. Las instrucciones de Ü se escribieron para
+    /// UNA voz que habla y actúa («HAZ PRIMERO, HABLA DESPUÉS, Y HABLA POCO», «el silencio mientras trabajas
+    /// está bien»). Con GPT-Live van al delegado, que no habla: lo que devuelve lo dice otra. La documentación
+    /// de la delegación pide para el delegado lo contrario de un guion de habla: los hechos, el estado y el
+    /// siguiente paso.
+    ///
+    /// Y LA VOZ ÚNICA NO SE TOCA. U_VOZ=realtime sigue abriendo un modelo que habla y actúa, y para él la 161
+    /// sigue valiendo: si anuncia cada llamada, balbucea.
+    /// </remarks>
+    private static void ElDelegadoTieneSusInstrucciones()
     {
-        // MEDIDO EL 2026-09-28: el servidor acepta reasoning.effort en la delegación (session.started). Sin pedirlo, Luna piensa
-        // en su medio por defecto, ~2 s por respuesta; OpenAI recomienda low para herramientas y voz.
-        var p = new Voz.Realtime.ProtocoloGptLive();
-        string apertura = p.Apertura("reglas", Array.Empty<Voz.Realtime.Utensilio>(), "").Single();
-        string Esfuerzo(string json, string raiz)
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+        var delDelegado = t?.GetProperty("InstruccionesDelDelegado", f);
+        var para = t?.GetMethod("InstruccionesPara", f);
+        var deUnaVoz = t?.GetProperty("InstruccionesNormales", f);
+        if (delDelegado == null || para == null || deUnaVoz == null) { Pendiente("ConversacionEnVivo.InstruccionesDelDelegado e InstruccionesPara", "681", "073"); return; }
+        string d = (string)delDelegado.GetValue(null)!, una = (string)deUnaVoz.GetValue(null)!;
+
+        Debe(d.Contains("OTRA VOZ LE HABLA A LA PERSONA", StringComparison.Ordinal),
+            "el delegado sabe que no es él quien habla");
+        Debe(d.Contains("ENCADENA", StringComparison.Ordinal) && !d.Contains("DI LO QUE VAS A HACER", StringComparison.Ordinal),
+            "encadena las herramientas sin anunciar: quien actúa no narra antes de cada llamada");
+        Debe(d.Contains("DEVUELVE EL RESULTADO", StringComparison.Ordinal),
+            "y al terminar devuelve el resultado");
+        foreach (string parte in new[] { "qué quedó hecho", "qué falló", "siguiente paso" })
+            Debe(d.Contains(parte, StringComparison.Ordinal), $"con sus tres partes: falta «{parte}»");
+        // Sonda del 2026-10-01: el delegado escribió «resultado de la calculadora» donde iba el número, devolvió
+        // «lo corrijo ahora» y terminó sin corregirlo. La voz lo repitió fielmente: la promesa era suya.
+        Debe(d.Contains("NO TERMINES CON UNA PROMESA", StringComparison.Ordinal),
+            "y sin terminar con una promesa: lo que queda mal se arregla antes de devolver, o se dice que quedó sin hacer");
+        foreach (string calla in new[] { "HABLA POCO", "EL SILENCIO MIENTRAS TRABAJAS ESTÁ BIEN", "Habla, sin que te lo pidan, SOLO en estos casos", "Respondes en español, en voz" })
+            Debe(!d.Contains(calla, StringComparison.Ordinal), $"sin las reglas de habla de la voz única («{calla}»): son órdenes para quien suena, y él no suena");
+        foreach (string cuerpo in new[] { "NO PIDAS PERMISO", "PARA ACTUAR, PLANEA: map_hacer", "DOS INTENTOS, NO TRES" })
+            Debe(d.Contains(cuerpo, StringComparison.Ordinal), $"y con el mismo cuerpo de siempre: falta «{cuerpo}»");
+
+        Debe(una.Contains("NO ANUNCIES LO QUE VAS A HACER", StringComparison.Ordinal) && una.Contains("EL SILENCIO MIENTRAS TRABAJAS ESTÁ BIEN", StringComparison.Ordinal),
+            "las de la voz única no cambian: allí quien actúa es quien habla, y la 161 lo sigue juzgando");
+
+        string Para(Voz.Realtime.IProtocolo p) => (string)para.Invoke(null, new object[] { p })!;
+        Debe(Para(new Voz.Realtime.ProtocoloGptLive()) == d, "GPT-Live abre con las del delegado");
+        Debe(Para(new Voz.Realtime.ProtocoloOpenAI()) == una, "y GPT Realtime, con las de siempre");
+
+        // [cableado] Las dos aperturas y la vuelta de un modo especial salen de InstruccionesPara, no de la constante.
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        var conMemoria = System.Text.RegularExpressions.Regex.Match(v, @"private async Task<string> InstruccionesConMemoriaAsync\([\s\S]*?\n    }");
+        Debe(conMemoria.Success && conMemoria.Value.Contains("InstruccionesPara(_protocolo)", StringComparison.Ordinal),
+            "[cableado] las instrucciones con que abre la sesión no salen de InstruccionesPara(_protocolo)");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: el de la 161, por la puerta de atrás. Si a la voz se le contara lo que se va a
+    /// hacer, diría «ya abrí la calculadora» de una calculadora que no abrió. Por eso el avance se compone del
+    /// RESULTADO: de la primera línea de lo que devolvió la herramienta, y de si de verdad actuó.
+    ///
+    /// Y solo de lo que actuó o falló: mirar la pantalla no es un avance que contar, y con una frase por cada
+    /// mirada la voz volvería a hablar el 80 % y hacer el 30 % (2026-09-05).
+    /// </remarks>
+    private static void LoQueSeCuentaSaleDelResultado()
+    {
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+        var avanceDe = t?.GetMethod("AvanceDe", f);
+        var delPaso = t?.GetMethod("AvanceDelPaso", f);
+        if (avanceDe == null || delPaso == null) { Pendiente("ConversacionEnVivo.AvanceDe y AvanceDelPaso", "682", "073"); return; }
+        (string Texto, bool Fallo) Tupla(object? v) => ((string)v!.GetType().GetField("Item1")!.GetValue(v)!, (bool)v.GetType().GetField("Item2")!.GetValue(v)!);
+        (string Texto, bool Fallo) De(string herramienta, string resultado, bool? logro) => Tupla(avanceDe.Invoke(null, new object?[] { herramienta, resultado, logro }));
+        (string Texto, bool Fallo) Paso(string linea) => Tupla(delPaso.Invoke(null, new object[] { linea }));
+
+        var pulso = De("map_take", "pulsé «Templates» (Button) y la pantalla cambió.\n\nEN PANTALLA AHORA, en «Miro» (63 elemento(s)):\n  «Minimizar» (Button)", true);
+        Debe(!pulso.Fallo && pulso.Texto.Contains("pulsé «Templates»", StringComparison.Ordinal),
+            $"una herramienta que actuó es un avance con lo que hizo («{pulso.Texto}»)");
+        Debe(!pulso.Texto.Contains("EN PANTALLA AHORA", StringComparison.Ordinal) && pulso.Texto.Length <= 200,
+            $"solo su primera línea: el inventario de la pantalla es del delegado, no de la voz ({pulso.Texto.Length} caracteres)");
+
+        var noPulso = De("map_take", "«Guardar» no está a la vista: no pulsé nada.\n\nEN PANTALLA AHORA…", false);
+        Debe(noPulso.Fallo && noPulso.Texto.Contains("no está a la vista", StringComparison.Ordinal),
+            $"una que no actuó es un avance de FALLO, con su motivo: lo dice la mano, no la prosa («{noPulso.Texto}»)");
+
+        var revento = De("map_open_app", "la herramienta falló: no encontré «Paint»", null);
+        Debe(revento.Fallo, "y sin mano que lo diga, una herramienta que dice que falló también es un fallo");
+
+        foreach (string mirar in new[] { "map_what_i_see", "map_where_am_i", "map_look", "file_list" })
+            Debe(De(mirar, "EN PANTALLA AHORA, en «Calculadora» (12 elemento(s))", null).Texto.Length == 0,
+                $"mirar no es un avance que contar («{mirar}»): una frase por mirada es el balbuceo de la 161");
+        Debe(De("map_hacer", "3 de 3 hechos · 0 fallido(s) · 0 omitido(s)", null).Texto.Length == 0,
+            "y el plan no se cuenta al final entero: sus pasos ya se contaron uno a uno");
+
+        var hecho = Paso("✔ pulsé la tecla «Ctrl+W»");
+        Debe(!hecho.Fallo && hecho.Texto == "pulsé la tecla «Ctrl+W»", $"un paso de plan cumplido es un avance, sin la marca («{hecho.Texto}»)");
+        var fallido = Paso("✘ «pulsa: TSG | Miracle Kick Off»: no lo encontré en pantalla");
+        Debe(fallido.Fallo && fallido.Texto.Contains("no lo encontré en pantalla", StringComparison.Ordinal),
+            $"y un paso de plan fallido es un avance de fallo («{fallido.Texto}»)");
+        Debe(Paso("   ").Texto.Length == 0, "una línea en blanco no es un avance");
+
+        // [cableado] Los dos sitios por los que algo se hace le cuentan a la voz: la tanda de herramientas y cada paso del plan.
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"private async Task EjecutarNucleoAsync\([\s\S]*?AvanceDe\("),
+            "[cableado] la tanda de herramientas no le cuenta a la voz lo que salió");
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"AlTerminarPaso = [^\n]*AvanceDelPlan\("),
+            "[cableado] los pasos del plan no le llegan a la voz: map_hacer hace diez cosas y la voz no se entera de ninguna");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: tener que medirlo a mano otra vez. Que la voz calla mientras se trabaja se sacó
+    /// el 2026-10-01 con un guion sobre trece días de logs, y solo a medias: «Ü dijo» se escribe al cerrar el
+    /// turno, no cuando suena. La línea del turno ya dice lo que piensa Luna y lo que ejecuta Jeff; desde aquí
+    /// dice también si alguien le hablaba a la persona entretanto.
+    /// </remarks>
+    private static void ElTurnoDiceSiLaVozHablo()
+    {
+        var t = Cap004("U.WindowsClient.Voice.CuentaDelTurno");
+        if (t?.GetMethod("Hablo") == null) { Pendiente("Voice.CuentaDelTurno.Hablo", "683", "073"); return; }
+        long ahora = 0;
+        var c = Activator.CreateInstance(t, new object[] { (Func<long>)(() => ahora) })!;
+        void M(string metodo, params object[] a) => t.GetMethod(metodo)!.Invoke(c, a);
+
+        M("Peticion");
+        ahora = 400; M("Hablo");                         // «claro»: antes de la primera herramienta, no es durante el trabajo
+        ahora = 1_000; M("Llamada", "map_hacer", "");
+        ahora = 3_000; M("Hablo");                       // una frase…
+        ahora = 3_100; M("Hablo");                       // …y su siguiente trozo: la misma frase
+        ahora = 6_000; M("Hablo");                       // otra frase
+        ahora = 9_000; M("Resultado", "map_hacer", "", true); M("Trabajo", 8_000L);
+        ahora = 9_500; M("Hablo");                       // el resultado: después del trabajo
+        string linea = (string?)t.GetMethod("Cerrar")!.Invoke(c, null) ?? "";
+        if (!linea.Contains("hablo_durante=", StringComparison.Ordinal)) { Pendiente("la línea voz-turno con hablo_durante y silencio_max", "683", "073"); return; }
+        Debe(linea.Contains("hablo_durante=2 ", StringComparison.Ordinal),
+            $"dos frases durante el trabajo: ni la de antes de la primera herramienta, ni la del resultado, ni un trozo de la misma frase cuentan («{linea}»)");
+        Debe(linea.Contains("silencio_max=3000 ms", StringComparison.Ordinal),
+            $"y el silencio más largo es el hueco mayor entre la primera llamada, cada frase y el final del trabajo: 3000 ms («{linea}»)");
+
+        // Sin una palabra durante el trabajo, el silencio es el trabajo entero.
+        var c2 = Activator.CreateInstance(t, new object[] { (Func<long>)(() => ahora) })!;
+        void M2(string metodo, params object[] a) => t.GetMethod(metodo)!.Invoke(c2, a);
+        ahora = 0; M2("Peticion");
+        ahora = 1_000; M2("Llamada", "map_hacer", "");
+        ahora = 13_500; M2("Resultado", "map_hacer", "", true); M2("Trabajo", 12_500L);
+        ahora = 14_000; M2("Hablo");
+        string l2 = (string?)t.GetMethod("Cerrar")!.Invoke(c2, null) ?? "";
+        Debe(l2.Contains("hablo_durante=0 ", StringComparison.Ordinal) && l2.Contains("silencio_max=12500 ms", StringComparison.Ordinal),
+            $"callada todo el trabajo, la línea lo dice: cero frases y 12500 ms («{l2}»)");
+        Debe(l2.Contains("llamadas=1", StringComparison.Ordinal) && l2.Contains("luna=", StringComparison.Ordinal),
+            $"sin perder lo que la línea ya decía (205 y 512): «{l2}»");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: una descripción que promete lo que el código no hace. map_pointing_at dice
+    /// «además te llega una FOTO de ese instante», y la foto solo se mandaba con map_look, map_look_back y
+    /// map_esto_es. El 2026-09-21 a «te estoy señalando algo con mi mouse, quiero que lo veas» se le contestó
+    /// «no puedo ver tu pantalla ni lo que señalas».
+    /// </remarks>
+    private static void SenalarMandaSuFoto()
+    {
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+        var vaConFoto = t?.GetMethod("VaConFoto", f);
+        if (vaConFoto == null) { Pendiente("ConversacionEnVivo.VaConFoto", "684", "073"); return; }
+        bool Va(string herramienta) => (bool)vaConFoto.Invoke(null, new object[] { herramienta })!;
+
+        Debe(Va("map_pointing_at"), "señalar manda su foto: lo promete su descripción");
+        Debe(Va("map_look"), "mirar la manda, como siempre");
+        Debe(!Va("map_take") && !Va("map_what_i_see") && !Va("map_hacer"),
+            "y pulsar, leer o cumplir un plan no: una foto por acción son 2.448 fichas por acción");
+
+        var descripcion = ((IReadOnlyList<Voz.Realtime.Utensilio>)t!.GetMethod("Herramientas", f)!.Invoke(null, null)!)
+            .FirstOrDefault(u => u.Nombre == "map_pointing_at")?.Descripcion ?? "";
+        Debe(descripcion.Contains("FOTO", StringComparison.Ordinal), "la descripción sigue prometiéndola: si un día deja de mandarse, se quita de aquí también");
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"private async Task EjecutarNucleoAsync\([\s\S]*?VaConFoto\(f\.Nombre\)"),
+            "[cableado] la tanda no pregunta si la herramienta va con foto: la regla existe y nadie la usa");
+    }
+
+    private static void ElDelegadoSeCambiaSinRecompilar()
+    {
+        var m = Cap004("U.WindowsClient.Voice.ConversacionEnVivo")?.GetMethod("ProtocoloPorDefecto", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+        if (m == null) { Pendiente("Voice.ConversacionEnVivo.ProtocoloPorDefecto", "686", "073"); return; }
+        Voz.Realtime.IProtocolo Abre(params (string Variable, string Valor)[] entorno)
+            => (Voz.Realtime.IProtocolo)m.Invoke(null, new object[] { (Func<string, string?>)(v => entorno.FirstOrDefault(e => e.Variable == v).Valor) })!;
+        string Delegado(Voz.Realtime.IProtocolo p) => p.GetType().GetProperty("Delegado")?.GetValue(p) as string ?? "(no tiene)";
+        string Tier(Voz.Realtime.IProtocolo p)
         {
-            using var d = System.Text.Json.JsonDocument.Parse(json);
-            var s = d.RootElement.GetProperty(raiz);
-            return s.TryGetProperty("delegation", out var del) && del.GetProperty("responses").TryGetProperty("reasoning", out var r)
-                   && r.TryGetProperty("effort", out var e) ? e.GetString() ?? "" : "";
+            using var d = JsonDocument.Parse(p.Apertura("reglas", Array.Empty<Voz.Realtime.Utensilio>(), "").First());
+            return d.RootElement.GetProperty("session").GetProperty("delegation").GetProperty("responses").TryGetProperty("service_tier", out var t) ? t.GetString() ?? "" : "";
         }
-        if (Esfuerzo(apertura, "session") == "" ) { Pendiente("la delegación con reasoning.effort", "518", "062"); return; }
-        Debe(Esfuerzo(apertura, "session") == "low", "al abrir, la delegación no pide reasoning.effort = low");
-        string cambio = p.CambioDeModo("otras reglas", Array.Empty<Voz.Realtime.Utensilio>(), false).First();
-        Debe(Esfuerzo(cambio, "session") == "low", "al cambiar de modo, la delegación pierde el modo rápido");
+
+        string porDefecto = Delegado(Abre());
+        Debe(Delegado(Abre(("U_DELEGADO", "gpt-6.1-sol"))) == "gpt-6.1-sol", $"U_DELEGADO=gpt-6.1-sol abre con ese delegado (abre con «{Delegado(Abre(("U_DELEGADO", "gpt-6.1-sol")))}»)");
+        Debe(Delegado(Abre(("U_DELEGADO", "  GPT-6.1-Sol  "))) == "gpt-6.1-sol", "con mayúsculas y espacios también: lo teclea una persona en setx");
+        Debe(Delegado(Abre(("U_DELEGADO", "   "))) == porDefecto, $"en blanco es sin valor: el de por defecto («{porDefecto}»), no un modelo vacío que el servidor rechazaría (patrón nº9)");
+        string tierPorDefecto = Tier(Abre());
+        Debe(Tier(Abre(("U_DELEGADO_PRISA", "0"))).Length == 0, $"U_DELEGADO_PRISA=0 quita la prisa: la delegación no lleva service_tier (lleva «{Tier(Abre(("U_DELEGADO_PRISA", "0")))}»)");
+        Debe(Tier(Abre(("U_DELEGADO_PRISA", "1"))) == "priority", $"U_DELEGADO_PRISA=1 la pide (pide «{Tier(Abre(("U_DELEGADO_PRISA", "1")))}»)");
+        Debe(Tier(Abre(("U_DELEGADO_PRISA", "  "))) == tierPorDefecto && Tier(Abre(("U_DELEGADO_PRISA", "sí, por favor"))) == tierPorDefecto,
+            $"en blanco o con un valor que no es 0 ni 1 queda lo de por defecto («{tierPorDefecto}»): no se adivina qué quiso decir");
+        string Esfuerzo(Voz.Realtime.IProtocolo p)
+        {
+            using var d = JsonDocument.Parse(p.Apertura("reglas", Array.Empty<Voz.Realtime.Utensilio>(), "").First());
+            return d.RootElement.GetProperty("session").GetProperty("delegation").GetProperty("responses").GetProperty("reasoning").GetProperty("effort").GetString() ?? "";
+        }
+        string esfuerzoPorDefecto = Esfuerzo(Abre());
+        Debe(Esfuerzo(Abre(("U_DELEGADO_ESFUERZO", "medium"))) == "medium", $"U_DELEGADO_ESFUERZO elige cuánto piensa (pide «{Esfuerzo(Abre(("U_DELEGADO_ESFUERZO", "medium")))}»)");
+        Debe(Esfuerzo(Abre(("U_DELEGADO_ESFUERZO", "  "))) == esfuerzoPorDefecto, $"y en blanco queda el de por defecto («{esfuerzoPorDefecto}»)");
+        Debe(Abre(("U_VOZ", "realtime"), ("U_DELEGADO", "gpt-6.1-sol")) is Voz.Realtime.ProtocoloOpenAI,
+            "y con la voz única no hay delegado que cambiar: sigue abriendo GPT Realtime");
+    }
+
+    private static void SinMicrofonoNoHayAvances()
+    {
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        var t = Cap004("U.WindowsClient.Voice.ConversacionEnVivo");
+        var seCuenta = t?.GetMethod("SeLeCuentaALaVoz", f);
+        if (seCuenta == null) { Pendiente("ConversacionEnVivo.SeLeCuentaALaVoz", "685", "073"); return; }
+        bool Cuenta(Voz.Realtime.IProtocolo p, bool conMicrofono) => (bool)seCuenta.Invoke(null, new object[] { p, conMicrofono })!;
+
+        Debe(Cuenta(new Voz.Realtime.ProtocoloGptLive(), true), "con GPT-Live y el micrófono abierto, sí: es el caso para el que existen los avances");
+        Debe(!Cuenta(new Voz.Realtime.ProtocoloGptLive(), false),
+            "con la sesión abierta para lo escrito, sin micrófono, no: el servidor no los entrega y al cerrar los devuelve como errores");
+        Debe(!Cuenta(new Voz.Realtime.ProtocoloOpenAI(), true), "y con una voz que también actúa (GPT Realtime) tampoco: ya sabe lo que hizo");
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        var contar = System.Text.RegularExpressions.Regex.Match(v, @"private void ContarALaVoz\([\s\S]*?\n    }");
+        Debe(contar.Success && contar.Value.Contains("SeLeCuentaALaVoz(_protocolo, _conMicrofono)", StringComparison.Ordinal),
+            "[cableado] lo que se le cuenta a la voz no pasa por la regla: se le contaría también a una sesión sin micrófono");
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"_conMicrofono = conMicrofono;"),
+            "[cableado] la sesión no anota si abrió con micrófono");
     }
 
     private static void DosUEnElMismoPc()

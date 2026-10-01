@@ -161,7 +161,15 @@ internal static class Contrato
         // LO QUE LA MIGRACIÓN DEJÓ EN EL DELEGADO Y NO EN LA VOZ (revisiones del 2026-09-12). Con GPT-Live
         // habla uno y actúa otro: las reglas de Ü van al delegado, pero quien suena es la voz, con su
         // persona corta. Y lo que el servidor cuenta de la sesión llega en segundos, no en fichas.
-        Prueba("46. la voz de GPT-Live no anuncia lo que va a hacer: la persona con la que abre la sesión prohíbe el futuro y el relleno de espera, y manda hablar en pasado y del resultado, como la 161 se lo manda al delegado", LaVozNoAnuncia);
+        // ── ACTA DE RETIRO: la 46 (spec 073, 2026-10-01) ────────────────────────────────────────────
+        // Decía: «la voz de GPT-Live no anuncia lo que va a hacer: la persona con la que abre la sesión
+        // prohíbe el futuro y el relleno de espera, y manda hablar en pasado y del resultado». La pidió la
+        // sonda del 2026-09-12 («Vale. Dame un momento para revisarlo.», dicho antes de que nadie hiciera
+        // nada), y con ella la persona acabó ordenando «mientras se hace el trabajo, calla». Medido el
+        // 2026-10-01: «Claro.» y 12,5 s de silencio hasta el resultado, y en los logs de septiembre 22 de
+        // 54 pedidos largos sin una frase en medio. El dueño pidió quitarlo («la quiero más conversadora,
+        // pero que priorice la ejecución»). Lo que se conserva de la 46 lo hereda la 61: la voz habla de lo
+        // que YA pasó y no da por hecho lo que no le ha llegado. El número no se recicla.
         Prueba("47. con GPT-Live, cambiar de modo también cambia a quien habla: detrás del session.update de la delegación va un session.instructions.append a la voz con las reglas del modo nuevo, y al volver al modo con el que abrió, con su persona de siempre y no con las instrucciones de operar", CambiarDeModoCambiaLaVoz);
         Prueba("48. GPT-Live traduce lo que dura la sesión: session.usage.updated es un Hecho.Duracion con los segundos que trae, que son el acumulado de la sesión y no un incremento; un uso sin segundos no inventa duración", GptLiveCuentaLaDuracion);
 
@@ -191,6 +199,21 @@ internal static class Contrato
         Prueba("55. la foto por referencia viaja DECLARADA para computer use: el mensaje lleva el nivel de detalle que impide que el servidor la reduzca al otro lado, y sigue sin llevar un solo byte de imagen dentro", LaFotoViajaDeclaradaParaVerBien);
 
         Prueba("50. GPT Realtime confirma la apertura con lo primero que manda su servidor al conectar: declara que confirma, session.created es un Hecho.Abierta, y ni un error, ni session.updated, ni ningún otro mensaje lo es", GptRealtimeConfirmaLaApertura);
+
+        // LA VOZ CONVERSA MIENTRAS EL DELEGADO TRABAJA (spec 073, 2026-10-01). «Siento que la voz no habla en
+        // tiempo real mientras ejecuta sino solo al principio y al final». Medido ese día contra el servidor:
+        // con la persona de main, «Claro.» y 12,5 s callada; con los avances pero sin cambiarle la persona,
+        // igual de callada (11,1 s); con las dos cosas, tres frases durante el trabajo y 3,2 s de silencio
+        // como mucho. Hacen falta las dos, y por eso son promesas distintas. Las 56 y 57 son de otra rama
+        // abierta: no se reciclan.
+        Prueba("60. el delegado de GPT-Live es gpt-6-luna, pensando en medio y con prisa: reasoning.effort = medium y service_tier = priority, al abrir y al cambiar de modo", ElDelegadoEsLuna6);
+        Prueba("61. la voz de GPT-Live conversa mientras se trabaja: su persona manda delegar antes de comentar, contar los avances que le llegan y hablar de lo que ya pasó, prohíbe dar por hecho lo que no le ha llegado, y ya no le ordena callar", LaVozConversaMientrasSeTrabaja);
+        Prueba("62. la voz de GPT-Live sabe que ve por su equipo: su persona manda delegar lo de mirar y prohíbe decir que no puede ver", LaVozSabeQueVe);
+        Prueba("63. un avance del trabajo viaja a la voz como contexto callado: un session.thinking.append sin delegación con el texto dentro; un protocolo sin ese canal no manda nada", UnAvanceViajaCallado);
+        Prueba("64. los avances no ametrallan a la voz: el primero sale al momento, los que llegan antes de cumplirse el espacio se juntan en el siguiente, y N hechos que entran son N hechos que salen, en orden y una sola vez", LosAvancesNoAmetrallan);
+        Prueba("65. un fallo no espera: sale al momento aunque no se haya cumplido el espacio, con lo guardado delante, y dice que no se pudo", UnFalloNoEspera);
+        Prueba("66. un avance nunca pasa de lo que cabe en un append: lo que sobra se recorta diciéndolo, y volver al modo normal sigue cabiendo con la persona nueva", UnAvanceCabeSiempre);
+        Prueba("67. la prisa del delegado y cuánto piensa se eligen al construir: sin prisa la delegación no lleva service_tier, ni al abrir ni al cambiar de modo, y el esfuerzo pedido es el que viaja", LaPrisaSeElige);
 
         Console.WriteLine();
         if (_pendientes > 0)
@@ -1217,9 +1240,10 @@ internal static class Contrato
         Debe(Nodo(m, "session", "tools") == null,
             "la VOZ no lleva herramientas: el servidor no las acepta ahí, y ponerlas es perderlas");
         Debe(Campo(m, "session", "delegation", "type") == "responses", "hay delegación, de tipo responses");
-        // DECISIÓN DEL DUEÑO (2026-09-29, spec 062, promesa 520 del grafo): el delegado es GPT-6 Sol. Era gpt-5.6-luna.
-        Debe(Campo(m, "session", "delegation", "responses", "model") == "gpt-6.1-sol",
-            $"con gpt-6.1-sol por defecto como delegado (pide «{Campo(m, "session", "delegation", "responses", "model")}»)");
+        // DECISIÓN DEL DUEÑO (2026-09-30, spec 073, promesa 60): el delegado es gpt-6-luna. Fue gpt-5.6-luna, y
+        // gpt-6.1-sol del 2026-09-29 al 2026-10-01 (spec 062, promesa 520 del grafo, retirada).
+        Debe(Campo(m, "session", "delegation", "responses", "model") == "gpt-6-luna",
+            $"con gpt-6-luna por defecto como delegado (pide «{Campo(m, "session", "delegation", "responses", "model")}»)");
 
         var tools = Nodo(m, "session", "delegation", "responses", "tools");
         Debe(tools is { ValueKind: JsonValueKind.Array } t && t.GetArrayLength() == 1
@@ -1441,7 +1465,7 @@ internal static class Contrato
         Debe(Campo(upd, "session", "delegation", "type") == "responses"
              && toolsNuevas is { ValueKind: JsonValueKind.Array } tn && tn.GetArrayLength() == 1
              && Campo(tn[0], "name") == "map_where_am_i" && Campo(tn[0], "parameters", "properties", "detalle", "type") == "string"
-             && Campo(upd, "session", "delegation", "responses", "model") == "gpt-6.1-sol",
+             && Campo(upd, "session", "delegation", "responses", "model") == "gpt-6-luna",
             "el session.update lleva la delegación entera: su modelo y las herramientas nuevas");
         string nuevasAlDelegado = Campo(upd, "session", "delegation", "responses", "instructions");
         Debe(MismosBytes(nuevasAlDelegado, otroModo),
@@ -1522,32 +1546,297 @@ internal static class Contrato
             "y un delta con voz (pico 7000, como las frases medidas) es UN Hecho.Suena con el PCM exacto");
     }
 
+    // ── La voz conversa mientras el delegado trabaja (spec 073, 2026-10-01) ─────────────────────
+
+    /// <summary>La persona con la que ABRE la sesión, leída del session.start que sale y no de la constante:
+    /// una persona bien escrita que no llegara a la sesión no cumpliría nada.</summary>
+    private static string? PersonaDeLaVoz()
+    {
+        var p = GptLive();
+        if (p == null) return null;
+        var inicio = p.Apertura("INSTRUCCIONES DEL DELEGADO", new List<Utensilio>(), "").ToList();
+        return inicio.Count == 1 ? Campo(Mensaje(inicio[0]), "session", "instructions") : "";
+    }
+
     /// <remarks>
-    /// EL FALLO QUE ESTO IMPIDE: la 161 del grafo quitó el «voy a…» de Ü, y con GPT-Live esa regla viaja
-    /// al DELEGADO, que no habla. La voz abre con su persona corta y en la sonda del 2026-09-12 dijo
-    /// «Vale. Dame un momento para revisarlo.» y «Dime a qué transacción quieres ir y la abro.»: en
-    /// futuro, antes de que el delegado hubiera hecho nada. Se juzga el session.start que sale, no la
-    /// constante: una persona bien escrita que no llegara a la sesión no cumpliría nada.
+    /// EL FALLO QUE ESTO IMPIDE: pagar diez veces más por pensar tres veces más despacio. «La velocidad es
+    /// extremadamente importante para nosotros» (el dueño, 2026-10-01). Medido ese día con la sonda de la voz,
+    /// con las instrucciones y las 28 herramientas de la app, seis corridas por combinación — el primer plan,
+    /// de mediana: gpt-6.1-sol low 3.191 ms · gpt-6-luna low 1.250 · medium 1.380 · low con priority 924 ·
+    /// medium con priority 848. Y sobre la Ü de verdad, con seis pedidos: Luna en low acertó 4 de 6 (no supo
+    /// sacar una raíz ni listar los dispositivos); en medium, 16 de 18 en tres pasadas; Sol en low, 6 de 6
+    /// tardando el doble en lo sencillo (6–9 s contra 2–6 s). Por eso medium y no low, y por eso con prisa:
+    /// con priority Luna sigue costando la décima parte que Sol sin ella. Hereda a la 520 y a la 518 del grafo.
     /// </remarks>
-    private static void LaVozNoAnuncia()
+    private static void ElDelegadoEsLuna6()
     {
         var p = GptLive();
         if (p == null) { Pendiente("Voz.Realtime.ProtocoloGptLive", "1"); return; }
 
-        var inicio = p.Apertura("INSTRUCCIONES DEL DELEGADO", new List<Utensilio>(), "").ToList();
-        Debe(inicio.Count == 1, $"la apertura es un mensaje (salieron {inicio.Count})");
-        if (inicio.Count == 0) return;
-        string voz = Campo(Mensaje(inicio[0]), "session", "instructions");
+        var abre = Mensaje(p.Apertura("reglas", new List<Utensilio>(), "").First());
+        string modelo = Campo(abre, "session", "delegation", "responses", "model");
+        Debe(modelo == "gpt-6-luna", $"al abrir, el delegado es gpt-6-luna (pide «{modelo}»)");
+        Debe(p.GetType().GetProperty("Delegado")?.GetValue(p) as string == "gpt-6-luna",
+            "y es lo que dice el protocolo de sí mismo: el log de la apertura nombra al delegado con esto");
+        Debe(Campo(abre, "session", "delegation", "responses", "reasoning", "effort") == "medium",
+            $"pensando en medio: en bajo acertó 4 de 6 pedidos y en medio 16 de 18 (pide «{Campo(abre, "session", "delegation", "responses", "reasoning", "effort")}»)");
+        Debe(Campo(abre, "session", "delegation", "responses", "service_tier") == "priority",
+            $"y con prisa: 848 ms de primer plan contra 1.380 sin ella (pide «{Campo(abre, "session", "delegation", "responses", "service_tier")}»)");
 
-        Debe(voz.Contains("NO ANUNCIES LO QUE VAS A HACER", StringComparison.Ordinal),
-            "la persona de la voz dice la regla, con las mismas palabras que la 161 le exige al delegado");
-        Debe(voz.Contains("HABLA EN PASADO", StringComparison.Ordinal),
-            "y dice con qué sustituirlo: en pasado y del resultado. Prohibir sin dar el reemplazo deja a la voz eligiendo, y elige anunciar");
-        foreach (string relleno in new[] { "«voy a…»", "«vamos a…»", "«dame un momento»" })
-            Debe(voz.Contains(relleno, StringComparison.Ordinal),
-                $"y nombra las fórmulas que se oyen ({relleno}): «Dame un momento para revisarlo» es literal de la sonda");
+        var upd = CambioDeModo(p, "otras reglas", new List<Utensilio>(), false)?.Select(Mensaje)
+            .FirstOrDefault(x => Campo(x, "type") == "session.update");
+        Debe(upd is { } u && Campo(u, "session", "delegation", "responses", "model") == "gpt-6-luna",
+            "al cambiar de modo, la delegación sigue siendo de gpt-6-luna: el update la reemplaza entera");
+        Debe(upd is { } v && Campo(v, "session", "delegation", "responses", "reasoning", "effort") == "medium"
+             && Campo(v, "session", "delegation", "responses", "service_tier") == "priority",
+            "pensando en medio y con prisa, también ahí: sin ello el primer cambio de modo dejaría a la sesión sin las dos cosas");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: que cambiar de velocidad cueste un instalador. «La velocidad es extremadamente
+    /// importante para nosotros» (el dueño, 2026-10-01); el 2026-09-29 priority bajó el primer plan de Sol de
+    /// 3.546 a 1.874 ms y se descartó por su precio. Con otro delegado la cuenta es otra, y decidirlo tiene que
+    /// ser una medida y una variable, no una constante escrita en el protocolo.
+    /// </remarks>
+    private static void LaPrisaSeElige()
+    {
+        var constructor = Realtime.GetType("Voz.Realtime.ProtocoloGptLive")?.GetConstructors().FirstOrDefault();
+        if (constructor == null || constructor.GetParameters().Length < 4) { Pendiente("ProtocoloGptLive(modelo, delegado, conPrioridad, esfuerzo)", "1"); return; }
+        var conPrisa = GptLive("gpt-live-1", "gpt-6-luna", true, "medium")!;
+        var sinPrisa = GptLive("gpt-live-1", "gpt-6-luna", false, "high")!;
+
+        string Tier(JsonElement m) => Campo(m, "session", "delegation", "responses", "service_tier");
+        string Esfuerzo(JsonElement m) => Campo(m, "session", "delegation", "responses", "reasoning", "effort");
+        Debe(Tier(Mensaje(conPrisa.Apertura("reglas", new List<Utensilio>(), "").First())) == "priority",
+            "con prisa, la apertura lleva service_tier priority");
+        var abreSinPrisa = Mensaje(sinPrisa.Apertura("reglas", new List<Utensilio>(), "").First());
+        Debe(Nodo(abreSinPrisa, "session", "delegation", "responses", "service_tier") == null,
+            "sin prisa, la apertura NO lleva service_tier —ni vacío ni nulo—: el servidor pone el suyo");
+        Debe(Esfuerzo(abreSinPrisa) == "high", $"y el esfuerzo que viaja es el pedido (pide «{Esfuerzo(abreSinPrisa)}»)");
+        var updSinPrisa = CambioDeModo(sinPrisa, "otras reglas", new List<Utensilio>(), false)?.Select(Mensaje).FirstOrDefault(x => Campo(x, "type") == "session.update");
+        Debe(updSinPrisa is { } u && Nodo(u, "session", "delegation", "responses", "service_tier") == null && Esfuerzo(u) == "high",
+            "y el cambio de modo igual: el update reemplaza la delegación entera, y lo elegido se perdería al primer cambio");
+        Debe(Esfuerzo(Mensaje(GptLive("gpt-live-1", "gpt-6-luna", true, "   ")!.Apertura("reglas", new List<Utensilio>(), "").First())) == Esfuerzo(Mensaje(GptLive()!.Apertura("reglas", new List<Utensilio>(), "").First())),
+            "un esfuerzo en blanco es el de por defecto: uno vacío lo rechazaría el servidor (patrón nº9)");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: una voz a la que se le ordenó callar. La persona de main decía «mientras se
+    /// hace el trabajo, calla» y «nunca en futuro», y eso es lo que se oía: «Claro.» y 12,5 s de silencio
+    /// hasta el resultado (sonda del 2026-10-01). Con esta persona y los avances: tres frases durante el
+    /// trabajo y 3,2 s de silencio como mucho.
+    ///
+    /// Y LO QUE SE CONSERVA DE LA 46, que no era capricho: el 2026-09-12 la voz dijo «Dame un momento para
+    /// revisarlo» antes de que nadie hiciera nada. No se vuelve a eso porque la voz ya no habla de lo que
+    /// supone: habla de lo que le llega. Por eso se exige la prohibición de dar por hecho.
+    /// </remarks>
+    private static void LaVozConversaMientrasSeTrabaja()
+    {
+        string? voz = PersonaDeLaVoz();
+        if (voz == null) { Pendiente("Voz.Realtime.ProtocoloGptLive", "1"); return; }
+
+        Debe(voz.Contains("PRIMERO SE EJECUTA", StringComparison.Ordinal),
+            "la persona dice qué va primero: ejecutar");
+        Debe(voz.Contains("antes de comentar", StringComparison.Ordinal),
+            "y cómo: delegar antes de comentar. Una voz conversadora que comenta primero retrasa la acción");
+        Debe(voz.Contains("MIENTRAS SE TRABAJA", StringComparison.Ordinal) && voz.Contains("avances", StringComparison.Ordinal),
+            "manda acompañar mientras se trabaja, con los avances que le llegan: sin esa orden los recibe y calla (medido)");
+        Debe(voz.Contains("YA pasó", StringComparison.Ordinal),
+            "manda hablar de lo que YA pasó, que es lo que la 46 protegía");
+        Debe(voz.Contains("nunca digas que algo está hecho si no te ha llegado", StringComparison.Ordinal),
+            "y prohíbe dar por hecho lo que no le ha llegado: es lo único que separa acompañar de inventar");
+        foreach (string orden in new[] { "calla.", "NO ANUNCIES LO QUE VAS A HACER", "Nunca en futuro" })
+            Debe(!voz.Contains(orden, StringComparison.Ordinal),
+                $"y ya no le ordena callar («{orden}»): con esa orden los avances llegan y la voz no dice nada (11,1 s, medido)");
         Debe(!voz.Contains("INSTRUCCIONES DEL DELEGADO", StringComparison.Ordinal),
-            "y la regla va en la persona de la VOZ, no copiando las del delegado: la voz sigue sin las instrucciones de operar");
+            "y sigue siendo la persona de la VOZ, sin las instrucciones de operar");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: 2026-09-21 16:24:22, «te estoy señalando algo con mi mouse, quiero que lo
+    /// veas» → «No puedo ver tu pantalla ni lo que señalas», sin una sola llamada entre las dos frases. La
+    /// foto por referencia funcionaba (58 subidas en 13 días), pero la persona decía «tú no ves la pantalla»
+    /// y la voz lo repetía en vez de delegar.
+    /// </remarks>
+    private static void LaVozSabeQueVe()
+    {
+        string? voz = PersonaDeLaVoz();
+        if (voz == null) { Pendiente("Voz.Realtime.ProtocoloGptLive", "1"); return; }
+
+        Debe(voz.Contains("SÍ VES LA PANTALLA", StringComparison.Ordinal),
+            "la persona dice que ve, a través de su equipo");
+        Debe(voz.Contains("nunca digas que no puedes ver", StringComparison.Ordinal),
+            "y prohíbe la frase que se oyó");
+        Debe(!voz.Contains("no ves la pantalla", StringComparison.OrdinalIgnoreCase),
+            "y ya no dice lo contrario en ningún sitio: dos frases opuestas en la misma persona las resuelve el modelo, y eligió la mala");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: una voz que no sabe qué está pasando. Hasta esta spec no se le mandaba nada
+    /// mientras se ejecutaba: commentary.append solo dictaba recordatorios e instructions.append solo cambiaba
+    /// de modo. Medido el 2026-10-01 contra el servidor, con la delegación por Responses:
+    /// session.thinking.append con delegation_id nulo se acepta (16 de 16, cero errores) y no interrumpe al
+    /// delegado. Callado y no dictado: qué decir de un avance lo elige la voz.
+    /// </remarks>
+    private static void UnAvanceViajaCallado()
+    {
+        var p = GptLive();
+        var avance = typeof(IProtocolo).GetMethod("Avance");
+        if (p == null || avance == null) { Pendiente("IProtocolo.Avance", "3"); return; }
+        string Manda(IProtocolo a, string texto) => avance.Invoke(a, new object[] { texto }) as string ?? "";
+
+        string json = Manda(p, "Hecho: abrí la calculadora.");
+        Debe(json.Length > 0, "GPT-Live manda el avance");
+        if (json.Length == 0) return;
+        var m = Mensaje(json);
+        Debe(Campo(m, "type") == "session.thinking.append",
+            $"como contexto callado: session.thinking.append, no un dictado (es «{Campo(m, "type")}»)");
+        Debe(Nodo(m, "delegation_id") is { ValueKind: JsonValueKind.Null },
+            "con delegation_id nulo, que es la forma que el servidor aceptó");
+        Debe(Campo(m, "content").Contains("Hecho: abrí la calculadora.", StringComparison.Ordinal),
+            "y con el texto dentro, sin resumir");
+
+        Debe(Manda(p, "   ").Length == 0, "un avance en blanco no se manda: un append vacío no dice nada y gasta uno");
+        Debe(Manda(new ProtocoloOpenAI(), "Hecho: abrí la calculadora.").Length == 0,
+            "y GPT Realtime no manda nada: no tiene ese canal, y allí quien actúa es quien habla");
+    }
+
+    /// <summary>La regla de los avances, pedida por nombre: (hecho, fallo, alTerminar, olvidar, espacio, tope).</summary>
+    private static (Func<string, string?> Hecho, Func<string, string?> Fallo, Func<string?> AlTerminar, Action Olvidar, int Espacio, int Tope)?
+        Avances(Func<long> reloj)
+    {
+        var t = Realtime.GetType("Voz.Realtime.AvancesParaLaVoz");
+        if (t?.GetMethod("Hecho") == null || t.GetMethod("Fallo") == null || t.GetMethod("AlTerminar") == null || t.GetMethod("Olvidar") == null
+            || t.GetField("EspacioMs")?.GetRawConstantValue() is not int espacio || t.GetField("Tope")?.GetRawConstantValue() is not int tope)
+            return null;
+        object a = Activator.CreateInstance(t, new object[] { reloj })!;
+        return (q => t.GetMethod("Hecho")!.Invoke(a, new object[] { q }) as string,
+                q => t.GetMethod("Fallo")!.Invoke(a, new object[] { q }) as string,
+                () => t.GetMethod("AlTerminar")!.Invoke(a, null) as string,
+                () => t.GetMethod("Olvidar")!.Invoke(a, null),
+                espacio, tope);
+    }
+
+    private static int Veces(string texto, string trozo)
+    {
+        int n = 0;
+        for (int i = texto.IndexOf(trozo, StringComparison.Ordinal); i >= 0; i = texto.IndexOf(trozo, i + trozo.Length, StringComparison.Ordinal)) n++;
+        return n;
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE, por los dos lados. Un plan de cuatro pasos de 600 ms manda cuatro avances en
+    /// 2,4 s: la voz todavía contaba el segundo cuando ya había terminado todo (sonda del 2026-10-01). Y al
+    /// revés: tirar lo que llega pegado dejaría a la voz sin saber de esos pasos, y a «¿cómo vas?» contestaría
+    /// con menos de lo hecho. Se juntan, no se tiran: N entran, N salen.
+    /// </remarks>
+    private static void LosAvancesNoAmetrallan()
+    {
+        long ahora = 1_000;
+        if (Avances(() => ahora) is not { } a) { Pendiente("Voz.Realtime.AvancesParaLaVoz", "3"); return; }
+
+        string? primero = a.Hecho("abrí la calculadora");
+        Debe(primero != null && primero.Contains("abrí la calculadora", StringComparison.Ordinal),
+            "el primero sale al momento: la voz no espera para saber que ya empezó");
+
+        ahora += a.Espacio / 4;
+        string? segundo = a.Hecho("escribí la operación");
+        ahora += a.Espacio / 4;
+        string? tercero = a.Hecho("abrí el bloc de notas");
+        Debe(segundo == null && tercero == null,
+            "los que llegan antes de cumplirse el espacio no salen todavía");
+
+        ahora += a.Espacio;
+        string? cuarto = a.Hecho("escribí el resultado");
+        Debe(cuarto != null, "cumplido el espacio, el siguiente sale");
+        if (cuarto != null)
+        {
+            int i2 = cuarto.IndexOf("escribí la operación", StringComparison.Ordinal), i3 = cuarto.IndexOf("abrí el bloc de notas", StringComparison.Ordinal),
+                i4 = cuarto.IndexOf("escribí el resultado", StringComparison.Ordinal);
+            Debe(i2 >= 0 && i3 > i2 && i4 > i3, $"y lleva los guardados delante, en el orden en que pasaron («{cuarto}»)");
+        }
+
+        string todo = primero + "\n" + segundo + "\n" + tercero + "\n" + cuarto;
+        foreach (string hecho in new[] { "abrí la calculadora", "escribí la operación", "abrí el bloc de notas", "escribí el resultado" })
+            Debe(Veces(todo, hecho) == 1, $"«{hecho}» sale una vez, ni cero ni dos (salió {Veces(todo, hecho)})");
+
+        ahora += 10;
+        Debe(a.Hecho("guardé el archivo") == null, "otro pegado al anterior se guarda");
+        string? alCerrar = a.AlTerminar();
+        Debe(alCerrar != null && alCerrar.Contains("guardé el archivo", StringComparison.Ordinal),
+            "al terminar la tanda lo guardado sale: la voz no se queda sin el último paso");
+        Debe(a.AlTerminar() == null, "y no se repite: sin nada guardado, terminar no manda nada");
+
+        ahora += 10;
+        a.Hecho("esto era de la petición anterior");
+        a.Olvidar();
+        Debe(a.AlTerminar() == null, "y al empezar otra petición lo guardado se tira: no se le cuenta lo de antes como si fuera de ahora");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: una voz que cuenta lo que salió bien mientras lo que salió mal espera turno.
+    /// «Ya abrí la calculadora» seguido de tres segundos sin decir que el siguiente paso no se pudo es, para
+    /// quien escucha, una voz que no sabe que falló.
+    /// </remarks>
+    private static void UnFalloNoEspera()
+    {
+        long ahora = 1_000;
+        if (Avances(() => ahora) is not { } a) { Pendiente("Voz.Realtime.AvancesParaLaVoz", "3"); return; }
+
+        a.Hecho("abrí la calculadora");
+        ahora += 100;
+        Debe(a.Hecho("escribí la operación") == null, "un hecho pegado al anterior se guarda");
+        ahora += 100;
+        string? fallo = a.Fallo("no encontré el botón Guardar");
+        Debe(fallo != null, "el fallo sale al momento, aunque no se haya cumplido el espacio");
+        if (fallo == null) return;
+        Debe(fallo.Contains("No se pudo", StringComparison.Ordinal) && fallo.Contains("no encontré el botón Guardar", StringComparison.Ordinal),
+            $"y dice que no se pudo, con su motivo («{fallo}»)");
+        int iHecho = fallo.IndexOf("escribí la operación", StringComparison.Ordinal), iFallo = fallo.IndexOf("no encontré el botón Guardar", StringComparison.Ordinal);
+        Debe(iHecho >= 0 && iHecho < iFallo, "con lo guardado delante: lo que sí se hizo antes de fallar también cuenta");
+        Debe(a.AlTerminar() == null, "y no deja nada guardado detrás");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: un append que el servidor rechaza no da error en la conversación, solo una
+    /// línea «el servidor dice» en el log (medido el 2026-09-12: «Context append text must not exceed 500
+    /// tokens.»; con el prefijo de volver, 1.756 caracteres pasaron y 1.900 no). Un avance rechazado es una voz
+    /// que deja de saber, y una vuelta rechazada es una voz que se queda en modo aprendiz.
+    /// </remarks>
+    private static void UnAvanceCabeSiempre()
+    {
+        long ahora = 1_000;
+        if (Avances(() => ahora) is not { } a) { Pendiente("Voz.Realtime.AvancesParaLaVoz", "3"); return; }
+
+        string? enorme = a.Hecho(new string('x', 5_000));
+        Debe(enorme != null && enorme.Length <= a.Tope, $"un hecho enorme sale dentro del tope ({enorme?.Length} de {a.Tope} caracteres)");
+        Debe(enorme != null && enorme.Contains("recortado", StringComparison.Ordinal), "y dice que se recortó: lo no mandado deja rastro (patrón nº10)");
+
+        ahora += a.Espacio + 1;
+        a.Hecho("uno");
+        for (int i = 0; i < 400; i++) { ahora += 1; a.Hecho($"paso número {i} del plan, que también terminó bien"); }
+        string? junto = a.AlTerminar();
+        Debe(junto != null && junto.Length <= a.Tope, $"y muchos guardados juntos tampoco pasan del tope ({junto?.Length} de {a.Tope})");
+
+        var p = GptLive();
+        var tope = Realtime.GetType("Voz.Realtime.ProtocoloGptLive")?.GetField("TopeDeUnAppend")?.GetRawConstantValue();
+        if (p == null || tope is not int topeDelAppend) { Pendiente("ProtocoloGptLive.TopeDeUnAppend", "3"); return; }
+        Debe(a.Tope <= topeDelAppend, $"el tope de un avance ({a.Tope}) no pasa de lo que cabe en un append ({topeDelAppend})");
+        const string completas = "ERES Ü Y ESTAS SON TUS INSTRUCCIONES COMPLETAS DE OPERAR";
+        p.Apertura(completas, new List<Utensilio>(), "").ToList();
+        CambioDeModo(p, "modo aprendiz", new List<Utensilio>(), false);
+        string alVolver = CambioDeModo(p, completas, new List<Utensilio>(), false)?.Select(Mensaje)
+            .Where(x => Campo(x, "type") == "session.instructions.append").Select(x => Campo(x, "content")).FirstOrDefault() ?? "";
+        Debe(alVolver.Length > 0 && alVolver.Length <= topeDelAppend,
+            $"y volver al modo normal sigue cabiendo con la persona nueva: {alVolver.Length} caracteres de {topeDelAppend}");
+
+        // Unas instrucciones de operar que NO son letra por letra las de apertura (el decisor cambió, la memoria
+        // creció): tampoco caben, y a la voz no se le manda lo que el servidor va a rechazar.
+        string otras = InstruccionesComoLasDeU("ERES Ü, CON EL DECISOR ENCENDIDO");
+        string aLaVoz = CambioDeModo(p, otras, new List<Utensilio>(), false)?.Select(Mensaje)
+            .Where(x => Campo(x, "type") == "session.instructions.append").Select(x => Campo(x, "content")).FirstOrDefault() ?? "";
+        Debe(aLaVoz.Length > 0 && aLaVoz.Length <= topeDelAppend && !aLaVoz.Contains("CON EL DECISOR ENCENDIDO", StringComparison.Ordinal),
+            $"unas instrucciones de operar que no caben en un append no se le mandan a la voz: recibe su persona ({aLaVoz.Length} caracteres)");
     }
 
     private static void LaVozDelegaApagarLaVoz()
