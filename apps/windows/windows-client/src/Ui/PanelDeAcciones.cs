@@ -24,6 +24,8 @@ public sealed class PanelDeAcciones : Window
     [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
     [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
     [DllImport("user32.dll")] private static extern bool GetCursorPos(out POINT p);
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
+    private const int VK_LBUTTON = 0x01, VK_RBUTTON = 0x02, VK_MBUTTON = 0x04;
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     private struct POINT { public int X, Y; }
 
@@ -105,6 +107,9 @@ public sealed class PanelDeAcciones : Window
     /// ratón: <see cref="Uia.UiInspector"/> ya tiene uno para cuando de verdad hace falta cada
     /// movimiento, y aquí basta con mirar cada rato — el gesto es acercarse, no pasar de largo.</summary>
     private readonly DispatcherTimer _asomo;
+
+    /// <summary>Cuánto hay que quedarse en el borde para haberlo pedido (promesa 530).</summary>
+    private readonly EsperaDelAsomo _espera = new();
     private readonly DispatcherTimer _marquesina;
     private bool _dentroDeLaZona;
     private bool _asomadoSoloPorHover;
@@ -298,11 +303,13 @@ public sealed class PanelDeAcciones : Window
             if (_dice.Estado != EstadoDelNotch.EnCurso && DateTime.UtcNow - _ultimoCambio > Caducidad) Limpiar();
         };
 
-        // CIENTO CINCUENTA MILISEGUNDOS: rápido para que el gesto se sienta al toque, y lejos de la
-        // cadencia de un hook por movimiento —aquí no hace falta cada píxel, solo saber si el cursor
-        // ronda el borde—. Arranca aquí y no al primer Habla(): el gesto tiene que funcionar «sin
-        // importar si Ü está hablando o no», también antes de que diga su primera palabra.
-        _asomo = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        // CINCUENTA MILISEGUNDOS, y eran 150 hasta el 2026-09-30. Lo que manda ya no es que el gesto
+        // «se sienta al toque» —ahora se hace esperar medio segundo a propósito (promesa 530)— sino
+        // no perderse un CLIC: un clic dura entre 60 y 150 ms, y a 150 de cadencia la mitad pasaban
+        // entre dos muestras sin que nadie los viera. Sigue lejos de un hook por movimiento: son dos
+        // llamadas a user32 por vuelta. Arranca aquí y no al primer Habla(): el gesto tiene que
+        // funcionar «sin importar si Ü está hablando o no», también antes de su primera palabra.
+        _asomo = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
         _asomo.Tick += (_, __) => RevisarAsomo();
         _asomo.Start();
         _marquesina = new DispatcherTimer(DispatcherPriority.Render)
@@ -321,14 +328,28 @@ public sealed class PanelDeAcciones : Window
     }
 
     /// <summary>
-    /// ¿EL CURSOR RONDA EL BORDE DE ARRIBA? Si es así y el notch está escondido, lo trae —sin tocar
-    /// <see cref="_dice"/>, que sigue diciendo lo mismo que decía—. Si se había asomado SOLO por esto
-    /// —nada nuevo que decir— y el cursor se aleja, se retira: quedarse ahí sin motivo sería un
-    /// cartel pegado, no una isla que asoma.
+    /// ¿EL CURSOR SE QUEDA EN EL BORDE DE ARRIBA? Si es así y el notch está escondido, lo trae —sin
+    /// tocar <see cref="_dice"/>, que sigue diciendo lo mismo que decía—. Si se había asomado SOLO
+    /// por esto —nada nuevo que decir— y el cursor se aleja, se retira: quedarse ahí sin motivo
+    /// sería un cartel pegado, no una isla que asoma.
     /// </summary>
+    /// <remarks>
+    /// QUEDARSE, Y NO RONDAR (promesa 530, 2026-09-30). Hasta ese día bastaba con que una muestra
+    /// viera el cursor en la franja, y subir a una pestaña del navegador lo traía encima de ella.
+    /// Quien decide ahora es <see cref="EsperaDelAsomo"/>: medio segundo quieto, sin clic.
+    /// </remarks>
     private void RevisarAsomo()
     {
         if (!GetCursorPos(out var p)) return;
+
+        // EL BOTÓN SE LEE EN TODAS LAS VUELTAS, también con el cursor lejos del borde: el bit bajo
+        // de GetAsyncKeyState dice «se apretó desde la última vez que alguien preguntó», y si solo
+        // se preguntara dentro de la franja, un clic viejo dado en cualquier parte contaría como
+        // dado ahí. El bit alto es «está apretado ahora»; con cualquiera de los dos, hubo clic.
+        bool boton = false;
+        foreach (int tecla in new[] { VK_LBUTTON, VK_RBUTTON, VK_MBUTTON })
+            boton |= (GetAsyncKeyState(tecla) & 0x8001) != 0;
+
         var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
         var cursor = new Point(p.X / dpi.DpiScaleX, p.Y / dpi.DpiScaleY);
         var (libre, _) = LaBarraDeTareas.Mirar();
@@ -343,7 +364,9 @@ public sealed class PanelDeAcciones : Window
         bool dentro = ReglaDeLaBandeja.MantieneLaIntencion(libre, tamano, cursor, IsVisible);
         bool sobrePieza = IsVisible && ReglaDeLaBandeja.ActivaEscritura(libre, tamano, cursor);
 
-        if (dentro && !_dentroDeLaZona && !IsVisible)
+        bool pedido = _espera.Dispara(ReglaDeLaBandeja.Asoma(libre, tamano, cursor), cursor, boton, DateTime.UtcNow);
+
+        if (pedido && !IsVisible)
         {
             _asomadoSoloPorHover = true;
             Aparecer();
