@@ -5,6 +5,12 @@
 #
 # $3 = 1 en un cambio de rama; 0 al sacar archivos sueltos, que no interesa.
 [ "${3:-0}" = "1" ] || exit 0
+
+# EL MAPA AL DÍA: otra rama —o un árbol recién creado— es otro código; el mapa de graphify se rehace
+# en segundo plano y no retrasa nada. El porqué está en tools/graphify/refrescar.sh.
+refrescar="$(git rev-parse --show-toplevel)/tools/graphify/refrescar.sh"
+[ -f "$refrescar" ] && bash "$refrescar"
+
 guardia="$(git rev-parse --show-toplevel)/tools/monorepo/arbol.sh"
 [ -f "$guardia" ] || exit 0
 exec bash "$guardia" guardia --cambio

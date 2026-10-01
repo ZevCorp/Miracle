@@ -39,7 +39,7 @@ jobs:
 
       - name: Los porteros, los ganchos y los scripts del repo parsean
         run: |
-          for f in .githooks/* apps/*/.githooks/* services/*/.githooks/* tools/monorepo/*.sh apps/mac/contrato.sh apps/android/scripts/contrato.sh; do
+          for f in .githooks/* apps/*/.githooks/* services/*/.githooks/* tools/monorepo/*.sh tools/graphify/*.sh apps/mac/contrato.sh apps/android/scripts/contrato.sh; do
             [ -f "$f" ] || continue
             bash -n "$f" || { echo "::error file=$f::no parsea"; exit 1; }
           done

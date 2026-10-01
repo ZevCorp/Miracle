@@ -70,7 +70,9 @@ qué se está arreglando — y ese es el hallazgo.
 1. **El log**, no las capturas ni el código: `%LOCALAPPDATA%\U\logs\u-AAAAMMDD.log`.
 2. **El contrato actual**: `tests/ContratoDelGrafo/Contrato.cs`. ¿Cuál es el número más alto? ¿Alguna
    promesa ya cubre esto? ¿Alguna lo **contradice**?
-3. **El grafo**: `graphify query "<la pregunta>"` antes que grep, si `graphify-out/graph.json` existe.
+3. **El mapa**, para saber a quién toca lo que vas a especificar: `graphify affected "<la pieza>"`
+   desde `apps/windows`, si `graphify-out/graph.json` existe. Para encontrar un nombre exacto, grep
+   directo (se midió el 2026-10-01: «graphify antes que grep» sumaba pasos sin ahorrar ninguno).
 4. **La API, si hay COM de por medio**: una sonda de solo lectura contesta en veinte minutos lo que
    la deducción no cierra en semanas.
 
