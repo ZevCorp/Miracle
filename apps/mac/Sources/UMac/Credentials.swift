@@ -57,6 +57,9 @@ public enum Credentials {
         }
         if status == -25300 { return [:] }
         guard status == 0 else {
+            if status == -25293 {
+                throw AgentError.unavailable("El Llavero rechazó el acceso a la credencial (−25293). Abre Configuración de Ü y usa Comprobar Live 1 para autorizar la copia instalada.")
+            }
             throw AgentError.unavailable("El Llavero no autorizó la credencial (\(status)). Usa Comprobar Live 1 en Configuración para autorizarla.")
         }
         return result

@@ -26,7 +26,7 @@ let parentPID = getppid()
 guard trustedParent(parentPID) else { exit(77) }
 let args = CommandLine.arguments
 guard args.count == 4, ["read", "save"].contains(args[1]),
-      ["OPENAI_API_KEY", "GRAPH_API_KEY"].contains(args[2]),
+      ["OPENAI_API_KEY", "GRAPH_API_KEY", "MIRACLE_REFRESH_TOKEN", "MIRACLE_EMAIL"].contains(args[2]),
       ["silent", "authorize"].contains(args[3]) else { exit(64) }
 let interactive = args[3] == "authorize"
 guard SecKeychainSetUserInteractionAllowed(interactive) == errSecSuccess else { exit(70) }
