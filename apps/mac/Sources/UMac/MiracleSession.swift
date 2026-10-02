@@ -33,7 +33,18 @@ public actor MiracleSession {
         let expires = Date().addingTimeInterval(json["expires_in"] as? Double ?? 3600)
         let value = MiracleSessionToken(accessToken: access, refreshToken: refresh, expiresAt: expires)
         token = value
+        if !refresh.isEmpty { try? await Credentials.save("MIRACLE_REFRESH_TOKEN", value: refresh) }
+        try? await Credentials.save("MIRACLE_EMAIL", value: email)
         return value
+    }
+    public func restore() async -> MiracleSessionToken? {
+        guard let refresh = await Credentials.read("MIRACLE_REFRESH_TOKEN"), !refresh.isEmpty else { return nil }
+        var request = URLRequest(url: MiracleCloud.url.appendingPathComponent("auth/v1/token?grant_type=refresh_token"))
+        request.httpMethod = "POST"; request.setValue(MiracleCloud.publishableKey, forHTTPHeaderField: "apikey"); request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["refresh_token": refresh])
+        guard let (data, response) = try? await transport.data(for: request), let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let access = json["access_token"] as? String else { return nil }
+        let renewed = MiracleSessionToken(accessToken: access, refreshToken: json["refresh_token"] as? String ?? refresh, expiresAt: Date().addingTimeInterval(json["expires_in"] as? Double ?? 3600))
+        token = renewed; try? await Credentials.save("MIRACLE_REFRESH_TOKEN", value: renewed.refreshToken); return renewed
     }
     public func logout() { token = nil }
 }

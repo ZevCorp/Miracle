@@ -32,6 +32,10 @@ final class ClinicalViewModel: ObservableObject {
         }
         dictation.onPartial = { [weak self] text in self?.transcript = [self?.buffer, text].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ") }
         dictation.onError = { [weak self] text in self?.status = text }
+        Task { [weak self] in
+            guard let self, let token = await self.account.restore() else { return }
+            await self.configure(token: token)
+        }
     }
 
     func signIn() {
@@ -41,16 +45,23 @@ final class ClinicalViewModel: ObservableObject {
             guard let self else { return }
             do {
                 let token = try await account.login(email: email, password: password)
-                let client = try ClinicalHTTPClient(baseURL: URL(string: graphURL)!, bearerToken: token.accessToken)
-                let portal = PortalClient(accessToken: token.accessToken)
-                let all = try await client.templates(specialty: nil)
-                let open: ClinicalTemplate
-                if let existing = OpenClinicalTemplate.find(in: all) { open = existing }
-                else { open = try await client.createTemplate(name: OpenClinicalTemplate.name, specialty: OpenClinicalTemplate.specialty) }
-                self.api = client; self.portal = portal; self.template = open; self.signedIn = true; self.password = ""; self.status = "Listo."; self.consultations = await portal.recent(); self.session = self.makeSession(api: client, template: open, portal: portal)
+                await self.configure(token: token)
+                self.password = ""
             } catch { self.status = error.localizedDescription }
             self.signingIn = false
         }
+    }
+
+    private func configure(token: MiracleSessionToken) async {
+        do {
+            let client = try ClinicalHTTPClient(baseURL: URL(string: graphURL)!, bearerToken: token.accessToken)
+            let portal = PortalClient(accessToken: token.accessToken)
+            let all = try await client.templates(specialty: nil)
+            let open: ClinicalTemplate
+            if let existing = OpenClinicalTemplate.find(in: all) { open = existing }
+            else { open = try await client.createTemplate(name: OpenClinicalTemplate.name, specialty: OpenClinicalTemplate.specialty) }
+            self.api = client; self.portal = portal; self.template = open; self.signedIn = true; self.status = "Listo."; self.consultations = await portal.recent(); self.session = self.makeSession(api: client, template: open, portal: portal)
+        } catch { self.status = error.localizedDescription }
     }
 
     func toggleRecording() {
