@@ -86,9 +86,20 @@ public sealed class CuentaDelTurno
     {
         lock (_candado)
         {
-            if (_finTrabajo is long f && (_habloTras == null || _habloTras < f)) _habloTras = _relojMs();
+            long t = _relojMs();
+            if (_finTrabajo is long f && (_habloTras == null || _habloTras < f)) _habloTras = t;
+            // UNA FRASE, NO UN TROZO (promesa 753): la voz llega a trozos de pocas sílabas, y contar trozos
+            // diría «habló doce veces» de una sola frase. Un trozo tras más de una pausa de frase abre otra.
+            if (_ultimoTrozo is not long u || t - u > PausaDeFraseMs) _frases.Add(t);
+            _ultimoTrozo = t;
         }
     }
+
+    /// <summary>Cuánto silencio separa dos frases de la voz. Dentro de una frase los trozos llegan cada 100–400 ms
+    /// y las pausas entre oraciones bajan a 1,4 s (medido el 2026-09-12); más que eso es otra frase.</summary>
+    private const int PausaDeFraseMs = 1_500;
+    private readonly List<long> _frases = new();
+    private long? _ultimoTrozo;
 
     public void Rechazada(string herramienta, string destino)
     {
@@ -111,7 +122,8 @@ public sealed class CuentaDelTurno
     /// anterior se colaba en el siguiente (crítico de la rama, 2026-09-11).</summary>
     private void Reiniciar()
     {
-        _t0 = _primera = _ultima = _peticion = _finTrabajo = _habloTras = null;
+        _t0 = _primera = _ultima = _peticion = _finTrabajo = _habloTras = _ultimoTrozo = null;
+        _frases.Clear();
         _ejecutar = 0;
         _llamadas = _rechazadas = _retiradas = 0;
         _distintas.Clear();
@@ -136,11 +148,33 @@ public sealed class CuentaDelTurno
                          + $"primera={Desde(_primera)} ultima={Desde(_ultima)} "
                          + $"desde_peticion={(_primera is long p && _peticion is long q ? (p - q) + " ms" : "—")} "
                          + $"rechazadas={_rechazadas} retiradas={_retiradas}"
-                         + PensarYEjecutar();
+                         + PensarYEjecutar()
+                         + HabloDurante();
 
             Reiniciar();
             return linea;
         }
+    }
+
+    /// <summary>
+    /// SI ALGUIEN LE HABLABA A LA PERSONA MIENTRAS SE TRABAJABA (promesa 753, spec 073): las frases que la voz
+    /// dijo entre la primera llamada y el final de la última tanda, y el hueco más largo sin ninguna.
+    /// </summary>
+    /// <remarks>
+    /// Antes solo se podía sacar con un guion sobre los logs, y a medias: «Ü dijo» se escribe al cerrar el turno,
+    /// no cuando suena. Así se midió el 2026-10-01 que en 22 de 54 pedidos largos la voz no dijo nada en medio.
+    /// Lo que dice antes de la primera herramienta («claro») y lo que dice con el resultado no cuentan: no es
+    /// acompañar el trabajo.
+    /// </remarks>
+    private string HabloDurante()
+    {
+        if (_t0 is not long inicio) return "";
+        long fin = _finTrabajo ?? _ultima ?? inicio;
+        var durante = _frases.Where(t => t > inicio && t < fin).ToList();
+        long hueco = 0, previo = inicio;
+        foreach (long t in durante) { hueco = Math.Max(hueco, t - previo); previo = t; }
+        hueco = Math.Max(hueco, fin - previo);
+        return $" hablo_durante={durante.Count} silencio_max={hueco} ms";
     }
 
     /// <summary>

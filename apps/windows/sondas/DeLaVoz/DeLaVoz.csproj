@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- LA SONDA DE LA VOZ (spec 073). Le habla a GPT-Live DE VERDAD, sin micrófono, sin altavoz y sin
+       tocar el escritorio: la petición entra como audio sintetizado, las herramientas contestan de
+       mentira con una demora, y queda escrita la línea de tiempo de quién habló y cuándo.
+
+       POR QUÉ EXISTE. El contrato juzga qué manda el cliente; no puede juzgar qué hace el servidor con
+       ello. Que la voz hable MIENTRAS el delegado trabaja, que un avance callado se acepte, que
+       gpt-6-luna abra como delegado: eso solo lo contesta el servidor (patrón nº4).
+
+       Referencia SOLO voz/Realtime (net8.0 puro, sin WPF): la persona de la voz, el mensaje del avance y
+       la regla que los espacia son los de la app, no una copia. Lo demás es JSON crudo. Cuesta lo que
+       dura la sesión (0,05 USD/min) más las fichas del delegado. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>sonda-de-la-voz</AssemblyName>
+    <RootNamespace>Sondas.DeLaVoz</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\voz\Realtime\Realtime.csproj" />
+  </ItemGroup>
+</Project>

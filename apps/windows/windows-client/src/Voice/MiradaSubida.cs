@@ -32,7 +32,8 @@ namespace U.WindowsClient.Voice;
 public sealed class MiradaSubida
 {
     private readonly Func<byte[], Task<string>> _subir;
-    private readonly Func<string, Task> _borrar;
+    private readonly Func<string, Task<bool>> _borrar;
+    private readonly CopiasPorBorrar? _apuntes;
     private readonly List<string> _subidas = new();
 
     /// <param name="subir">Deja la foto en OpenAI y devuelve su identificador.</param>
@@ -40,12 +41,41 @@ public sealed class MiradaSubida
     public MiradaSubida(Func<byte[], Task<string>> subir, Func<string, Task> borrar)
     {
         _subir = subir;
+        _borrar = async id => { await borrar(id); return true; };
+    }
+
+    /// <summary>
+    /// Con apuntes en disco (spec 079, promesa 785): cada copia queda apuntada desde que se sube hasta que
+    /// <paramref name="borrar"/> contesta que ya no está. Lo que quede apuntado se reintenta más tarde.
+    /// </summary>
+    public MiradaSubida(Func<byte[], Task<string>> subir, Func<string, Task<bool>> borrar, CopiasPorBorrar apuntes)
+    {
+        _subir = subir;
         _borrar = borrar;
+        _apuntes = apuntes;
     }
 
     /// <summary>La que habla con OpenAI de verdad.</summary>
     public static MiradaSubida Real(Func<string> clave, Action<string>? anotar = null)
-        => new(jpeg => SubirAOpenAI(jpeg, clave(), anotar), id => BorrarDeOpenAI(id, clave(), anotar));
+        => new(jpeg => SubirAOpenAI(jpeg, clave(), anotar), id => BorrarDeOpenAI(id, clave(), anotar), new CopiasPorBorrar());
+
+    /// <summary>
+    /// Vuelve a intentar borrar lo que quedó apuntado de otras veces: un borrado que falló por la red, o una app
+    /// que se cerró con la sesión abierta. Devuelve cuántas se borraron.
+    /// </summary>
+    /// <remarks>
+    /// LO QUE ESTÁ EN USO NO SE TOCA: una copia de una conversación que sigue abierta en este proceso —puede haber
+    /// más de un asistente— todavía la puede pedir el servidor. Esa se borra cuando su conversación cierre.
+    /// </remarks>
+    public static Task<int> ReintentarLoPendienteAsync(Func<string> clave, Action<string>? anotar = null)
+        => new CopiasPorBorrar().ReintentarAsync(id =>
+        {
+            lock (EnUso) if (EnUso.Contains(id)) return Task.FromResult(false);
+            return BorrarDeOpenAI(id, clave(), anotar);
+        });
+
+    /// <summary>Las copias de las conversaciones abiertas en este proceso.</summary>
+    private static readonly HashSet<string> EnUso = new(StringComparer.Ordinal);
 
     /// <summary>Sube la foto y devuelve con qué referirse a ella. Vacío si no se pudo.</summary>
     public async Task<string> SubirAsync(byte[] jpeg)
@@ -53,7 +83,12 @@ public sealed class MiradaSubida
         if (jpeg == null || jpeg.Length == 0) return "";
         string id = await _subir(jpeg);
         // La anterior NO se toca: su referencia sigue viva en el historial de la sesión.
-        if (id.Length > 0) lock (_subidas) _subidas.Add(id);
+        if (id.Length > 0)
+        {
+            lock (_subidas) _subidas.Add(id);
+            lock (EnUso) EnUso.Add(id);
+            _apuntes?.Apuntar(id);   // desde YA: si la app se cae con la sesión abierta, se sabe qué hay allí
+        }
         return id;
     }
 
@@ -65,7 +100,11 @@ public sealed class MiradaSubida
     {
         string[] pendientes;
         lock (_subidas) { pendientes = _subidas.ToArray(); _subidas.Clear(); }
-        foreach (string id in pendientes) await _borrar(id);
+        foreach (string id in pendientes)
+        {
+            lock (EnUso) EnUso.Remove(id);                 // su conversación cerró: ya nadie puede pedirla
+            if (await _borrar(id)) _apuntes?.Quitar(id);   // la que no se pudo borrar sigue apuntada (785)
+        }
     }
 
     private static readonly HttpClient Red = new() { Timeout = TimeSpan.FromSeconds(30) };
@@ -93,18 +132,21 @@ public sealed class MiradaSubida
         catch (Exception e) { anotar?.Invoke($"no pude subir la mirada: {e.Message}"); return ""; }
     }
 
-    private static async Task BorrarDeOpenAI(string id, string clave, Action<string>? anotar)
+    /// <summary>Si la copia ya no está en OpenAI: porque se borró ahora, o porque ya no existía (404).</summary>
+    private static async Task<bool> BorrarDeOpenAI(string id, string clave, Action<string>? anotar)
     {
         try
         {
             using var peticion = new HttpRequestMessage(HttpMethod.Delete, $"https://api.openai.com/v1/files/{id}");
             peticion.Headers.Authorization = new AuthenticationHeaderValue("Bearer", clave);
             using var r = await Red.SendAsync(peticion);
-            anotar?.Invoke(r.IsSuccessStatusCode
-                ? $"mirada borrada de OpenAI: {id}"
-                : $"no pude borrar la mirada {id}: {(int)r.StatusCode}");
+            bool yaNoExistia = r.StatusCode == System.Net.HttpStatusCode.NotFound;
+            anotar?.Invoke(r.IsSuccessStatusCode ? $"mirada borrada de OpenAI: {id}"
+                : yaNoExistia ? $"la mirada {id} ya no estaba en OpenAI"
+                : $"no pude borrar la mirada {id}: {(int)r.StatusCode}. Queda apuntada para reintentarlo");
+            return r.IsSuccessStatusCode || yaNoExistia;
         }
-        catch (Exception e) { anotar?.Invoke($"no pude borrar la mirada {id}: {e.Message}"); }
+        catch (Exception e) { anotar?.Invoke($"no pude borrar la mirada {id}: {e.Message}. Queda apuntada para reintentarlo"); return false; }
     }
 
     private static string Corto(string t) => t.Length <= 160 ? t : t[..160];

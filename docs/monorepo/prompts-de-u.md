@@ -53,10 +53,28 @@ La constitución tiene cuatro textos (versión `constitucion-de-u@2026-10-01.2`)
    expresión colombiana de vez en cuando; no diagnostica.
 
 La voz de GPT-Live (la que suena) lleva una persona corta con lo mismo, medida para caber en la vuelta de
-un modo (`ProtocoloGptLive.InstruccionesDeLaVoz`, 1.288 caracteres) y una frase por perfil
-(`ConstitucionDeU.VozMedico` / `VozPersona`). Le pasa a la persona lo que el delegado pregunta o avisa,
-cuenta los resultados con los datos del delegado sin añadirles nada, y distingue «espera» (calla y
-escucha) de «apaga la voz» (lo delega).
+un modo (`ProtocoloGptLive.InstruccionesDeLaVoz`, 1.283 caracteres) y una frase por perfil
+(`ConstitucionDeU.VozMedico` / `VozPersona`). Delega antes de comentar, no anuncia lo que va a hacer, y
+**mientras se trabaja acompaña**: le llegan avances de lo que su equipo ya hizo y cuenta, en pasado, lo que
+aporte (spec 073; hasta el 2026-10-01 decía «mientras se hace el trabajo, calla», y callaba 12 s). Sabe que
+ve la pantalla por su equipo, cuenta los resultados con los datos del delegado sin añadirles nada, y
+distingue «espera» (calla y escucha) de «apaga la voz» (lo delega).
+
+Quien actúa recibe las instrucciones de siempre —la constitución y la operación de Windows— y, **detrás**,
+lo que la conversación le añade (`ConversacionEnVivo.LoQueSeAnade`): a qué ritmo van sus manos —«pulsa:» con
+un nombre leído, un objetivo si no, las direcciones por «abre:» (spec 081)—, que las tareas largas llevan
+meta y no se sueltan hasta cerrarla con evidencia (spec 082), las habilidades (cómo se hace algo a la
+manera de esta persona, spec 074) y, cuando otro habla por él (GPT-Live), que él no habla y devuelve el
+resultado (spec 073) y que ya ve la pantalla del momento del pedido (spec 079). Después van la fecha, lo
+aprendido, la memoria y el hilo, que dice que lo pedido y sin contestar es de antes y no se retoma solo.
+
+Con una meta activa viajan además dos textos que no son instrucciones (`Voice/LaMeta.cs`): la continuación
+—cuando quien actúa termina su turno sin cerrarla— y la meta con el pedido, cuando la persona dice algo a
+mitad. Los dos empiezan por `[META ACTIVA: esto no lo dijo la persona]`.
+
+El repaso de la sesión (`Voice/ElRepaso.cs`, `gpt-6-luna`) lee el diario al cerrar la voz y propone qué se
+queda: habilidades, preferencias, datos. El código solo aplica lo que trae una cita literal de la persona.
+**Con un médico no guarda datos** y sus reglas dicen que nada de un paciente entra en lo que se aprende.
 
 ## Médico o persona: dónde se decide
 
@@ -83,6 +101,7 @@ la constitución sin el bloque «QUIÉN TE HABLA».
 | Funcionalidad | Prompt | Dónde vive |
 |---|---|---|
 | Ü opera el computador por voz (Windows) | persona de la voz (la que habla) + instrucciones del delegado | `voz/Realtime/ProtocoloGptLive.cs` · `windows-client/src/Voice/ConversacionEnVivo.cs` |
+| Ü aprende de cada sesión (Windows) | el repaso: qué es habilidad, qué preferencia, qué dato; con un médico, sin datos | `windows-client/src/Voice/ElRepaso.cs` |
 | Ü opera el computador por texto, puente o comprobar (Windows, Mac, Android) | cerebro consciente, un builder con texto por plataforma | `services/graph/src/infrastructure/conscious-brain/prompt.js` |
 | Ü opera el teléfono sin pasar por Graph (Android, proveedor OpenAI o Gemini) | el mismo texto de Android que Graph, copiado; más las herramientas aprendidas, que solo existen en local, y el toque largo de Gemini (`long_press`), que solo tiene el entorno `mobile` | `apps/android/core/src/commonMain/kotlin/graph/core/domain/PromptDelCerebroLocal.kt` (spec 009 de Android) |
 | Manos rápidas (Jev) | una pregunta de peligro, la misma en Windows y Graph | `u/Nucleo/Jev.cs` · `Decision/PeticionASystemOne.cs` · `services/graph/src/domain/decisor/peticionSystemOne.js` |

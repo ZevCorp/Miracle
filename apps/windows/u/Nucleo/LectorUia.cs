@@ -193,7 +193,17 @@ public sealed class LectorUia : IDisposable
     }
 
     /// <summary>Cómo se llama la barra de direcciones de Chrome y Edge, en español y en inglés (promesa 473).</summary>
-    public static readonly string[] NombresDeLaBarra = { "Barra de direcciones y de búsqueda", "Address and search bar" };
+    public static readonly string[] NombresDeLaBarra = { "Barra de direcciones y de búsqueda", "Address and search bar", "Dirección y barra de búsqueda" };
+
+    /// <summary>
+    /// La clase de la barra de direcciones en todo navegador Chromium, se llame como se llame (spec 081, promesa 792).
+    /// Medido el 2026-10-01 con una sonda: en Edge la barra se llama «Dirección y barra de búsqueda», que no estaba en
+    /// la lista, y «abre: https://…» abría una pestaña nueva cada vez en vez de cargar en la de delante.
+    /// </summary>
+    public const string ClaseDeLaBarra = "OmniboxViewViews";
+
+    /// <summary>¿Es la barra de direcciones? Por su clase, que no depende del idioma ni del navegador; o por su nombre.</summary>
+    public static bool EsLaBarra(string nombre, string clase) => string.Equals((clase ?? "").Trim(), ClaseDeLaBarra, StringComparison.Ordinal) || EsLaBarra(nombre);
 
     /// <summary>
     /// Escribe de una vez en la barra de direcciones del navegador (ValuePattern.SetValue, como escribe main): sin
@@ -202,19 +212,135 @@ public sealed class LectorUia : IDisposable
     /// <summary>¿Es la barra de direcciones? Sin espacios sobrantes: Chrome la llama «Barra de direcciones y de búsqueda ».</summary>
     public static bool EsLaBarra(string nombre) => NombresDeLaBarra.Contains((nombre ?? "").Trim());
 
+    /// <summary>
+    /// Por qué el último <see cref="EscribirEnLaBarra"/> devolvió false. «No encontré la barra» cubría cuatro causas
+    /// —no hay campo de texto, el primero no es la barra, la barra no se deja escribir, o la ventana no contestó— y el
+    /// 2026-10-01 mandó a arreglar el nombre de la barra cuando el fallo seguía después de arreglarlo (aprendizaje nº2).
+    /// </summary>
+    public string PorQueNoLaBarra { get; private set; } = "";
+
+    /// <summary>
+    /// DÓNDE SE BUSCA LA BARRA: en la ventana de delante y, si esa es de otra —un aviso del navegador—, en su dueña
+    /// (spec 081, promesa 792). Medido el 2026-10-01 con una sonda: a los 2,5 s de abrirse, un Edge pone delante una
+    /// ventana suya SIN TÍTULO —un aviso—, y la de delante deja de ser la que tiene la barra. «abre: https://…» decía
+    /// «la ventana no tiene ningún campo de texto» y abría la dirección en el otro navegador. Los avisos de Chromium
+    /// (traducir, guardar la contraseña, restaurar páginas) son ventanas aparte: pasa también en el uso de siempre.
+    /// </summary>
+    /// <remarks>
+    /// EL ORDEN: la de delante; su dueña; y las demás ventanas con título del mismo proceso, de arriba abajo —un aviso
+    /// de Chromium no siempre declara dueña: la sonda no pudo repetirlo para mirarlo—. Sin repetir ninguna, y tres como
+    /// mucho: cada una cuesta una búsqueda en su árbol.
+    /// </remarks>
+    public static IReadOnlyList<IntPtr> DondeBuscarLaBarra(IntPtr ventana, IntPtr duena, IReadOnlyList<IntPtr>? delMismoProceso = null)
+    {
+        var orden = new List<IntPtr> { ventana };
+        foreach (var h in new[] { duena }.Concat(delMismoProceso ?? Array.Empty<IntPtr>()))
+            if (h != IntPtr.Zero && !orden.Contains(h) && orden.Count < 3) orden.Add(h);
+        return orden;
+    }
+
+    [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr h, uint flags);
+    [DllImport("user32.dll")] private static extern int GetWindowTextLength(IntPtr h);
+
+    /// <summary>Las ventanas visibles y con título del mismo proceso, de arriba abajo en el orden Z.</summary>
+    private static IReadOnlyList<IntPtr> ConTituloDelMismoProceso(IntPtr ventana)
+    {
+        var otras = new List<IntPtr>();
+        GetWindowThreadProcessId(ventana, out uint pid);
+        EnumWindows((h, _) =>
+        {
+            if (h == ventana || !IsWindowVisible(h) || GetWindowTextLength(h) == 0) return true;
+            GetWindowThreadProcessId(h, out uint p);
+            if (p == pid) otras.Add(h);
+            return otras.Count < 4;
+        }, IntPtr.Zero);
+        return otras;
+    }
+
     public bool EscribirEnLaBarra(IntPtr ventana, string texto) => EnElHilo(() =>
+    {
+        PorQueNoLaBarra = "";
+        try
+        {
+            foreach (var donde in DondeBuscarLaBarra(ventana, GetAncestor(ventana, 3 /* GA_ROOTOWNER */), ConTituloDelMismoProceso(ventana)))
+            {
+                // El PRIMER campo de texto de la ventana, que en Chrome y Edge es la barra: 9 ms (sonda del 2026-09-26).
+                // Por nombre exacto no se encontraba —lleva un espacio al final—; se comprueba después, sin espacios.
+                var raiz = _uia.ElementFromHandle(donde);
+                var barra = raiz.FindFirst(TreeScope.TreeScope_Descendants, _uia.CreatePropertyCondition(PropTipo, 50004));
+                if (barra == null) { PorQueNoLaBarra = "ni la ventana de delante, ni su dueña, ni otra del mismo navegador tienen un campo de texto a la vista de UIA"; continue; }
+                if (!EsLaBarra(barra.CurrentName, barra.CurrentClassName))
+                {
+                    // EL PRIMERO NO ES LA BARRA —un campo de la página, un aviso del navegador—: se busca por su clase.
+                    string primero = $"«{barra.CurrentName}» ({barra.CurrentClassName})";
+                    barra = raiz.FindFirst(TreeScope.TreeScope_Descendants, _uia.CreatePropertyCondition(30012 /* ClassName */, ClaseDeLaBarra));
+                    if (barra == null) { PorQueNoLaBarra = $"el primer campo de texto es {primero}, que no es la barra, y no hay ninguno de clase {ClaseDeLaBarra}"; continue; }
+                }
+                if (barra.GetCurrentPattern(10002 /* ValuePattern */) is not IUIAutomationValuePattern valor)
+                { PorQueNoLaBarra = "la barra está, pero no admite que se le escriba el valor"; continue; }
+                // SI LA BARRA ES DE LA DUEÑA, EL FOCO VA A ELLA: el Enter que viene después caería en el aviso de delante.
+                if (donde != ventana) barra.SetFocus();
+                valor.SetValue(texto);
+                PorQueNoLaBarra = "";
+                return true;
+            }
+            return false;
+        }
+        catch (COMException e)
+        {
+            PorQueNoLaBarra = $"la ventana no contestó a UIA: 0x{e.HResult:X8}: {e.Message}";
+            Traza?.Invoke($"barra de direcciones: 0x{e.HResult:X8}: {e.Message}");
+            return false;
+        }
+    });
+
+    // ── Las listas desplegables: se eligen sin abrirlas (spec 083, promesa 816) ─────────────────────
+
+    /// <summary>Por qué el último <see cref="EnfocarLista"/> devolvió false.</summary>
+    public string PorQueNoLaLista { get; private set; } = "";
+
+    /// <summary>¿Es este el campo pedido? Por su nombre, sin mayúsculas, espacios de sobra ni los dos puntos o el asterisco de la etiqueta.</summary>
+    public static bool EsElCampo(string nombreDelCampo, string pedido)
+    {
+        static string N(string t) => (t ?? "").Trim().TrimEnd(':', '*', ' ').Trim().ToLowerInvariant();
+        return N(pedido).Length > 0 && N(nombreDelCampo) == N(pedido);
+    }
+
+    private IUIAutomationElement? Lista(IntPtr ventana, string campo)
+    {
+        var todas = _uia.ElementFromHandle(ventana).FindAll(TreeScope.TreeScope_Descendants, _uia.CreatePropertyCondition(PropTipo, 50003 /* ComboBox */));
+        for (int i = 0; todas != null && i < todas.Length; i++)
+            if (EsElCampo(todas.GetElement(i).CurrentName, campo)) return todas.GetElement(i);
+        return null;
+    }
+
+    /// <summary>
+    /// PONE EL FOCO EN LA LISTA DESPLEGABLE QUE SE LLAMA ASÍ, sin abrirla. Con el foco en ella, teclear el nombre de
+    /// una opción la elige (medido el 2026-10-02 en Edge: 883 ms, «Nueva EPS», con su espacio). Abrirla y leerla costaba
+    /// de 4 a 7 s por lista: el árbol de la lista abierta es lento, y la misma opción salía 121 veces.
+    /// </summary>
+    public bool EnfocarLista(IntPtr ventana, string campo) => EnElHilo(() =>
+    {
+        PorQueNoLaLista = "";
+        try
+        {
+            var lista = Lista(ventana, campo);
+            if (lista == null) { PorQueNoLaLista = $"no hay ninguna lista desplegable que se llame «{campo}» en la ventana de delante"; return false; }
+            lista.SetFocus();
+            return true;
+        }
+        catch (COMException e) { PorQueNoLaLista = $"la ventana no contestó a UIA: 0x{e.HResult:X8}: {e.Message}"; return false; }
+    });
+
+    /// <summary>Lo que tiene elegido la lista desplegable que se llama así; vacío si no está o no lo dice.</summary>
+    public string ValorDeLista(IntPtr ventana, string campo) => EnElHilo(() =>
     {
         try
         {
-            // El PRIMER campo de texto de la ventana, que en Chrome y Edge es la barra: 9 ms (sonda del 2026-09-26).
-            // Por nombre exacto no se encontraba —lleva un espacio al final—; se comprueba después, sin espacios.
-            var barra = _uia.ElementFromHandle(ventana).FindFirst(TreeScope.TreeScope_Descendants, _uia.CreatePropertyCondition(PropTipo, 50004));
-            if (barra == null || !EsLaBarra(barra.CurrentName)) return false;
-            if (barra.GetCurrentPattern(10002 /* ValuePattern */) is not IUIAutomationValuePattern valor) return false;
-            valor.SetValue(texto);
-            return true;
+            var lista = Lista(ventana, campo);
+            return lista?.GetCurrentPattern(10002 /* ValuePattern */) is IUIAutomationValuePattern v ? (v.CurrentValue ?? "").Trim() : "";
         }
-        catch (COMException e) { Traza?.Invoke($"barra de direcciones: 0x{e.HResult:X8}: {e.Message}"); return false; }
+        catch (COMException) { return ""; }
     });
 
     private static string NombreDelTipo(int id)

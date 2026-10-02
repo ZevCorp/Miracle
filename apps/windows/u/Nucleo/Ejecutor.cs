@@ -41,11 +41,133 @@ public sealed class Ejecutor
     {
         var p = (paso ?? "").Trim();
         if (p.StartsWith("objetivo:", StringComparison.OrdinalIgnoreCase)) p = p[9..].Trim();
+        // «seleccionar «Sura» en «EPS»» ES «elige: EPS = Sura» (promesa 816). Escrito así iba a las manos como un
+        // objetivo: abrían la lista, y con la lista abierta ya no leían nada («no hay ningún accionable», 2026-10-02).
+        var e = ElegirEn.Match(p);
+        if (e.Success) return $"elige: {e.Groups["campo"].Value.Trim()} = {e.Groups["opcion"].Value.Trim()}";
         var m = IrA.Match(p);
         if (!m.Success) m = SoloDireccion.Match(p);
         if (!m.Success) return p;
         string url = m.Groups["url"].Value.TrimEnd('.', ',', ';');
         return "abre: " + (url.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? "https://" + url : url);
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex ElegirEn = new(
+        @"^(?:selecciona|seleccionar|elige|elegir|escoge|escoger)\s+[«""“]?(?<opcion>[^«»""“”]+?)[»""”]?\s+en\s+(?:el campo\s+|la lista\s+)?[«""“]?(?<campo>[^«»""“”]+?)[»""”]?\.?$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static readonly System.Text.RegularExpressions.Regex NombreDeLoElegido =new(@"^\d+\)\s*(?<nombre>.*?)\s*\([^()]*\)$");
+
+    /// <summary>
+    /// LO QUE LAS MANOS PULSARON DENTRO DE UN OBJETIVO, con su nombre (spec 082, promesa 800). El relato decía solo
+    /// «cumplido»: quien planea no sabía qué se pulsó ni con qué nombre, y volvía a un trabajo que no había visto —lo que
+    /// el dueño llamó «no tiene contexto suficiente de lo que pasó en la ejecución»—. Vale también cuando falla: lo que se
+    /// alcanzó a pulsar antes de parar es justo lo que hay que saber para seguir desde ahí.
+    /// </summary>
+    public static string LoPulsado(Recorrido r)
+    {
+        var nombres = (r?.Vueltas ?? Array.Empty<Vuelta>()).Where(v => v.Elegida.Length > 0)
+            .Select(v => NombreDeLoElegido.Match(v.Elegida) is { Success: true } m ? m.Groups["nombre"].Value : v.Elegida).ToList();
+        if (nombres.Count == 0) return "";
+        return " — pulsé " + string.Join(", ", nombres.Select(n => $"«{n}»")) + (nombres.Count > 1 ? $" ({nombres.Count} clics)" : "");
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex EntreGestos =
+        new(@"\s*(?:;|,|→|\n)\s*(?=(?:pulsa|escribe|tecla|abre|desplaza|elige)\s*:)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// VARIOS GESTOS PEGADOS EN UN PASO SON VARIOS PASOS (spec 081, promesa 802). Medido el 2026-10-01: quien planea
+    /// mandó UN paso, «pulsa: Más; pulsa: Dos; pulsa: Ocho; … pulsa: Es igual a». Se buscó un botón con ese nombre
+    /// entero, no estaba, las manos eligieron uno «de un tiro» y el paso quedó CUMPLIDO con un clic de nueve: la
+    /// cuenta salió mal, hubo que borrarla y repetirla, y la meta tardó 30 s en vez de 18. Solo se parte donde detrás
+    /// del separador empieza otro gesto: lo que se escribe conserva sus puntos y comas.
+    /// </summary>
+    public static IReadOnlyList<string> Partir(IReadOnlyList<string> pasos)
+    {
+        var salida = new List<string>();
+        foreach (string paso in pasos ?? Array.Empty<string>())
+        {
+            if (paso == null) continue;
+            var trozos = EntreGestos.Split(paso).Select(t => t.Trim()).Where(t => t.Length > 0).ToList();
+            if (trozos.Count <= 1) salida.Add(paso); else salida.AddRange(trozos);
+        }
+        return salida;
+    }
+
+    private static readonly string[] TeclasDeLaBarra = { "ctrl+l", "alt+d", "f6" };
+
+    /// <summary>
+    /// UNA DIRECCIÓN VA EN UN PASO (spec 081, promesa 792): la tecla de la barra de direcciones, una dirección escrita y
+    /// Enter son «abre:» esa dirección. Lo demás queda como viene.
+    /// </summary>
+    /// <remarks>
+    /// En la investigación en Google del 2026-10-01, 3 de los 7 planes eran «tecla: Ctrl+L», «escribe: https://…»,
+    /// «tecla: Enter»: 1,6 a 2,2 s, porque cada gesto lee la página antes y después. «abre:» con el navegador delante
+    /// ya escribe en la barra y espera a que cargue (473), en un paso. Decírselo a quien planea se puede ignorar; esto
+    /// no (como <see cref="Normalizar"/>, 467). Solo se toca cuando lo escrito ES una dirección: buscar palabras en la
+    /// barra es otra cosa, y escribir una dirección en un campo de la página, también.
+    /// </remarks>
+    public static IReadOnlyList<string> Compactar(IReadOnlyList<string> pasos)
+    {
+        var salida = new List<string>();
+        pasos = Partir(pasos);
+        for (int i = 0; i < pasos.Count; i++)
+        {
+            if (i + 2 < pasos.Count
+                && Prefijo(pasos[i], "tecla:", out var barra) && TeclasDeLaBarra.Contains(barra.Replace(" ", "").ToLowerInvariant())
+                && Prefijo(pasos[i + 1], "escribe:", out var escrito) && SoloDireccion.IsMatch(escrito)
+                && Prefijo(pasos[i + 2], "tecla:", out var enter) && enter.Trim().ToLowerInvariant() is "enter" or "intro")
+            {
+                salida.Add(Normalizar(escrito));
+                i += 2;
+                continue;
+            }
+            // «pulsa: EPS» Y DETRÁS «elige: EPS = …»: SOBRA EL PRIMERO (promesa 816). Abrir la lista antes de elegir era
+            // lo lento —4 s de leerla abierta, 6 de elegir con ella encima y 17 de volver a encontrar el campo siguiente,
+            // medido el 2026-10-02—, y «elige:» no la necesita abierta.
+            if (i + 1 < pasos.Count && Prefijo(pasos[i], "pulsa:", out var campoPulsado) && Prefijo(pasos[i + 1], "elige:", out var elegido)
+                && LectorUia.EsElCampo(LeerEleccion(elegido).Campo, campoPulsado))
+                continue;
+            salida.Add(pasos[i]);
+        }
+        return salida;
+    }
+
+    /// <summary>
+    /// ELEGIR EN UNA LISTA DESPLEGABLE SIN ABRIRLA (spec 083, promesa 816): el campo y la opción. Devuelve null si
+    /// quedó elegida; si no, por qué. Sin ella, «elige:» falla y lo dice.
+    /// </summary>
+    public Func<string, string, string?>? Elegir { get; set; }
+
+    /// <summary>«EPS = Nueva EPS» → (EPS, Nueva EPS). Lo que no trae las dos partes es (vacío, vacío).</summary>
+    public static (string Campo, string Opcion) LeerEleccion(string texto)
+    {
+        int i = (texto ?? "").IndexOf('=');
+        if (i <= 0) return ("", "");
+        string campo = texto![..i].Trim().Trim('«', '»', '"').Trim(), opcion = texto[(i + 1)..].Trim().Trim('«', '»', '"').Trim();
+        return campo.Length > 0 && opcion.Length > 0 ? (campo, opcion) : ("", "");
+    }
+
+    /// <summary>
+    /// ¿QUEDÓ ELEGIDA? La lista dice lo que tiene; vale si es la opción pedida o EMPIEZA por ella: teclear «Triage 4»
+    /// elige «Triage 4 - Urgencia menor», que es lo que se quería, y el 2026-10-02 eso se dio por fallo.
+    /// </summary>
+    public static bool QuedoElegida(string loQueTiene, string pedida)
+    {
+        string t = (loQueTiene ?? "").Trim(), p = (pedida ?? "").Trim();
+        return p.Length > 0 && t.StartsWith(p, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// ¿ESTA OPCIÓN ES LA PEDIDA? Al recorrer la lista con las flechas: lo es si la CONTIENE como palabra entera
+    /// —«4» está en «Triage 4 - Urgencia menor» y no en «Triage 14»—, sin mayúsculas.
+    /// </summary>
+    public static bool LaContiene(string opcionDeLaLista, string pedida)
+    {
+        string t = (opcionDeLaLista ?? "").Trim(), p = (pedida ?? "").Trim();
+        if (p.Length == 0 || t.Length == 0) return false;
+        return System.Text.RegularExpressions.Regex.IsMatch(t, @"(?<![\p{L}\p{N}])" + System.Text.RegularExpressions.Regex.Escape(p) + @"(?![\p{L}\p{N}])",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     }
 
     /// <summary>La rueda del ratón, en muescas: negativas hacia abajo (promesa 462). Sin ella, «desplaza:» falla y lo dice.</summary>
@@ -74,6 +196,7 @@ public sealed class Ejecutor
 
     public EjecucionDelPlan Ejecutar(IReadOnlyList<string> pasos)
     {
+        pasos = Compactar(pasos);   // el plan que se cuenta es el que se ejecuta (promesa 792, patrón nº10)
         var hechos = new List<bool>();
         var hecho = new List<string>();     // lo que se hizo, en la voz de quien lo cuenta: viaja a Jev
         var detalle = new List<string>();
@@ -109,6 +232,14 @@ public sealed class Ejecutor
                       : ok ? $"desplacé {Math.Abs(muescas.Value)} muesca(s) hacia {(muescas < 0 ? "abajo" : "arriba")}"
                       : $"no pude desplazar «{hacia}»";
             }
+            else if (Prefijo(paso, "elige:", out var eleccion))
+            {
+                var (campo, opcion) = LeerEleccion(eleccion);
+                string? porQueNo = campo.Length == 0 ? "se escribe «elige: <el campo> = <la opción>»"
+                                 : Elegir == null ? "no sé elegir en una lista aquí" : Elegir(campo, opcion);
+                ok = porQueNo == null;
+                linea = ok ? $"elegí «{opcion}» en «{campo}»" : $"no elegí «{eleccion}»: {porQueNo}";
+            }
             else if (EmpiezaPor(paso, "esperar", "espera "))
             {
                 // Esperar no se hace pulsando: «Navegador» pulsado 6 veces esperando a Google Scholar (2026-09-26).
@@ -125,7 +256,7 @@ public sealed class Ejecutor
             {
                 var r = _objetivo(paso, hecho.ToArray());
                 ok = r.Cumplido;
-                linea = $"«{paso}»: " + (ok ? "cumplido" : r.PorQueParo);
+                linea = $"«{paso}»: " + (ok ? "cumplido" : r.PorQueParo) + LoPulsado(r);
             }
 
             hechos.Add(ok);

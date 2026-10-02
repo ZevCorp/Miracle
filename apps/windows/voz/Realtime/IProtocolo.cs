@@ -184,6 +184,50 @@ public interface IProtocolo
     /// narre un recorrido que decide otro (el piloto) sin que hable el sintetizador del sistema.</param>
     string PedirRespuesta(string instrucciones = "");
 
+    /// <summary>
+    /// Si quien actúa es OTRO modelo que quien habla. Con GPT-Live sí: la voz conversa y un delegado lleva
+    /// las herramientas. Decide dos cosas arriba: qué instrucciones recibe quien actúa —las de trabajar y
+    /// devolver el resultado, no las de hablar— y si hace falta contarle a la voz lo que va pasando.
+    /// Por defecto falso: en Realtime el mismo modelo hace las dos cosas y ya sabe lo que hizo.
+    /// </summary>
+    bool ActuaUnDelegado => false;
+
+    /// <summary>
+    /// SI LA SESIÓN SE CIERRA SOLA CUANDO NO LE LLEGA AUDIO (spec 081, promesa 71). Quien lo declara recibe silencio
+    /// mientras no salga audio de verdad; por defecto no se le manda a nadie lo que no se sabe que necesita.
+    /// </summary>
+    bool CaducaSinAudio => false;
+
+    /// <summary>
+    /// ALGO QUE QUIEN ACTÚA TIENE QUE SABER Y QUE LA PERSONA NO DIJO (spec 082, promesa 72): la meta en curso con lo
+    /// ya hecho. Un mensaje en la conversación, que no pide turno: acompaña a lo que venga detrás. Vacío si este
+    /// protocolo no tiene a quien actúa separado de quien habla: allí va en el propio texto que se le manda.
+    /// </summary>
+    string ContextoParaQuienActua(string texto) => "";
+
+    /// <summary>
+    /// Un avance del trabajo en curso, para que quien habla lo sepa SIN que lo diga tal cual. Vacío si este
+    /// protocolo no tiene ese canal o no lo necesita (<see cref="ActuaUnDelegado"/> falso): mandar algo de
+    /// más abriría un turno que nadie pidió.
+    /// </summary>
+    string Avance(string texto) => "";
+
+    /// <summary>
+    /// Algo que quien habla tiene que tener presente toda la sesión —cómo quiere la persona que le hablen—
+    /// cuando quien habla no es quien lleva las instrucciones de operar. Vacío si es el mismo modelo
+    /// (<see cref="ActuaUnDelegado"/> falso): ya lo lleva en sus instrucciones.
+    /// </summary>
+    string ParaLaVoz(string texto) => "";
+
+    /// <summary>
+    /// La pantalla del momento en que la persona pide algo, para que quien actúa la vea sin gastar una vuelta en
+    /// pedirla (spec 079, promesa 69). Vacío si este protocolo no ve por referencia: una pantalla incrustada no
+    /// le cabe, y a una sola voz que también actúa no se le cuela una foto que nadie pidió.
+    /// </summary>
+    /// <param name="idDelArchivo">La copia ya subida. Sin ella no hay nada que mandar.</param>
+    /// <param name="donde">Dónde está la persona según el mapa. Una foto no decide eso.</param>
+    string PantallaAlPedir(string idDelArchivo, string donde) => "";
+
     /// <summary>Qué está diciendo el servidor, en hechos. Vacío si no dice nada que nos toque.</summary>
     IReadOnlyList<Hecho> Leer(JsonElement mensaje);
 }

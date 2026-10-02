@@ -48,13 +48,16 @@ public sealed class ManosDelPlan
         {
             var rp = Stopwatch.StartNew();
             string antes = _lector.Leer(aqui.Ventana).Huella;
-            if (_lector.EscribirEnLaBarra(aqui.Ventana, app) && Raton.Tecla("Enter"))
+            bool escrita = _lector.EscribirEnLaBarra(aqui.Ventana, app);
+            if (escrita && Raton.Tecla("Enter"))
             {
                 var a = Asentado.Esperar(() => _lector.Leer(aqui.Ventana).Huella, antes, 3000, () => rp.ElapsedMilliseconds);
                 LogBus.Log("plan", $"   abrir «{app}» en la misma pestaña: {(a.Cambio ? "cargó" : "sin cambio visible")} en {rp.ElapsedMilliseconds} ms");
                 return true;
             }
-            LogBus.Log("plan", $"   abrir «{app}»: no encontré la barra de direcciones; la abro aparte");
+            // EL PASO QUE FALLÓ, y no una conclusión (aprendizaje nº2): escribir en la barra y pulsar Enter son dos cosas.
+            LogBus.Log("plan", $"   abrir «{app}»: " + (escrita ? "escribí la dirección en la barra, pero no pude pulsar Enter"
+                : $"no pude escribir en la barra de direcciones de «{aqui.Proceso}» ({_lector.PorQueNoLaBarra})") + "; la abro aparte");
         }
         var (llego, ms) = Apps.Abrir(app);
         if (!llego) { LogBus.Log("plan", $"   abrir «{app}»: no llegó delante en {ms} ms"); return false; }
@@ -87,6 +90,53 @@ public sealed class ManosDelPlan
         var reloj = Stopwatch.StartNew();
         var q = Asentado.Quieta(() => _lector.Leer(Ventana()), Ejecutor.EsperaTrasEscribir(texto), () => reloj.ElapsedMilliseconds);
         LogBus.Log("plan", $"   escribir {texto.Length} caracteres: {(q.Cambio ? "quieta" : "todavía tecleando")} en {q.Ms} ms");
+    }
+
+    /// <summary>
+    /// ELEGIR EN UNA LISTA DESPLEGABLE (spec 083, promesa 816): el foco en el campo, se teclea la opción, y se LEE lo
+    /// que quedó elegido. null si quedó; si no, por qué —y entonces quien planea lo hace con dos «pulsa:»—.
+    /// </summary>
+    public string? Elegir(string campo, string opcion)
+    {
+        var reloj = Stopwatch.StartNew();
+        var aqui = Donde.Leer();
+        // LA PANTALLA PUEDE ESTAR LLEGANDO: tras «Guardar paciente» la lista del triage tardó en aparecer y el paso falló
+        // a la primera (2026-10-02). Se la busca hasta 1,5 s antes de decir que no está.
+        bool enfocada = _lector.EnfocarLista(aqui.Ventana, campo);
+        for (int i = 0; i < 5 && !enfocada; i++) { Thread.Sleep(300); enfocada = _lector.EnfocarLista(aqui.Ventana, campo); }
+        if (!enfocada) return _lector.PorQueNoLaLista;
+        Thread.Sleep(80);
+        Raton.Escribir(opcion);
+        string quedo = "";
+        // LO QUE CUENTA ES LO QUE LA LISTA DICE QUE TIENE: se le pregunta hasta 600 ms, que teclear no es instantáneo.
+        for (int i = 0; i < 6; i++)
+        {
+            Thread.Sleep(100);
+            quedo = _lector.ValorDeLista(aqui.Ventana, campo);
+            if (Ejecutor.QuedoElegida(quedo, opcion)) break;
+        }
+        bool bien = Ejecutor.QuedoElegida(quedo, opcion);
+        string como = "tecleando";
+        if (!bien)
+        {
+            // POR LAS FLECHAS, LEYENDO CADA OPCIÓN. Teclear solo acierta si la opción EMPIEZA por lo tecleado: «4» no
+            // elige «Triage 4 - Urgencia menor» (2026-10-02, y el plan acabó en las manos, que pulsaron «Atrás» del
+            // navegador). Desde la primera, se baja de una en una hasta la que CONTIENE lo pedido; si la lista deja de
+            // cambiar, se acabó y no estaba. Cada paso es una tecla y una lectura del valor: milisegundos.
+            como = "por las flechas";
+            Raton.Tecla("Inicio"); Thread.Sleep(60);
+            string anterior = "\u0000";
+            for (int i = 0; i < 80; i++)
+            {
+                quedo = _lector.ValorDeLista(aqui.Ventana, campo);
+                if (Ejecutor.LaContiene(quedo, opcion)) { bien = true; break; }
+                if (quedo == anterior) break;
+                anterior = quedo;
+                Raton.Tecla("Abajo"); Thread.Sleep(45);
+            }
+        }
+        LogBus.Log("plan", $"   elegir «{opcion}» en «{campo}» ({como}): {(bien ? $"quedó elegida «{quedo}»" : $"quedó en «{quedo}»")} en {reloj.ElapsedMilliseconds} ms");
+        return bien ? null : $"recorrí la lista «{campo}» y ninguna opción es ni contiene «{opcion}»; quedó en «{quedo}». Mira qué opciones tiene (map_look) y pídela con su nombre";
     }
 
     /// <summary>Una tecla, y salir en cuanto la pantalla cambie (u/, promesa 453: Enter espera hasta 1,5 s).</summary>

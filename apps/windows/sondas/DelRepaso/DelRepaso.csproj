@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- LA SONDA DEL REPASO (spec 074). Le pasa al modelo DE VERDAD una batería de sesiones etiquetadas y
+       cuenta cuántas decisiones acierta: qué es habilidad, qué es preferencia, qué es un dato, qué se
+       queda de observación y qué no es nada.
+
+       POR QUÉ EXISTE. El contrato juzga el repaso con un modelo de mentira que devuelve lo que la prueba
+       le dicta: prueba que el código aplica bien lo propuesto y descarta lo que no trae cita. No puede
+       probar que el modelo PROPONGA bien, ni que cite literalmente, que es de lo que depende que una
+       enseñanza no se pierda en la compuerta (patrón nº4: pregúntale a la API).
+
+       COMPILA LOS ARCHIVOS DE LA APP, no una copia: el prompt, el esquema, la lectura de la respuesta y
+       la compuerta de la cita son los que se distribuyen. Lo único de mentira son LogBus y UserPaths
+       (Dobles.cs), que en la app viven en ensamblados de WPF.
+
+       Cuesta una llamada a gpt-6-luna por caso. La clave sale de OPENAI_API_KEY y no se escribe. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>sonda-del-repaso</AssemblyName>
+    <RootNamespace>Sondas.DelRepaso</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\windows-client\src\Voice\ElRepaso.cs" Link="DeLaApp\ElRepaso.cs" />
+    <Compile Include="..\..\windows-client\src\Voice\LoAprendido.cs" Link="DeLaApp\LoAprendido.cs" />
+    <Compile Include="..\..\windows-client\src\Voice\DiarioDeLaSesion.cs" Link="DeLaApp\DiarioDeLaSesion.cs" />
+  </ItemGroup>
+  <!-- Las pantallas de mentira del caso con fotos (spec 079): una ventana tipo SAP con el cursor sobre un
+       botón distinto en cada una. Viajan junto al .exe porque el caso las lee de su propia carpeta. -->
+  <ItemGroup>
+    <None Include="fotos\*.jpg" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

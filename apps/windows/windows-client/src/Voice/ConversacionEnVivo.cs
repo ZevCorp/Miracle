@@ -40,6 +40,14 @@ public sealed class ConversacionEnVivo : IDisposable
     public MemoriaPersonal? Memoria { get; set; }
     /// <summary>Hilo durable que une sesiones de voz sucesivas del mismo usuario.</summary>
     public ConversacionPersonal? Conversacion { get; set; }
+    /// <summary>Lo que la persona le ha enseñado: habilidades y preferencias (spec 074). Sin él, la voz funciona y no aprende.</summary>
+    public LoAprendido? Aprendido { get; set; }
+    /// <summary>Quien repasa el diario de la sesión al cerrar. Sin él, el diario queda pendiente en disco.</summary>
+    public ElRepaso? Repaso { get; set; }
+    /// <summary>Dónde esperan los diarios por repasar. Se puede cambiar para probar sin tocar los de la persona.</summary>
+    public string CarpetaDeDiarios { get; set; } = DiarioDeLaSesion.CarpetaPorDefecto;
+    /// <summary>Lo que va pasando en ESTA sesión, de que abre a que cierra; las reconexiones no lo parten.</summary>
+    private DiarioDeLaSesion? _diario;
     private ClientWebSocket? _ws;
     private CancellationTokenSource? _cts;
     private readonly SemaphoreSlim _envio = new(1, 1);
@@ -80,7 +88,34 @@ public sealed class ConversacionEnVivo : IDisposable
     /// valor (patrón nº9), y mayúsculas y espacios no cambian de voz: lo teclea una persona en setx.
     /// </remarks>
     public static IProtocolo ProtocoloPorDefecto(Func<string, string?> variable)
-        => VozPedida(variable) == VozRealtime ? new ProtocoloOpenAI() : new ProtocoloGptLive();
+        => VozPedida(variable) == VozRealtime ? new ProtocoloOpenAI() : GptLiveSegunElEntorno(variable);
+
+    private const string VariableDelDelegado = "U_DELEGADO";
+    private const string VariableDeLaPrisa = "U_DELEGADO_PRISA";
+    private const string VariableDelEsfuerzo = "U_DELEGADO_ESFUERZO";
+
+    /// <summary>
+    /// EL DELEGADO, SU PRISA Y CUÁNTO PIENSA, SIN RECOMPILAR (promesa 756): <c>U_DELEGADO</c> elige el modelo,
+    /// <c>U_DELEGADO_PRISA</c> quita priority con 0 y la pide con 1, y <c>U_DELEGADO_ESFUERZO</c> dice el
+    /// esfuerzo. Sin ellas, lo de por defecto del protocolo.
+    /// </summary>
+    /// <remarks>
+    /// Qué modelo piensa y con qué prisa se decide midiendo sobre la app de verdad, y para medir dos
+    /// combinaciones hacían falta dos instaladores. En blanco es sin valor (patrón nº9): un modelo vacío lo
+    /// rechazaría el servidor y la voz no abriría.
+    /// </remarks>
+    private static IProtocolo GptLiveSegunElEntorno(Func<string, string?> variable)
+    {
+        string delegado = (variable(VariableDelDelegado) ?? "").Trim().ToLowerInvariant();
+        string esfuerzo = (variable(VariableDelEsfuerzo) ?? "").Trim().ToLowerInvariant();
+        var deFabrica = new ProtocoloGptLive();
+        // Solo 0 y 1 dicen algo: con cualquier otra cosa no se adivina qué quiso decir, y queda lo de fábrica.
+        bool prisa = (variable(VariableDeLaPrisa) ?? "").Trim() switch { "0" => false, "1" => true, _ => deFabrica.ConPrioridad };
+        return delegado.Length == 0 && prisa == deFabrica.ConPrioridad && esfuerzo.Length == 0
+            ? deFabrica
+            : new ProtocoloGptLive(deFabrica.Modelo, delegado.Length > 0 ? delegado : deFabrica.Delegado, prisa,
+                esfuerzo.Length > 0 ? esfuerzo : deFabrica.Esfuerzo);
+    }
 
     /// <summary>La variable normalizada en UN solo sitio (aprendizaje nº16): quien decide y quien avisa leen lo mismo.</summary>
     private static string VozPedida(Func<string, string?> variable)
@@ -426,6 +461,8 @@ public sealed class ConversacionEnVivo : IDisposable
     private string _alConfirmar = "";
 
     private readonly StringBuilder _fraseU = new();
+    /// <summary>Lo último que devolvió el delegado en este turno, por si la voz no llega a decirlo (promesa 789).</summary>
+    private string _devueltoPorElDelegado = "";
     private readonly StringBuilder _fraseUsuario = new();
     private bool _respuestaDeTexto;
     private int _parandoPorOrden;
@@ -580,6 +617,45 @@ public sealed class ConversacionEnVivo : IDisposable
         finally { _apertura.Release(); }
     }
 
+    /// <summary>
+    /// EL OÍDO DE PRUEBA (spec 083): la sesión abre como con micrófono —la voz oye, decide y delega, que es el camino
+    /// que una orden escrita se salta—, pero lo que oye es un audio que se le da y no el micrófono, y no suena.
+    /// </summary>
+    /// <remarks>
+    /// POR QUÉ EXISTE. Con GPT-Live lo escrito va directo al delegado y lo hablado lo recibe la voz, que delega si
+    /// quiere: el 2026-10-01 un flujo probado toda la noche por escrito falló a la primera frase hablada (0 de 5
+    /// delegadas). Probar la enseñanza de una habilidad por escrito no prueba la demo. Solo se llega aquí por
+    /// u_decir, que existe con U_ORDENES_DE_PRUEBA=1.
+    /// </remarks>
+    private bool _oidoDePrueba;
+
+    public async Task<string> DecirDePruebaAsync(byte[] pcm, CancellationToken ct = default)
+    {
+        if (pcm == null || pcm.Length == 0) return "no hay audio que decir.";
+        if (!Viva) { _oidoDePrueba = true; await ArrancarAsync(conMicrofono: true); }
+        if (!Viva) return "la voz no abrió.";
+        if (!_confirmada && _aperturaConfirmada != null)
+        {
+            try { await _aperturaConfirmada.Task.WaitAsync(TimeSpan.FromSeconds(20), ct); }
+            catch (TimeoutException) { return "la sesión no confirmó en 20 s."; }
+        }
+        // AL RITMO DE UN MICRÓFONO: trozos de 100 ms, uno cada 100 ms. De golpe, el servidor no lo oye como habla.
+        int trozo = Math.Max(2, _protocolo.RitmoDeEntrada * 2 / 10);
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        long enviados = 0;
+        for (int i = 0; i < pcm.Length && Viva; i += trozo)
+        {
+            int n = Math.Min(trozo, pcm.Length - i);
+            await EnviarAsync(_protocolo.Audio(pcm.AsSpan(i, n).ToArray()), ct);
+            _ultimoAudioMs = Environment.TickCount64;
+            enviados += n;
+            long espera = enviados * 1000 / (_protocolo.RitmoDeEntrada * 2) - reloj.ElapsedMilliseconds;
+            if (espera > 0) await Task.Delay((int)espera, ct);
+        }
+        LogBus.Log("prueba", $"audio de prueba dicho: {enviados * 1000 / (_protocolo.RitmoDeEntrada * 2)} ms");
+        return "dicho.";
+    }
+
     public async Task ArrancarSoloTextoAsync()
     {
         _respuestaDeTexto = true;
@@ -689,6 +765,10 @@ public sealed class ConversacionEnVivo : IDisposable
             _segundosDeLaConexion = _segundosDeConexionesAnteriores = 0;
             _sesionId = Guid.NewGuid().ToString("n");
             _inicioSesion = DateTime.UtcNow;
+            EmpiezaElDiario();
+            lock (_habilidadesDeLaSesion) _habilidadesDeLaSesion.Clear();
+            RepasarLoPendiente();   // lo que la sesión anterior no llegó a repasar (promesa 771)
+            ReintentarLasCopiasPendientes();   // y las fotos que no se pudieron borrar de OpenAI (promesa 785)
 
             // ENCENDIDA, Y TODAVÍA SIN CONFIRMAR: quien espere la confirmación la espera desde el gesto.
             _confirmada = false;
@@ -701,7 +781,8 @@ public sealed class ConversacionEnVivo : IDisposable
 
             // EL MICRÓFONO SE PIDE DENTRO, con el cambio de estado: pedirlo no espera al dispositivo, y así un
             // apagado que llegue por otro hilo no puede quedar a medias entre «consta encendida» y «tiene oído».
-            if (conMicrofono)
+            _conMicrofono = conMicrofono;
+            if (conMicrofono && !_oidoDePrueba)
             {
                 _audio.Capturado -= MandarTrozo;
                 _audio.Capturado += MandarTrozo;
@@ -712,7 +793,7 @@ public sealed class ConversacionEnVivo : IDisposable
         // FUERA DEL CANDADO: quien oye este aviso pinta, y pintar es cosa del hilo de la interfaz.
         Cambio?.Invoke(true);
 
-        if (conMicrofono)
+        if (conMicrofono && !_oidoDePrueba)
         {
             ObedecerAlMicrofonoDeLaApp();
             if (_oyendoElCambioDeMicrofono == null)
@@ -921,6 +1002,7 @@ public sealed class ConversacionEnVivo : IDisposable
     private async Task ApagarAsync(long gesto)
     {
         var reloj = RelojDelClic.DeVerdad("apagar", RelojDelClic.AlApagar, gesto);
+        _oidoDePrueba = false;   // la sesión siguiente vuelve a oír por el micrófono
         MiradaSubida? mirada;
         ClientWebSocket? ws;
         CancellationTokenSource? cts;
@@ -970,6 +1052,18 @@ public sealed class ConversacionEnVivo : IDisposable
         // FUERA DEL CANDADO: quien oye este aviso pinta.
         Cambio?.Invoke(false);
         ReportarConsumo();
+        // EL DIARIO DE LA SESIÓN SE CIERRA CON LO ÚLTIMO DICHO, y se repasa por detrás (spec 074): lo que el candado
+        // sacó de los campos es lo que no alcanzó a cerrar turno. Escribir el diario es un archivo pequeño, y el
+        // repaso —un modelo leyendo lo que pasó— no se espera: quien apaga la voz no tiene por qué notarlo.
+        _diario?.Persona(dichoPorTi);
+        _diario?.U(dichoPorU);
+        RepasarLaSesion();
+        // UNA META NO SOBREVIVE A LA VOZ APAGADA: nadie va a seguirla, y la sesión siguiente no hereda un trabajo a medias.
+        if (_meta.Activa)
+        {
+            _meta.PausarPorque("se apagó la voz con la meta sin cerrar");
+            LogBus.Log("meta", $"pausada: {_meta.PorQueSeDetuvo} · {_meta.Cuenta()}");
+        }
         string? ultimaMedida = _cuenta.Cerrar();   // el último turno también deja su línea (spec 017)
         if (ultimaMedida != null) LogBus.Log("voz-turno", ultimaMedida);
 
@@ -1021,6 +1115,139 @@ public sealed class ConversacionEnVivo : IDisposable
         await RetirarAsync(mirada).ConfigureAwait(false);
         await guardado.ConfigureAwait(false);
         LogBus.Log("voz-viva", "sesión cerrada");
+    }
+
+    // ── El diario de la sesión y su repaso (spec 074) ────────────────────────
+
+    private Action<string, Task<byte[]?>?>? _alTocarLaPersona;
+
+    private void EmpiezaElDiario()
+    {
+        _diario = new DiarioDeLaSesion(_sesionId);
+        // LO QUE LA PERSONA TOCA ENTRA AL DIARIO en su sitio, entre lo que dice y lo que Ü hace: «mira, se hace
+        // así» seguido de cuatro clics solo se entiende con los cuatro clics.
+        if (_alTocarLaPersona == null)
+        {
+            // CON SU FOTO (spec 079, promesa 783): la línea entra ya, en su sitio, y la foto —que se está tomando
+            // en otro hilo— se le pone cuando llega. En SAP, sin ella, un clic es una línea sin nombre.
+            _alTocarLaPersona = (linea, foto) =>
+            {
+                var diario = _diario;
+                if (diario == null) return;
+                int id = diario.Toco(linea);
+                if (id >= 0 && foto != null) _ = foto.ContinueWith(t => { if (t.Status == TaskStatus.RanToCompletion) diario.PonerFoto(id, t.Result); }, TaskScheduler.Default);
+            };
+            LoQueHiciste.DeLaPersona.AnotadoConFoto += _alTocarLaPersona;
+        }
+        LoQueHiciste.DeLaPersona.ConFotos = true;   // mientras hay sesión: sin ella la pantalla no se retiene
+    }
+
+    /// <summary>
+    /// AL CERRAR: el diario a disco, y el repaso en segundo plano (promesa 774).
+    /// </summary>
+    /// <remarks>
+    /// PRIMERO SE ESCRIBE, DESPUÉS SE REPASA. Si la app se cierra a mitad, o no hay red, el diario sigue en
+    /// disco y lo repasa la sesión siguiente (771). Y NO SE ESPERA: quien apaga la voz no tiene por qué notar
+    /// que detrás hay un modelo leyendo lo que pasó.
+    /// </remarks>
+    private void RepasarLaSesion()
+    {
+        var diario = _diario;
+        _diario = null;
+        if (_alTocarLaPersona != null)
+        {
+            LoQueHiciste.DeLaPersona.AnotadoConFoto -= _alTocarLaPersona;
+            LoQueHiciste.DeLaPersona.ConFotos = false;
+            _alTocarLaPersona = null;
+        }
+        if (diario == null) return;
+        // TerminarAsync corre también para una sesión que nunca abrió —sin clave, sin crédito—: esa no tiene
+        // diario que dejar, y no se dice nada de ella.
+        if (!_confirmada && diario.Entradas.Count == 0) return;
+        if (!diario.TieneQueRepasar)
+        {
+            LogBus.Log("repaso", $"sesión {diario.Sesion}: la persona no dijo nada que repasar; no se guarda diario ni se llama al modelo");
+            return;
+        }
+
+        string carpeta = CarpetaDeDiarios;
+        try { diario.Guardar(carpeta); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            LogBus.Log("repaso", $"no pude escribir el diario de la sesión {diario.Sesion} en «{carpeta}»: {e.GetType().Name}: {e.Message}. Esta sesión no se repasará");
+            return;
+        }
+        string cuando = $"al cerrar la sesión {diario.Sesion}";
+        _ = Task.Run(() => RepasarLaCarpetaAsync(carpeta, cuando));
+    }
+
+    /// <summary>
+    /// AL ABRIR —la voz, y la app—: lo que quedó sin repasar de antes —se cerró la app, no había red— se repasa
+    /// ahora (771). Al arrancar la app importa: cerrar Ü corta el repaso de la última sesión, y repasarla al
+    /// abrir la voz llegaría tarde para las instrucciones de esa misma sesión.
+    /// </summary>
+    public void RepasarLoPendiente()
+    {
+        string carpeta = CarpetaDeDiarios;
+        _ = Task.Run(() => RepasarLaCarpetaAsync(carpeta, "al abrir"));
+    }
+
+    /// <summary>
+    /// LO QUE LA PERSONA PREFIERE, TAMBIÉN A QUIEN HABLA (promesa 776). Con GPT-Live lo aprendido va en las
+    /// instrucciones del delegado, que no habla; «háblame más corto» es para la voz, que tiene su propia persona.
+    /// </summary>
+    private void ContarleLasPreferenciasALaVoz()
+    {
+        string msg;
+        try { msg = _protocolo.ParaLaVoz(Aprendido?.ParaLaVoz(ProtocoloGptLive.TopeDeUnAppend) ?? ""); }
+        catch (Exception e) { LogBus.Log("aprendido", $"no pude leer las preferencias para la voz: {e.GetType().Name}: {e.Message}"); return; }
+        if (msg.Length == 0) return;
+        LogBus.Log("voz-viva", "preferencias de la persona, a la voz");
+        _ = Task.Run(async () =>
+        {
+            try { await EnviarAsync(msg, _cts?.Token ?? CancellationToken.None); }
+            catch (Exception e) { LogBus.Log("voz-viva", $"no pude contarle las preferencias a la voz: {e.Message}"); }
+        });
+    }
+
+    /// <summary>
+    /// Las copias de fotos que quedaron en OpenAI —el borrado falló, o la app se cerró con la sesión abierta— se
+    /// vuelven a intentar borrar ahora. En segundo plano: abrir la voz no espera a esto.
+    /// </summary>
+    private void ReintentarLasCopiasPendientes()
+    {
+        if (_subeLaMirada != null) return;   // el contrato pone sus propias puertas: no hay nada de verdad que borrar
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                int borradas = await MiradaSubida.ReintentarLoPendienteAsync(Clave, m => LogBus.Log("voz-viva", m));
+                if (borradas > 0) LogBus.Log("voz-viva", $"{borradas} copia(s) de fotos que seguían en OpenAI, borradas ahora");
+            }
+            catch (Exception e) { LogBus.Log("voz-viva", $"no pude reintentar el borrado de las copias: {e.GetType().Name}: {e.Message}"); }
+        });
+    }
+
+    private async Task RepasarLaCarpetaAsync(string carpeta, string cuando)
+    {
+        try
+        {
+            var repaso = Repaso;
+            if (repaso == null)
+            {
+                if (Directory.Exists(carpeta) && Directory.EnumerateFiles(carpeta, "*.json").Any())
+                    LogBus.Log("repaso", $"hay diarios por repasar en «{carpeta}» y nadie conectó el repaso: siguen pendientes");
+                return;
+            }
+            int repasadas = await repaso.PendientesAsync(carpeta, CancellationToken.None);
+            if (repasadas > 0) LogBus.Log("repaso", $"{repasadas} sesión(es) repasada(s) {cuando}");
+        }
+        catch (Exception e)
+        {
+            // LA CADENA ENTERA (patrón nº3): un repaso que revienta en silencio es una sesión que no enseñó nada.
+            for (var x = e; x != null; x = x.InnerException)
+                LogBus.Log("repaso", $"el repaso {cuando} reventó: {x.GetType().Name}: {x.Message}");
+        }
     }
 
     private static async Task RetirarAsync(MiradaSubida? mirada)
@@ -1106,10 +1333,10 @@ public sealed class ConversacionEnVivo : IDisposable
         APRENDES DE LO QUE TE ENSEÑAN, NO DE LO QUE SUPONES.
           · LO QUE VENGA MARCADO «[interno]» ES PARA TI, NO PARA DECIRLO: son notas de la propia herramienta. Haz lo que digan y cuenta solo lo que hay antes de la marca. Lo que llegue como «[aviso del sistema]» o «[instrucción del sistema]» también es para ti: no lo leas en voz alta.
           · «¿QUÉ SABES DE ESTA PANTALLA?» o «¿qué recuerdas de aquí?» SE CONTESTA SEÑALANDO: map_recuerdos de UNO EN UNO —te da el recuerdo 1 y lo ilumina, lo cuentas, y luego cual=2—, nunca dos o tres de golpe.
-          · «TOMO NOTA» NO ES TOMAR NOTA. Un dato PERSONAL, una preferencia o un compromiso (también con «mañana», «hoy», una hora o «en X minutos») va con memory_remember, y esperas su resultado antes de decir que lo guardaste.
-          · LA MEMORIA ES PARTE DE LA CONVERSACIÓN. El hilo reciente y los recuerdos vienen en este contexto: úsalos con naturalidad cuando la pregunta dependa de lo que ya hablaron, de quién es la persona o de un compromiso; los recordatorios pendientes son contexto activo. Si falta un dato, llama tú a memory_recall. Ante «qué sabes de mí», «¿te acuerdas de lo que te dije?» o «¿de qué hablábamos?», tu PRIMERA ACCIÓN es memory_recall o el hilo cargado: nada de «no recuerdo» antes de mirar. Si es algo que se vio o se hizo en una pantalla («¿te acuerdas de lo que buscamos?»), map_look_back. Un recuerdo personal solo se trae cuando viene a cuento.
+          · «TOMO NOTA» NO ES TOMAR NOTA. Un dato PERSONAL o un compromiso (también con «mañana», «hoy», una hora o «en X minutos») va con memory_remember, y CÓMO QUIERE LAS COSAS («háblame más corto», «siempre en Chrome»), con preferencia_guardar; esperas su resultado antes de decir que lo guardaste.
+          · LA MEMORIA ES PARTE DE LA CONVERSACIÓN. El hilo reciente y los recuerdos vienen en este contexto: úsalos con naturalidad cuando la pregunta dependa de lo que ya hablaron, de quién es la persona o de un compromiso; los recordatorios pendientes son contexto activo. Si falta un dato, llama tú a memory_recall. Ante «qué sabes de mí», «¿te acuerdas de lo que te dije?» o «¿de qué hablábamos?», tu PRIMERA ACCIÓN es memory_recall o el hilo cargado: nada de «no recuerdo» antes de mirar. Un recuerdo personal solo se trae cuando viene a cuento.
           · CUANDO TE EXPLIQUEN QUÉ ES ALGO O PARA QUÉ SIRVE —«esto es el número de factura», «este botón sirve para X cuando Y»— es una lección, no una orden: crea un RECUERDO con map_esto_es, sin resumirlo. Ahí sí te llega una foto del instante.
-          · LOS IMPERATIVOS SE DIVIDEN EN DOS: «recuerda que soy desarrollador», una preferencia o una fecha → memory_remember; «recuerda que en este botón se hace clic para…» → map_esto_es.
+          · LOS IMPERATIVOS SE DIVIDEN EN TRES: «recuerda que soy desarrollador» o una fecha → memory_remember; «de ahora en adelante hazlo así» → preferencia_guardar; «recuerda que en este botón se hace clic para…» → map_esto_es.
           · ENSEÑAR NO ES EJECUTAR: «recuerda que hay que verificar esto antes» se GUARDA, no se pulsa. Pero enseñar y actuar pueden ir juntos: «aquí se radican las facturas, entra» es crear el recuerdo Y entrar, y al terminar lo dices en una frase: «Aprendí que ahí se radican las facturas, y ya entré».
           · UN RECUERDO VIVE PEGADO A ESE ELEMENTO EN ESA PANTALLA. Cuando vuelvas, map_where_am_i te dice qué te enseñaron allí y map_recuerdos te lo cuenta: si lo que te piden coincide, actúa con esa pista en vez de adivinar. Si ves un campo parecido sin explicar en una pantalla vecina de la MISMA app, puedes proponer la misma lectura preguntándola una vez («¿este también es el número de factura?») y colgarla con map_esto_es solo si te dicen que sí.
 
@@ -1320,14 +1547,6 @@ public sealed class ConversacionEnVivo : IDisposable
             + "cuando de verdad necesites VER y no solo saber qué hay. NO SIRVE PARA SABER EN QUÉ APP "
             + "O SITIO ESTÁS: una foto se PARECE a cosas —un chat cualquiera parece un navegador— pero "
             + "no sabe qué proceso ni qué URL hay detrás. Eso, siempre, es map_where_am_i."),
-        Fn("map_look_back", "MIRA LO QUE HABÍA ANTES en un sitio por el que ya pasaron: te llega la "
-            + "FOTO guardada de esa ubicación, con cuándo fue y qué estaban haciendo. Es tu MEMORIA "
-            + "VISUAL: la pantalla de hace media hora ya no existe y map_look solo ve la de AHORA. Úsala "
-            + "cuando pregunten por algo que se vio o se hizo antes en una pantalla —«¿te acuerdas de lo "
-            + "que buscamos?», «vuelve a mirar aquella pantalla»— en vez de contestar que no te acuerdas. "
-            + "Si de ese sitio no hay foto, la respuesta dice de cuáles sí hay, para que pidas otra.",
-            ("place", "El sitio del que quieres la foto, como lo dirías: «google», «instagram», "
-                    + "«web://docs.google.com», «Excel». Vacío = te cuento todo lo que recuerdo.")),
         Fn("map_scroll", "DESPLAZA la pantalla y te dice en qué punto quedaste. Es lo que hay que usar "
             + "para «baja», «sube», «vete al final de la página»: no busques un botón para eso.",
             ("direction", "«abajo», «arriba», «inicio» (del todo arriba) o «final» (del todo abajo).")),
@@ -1363,9 +1582,9 @@ public sealed class ConversacionEnVivo : IDisposable
             ("cual", "Cuál contar, empezando en 1. Vacío = el primero.")),
         Fn("map_esto_es", "CREA UN RECUERDO DE PANTALLA con lo que el usuario te está ENSEÑANDO. "
             + "Úsala solo cuando explique qué es un elemento visible o para qué sirve: «esto es X», "
-            + "«aquí va X cuando Y», «este botón sirve para…». Los datos personales, preferencias y "
-            + "compromisos van SIEMPRE a memory_remember, aunque la frase empiece por «recuerda que»; "
-            + "los datos de un paciente, a ninguna de las dos. "
+            + "«aquí va X cuando Y», «este botón sirve para…». Los datos personales y los compromisos van "
+            + "SIEMPRE a memory_remember, y las preferencias a preferencia_guardar, aunque la frase empiece por "
+            + "«recuerda que»; los datos de un paciente, a ninguna de ellas. "
             + "Queda pegado a ese elemento en esa pantalla, CON UNA FOTO del instante, y "
             + "map_where_am_i te lo recordará cuando vuelvas. Nunca para describir lo que tú vas a "
             + "pulsar o escribir: un recuerdo es lo que te enseñan, no una nota tuya.",
@@ -1436,9 +1655,10 @@ public sealed class ConversacionEnVivo : IDisposable
             ("query", "Parte del nombre que buscas."),
              ("path", "Dónde buscar. Vacío = la carpeta abierta ahora.")),
 
-        Fn("memory_remember", "GUARDA UN DATO PERSONAL, una preferencia o un compromiso de la persona. Úsala "
+        Fn("memory_remember", "GUARDA UN DATO PERSONAL o un compromiso de la persona. Úsala "
             + "para «recuerda que soy…», «no olvides…», «toma nota de…» y cualquier cosa suya que deba sobrevivir "
-            + "al cierre de la voz. Los datos clínicos de un paciente no se guardan aquí; un pendiente del médico "
+            + "al cierre de la voz. CÓMO QUIERE LAS COSAS no va aquí: va con preferencia_guardar. Los datos clínicos "
+            + "de un paciente no se guardan aquí; un pendiente del médico "
             + "sobre un paciente sí, sin datos clínicos («recuérdeme revisar los laboratorios de la cama 4»). Si piden "
             + "anotar un dato clínico, va donde el médico diga (la historia, una nota); si no lo dijo, pregúntale dónde, "
             + "una vez. "
@@ -1454,6 +1674,54 @@ public sealed class ConversacionEnVivo : IDisposable
             + "el resultado: nunca digas que no recuerdas como respuesta provisional. Lo de una pantalla no está "
             + "aquí: lo que te enseñaron en ella es map_recuerdos, y lo que se vio antes, map_look_back.",
             ("query", "Qué quieres recordar. Vacío = contexto personal disponible.")),
+
+        // LAS HABILIDADES (spec 074): cómo se hace algo, en texto. No son del mapa —no accionan nada— ni de la
+        // memoria personal: las despacha esta clase contra LoAprendido. Reconstruir es la única operación de
+        // escritura: una herramienta para «editar el paso 3» exige que el modelo y el archivo estén de acuerdo
+        // en cuál es el paso 3.
+        Fn("habilidad_escribir", "GUARDA CÓMO SE HACE ALGO, tal como te lo acaban de enseñar o corregir: «te voy a "
+            + "enseñar a…», «se hace así», «cuando te pida X, haz Y», «no, primero…». Queda guardada EN ESTE "
+            + "MOMENTO y la tendrás en todas las sesiones siguientes. Si ya existe una con ese nombre, la "
+            + "SUSTITUYE ENTERA: para corregir un paso, manda otra vez el mismo nombre con TODOS los pasos. "
+            + "ESPERA el resultado antes de decir que la guardaste.",
+            ("nombre", "Nombre corto de la tarea, como lo diría la persona: «buscar artículos», «radicar una cuenta»."),
+            ("cuando", "Cuándo usarla: qué pedirá la persona para que toque. Una frase."),
+            ("pasos", "TODOS los pasos, en orden, UNO POR LÍNEA, con el nombre exacto de cada botón, campo o "
+                    + "aplicación. Lo que cambia cada vez se nombra («el tema», «el destinatario»), no se copia.")),
+        Fn("habilidad_leer", "LEE LOS PASOS de una habilidad guardada. Úsala cuando en tus instrucciones solo venga "
+            + "su nombre, o antes de corregirla, para reconstruirla sin perder los pasos que siguen valiendo.",
+            ("nombre", "El nombre de la habilidad, como lo diga la persona.")),
+        Fn("habilidad_olvidar", "OLVIDA una habilidad: «olvida cómo se hace X», «ya no lo hagas así». No la uses para "
+            + "corregirla: para eso se vuelve a escribir entera.",
+            ("nombre", "El nombre de la habilidad.")),
+        Fn("preferencia_guardar", "GUARDA CÓMO QUIERE LAS COSAS ESTA PERSONA: cómo quiere que le hablen, qué elegir "
+            + "cuando hay duda, qué no hacer nunca. «Háblame más corto», «no me preguntes antes de guardar», "
+            + "«siempre en Chrome», «de ahora en adelante…». Vale desde ahora y en todas las sesiones, y la "
+            + "cumple también la voz. No es para un dato de la persona (memory_remember) ni para cómo se hace "
+            + "una tarea (habilidad_escribir). ESPERA el resultado antes de decir que la guardaste.",
+            ("texto", "La preferencia, corta y con sus palabras: «habla más corto», «no preguntes antes de guardar».")),
+        Fn("habilidad_lo_que_hice", "LO QUE LA PERSONA ACABA DE HACER CON SU RATÓN, en orden y con el nombre con que "
+            + "map_take lo encuentra. Úsala cuando te MUESTRE cómo se hace algo en vez de decírtelo —«mira cómo "
+            + "lo hago», «fíjate»—, justo después de que termine. Se entrega una sola vez: la llamada siguiente "
+            + "solo trae lo nuevo. No trae lo que tecleó: eso se lee de la pantalla o se le pregunta."),
+
+        // LA META DE UNA TAREA LARGA (spec 082): las tres herramientas del harness de Codex —create_goal, get_goal,
+        // update_goal—, con sus mismos tres estados. La meta vive fuera del turno: si quien actúa termina sin cerrarla,
+        // el trabajo vuelve a él con la bitácora de lo hecho.
+        Fn("meta_crear", "CREA LA META de una tarea LARGA, antes de empezarla: una investigación, una duración, un "
+            + "«hasta que…», más de tres partes, o algo que no vas a terminar con dos o tres planes. Desde entonces el trabajo "
+            + "no se suelta: si terminas tu turno sin cerrarla, vuelve a ti con lo que llevas hecho. Para lo corto no se "
+            + "crea. Solo puede haber una sin cerrar.",
+            ("objetivo", "La meta ENTERA, con todas sus partes, como la pidió la persona. Es contra lo que se comprobará que terminó."),
+            ("minutos", "Cuánto puede durar, si la persona dijo una duración. Vacío = 30.")),
+        Fn("meta_ver", "LA META EN CURSO: su objetivo, en qué turno va, cuánto lleva y todo lo ya ejecutado, en orden. "
+            + "Úsala si dudas de lo que falta, o si preguntan cómo va."),
+        Fn("meta_actualizar", "CIERRA LA META. «cumplida»: solo cuando TODO lo pedido está hecho y lo has comprobado en la "
+            + "pantalla o en el disco de ahora; di en `evidencia` qué se ve que lo prueba, cosa por cosa. «bloqueada»: solo "
+            + "si el MISMO bloqueo se repite tres turnos y no puedes avanzar sin la persona. «pausada»: solo si la persona "
+            + "pide dejarla. No la cierres por cansancio, ni porque quedó casi.",
+            ("estado", "cumplida, bloqueada o pausada."),
+            ("evidencia", "Qué se ve AHORA que prueba cada cosa pedida; o qué bloquea y qué necesitas. Vacío solo al pausar.")),
 
         // SOBRE Ü MISMO, no sobre lo que hay en pantalla. Van aparte de las map_*/file_* —esas
         // accionan OTRAS aplicaciones; estas te accionan a TI— y por eso las ejecuta quien tiene la
@@ -1486,6 +1754,13 @@ public sealed class ConversacionEnVivo : IDisposable
     /// herramientas del mapa en el despacho — esas van a <see cref="_mapa"/>, estas a <see cref="Autocontrol"/>.</summary>
     private static readonly HashSet<string> HerramientasDeAutocontrol =
         new(StringComparer.Ordinal) { "self_mute", "self_hide", "self_close", "self_update", "scan_computer" };
+
+    /// <summary>Las de la meta (spec 082): tampoco son del mapa; las atiende <see cref="_meta"/>.</summary>
+    private static readonly HashSet<string> HerramientasDeLaMeta = new(StringComparer.Ordinal) { "meta_crear", "meta_ver", "meta_actualizar" };
+
+    /// <summary>Las de las habilidades (spec 074): tampoco son del mapa; las atiende <see cref="Aprendido"/>.</summary>
+    private static readonly HashSet<string> HerramientasDeHabilidad =
+        new(StringComparer.Ordinal) { "habilidad_escribir", "habilidad_leer", "habilidad_olvidar", "habilidad_lo_que_hice", "preferencia_guardar" };
 
     /// <summary>
     /// Quien atiende «self_mute»/«self_hide»/«self_close». Se inyecta desde la ventana, porque
@@ -1520,7 +1795,6 @@ public sealed class ConversacionEnVivo : IDisposable
             "map_what_i_see" => "mirando la pantalla…",
             "map_show" or "map_pointing_at" => "señalando…",
             "map_look" => "mirando la pantalla…",
-            "map_look_back" => "recordando lo que había…",
             "self_mute" => "callándome…",
             "self_hide" => "ocultándome…",
             "self_close" => "cerrándome…",
@@ -1540,16 +1814,7 @@ public sealed class ConversacionEnVivo : IDisposable
     private static string Terminado(string tool, IReadOnlyDictionary<string, string> a,
         string resultado, long ms)
     {
-        bool mal = resultado.StartsWith("No ", StringComparison.OrdinalIgnoreCase)
-                || resultado.StartsWith("Falta", StringComparison.OrdinalIgnoreCase)
-                || resultado.StartsWith("Nada ", StringComparison.OrdinalIgnoreCase)
-                || resultado.Contains("no existe", StringComparison.OrdinalIgnoreCase)
-                || resultado.Contains("falló", StringComparison.OrdinalIgnoreCase)
-                || resultado.Contains("no se pudo", StringComparison.OrdinalIgnoreCase)
-                // UNA TANDA QUE PARÓ A MEDIAS ES UN FALLO (promesa 267): «hice 0 de 1 y paré en el paso 1» salía con ✓
-                // en el notch, y el dueño lo veía como lo que era. El icono no puede mentir.
-                || resultado.StartsWith("hice 0 de", StringComparison.OrdinalIgnoreCase)
-                || resultado.Contains(" y paré en el paso ", StringComparison.Ordinal);
+        bool mal = SalioMal(resultado);
 
         string primera = resultado.Split('\n')[0].Trim();
         if (primera.Length > 70) primera = primera[..70] + "…";
@@ -1562,6 +1827,22 @@ public sealed class ConversacionEnVivo : IDisposable
 
         return $"{(mal ? "✋" : "✓")} {primera}  ({ms} ms)";
     }
+
+    /// <summary>
+    /// Si lo que devolvió una herramienta dice que no salió. Un solo criterio para el icono del panel (✓ o ✋)
+    /// y para lo que se le cuenta a la voz (promesa 752): lo que la persona ve y lo que oye no se contradicen.
+    /// </summary>
+    private static bool SalioMal(string resultado)
+        => resultado.StartsWith("No ", StringComparison.OrdinalIgnoreCase)
+        || resultado.StartsWith("Falta", StringComparison.OrdinalIgnoreCase)
+        || resultado.StartsWith("Nada ", StringComparison.OrdinalIgnoreCase)
+        || resultado.Contains("no existe", StringComparison.OrdinalIgnoreCase)
+        || resultado.Contains("falló", StringComparison.OrdinalIgnoreCase)
+        || resultado.Contains("no se pudo", StringComparison.OrdinalIgnoreCase)
+        // UNA TANDA QUE PARÓ A MEDIAS ES UN FALLO (promesa 267): «hice 0 de 1 y paré en el paso 1» salía con ✓
+        // en el notch, y el dueño lo veía como lo que era. El icono no puede mentir.
+        || resultado.StartsWith("hice 0 de", StringComparison.OrdinalIgnoreCase)
+        || resultado.Contains(" y paré en el paso ", StringComparison.Ordinal);
 
     /// <summary>CADA HERRAMIENTA, CON SU RELOJ, EN UN SITIO QUE SE PUEDA COMPARAR DESPUÉS.</summary>
     private static void Apuntar(string tool, IReadOnlyDictionary<string, string> args, string resultado, long ms)
@@ -1590,6 +1871,46 @@ public sealed class ConversacionEnVivo : IDisposable
         => conCoreografia ? args : args[..^2];
 
     // ── El caño ──────────────────────────────────────────────────────────────
+
+    /// <summary>Cuándo salió hacia el servidor el último trozo de audio de verdad (TickCount64).</summary>
+    private long _ultimoAudioMs;
+
+    /// <summary>La sesión para la que ya corre el bucle del silencio.</summary>
+    private CancellationTokenSource? _canoDe;
+
+    /// <summary>
+    /// EL CAÑO, ABIERTO AUNQUE NADIE HABLE (spec 081, promesa 790). Mientras la sesión es la suya y no sale audio de
+    /// verdad —lo escrito, el micrófono apagado—, manda silencio al ritmo de un micrófono: sin él, GPT-Live cierra
+    /// la sesión a los 30 s («expired») con el trabajo a medias, y lo que se le cuenta a la voz no llega a inyectarse.
+    /// </summary>
+    /// <remarks>
+    /// EMPIEZA AL CONFIRMAR (el servidor tira lo que llega antes, promesa 661) y muere con SU sesión: el de una
+    /// sesión apagada no le manda silencio a la siguiente (664). Con las puertas del contrato puestas no corre: un
+    /// contrato que cuenta los mensajes que salen no tiene que contar silencios de un reloj.
+    /// </remarks>
+    private async Task MantenerElCanoAbiertoAsync(CancellationTokenSource? cts)
+    {
+        if (cts == null || _puerta != null) return;
+        // UNO POR SESIÓN: una reconexión confirma otra vez con la misma sesión, y dos bucles mandarían el doble.
+        if (ReferenceEquals(Interlocked.Exchange(ref _canoDe, cts), cts)) return;
+        try
+        {
+            while (EsLaSesion(cts))
+            {
+                await Task.Delay(CanoAbierto.TrozoMs, cts.Token).ConfigureAwait(false);
+                if (!EsLaSesion(cts)) return;
+                if (!SalidaAbierta) continue;
+                if (!CanoAbierto.Toca(_protocolo.CaducaSinAudio, Environment.TickCount64 - _ultimoAudioMs)) continue;
+                await EnviarAsync(_protocolo.Audio(CanoAbierto.Silencio(_protocolo.RitmoDeEntrada)), cts.Token).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) { }   // la sesión se apagó: es como tiene que acabar
+        catch (Exception e)
+        {
+            // CON SU PORQUÉ (patrón nº3): si el silencio deja de salir, a los 30 s la sesión muere, y hay que poder verlo.
+            LogBus.Log("voz-viva", $"el silencio que mantiene el caño abierto dejó de salir: {e.GetType().Name}: {e.Message}");
+        }
+    }
 
     private async void MandarTrozo(byte[] pcm)
     {
@@ -1660,6 +1981,7 @@ public sealed class ConversacionEnVivo : IDisposable
 
         try
         {
+            _ultimoAudioMs = Environment.TickCount64;   // mientras salga audio de verdad, nadie manda silencio (promesa 790)
             await EnviarAsync(_protocolo.Audio(pcm), _cts?.Token ?? CancellationToken.None);
         }
         catch (Exception e)
@@ -1783,6 +2105,117 @@ public sealed class ConversacionEnVivo : IDisposable
 
     /// <summary>Si la voz está en un modo especial (aprendiz, voz prestada) y no en el de siempre.</summary>
     internal bool EnUnModoEspecial => _modo != null;
+
+    // ── Lo que esta conversación le añade a quien actúa, detrás de las de siempre ──
+
+    /// <summary>
+    /// LO QUE VA DETRÁS DE LAS DE SIEMPRE: las habilidades —con cualquier voz— y, cuando otro habla por quien
+    /// actúa (GPT-Live), que él no habla y que ya ve la pantalla al empezar.
+    /// </summary>
+    /// <remarks>
+    /// DETRÁS Y NO DENTRO. Las de siempre son la constitución y la operación: tienen su presupuesto (724), sin
+    /// perfil no cambian ni un byte (722), y el perfil va en medio de ellas. Esto es de las specs 073, 074 y 079,
+    /// y hasta el 2026-10-01 era un texto entero aparte para el delegado —cabecera, cuerpo, habla y cola—: al
+    /// mezclar con «una sola Ü» había dos reescrituras del mismo texto, y la del delegado se quedó en lo que de
+    /// verdad es solo suyo.
+    ///
+    /// LAS REGLAS DE HABLA DE LA OPERACIÓN LE LLEGAN TAMBIÉN AL DELEGADO, que no suena. No se quitan: se le dice
+    /// cómo leerlas —«donde digan habla, devuélvelo en tu resultado»—, que es como main las probó con él (737).
+    /// </remarks>
+    internal static string LoQueSeAnade(bool actuaUnDelegado)
+        => ("\n\n" + ElRitmoDeLasManos + "\n\n" + LasTareasLargas + "\n\n" + Habilidades + (actuaUnDelegado ? "\n\n" + ElDelegadoNoHabla + "\n\n" + VistaDelDelegado : "")).ReplaceLineEndings("\n");
+
+    /// <summary>
+    /// CUÁNDO SE CREA UNA META Y QUÉ SIGNIFICA TENERLA (spec 082, promesa 800). Corto a propósito: lo largo —el chequeo
+    /// de progreso, la auditoría de terminado— viaja con cada continuación, que es cuando hace falta (<see cref="LaMeta"/>).
+    /// </summary>
+    private const string LasTareasLargas = """
+        LAS TAREAS LARGAS LLEVAN META. Si lo que piden es una investigación, tiene una duración («durante diez minutos»), un «hasta que…», más de tres partes, o no lo vas a terminar con dos o tres planes, crea la meta con meta_crear ANTES de empezar, con el objetivo entero como lo pidió la persona. Para lo corto —abrir algo, una cuenta, mirar uno o dos datos— NO: son dos llamadas de más; hazlo y ya.
+          · CON UNA META ACTIVA EL TRABAJO NO SE SUELTA: si terminas tu turno sin cerrarla, vuelve a ti con todo lo que llevas hecho. No la encojas a lo que cabe ahora.
+          · SE CIERRA CON meta_actualizar, y solo la cierras tú: «cumplida» con la evidencia —qué se ve AHORA que prueba cada cosa pedida—; «bloqueada» solo si el mismo bloqueo se repite tres turnos; «pausada» si la persona pide dejarla.
+          · Si la persona dice algo a mitad, te llega con la meta delante: una corrección se sigue sin empezar de cero.
+        """;
+
+    /// <summary>
+    /// CUÁNDO ES «pulsa:» Y CUÁNDO UN OBJETIVO (spec 081, promesa 793). Para las dos voces: las dos planean con map_hacer.
+    /// </summary>
+    /// <remarks>
+    /// LO MEDIDO EL 2026-10-01 sobre la Ü de pruebas. «pulsa:» con el nombre exacto: 357 ms por clic. Con un nombre que
+    /// quien planea se inventó («pulsa: 1» cuando el botón se llama «Uno»): 1.260 ms, y una vez el resultado mal y la
+    /// cuenta repetida entera. Ir a una dirección con «tecla: Ctrl+L», «escribe:», «tecla: Enter»: 1,6–2,2 s. Y en la
+    /// investigación en Google, 9 llamadas en 30 s, con un map_look y un map_scroll sueltos. Las instrucciones decían de
+    /// «pulsa:» «nunca pierdes nada por usarlo», y en `u/` —la velocidad que el dueño recuerda— ni existía: todo clic
+    /// era un objetivo de las manos. Va detrás de la operación y no dentro: la operación tiene su presupuesto (724).
+    /// </remarks>
+    private const string ElRitmoDeLasManos = """
+        A QUÉ RITMO VAN TUS MANOS, para que planees con eso. Un «pulsa:» con el nombre EXACTO, leído en EN PANTALLA AHORA, cuesta un tercio de segundo. Con un nombre que no has leído —«pulsa: 7» cuando el botón se llama «Siete»— tus manos tienen que adivinar cuál es: cuesta el doble, o falla.
+          · NOMBRES QUE YA LEÍSTE en la última respuesta → «pulsa:», todos seguidos en el mismo plan.
+          · PANTALLA QUE NO HAS LEÍDO → no inventes nombres: di la intención entera como UN objetivo («calcular 123 por 45 con los botones», «abrir el primer resultado que hable de X») y tus manos hacen todos los clics que haga falta sin volver a ti.
+          · EN UNA PÁGINA WEB, ir a una dirección o buscar es UN paso: «abre: https://…» (con el navegador delante carga en la misma pestaña; buscar es «abre: https://www.google.com/search?q=…»), nunca «tecla: Ctrl+L» y «escribe:». Bajar es «desplaza:» dentro del plan, y map_hacer ya te devuelve lo que la página dice: no gastes otra llamada en mirar ni en desplazar.
+          · UN NÚMERO DICTADO POR GRUPOS —«diez, veinte, treinta», «setenta y uno, veintidós»— es la cifra con los grupos pegados (102030, 7122): escríbelo así y dilo al terminar para que te lo confirmen. No dejes el campo vacío ni pares a preguntar.
+          · UNA LISTA DESPLEGABLE se elige en UN paso, sin abrirla: «elige: <el campo> = <la opción>» («elige: EPS = Sura»). Va SOLO: no pulses el campo antes. Solo si ese paso falla, con dos: «pulsa: <el campo>» y «pulsa: <la opción>».
+          · UNA LLAMADA POR GESTO es lo más lento que puedes hacer: cada vuelta tuya cuesta lo que varios clics de tus manos. Junta en un plan todo lo que ya sabes que sigue.
+        """;
+
+    /// <summary>Las de quien actúa cuando otro habla por él (GPT-Live), sin perfil: las juzga el contrato.</summary>
+    internal static string InstruccionesDelDelegado => InstruccionesNormales + LoQueSeAnade(true);
+
+    /// <summary>Las de quien actúa y habla (GPT Realtime), sin perfil: las de siempre y las habilidades.</summary>
+    internal static string InstruccionesDeUnaVoz => InstruccionesNormales + LoQueSeAnade(false);
+
+    /// <summary>
+    /// LAS QUE LE TOCAN A QUIEN ACTÚA con este protocolo, sin perfil. La conversación manda las suyas —con el
+    /// perfil, la fecha, lo aprendido, la memoria y el hilo— desde <see cref="ComponerInstruccionesAsync"/>, que
+    /// usa la misma regla: <see cref="LoQueSeAnade"/> según si actúa un delegado.
+    /// </summary>
+    internal static string InstruccionesPara(IProtocolo protocolo)
+        => protocolo.ActuaUnDelegado ? InstruccionesDelDelegado : InstruccionesDeUnaVoz;
+
+    /// <summary>
+    /// CÓMO SE HACE ALGO, A LA MANERA DE ESTA PERSONA (spec 074). Para las dos voces: las herramientas existen
+    /// con cualquiera de ellas.
+    /// </summary>
+    private const string Habilidades = """
+        LAS HABILIDADES: CÓMO SE HACE ALGO, A LA MANERA DE ESTA PERSONA. Un recuerdo (map_esto_es) dice qué ES algo en una pantalla; una habilidad dice CÓMO SE HACE una tarea, paso a paso, y vale en cualquier parte.
+          · SI TE ENSEÑAN CÓMO SE HACE ALGO —«te voy a enseñar a…», «se hace así», «cuando te pida X, haz Y», «apréndete esto»— guárdalo EN ESE MOMENTO con habilidad_escribir: un nombre corto como lo diría la persona, cuándo usarla, y los pasos en orden, uno por línea, con el nombre exacto de cada botón o campo. No esperes a que se repita ni a que termine la sesión: con una vez basta.
+          · UNA CLASE ES UNA SOLA HABILIDAD. Si te enseñan un sistema por partes —«primero…», «ahora…», «y después…»—, todo es UNA tarea: guárdala con su nombre la primera vez y, con cada parte nueva, reescribe la MISMA habilidad (mismo nombre, todos los pasos hasta ahí). No crees una por cada frase; y si al final te piden guardarlo todo como una habilidad, deja SOLO esa, completa, y olvida las parciales de la clase. Si mientras te enseñan te piden hacerlo —«hazlo tú», «llénalo», «selecciónalo», «confirma»—, HAZLO en la pantalla tal como te lo dicen, sin devolver una pregunta —quien enseña ya decidió—, y además guárdalo: aprender es las dos cosas. Una duda tuya sobre el caso («¿ese dolor es leve?») se dice DESPUÉS de hacerlo, en una frase, no en vez de hacerlo.
+          · GUARDA LO QUE DE VERDAD FUNCIONÓ: los pasos con el nombre exacto de cada botón y campo que pulsaste, cada campo que se llena con qué dato de los que te den, las reglas que te dijeron («si es dolor leve, triage 4») como un paso más, y lo que te señalaron, con lo que es.
+          · SI TE LO MUESTRAN EN VEZ DE DECIRLO —«mira cómo lo hago», «fíjate», y la persona lo hace con su ratón— llama a habilidad_lo_que_hice: te devuelve lo que acaba de pulsar, en orden y con el nombre con que map_take lo encuentra. Con eso y con lo que te dijo, escribe los pasos.
+          · SI TE CORRIGEN una habilidad —«no, primero…», «te faltó…», «ese paso ya no»— RECONSTRÚYELA ENTERA: llama otra vez a habilidad_escribir con el MISMO nombre y TODOS los pasos, los que siguen valiendo y los corregidos. Lo que mandes sustituye a lo que había: no existe «cambiar el paso 3».
+          · SI TE PIDEN ALGO QUE UNA HABILIDAD DESCRIBE, SIGUE SUS PASOS, en su orden, en vez de improvisar: es la manera de esta persona, y por eso te la enseñó. Las que tienes vienen al final de estas instrucciones; si solo viene su nombre, lee sus pasos con habilidad_leer antes de empezar. Si un paso ya no funciona, resuélvelo como sepas, termina, y cuenta qué cambió. HAZLA CON LOS DATOS QUE TE DIERON: un campo del que no te dieron el dato se queda vacío, salvo que el sistema lo exija para guardar; no pares a pedirlo. Termina la tarea entera —guardar, confirmar— y al final di qué quedó sin llenar.
+          · «Olvida cómo se hace X», «ya no lo hagas así» → habilidad_olvidar.
+          · DI QUE LA GUARDASTE solo cuando la herramienta lo confirme, y con su nombre.
+        """;
+
+    /// <summary>
+    /// QUIÉN ES EL DELEGADO Y QUÉ DEVUELVE (spec 073). Medido el 2026-10-01: devolvió «El resultado es 69.104 y
+    /// ya está escrito en el Bloc de notas.», y la voz lo dijo con sus palabras. Sin «no termines con una promesa»
+    /// devolvió «lo corrijo ahora» y terminó sin corregirlo: la voz lo repitió fielmente.
+    /// </summary>
+    private const string ElDelegadoNoHabla = """
+        TÚ NO HABLAS CON LA PERSONA: OTRA VOZ LE HABLA A LA PERSONA, en una conversación en vivo, y te pasa lo que pide. Lo que te llega es la transcripción de lo que dijo: puede traer errores, frases a medias y correcciones, y manda lo último que dijo. Tú trabajas y devuelves el resultado; la voz lo dice con sus palabras. Donde estas instrucciones digan «habla», «di», «dilo» o «cuenta», quiere decir: devuélvelo en tu resultado.
+          · ENCADENA las herramientas que hagan falta sin escribir nada entre una y otra: mientras trabajas, la voz ya le va contando a la persona cada paso que terminas. No lo repitas tú.
+          · AL TERMINAR, DEVUELVE EL RESULTADO en una o dos frases, en pasado: qué quedó hecho y el dato que se pidió («el resultado es 69.104», «quedó abierta Descargas»), qué falló y por qué si algo no salió, y el siguiente paso si queda alguno o hace falta un dato para seguir.
+          · NO TERMINES CON UNA PROMESA. «Lo corrijo ahora» sin corregirlo es dejarlo sin hacer y decir lo contrario: si algo quedó mal, arréglalo ANTES de devolver el resultado, o di que quedó sin hacer.
+          · Si no había nada que hacer porque era una pregunta, contesta la pregunta y nada más.
+        """;
+
+    /// <summary>
+    /// LO QUE YA VE AL EMPEZAR (spec 079). Solo para el delegado: es a quien le llega la foto.
+    /// </summary>
+    /// <remarks>
+    /// Medido con la sonda el 2026-10-01: con la foto en la conversación y SIN este párrafo, gastó igual la vuelta
+    /// en mirar; con él, contestó «7421» y planeó `pulsa: Radicar` en una sola. Y en la Ü de pruebas, con las
+    /// instrucciones de verdad: hasta que el párrafo no nombró map_where_am_i, preguntó dónde estaba y volvió a
+    /// mirar antes de leer «144» —3 vueltas, 7,5 s—; nombrándola, 1 vuelta y ~2 s.
+    /// </remarks>
+    private const string VistaDelDelegado = """
+        YA VES LA PANTALLA AL EMPEZAR. Con el pedido te puede llegar una foto de la pantalla del momento en que la persona lo pidió, en un mensaje que empieza por «[PANTALLA: esto no lo dijo la persona]»: trae el cursor dibujado donde apuntaba y, escrito al lado, dónde está la persona: lo que map_where_am_i contesta en ese instante. MÍRALA ANTES DE NADA. Esa foto es de AHORA: cuando te llega el pedido, la pantalla sigue así.
+          · Si lo que piden se contesta o se decide con lo que se ve en ella —qué dice, qué número hay, cuál es «ese» botón, de qué color es, dónde está algo—, hazlo ya, SIN gastar ninguna llamada antes: ni map_look, ni map_what_i_see, ni map_where_am_i. Una pregunta sobre lo que se ve se contesta sin llamar a nada: cada llamada de esas son dos segundos de la persona esperando lo que ya tienes delante.
+          · La regla de que una foto no decide dónde estás sigue en pie, y por eso el sitio viene ESCRITO junto a la foto: ya es la respuesta de map_where_am_i. No la vuelvas a pedir para empezar.
+          · «Esto», «este», «aquí», «el que señalo» es lo que hay bajo el cursor en esa foto. Si para pulsarlo necesitas su nombre exacto y no se lee, map_pointing_at te lo da.
+          · Vuelve a mirar solo DESPUÉS de haber actuado, o si la foto no trae lo que necesitas, o si con este pedido no llegó ninguna: lo que haces cambia la pantalla, y la foto es de antes.
+        """;
 
     /// <summary>
     /// Cambia quién es Ü a mitad de sesión: otras instrucciones y otro catálogo. Promesa 138.
@@ -1957,67 +2390,52 @@ public sealed class ConversacionEnVivo : IDisposable
         if (soloTexto) _respuestaDeTexto = true;
         EmpiezaUnTurnoDelUsuario("texto");   // escribir también es pedir algo nuevo (spec 017)
         Conversacion?.Agregar("usuario", texto);
+        _diario?.Persona(texto);   // lo escrito enseña igual que lo dicho (spec 074)
         Dice?.Invoke($"Tú: {texto}");
         var ct = _cts?.Token ?? CancellationToken.None;
+        // LA PANTALLA, DELANTE DEL TEXTO (promesa 781): aquí nadie está hablando mientras la foto sube, así que se
+        // la espera —si cambió— para que el delegado empiece con ella y no la reciba a mitad.
+        await MandarLaPantallaAlPedirAsync(ct);
+        await MandarLaMetaAlPedirAsync(ct);   // y la meta en curso, si la hay (promesa 799)
         foreach (string msg in MensajesDeTexto(_protocolo, texto))   // promesa 208: lo escrito pide respuesta
             await EnviarAsync(msg, ct);
     }
 
+    // AQUÍ VIVÍAN LA MEMORIA VISUAL (map_look_back) Y EL ÁLBUM DE MIRADAS, retirados con la spec 079 (2026-10-01):
+    // 3.238 capturas y 592 MB en el PC del dueño, y la herramienta llamada cero veces en trece días. Lo que hoy
+    // recuerda con fotos es el diario de la sesión, que el repaso sí lee (promesas 783 y 784).
+
     /// <summary>
-    /// Manda UNA foto suelta, fuera del audio. La llaman <see cref="EjecutarNucleoAsync"/> —tras
-    /// señalar, o cuando el modelo pide mirar— nunca un temporizador: aquí ver es un gesto, no un
-    /// caño que hay que seguir alimentando.
+    /// Varias fotos de una tanda —las de lo que la persona mostró—: suben A LA VEZ y entran en su orden. Una
+    /// detrás de otra, cuatro fotos eran más de cuatro segundos con quien actúa esperando (~1,1 s por subida).
     /// </summary>
-    /// <summary>
-    /// LA MEMORIA VISUAL, contestada. Promesa 258 (spec 027).
-    /// </summary>
-    /// <remarks>
-    /// LA FOTO VIEJA VIAJA POR EL MISMO CAÑO QUE LA DE AHORA: se añade a la lista de fotos de la tanda, y
-    /// sale por MandarFotoAsync como cualquier otra —subida, por referencia, y retirada al cerrar—. Tener
-    /// dos caminos para mandar una imagen sería tener dos sitios donde se puede romper.
-    ///
-    /// Y SI NO LA HAY, SE DICE QUÉ SÍ HAY. Contestar «no tengo nada» sobre una memoria con fotos dentro es
-    /// lo que hizo creer al dueño que el álbum no existía (2026-09-17).
-    /// </remarks>
-    private async Task<string> RecordarLoVistoAsync(IReadOnlyDictionary<string, string> args, List<byte[]> fotos, CancellationToken ct)
+    private async Task MandarFotosAsync(IReadOnlyList<byte[]> fotos, CancellationToken ct)
     {
+        if (fotos.Count <= 1 || !_protocolo.VePorReferencia)
+        {
+            foreach (byte[] jpeg in fotos) await MandarFotoAsync(jpeg, ct);
+            return;
+        }
+        if (!SalidaAbierta) return;
         try
         {
-            args.TryGetValue("place", out string? donde);
-            var r = Navigation.AlbumDeMiradas.Suyo.LoQueRecuerdo(donde ?? "");
-            if (r.Ficha == null) return r.Cuenta;
-
-            if (!_protocolo.Mira)
-                return r.Cuenta + " (pero con esta voz no puedo enseñártela; te la describo si quieres.)";
-
-            byte[] jpeg = await System.IO.File.ReadAllBytesAsync(r.Ficha.Archivo, ct);
-            fotos.Add(jpeg);
-            LogBus.Log("album", $"recordando «{r.Ficha.Ubicacion}»: {System.IO.Path.GetFileName(r.Ficha.Archivo)} ({jpeg.Length} bytes)");
-            return r.Cuenta;
+            var mirada = Mirada;
+            string[] ids = await Task.WhenAll(fotos.Select(jpeg => mirada.SubirAsync(jpeg)));
+            foreach (string id in ids)
+            {
+                if (id.Length == 0) { LogBus.Log("voz-viva", "una de las fotos no se pudo subir; van las demás"); continue; }
+                string porRef = _protocolo.FotogramaPorReferencia(id);
+                if (porRef.Length > 0) await EnviarAsync(porRef, ct);
+            }
         }
-        catch (Exception e)
-        {
-            LogBus.Log("album", $"no pude recordar lo visto: {e.Message}");
-            return "tengo la foto anotada pero no la pude abrir; puede que ya se haya podado.";
-        }
+        catch (Exception e) { LogBus.Log("voz-viva", $"no pude mandar las fotos: {e.Message}"); }
     }
 
     /// <summary>
-    /// LO QUE SE MIRA SE QUEDA EN CASA (promesa 255). La copia de OpenAI se retira al cerrar la sesión; ésta
-    /// no, y es la que deja recordar después: la pantalla de hace dos horas no se puede volver a capturar.
+    /// Manda UNA foto suelta, fuera del audio. La llama <see cref="EjecutarNucleoAsync"/> —tras señalar, o
+    /// cuando el modelo pide mirar—. La pantalla que viaja sola con cada pedido va por
+    /// <see cref="MandarLaPantallaAlPedirAsync"/>, que decide antes si toca.
     /// </summary>
-    private void GuardarEnElAlbum(byte[] jpeg)
-    {
-        try
-        {
-            string donde = _mapa.DondeEstoyAhora;
-            string quePasaba = Actions.Freno.Tarea.Length > 0 ? Actions.Freno.Tarea : "miró la pantalla";
-            var ficha = Navigation.AlbumDeMiradas.Suyo.Guardar(jpeg, donde, quePasaba);
-            if (ficha != null) LogBus.Log("album", $"mirada guardada en «{donde}»: {System.IO.Path.GetFileName(ficha.Archivo)} ({jpeg.Length} bytes)");
-        }
-        catch (Exception e) { LogBus.Log("album", $"no pude guardar la mirada en casa: {e.Message}"); }
-    }
-
     private async Task MandarFotoAsync(byte[] jpeg, CancellationToken ct)
     {
         if (!SalidaAbierta || jpeg.Length == 0) return;
@@ -2311,6 +2729,11 @@ public sealed class ConversacionEnVivo : IDisposable
         // se aparta para sumarlo al cerrar (promesa 218). Solo GPT-Live cuenta segundos, y no sabe volver a la misma sesión.
         _segundosDeConexionesAnteriores += _segundosDeLaConexion;
         _segundosDeLaConexion = 0;
+        // Y OTRA CONVERSACIÓN, que no tiene ninguna foto: la cuenta de las pantallas mandadas empieza de cero (781).
+        _huellaDeLaUltimaPantalla = null;
+        _pantallasMandadas = 0;
+        _ultimaPantallaMs = 0;
+        _yaDijeQueNoVanMas = false;
         _confirmada = !_protocolo.ConfirmaQueAbrio;
         // LA MISMA ESPERA QUE NACIÓ EN EL GESTO, si sigue pendiente: quien la esperaba desde el clic no se
         // queda mirando una que ya nadie va a cumplir. Una nueva solo al reconectar, con la anterior cumplida.
@@ -2469,7 +2892,7 @@ public sealed class ConversacionEnVivo : IDisposable
         switch (hecho)
         {
             case Hecho.Suena s:
-                if (_respuestaDeTexto) break;
+                if (_respuestaDeTexto || _oidoDePrueba) break;
                 // Tras una interrupción manual, el resto de la frase que ya venía en vuelo
                 // no debe resucitar la voz: se tira hasta que pase la ventana o hables tú.
                 if (Environment.TickCount64 < _silencioHastaMs) break;
@@ -2488,26 +2911,45 @@ public sealed class ConversacionEnVivo : IDisposable
                 break;
 
             case Hecho.DiceU d:
-                _fraseU.Append(d.Trozo);
-                Dice?.Invoke($"Ü: {_fraseU}");
-                Transcribe?.Invoke(_fraseU.ToString(), true);
-                // HABLAR ES LO QUE DESBLOQUEA EL SIGUIENTE RECUERDO. Se apunta aquí, sobre la voz
-                // de verdad, y no al cerrar el turno: el turno se cierra también en respuestas que
-                // son solo una llamada a herramienta, sin una palabra — que es justo el caso que
-                // hay que distinguir (ver Navigation.ElTurnoDeContar).
-                _mapa.TurnoDeContar.Hablo();
-                _cuenta.Hablo();   // lo primero que dice tras la última herramienta cierra el pedido (promesa 512)
+                // LO QUE DEVUELVE EL DELEGADO, CON EL MICRÓFONO ABIERTO, LO DICE LA VOZ (promesa 789). Contarlo aquí
+                // también dejaba «Abrí tu correo en Gmail. Abrí tu correo en Gmail.» en el hilo y en el diario. Se
+                // guarda aparte por si la voz no llega a decirlo —la persona habló encima—: entonces es lo que queda.
+                if (d.DelDelegado) ContinuarLaMetaSiSigue();   // terminó su turno; si la meta sigue activa, vuelve a él (promesa 798)
+                if (!SeCuentaComoDichoPorU(d.DelDelegado, _conMicrofono))
+                {
+                    LogBus.Log("voz-viva", $"el delegado devolvió: {d.Trozo}");
+                    _devueltoPorElDelegado = d.Trozo;
+                }
+                else
+                {
+                    _fraseU.Append(d.Trozo);
+                    Dice?.Invoke($"Ü: {_fraseU}");
+                    Transcribe?.Invoke(_fraseU.ToString(), true);
+                    // HABLAR ES LO QUE DESBLOQUEA EL SIGUIENTE RECUERDO. Se apunta aquí, sobre la voz
+                    // de verdad, y no al cerrar el turno: el turno se cierra también en respuestas que
+                    // son solo una llamada a herramienta, sin una palabra — que es justo el caso que
+                    // hay que distinguir (ver Navigation.ElTurnoDeContar).
+                    _mapa.TurnoDeContar.Hablo();
+                    _cuenta.Hablo();   // lo primero que dice tras la última herramienta cierra el pedido (promesa 512)
+                }
                 break;
 
             case Hecho.CierraElTurno:
                 _loQueSeLee.Cerrar();   // lo siguiente que se lea es otra frase (promesa 768)
                 TurnoCerrado?.Invoke();
+                // LA VOZ NO LLEGÓ A DECIRLO: lo que devolvió el delegado es lo que Ü contestó, y no se pierde.
+                if (_fraseU.Length == 0 && _devueltoPorElDelegado.Length > 0)
+                {
+                    _fraseU.Append(_devueltoPorElDelegado);
+                    Dice?.Invoke($"Ü: {_fraseU}");
+                }
+                _devueltoPorElDelegado = "";
                 if (_fraseU.Length > 0) LogBus.Log("voz-viva", $"Ü dijo: {_fraseU}");
                 if (_fraseUsuario.Length > 0) LogBus.Log("voz-viva", $"usuario dijo: {_fraseUsuario}");
-                GuardarPeticionPersonalSiLaPidio(_fraseUsuario.ToString());
-                GuardarDetallePersonalSiEsRelevante(_fraseUsuario.ToString());
                 Conversacion?.Agregar("usuario", _fraseUsuario.ToString());
                 Conversacion?.Agregar("asistente", _fraseU.ToString());
+                _diario?.Persona(_fraseUsuario.ToString());
+                _diario?.U(_fraseU.ToString());
                 // LO QUE EL HUMANO DIJO, PARA QUIEN ESTÉ APRENDIENDO. Mientras se enseña con 🎓,
                 // cada frase completa del operador es candidata a explicar el paso que estaba
                 // dando: la frase se entrega al oyente y él la ancla por tiempo (promesa 105). Se
@@ -2517,6 +2959,8 @@ public sealed class ConversacionEnVivo : IDisposable
                 // SOLO SE RETOMA SI DE VERDAD HABLÓ en este turno. Un turno que fue únicamente una
                 // llamada a herramienta no ha contado nada todavía, y empujar ahí lo atropellaría
                 // — que es justo lo que la regla de uno-en-uno existe para impedir.
+                // CON UNA SOLA VOZ, cerrar el turno ES que quien actúa terminó: no hay delegado que lo avise aparte.
+                if (!_protocolo.ActuaUnDelegado) ContinuarLaMetaSiSigue();
                 bool hablo = _fraseU.Length > 0;
                 _fraseU.Clear();
                 _fraseUsuario.Clear();
@@ -2544,6 +2988,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 break;
 
             case Hecho.Pide p:
+                _ultimaLlamadaMs = Environment.TickCount64;   // quien actúa sigue trabajando: su turno no ha terminado
                 LogBus.Log("voz-viva", "llamada recibida: " + string.Join(", ", p.Cuales.Select(x => x.Nombre)));
                 foreach (var x in p.Cuales) _cuenta.Llamada(x.Nombre, TopeDeIntentos.DestinoDe(x.Nombre, x.Args));
                 AnotarSinContestar(p.Cuales);   // antes de lanzarla: la siguiente de la tanda ya la cuenta (214)
@@ -2596,95 +3041,23 @@ public sealed class ConversacionEnVivo : IDisposable
                 LogBus.Log("voz-viva", $"sesión abierta con {QuienAbre}: el servidor la confirmó");   // la única que lo afirma (220)
                 if (_alConfirmar.Length > 0) { Dice?.Invoke(_alConfirmar); _alConfirmar = ""; }
                 _ = SoltarLoGuardadoAsync();   // lo dicho desde el gesto, que esperaba a esto (promesa 661)
+                ContarleLasPreferenciasALaVoz();   // en cada conexión: al reconectar la voz es otra (promesa 776)
+                _ = MantenerElCanoAbiertoAsync(_cts);   // y desde aquí la sesión no se muere por falta de audio (promesa 790)
                 break;
         }
     }
 
-    /// <summary>
-    /// El usuario no debería depender de que el modelo recuerde llamar una herramienta para una
-    /// petición explícita de memoria personal. La voz ya cerró la frase completa, así que esta
-    /// compuerta guarda localmente expresiones inequívocas como «quiero que recuerdes que…» antes
-    /// de que el turno se pierda. Las instrucciones sobre botones o pantallas siguen siendo lecciones.
-    /// </summary>
-    private void GuardarPeticionPersonalSiLaPidio(string texto)
-    {
-        // EN UN MODO ESPECIAL NO (D9, promesa 733): lo que se oye mientras se enseña es narración para la
-        // grabación —«tengo un paciente…»— y no un dato de la persona; con la voz prestada habla el piloto.
-        // CON UN MÉDICO TAMPOCO (promesa 740): en consulta, «recuerda que la de la cama 4 es alérgica a la
-        // penicilina» es un dato de un paciente, y la constitución dice que eso no va a la memoria. Una palabra
-        // clave no distingue un pendiente del médico de un dato clínico; el modelo sí, con memory_remember.
-        if (_modo != null || _perfil.EsMedico || Memoria == null || string.IsNullOrWhiteSpace(texto)) return;
-        string bajo = texto.ToLowerInvariant();
-        bool pideMemoria = bajo.Contains("recuerda que", StringComparison.Ordinal)
-            || bajo.Contains("recuérdame", StringComparison.Ordinal)
-            || bajo.Contains("acuérdate", StringComparison.Ordinal)
-            || bajo.Contains("no olvides", StringComparison.Ordinal)
-            || bajo.Contains("quiero que recuerdes", StringComparison.Ordinal)
-            || bajo.Contains("ten presente", StringComparison.Ordinal);
-        bool esLeccionVisual = bajo.Contains("botón", StringComparison.Ordinal)
-            || bajo.Contains("pantalla", StringComparison.Ordinal)
-            || bajo.Contains("campo", StringComparison.Ordinal)
-            || bajo.Contains("haz clic", StringComparison.Ordinal);
-        if (!pideMemoria || esLeccionVisual) return;
+    // AQUÍ ESTABA TAMBIÉN GuardarPeticionPersonalSiLaPidio, la otra captura por palabras («recuerda que», «no
+    // olvides», «ten presente»). Se quitó con la spec 079: guardaba la frase cruda al cerrar el turno ADEMÁS de lo que
+    // guardara quien actúa con memory_remember —el mismo dato dos veces, una limpia y otra con el «eh, recuerda que…»
+    // delante—. Lo que se le escape a quien actúa lo recoge el repaso, con criterio y con cita (promesa 787).
 
-        try
-        {
-            var resultado = Memoria.EjecutarAsync(texto, CancellationToken.None).GetAwaiter().GetResult();
-            LogBus.Log("memoria", $"voz: {(resultado.Ok ? "guardado automático" : "no guardado")} · {resultado.Kind} · {resultado.Response}");
-        }
-        catch (Exception e)
-        {
-            LogBus.Log("memoria", $"voz: no pude guardar la petición personal automática: {e.Message}");
-        }
-    }
+    // AQUÍ ESTABA GuardarDetallePersonalSiEsRelevante, y se quitó con la spec 074 (2026-10-01): una lista de
+    // palabras —«me gusta», «soy », «tengo un »— que guardaba la frase cruda en la memoria personal. De las 16
+    // entradas del dueño al 30 de septiembre, 7 eran ruido suyo («soy yo otra vez, ábreme…»). Lo que hacía lo
+    // hace ElRepaso al cerrar la sesión: con criterio, en limpio, y solo con una cita de la persona.
 
     /// <summary>
-    /// Guarda detalles personales de alta confianza aunque no lleven el verbo «recordar»: gustos,
-    /// preferencias, sueños, relaciones de trabajo y datos que el usuario cuenta espontáneamente.
-    /// El modelo puede enriquecerlos después, pero la captura inicial no depende de que decida llamar
-    /// una herramienta a tiempo.
-    /// </summary>
-    private void GuardarDetallePersonalSiEsRelevante(string texto)
-    {
-        if (_modo != null || _perfil.EsMedico || Memoria == null || string.IsNullOrWhiteSpace(texto)) return;   // D9 y 740: ver arriba
-        string bajo = texto.Trim().ToLowerInvariant();
-        if (bajo.Length < 12 || bajo.Length > 900) return;
-        if (bajo.Contains("recuerda", StringComparison.Ordinal)
-            || bajo.Contains("recuérd", StringComparison.Ordinal)
-            || bajo.Contains("busca en memoria", StringComparison.Ordinal)
-            || bajo.Contains("¿", StringComparison.Ordinal)
-            || bajo.StartsWith("qué ", StringComparison.Ordinal)
-            || bajo.StartsWith("como ", StringComparison.Ordinal)
-            || bajo.StartsWith("cómo ", StringComparison.Ordinal)) return;
-
-        bool datoPersonal = bajo.Contains("me gusta", StringComparison.Ordinal)
-            || bajo.Contains("me encant", StringComparison.Ordinal)
-            || bajo.Contains("prefiero", StringComparison.Ordinal)
-            || bajo.Contains("mi sueño", StringComparison.Ordinal)
-            || bajo.Contains("quisiera comprar", StringComparison.Ordinal)
-            || bajo.Contains("quiero comprar", StringComparison.Ordinal)
-            || bajo.Contains("tengo un ", StringComparison.Ordinal)
-            || bajo.Contains("tengo una ", StringComparison.Ordinal)
-            || bajo.Contains("tengo dos ", StringComparison.Ordinal)
-            || bajo.Contains("soy ", StringComparison.Ordinal)
-            || bajo.Contains("vivo en ", StringComparison.Ordinal)
-            || bajo.Contains("trabajo en ", StringComparison.Ordinal)
-            || bajo.Contains("mi equipo", StringComparison.Ordinal)
-            || bajo.Contains("mi empresa", StringComparison.Ordinal)
-            || bajo.Contains("mi agencia", StringComparison.Ordinal);
-        if (!datoPersonal) return;
-
-        try
-        {
-            var resultado = Memoria.EjecutarAsync(texto.Trim(), CancellationToken.None).GetAwaiter().GetResult();
-            LogBus.Log("memoria", $"voz: {(resultado.Ok ? "detalle automático guardado" : "detalle no guardado")} · {resultado.Kind} · {resultado.Response}");
-        }
-        catch (Exception e)
-        {
-            LogBus.Log("memoria", $"voz: no pude guardar el detalle personal automático: {e.Message}");
-        }
-    }
-
     /// Corta la entrada local cuando el modelo entiende una orden inequívoca de apagar la voz.
     /// Deja un respiro breve para que la confirmación mínima del modelo («Mmm.») pueda sonar;
     /// después termina la sesión y la salida que quedara encolada.
@@ -2798,17 +3171,315 @@ public sealed class ConversacionEnVivo : IDisposable
         string? medida = _cuenta.Cerrar();
         if (medida != null) LogBus.Log("voz-turno", medida);
         _tope.NuevoTurno();
+        _avances.Olvidar();   // lo guardado era de la petición anterior: no se cuenta como si fuera de esta (promesa 64)
         _cuenta.Peticion();
         // Se dice POR QUÉ empezó: con altavoz, el eco de Ü también dispara speech_started y vaciaría el
         // tope a mitad de una petición. Si pasa, esta línea lo delata en el nivel 4; el arreglo de fondo
         // espera a medirlo (spec 017, hallazgos).
         LogBus.Log("voz-turno", $"turno nuevo (por {por}): el tope vuelve a cero");
+        // LA PANTALLA DE ESTE MOMENTO VIAJA CON EL PEDIDO (spec 079, promesa 781): la persona acaba de empezar a
+        // hablar, y mientras habla la foto sube. Lo escrito la manda él mismo, esperándola, para que vaya DELANTE
+        // del texto.
+        if (por != "texto") MandarLaPantallaAlPedir();
+        if (por != "texto") MandarLaMetaAlPedir();   // y la meta en curso, si la hay (promesa 799)
     }
 
-    private const string HerramientaMirar = "map_look";
+    // ── Una clase, una habilidad (spec 083) ──────────────────────────────────
 
-    /// <summary>Mirar lo que HABÍA. La puerta del álbum de miradas (promesa 258).</summary>
-    private const string HerramientaRecordarLoVisto = "map_look_back";
+    /// <summary>Las habilidades escritas en ESTA sesión, por su nombre.</summary>
+    private readonly List<string> _habilidadesDeLaSesion = new();
+
+    /// <summary>
+    /// LO QUE SE LE AÑADE AL RESULTADO DE GUARDAR UNA HABILIDAD cuando en la misma sesión ya se guardaron otras
+    /// (promesa 812). Medido el 2026-10-02 enseñando un sistema de pacientes por la voz, dos corridas: de UNA clase
+    /// quedaron tres habilidades —«abrir registro de paciente nuevo», «clasificar triage» y «registrar un paciente
+    /// en el HIS»—, una por cada frase de la persona. Las instrucciones ya decían «reescribe la misma»; decírselo
+    /// con los nombres delante, en el momento, es lo que no se puede pasar por alto.
+    /// </summary>
+    internal static string AvisoDeHabilidadesPartidas(string nueva, IReadOnlyList<string> otrasDeLaSesion)
+    {
+        if (otrasDeLaSesion == null || otrasDeLaSesion.Count == 0) return "";
+        return "\nOJO: en esta misma sesión ya guardaste " + string.Join(", ", otrasDeLaSesion.Select(n => $"«{n}»"))
+             + $". Si son partes de la MISMA tarea que te están enseñando, deja UNA sola: reescribe «{nueva}» con TODOS los pasos, "
+             + "los de las otras también, y llama a habilidad_olvidar para cada una de las otras. Si son tareas distintas, déjalas así.";
+    }
+
+    // ── La meta de una tarea larga (spec 082) ────────────────────────────────
+
+    private readonly LaMeta _meta = new(() => Environment.TickCount64);
+
+    /// <summary>La meta en curso, para quien la enseña o la juzga.</summary>
+    internal LaMeta Meta => _meta;
+
+    /// <summary>Cuándo llegó la última llamada de quien actúa: mientras lleguen, su turno no ha terminado.</summary>
+    private long _ultimaLlamadaMs;
+    private int _continuacionEnEspera;
+
+    /// <summary>Cuánto se espera, tras lo que devuelve quien actúa, a ver si era su final o un comentario entre llamadas.</summary>
+    internal const int EsperaAntesDeContinuarMs = 1_200;
+
+    /// <summary>Lo que se le dice a quien habla para que le devuelva el trabajo a quien actúa. Lo demás ya viajó aparte.</summary>
+    internal const string NotaDeContinuar = "[instrucción del sistema] La meta que se está trabajando sigue activa y nadie la ha cerrado. "
+        + "Delégale ahora mismo a tu equipo que la continúe: lo que tiene que saber ya lo recibió. No se lo anuncies a la persona.";
+
+    private string CrearLaMeta(string objetivo, string minutos)
+    {
+        int.TryParse((minutos ?? "").Trim(), out int m);
+        var creada = _meta.Crear(objetivo, m);
+        if (creada.Ok) LogBus.Log("meta", $"creada «{objetivo.Trim()}»");
+        else LogBus.Log("meta", $"no se creó: {creada.Mensaje}");
+        return creada.Mensaje;
+    }
+
+    private string CerrarLaMeta(string estado, string evidencia)
+    {
+        var cerrada = _meta.Actualizar(estado, evidencia);
+        LogBus.Log("meta", cerrada.Ok
+            ? $"{_meta.Estado} · {_meta.Cuenta()}" + (string.IsNullOrWhiteSpace(evidencia) ? "" : $" · evidencia: {evidencia.Trim()}")
+            : $"no se cerró como «{estado}»: {cerrada.Mensaje}");
+        return cerrada.Mensaje;
+    }
+
+    /// <summary>
+    /// QUIEN ACTÚA TERMINÓ SU TURNO CON LA META ACTIVA: EL TRABAJO VUELVE A ÉL (promesa 798). Es el `continue_if_idle`
+    /// del harness de Codex: la meta no se acaba porque el modelo deje de pedir herramientas.
+    /// </summary>
+    /// <remarks>
+    /// SE ESPERA UN MOMENTO Y SE MIRA SI SIGUE CALLADO: lo que devuelve el delegado puede ser un comentario entre dos
+    /// llamadas y no su final; si en ese rato pide otra herramienta, sigue trabajando y no hay nada que devolverle.
+    /// A QUIEN HABLA SE LE DICE POCO, y a quien actúa todo: la continuación entra en la conversación sin pedir turno
+    /// —por donde viaja la pantalla del pedido— y detrás va una nota corta que hace que la voz delegue otra vez.
+    /// </remarks>
+    private void ContinuarLaMetaSiSigue()
+    {
+        if (!_meta.Activa) return;
+        // UNA SOLA ESPERA A LA VEZ: si lo que devuelve quien actúa llegara en dos trozos, serían dos continuaciones
+        // seguidas, dos turnos de la meta gastados y el trabajo pedido dos veces.
+        if (Interlocked.Exchange(ref _continuacionEnEspera, 1) == 1) return;
+        long alTerminar = Environment.TickCount64;
+        var cts = _cts;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var ct = cts?.Token ?? CancellationToken.None;
+                try { await Task.Delay(EsperaAntesDeContinuarMs, ct); }
+                finally { Interlocked.Exchange(ref _continuacionEnEspera, 0); }
+                if (_ultimaLlamadaMs > alTerminar || !_meta.Activa || !SalidaAbierta) return;   // siguió trabajando, o ya la cerró
+                string? continuacion = _meta.Continuacion();
+                if (continuacion == null)
+                {
+                    LogBus.Log("meta", $"pausada: {_meta.PorQueSeDetuvo} · {_meta.Cuenta()}");
+                    await EnviarTextoAlModeloAsync($"[aviso del sistema] La meta quedó pausada sin terminar: {_meta.PorQueSeDetuvo}. "
+                        + "Díselo a la persona en una frase, con lo que sí quedó hecho, y pregúntale si sigues.");
+                    return;
+                }
+                LogBus.Log("meta", $"continúa: quien actúa terminó su turno sin cerrarla · {_meta.Cuenta()}");
+                string contexto = _protocolo.ContextoParaQuienActua(continuacion);
+                if (contexto.Length > 0)
+                {
+                    await EnviarAsync(contexto, ct);
+                    await EnviarTextoAlModeloAsync(NotaDeContinuar);
+                }
+                else await EnviarTextoAlModeloAsync(continuacion);   // una sola voz: quien habla es quien actúa
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception e) { LogBus.Log("meta", $"no pude devolverle la meta a quien actúa: {e.GetType().Name}: {e.Message}"); }
+        });
+    }
+
+    /// <summary>
+    /// LO QUE LA PERSONA DICE CON UNA META ACTIVA VIAJA CON LA META (promesa 799), como el `steer` de Codex: entra en
+    /// el trabajo vivo, con el objetivo y lo hecho delante, y quien actúa decide si es una corrección, otra cosa o parar.
+    /// </summary>
+    private void MandarLaMetaAlPedir() => _ = Task.Run(() => MandarLaMetaAlPedirAsync(_cts?.Token ?? CancellationToken.None));
+
+    private async Task MandarLaMetaAlPedirAsync(CancellationToken ct)
+    {
+        try
+        {
+            if (!_meta.Activa || !SalidaAbierta) return;
+            string msg = _protocolo.ContextoParaQuienActua(_meta.ParaElPedido());
+            if (msg.Length == 0) return;
+            await EnviarAsync(msg, ct);
+            LogBus.Log("meta", $"la meta viaja con lo que dice la persona · {_meta.Cuenta()}");
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception e) { LogBus.Log("meta", $"no pude mandar la meta con el pedido: {e.GetType().Name}: {e.Message}"); }
+    }
+
+    // ── La pantalla del pedido (spec 079) ───────────────────────────────────
+
+    /// <summary>La huella de la última pantalla que viajó en ESTA conexión, cuántas van y cuándo fue la última.</summary>
+    private int[]? _huellaDeLaUltimaPantalla;
+    private int _pantallasMandadas;
+    private long _ultimaPantallaMs;
+    private int _mandandoLaPantalla;
+    private bool _yaDijeQueNoVanMas;
+
+    /// <summary>Sin esperarla: quien llama está en el hilo que recibe del servidor.</summary>
+    private void MandarLaPantallaAlPedir()
+    {
+        var ct = _cts?.Token ?? CancellationToken.None;
+        _ = Task.Run(() => MandarLaPantallaAlPedirAsync(ct));
+    }
+
+    /// <summary>
+    /// Captura la pantalla y, si toca, la sube y la mete en la conversación para que quien actúa la vea al
+    /// empezar, sin gastar una vuelta en pedirla.
+    /// </summary>
+    /// <remarks>
+    /// Medido el 2026-10-01 con la sonda: con la foto ya en la conversación y sus instrucciones diciéndoselo, el
+    /// delegado contestó en UNA vuelta (0,9–1,1 s) lo que sin ella le cuesta dos y una subida en medio. Si toca
+    /// lo decide <see cref="PantallaAlPedir.Toca"/>: solo si cambió, con respiro y con tope, porque cada foto que
+    /// se queda en la conversación frena todas las vueltas que vienen detrás. Nunca lanza: una foto que no sale
+    /// no puede costarle el pedido a nadie.
+    /// </remarks>
+    private async Task MandarLaPantallaAlPedirAsync(CancellationToken ct)
+    {
+        if (!SalidaAbierta || !_protocolo.Mira || !_protocolo.VePorReferencia) return;
+        if (!PantallaAlPedir.Encendida(Environment.GetEnvironmentVariable)) return;
+        // UNA PRUEBA NO FOTOGRAFÍA LA PANTALLA DE NADIE. El contrato cambia la puerta de salida por una lista
+        // (promesa 208); si no cambió también las de la mirada, lo que saldría de aquí es una captura de verdad
+        // subida a OpenAI de verdad. Pasó una vez, el 2026-10-01, al estrenar esto: se subió y se borró.
+        if (_puerta != null && _subeLaMirada == null) return;
+        if (Interlocked.Exchange(ref _mandandoLaPantalla, 1) != 0) return;   // una a la vez: la que está subiendo ya es la de este pedido
+        try
+        {
+            var reloj = System.Diagnostics.Stopwatch.StartNew();
+            byte[]? jpeg = CapturaDePantalla.Capturar(out int[]? huella);
+            if (jpeg == null) return;
+            long desdeLaUltima = _huellaDeLaUltimaPantalla == null ? long.MaxValue : Environment.TickCount64 - _ultimaPantallaMs;
+            if (!PantallaAlPedir.Toca(_huellaDeLaUltimaPantalla, huella ?? Array.Empty<int>(), desdeLaUltima, _pantallasMandadas, encendida: true))
+            {
+                // LO QUE DEJA DE VIAJAR SE DICE, una vez (patrón nº10): pasado el tope quien actúa sigue pudiendo mirar.
+                if (_pantallasMandadas >= PantallaAlPedir.Tope && !_yaDijeQueNoVanMas)
+                {
+                    _yaDijeQueNoVanMas = true;
+                    LogBus.Log("voz-viva", $"la pantalla ya no viaja sola en esta conexión: van las {PantallaAlPedir.Tope} del tope. Quien actúa puede seguir mirando con map_look");
+                }
+                return;
+            }
+            string id = await Mirada.SubirAsync(jpeg);
+            if (id.Length == 0) { LogBus.Log("voz-viva", "la pantalla del pedido no se pudo subir: este pedido va sin ella"); return; }
+            string msg = _protocolo.PantallaAlPedir(id, _mapa.DondeEstoyAhora);
+            if (msg.Length == 0) return;
+            await EnviarAsync(msg, ct);
+            _huellaDeLaUltimaPantalla = huella;
+            _ultimaPantallaMs = Environment.TickCount64;
+            _pantallasMandadas++;
+            LogBus.Log("voz-viva", $"pantalla del pedido mandada ({_pantallasMandadas} de {PantallaAlPedir.Tope}): {jpeg.Length} bytes, {reloj.ElapsedMilliseconds} ms de capturar y subir");
+        }
+        catch (Exception e) { LogBus.Log("voz-viva", $"no pude mandar la pantalla del pedido: {e.GetType().Name}: {e.Message}"); }
+        finally { Interlocked.Exchange(ref _mandandoLaPantalla, 0); }
+    }
+
+    // ── Lo que se le cuenta a la voz mientras se trabaja (spec 073) ────────
+
+    /// <summary>
+    /// CUÁNDO se le cuenta: la regla vive en <see cref="AvancesParaLaVoz"/> (promesas 64–66 de la voz). Aquí,
+    /// QUÉ se le cuenta (752) y el envío.
+    /// </summary>
+    private readonly AvancesParaLaVoz _avances = new(() => Environment.TickCount64);
+
+    /// <summary>
+    /// Las que solo miran o preguntan. No son un avance que contar: una frase por mirada es el balbuceo
+    /// que la 161 quitó («habla un 80 % y hace un 30 %», 2026-09-05).
+    /// </summary>
+    private static readonly HashSet<string> SoloMiran = new(StringComparer.Ordinal)
+    {
+        "map_what_i_see", "map_where_am_i", "map_look", "map_pointing_at", "map_pointed_trail",
+        "map_show", "map_recuerdos", "map_tramo_estado", "file_where", "file_list", "file_find", "memory_recall",
+        "scan_computer", "habilidad_leer", "habilidad_lo_que_hice",
+    };
+
+    /// <summary>
+    /// LO QUE SE LE CUENTA A LA VOZ DE UNA HERRAMIENTA QUE TERMINÓ (promesa 752): la primera línea de lo que
+    /// devolvió, y si actuó. Vacío si no hay nada que contar.
+    /// </summary>
+    /// <remarks>
+    /// DEL RESULTADO, NO DE LA INTENCIÓN. Contarle lo que se va a hacer es darle el «ya abrí la calculadora»
+    /// de una calculadora que no abrió. Si actuó lo dice la mano cuando la hay (<paramref name="logro"/>);
+    /// sin mano, lo dice el resultado con la misma regla que pinta ✓ o ✋ en el panel — un solo criterio
+    /// para lo que la persona ve y lo que oye.
+    /// </remarks>
+    internal static (string Texto, bool Fallo) AvanceDe(string herramienta, string resultado, bool? logro)
+    {
+        // El plan cuenta sus pasos uno a uno (AvanceDelPlan); contarlo entero al final sería decirlo dos veces.
+        if (SoloMiran.Contains(herramienta) || herramienta == "map_hacer" || HerramientasDeAutocontrol.Contains(herramienta))
+            return ("", false);
+        string primera = (resultado ?? "").Split('\n')[0].Trim();
+        if (primera.Length == 0) return ("", false);
+        if (primera.Length > 160) primera = primera[..160] + "…";
+        return (primera, logro == false || (logro == null && SalioMal(resultado ?? "")));
+    }
+
+    /// <summary>Un paso de un plan, tal como lo entrega el ejecutor: «✔ lo que hizo» o «✘ lo que no pudo».</summary>
+    internal static (string Texto, bool Fallo) AvanceDelPaso(string linea)
+    {
+        string l = (linea ?? "").Trim();
+        if (l.Length == 0) return ("", false);
+        bool fallo = l.StartsWith('✘');
+        if (fallo || l.StartsWith('✔')) l = l[1..].Trim();
+        if (l.Length > 160) l = l[..160] + "…";
+        return (l, fallo);
+    }
+
+    /// <summary>
+    /// UN PASO DEL PLAN ACABA DE TERMINAR. Lo llama quien cumple map_hacer, paso a paso: sin esto, un plan
+    /// de diez pasos son diez cosas hechas de las que la voz no se entera hasta que el delegado termina.
+    /// </summary>
+    public void AvanceDelPlan(string linea)
+    {
+        _meta.Anotar(linea, (linea ?? "").TrimStart().StartsWith("✘", StringComparison.Ordinal));   // promesa 797
+        ContarALaVoz(AvanceDelPaso(linea));
+    }
+
+    /// <summary>
+    /// A QUIÉN SE LE CUENTA (promesa 755): a una voz que no es quien actúa, y que está oyendo.
+    /// </summary>
+    /// <remarks>
+    /// SIN MICRÓFONO NO, y no es ahorro. Las órdenes escritas abren la sesión sin audio, y sin audio el
+    /// servidor no llega a inyectar el contexto: medido el 2026-10-01 con la frase escrita y ni un trozo de
+    /// audio, cuatro avances aceptados acabaron al cerrar como cuatro «context_injection_incomplete», y la voz
+    /// no dijo una palabra. Lo escrito ya se ve en el notch paso a paso.
+    /// </remarks>
+    internal static bool SeLeCuentaALaVoz(IProtocolo protocolo, bool conMicrofono)
+        => protocolo.ActuaUnDelegado && conMicrofono;
+
+    /// <summary>Si esta sesión abrió con el micrófono. Lo escrito en el chat abre sin él.</summary>
+    private bool _conMicrofono;
+
+    private void ContarALaVoz((string Texto, bool Fallo) avance)
+    {
+        if (avance.Texto.Length == 0 || !SeLeCuentaALaVoz(_protocolo, _conMicrofono)) return;
+        MandarAvance(avance.Fallo ? _avances.Fallo(avance.Texto) : _avances.Hecho(avance.Texto));
+    }
+
+    private void MandarAvance(string? aviso)
+    {
+        if (aviso == null || !SalidaAbierta) return;
+        string msg = _protocolo.Avance(aviso);
+        if (msg.Length == 0) return;
+        // EN EL LOG, CON SU HORA: es lo único que deja medir después cuánto tardó la voz en contarlo.
+        LogBus.Log("voz-viva", "avance a la voz: " + aviso);
+        _ = Task.Run(async () =>
+        {
+            try { await EnviarAsync(msg, _cts?.Token ?? CancellationToken.None); }
+            catch (Exception e) { LogBus.Log("voz-viva", $"no pude contarle el avance a la voz: {e.Message}"); }
+        });
+    }
+
+    /// <summary>
+    /// LAS QUE VAN CON FOTO (promesa 754): mirar, y señalar. La descripción de map_pointing_at promete «además
+    /// te llega una FOTO de ese instante» y la foto no se mandaba; el 2026-09-21 a «te estoy señalando algo
+    /// con mi mouse, quiero que lo veas» se le contestó que no podía ver.
+    /// </summary>
+    internal static bool VaConFoto(string herramienta) => herramienta is HerramientaMirar or HerramientaSenalar;
+
+    private const string HerramientaSenalar = "map_pointing_at";
+
+    private const string HerramientaMirar = "map_look";
 
     /// <summary>Crear un recuerdo. Se vigila desde fuera porque el modelo se la saltaba.</summary>
     private const string HerramientaRecordar = "map_esto_es";
@@ -3009,7 +3680,9 @@ public sealed class ConversacionEnVivo : IDisposable
                     "[aviso del sistema] Lo último que te dijeron sonaba a una lección y no llamaste "
                     + "a map_esto_es, así que no se guardó nada. Si de verdad era un dato personal, "
                     + "guárdalo AHORA con memory_remember. Si era una explicación de algo visible, "
-                    + "usa map_esto_es con `sobre` si no te lo señalaron. Si no lo era, sigue sin decir nada de esto.");
+                    + "usa map_esto_es con `sobre` si no te lo señalaron. Si te enseñaban CÓMO se hace una "
+                    + "tarea, guárdala con habilidad_escribir; si era cómo quiere las cosas, con "
+                    + "preferencia_guardar. Si no lo era, sigue sin decir nada de esto.");
             }
             catch (Exception e) { LogBus.Log("recuerdo", $"no pude avisar al modelo: {e.Message}"); }
         });
@@ -3050,11 +3723,22 @@ public sealed class ConversacionEnVivo : IDisposable
     /// al arrancar la ventana, antes de que exista la voz, así que el párrafo solo llegaba tras un cambio de modo.
     /// </remarks>
     private async Task<string> InstruccionesConMemoriaAsync(CancellationToken ct)
+        => await ComponerInstruccionesAsync(ct);
+
+    private async Task<string> ComponerInstruccionesAsync(CancellationToken ct)
     {
         var memoria = Memoria;
         var conversacion = Conversacion;
-        string deSiempre = ConLaPersona(InstruccionesDeSiempre);
-        if (memoria == null && conversacion == null) return deSiempre;
+        // LAS DE SIEMPRE DE ESTA CONVERSACIÓN —con su perfil y, si está encendido, el decisor (722, 725)—, DETRÁS lo que
+        // se sabe de la persona (spec 080: va detrás de quién es Ü y antes de lo que se recuerda) y, DETRÁS, lo que le
+        // toca a quien actúa: las habilidades, lo que es solo del delegado cuando otro habla por él, y la fecha de hoy.
+        // Detrás y no dentro: las de siempre tienen su presupuesto (724) y sin perfil no cambian ni un byte (722).
+        string deBase = ConLaPersona(InstruccionesDeSiempre) + LoQueSeAnade(_protocolo.ActuaUnDelegado) + "\n\n" + FechaParaQuienActua(DateTimeOffset.Now);
+        if (memoria == null && conversacion == null && Aprendido == null) return deBase;
+        // LO APRENDIDO SE LEE APARTE de la memoria personal: si ella falla, las habilidades viajan igual.
+        string aprendido = "";
+        try { aprendido = Aprendido?.Contexto() ?? ""; }
+        catch (Exception e) { LogBus.Log("aprendido", $"no pude leer lo aprendido al abrir la voz: {e.GetType().Name}: {e.Message}"); }
         try
         {
             using var limite = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -3062,15 +3746,18 @@ public sealed class ConversacionEnVivo : IDisposable
             // que termine evita abrir una sesión de voz sin la memoria personal disponible.
             limite.CancelAfter(TimeSpan.FromSeconds(10));
             string contexto = memoria == null ? "" : await memoria.ContextoAsync(limite.Token);
+            // DEL HILO, LO ÚLTIMO Y HASTA 8.000 (724): con GPT-Live el mismo hilo viaja otra vez como historial de la voz.
             string hilo = conversacion?.Contexto(56, TopeDelHiloEnLasInstrucciones) ?? "";
-            // EL ALMA VA DETRÁS DE QUIÉN ES Ü Y ANTES DE LO QUE SE RECUERDA (spec 080): dice cómo hablarle,
-            // y con eso se lee lo demás.
-            return ArmarInstrucciones(deSiempre, contexto, hilo);
+            string compuestas = InstruccionesDeApertura(deBase, contexto, hilo, aprendido);
+            // CON QUÉ ABRE, EN NÚMEROS: «no usó la habilidad» se empieza a diagnosticar sabiendo si le llegó.
+            LogBus.Log("voz-viva", $"instrucciones de quien actúa: {compuestas.Length} car. de {TopeDeInstrucciones} "
+                + $"({deBase.Length} de operar, {aprendido.Length} de lo aprendido, {contexto.Length} de memoria, {hilo.Length} de hilo antes de ceder)");
+            return compuestas;
         }
         catch (Exception e)
         {
             LogBus.Log("memoria", $"no pude cargar la memoria personal al abrir la voz: {e.Message}");
-            return deSiempre;
+            return InstruccionesDeApertura(deBase, "", "", aprendido);
         }
     }
 
@@ -3084,15 +3771,87 @@ public sealed class ConversacionEnVivo : IDisposable
     /// </remarks>
     internal const int TopeDelHiloEnLasInstrucciones = 8_000;
 
-    /// <summary>Las instrucciones con la memoria y el hilo detrás, si los hay. Pura, para que el contrato la juzgue.</summary>
-    internal static string ArmarInstrucciones(string deSiempre, string memoria, string hilo)
+    /// <summary>
+    /// QUÉ DÍA ES, dicho para quien actúa (spec 079, promesa 788). El 2026-10-01, a «escribe la fecha de hoy»,
+    /// escribió «2025-02-27», intentó abrir «reloj» y acabó tecleando `date /t` en una consola: nadie se lo decía.
+    /// En castellano y con nombres propios, sea cual sea el idioma de Windows.
+    /// </summary>
+    internal static string FechaParaQuienActua(DateTimeOffset ahora)
     {
-        string instrucciones = deSiempre;
+        string[] dias = { "domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado" };
+        string[] meses = { "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre" };
+        return $"HOY ES {dias[(int)ahora.DayOfWeek]}, {ahora.Day} de {meses[ahora.Month - 1]} de {ahora.Year}, y al abrir esta sesión eran las "
+             + $"{ahora.Hour}:{ahora.Minute:00} en este computador. Si te piden la fecha, es esta: no la adivines ni abras nada para averiguarla.";
+    }
+
+    /// <summary>
+    /// SI LO QUE LLEGA COMO DICHO POR Ü SE CUENTA COMO DICHO (promesa 789). Lo de la voz, siempre. Lo que devuelve
+    /// el delegado, solo cuando no hay voz que lo diga: en una sesión escrita ES la respuesta.
+    /// </summary>
+    internal static bool SeCuentaComoDichoPorU(bool delDelegado, bool conMicrofono) => !delDelegado || !conMicrofono;
+
+    /// <summary>
+    /// Cuánto pueden ocupar las instrucciones de quien actúa, en caracteres. El servidor las mide en fichas
+    /// —16.384, y con más la sesión NO ABRE (medido el 2026-09-12)— y aquí no hay tokenizador: el español de
+    /// estas instrucciones sale a unos 3,7 caracteres por ficha, así que 48.000 son unas 13.000, con margen.
+    /// </summary>
+    internal const int TopeDeInstrucciones = 48_000;
+
+    /// <summary>
+    /// LAS INSTRUCCIONES CON QUE ABRE UNA SESIÓN: las de operar, lo aprendido, la memoria personal y el hilo,
+    /// en ese orden, y sin pasar de <paramref name="tope"/> (promesas 763 y 764).
+    /// </summary>
+    /// <remarks>
+    /// QUIEN CEDE ES EL HILO. Hasta la spec 074 se sumaba todo sin mirar el total: con el hilo lleno rondaban
+    /// las 12.000 fichas de 16.384, y lo aprendido solo puede crecer si algo le hace sitio. El hilo es lo que
+    /// menos se pierde: ya viaja aparte como historial de la voz, y de él se queda lo más reciente. La memoria
+    /// cede después, y las de operar y lo aprendido no ceden nunca: sin ellas Ü no sabe trabajar, o no sabe
+    /// trabajar a la manera de esta persona.
+    /// </remarks>
+    /// <summary>Las instrucciones con la memoria y el hilo detrás (el nombre con que la spec 080 las juzga): las de apertura, sin lo aprendido.</summary>
+    internal static string ArmarInstrucciones(string deSiempre, string memoria, string hilo) => InstruccionesDeApertura(deSiempre, memoria, hilo, "");
+
+    internal static string InstruccionesDeApertura(string deBase, string memoria, string hilo, string aprendido, int tope = TopeDeInstrucciones)
+    {
+        const string tituloDeLoAprendido = "\n\nLO QUE ESTA PERSONA TE HA ENSEÑADO (es su manera de hacer las cosas: manda sobre tu criterio, y no hace falta que te lo repita):\n";
+        const string tituloDeLaMemoria = "\n\nMEMORIA PERSONAL DISPONIBLE (úsala solo si es pertinente; no inventes). Los [recordatorio ...] pendientes son compromisos activos y debes reconocerlos si la persona pregunta por el hilo:\n";
+        // LO PEDIDO Y SIN CONTESTAR ES DE ANTES (promesa 801). Decía «continúa naturalmente desde aquí», y el 2026-10-01
+        // quien actúa, tras hacer lo que se le pidió, se puso con un pedido de dos órdenes atrás que había quedado sin
+        // respuesta en el hilo. Lo que no se suelta es una meta activa (spec 082); un pedido viejo es contexto.
+        const string tituloDelHilo = "\n\nHILO CONVERSACIONAL DURABLE (es contexto: sigue la conversación desde aquí, incluso después de apagar y volver a encender el micrófono, y no le pidas a la persona que te repita esto. Lo que en él quedó pedido y sin contestar ES DE ANTES: no lo ejecutes ahora, salvo que lo vuelva a pedir; haz solo lo que pide en este turno):\n";
+
+        var sb = new StringBuilder(deBase ?? "");
+        if (!string.IsNullOrWhiteSpace(aprendido)) sb.Append(tituloDeLoAprendido).Append(aprendido);
+
         if (!string.IsNullOrWhiteSpace(memoria))
-            instrucciones += "\n\nMEMORIA PERSONAL DISPONIBLE (úsala solo si es pertinente; no inventes). Los [recordatorio ...] pendientes son compromisos activos y debes reconocerlos si la persona pregunta por el hilo:\n" + memoria;
+        {
+            int cabe = tope - sb.Length - tituloDeLaMemoria.Length;
+            if (memoria.Length <= cabe) sb.Append(tituloDeLaMemoria).Append(memoria);
+            else if (cabe > 200)
+            {
+                // LO QUE NO VIAJA SE DICE (patrón nº10), aquí y en el propio texto: quien actúa tiene memory_recall.
+                const string cola = "\n[recortado: no cabe toda la memoria; el resto se consulta con memory_recall]";
+                sb.Append(tituloDeLaMemoria).Append(memoria[..(cabe - cola.Length)]).Append(cola);
+                LogBus.Log("voz-viva", $"la memoria personal no cabe entera en las instrucciones: viajan {cabe - cola.Length} de {memoria.Length} car.");
+            }
+            else LogBus.Log("voz-viva", $"la memoria personal no viaja en las instrucciones: no queda sitio ({memoria.Length} car.)");
+        }
+
         if (!string.IsNullOrWhiteSpace(hilo))
-            instrucciones += "\n\nHILO CONVERSACIONAL DURABLE (continúa naturalmente desde aquí, incluso después de apagar y volver a encender el micrófono; no le pidas a la persona que te repita esto):\n" + hilo;
-        return instrucciones;
+        {
+            int cabe = tope - sb.Length - tituloDelHilo.Length;
+            if (hilo.Length <= cabe) sb.Append(tituloDelHilo).Append(hilo);
+            else
+            {
+                // LO MÁS RECIENTE, y por líneas enteras: medio turno al principio es peor que no tenerlo.
+                var lineas = hilo.Split('\n');
+                int desde = lineas.Length, largo = 0;
+                while (desde > 0 && largo + lineas[desde - 1].Length + 1 <= cabe) { largo += lineas[desde - 1].Length + 1; desde--; }
+                if (desde < lineas.Length) sb.Append(tituloDelHilo).Append(string.Join("\n", lineas[desde..]));
+                LogBus.Log("voz-viva", $"el hilo cede sitio en las instrucciones: viajan sus últimas {lineas.Length - desde} de {lineas.Length} líneas");
+            }
+        }
+        return sb.ToString();
     }
 
     private async Task EjecutarNucleoAsync(IReadOnlyList<Llamada> llamadas, CancellationToken ct)
@@ -3118,15 +3877,7 @@ public sealed class ConversacionEnVivo : IDisposable
 
             LogBus.Log("voz-viva", $"ejecutando «{f.Nombre}»…");
             string resultado;
-            if (f.Nombre == HerramientaRecordarLoVisto)
-            {
-                Accion?.Invoke(EnCurso(f.Nombre, f.Args), false);
-                var relojMemoria = System.Diagnostics.Stopwatch.StartNew();
-                resultado = await RecordarLoVistoAsync(f.Args, fotos, ct);
-                relojMemoria.Stop();
-                Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, relojMemoria.ElapsedMilliseconds), true);
-            }
-            else if (f.Nombre == HerramientaMirar)
+            if (f.Nombre == HerramientaMirar)
             {
                 Accion?.Invoke(EnCurso(f.Nombre, f.Args), false);
                 var relojMirar = System.Diagnostics.Stopwatch.StartNew();
@@ -3140,7 +3891,6 @@ public sealed class ConversacionEnVivo : IDisposable
                     else
                     {
                         fotos.Add(jpeg);
-                        GuardarEnElAlbum(jpeg);
                         resultado = "aquí tienes lo que hay en pantalla ahora mismo.";
                     }
                 }
@@ -3154,6 +3904,97 @@ public sealed class ConversacionEnVivo : IDisposable
                 resultado = await EjecutarMemoriaPersonalAsync(f, ct);
                 relojPersonal.Stop();
                 Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, relojPersonal.ElapsedMilliseconds), true);
+                ContarALaVoz(AvanceDe(f.Nombre, resultado, null));
+                // GUARDÓ: el vigilante de lecciones se calla. Hasta la spec 074 solo lo callaba map_esto_es, y
+                // empujaba al modelo a guardar otra vez un dato que acababa de guardar.
+                if (f.Nombre == HerramientaMemoriaGuardar) LaLeccionSeGuardo();
+            }
+            else if (HerramientasDeLaMeta.Contains(f.Nombre))
+            {
+                // LA META (spec 082): estado y texto, sin tocar la pantalla.
+                Accion?.Invoke(EnCurso(f.Nombre, f.Args), false);
+                var relojMeta = System.Diagnostics.Stopwatch.StartNew();
+                string De(string k) => f.Args.TryGetValue(k, out var v) ? v ?? "" : "";
+                resultado = f.Nombre switch
+                {
+                    "meta_crear" => CrearLaMeta(De("objetivo"), De("minutos")),
+                    "meta_actualizar" => CerrarLaMeta(De("estado"), De("evidencia")),
+                    _ => _meta.Ver(),
+                };
+                relojMeta.Stop();
+                Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, relojMeta.ElapsedMilliseconds), true);
+                Apuntar(f.Nombre, f.Args, resultado, relojMeta.ElapsedMilliseconds);
+            }
+            else if (HerramientasDeHabilidad.Contains(f.Nombre))
+            {
+                // LAS HABILIDADES (spec 074, promesa 765): texto contra LoAprendido, sin tocar la pantalla.
+                Accion?.Invoke(EnCurso(f.Nombre, f.Args), false);
+                var relojHabilidad = System.Diagnostics.Stopwatch.StartNew();
+                string Arg(string k) => f.Args.TryGetValue(k, out var v) ? v ?? "" : "";
+                bool? guardo = null;
+                if (Aprendido == null) resultado = "No puedo: lo aprendido todavía no está conectado.";
+                else if (f.Nombre == "habilidad_escribir")
+                {
+                    var escrita = Aprendido.EscribirHabilidad(Arg("nombre"), Arg("cuando"), Arg("pasos"));
+                    resultado = escrita.Mensaje;
+                    guardo = escrita.Ok;
+                    if (escrita.Ok)
+                    {
+                        LaLeccionSeGuardo();
+                        // UNA CLASE, UNA HABILIDAD (promesa 812): si en esta sesión ya guardó otras, se le dice cuáles.
+                        string nombre = Arg("nombre").Trim();
+                        List<string> otras;
+                        lock (_habilidadesDeLaSesion)
+                        {
+                            otras = _habilidadesDeLaSesion.Where(n => !string.Equals(n, nombre, StringComparison.OrdinalIgnoreCase)).ToList();
+                            if (!_habilidadesDeLaSesion.Contains(nombre, StringComparer.OrdinalIgnoreCase)) _habilidadesDeLaSesion.Add(nombre);
+                        }
+                        resultado += AvisoDeHabilidadesPartidas(nombre, otras);
+                    }
+                }
+                else if (f.Nombre == "preferencia_guardar")
+                {
+                    // EN LO APRENDIDO, NO EN LA MEMORIA PERSONAL (promesa 777): allí sería un dato más, que ni
+                    // le llega a quien habla ni sale en «Cómo quieres las cosas».
+                    var preferida = Aprendido.GuardarPreferencia(Arg("texto"));
+                    resultado = preferida.Mensaje;
+                    guardo = preferida.Ok;
+                    if (preferida.Ok)
+                    {
+                        LaLeccionSeGuardo();
+                        ContarleLasPreferenciasALaVoz();   // vale desde ahora, no desde la sesión siguiente
+                    }
+                }
+                else if (f.Nombre == "habilidad_leer") resultado = Aprendido.LeerHabilidad(Arg("nombre")).Mensaje;
+                else if (f.Nombre == "habilidad_olvidar")
+                {
+                    var olvidada = Aprendido.OlvidarHabilidad(Arg("nombre"));
+                    resultado = olvidada.Mensaje;
+                    guardo = olvidada.Ok;
+                    if (olvidada.Ok) lock (_habilidadesDeLaSesion) _habilidadesDeLaSesion.RemoveAll(n => string.Equals(n, Arg("nombre").Trim(), StringComparison.OrdinalIgnoreCase));
+                }
+                else
+                {
+                    // CON LA FOTO DE CADA CLIC (spec 079, promesa 782): lo que se ve bajo el cursor en el instante
+                    // de pulsar. Van detrás del resultado, como las de map_look.
+                    var hecho = LoQueHiciste.DeLaPersona.TomarConFotos();
+                    var conFoto = _protocolo.Mira ? hecho.Where(h => h.Foto != null).ToList() : new List<LoQueHiciste.Tocado>();
+                    foreach (var h in conFoto) fotos.Add(h.Foto!);
+                    int n = 0;
+                    resultado = hecho.Count == 0
+                        ? "Nada nuevo: la persona no ha pulsado nada desde la última vez que lo pregunté. Si lo está "
+                          + "mostrando ahora, espera a que termine y vuelve a preguntar; si lo dijo de palabra, usa lo que dijo."
+                        : $"La persona hizo esto, en este orden ({hecho.Count}):\n"
+                          + string.Join("\n", hecho.Select((h, i) => $"{i + 1}. {h.Linea}" + (conFoto.Contains(h) ? $" [te mando su foto: es la {++n}ª]" : "")))
+                          + (conFoto.Count > 0
+                              ? $"\nTe llegan {conFoto.Count} foto(s), en ese orden: la pantalla en el instante de cada clic, con el cursor dibujado donde pulsó. "
+                                + "Míralas para escribir cada paso con el nombre de lo que se ve bajo el cursor."
+                              : "");
+                }
+                relojHabilidad.Stop();
+                Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, relojHabilidad.ElapsedMilliseconds), true);
+                Apuntar(f.Nombre, f.Args, resultado, relojHabilidad.ElapsedMilliseconds);
+                ContarALaVoz(AvanceDe(f.Nombre, resultado, guardo));
             }
             else if (Persona.HerramientasDelRol.Es(f.Nombre))
             {
@@ -3191,6 +4032,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 LogBus.Log("voz-viva", $"tope: «{f.Nombre}» no se ejecuta — {frenada}");
                 _cuenta.Rechazada(f.Nombre, TopeDeIntentos.DestinoDe(f.Nombre, f.Args));
                 resultado = frenada;
+                ContarALaVoz(AvanceDe(f.Nombre, resultado, false));   // lo frenado tampoco se le oculta a la voz
             }
             else
             {
@@ -3226,6 +4068,13 @@ public sealed class ConversacionEnVivo : IDisposable
                 _cuenta.Resultado(f.Nombre, destino, !revento && mano is { Logro: true });
                 // El pulso lo apunta SurfaceMapTools.Call; contarlo aquí también sería contarlo dos veces.
                 Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, reloj.ElapsedMilliseconds), true);
+                // LA VOZ SE ENTERA DE CÓMO SALIÓ (promesa 752), con el mismo criterio que el tope: la mano
+                // cuando la hay —map_take y map_type—, y si no, lo que dice el resultado.
+                ContarALaVoz(AvanceDe(f.Nombre, resultado,
+                    revento ? false : f.Nombre is "map_take" or "map_type" ? mano?.Logro : null));
+                // SEÑALAR MANDA SU FOTO (promesa 754): lo prometía su descripción y no se mandaba.
+                if (VaConFoto(f.Nombre) && _protocolo.Mira && CapturaDePantalla.Capturar() is { } senalado)
+                    fotos.Add(senalado);
 
                 // UN RECUERDO NUEVO MANDA SU FOTO SOLA. La foto se toma en el momento de crear el
                 // recuerdo —no al señalar, que puede no terminar en nada— así que solo se envía
@@ -3252,15 +4101,31 @@ public sealed class ConversacionEnVivo : IDisposable
             }
 
             hechas.Add((f.Id, f.Nombre, resultado));
+            // A LA BITÁCORA DE LA META (promesa 797): lo que actuó, con cómo salió. Un plan no entra aquí como una línea:
+            // entra paso a paso por AvanceDelPlan, que es donde se ve cuál falló y qué pulsaron las manos.
+            if (_meta.Activa && !SoloMiran.Contains(f.Nombre) && !HerramientasDeLaMeta.Contains(f.Nombre) && f.Nombre != "map_hacer")
+                _meta.Anotar($"{f.Nombre}({string.Join(", ", f.Args.Where(a => !string.IsNullOrWhiteSpace(a.Value)).Select(a => $"{a.Key}={a.Value}"))}) → {resultado.Split('\n')[0].Trim()}", SalioMal(resultado));
+            // AL DIARIO, con cómo salió (promesa 767). Lo que solo mira no enseña nada de cómo se hace una tarea
+            // y llenaría el diario: una sesión de diez pedidos son cuarenta lecturas de pantalla.
+            if (!SoloMiran.Contains(f.Nombre))
+            {
+                bool fallo = SalioMal(resultado);
+                // LO QUE NO SALIÓ, CON SU FOTO (spec 079, promesa 783): «no está a la vista» no dice qué había a la
+                // vista, y es la pantalla que explica la corrección que venga después.
+                _diario?.Hizo(f.Nombre, string.Join(" · ", f.Args.Where(a => !string.IsNullOrWhiteSpace(a.Value)).Select(a => $"{a.Key}={a.Value}")),
+                    resultado, fallo, fallo && _diario != null ? CapturaDePantalla.Capturar() : null);
+            }
         }
+
+        // LO QUE QUEDÓ GUARDADO SALE AL ACABAR LA TANDA (promesa 64): la voz no se queda sin el último paso.
+        MandarAvance(_avances.AlTerminar());
 
         if (hechas.Count == 0) return;
         try
         {
             foreach (string msg in _protocolo.Resultados(hechas))
                 await EnviarAsync(msg, ct);
-            foreach (byte[] jpeg in fotos)
-                await MandarFotoAsync(jpeg, ct);
+            await MandarFotosAsync(fotos, ct);
             // UN TURNO POR TANDA, NO POR LLAMADA (promesa 214): con GPT-Live cada llamada llega sola, y pedir turno
             // mientras falta la salida de otra es lo que el servidor rechaza. Lo retenido deja rastro (patrón nº10).
             var faltan = DarPorContestadas(llamadas);

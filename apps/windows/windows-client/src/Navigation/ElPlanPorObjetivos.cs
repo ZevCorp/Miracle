@@ -46,6 +46,9 @@ public sealed class ElPlanPorObjetivos
     /// <summary>La rueda del ratón, en muescas (negativas hacia abajo). Sin ella, «desplaza:» falla y lo dice.</summary>
     public Func<int, bool>? Desplazar { get; set; }
 
+    /// <summary>Elegir en una lista desplegable sin abrirla (promesa 816): null si quedó elegida; si no, por qué.</summary>
+    public Func<string, string, string?>? Elegir { get; set; }
+
     /// <summary>Esperar a que la pantalla se quede quieta, sin pulsar nada.</summary>
     public Func<bool>? EsperarQuieta { get; set; }
 
@@ -68,6 +71,17 @@ public sealed class ElPlanPorObjetivos
     /// vive en las instrucciones del delegado).
     /// </remarks>
     public Func<string, string?>? Homonimos { get; set; }
+
+    /// <summary>
+    /// DE UN TIRO (spec 081, promesa 791): un «pulsa: X» cuyo nombre no está a la vista se le da UNA vez a las manos,
+    /// sobre la lectura con que la búsqueda acaba de fallar. Devuelve el paso resuelto, o null si ahí no se elige nada
+    /// —la pantalla no estaba quieta, o las manos no se atrevieron— y el paso sigue como hasta hoy (524, 525).
+    /// Sin ella, lo de antes. Es <see cref="PulsaDeUnTiro.Resolver"/>.
+    /// </summary>
+    public Func<string, IReadOnlyList<string>, Recorrido?>? DeUnTiro { get; set; }
+
+    /// <summary>Por qué el último <see cref="DeUnTiro"/> no resolvió, para el log (promesa 794).</summary>
+    public Func<string>? PorQueNoDeUnTiro { get; set; }
 
     /// <summary>La cuenta del último plan (promesa 515): la línea que lee la métrica de la spec 062.</summary>
     public string UltimaCuenta { get; private set; } = "";
@@ -135,7 +149,11 @@ public sealed class ElPlanPorObjetivos
     {
         var pasos = Leer(pasosTexto, out string porque);
         if (pasos == null) return porque;
-        LogBus.Log("plan", $"📋 plan de {pasos.Count} paso(s): {string.Join(" → ", pasos)}");
+        // UNA DIRECCIÓN VA EN UN PASO (promesa 792): lo que llega como «tecla: Ctrl+L», «escribe: https://…», «tecla:
+        // Enter» se ejecuta como «abre:». El plan que se cuenta es el que se ejecuta, y se dice cuántos venían.
+        int venian = pasos.Count;
+        pasos = Ejecutor.Compactar(pasos);
+        LogBus.Log("plan", $"📋 plan de {pasos.Count} paso(s){(venian != pasos.Count ? $" (venían {venian}: ir a una dirección es un solo «abre:»)" : "")}: {string.Join(" → ", pasos)}");
         long t0 = _relojMs();
         _acciones = 0;
         var ejecutor = new Ejecutor(
@@ -147,6 +165,7 @@ public sealed class ElPlanPorObjetivos
             AlTerminarPaso = AlTerminarPaso,
             Desplazar = Desplazar == null ? null : m => { _acciones++; return Desplazar(m); },
             EsperarQuieta = EsperarQuieta,
+            Elegir = Elegir == null ? null : (campo, opcion) => { _acciones++; return Elegir(campo, opcion); },
         };
         var r = ejecutor.Ejecutar(pasos);
         UltimaCuenta = Linea(r.Resultado, _acciones, _relojMs() - t0);
@@ -164,11 +183,30 @@ public sealed class ElPlanPorObjetivos
     /// </summary>
     public Recorrido Objetivo(string paso, IReadOnlyList<string> hecho)
     {
+        long t0 = _relojMs();
+        _camino = "";
+        var r = Resolver(paso, hecho);
+        // LO QUE COSTÓ EL PASO ENTERO, Y POR DÓNDE FUE (spec 081). La vuelta de las manos sola deja fuera las búsquedas
+        // y las esperas de antes, que eran lo caro: 1.260 ms por clic cuando la vuelta decía 400 (2026-10-01).
+        long ms = _relojMs() - t0;
+        int clics = r.Vueltas.Count(v => v.Elegida.Length > 0);
+        if (clics == 0 && r.Cumplido && _camino.StartsWith(PorNombre, StringComparison.Ordinal)) clics = 1;
+        LogBus.Log("plan", $"   ⏱ paso «{paso}»: {ms} ms · {(_camino.Length > 0 ? _camino : "sin camino")}"
+            + (clics > 0 ? $" · {clics} clic(s) · {ms / clics} ms por clic" : ""));
+        return r;
+    }
+
+    private const string PorNombre = "por nombre";
+    private string _camino = "";
+
+    private Recorrido Resolver(string paso, IReadOnlyList<string> hecho)
+    {
         string p = (paso ?? "").Trim();
         // UNA CARPETA POR EL DISCO (promesa 526): 0,17 s y sin Jev. Luna iba carpeta a carpeta con file_open, una vuelta suya
         // por carpeta —20 s pensando para 1,2 s de trabajo (2026-09-29, 03:03)—.
         if (p.StartsWith("carpeta:", StringComparison.OrdinalIgnoreCase))
         {
+            _camino = "carpeta por el disco";
             string ruta = p[8..].Trim().Trim('«', '»', '"', '\'').Trim();
             if (AbrirCarpeta == null) return new Recorrido(Array.Empty<Vuelta>(), "no sé abrir carpetas aquí: nadie conectó quien las abra", false);
             if (ruta.Length > 0 && AbrirCarpeta(ruta))
@@ -184,22 +222,41 @@ public sealed class ElPlanPorObjetivos
             string nombre = p[prefijo.Length..].Trim().Trim('«', '»', '"', '\'', '“', '”').Trim();
             if (nombre.Length > 0)
             {
+                _camino = PorNombre;
                 if (_pulsarPorNombre(nombre)) return Pulsado(nombre);
                 // VARIOS NO ES «NO ESTÁ» (promesa 741): ni se espera ni se le pasa a Jev; el plan para con la lista.
+                _camino = "varios con ese nombre: paró";
                 if (Varios(nombre) is { } varios) return varios;
+                // NO ESTÁ CON ESE NOMBRE, Y LA PANTALLA ESTÁ QUIETA: DE UN TIRO (promesa 791). «pulsa: 1» cuando el botón se
+                // llama «Uno» costaba 1.260 ms —esperar, buscar otra vez, y un objetivo entero— contra 357 por el nombre
+                // exacto (2026-10-01). Las manos eligen una vez sobre lo ya leído y pulsan; si no, sigue lo de siempre.
+                if (DeUnTiro != null)
+                {
+                    _camino = "de un tiro";
+                    if (DeUnTiro(nombre, hecho) is { } tiro)
+                    {
+                        LogBus.Log("plan", $"   «{nombre}» no está con ese nombre: de un tiro · {(tiro.Vueltas.Count > 0 ? tiro.Vueltas[^1].Tiempos.Linea() + " · " : "")}{tiro.PorQueParo}");
+                        return Contar(tiro);
+                    }
+                    LogBus.Log("plan", $"   «{nombre}» no está con ese nombre y no se resolvió de un tiro ({PorQueNoDeUnTiro?.Invoke() ?? "sin motivo"}): espero a la pantalla y busco otra vez");
+                }
                 // SI NO ESTÁ, PUEDE QUE LA PÁGINA AÚN CARGUE (promesa 524): una espera a que se quede quieta y otra búsqueda,
                 // antes de pedirle a Jev que adivine sobre una pantalla a medias.
                 if (EsperarQuieta?.Invoke() == true)
                 {
+                    _camino = PorNombre + ", tras esperar a la pantalla";
                     if (_pulsarPorNombre(nombre)) return Pulsado(nombre);
+                    _camino = "varios con ese nombre: paró";
                     if (Varios(nombre) is { } variosTrasEsperar) return variosTrasEsperar;
                 }
             }
+            _camino = "objetivo de las manos: llegar hasta el nombre";
             // LLEGAR, NO ADIVINAR (promesa 525): si no está en esta pantalla, Jev puede navegar hasta donde esté. Con «pulsar
             // «Sonido»» dentro de Pantalla, Jev eligió «Mostrar más valores» con 0,31 (2026-09-29, 03:04): Sonido cuelga de Sistema.
             return Contar(_conJev($"llegar a «{nombre}» y pulsarlo: si no está en esta pantalla, ve primero a donde esté "
                                 + "(la sección que lo contiene, o Atrás)", hecho));
         }
+        _camino = "objetivo de las manos";
         return Contar(_conJev(p, hecho));
     }
 

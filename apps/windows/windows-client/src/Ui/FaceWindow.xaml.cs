@@ -937,6 +937,18 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 // DOS DEL MISMO NOMBRE (promesa 741): lo que contestó el ciclo cuando no pulsó porque había varios —la marca
                 // es la misma con que map_take reconoce su lista—, para que el plan pare con ella en vez de dársela a Jev.
                 string? variosDelPlan = null;
+                // UN «pulsa:» QUE NO ESTÁ CON ESE NOMBRE, DE UN TIRO (spec 081, promesa 791): las manos eligen una vez sobre
+                // la lectura con que el ciclo acaba de no encontrarlo —y solo si la vio quieta—, y pulsan con la mano de
+                // siempre. La lectura de después queda en el ciclo: el «pulsa:» siguiente la encuentra fresca.
+                var deUnTiro = new Navigation.PulsaDeUnTiro(
+                    () => ciclo.QuietaAlNoEncontrar && ciclo.Ultima is { } leida ? (DondeDelPlan()?.Pantalla ?? "", leida) : null,
+                    c => JevDelPlan()?.Decidir(c) ?? new U.Ciclo.Eleccion(false, 0, 0, 0, "no hay clave de Jev (TYPESAFE_API_KEY)"),
+                    a => Navigation.ElPlanPorObjetivos.Pulsar(a, LibrarElPuntoDeUnClic, (x, y) => U.Ciclo.Raton.Clic(x, y), Navigation.CicloRapido.AvisarALaCarita),
+                    (antes, a) =>
+                    {
+                        IntPtr v = ciclo.UltimaVentana;
+                        return U.Ciclo.Asentado.Esperar(() => ciclo.Mirar(v).Huella, antes.Huella, U.Ciclo.Asentado.TechoTras(a.Tipo), () => Environment.TickCount64).Cambio;
+                    });
                 var planDeLuna = new Navigation.ElPlanPorObjetivos(
                     manosDelPlan.Abrir, manosDelPlan.Escribir, manosDelPlan.Tecla,
                     nombre =>
@@ -950,10 +962,12 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     () => mapaDelPlan.LoQueVeoRapido?.Invoke() ?? "",
                     () => Environment.TickCount64)
                 {
-                    Desplazar = manosDelPlan.Desplazar, EsperarQuieta = manosDelPlan.EsperarQuieta, AlTerminarPaso = l => LogBus.Log("plan", "   " + l),
+                    // CADA PASO, AL LOG Y A LA VOZ (spec 073, promesa 752): sin lo segundo, un plan de diez pasos son diez cosas hechas de las que la voz no se entera.
+                    Desplazar = manosDelPlan.Desplazar, Elegir = manosDelPlan.Elegir, EsperarQuieta = manosDelPlan.EsperarQuieta, AlTerminarPaso = l => { LogBus.Log("plan", "   " + l); _vivo?.AvanceDelPlan(l); },
                     // «carpeta:» por el disco, con la misma regla que file_open (promesa 526).
                     AbrirCarpeta = ruta => SystemApi.Explorador.Navegar(SystemApi.Explorador.Expandir(ruta)).Length > 0,
                     Homonimos = nombre => variosDelPlan is { } v && v.Contains($"«{nombre}»") ? v : null,
+                    DeUnTiro = deUnTiro.Resolver, PorQueNoDeUnTiro = () => deUnTiro.PorQueNo,
                 };
                 mapaDelPlan.Hacer = planDeLuna.Hacer;
                 _ = Task.Run(() => { if (JevDelPlan() is { } jev) LogBus.Log("plan", $"Jev caliente en {jev.Calentar()} ms"); });
@@ -1204,6 +1218,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // es «¿me oyó bien?» (2026-08-16, pedido por el usuario).
             _vivo.Transcribe += (texto, esDeU) => Dispatcher.BeginInvoke(() =>
             {
+                if (esDeU) _fraseDeUParaLaPrueba = texto;
                 if (_vivo?.Viva != true) return;
                 // Durante el primer encuentro la conversación se lee en la escena, no en el notch (spec 080).
                 if (LaEscenaOye(texto, esDeU)) return;
@@ -1214,6 +1229,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             _vivo.LeeU += texto => Dispatcher.BeginInvoke(() => LaEscenaLee(texto));
             _vivo.TurnoCerrado += () => Dispatcher.BeginInvoke(() =>
             {
+                GuardarLoDichoParaLaPrueba();
                 if (_vivo?.Viva != true) return;
                 if (AlCerrarUnTurnoEnLaEscena()) return;
                 _acciones?.CierraTurno();
@@ -1380,6 +1396,23 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             var memoriaPersonal = new MemoriaPersonal(_config.UserId);
             _vivo.Memoria = memoriaPersonal;
             _vivo.Conversacion = new ConversacionPersonal(_config.UserId);
+            // LO QUE Ü APRENDE DE CADA SESIÓN (spec 074): el almacén de habilidades y preferencias, y quien
+            // repasa el diario al cerrar. El repaso va por la misma puerta a OpenAI que la lectura cardiológica,
+            // con la clave que ya usa la voz; un dato de la persona va a la memoria personal, que ya existía.
+            var aprendido = new LoAprendido();
+            _vivo.Aprendido = aprendido;
+            _vivo.Repaso = new ElRepaso(aprendido, Cardio.ClienteCardio.EnviarAOpenAIAsync,
+                async (dato, ct) => await memoriaPersonal.EjecutarAsync(dato, ct),
+                linea => LogBus.Log("repaso", linea))
+            {
+                DatosQueYaSabe = ct => memoriaPersonal.ContextoAsync(ct),
+                // U_REPASO_SIN_FOTOS=1: repasa leyendo, sin mandarle al modelo las fotos del diario (spec 079).
+                ConFotos = (Environment.GetEnvironmentVariable("U_REPASO_SIN_FOTOS") ?? "").Trim() != "1",
+                // CON UN MÉDICO, EL REPASO NO GUARDA DATOS POR SU CUENTA (promesa 778): se mira el perfil de AHORA, que
+                // puede haber cambiado desde que se creó la voz (entró un médico con su cuenta).
+                ConUnMedico = () => _perfil.EsMedico,
+            };
+            _vivo.RepasarLoPendiente();   // la última sesión antes de cerrar Ü: su repaso quedó a medias
             _recordatorios = new RecordatoriosEnVivo(memoriaPersonal, AvisarRecordatorio);
         }
         // "Windows Live": registra al usuario y empieza a emitir telemetría (pulsos consciente/
@@ -1993,13 +2026,50 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             string texto = args.TryGetValue("texto", out var t) ? t.Trim() : "";
             if (texto.Length == 0) return "falta «texto»: la orden.";
             LogBus.Log("prueba", $"orden de prueba: «{texto}»");
-            Dispatcher.BeginInvoke(() => _ = EnviarTextoDesdeElNotchAsync(texto));
+            Dispatcher.BeginInvoke(() => { _dichoParaLaPrueba.Clear(); _fraseDeUParaLaPrueba = ""; _ = EnviarTextoDesdeElNotchAsync(texto); });
             return $"orden enviada: «{texto}»";
+        }
+        if (tool == "u_decir")
+        {
+            string archivo = args.TryGetValue("archivo", out var a) ? a.Trim() : "";
+            if (archivo.Length == 0 || !System.IO.File.Exists(archivo)) return $"no encuentro el audio «{archivo}».";
+            if (_vivo == null) return "no hay voz a la que decirle nada.";
+            byte[] pcm = System.IO.File.ReadAllBytes(archivo);
+            LogBus.Log("prueba", $"audio de prueba: «{System.IO.Path.GetFileName(archivo)}» ({pcm.Length} bytes)");
+            Dispatcher.BeginInvoke(() =>
+            {
+                _dichoParaLaPrueba.Clear(); _fraseDeUParaLaPrueba = "";
+                _ = Task.Run(async () =>
+                {
+                    try { LogBus.Log("prueba", "u_decir: " + await _vivo.DecirDePruebaAsync(pcm)); }
+                    catch (Exception e) { LogBus.Log("prueba", $"u_decir falló: {e.GetType().Name}: {e.Message}"); }
+                });
+            });
+            return $"audio enviado: {pcm.Length} bytes";
         }
         if (_vivo == null) return "no hay voz que cerrar.";
         bool cerro = Dispatcher.Invoke(() => _vivo.TerminarAsync()).Wait(TimeSpan.FromSeconds(10));
         LogBus.Log("prueba", cerro ? "voz cerrada por la prueba" : "la voz no terminó de cerrarse en 10 s");
-        return cerro ? "voz cerrada." : "la voz no terminó de cerrarse en 10 s.";
+        string dicho = Dispatcher.Invoke(() => { GuardarLoDichoParaLaPrueba(); return string.Join("\n", _dichoParaLaPrueba); });
+        return (cerro ? "voz cerrada." : "la voz no terminó de cerrarse en 10 s.") + MarcaDeLoDicho + dicho;
+    }
+
+    /// <summary>
+    /// LO QUE Ü CONTESTÓ DESDE LA ÚLTIMA ORDEN DE PRUEBA, ENTERO, turno por turno. El log recorta cada línea a unos 450
+    /// caracteres: el 2026-10-01 el banco de metas dio por no lograda una que sí lo estaba porque la respuesta venía
+    /// cortada, y un resumen de cinco puntos no cabría nunca. Va en la respuesta de u_colgar, que solo existe con
+    /// U_ORDENES_DE_PRUEBA=1, y no en el log: lo que Ü le dice a una persona no se escribe entero en disco.
+    /// </summary>
+    private readonly List<string> _dichoParaLaPrueba = new();
+    private string _fraseDeUParaLaPrueba = "";
+    private const string MarcaDeLoDicho = "\nÜ dijo:\n";
+
+    private void GuardarLoDichoParaLaPrueba()
+    {
+        if (_fraseDeUParaLaPrueba.Length == 0) return;
+        _dichoParaLaPrueba.Add(_fraseDeUParaLaPrueba);
+        if (_dichoParaLaPrueba.Count > 40) _dichoParaLaPrueba.RemoveAt(0);
+        _fraseDeUParaLaPrueba = "";
     }
 
     private async Task EnviarTextoDesdeElNotchAsync(string texto)

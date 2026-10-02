@@ -86,6 +86,13 @@ public sealed class CicloRapido
     /// <summary>Por qué el último Pulsar no se encargó (null), para que el log lo diga: tres causas, tres frases (aprendizaje nº2).</summary>
     public string PorQueNo { get; private set; } = "";
 
+    /// <summary>
+    /// Del último Pulsar que NO encontró el nombre: si las dos lecturas con que lo buscó eran la misma pantalla
+    /// (spec 081, promesa 791). Entonces <see cref="Ultima"/> es una lectura quieta, y sobre ella se puede elegir sin
+    /// esperar. Falso si la pantalla cambió entre las dos —puede estar cargando— o si no se dejó leer.
+    /// </summary>
+    public bool QuietaAlNoEncontrar { get; private set; }
+
     /// <summary>La última lectura, para quien quiera contar lo que se ve sin volver a leer.</summary>
     public Lectura? Ultima => _ultima;
     public IntPtr UltimaVentana => _ultimaVentana;
@@ -98,7 +105,7 @@ public sealed class CicloRapido
     public string? Pulsar(string exit, int cual)
     {
         Pulso = false; Cambio = false; Pulsado = ""; ClaveDelPulsado = ""; Tiempos = default;
-        PorQueNo = ""; AvisoFallido = ""; MsLibrar = 0;
+        PorQueNo = ""; AvisoFallido = ""; MsLibrar = 0; QuietaAlNoEncontrar = false;
         if (!QueSePide(exit, out string nombre, out string tipo)) { PorQueNo = "no es un clic por nombre en UIA"; return null; }
         IntPtr v = _ventana();
         if (v == IntPtr.Zero) { PorQueNo = "no hay ventana de trabajo delante (ni se pudo traer)"; return null; }
@@ -111,7 +118,14 @@ public sealed class CicloRapido
         var iguales = Buscar(antes, nombre, tipo);
         // Se busca en una lectura nueva solo si la de antes LEYÓ algo: una vacía es «no se dejó leer a tiempo» (494), y
         // repetirla eran otros 4 s para lo mismo (14 s por clic en Edge, 2026-09-27).
-        if (iguales.Count == 0 && antes.Accionables.Count > 0) { antes = Leer(v); iguales = Buscar(antes, nombre, tipo); }
+        if (iguales.Count == 0 && antes.Accionables.Count > 0)
+        {
+            string huellaDeAntes = antes.Huella;
+            antes = Leer(v); iguales = Buscar(antes, nombre, tipo);
+            // DOS LECTURAS SEGUIDAS, Y LA MISMA PANTALLA (spec 081, promesa 791): está quieta, que es justo lo que
+            // una espera comprobaría con dos lecturas más. Quien resuelve el nombre de un tiro mira esto.
+            QuietaAlNoEncontrar = iguales.Count == 0 && antes.Accionables.Count > 0 && antes.Huella == huellaDeAntes;
+        }
         // LO QUE NO ESTÁ SE DICE AL MOMENTO (promesa 493), como u/. Caer al camino de siempre costaba 60 s por clic en
         // Edge (2026-09-27): el grafo que ese camino consultaba ya no se alimenta, y su lector no aguanta una página.
         if (iguales.Count == 0)
@@ -206,10 +220,20 @@ public sealed class CicloRapido
     {
         var exactos = l.Accionables.Where(a => string.Equals(a.Nombre.Trim(), nombre, StringComparison.Ordinal)
                                             && (tipo.Length == 0 || string.Equals(a.Tipo, tipo, StringComparison.Ordinal))).ToList();
-        return exactos.Count > 0 ? exactos
+        return SinRepetidos(exactos.Count > 0 ? exactos
             : l.Accionables.Where(a => string.Equals(a.Nombre.Trim(), nombre, StringComparison.OrdinalIgnoreCase)
-                                     && (tipo.Length == 0 || string.Equals(a.Tipo, tipo, StringComparison.OrdinalIgnoreCase))).ToList();
+                                     && (tipo.Length == 0 || string.Equals(a.Tipo, tipo, StringComparison.OrdinalIgnoreCase))).ToList());
     }
+
+    /// <summary>
+    /// LO MISMO, LEÍDO VARIAS VECES, ES UNO (spec 083, promesa 811). Medido el 2026-10-02 en Edge: la lista
+    /// desplegable de un formulario («Tipo de documento») dio 121 «Cédula de ciudadanía» —la misma opción, en el mismo
+    /// sitio, repetida por el árbol de UIA—, el plan paró por «varios con ese nombre» y hubo que pulsarla con which=1.
+    /// Dos accionables con el mismo nombre, el mismo tipo y la MISMA caja son el mismo: se pulsan en el mismo punto.
+    /// Los que están en otro sitio siguen siendo varios, y siguen parando el plan (741).
+    /// </summary>
+    public static List<Accionable> SinRepetidos(List<Accionable> iguales) =>
+        iguales.Count <= 1 ? iguales : iguales.GroupBy(a => (a.Tipo, a.Caja)).Select(g => g.First()).ToList();
 
     private static string Numerar(string nombre, List<Accionable> iguales) =>
         $"hay {iguales.Count} «{nombre}» a la vista: "

@@ -13,10 +13,12 @@ namespace Voz.Realtime;
 ///  · SU PROPIA PUERTA. <c>gpt-live-1</c> en /v1/realtime contesta «not supported in realtime mode».
 ///    Va por /v1/live/sessions, sin ?model=, y se abre con <c>session.start</c>.
 ///
-///  · LA VOZ NO LLEVA HERRAMIENTAS. Las lleva un modelo DELEGADO (<c>gpt-5.6-luna</c>; <c>gpt-5.6-terra</c>
-///    también funciona) dentro de <c>session.delegation.responses</c>: él mira, llama y decide; la voz
-///    conversa y le pasa el trabajo. Por eso las instrucciones completas de Ü van al delegado y la voz
-///    lleva una persona corta.
+///  · LA VOZ NO LLEVA HERRAMIENTAS. Las lleva un modelo DELEGADO (<c>gpt-6-luna</c> desde la spec 073)
+///    dentro de <c>session.delegation.responses</c>: él mira, llama y decide; la voz conversa y le pasa
+///    el trabajo. Por eso las instrucciones de operar van al delegado y la voz lleva una persona corta.
+///
+///  · LA VOZ NO SE ENTERA SOLA DE LO QUE HACE EL DELEGADO. Lo que él va haciendo no se le cuenta: solo
+///    recibe el resultado final. Lo que ocurre entretanto se le manda con <see cref="Avance"/>.
 ///
 ///  · LA SESIÓN ES INMUTABLE SALVO LA DELEGACIÓN. <c>session.update</c> con <c>session.instructions</c>
 ///    contesta «Unknown parameter: 'session.instructions'»; con <c>session.delegation</c> contesta
@@ -50,36 +52,52 @@ public sealed class ProtocoloGptLive : IProtocolo
     public const string Voz = "marin";
 
     /// <summary>
-    /// LO QUE LLEVA LA VOZ: quién es y que delega. Corta a propósito — la voz no ve la pantalla ni tiene
-    /// herramientas, y si llevara las instrucciones de operar prometería lo que no puede hacer ella y
-    /// contestaría de memoria en vez de delegar.
+    /// LO QUE LLEVA LA VOZ: quién es, que delega, y que conversa mientras su equipo trabaja. Corta a
+    /// propósito — la voz no tiene herramientas, y si llevara las instrucciones de operar prometería lo
+    /// que no puede hacer ella y contestaría de memoria en vez de delegar.
     /// </summary>
     /// <remarks>
-    /// Y LA REGLA DE LA 161, que no viaja sola: las instrucciones de Ü van al delegado, pero quien suena es
-    /// la voz. Sin ella, en la sonda del 2026-09-12 dijo «Vale. Dame un momento para revisarlo.» antes de
-    /// que el delegado hiciera nada. Promesa 46 de la voz.
+    /// ANTES LE ORDENABA CALLAR («mientras se hace el trabajo, calla», promesa 46), y callaba: «Claro.» y 12,5 s
+    /// de silencio hasta el resultado (sonda del 2026-10-01); en septiembre, 22 de 54 pedidos de tres o más
+    /// acciones sin una frase en medio. Con esta persona y los avances de <see cref="Avance"/>, el mismo pedido:
+    /// tres frases durante el trabajo y 3,2 s de silencio como mucho. Con los avances y la persona de antes: cero
+    /// frases — hacen falta las dos (spec 073, 61).
     ///
-    /// AQUÍ VIVE LA PERSONALIDAD QUE SE OYE (spec 078, 2026-10-01): cálida, clara y breve, en español de
-    /// Colombia, humor ligero solo en la charla. Decía «este ordenador, sobre todo SAP»: le hablaba igual a
-    /// un médico de un hospital que a quien ordena sus fotos. Lo que cambia por perfil va aparte, en
-    /// <see cref="PersonaExtra"/>. Mide 1.288 caracteres; con <see cref="AlVolver"/> y la frase del perfil
-    /// más larga cabe en 1.700 (promesa 59), que es el presupuesto de la vuelta.
+    /// LO QUE NO VUELVE es el «Dame un momento para revisarlo» de la sonda del 2026-09-12, dicho antes de que
+    /// nadie hiciera nada: la regla de la 161 sigue aquí con sus palabras («NO ANUNCIES LO QUE VAS A HACER»,
+    /// promesa 46), porque las instrucciones de Ü van al delegado y quien suena es la voz. Acompañar no es
+    /// anunciar: la voz habla de lo que le llega, en pasado, no de lo que supone.
+    ///
+    /// Y DICE QUE VE. La de antes decía «tú no ves la pantalla», y el 2026-09-21 la voz lo repitió —«no puedo
+    /// ver tu pantalla ni lo que señalas»— sin delegar, con la foto por referencia funcionando (62).
+    ///
+    /// AQUÍ VIVE LA PERSONALIDAD QUE SE OYE (spec 078 de main, 2026-10-01): cálida, clara y breve, en español de
+    /// Colombia, humor ligero solo en la charla. Decía «este ordenador, sobre todo SAP»: le hablaba igual a un
+    /// médico de un hospital que a quien ordena sus fotos. Lo que cambia por perfil va aparte, en
+    /// <see cref="PersonaExtra"/>.
+    ///
+    /// LAS DOS SE JUNTARON EL 2026-10-01, al mezclar las ramas, y se volvió a medir: con este texto la voz dijo
+    /// 2, 4 y 4 frases durante el trabajo en tres corridas de la sonda, todas en pasado. Mide 1.283 caracteres;
+    /// con <see cref="AlVolver"/> y la frase de perfil más larga (300) cabe en 1.700 (promesa 59), que es el
+    /// presupuesto de la vuelta.
     /// </remarks>
     public const string InstruccionesDeLaVoz =
         "Eres Ü, el asistente que maneja este computador por la persona. Hablas español de Colombia, cálido, "
-        + "claro y breve, como alguien de confianza: una o dos frases (si te piden leer algo, entero), sin "
-        + "frases de máquina («¡Claro!», «¿algo más?») ni muletillas repetidas. Si te conversan, conversas con "
-        + "gusto y algo de humor ligero; si te piden algo, lo DELEGAS. Tú no ves la pantalla ni la tocas: "
-        + "mirar, buscar, abrir, escribir, operar o recordar, lo delegas siempre. Nunca inventes lo que hay en "
-        + "pantalla, la hora ni lo que no se confirmó. SI LA PERSONA QUIERE QUE TÚ DEJES DE HABLAR, DEJES DE "
-        + "ESCUCHARLA O APAGUES LA VOZ, DELEGA ESA PETICIÓN INMEDIATAMENTE, aunque lo diga con rodeos: no "
-        + "respondas «me callo» ni prometas silencio, porque solo el delegado puede apagar el micrófono. Un "
-        + "«espera» no es eso: calla y escucha. Cuando el delegado confirme que apagó la voz, di únicamente "
-        + "«Mmm.» y nada más. NO ANUNCIES LO QUE VAS A HACER: nada de «voy a…», «vamos a…», «déjame…», «dame un "
-        + "momento». Mientras se hace el trabajo, calla; si la persona corrige o cancela, delégalo ya. Si el "
-        + "delegado pregunta o avisa algo, se lo dices en una frase. CUANDO HABLES, HABLA EN PASADO Y DEL "
-        + "RESULTADO, con sus datos, sin añadir: «quedó abierta Descargas: hay 34 archivos, 12 PDF», «no había "
-        + "ningún informe».";
+        + "claro y breve, como alguien de confianza: una o dos frases (si te piden leer algo, entero), sin frases "
+        + "de máquina («¡Claro!», «¿algo más?»). Si te conversan, conversas con gusto y humor ligero. Tú hablas; "
+        + "tus manos y tus ojos son tu equipo: mirar, buscar, abrir, escribir, operar, recordar o aprender algo, "
+        + "lo DELEGAS."
+        + "\nPRIMERO SE EJECUTA: si te piden algo, delega ya, antes de comentar. NO ANUNCIES LO QUE VAS A HACER: "
+        + "nada de «voy a…», «vamos a…», «dame un momento»."
+        + "\nMIENTRAS SE TRABAJA te llegan avances: cuenta en una frase corta lo que aporte. HABLA EN PASADO, de "
+        + "lo que YA pasó y con sus datos («quedó abierta Descargas: 34 archivos»); nunca digas que algo está "
+        + "hecho si no te ha llegado, ni inventes lo que hay en pantalla ni la hora."
+        + "\nSÍ VES LA PANTALLA, por tu equipo: si preguntan qué hay o qué señalan, delégalo; nunca digas que no "
+        + "puedes ver."
+        + "\nSi te hablan encima o dicen «espera», calla y escucha; si corrigen o cancelan, delégalo ya."
+        + "\nSI LA PERSONA QUIERE QUE DEJES DE HABLAR, DEJES DE ESCUCHARLA O APAGUES LA VOZ, DELEGA ESA PETICIÓN "
+        + "INMEDIATAMENTE: no respondas «me callo», solo tu equipo apaga el micrófono. Cuando confirme que la "
+        + "apagó, di únicamente «Mmm.» y nada más.";
 
     /// <summary>
     /// LO QUE LA VOZ SABE DE CON QUIÉN HABLA: una frase que va pegada detrás de
@@ -105,6 +123,13 @@ public sealed class ProtocoloGptLive : IProtocolo
     /// a la voz con las reglas que tenía, y solo una línea en el log lo cuenta.
     /// </summary>
     public const int TopeDelAppend = 1_756;
+
+    /// <summary>
+    /// LO QUE SE COMPONE AQUÍ —un avance del trabajo, las preferencias de la persona— DEJA MARGEN bajo
+    /// <see cref="TopeDelAppend"/>: el servidor mide en fichas y aquí se cuentan caracteres, y un texto con más
+    /// tildes o símbolos que el medido gasta más fichas por carácter. Lo que pasa de aquí se recorta diciéndolo.
+    /// </summary>
+    public const int TopeDeUnAppend = 1_700;
 
     /// <summary>
     /// LA PERSONA CON LA QUE ABRE LA VOZ en la próxima sesión. Null o vacío, la de siempre
@@ -133,24 +158,22 @@ public sealed class ProtocoloGptLive : IProtocolo
     public int RitmoDeSalida => 24000;
 
     /// <summary>
-    /// NO, aunque el delegado sabe ver: lo que no cabe es la foto. Medido el 2026-09-12 con los bytes de la
-    /// rama: una captura de tamaño real (la de esta máquina pesa 67–69 KB de JPEG, 90–92 KB en base64) no
-    /// entra en «128 items and 32768 UTF-8 bytes per session» — con un Fotograma de 117.962 B el servidor
-    /// contestó response_input_buffer_full y el delegado dijo que no distinguía el texto, como si la hubiera
-    /// visto borrosa. Achicarla no basta: una de 520 px se leyó, pero de tres de 400 px en la misma sesión
-    /// solo la primera.
-    /// </summary>
-    /// <remarks>
-    /// Con falso, map_look contesta que no puede y ofrece map_what_i_see, y la foto de un recuerdo nuevo no se
-    /// manda. Volver a sí exige medir antes una forma de mandar fotos que quepa SIEMPRE, no la primera vez.
-    /// Promesa 49.
-    /// </remarks>
-    /// <summary>
-    /// SÍ MIRA, desde la spec 027. Lo que no cabe es la imagen metida dentro del mensaje; por
-    /// referencia entra, y está medido contra el servidor real.
+    /// SÍ MIRA, desde la spec 027. Lo que no cabe es la imagen metida dentro del mensaje —una captura pesa
+    /// 118.000 bytes codificada y el buzón de la sesión admite 32.768 (medido el 2026-09-12:
+    /// response_input_buffer_full)—; por referencia entra, y está medido contra el servidor real.
     /// </summary>
     public bool Mira => true;
+
+    /// <summary>Con GPT-Live quien actúa es el delegado y quien habla es la voz: son dos modelos.</summary>
+    public bool ActuaUnDelegado => true;
     public bool SabeVolver => false;
+
+    /// <summary>
+    /// SÍ: A LOS 30 SEGUNDOS. Medido el 2026-10-01 con la frase escrita y sin un solo trozo de audio:
+    /// «session.closed: expired» a los 30.975 ms, con el delegado trabajando. Con silencio por el caño, 47 s y el
+    /// trabajo terminado. Promesa 71.
+    /// </summary>
+    public bool CaducaSinAudio => true;
 
     /// <summary>
     /// SÍ: session.started. Hasta que llega, la sesión no está abierta, y un error antes de él es que no
@@ -162,11 +185,48 @@ public sealed class ProtocoloGptLive : IProtocolo
     public bool MarcaLosTurnos => false;
     public bool SabeEsperarTurno => false;
 
-    public ProtocoloGptLive(string modelo = "gpt-live-1", string delegado = "gpt-6.1-sol")
+    /// <remarks>
+    /// EL DELEGADO ES gpt-6-luna, PENSANDO EN MEDIO Y CON PRISA (spec 073, promesa 60). «Pasemos a luna 6» y
+    /// «la velocidad es extremadamente importante para nosotros» (el dueño, 2026-09-30 y 2026-10-01). Medido
+    /// el 2026-10-01 con la sonda de la voz, con las instrucciones y las 28 herramientas de la app, seis
+    /// corridas por combinación — el primer plan, de mediana:
+    ///
+    ///     gpt-6.1-sol  low                3.191 ms     (lo que había: Sol entró el 2026-09-30 sin medir en vivo)
+    ///     gpt-6-luna   low                1.250 ms
+    ///     gpt-6-luna   medium             1.380 ms
+    ///     gpt-6-luna   low  + priority      924 ms
+    ///     gpt-6-luna   medium + priority    848 ms     ← lo que queda por defecto
+    ///
+    /// Y SOBRE LA Ü DE VERDAD, seis pedidos por combinación sobre el mismo binario (calculadora, Configuración,
+    /// Descargas): Luna en low acertó 4 de 6 —no supo sacar una raíz ni listar los dispositivos—; en medium,
+    /// 16 de 18 en tres pasadas; Sol en low, 6 de 6. En lo sencillo Luna contesta en 2–6 s y Sol en 6–9 s; en
+    /// lo que hay que explorar (la RAM en Configuración) Luna da más vueltas: 12–20 s contra 11 s.
+    ///
+    /// LO QUE CUESTA. Con priority Luna vale el doble que sin ella y sigue costando la décima parte que Sol sin
+    /// priority. El 2026-09-29 el dueño quitó priority por su precio, con Sol; con Luna la cuenta es otra. Se
+    /// quita con U_DELEGADO_PRISA=0 y se vuelve a Sol con U_DELEGADO=gpt-6.1-sol, sin recompilar (promesa 756).
+    /// </remarks>
+    /// <param name="conPrioridad">Pide <c>service_tier: priority</c> para el delegado (promesa 67).</param>
+    /// <param name="esfuerzo">Cuánto piensa el delegado antes de actuar (<c>reasoning.effort</c>).</param>
+    public ProtocoloGptLive(string modelo = "gpt-live-1", string delegado = "gpt-6-luna", bool conPrioridad = true, string esfuerzo = EsfuerzoPorDefecto)
     {
         Modelo = modelo;
         Delegado = delegado;
+        ConPrioridad = conPrioridad;
+        Esfuerzo = string.IsNullOrWhiteSpace(esfuerzo) ? EsfuerzoPorDefecto : esfuerzo.Trim();
     }
+
+    private const string EsfuerzoPorDefecto = "medium";
+
+    /// <summary>
+    /// CUÁNTO PIENSA EL DELEGADO: en medio. La 518 pedía «low» porque gpt-5.6-luna, sin pedirlo, pensaba 2 s por
+    /// respuesta; con gpt-6-luna la diferencia son 130 ms (1.250 contra 1.380) y los aciertos pasan de 4 de 6 a
+    /// 16 de 18. «none» da 910 ms sin pagar priority, y falló lo mismo que «low».
+    /// </summary>
+    public string Esfuerzo { get; }
+
+    /// <summary>Si el delegado piensa con prisa pagada. Va en la delegación ENTERA, también al cambiar de modo.</summary>
+    public bool ConPrioridad { get; }
 
     public Uri Direccion() => new("wss://api.openai.com/v1/live/sessions");
 
@@ -327,22 +387,27 @@ public sealed class ProtocoloGptLive : IProtocolo
         return conPerfil.Length <= TopeDelAppend ? conPerfil : AlVolver + InstruccionesDeLaVoz;
     }
 
-    private object Delegacion(string instrucciones, IReadOnlyList<Utensilio> utensilios) => new
+    private object Delegacion(string instrucciones, IReadOnlyList<Utensilio> utensilios)
     {
-        type = "responses",
-        responses = new
+        // UN DICCIONARIO, para que service_tier NO VIAJE cuando no se pide: mandarlo vacío o nulo no es lo mismo
+        // que no mandarlo, y sin él el servidor pone el suyo.
+        var responses = new Dictionary<string, object>
         {
-            model = Delegado,
-            instructions = instrucciones,
-            tools = ProtocoloOpenAI.ComoFunciones(utensilios),
-            tool_choice = "auto",
-            // MODO RÁPIDO (promesa 518, spec 062): sin pedirlo, Luna piensa en su medio por defecto, ~2 s por respuesta
-            // (sesión del 2026-09-28). El servidor lo acepta en la delegación: medido con session.started ese mismo día.
-            reasoning = new { effort = "low" },
-            // SIN PRIORITY (promesa 520, segunda decisión del dueño del 2026-09-29): priority bajaba el primer plan de 3.546 a
-            // 1.874 ms de mediana, pero «el costo nos puede salir muy caro». Se queda el pensamiento en bajo.
-        },
-    };
+            ["model"] = Delegado,
+            ["instructions"] = instrucciones,
+            ["tools"] = ProtocoloOpenAI.ComoFunciones(utensilios),
+            ["tool_choice"] = "auto",
+            // El servidor acepta reasoning.effort en la delegación (medido con session.started el 2026-09-28). Un valor
+            // que el modelo no admite NO impide abrir: la sesión abre, el servidor contesta «Unsupported value» y el
+            // delegado no hace nada (gpt-6.1-sol con «none», 2026-10-01).
+            ["reasoning"] = new { effort = Esfuerzo },
+        };
+        // LA PRISA (promesa 67). El 2026-09-29 priority bajaba el primer plan de Sol de 3.546 a 1.874 ms y el dueño
+        // la quitó: «el costo nos puede salir muy caro». Con gpt-6-luna baja de 1.380 a 848 ms costando la décima
+        // parte que Sol sin ella, y viene puesta; se quita con U_DELEGADO_PRISA=0.
+        if (ConPrioridad) responses["service_tier"] = "priority";
+        return new { type = "responses", responses };
+    }
 
     public string Audio(byte[] pcm) => JsonSerializer.Serialize(new
     {
@@ -350,11 +415,72 @@ public sealed class ProtocoloGptLive : IProtocolo
         audio = Convert.ToBase64String(pcm),
     });
 
-    public string Fotograma(byte[] jpeg) => MensajeDelUsuario(new
+    /// <summary>
+    /// LA FOTO INCRUSTADA NO EXISTE EN GPT-LIVE (spec 079). Aquí había un mensaje con la imagen dentro, en data URL,
+    /// y nunca cupo ninguna: 118.000 bytes en un buzón de 32.768 (response_input_buffer_full, 2026-09-12). Desde la
+    /// 027 la foto entra por referencia (<see cref="FotogramaPorReferencia"/>) y esto no lo llamaba nadie. Vacío:
+    /// quien llame no manda algo que deja la sesión sin poder contestar.
+    /// </summary>
+    public string Fotograma(byte[] jpeg) => "";
+
+    /// <summary>
+    /// LA PANTALLA DEL PEDIDO (spec 079, promesa 69): un solo mensaje con el texto delante y la foto detrás.
+    /// </summary>
+    /// <remarks>
+    /// Medido el 2026-10-01 con la sonda: metida en la conversación ANTES de que la persona hable, la foto le
+    /// llega al delegado —contestó «7421», que solo estaba en ella—; «pulsa el botón verde de abajo» salió en una
+    /// vuelta de 0,86 s como `pulsa: Radicar`; la voz se quedó callada al recibirla y contestó «hola» sin delegar.
+    /// El texto va en el mismo mensaje para que nadie lo tome por algo que dijo la persona, y dice dónde está
+    /// según el mapa. No pide turno: acompaña al pedido que viene detrás.
+    /// </remarks>
+    public string PantallaAlPedir(string idDelArchivo, string donde)
     {
-        type = "input_image",
-        image_url = "data:image/jpeg;base64," + Convert.ToBase64String(jpeg),
-    });
+        if (string.IsNullOrWhiteSpace(idDelArchivo)) return "";
+        // CON LAS PALABRAS DE LA HERRAMIENTA. Con «según el mapa» a secas, quien actúa preguntó igual dónde estaba y
+        // volvió a mirar: 3 vueltas y 7,5 s para leer «144» (Ü de pruebas, 2026-10-01). Sus instrucciones dicen que
+        // una foto nunca decide dónde se está y que eso solo lo dice map_where_am_i: se le da su respuesta, nombrada.
+        string lugar = string.IsNullOrWhiteSpace(donde) ? ""
+            : $" Dónde está la persona ya está comprobado: map_where_am_i contesta ahora mismo «{donde.Trim()}». No hace falta volver a preguntarlo.";
+        return JsonSerializer.Serialize(new
+        {
+            type = "response.item.create",
+            item = new
+            {
+                type = "message",
+                role = "user",
+                content = new object[]
+                {
+                    // PARA QUIÉN ES (promesa 73). La conversación la lee también quien habla: el 2026-10-01, con música en
+                    // la pantalla de la persona, la voz contestó a «abre la Configuración…» con «¿Te pongo otra canción de
+                    // las que tienes por acá?». Sin foto, la misma voz dijo «Sí.» y nada más (sonda, dos corridas).
+                    new { type = "input_text", text = MarcaDeLaPantalla + " Foto de la pantalla en el momento de pedirlo, con el cursor dibujado donde apuntaba. "
+                        + ParaQuienEsLaPantalla + lugar },
+                    new { type = "input_image", file_id = idDelArchivo.Trim(), detail = "high" },
+                },
+            },
+        });
+    }
+
+    /// <summary>
+    /// LA META EN CURSO, PARA QUIEN ACTÚA (spec 082, promesa 72): un mensaje de usuario con el texto, sin pedir turno.
+    /// Es el mismo camino por el que viaja la pantalla del pedido (69), que está medido: lo que se mete en la
+    /// conversación antes del pedido le llega al delegado, y la voz no lo dice.
+    /// </summary>
+    public string ContextoParaQuienActua(string texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return "";
+        return JsonSerializer.Serialize(new
+        {
+            type = "response.item.create",
+            item = new { type = "message", role = "user", content = new object[] { new { type = "input_text", text = texto.Trim() } } },
+        });
+    }
+
+    /// <summary>Con qué empieza el texto que acompaña a la pantalla del pedido. Las instrucciones del delegado la nombran.</summary>
+    public const string MarcaDeLaPantalla = "[PANTALLA: esto no lo dijo la persona]";
+
+    /// <summary>Lo que la foto del pedido dice de sí misma a quien la lea (promesa 73 de la voz).</summary>
+    public const string ParaQuienEsLaPantalla = "ES PARA QUIEN ACTÚA: quien habla no la comenta ni ofrece nada por lo que se ve en ella; contesta solo a lo que la persona pida.";
 
     /// <summary>
     /// LA FOTO POR REFERENCIA (promesa 54, spec 027): entra el identificador, no la imagen.
@@ -471,6 +597,50 @@ public sealed class ProtocoloGptLive : IProtocolo
                 content = instrucciones,
             });
 
+    /// <summary>
+    /// LO QUE ESTÁ PASANDO, PARA QUE LA VOZ LO SEPA: <c>session.thinking.append</c>, contexto callado.
+    /// </summary>
+    /// <remarks>
+    /// No es un dictado (<see cref="PedirRespuesta"/> con texto): un avance no se dice tal cual, la voz
+    /// elige si lo cuenta y cómo. Medido el 2026-10-01 con la delegación por Responses en marcha: el
+    /// servidor lo acepta con delegation_id nulo (session.thinking.appended, 16 de 16) y el delegado no se
+    /// entera — sigue con su llamada. Con la persona de <see cref="InstruccionesDeLaVoz"/> la voz lo
+    /// contó en una frase a los 0,6–0,8 s de recibirlo, y a «¿cómo vas?» contestó «ya vamos por el dos de
+    /// cuatro» sin volver a delegar. Promesa 63.
+    /// </remarks>
+    public string Avance(string texto) => string.IsNullOrWhiteSpace(texto)
+        ? ""
+        : JsonSerializer.Serialize(new
+        {
+            type = "session.thinking.append",
+            delegation_id = (string?)null,
+            content = texto.Trim(),
+        });
+
+    /// <summary>
+    /// LO QUE LA PERSONA PREFIERE, PARA QUIEN HABLA: <c>session.instructions.append</c> (spec 074, promesa 68).
+    /// </summary>
+    /// <remarks>
+    /// La persona de la voz es fija y lo aprendido viaja en las instrucciones del delegado, que no habla:
+    /// «háblame más corto» se guardaba y nadie lo cumplía. Va como instrucción y no como avance —un avance
+    /// es algo que pasó, esto es cómo hablar—, por el mismo evento con que ya se le cambia el modo.
+    /// NUNCA PASA DEL TOPE: un append de más de 500 fichas se rechaza y la sesión sigue viva, con solo una
+    /// línea en el log (ver <see cref="TopeDeUnAppend"/>); lo que no cabe se recorta y se dice.
+    /// </remarks>
+    public string ParaLaVoz(string texto)
+    {
+        string t = (texto ?? "").Trim();
+        if (t.Length == 0) return "";
+        const string cola = "\n[recortado: no cabe todo]";
+        if (t.Length > TopeDeUnAppend) t = t[..(TopeDeUnAppend - cola.Length)] + cola;
+        return JsonSerializer.Serialize(new
+        {
+            type = "session.instructions.append",
+            delegation_id = (string?)null,
+            content = t,
+        });
+    }
+
     public IReadOnlyList<Hecho> Leer(JsonElement m)
     {
         var hechos = new List<Hecho>();
@@ -513,7 +683,7 @@ public sealed class ProtocoloGptLive : IProtocolo
                 {
                     if (Cadena(ev, "type") == "response.output_text.done"
                         && Cadena(ev, "text") is { Length: > 0 } texto)
-                        hechos.Add(new Hecho.DiceU(texto));
+                        hechos.Add(new Hecho.DiceU(texto, DelDelegado: true));   // lo devuelve quien actúa: la voz lo dirá después (70)
                     else if (Cadena(ev, "type") == "response.output_item.done"
                         && ev.TryGetProperty("item", out var item) && Cadena(item, "type") == "function_call")
                         hechos.Add(new Hecho.Pide(new[] { ProtocoloOpenAI.LaLlamada(item) }));

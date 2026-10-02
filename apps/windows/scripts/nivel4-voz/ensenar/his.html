@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>HIS Clínica Demo · Admisiones</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px "Segoe UI", sans-serif; background: #eef1f4; color: #1c2430; }
+  header { background: #1f4e79; color: #fff; padding: 10px 18px; display: flex; gap: 18px; align-items: center; }
+  header h1 { font-size: 17px; margin: 0 18px 0 0; }
+  nav button { background: transparent; color: #fff; border: 1px solid #ffffff55; padding: 7px 14px; border-radius: 4px; font-size: 14px; cursor: pointer; }
+  nav button.activo { background: #fff; color: #1f4e79; }
+  main { padding: 18px; max-width: 980px; }
+  section { display: none; background: #fff; border: 1px solid #cfd6de; border-radius: 6px; padding: 16px 18px; }
+  section.visible { display: block; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  label { display: block; font-size: 13px; color: #45505e; margin: 10px 0 3px; }
+  input, select { width: 320px; padding: 7px 8px; border: 1px solid #aab4c0; border-radius: 4px; font-size: 14px; }
+  .fila { display: flex; gap: 24px; flex-wrap: wrap; }
+  .acciones { margin-top: 16px; display: flex; gap: 10px; }
+  button.principal { background: #1f7a4d; color: #fff; border: 0; padding: 9px 18px; border-radius: 4px; font-size: 14px; cursor: pointer; }
+  button.secundario { background: #e3e8ee; border: 1px solid #aab4c0; padding: 9px 18px; border-radius: 4px; font-size: 14px; cursor: pointer; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid #e1e6ec; font-size: 14px; }
+  #aviso { margin: 0 0 12px; padding: 9px 12px; border-radius: 4px; display: none; }
+  #aviso.bien { display: block; background: #e3f4ea; border: 1px solid #7fc79c; }
+  #aviso.mal { display: block; background: #fbe6e6; border: 1px solid #e19a9a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>HIS Clínica Demo</h1>
+  <nav>
+    <button id="m-inicio" class="activo" onclick="ir('inicio')">Inicio</button>
+    <button id="m-pacientes" onclick="ir('pacientes')">Pacientes</button>
+    <button id="m-admisiones" onclick="ir('admisiones')">Admisiones</button>
+    <button id="m-reportes" onclick="ir('reportes')">Reportes</button>
+  </nav>
+</header>
+<main>
+  <p id="aviso" role="status"></p>
+
+  <section id="inicio" class="visible">
+    <h2>Inicio</h2>
+    <p>Bienvenido al sistema de registro de pacientes. Use el menú de arriba.</p>
+  </section>
+
+  <section id="pacientes">
+    <h2>Pacientes registrados</h2>
+    <div class="acciones" style="margin-top:0">
+      <button class="principal" onclick="ir('nuevo')">Nuevo paciente</button>
+      <input id="buscar" aria-label="Buscar paciente por documento" placeholder="Buscar por documento" oninput="pintar()">
+    </div>
+    <table aria-label="Lista de pacientes"><thead><tr><th>Documento</th><th>Nombre</th><th>EPS</th><th>Triage</th></tr></thead><tbody id="lista"></tbody></table>
+  </section>
+
+  <section id="nuevo">
+    <h2>Registro de paciente nuevo</h2>
+    <div class="fila">
+      <div><label for="tipo">Tipo de documento</label>
+        <select id="tipo"><option value="">Seleccione…</option><option>Cédula de ciudadanía</option><option>Tarjeta de identidad</option><option>Cédula de extranjería</option><option>Pasaporte</option></select></div>
+      <div><label for="documento">Número de documento</label><input id="documento" autocomplete="off"></div>
+    </div>
+    <div class="fila">
+      <div><label for="nombres">Nombres</label><input id="nombres" autocomplete="off"></div>
+      <div><label for="apellidos">Apellidos</label><input id="apellidos" autocomplete="off"></div>
+    </div>
+    <div class="fila">
+      <div><label for="nacimiento">Fecha de nacimiento (AAAA-MM-DD)</label><input id="nacimiento" autocomplete="off"></div>
+      <div><label for="telefono">Teléfono</label><input id="telefono" autocomplete="off"></div>
+    </div>
+    <div class="fila">
+      <div><label for="eps">EPS</label>
+        <select id="eps"><option value="">Seleccione…</option><option>Sura</option><option>Nueva EPS</option><option>Sanitas</option><option>Salud Total</option><option>Particular</option></select></div>
+      <div><label for="motivo">Motivo de consulta</label><input id="motivo" autocomplete="off"></div>
+    </div>
+    <div class="acciones">
+      <button class="principal" onclick="guardar()">Guardar paciente</button>
+      <button class="secundario" onclick="ir('pacientes')">Cancelar</button>
+    </div>
+  </section>
+
+  <section id="triage">
+    <h2>Clasificación de triage</h2>
+    <p id="triage-de"></p>
+    <label for="nivel">Nivel de triage</label>
+    <select id="nivel"><option value="">Seleccione…</option><option>Triage 1 - Reanimación</option><option>Triage 2 - Emergencia</option><option>Triage 3 - Urgencia</option><option>Triage 4 - Urgencia menor</option><option>Triage 5 - No urgente</option></select>
+    <div class="acciones">
+      <button class="principal" onclick="confirmarTriage()">Confirmar triage</button>
+      <button class="secundario" onclick="ir('pacientes')">Dejar para después</button>
+    </div>
+  </section>
+
+  <section id="admisiones"><h2>Admisiones</h2><p>No hay admisiones abiertas.</p></section>
+  <section id="reportes"><h2>Reportes</h2><p>Los reportes se generan al cierre del turno.</p></section>
+</main>
+<script>
+  const campos = ["tipo", "documento", "nombres", "apellidos", "nacimiento", "telefono", "eps", "motivo"];
+  let pacientes = [], actual = null;
+  const $ = id => document.getElementById(id);
+  function aviso(texto, clase) { const a = $("aviso"); a.textContent = texto; a.className = clase || ""; }
+  function ir(donde) {
+    document.querySelectorAll("section").forEach(s => s.classList.toggle("visible", s.id === donde));
+    document.querySelectorAll("nav button").forEach(b => b.classList.toggle("activo", b.id === "m-" + donde));
+    if (donde !== "triage" && donde !== "pacientes") aviso("");
+    document.title = "HIS Clínica Demo · " + ({ inicio: "Inicio", pacientes: "Pacientes", nuevo: "Paciente nuevo", triage: "Triage", admisiones: "Admisiones", reportes: "Reportes" }[donde]);
+    if (donde === "pacientes") pintar();
+    enviar("/api/vista", { vista: donde, geo: geometria() });
+  }
+  // DÓNDE ESTÁ CADA COSA EN LA PANTALLA, para que la prueba pueda señalarla con el cursor como lo haría una persona.
+  function geometria() {
+    const r = {}, dpr = window.devicePixelRatio || 1;
+    const x0 = window.screenX + (window.outerWidth - window.innerWidth) / 2, y0 = window.screenY + (window.outerHeight - window.innerHeight);
+    ["nivel", "m-pacientes", "documento", "eps", "motivo"].forEach(id => {
+      const b = $(id).getBoundingClientRect();
+      if (b.width > 0) r[id] = { x: Math.round((x0 + b.x + b.width / 2) * dpr), y: Math.round((y0 + b.y + b.height / 2) * dpr) };
+    });
+    return r;
+  }
+  window.addEventListener("load", () => enviar("/api/vista", { vista: "inicio", geo: geometria() }));
+  function pintar() {
+    const q = $("buscar").value.trim();
+    $("lista").innerHTML = pacientes.filter(p => !q || p.documento.includes(q)).map(p =>
+      `<tr><td>${p.documento}</td><td>${p.nombres} ${p.apellidos}</td><td>${p.eps}</td><td>${p.triage || "sin clasificar"}</td></tr>`).join("") || "<tr><td colspan=4>No hay pacientes.</td></tr>";
+  }
+  function enviar(ruta, cuerpo) { try { fetch(ruta, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) }); } catch (e) {} }
+  function guardar() {
+    const p = {}; campos.forEach(c => p[c] = $(c).value.trim());
+    const faltan = ["tipo", "documento", "nombres", "apellidos", "eps"].filter(c => !p[c]);
+    if (faltan.length) { aviso("No se guardó: falta " + faltan.map(c => ({ tipo: "el tipo de documento", documento: "el número de documento", nombres: "los nombres", apellidos: "los apellidos", eps: "la EPS" }[c])).join(", ") + ".", "mal"); enviar("/api/rechazo", { faltan }); return; }
+    if (pacientes.some(x => x.documento === p.documento)) { aviso("No se guardó: ya existe un paciente con ese documento.", "mal"); enviar("/api/rechazo", { repetido: p.documento }); return; }
+    pacientes.push(p); actual = p; campos.forEach(c => $(c).value = "");
+    enviar("/api/pacientes", p);
+    $("triage-de").textContent = "Paciente: " + p.nombres + " " + p.apellidos + " · documento " + p.documento;
+    $("nivel").value = ""; ir("triage");
+    aviso("Paciente guardado. Clasifique el triage.", "bien");
+  }
+  function confirmarTriage() {
+    if (!$("nivel").value) { aviso("Seleccione un nivel de triage.", "mal"); return; }
+    actual.triage = $("nivel").value; enviar("/api/triage", { documento: actual.documento, triage: actual.triage });
+    ir("pacientes"); aviso("Triage registrado para " + actual.nombres + " " + actual.apellidos + ".", "bien");
+  }
+</script>
+</body>
+</html>
