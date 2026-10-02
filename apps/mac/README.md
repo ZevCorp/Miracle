@@ -75,7 +75,7 @@ solo las convierte en ventanas (`NotchController`, `DockController`).
 - **El notch** nace oculto. Sale cuando hay algo que decir (lo que Ü dice, un paso y su
   desenlace) cayendo desde la barra de menú con un rebote pequeño, y se va solo a los 90 s sin nada
   nuevo, salvo si hay un paso en curso. Tocar el borde de arriba lo asoma aunque no tenga nada que
-  decir; si solo salió por eso, alejarse lo retira. Mide siempre 260 × 44 (más pequeño que en Windows, para no estorbar); el chat lo abre a 420 × 360
+  decir; si solo salió por eso, alejarse lo retira. Mide siempre 290 × 62, lo mismo que la barra de volumen de macOS; el chat lo abre a 420 × 360
   desde el mismo borde y lo sostiene mientras está abierto. Esc cierra el chat. Colgar lo retira.
 - **El muelle** es la pestaña contra el borde derecho. El cursor despliega el panel hacia la izquierda
   sin mover la pestaña; al salir espera 350 ms antes de plegarse, y no se pliega mientras el chat del
@@ -96,7 +96,7 @@ open -n "$HOME/Applications/U.app" --args --probe-hooks
 open -n "$HOME/Applications/U.app" --args --notch-test /tmp/u-notch-test.json
 ```
 
-El JSON trae `score` (24 comprobaciones: 15 del notch, 9 del muelle), el número de cada una y
+El JSON trae `score` (26 comprobaciones: 17 del notch, 9 del muelle), el número de cada una y
 `valida`: si alguien mueve el ratón durante la prueba, la corrida se anula y se repite, no se cuenta
 como fallo. El criterio de éxito del port fue 3 corridas válidas seguidas al 100 %.
 
