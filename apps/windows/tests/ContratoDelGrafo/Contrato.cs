@@ -21399,6 +21399,12 @@ internal static class Contrato
         Debe(Q("Nueva EPS", "nueva eps") && Q("Triage 4 - Urgencia menor", "Triage 4"), "quedó elegida si la lista tiene la opción pedida, o una que empieza por ella: teclear «Triage 4» elige «Triage 4 - Urgencia menor»");
         Debe(!Q("Seleccione…", "Sura") && !Q("Sura", "") && !Q("Nueva EPS", "EPS"), "y si tiene otra, no");
 
+        // Y DICHO CON SUS PALABRAS, TAMBIÉN: «seleccionar «Sura» en «EPS»» iba a las manos como un objetivo, que abrían la lista.
+        string Nz(string paso) => U.Ciclo.Ejecutor.Normalizar(paso);
+        Debe(Nz("seleccionar «Sura» en «EPS»") == "elige: EPS = Sura" && Nz("Selecciona Triage 4 en Nivel de triage") == "elige: Nivel de triage = Triage 4" && Nz("elige Nueva EPS en la lista EPS") == "elige: EPS = Nueva EPS",
+            $"«seleccionar X en Y» es «elige: Y = X»: {Nz("seleccionar «Sura» en «EPS»")} · {Nz("Selecciona Triage 4 en Nivel de triage")} · {Nz("elige Nueva EPS en la lista EPS")}");
+        Debe(Nz("elige: EPS = Sura") == "elige: EPS = Sura" && Nz("seleccionar el paciente") == "seleccionar el paciente", "lo que ya viene bien, o no dice dónde, queda como viene");
+
         var esElCampo = typeof(U.Ciclo.LectorUia).GetMethod("EsElCampo");
         if (esElCampo == null) { Pendiente("LectorUia.EsElCampo", "816", "083"); return; }
         bool C(string nombre, string pedido) => (bool)esElCampo.Invoke(null, new object[] { nombre, pedido })!;

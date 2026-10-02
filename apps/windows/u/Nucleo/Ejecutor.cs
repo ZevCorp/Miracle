@@ -41,6 +41,10 @@ public sealed class Ejecutor
     {
         var p = (paso ?? "").Trim();
         if (p.StartsWith("objetivo:", StringComparison.OrdinalIgnoreCase)) p = p[9..].Trim();
+        // «seleccionar «Sura» en «EPS»» ES «elige: EPS = Sura» (promesa 816). Escrito así iba a las manos como un
+        // objetivo: abrían la lista, y con la lista abierta ya no leían nada («no hay ningún accionable», 2026-10-02).
+        var e = ElegirEn.Match(p);
+        if (e.Success) return $"elige: {e.Groups["campo"].Value.Trim()} = {e.Groups["opcion"].Value.Trim()}";
         var m = IrA.Match(p);
         if (!m.Success) m = SoloDireccion.Match(p);
         if (!m.Success) return p;
@@ -48,7 +52,11 @@ public sealed class Ejecutor
         return "abre: " + (url.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? "https://" + url : url);
     }
 
-    private static readonly System.Text.RegularExpressions.Regex NombreDeLoElegido = new(@"^\d+\)\s*(?<nombre>.*?)\s*\([^()]*\)$");
+    private static readonly System.Text.RegularExpressions.Regex ElegirEn = new(
+        @"^(?:selecciona|seleccionar|elige|elegir|escoge|escoger)\s+[«""“]?(?<opcion>[^«»""“”]+?)[»""”]?\s+en\s+(?:el campo\s+|la lista\s+)?[«""“]?(?<campo>[^«»""“”]+?)[»""”]?\.?$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static readonly System.Text.RegularExpressions.Regex NombreDeLoElegido =new(@"^\d+\)\s*(?<nombre>.*?)\s*\([^()]*\)$");
 
     /// <summary>
     /// LO QUE LAS MANOS PULSARON DENTRO DE UN OBJETIVO, con su nombre (spec 082, promesa 800). El relato decía solo

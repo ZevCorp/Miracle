@@ -40,6 +40,10 @@ cada paciente guardado y cada triage confirmado), lo que quedó en `aprendido.js
 
 En la corrida 3, usar la habilidad: 45 s de la frase al triage confirmado, con UN plan de 17 pasos.
 
+**Después de mezclar con `main` (la spec 080 cambió cómo se arman las instrucciones) y de «elige:»**: corridas 4 a 8 —
+6, 8, 9, 9 y la última de 9 (la 4 y la 5 fallaron por la propia prueba, que colgaba con un plan corriendo, y por lo que
+sigue en la tabla de abajo). Con «elige:», usar la habilidad bajó a 29–40 s: registrar al paciente y confirmar el triage.
+
 ## Diagnóstico: lo que cada corrida enseñó
 
 | Lo que pasó | La causa | El arreglo |
@@ -50,6 +54,8 @@ En la corrida 3, usar la habilidad: 45 s de la frase al triage confirmado, con U
 | Al usarla llenó todo y NO guardó | le faltaban el teléfono y la fecha, que nadie le dio, y paró a pedirlos | se hace con los datos que dieron, se termina, y se dice qué quedó vacío (813) |
 | El plan de la sesión 2 fue «1 de 1 hechos» con un clic | `pasos` llegó como texto pegado con comas, y se tomó por un paso | también se parte por comas (814) |
 | «Jev no contestó: Too many choices. Must have at most 255» | con una lista abierta la lectura pasaba de 255 accionables | repetidos fuera y tope de 255 (815) |
+| Cada lista desplegable costaba de 4 a 7 s, y tres listas eran 20 de los 33 s de un plan | abrirla y leerla abierta es lento en Chromium; fijarle el valor por UIA no la cambia (sonda) | con el foco en el campo, teclear la opción la elige en menos de 1 s: «elige: campo = opción» (816) |
+| En la clase no hizo lo que se le pidió («selecciónalo y confirma»): devolvió una pregunta | dudó de si un «dolor de cabeza» es «leve» | mientras le enseñan, lo que le piden hacer lo hace tal como se lo dicen (813) |
 | Probar por escrito no probaba nada de esto | con GPT-Live lo escrito va directo al delegado; lo hablado lo recibe la voz | el oído de prueba, `u_decir` (810) |
 
 Y una decisión del dueño que entra aquí: **una decisión de las manos que agota su plazo se pide una vez más** (la
@@ -64,17 +70,17 @@ En el contrato del grafo:
 | 810 | el oído de prueba deja probar lo HABLADO sin micrófono: con las órdenes de prueba encendidas existe u_decir, que le da a la sesión un audio como si la persona hablara —la voz oye, decide y delega—, sin abrir el micrófono y sin sonar; sin ellas no existe |
 | 811 | lo mismo leído varias veces es uno: dos accionables con el mismo nombre, tipo y caja no son «varios con ese nombre»; los que están en otro sitio sí, y siguen parando el plan |
 | 812 | una clase es una sola habilidad: al guardar una habilidad cuando en la misma sesión ya se guardaron otras, el resultado las nombra y pide dejar una sola con todos los pasos; con la primera no dice nada |
-| 813 | quien actúa sabe aprender una clase y usarla: una habilidad por clase que se reescribe con cada parte, hacer lo que le piden mientras aprende, guardar lo que funcionó con sus reglas, y al usarla terminar con los datos que le dieron sin parar a pedir los que faltan; un número dictado por grupos se escribe pegado, y una lista desplegable son dos pasos |
+| 813 | quien actúa sabe aprender una clase y usarla: una habilidad por clase que se reescribe con cada parte, hacer lo que le piden mientras aprende, guardar lo que funcionó con sus reglas, y al usarla terminar con los datos que le dieron sin parar a pedir los que faltan; un número dictado por grupos se escribe pegado, y una lista desplegable se elige en un paso |
 | 814 | un plan que llega pegado con comas también se parte: «pulsa: A, escribe: B, pulsa: C» son tres pasos; una coma dentro de lo que se escribe no parte nada |
 | 815 | lo que se le ofrece a las manos cabe en su pregunta: lo leído varias veces va una vez, nunca van más de 255 opciones, y cada una conserva su número |
+| 816 | una lista desplegable se elige sin abrirla: «elige: campo = opción» pone el foco en el campo, teclea la opción y da el paso por hecho solo si la lista dice que quedó elegida; si no, falla diciendo en qué quedó y cómo hacerlo con dos pasos |
 
 En el contrato de `u/`, cambiada: **466** — una decisión que salió y agotó su plazo se pide una vez más, y no más.
 
 ## Lo que NO entra
 
-- **Elegir en una lista desplegable sin abrirla.** Abrirla y leerla cuesta de 4 a 7 s por lista (el árbol de la
-  lista abierta es lento en Chromium). La sonda midió que `ValuePattern.SetValue` sobre el campo no cambia la
-  opción; teclear el nombre con el foco en el campo no se midió. Es lo siguiente que más tiempo quita.
+- **Las listas que no son un `<select>` de verdad** (las que un sitio dibuja con `div`): «elige:» no las encuentra
+  como lista, falla diciéndolo, y se hacen con dos «pulsa:», que es lo de antes.
 - **SAP.** Esta clase se midió en un sistema web. En SAP GUI la mano es otra (Scripting) y no se probó.
 - **El micrófono de verdad.** El oído de prueba mete audio sintetizado por donde entra el micrófono: prueba que la
   voz delega y que todo lo demás funciona, no la acústica de la sala ni el eco.
@@ -91,6 +97,6 @@ En el contrato de `u/`, cambiada: **466** — una decisión que salió y agotó 
 ## Cierre
 
 - [x] Todas las promesas verdes
-- [x] Medido sobre la Ü real con la clase hablada: 9 de 9 (corrida 3), en un sistema web (1 pantalla de 4 vistas)
-- [ ] Sabotaje comprobado, promesa por promesa
-- [ ] La clase, tres corridas seguidas en 9 de 9
+- [x] Medido sobre la Ü real con la clase hablada, en un sistema web (4 vistas): ocho corridas; las últimas, 9 de 9
+- [x] Sabotaje comprobado sobre el commit `834801d3`, con cada cambio visto aplicado: rojas las 810–816 y la 466 de `u/`
+- [ ] Probado por el dueño con su micrófono y con el sistema de verdad
