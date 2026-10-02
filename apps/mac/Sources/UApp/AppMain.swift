@@ -248,6 +248,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if PerfilDeUso.hayQuePreguntar(en: .standard) { model.eligiendoPerfil = true; show() }
         model.startWakeListening()
         learn.finishPending()
+        keepOnAfterLogin()
+    }
+    /// A copy dragged from the .dmg has no `instalar.sh`: it writes its own login agent. launchd reads
+    /// it at the next login; loading it now would open a second Ü on top of this one.
+    private func keepOnAfterLogin() {
+        guard let executable = Bundle.main.executableURL?.path else { return }
+        let agents = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents")
+        let url = agents.appendingPathComponent(LoginAgent.label + ".plist")
+        guard let plist = LoginAgent.plist(executable: executable, home: NSHomeDirectory(), existing: try? String(contentsOf: url, encoding: .utf8)) else { return }
+        try? FileManager.default.createDirectory(at: agents, withIntermediateDirectories: true)
+        try? plist.write(to: url, atomically: true, encoding: .utf8)
     }
     private func terminateOlderCopies() {
         for app in NSWorkspace.shared.runningApplications {
@@ -404,6 +415,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 @MainActor
 struct UMacApplication {
     static func main() {
+        // `empaquetar.sh` seals the testers' credential with the same rule the app opens it with.
+        if CommandLine.arguments.contains("--seal-credential") {
+            print(BundledCredential.seal(String(decoding: FileHandle.standardInput.readDataToEndOfFile(), as: UTF8.self)))
+            return
+        }
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate

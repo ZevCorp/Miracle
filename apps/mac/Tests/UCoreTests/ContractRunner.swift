@@ -95,6 +95,9 @@ struct ContractRunner {
         tests.testLiveOwnsTheHandoverAndIsToldWhatHappened()
         try await tests.testSolPlansWithToolsUntilItAnswersInText()
         try await tests.testJevRaceTakesTheFirstUsableAnswerAndFailsOnlyWhenAllFail()
-        print("PASS: 76 contracts, \(checks) assertions. No network, microphone or desktop access.")
+        // Spec 005 — Ü se entrega a quien la prueba (2026-10-02).
+        tests.testBundledCredentialOpensOnlyWholeAndOnlyUntilItsDate()
+        tests.testOnlyACopyInApplicationsKeepsItselfOnAndWritesItsAgentOnce()
+        print("PASS: 78 contracts, \(checks) assertions. No network, microphone or desktop access.")
     }
 }

@@ -171,7 +171,33 @@ mueve esa copia heredada a la Papelera y verifica que la app final no use una fi
 Las compilaciones locales usan el certificado persistente `U Local Stable Signing`, guardado en un
 llavero local. Por tanto, recompilar no cambia su requisito TCC. La distribución a otras personas
 debe definir `CODE_SIGN_IDENTITY` con un certificado `Developer ID Application` y notarizar el ZIP,
-DMG o PKG resultante; una firma local no se debe distribuir.
+DMG o PKG resultante.
+
+### Entregarla a quien la prueba (.dmg)
+
+```bash
+./apps/mac/empaquetar.sh
+```
+
+Deja `apps/mac/.artifacts/U-Mac-pruebas.dmg`: la app universal (Apple Silicon + Intel) firmada con la
+identidad estable de este Mac, un acceso a Aplicaciones y un LÉEME. Sin el sello de Apple (cuenta de
+Apple Developer), cada persona aprueba la app **una vez** en Ajustes del Sistema → Privacidad y
+seguridad → «Abrir igualmente»; el LÉEME del disco lo explica. Todas las versiones deben salir de este
+mismo Mac: la firma es la misma y los permisos que dio la persona sobreviven a las actualizaciones.
+La copia instalada en Aplicaciones escribe su propio agente de inicio de sesión.
+
+El disco lleva una credencial de voz **temporal** si este Mac tiene una en
+`~/Library/Application Support/U Mac/Pruebas/openai-key` (o en `U_PRUEBAS_OPENAI_KEY`); nunca en el
+repo, que es público. Viaja enmascarada, no cifrada: quien tenga el disco puede sacarla. La app deja de
+usarla a los 30 días (`U_PRUEBAS_DIAS`); ponle tope de gasto en OpenAI y revócala al terminar las
+pruebas. `./empaquetar.sh --sin-clave` arma el disco sin ella. Para comprobar que la del disco responde:
+
+```bash
+open -n /Applications/U.app --args --voice-keys-test /tmp/claves.json
+```
+
+(fila `pruebas`). Con esa credencial funcionan la voz y lo que Ü hace en pantalla; el chat escrito y
+Aprender necesitan además la credencial de Graph en Configuración.
 
 ## Permisos
 

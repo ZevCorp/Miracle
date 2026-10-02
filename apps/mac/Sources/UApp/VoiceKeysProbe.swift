@@ -25,6 +25,9 @@ enum VoiceKeysProbe {
                 return ["presente": true, "huella": fingerprint(key), "responde": false, "error": error.localizedDescription]
             }
         }
+        // The credential a build for testers carries, tried by itself: on this Mac the Keychain one
+        // goes first and would hide a dead one.
+        evidence["pruebas"] = await check(Credentials.bundled("OPENAI_API_KEY"))
         var local: String?
         do { local = try await Credentials.readChecked("OPENAI_API_KEY", allowInteraction: true) }
         catch { evidence["llaveroError"] = error.localizedDescription }

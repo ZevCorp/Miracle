@@ -28,6 +28,12 @@ public enum Credentials {
     public static func readChecked(_ name: String, allowInteraction: Bool = false) async throws -> String? {
         let result = try await reader.read(name) {
             if let value = ProcessInfo.processInfo.environment[name], !value.isEmpty { return value }
+            // A build for testers carries its own voice credential: a Mac with nothing in its Keychain
+            // talks from the first launch. What the person saved always goes first.
+            if let bundled = bundled(name) {
+                let stored = try? runStore(name, operation: "read", interactive: false)["value"] as? String
+                return stored?.isEmpty == false ? stored : bundled
+            }
             do { return try runStore(name, operation: "read", interactive: allowInteraction)["value"] as? String }
             catch StoreRefusal.needsAuthorization(let status) where !allowInteraction {
                 // The Keychain does not recognise this helper (a new build): ask once, with the macOS
@@ -43,6 +49,12 @@ public enum Credentials {
         let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
         _ = try await Task.detached { try runStore(name, operation: "save", interactive: true, input: Data(clean.utf8)) }.value
         await reader.invalidate(name)
+    }
+    /// `Contents/Resources/pruebas.plist`, written by `empaquetar.sh` only when asked to.
+    public static func bundled(_ name: String) -> String? {
+        guard let url = Bundle.main.url(forResource: "pruebas", withExtension: "plist"),
+              let plist = NSDictionary(contentsOf: url) else { return nil }
+        return BundledCredential.open(plist[name] as? String, until: plist["hasta"] as? Date, now: Date())
     }
     private static func runStore(_ name: String, operation: String, interactive: Bool, input: Data = Data()) throws -> [String: Any] {
         guard ["OPENAI_API_KEY", "GRAPH_API_KEY"].contains(name),
