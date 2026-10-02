@@ -16,8 +16,12 @@ public static class OrdenesDePrueba
     public const string Orden = "u_orden";
     public const string Colgar = "u_colgar";
     public const string Decir = "u_decir";
+    /// <summary>El ✓ de una sección, sin ventana (spec 084): Ü piensa qué acción quiere la persona con esa información.</summary>
+    public const string Nota = "u_nota";
+    /// <summary>El botón de aprobar: Ü ejecuta la última acción que propuso con u_nota.</summary>
+    public const string Aprobar = "u_aprobar";
 
-    public static bool Es(string herramienta) => herramienta is Orden or Colgar or Decir;
+    public static bool Es(string herramienta) => herramienta is Orden or Colgar or Decir or Nota or Aprobar;
 
     /// <summary>El catálogo del MCP, y detrás las dos órdenes de prueba solo si la variable dice «1».</summary>
     public static IReadOnlyList<Utensilio> ConElMcp(IReadOnlyList<Utensilio> catalogo, string? variable)
@@ -33,6 +37,12 @@ public static class OrdenesDePrueba
             .Append(new Utensilio(Decir, "PRUEBA: dile a Ü este audio como si la persona lo HABLARA: la voz lo oye, decide y "
                 + "delega, que es el camino que u_orden se salta. PCM de 16 bits mono al ritmo de entrada de la voz. No suena.",
                 new[] { new Argumento("archivo", "La ruta del archivo .pcm con lo que se dice.") }))
+            .Append(new Utensilio(Nota, "PRUEBA: como pulsar el ✓ de una sección de la nota con este texto. Ü piensa qué acción "
+                + "quiere la persona con esa información contrastándola con sus habilidades, y devuelve la propuesta. No ejecuta nada.",
+                new[] { new Argumento("texto", "La información de la sección, o de todas si es «Ejecutar todo»."),
+                        new Argumento("todo", "«1» si es el botón «Ejecutar todo»: varias secciones juntas.") }))
+            .Append(new Utensilio(Aprobar, "PRUEBA: como pulsar «Aprobar» en la última propuesta de u_nota: Ü la ejecuta. Vuelve en "
+                + "seguida; cómo terminó queda en el log, en la línea «accion: terminó».", Array.Empty<Argumento>()))
             .ToList();
     }
 }

@@ -526,7 +526,7 @@ public sealed partial class ConsultaWindow : Window
         };
         _etiquetaDeGrabar = new TextBlock
         {
-            Text = "Grabar",
+            Text = ConsultaWindow.EtiquetaDeEscuchar,
             Foreground = Estudio.Tinta,
             FontSize = 17.5,
             FontWeight = FontWeights.SemiBold,
@@ -549,7 +549,7 @@ public sealed partial class ConsultaWindow : Window
         };
         _grabar.ConRelieve(Estudio.Sombra2);
         // Su contenido es un punto y una etiqueta: sin nombre, un lector de pantalla no sabe qué botón es.
-        AutomationProperties.SetName(_grabar, "Grabar");
+        AutomationProperties.SetName(_grabar, EtiquetaDeEscuchar);
         _grabar.Click += async (_, __) => await AlternarAsync();
         Grid.SetRow(_grabar, 4);
         raiz.Children.Add(_grabar);
@@ -1295,7 +1295,7 @@ public sealed partial class ConsultaWindow : Window
         {
             // SE DICE QUÉ HACER, no solo que falló. «No se pudo hablar con el backend» deja a
             // alguien mirando la pantalla; decirle que vuelva a pulsar le da una salida.
-            Estado("Sin conexión con Miracle. Comprueba la red y vuelve a pulsar grabar.");
+            Estado("Sin conexión con Miracle. Comprueba la red y vuelve a pulsar Escuchar.");
             LogBus.Log("consulta-ui", $"plantilla: {e.GetType().Name}: {e.Message}");
         }
     }
@@ -2028,7 +2028,7 @@ public sealed partial class ConsultaWindow : Window
         bool grabando = _clase != null
             ? _clase.Estado == EstadoDeGrabacion.Grabando
             : _consulta.Estado == EstadoDeConsulta.Grabando;
-        _etiquetaDeGrabar.Text = grabando ? "Parar" : "Grabar";
+        _etiquetaDeGrabar.Text = grabando ? "Parar" : EtiquetaDeEscuchar;
         _puntoDeGrabar.Foreground = grabando ? Estudio.Alerta : Estudio.TintaTenue;
         _puntoDeGrabar.Text = grabando ? "■" : "●";
 
@@ -2279,6 +2279,7 @@ public sealed partial class ConsultaWindow : Window
 
         if (nota.Resumen.Length > 0) _nota.Children.Add(TarjetaDeTexto("Resumen", nota.Resumen));
         _estadoDeSeccion.Clear();
+        _accionDeSeccion.Clear();
         var conTexto = new List<SeccionDeNota>();
         foreach (var s in nota.Secciones)
         {
@@ -2288,21 +2289,34 @@ public sealed partial class ConsultaWindow : Window
             conTexto.Add(s);
             _nota.Children.Add(TarjetaConEnvio(s));
         }
-        if (conTexto.Count > 1) _nota.Children.Add(BotonTodoASap(conTexto));
+        if (conTexto.Count > 1) _nota.Children.Add(BotonEjecutarTodo(conTexto));
         if (nota.Avisos.Count > 0)
             _nota.Children.Add(TarjetaDeTexto("Avisos", string.Join("\n", nota.Avisos)));
         _superficie.ScrollToHome();
     }
 
-    // ── el ✓: la sección aprobada se va a SAP (spec 008) ─────────────────────
+    // ── el ✓: un gatillo sobre lo que Ü aprendió (spec 084) ──────────────────
+    //
+    // HASTA EL 2026-10-02 EL ✓ LLEVABA LA SECCIÓN A SAP por el piloto y sus skills grabadas (spec 008). El dueño lo
+    // retiró: «todo ese funcionamiento actual de los checks es viejo y no funcionó». Ahora el ✓ no sabe de ningún
+    // sistema: la carita se acerca, piensa qué acción quiere la persona con esa información contrastándola con lo
+    // que le enseñaron hablando, la propone en una frase, y solo la ejecuta cuando se aprueba.
 
-    /// <summary>El renglón de estado de cada sección, para pintar «enviando…» y la cuenta.</summary>
+    /// <summary>El renglón de estado de cada sección, para pintar «pensando…» y cómo quedó.</summary>
     private readonly Dictionary<string, TextBlock> _estadoDeSeccion = new();
+    /// <summary>Dónde aparece la propuesta de cada sección, con su botón de aprobar.</summary>
+    private readonly Dictionary<string, StackPanel> _accionDeSeccion = new();
+    /// <summary>El sitio de «Ejecutar todo», que no es de ninguna sección.</summary>
+    private const string ClaveDeTodo = "*";
     private bool _enviando;
 
+    public const string EtiquetaDeEscuchar = "Escuchar";
+    public const string EtiquetaDeEjecutarTodo = "Ejecutar todo";
+    public const string EtiquetaDeAprobar = "Aprobar";
+
     /// <summary>
-    /// Una sección con su ✓. Pulsarlo es aprobarla: solo ella viaja (promesa 112). El resultado se
-    /// pinta debajo del texto, en la misma tarjeta, para que se vea qué pasó con ESA sección.
+    /// Una sección con su ✓. Pulsarlo es un gatillo: Ü piensa qué hacer con ESA sección (promesa 823). Lo que piensa
+    /// y cómo quedó se pinta debajo del texto, en la misma tarjeta.
     /// </summary>
     private UIElement TarjetaConEnvio(SeccionDeNota s)
     {
@@ -2325,12 +2339,29 @@ public sealed partial class ConsultaWindow : Window
                 VerticalAlignment = VerticalAlignment.Center,
             },
         };
+        AutomationProperties.SetName(check, $"Hacer algo con {s.Titulo}");
         DockPanel.SetDock(check, Dock.Right);
         cabecera.Children.Add(check);
         var rotulo = Estudio.Rotulo(s.Titulo);
         rotulo.VerticalAlignment = VerticalAlignment.Center;
         cabecera.Children.Add(rotulo);
 
+        var pila = new StackPanel();
+        pila.Children.Add(cabecera);
+        pila.Children.Add(Estudio.Parrafo(s.Contenido));
+        pila.Children.Add(EstadoYPropuesta(s.Clave));
+        var t = Estudio.Tarjeta(18);
+        t.Padding = new Thickness(16, 12, 16, 15);
+        t.Margin = new Thickness(2, 0, 2, 10);
+        t.Child = pila;
+
+        check.Click += async (_, __) => await PensarLaAccionAsync(new[] { s.Clave }, s.Clave, t);
+        return Estudio.Elevar(t);
+    }
+
+    /// <summary>El renglón de estado y, debajo, el hueco de la propuesta: los dos vacíos hasta que hay algo que decir.</summary>
+    private UIElement EstadoYPropuesta(string donde)
+    {
         var estado = new TextBlock
         {
             Foreground = Estudio.TintaMedia,
@@ -2340,30 +2371,27 @@ public sealed partial class ConsultaWindow : Window
             Margin = new Thickness(0, 8, 0, 0),
             Visibility = Visibility.Collapsed,
         };
-        _estadoDeSeccion[s.Clave] = estado;
-
-        check.Click += async (_, __) => await EnviarASapAsync(new[] { s.Clave });
-
+        _estadoDeSeccion[donde] = estado;
+        var zona = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 0, 0) };
+        _accionDeSeccion[donde] = zona;
         var pila = new StackPanel();
-        pila.Children.Add(cabecera);
-        pila.Children.Add(Estudio.Parrafo(s.Contenido));
         pila.Children.Add(estado);
-        var t = Estudio.Tarjeta(18);
-        t.Padding = new Thickness(16, 12, 16, 15);
-        t.Margin = new Thickness(2, 0, 2, 10);
-        t.Child = pila;
-        return Estudio.Elevar(t);
+        pila.Children.Add(zona);
+        return pila;
     }
 
-    private UIElement BotonTodoASap(IReadOnlyList<SeccionDeNota> secciones)
+    /// <summary>
+    /// «Ejecutar todo»: el mismo proceso que un ✓, con toda la información junta y UNA acción en común (promesa 823).
+    /// </summary>
+    private UIElement BotonEjecutarTodo(IReadOnlyList<SeccionDeNota> secciones)
     {
         var b = new Button
         {
-            Content = "✓ Todo a SAP",
+            Content = "✓ " + EtiquetaDeEjecutarTodo,
             Height = 36,
             MinWidth = 150,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 2, 0, 12),
+            Margin = new Thickness(0, 2, 0, 4),
             Background = Estudio.AcentoSuave,
             Foreground = Estudio.Acento,
             BorderThickness = new Thickness(0),
@@ -2372,46 +2400,150 @@ public sealed partial class ConsultaWindow : Window
             Cursor = Cursors.Hand,
             Template = Estudio.Pastilla(18),
         };
-        b.Click += async (_, __) => await EnviarASapAsync(secciones.Select(x => x.Clave).ToList());
-        return b;
+        AutomationProperties.SetName(b, EtiquetaDeEjecutarTodo);
+        var pila = new StackPanel { Margin = new Thickness(2, 0, 2, 12) };
+        pila.Children.Add(b);
+        pila.Children.Add(EstadoYPropuesta(ClaveDeTodo));
+        b.Click += async (_, __) => await PensarLaAccionAsync(secciones.Select(x => x.Clave).ToList(), ClaveDeTodo, b);
+        return pila;
+    }
+
+    private void PintaEn(string donde, string texto)
+    {
+        Estado(texto);
+        if (!_estadoDeSeccion.TryGetValue(donde, out var tb)) return;
+        tb.Text = texto;
+        tb.Visibility = texto.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void QuitarPropuesta(string donde)
+    {
+        if (!_accionDeSeccion.TryGetValue(donde, out var zona)) return;
+        zona.Children.Clear();
+        zona.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>Dónde está un elemento en pantalla, en píxeles físicos: lo que la carita necesita para ir junto a él.</summary>
+    private static Rect? CajaEnPantalla(FrameworkElement elemento)
+    {
+        if (!elemento.IsVisible || elemento.ActualWidth <= 0 || elemento.ActualHeight <= 0) return null;
+        return new Rect(elemento.PointToScreen(new Point(0, 0)), elemento.PointToScreen(new Point(elemento.ActualWidth, elemento.ActualHeight)));
     }
 
     /// <summary>
-    /// Manda lo marcado por el puente. La cuenta que vuelve es la que se pinta: la lleva el código
-    /// que releyó cada campo, no una frase de nadie.
+    /// EL ✓: la carita se acerca y piensa qué acción quiere la persona con lo marcado. Aquí no se ejecuta nada: lo
+    /// que vuelve es una propuesta, y se pinta con su botón de aprobar.
     /// </summary>
-    private async Task EnviarASapAsync(IReadOnlyList<string> claves)
+    private async Task PensarLaAccionAsync(IReadOnlyList<string> claves, string donde, FrameworkElement ancla)
     {
-        if (_enviando) { Estado("Ya hay un envío en marcha."); return; }
-        if (_consulta.Nota == null) { Estado("No hay nota que enviar."); return; }
-        if (!PuenteASap.Disponible)
+        if (_enviando) { Estado("Ya hay una acción en marcha."); return; }
+        if (_consulta.Nota == null) { Estado("No hay nota con la que hacer nada."); return; }
+        if (!PuenteDeAcciones.Disponible)
         {
-            Estado("La carita no está lista para escribir en SAP: espera a que arranque y vuelve a pulsar ✓.");
+            Estado("La carita no está lista todavía: espera a que arranque y vuelve a pulsar ✓.");
             return;
         }
 
         var encargo = Encargo.De(_consulta.Nota, claves);
-        if (encargo.EstaVacio) { Estado("Esa sección está vacía: no hay nada que enviar."); return; }
+        if (encargo.EstaVacio) { Estado("Esa sección está vacía: no hay nada con lo que hacer algo."); return; }
 
         _enviando = true;
-        void Pinta(string texto)
-        {
-            Estado(texto);
-            foreach (string c in claves)
-                if (_estadoDeSeccion.TryGetValue(c, out var tb)) { tb.Text = texto; tb.Visibility = Visibility.Visible; }
-        }
         try
         {
-            Pinta("Enviando a SAP…");
-            LogBus.Log("consulta", $"✓ enviado: {string.Join(", ", claves)}");
-            string cuenta = await PuenteASap.Enviar!(encargo, new Progress<string>(Pinta), CancellationToken.None);
-            Pinta(cuenta);
-            LogBus.Log("consulta", $"cuenta del envío: {cuenta}");
+            QuitarPropuesta(donde);
+            PintaEn(donde, "Pensando qué quieres que haga con esto…");
+            LogBus.Log("consulta", $"✓ pulsado: {string.Join(", ", claves)}");
+            var propuesta = await PuenteDeAcciones.Proponer!(encargo.Texto, claves.Count > 1, CajaEnPantalla(ancla), CancellationToken.None);
+            if (!propuesta.Hay) { PintaEn(donde, propuesta.Porque); return; }
+            PintaEn(donde, "");
+            MostrarPropuesta(donde, propuesta, encargo.Texto);
         }
         catch (Exception e)
         {
-            Pinta($"El envío se detuvo: {e.Message}");
-            LogBus.Log("consulta", $"el envío reventó: {e.GetType().Name}: {e.Message}");
+            PintaEn(donde, $"No pude pensarlo: {e.Message}");
+            LogBus.Log("consulta", $"pensar la acción reventó: {e.GetType().Name}: {e.Message}");
+        }
+        finally { _enviando = false; }
+    }
+
+    /// <summary>El mensaje de acción y sus dos botones. Nada se ejecuta hasta «Aprobar».</summary>
+    private void MostrarPropuesta(string donde, Voice.LaAccionDeLaNota.Propuesta propuesta, string informacion)
+    {
+        if (!_accionDeSeccion.TryGetValue(donde, out var zona)) return;
+        zona.Children.Clear();
+
+        var mensaje = new TextBlock
+        {
+            Text = propuesta.Accion,
+            Foreground = Estudio.Tinta,
+            FontSize = 13.5,
+            FontWeight = FontWeights.SemiBold,
+            LineHeight = 19,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var aprobar = new Button
+        {
+            Content = new TextBlock { Text = EtiquetaDeAprobar, Foreground = Brushes.White, FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center },
+            Height = 32,
+            MinWidth = 96,
+            Padding = new Thickness(16, 0, 16, 0),
+            Background = Estudio.Acento,
+            BorderThickness = new Thickness(0),
+            Cursor = Cursors.Hand,
+            Template = Estudio.Pastilla(16),
+        };
+        AutomationProperties.SetName(aprobar, EtiquetaDeAprobar);
+        var ahoraNo = new Button
+        {
+            Content = new TextBlock { Text = "Ahora no", Foreground = Estudio.TintaMedia, FontSize = 13, VerticalAlignment = VerticalAlignment.Center },
+            Height = 32,
+            Padding = new Thickness(14, 0, 14, 0),
+            Margin = new Thickness(8, 0, 0, 0),
+            Background = Estudio.Superficie,
+            BorderBrush = Estudio.Borde,
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+            Template = Estudio.Pastilla(16),
+        };
+        var botones = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+        botones.Children.Add(aprobar);
+        botones.Children.Add(ahoraNo);
+
+        var pila = new StackPanel();
+        pila.Children.Add(mensaje);
+        pila.Children.Add(botones);
+        zona.Children.Add(new Border
+        {
+            Background = Estudio.AcentoSuave,
+            CornerRadius = new CornerRadius(14),
+            Padding = new Thickness(14, 11, 14, 12),
+            Child = pila,
+        });
+        zona.Visibility = Visibility.Visible;
+
+        ahoraNo.Click += (_, __) => { QuitarPropuesta(donde); PintaEn(donde, ""); LogBus.Log("consulta", "propuesta descartada por la persona"); };
+        aprobar.Click += async (_, __) => await EjecutarLaAccionAsync(donde, propuesta, informacion);
+    }
+
+    /// <summary>Aprobada: la carita va y lo hace. Lo que cuenta al terminar es lo que se pinta.</summary>
+    private async Task EjecutarLaAccionAsync(string donde, Voice.LaAccionDeLaNota.Propuesta propuesta, string informacion)
+    {
+        if (_enviando) { Estado("Ya hay una acción en marcha."); return; }
+        if (!PuenteDeAcciones.Disponible) { Estado("La carita no está lista todavía."); return; }
+        _enviando = true;
+        try
+        {
+            QuitarPropuesta(donde);
+            PintaEn(donde, propuesta.Accion + "…");
+            LogBus.Log("consulta", $"acción aprobada: «{propuesta.Accion}»");
+            string cuenta = await PuenteDeAcciones.Ejecutar!(propuesta, informacion, new Progress<string>(t => PintaEn(donde, t)), CancellationToken.None);
+            PintaEn(donde, cuenta);
+            LogBus.Log("consulta", $"la acción terminó ({cuenta.Length} caracteres de cuenta)");
+        }
+        catch (Exception e)
+        {
+            PintaEn(donde, $"La acción se detuvo: {e.Message}");
+            LogBus.Log("consulta", $"la acción reventó: {e.GetType().Name}: {e.Message}");
         }
         finally { _enviando = false; }
     }

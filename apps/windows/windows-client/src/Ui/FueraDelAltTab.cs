@@ -43,6 +43,7 @@ public static class FueraDelAltTab
         typeof(FaceWindow),          // la carita
         typeof(Muelle),              // la pestaña del borde y su panel
         typeof(PanelDeAcciones),     // el notch
+        typeof(AprendiendoWindow),   // la tarjetita de «esto aprendí» (spec 084)
         typeof(CarruselDeApps),
         typeof(TarjetaDeRecuerdo),
         typeof(AuraDeAprendizaje),
