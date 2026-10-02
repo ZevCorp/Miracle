@@ -234,9 +234,13 @@ def decir(paso, tope=150):
         if any("u_decir falló" in l or "u_decir: la " in l for l in lineas): break
         n = sum(1 for l in lineas if re.search(r"voz-viva|mapa-mcp|plan:|mano:|meta:|aprendido", l))
         if n != vistas: vistas = n; ultimo = time.time()
-        relevantes = [l for l in lineas if re.search(r"voz-viva|mapa-mcp|plan:", l)]
-        ejecutando = bool(relevantes) and "ejecutando «" in relevantes[-1]
-        if dicho and time.time() - dicho > 6 and time.time() - ultimo > 10 and not ejecutando: break
+        # NO SE CUELGA A MEDIAS. La voz delega 3–4 s después de que la persona calla, y un plan de trece pasos pasa más
+        # de diez segundos sin escribir una línea: la primera versión de esta espera colgó con el plan corriendo y dio
+        # por no hecho lo que sí se hizo. Termina cuando Ü ya contestó algo, no queda ninguna llamada a medias, y lleva
+        # diez segundos quieta; o a los 35 s de haber hablado sin que nadie conteste.
+        a_medias = sum(1 for l in lineas if "mapa-mcp: →" in l) - sum(1 for l in lineas if "mapa-mcp: ←" in l)
+        contesto = any("session.delegation.created" in l or "Ü dijo:" in l for l in lineas)
+        if dicho and a_medias <= 0 and ((contesto and time.time() - max(ultimo, dicho) > 10) or (not contesto and time.time() - dicho > 35)): break
     lineas = leer(marca)
     llamadas = [l.split("llamada recibida:")[1].strip() for l in lineas if "llamada recibida:" in l]
     r = dict(nombre=paso["nombre"], segundos=round(time.time() - t0 - 10), delegaciones=sum(1 for l in lineas if "session.delegation.created" in l),

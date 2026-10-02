@@ -963,7 +963,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                     () => Environment.TickCount64)
                 {
                     // CADA PASO, AL LOG Y A LA VOZ (spec 073, promesa 752): sin lo segundo, un plan de diez pasos son diez cosas hechas de las que la voz no se entera.
-                    Desplazar = manosDelPlan.Desplazar, EsperarQuieta = manosDelPlan.EsperarQuieta, AlTerminarPaso = l => { LogBus.Log("plan", "   " + l); _vivo?.AvanceDelPlan(l); },
+                    Desplazar = manosDelPlan.Desplazar, Elegir = manosDelPlan.Elegir, EsperarQuieta = manosDelPlan.EsperarQuieta, AlTerminarPaso = l => { LogBus.Log("plan", "   " + l); _vivo?.AvanceDelPlan(l); },
                     // «carpeta:» por el disco, con la misma regla que file_open (promesa 526).
                     AbrirCarpeta = ruta => SystemApi.Explorador.Navegar(SystemApi.Explorador.Expandir(ruta)).Length > 0,
                     Homonimos = nombre => variosDelPlan is { } v && v.Contains($"«{nombre}»") ? v : null,

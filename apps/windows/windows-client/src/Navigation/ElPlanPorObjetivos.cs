@@ -46,6 +46,9 @@ public sealed class ElPlanPorObjetivos
     /// <summary>La rueda del ratón, en muescas (negativas hacia abajo). Sin ella, «desplaza:» falla y lo dice.</summary>
     public Func<int, bool>? Desplazar { get; set; }
 
+    /// <summary>Elegir en una lista desplegable sin abrirla (promesa 816): null si quedó elegida; si no, por qué.</summary>
+    public Func<string, string, string?>? Elegir { get; set; }
+
     /// <summary>Esperar a que la pantalla se quede quieta, sin pulsar nada.</summary>
     public Func<bool>? EsperarQuieta { get; set; }
 
@@ -162,6 +165,7 @@ public sealed class ElPlanPorObjetivos
             AlTerminarPaso = AlTerminarPaso,
             Desplazar = Desplazar == null ? null : m => { _acciones++; return Desplazar(m); },
             EsperarQuieta = EsperarQuieta,
+            Elegir = Elegir == null ? null : (campo, opcion) => { _acciones++; return Elegir(campo, opcion); },
         };
         var r = ejecutor.Ejecutar(pasos);
         UltimaCuenta = Linea(r.Resultado, _acciones, _relojMs() - t0);

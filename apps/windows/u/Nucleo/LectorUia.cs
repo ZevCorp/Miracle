@@ -294,6 +294,55 @@ public sealed class LectorUia : IDisposable
         }
     });
 
+    // ── Las listas desplegables: se eligen sin abrirlas (spec 083, promesa 816) ─────────────────────
+
+    /// <summary>Por qué el último <see cref="EnfocarLista"/> devolvió false.</summary>
+    public string PorQueNoLaLista { get; private set; } = "";
+
+    /// <summary>¿Es este el campo pedido? Por su nombre, sin mayúsculas, espacios de sobra ni los dos puntos o el asterisco de la etiqueta.</summary>
+    public static bool EsElCampo(string nombreDelCampo, string pedido)
+    {
+        static string N(string t) => (t ?? "").Trim().TrimEnd(':', '*', ' ').Trim().ToLowerInvariant();
+        return N(pedido).Length > 0 && N(nombreDelCampo) == N(pedido);
+    }
+
+    private IUIAutomationElement? Lista(IntPtr ventana, string campo)
+    {
+        var todas = _uia.ElementFromHandle(ventana).FindAll(TreeScope.TreeScope_Descendants, _uia.CreatePropertyCondition(PropTipo, 50003 /* ComboBox */));
+        for (int i = 0; todas != null && i < todas.Length; i++)
+            if (EsElCampo(todas.GetElement(i).CurrentName, campo)) return todas.GetElement(i);
+        return null;
+    }
+
+    /// <summary>
+    /// PONE EL FOCO EN LA LISTA DESPLEGABLE QUE SE LLAMA ASÍ, sin abrirla. Con el foco en ella, teclear el nombre de
+    /// una opción la elige (medido el 2026-10-02 en Edge: 883 ms, «Nueva EPS», con su espacio). Abrirla y leerla costaba
+    /// de 4 a 7 s por lista: el árbol de la lista abierta es lento, y la misma opción salía 121 veces.
+    /// </summary>
+    public bool EnfocarLista(IntPtr ventana, string campo) => EnElHilo(() =>
+    {
+        PorQueNoLaLista = "";
+        try
+        {
+            var lista = Lista(ventana, campo);
+            if (lista == null) { PorQueNoLaLista = $"no hay ninguna lista desplegable que se llame «{campo}» en la ventana de delante"; return false; }
+            lista.SetFocus();
+            return true;
+        }
+        catch (COMException e) { PorQueNoLaLista = $"la ventana no contestó a UIA: 0x{e.HResult:X8}: {e.Message}"; return false; }
+    });
+
+    /// <summary>Lo que tiene elegido la lista desplegable que se llama así; vacío si no está o no lo dice.</summary>
+    public string ValorDeLista(IntPtr ventana, string campo) => EnElHilo(() =>
+    {
+        try
+        {
+            var lista = Lista(ventana, campo);
+            return lista?.GetCurrentPattern(10002 /* ValuePattern */) is IUIAutomationValuePattern v ? (v.CurrentValue ?? "").Trim() : "";
+        }
+        catch (COMException) { return ""; }
+    });
+
     private static string NombreDelTipo(int id)
     {
         if (id == TipoTexto) return "Text";

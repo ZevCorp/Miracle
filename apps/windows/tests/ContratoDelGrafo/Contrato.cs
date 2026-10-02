@@ -1265,9 +1265,10 @@ internal static class Contrato
         Prueba("810. el oído de prueba deja probar lo HABLADO sin micrófono: con las órdenes de prueba encendidas existe u_decir, que le da a la sesión un audio como si la persona hablara —la voz oye, decide y delega—, sin abrir el micrófono y sin sonar; sin ellas no existe", ElOidoDePruebaPruebaLoHablado);
         Prueba("811. lo mismo leído varias veces es uno: dos accionables con el mismo nombre, tipo y caja no son «varios con ese nombre»; los que están en otro sitio sí, y siguen parando el plan", LoMismoLeidoVariasVecesEsUno);
         Prueba("812. una clase es una sola habilidad: al guardar una habilidad cuando en la misma sesión ya se guardaron otras, el resultado las nombra y pide dejar una sola con todos los pasos; con la primera no dice nada", UnaClaseEsUnaSolaHabilidad);
-        Prueba("813. quien actúa sabe aprender una clase y usarla: una habilidad por clase que se reescribe con cada parte, hacer lo que le piden mientras aprende, guardar lo que funcionó con sus reglas, y al usarla terminar con los datos que le dieron sin parar a pedir los que faltan; un número dictado por grupos se escribe pegado, y una lista desplegable son dos pasos", QuienActuaSabeAprenderUnaClase);
+        Prueba("813. quien actúa sabe aprender una clase y usarla: una habilidad por clase que se reescribe con cada parte, hacer lo que le piden mientras aprende, guardar lo que funcionó con sus reglas, y al usarla terminar con los datos que le dieron sin parar a pedir los que faltan; un número dictado por grupos se escribe pegado, y una lista desplegable se elige en un paso", QuienActuaSabeAprenderUnaClase);
         Prueba("814. un plan que llega pegado con comas también se parte: «pulsa: A, escribe: B, pulsa: C» son tres pasos; una coma dentro de lo que se escribe no parte nada", UnPlanPegadoConComasSeParte);
         Prueba("815. lo que se le ofrece a las manos cabe en su pregunta: lo leído varias veces va una vez, nunca van más de 255 opciones, y cada una conserva su número", LoQueSeOfreceALasManosCabe);
+        Prueba("816. una lista desplegable se elige sin abrirla: «elige: campo = opción» pone el foco en el campo, teclea la opción y da el paso por hecho solo si la lista dice que quedó elegida; si no, falla diciendo en qué quedó y cómo hacerlo con dos pasos", UnaListaSeEligeSinAbrirla);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -21287,12 +21288,14 @@ internal static class Contrato
             string texto = t.GetProperty(cual, f)?.GetValue(null) as string ?? "";
             if (!texto.Contains("UNA CLASE ES UNA SOLA HABILIDAD", StringComparison.Ordinal)) { Pendiente($"la clase en {cual}", "813", "083"); return; }
             Debe(texto.Contains("reescribe la MISMA habilidad", StringComparison.Ordinal) && texto.Contains("No crees una por cada frase", StringComparison.Ordinal), $"{cual}: cada parte nueva reescribe la misma habilidad");
-            Debe(texto.Contains("HAZLO en la pantalla y además guárdalo", StringComparison.Ordinal), $"{cual}: si mientras le enseñan le piden hacerlo, lo hace y lo guarda");
+            Debe(texto.Contains("HAZLO en la pantalla tal como te lo dicen", StringComparison.Ordinal) && texto.Contains("sin devolver una pregunta", StringComparison.Ordinal) && texto.Contains("y además guárdalo", StringComparison.Ordinal),
+                $"{cual}: si mientras le enseñan le piden hacerlo, lo hace tal como se lo dicen —sin devolver una pregunta— y lo guarda");
             Debe(texto.Contains("GUARDA LO QUE DE VERDAD FUNCIONÓ", StringComparison.Ordinal) && texto.Contains("las reglas que te dijeron", StringComparison.Ordinal), $"{cual}: guarda lo que funcionó, con sus reglas");
             Debe(texto.Contains("HAZLA CON LOS DATOS QUE TE DIERON", StringComparison.Ordinal) && texto.Contains("no pares a pedirlo", StringComparison.Ordinal) && texto.Contains("al final di qué quedó sin llenar", StringComparison.Ordinal),
                 $"{cual}: al usarla, termina con los datos que le dieron y dice qué quedó sin llenar");
             Debe(texto.Contains("UN NÚMERO DICTADO POR GRUPOS", StringComparison.Ordinal) && texto.Contains("No dejes el campo vacío", StringComparison.Ordinal), $"{cual}: un número dictado por grupos se escribe pegado");
-            Debe(texto.Contains("UNA LISTA DESPLEGABLE se elige con dos pasos", StringComparison.Ordinal), $"{cual}: una lista desplegable son dos pasos");
+            Debe(texto.Contains("UNA LISTA DESPLEGABLE se elige en UN paso", StringComparison.Ordinal) && texto.Contains("«elige: <el campo> = <la opción>»", StringComparison.Ordinal),
+                $"{cual}: una lista desplegable se elige en un paso, «elige:», y con dos solo si falla");
         }
     }
 
@@ -21338,6 +21341,78 @@ internal static class Contrato
         Debe(O(Array.Empty<U.Ciclo.Accionable>()).Count == 0, "y sin nada no se ofrece nada");
         if (FuenteDe("u", "Nucleo", "Jev.cs") is not { } jev) return;
         Debe(jev.Contains("var ofrecidas = Ofrecibles(c.Accionables);", StringComparison.Ordinal), "[cableado] decidir no recorta lo que ofrece: la pregunta puede salir con más de 255 opciones");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: lo más lento de registrar un paciente. Medido el 2026-10-02: abrir una lista
+    /// desplegable y leerla abierta costaba de 4 a 7 s —el árbol de la lista abierta es lento en Chromium, y la misma
+    /// opción salía 121 veces—; tres listas, 20 de los 33 s de un plan de 13 pasos. Con el foco en el campo, teclear el
+    /// nombre de la opción la elige en 883 ms (sonda, «Nueva EPS», con su espacio). Y fijarle el valor por UIA
+    /// (ValuePattern.SetValue) no la cambia: también se midió.
+    /// </remarks>
+    private static void UnaListaSeEligeSinAbrirla()
+    {
+        var leer = typeof(U.Ciclo.Ejecutor).GetMethod("LeerEleccion");
+        var pElegir = typeof(U.Ciclo.Ejecutor).GetProperty("Elegir");
+        if (leer == null || pElegir == null) { Pendiente("Ejecutor.Elegir («elige:»)", "816", "083"); return; }
+        (string, string) L(string t) => ((string, string))leer.Invoke(null, new object[] { t })!;
+        Debe(L("EPS = Nueva EPS") == ("EPS", "Nueva EPS") && L("Tipo de documento=Cédula de ciudadanía") == ("Tipo de documento", "Cédula de ciudadanía"), "«campo = opción» se lee con o sin espacios");
+        Debe(L("«Nivel de triage» = «Triage 4 - Urgencia menor»") == ("Nivel de triage", "Triage 4 - Urgencia menor"), "y sin las comillas, si vienen");
+        Debe(L("EPS") == ("", "") && L("= Sura") == ("", "") && L("EPS =") == ("", ""), "sin las dos partes no hay nada que elegir");
+
+        var pedidos = new List<string>();
+        string? resultado = null;
+        U.Ciclo.Ejecutor Nuevo(bool conManos = true)
+        {
+            var e = new U.Ciclo.Ejecutor(_ => true, t => pedidos.Add("escribe:" + t), _ => true,
+                (paso, _) => { pedidos.Add("objetivo:" + paso); return new U.Ciclo.Recorrido(Array.Empty<U.Ciclo.Vuelta>(), "cumplido", true); }, () => false);
+            if (conManos) pElegir.SetValue(e, new Func<string, string, string?>((campo, opcion) => { pedidos.Add($"elige:{campo}|{opcion}"); return resultado; }));
+            return e;
+        }
+        var hecho = Nuevo().Ejecutar(new[] { "elige: EPS = Nueva EPS", "escribe: hola" });
+        Debe(pedidos.SequenceEqual(new[] { "elige:EPS|Nueva EPS", "escribe:hola" }) && hecho.Detalle[0].Contains("elegí «Nueva EPS» en «EPS»", StringComparison.Ordinal),
+            $"«elige:» va a las manos con el campo y la opción, y si queda elegida el plan sigue: {string.Join(" | ", hecho.Detalle)}");
+
+        pedidos.Clear(); resultado = "tecleé «Sura» con el foco en «EPS» y quedó en «Seleccione…»";
+        var fallo = Nuevo().Ejecutar(new[] { "elige: EPS = Sura", "escribe: hola" });
+        Debe(pedidos.Count == 1 && fallo.Detalle.Count == 1 && fallo.Detalle[0].StartsWith("✘", StringComparison.Ordinal) && fallo.Detalle[0].Contains("quedó en «Seleccione…»", StringComparison.Ordinal),
+            $"si la lista no dice que quedó elegida, el paso FALLA diciendo en qué quedó, y el plan para ahí: {string.Join(" | ", fallo.Detalle)}");
+
+        pedidos.Clear();
+        var sinManos = Nuevo(conManos: false).Ejecutar(new[] { "elige: EPS = Sura" });
+        Debe(pedidos.Count == 0 && sinManos.Detalle[0].Contains("no sé elegir en una lista aquí", StringComparison.Ordinal), "sin manos que sepan elegir, falla y lo dice: no se toma por un objetivo");
+        var malEscrito = Nuevo().Ejecutar(new[] { "elige: Sura" });
+        Debe(malEscrito.Detalle[0].Contains("«elige: <el campo> = <la opción>»", StringComparison.Ordinal), "y mal escrito, dice cómo se escribe");
+
+        var partir = typeof(U.Ciclo.Ejecutor).GetMethod("Partir")!;
+        var partido = (IReadOnlyList<string>)partir.Invoke(null, new object[] { new[] { "elige: Tipo de documento = Cédula de ciudadanía, pulsa: Nombres, escribe: Ana, elige: EPS = Sura" } })!;
+        Debe(partido.Count == 4 && partido[3] == "elige: EPS = Sura", $"y pegado con comas a otros gestos, se parte (814): {string.Join(" | ", partido)}");
+
+        // «pulsa: EPS» y detrás «elige: EPS = …»: sobra el primero. Y «Triage 4» que deja «Triage 4 - Urgencia menor» quedó elegida.
+        var compactar = typeof(U.Ciclo.Ejecutor).GetMethod("Compactar")!;
+        var sinAbrir = (IReadOnlyList<string>)compactar.Invoke(null, new object[] { new[] { "pulsa: EPS", "elige: EPS = Nueva EPS", "pulsa: Motivo de consulta", "pulsa: Nombres", "elige: EPS = Sura" } })!;
+        Debe(sinAbrir.SequenceEqual(new[] { "elige: EPS = Nueva EPS", "pulsa: Motivo de consulta", "pulsa: Nombres", "elige: EPS = Sura" }),
+            $"abrir la lista antes de elegir en ella sobra, y se quita; pulsar OTRO campo antes no: {string.Join(" | ", sinAbrir)}");
+        var quedo = typeof(U.Ciclo.Ejecutor).GetMethod("QuedoElegida");
+        if (quedo == null) { Pendiente("Ejecutor.QuedoElegida", "816", "083"); return; }
+        bool Q(string tiene, string pedida) => (bool)quedo.Invoke(null, new object[] { tiene, pedida })!;
+        Debe(Q("Nueva EPS", "nueva eps") && Q("Triage 4 - Urgencia menor", "Triage 4"), "quedó elegida si la lista tiene la opción pedida, o una que empieza por ella: teclear «Triage 4» elige «Triage 4 - Urgencia menor»");
+        Debe(!Q("Seleccione…", "Sura") && !Q("Sura", "") && !Q("Nueva EPS", "EPS"), "y si tiene otra, no");
+
+        var esElCampo = typeof(U.Ciclo.LectorUia).GetMethod("EsElCampo");
+        if (esElCampo == null) { Pendiente("LectorUia.EsElCampo", "816", "083"); return; }
+        bool C(string nombre, string pedido) => (bool)esElCampo.Invoke(null, new object[] { nombre, pedido })!;
+        Debe(C("EPS", "eps") && C("Tipo de documento:", "Tipo de documento") && C(" Nivel de triage *", "nivel de triage"), "el campo se reconoce por su nombre, sin mayúsculas ni los dos puntos o el asterisco de la etiqueta");
+        Debe(!C("EPS", "Tipo de documento") && !C("EPS", "") && !C("", "EPS"), "y otro campo, o ninguno, no es");
+
+        if (FuenteDe("windows-client", "src", "Navigation", "ManosDelPlan.cs") is not { } manos) return;
+        var elegir = System.Text.RegularExpressions.Regex.Match(manos, @"public string\? Elegir\([\s\S]*?\n    }");
+        Debe(elegir.Success && elegir.Value.Contains("_lector.EnfocarLista(", StringComparison.Ordinal) && elegir.Value.Contains("Raton.Escribir(opcion)", StringComparison.Ordinal),
+            "[cableado] elegir no pone el foco en el campo y teclea la opción");
+        Debe(elegir.Success && elegir.Value.Contains("_lector.ValorDeLista(", StringComparison.Ordinal) && elegir.Value.Contains("return bien ? null :", StringComparison.Ordinal),
+            "[cableado] y da el paso por hecho sin leer qué quedó elegido: devolver «hecho» no es haberlo hecho (nº19)");
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
+        Debe(cara.Contains("Elegir = manosDelPlan.Elegir", StringComparison.Ordinal), "[cableado] el plan de la cara no tiene manos que elijan en una lista");
     }
 
     // ── LA VOZ AL PRIMER CLIC (spec 075) ────────────────────────────────────────────────────────────────

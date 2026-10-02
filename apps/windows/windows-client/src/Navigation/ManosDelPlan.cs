@@ -92,6 +92,30 @@ public sealed class ManosDelPlan
         LogBus.Log("plan", $"   escribir {texto.Length} caracteres: {(q.Cambio ? "quieta" : "todavía tecleando")} en {q.Ms} ms");
     }
 
+    /// <summary>
+    /// ELEGIR EN UNA LISTA DESPLEGABLE (spec 083, promesa 816): el foco en el campo, se teclea la opción, y se LEE lo
+    /// que quedó elegido. null si quedó; si no, por qué —y entonces quien planea lo hace con dos «pulsa:»—.
+    /// </summary>
+    public string? Elegir(string campo, string opcion)
+    {
+        var reloj = Stopwatch.StartNew();
+        var aqui = Donde.Leer();
+        if (!_lector.EnfocarLista(aqui.Ventana, campo)) return _lector.PorQueNoLaLista;
+        Thread.Sleep(80);
+        Raton.Escribir(opcion);
+        string quedo = "";
+        // LO QUE CUENTA ES LO QUE LA LISTA DICE QUE TIENE: se le pregunta hasta 600 ms, que teclear no es instantáneo.
+        for (int i = 0; i < 6; i++)
+        {
+            Thread.Sleep(100);
+            quedo = _lector.ValorDeLista(aqui.Ventana, campo);
+            if (Ejecutor.QuedoElegida(quedo, opcion)) break;
+        }
+        bool bien = Ejecutor.QuedoElegida(quedo, opcion);
+        LogBus.Log("plan", $"   elegir «{opcion}» en «{campo}»: {(bien ? "quedó elegida" : $"quedó en «{quedo}»")} en {reloj.ElapsedMilliseconds} ms");
+        return bien ? null : $"tecleé «{opcion}» con el foco en «{campo}» y quedó en «{quedo}»: esa opción no está con ese nombre, o esta lista no se deja elegir tecleando. Hazlo con dos pasos: «pulsa: {campo}» y «pulsa: {opcion}»";
+    }
+
     /// <summary>Una tecla, y salir en cuanto la pantalla cambie (u/, promesa 453: Enter espera hasta 1,5 s).</summary>
     public bool Tecla(string tecla)
     {

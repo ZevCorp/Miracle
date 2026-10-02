@@ -65,7 +65,7 @@ public sealed class Ejecutor
     }
 
     private static readonly System.Text.RegularExpressions.Regex EntreGestos =
-        new(@"\s*(?:;|,|→|\n)\s*(?=(?:pulsa|escribe|tecla|abre|desplaza)\s*:)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        new(@"\s*(?:;|,|→|\n)\s*(?=(?:pulsa|escribe|tecla|abre|desplaza|elige)\s*:)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     /// <summary>
     /// VARIOS GESTOS PEGADOS EN UN PASO SON VARIOS PASOS (spec 081, promesa 802). Medido el 2026-10-01: quien planea
@@ -114,9 +114,40 @@ public sealed class Ejecutor
                 i += 2;
                 continue;
             }
+            // «pulsa: EPS» Y DETRÁS «elige: EPS = …»: SOBRA EL PRIMERO (promesa 816). Abrir la lista antes de elegir era
+            // lo lento —4 s de leerla abierta, 6 de elegir con ella encima y 17 de volver a encontrar el campo siguiente,
+            // medido el 2026-10-02—, y «elige:» no la necesita abierta.
+            if (i + 1 < pasos.Count && Prefijo(pasos[i], "pulsa:", out var campoPulsado) && Prefijo(pasos[i + 1], "elige:", out var elegido)
+                && LectorUia.EsElCampo(LeerEleccion(elegido).Campo, campoPulsado))
+                continue;
             salida.Add(pasos[i]);
         }
         return salida;
+    }
+
+    /// <summary>
+    /// ELEGIR EN UNA LISTA DESPLEGABLE SIN ABRIRLA (spec 083, promesa 816): el campo y la opción. Devuelve null si
+    /// quedó elegida; si no, por qué. Sin ella, «elige:» falla y lo dice.
+    /// </summary>
+    public Func<string, string, string?>? Elegir { get; set; }
+
+    /// <summary>«EPS = Nueva EPS» → (EPS, Nueva EPS). Lo que no trae las dos partes es (vacío, vacío).</summary>
+    public static (string Campo, string Opcion) LeerEleccion(string texto)
+    {
+        int i = (texto ?? "").IndexOf('=');
+        if (i <= 0) return ("", "");
+        string campo = texto![..i].Trim().Trim('«', '»', '"').Trim(), opcion = texto[(i + 1)..].Trim().Trim('«', '»', '"').Trim();
+        return campo.Length > 0 && opcion.Length > 0 ? (campo, opcion) : ("", "");
+    }
+
+    /// <summary>
+    /// ¿QUEDÓ ELEGIDA? La lista dice lo que tiene; vale si es la opción pedida o EMPIEZA por ella: teclear «Triage 4»
+    /// elige «Triage 4 - Urgencia menor», que es lo que se quería, y el 2026-10-02 eso se dio por fallo.
+    /// </summary>
+    public static bool QuedoElegida(string loQueTiene, string pedida)
+    {
+        string t = (loQueTiene ?? "").Trim(), p = (pedida ?? "").Trim();
+        return p.Length > 0 && t.StartsWith(p, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>La rueda del ratón, en muescas: negativas hacia abajo (promesa 462). Sin ella, «desplaza:» falla y lo dice.</summary>
@@ -180,6 +211,14 @@ public sealed class Ejecutor
                       : Desplazar == null ? "no sé desplazar aquí"
                       : ok ? $"desplacé {Math.Abs(muescas.Value)} muesca(s) hacia {(muescas < 0 ? "abajo" : "arriba")}"
                       : $"no pude desplazar «{hacia}»";
+            }
+            else if (Prefijo(paso, "elige:", out var eleccion))
+            {
+                var (campo, opcion) = LeerEleccion(eleccion);
+                string? porQueNo = campo.Length == 0 ? "se escribe «elige: <el campo> = <la opción>»"
+                                 : Elegir == null ? "no sé elegir en una lista aquí" : Elegir(campo, opcion);
+                ok = porQueNo == null;
+                linea = ok ? $"elegí «{opcion}» en «{campo}»" : $"no elegí «{eleccion}»: {porQueNo}";
             }
             else if (EmpiezaPor(paso, "esperar", "espera "))
             {
