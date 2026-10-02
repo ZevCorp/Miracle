@@ -46,6 +46,21 @@ información de la nota no se escribe en el log: se anota cuánta era y qué se 
 
 El código de esta spec se escribió antes que sus promesas (el dueño pidió velocidad): se prueban por sabotaje.
 
+**El sabotaje** (sobre `fce551ae`, una ronda, seis cambios a la vez; el contrato pasó de 533 verdes a 6 rojas, y
+ninguna otra):
+
+| Lo que se rompió | La roja |
+|---|---|
+| medir el repaso solo deja guardar preferencias | 820 |
+| sin habilidades se llama igual al modelo | 821 |
+| cualquier habilidad nombrada vale | 822 (dos comprobaciones: la inventada y la vacía) |
+| la orden aprobada vuelve a preguntar | 823 |
+| la habilidad reconstruida sale dos veces en la lista | 824 |
+| `u_nota` deja de ser una orden de prueba | 825 |
+
+Los `[cableado]` —que la nota no llame al puente a SAP, que ejecutar cuelgue del botón de aprobar, que el repaso
+avise en un `finally`— solo se han visto en verde.
+
 ## Medido (2026-10-02, contra el servidor real)
 
 **El repaso solo, con la clase larga** (`ensenar.py` con `U_PRUEBA_SOLO_REPASO=1`, una corrida): quien actúa dijo
