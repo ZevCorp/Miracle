@@ -2,6 +2,7 @@ package graph.core.graph
 
 import graph.core.domain.AgentAction
 import graph.core.domain.BrainTurn
+import graph.core.domain.PerfilDeUso
 import graph.core.domain.ScreenState
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -34,13 +35,33 @@ class TurnScreenState(
     val surfacePathname: String? = null,
 )
 
-/** Petición a `POST /api/v1/agent/turn`. Solo estos seis campos: el cliente no manda modelo, prompt ni herramientas. */
+/**
+ * Con quién habla Ü (spec 010): `profile` del primer turno, el `PerfilEnElCable` de Windows. Graph lo normaliza contra su
+ * catálogo (`services/graph/src/domain/agent/profile.js`) y no usa [specialtyName] como texto, solo para buscar. Lo que no
+ * hay no viaja: una persona es `{"kind":"persona"}` y un médico sin especialidad, `{"kind":"medico"}`.
+ */
+@Serializable
+class TurnProfile(
+    /** `medico` o `persona`. */
+    val kind: String,
+    /** El código del catálogo de Graph, en snake_case. */
+    val specialty: String? = null,
+    /** El nombre del catálogo. */
+    val specialtyName: String? = null,
+)
+
+/**
+ * Petición a `POST /api/v1/agent/turn`. Solo estos campos: el cliente no manda modelo, prompt ni herramientas. [profile]
+ * es el único opcional que no venía de Windows en la spec 001: llegó con la spec 010 y enmendó su promesa 7.
+ */
 @Serializable
 class TurnRequest(
     /** Blob opaco del turno anterior. Null en el primer turno. */
     val session: String? = null,
     /** Objetivo del usuario. Solo en el primer turno. */
     val goal: String? = null,
+    /** Con quién habla Ü. Solo en el primer turno, y solo si se eligió: sin elegir no viaja y el JSON es el de antes. */
+    val profile: TurnProfile? = null,
     val userId: String? = null,
     val state: TurnScreenState,
     /** Resultados de las acciones del turno anterior (mismo orden). */
@@ -101,6 +122,11 @@ fun TurnAction.toAgentAction(): AgentAction = when (kind) {
     "mcp" -> AgentAction.Mcp(tool ?: "", args ?: emptyMap())
     else -> AgentAction.Unknown(kind)
 }
+
+/** El perfil como viaja a Graph, o `null` sin elegir: entonces el campo no viaja (spec 010, promesa 1005). */
+fun PerfilDeUso.toTurnProfile(): TurnProfile? =
+    if (!elegido) null
+    else TurnProfile(kind = tipo, specialty = especialidad?.codigo, specialtyName = especialidad?.nombre)
 
 /** El turno tal cual lo entiende el motor: acciones traducidas y el resto de campos sin tocar. */
 fun TurnResponse.toBrainTurn(): BrainTurn = BrainTurn(

@@ -1,6 +1,8 @@
 package com.zevcorp.graph.platform
 
 import graph.core.domain.LearningInquirer
+import graph.core.domain.PerfilDeUso
+import graph.core.domain.PromptsDeU
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -34,6 +36,8 @@ class LearningInquiry(
     private val model: () -> String,
     private val memories: MemoryStore,
     private val scope: CoroutineScope,
+    /** Con quién habla Ü (spec 010): la propuesta o la pregunta se le dicen a esa persona, de tú o de usted. */
+    private val perfil: () -> PerfilDeUso = { PerfilDeUso.SIN_ELEGIR },
     /** true si NO es buen momento para interrumpir (ejecución en curso, mic ocupado…). */
     private val busy: () -> Boolean,
     /** Dice la propuesta/pregunta en voz alta (TTS + globo de la burbuja). */
@@ -68,9 +72,10 @@ class LearningInquiry(
      */
     private fun decide(app: String, screen: String, clicks: List<String>, elements: List<String>): Decision? {
         val known = memories.promptBlock()
-        val prompt = """
-            Eres Ü, un asistente que OBSERVA al usuario usar una app de su Android (él activó tu
-            modo aprendizaje). Puedes hacer tareas por él en el teléfono.
+        // Quién es Ü y con quién habla van primero y fuera de la raw string (spec 010): antes decía su propio «Eres Ü, …».
+        val prompt = PromptsDeU.cabecera(perfil()) + "\n\n" + """
+            AHORA OBSERVAS al usuario usar una app de su Android (él activó tu modo aprendizaje).
+            Puedes hacer tareas por él en el teléfono.
 
             LO QUE SABES DE ESTE USUARIO (su knowledge-base personal: datos, preferencias e
             instrucciones que él mismo te dio; las notas por app pueden usar el nombre comercial
@@ -104,6 +109,9 @@ class LearningInquiry(
               NO se pregunta. Jamás preguntes lo obvio.
             - "none": silencio. Ante la duda, "none": es mejor callar que molestar — SALVO que una
               instrucción suya aplique al escenario actual: ahí callar es fallarle.
+
+            Lo que va en "question" lo oye la persona: va como dicen las reglas de arriba (frases cortas,
+            sin emojis, y de usted si arriba lo dice). Los ejemplos de aquí van de tú.
 
             Responde SOLO JSON:
             {"reasoning": "una frase", "action": "offer|ask|none", "question": "lo que dirías por voz o vacío", "task": "instrucción imperativa si action=offer, si no vacío"}

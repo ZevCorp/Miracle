@@ -1,0 +1,96 @@
+# Plan de implementación: enseñarle un sistema hablando — la clase que deja una habilidad que Ü usa sola
+
+Estado: **implementado** (2026-10-02) · Nace de la petición del dueño del 2026-10-02 · Rama: `jose/la-voz-conversa-y-aprende`
+· Sobre la 074 (Ü aprende: habilidades), la 079 (Ü ve), la 081 y la 082
+
+> «Mañana necesito poder hablarle por la voz y explicarle cómo funciona el proceso de utilizar un sistema de registro
+> de pacientes. […] Que él de verdad entienda lo que yo le explico y aprenda a usar el sistema como yo le estoy
+> enseñando, para que después él lo use por mí. […] Quiero que crees un sistema de pruebas: por ejemplo, crear un
+> HTML con un sistema médico y luego inyectar prompts como si fueran a través de la voz. […] Veo clave la
+> funcionalidad de señalar. […] Crea tú mismo el sistema de medición para marcar el éxito.» — el dueño, 2026-10-02.
+
+## El encargo, como se mide su final
+
+**La clase** (`scripts/nivel4-voz/ensenar/ensenar.py`): un sistema de registro de pacientes (`his.html`, servido por
+la propia prueba) en un Edge aparte, y una clase DICHA. Cada frase se sintetiza a audio y entra por `u_decir`, el
+oído de prueba: la voz la oye, decide y delega —el camino que una orden escrita se salta—. Antes de la frase que
+señala, el cursor se pone sobre el elemento.
+
+| Sesión | Lo que dice la persona |
+|---|---|
+| 1 · enseñar | «Te voy a enseñar a usar este sistema…» · «entra a Pacientes y pulsa Nuevo paciente. Hazlo tú.» · «llena el formulario: … y pulsa Guardar paciente» · (señalando) «esto es el nivel de triage; si es un dolor leve, va en triage 4. Selecciónalo y confirma» · «guarda todo esto como la habilidad de registrar un paciente» |
+| colgar | lo que lanza el repaso |
+| 2 · usar | «Registra a este paciente: Carlos Andrés Pérez Londoño, cédula 71 22 33 44, de Nueva EPS, viene por un dolor leve de rodilla» — otros datos, y ni un paso repetido |
+
+**La medición: nueve comprobaciones, ninguna contra la palabra de Ü.** Lo que el sistema recibió (él mismo avisa de
+cada paciente guardado y cada triage confirmado), lo que quedó en `aprendido.json`, y el log.
+
+| # | Comprobación | Corrida 1 | Corrida 2 | Corrida 3 |
+|---|---|---|---|---|
+| 1 | cada frase hablada se delegó | ✔ | ✔ | ✔ |
+| 2 | al pedírselo, entró a Paciente nuevo | ✔ | ✔ | ✔ |
+| 3 | llenó y guardó a la paciente de la clase, con sus datos | ✘ | ✔ | ✔ |
+| 4 | señalar sirvió: miró lo señalado y clasificó en triage 4 | ✘ | ✔ | ✔ |
+| 5 | quedó UNA habilidad | ✘ (3) | ✘ (3) | ✔ |
+| 6 | la habilidad trae lo enseñado y la regla del triage | ✘ | ✔ | ✔ |
+| 7 | la sesión siguiente abrió con lo aprendido | ✔ | ✔ | ✔ |
+| 8 | sin repetirle un paso, registró al paciente nuevo con SUS datos | ✘ | ✘ | ✔ |
+| 9 | y aplicó la regla enseñada: dolor leve → triage 4 | ✘ | ✘ | ✔ |
+| | **total** | **3 de 9** | **6 de 9** | **9 de 9** |
+
+En la corrida 3, usar la habilidad: 45 s de la frase al triage confirmado, con UN plan de 17 pasos.
+
+## Diagnóstico: lo que cada corrida enseñó
+
+| Lo que pasó | La causa | El arreglo |
+|---|---|---|
+| El plan paró en la lista de «Tipo de documento»: «hay 121 «Cédula de ciudadanía» a la vista» | la lista desplegable de un navegador sale repetida en el árbol de UIA: la misma opción, en el mismo sitio | lo mismo leído varias veces es uno (811) |
+| El número de documento se quedó sin llenar, y Ü paró a preguntar | dictado «diez veinte treinta cuarenta cincuenta», no supo si eran cinco números o uno | un número dictado por grupos se escribe pegado y se confirma al final (813) |
+| De una clase quedaron tres habilidades | guardó una por cada frase de la persona | una clase es una habilidad que se reescribe; y al guardar otra en la misma sesión, el resultado nombra las que ya hay (812, 813) |
+| Al usarla llenó todo y NO guardó | le faltaban el teléfono y la fecha, que nadie le dio, y paró a pedirlos | se hace con los datos que dieron, se termina, y se dice qué quedó vacío (813) |
+| El plan de la sesión 2 fue «1 de 1 hechos» con un clic | `pasos` llegó como texto pegado con comas, y se tomó por un paso | también se parte por comas (814) |
+| «Jev no contestó: Too many choices. Must have at most 255» | con una lista abierta la lectura pasaba de 255 accionables | repetidos fuera y tope de 255 (815) |
+| Probar por escrito no probaba nada de esto | con GPT-Live lo escrito va directo al delegado; lo hablado lo recibe la voz | el oído de prueba, `u_decir` (810) |
+
+Y una decisión del dueño que entra aquí: **una decisión de las manos que agota su plazo se pide una vez más** (la
+promesa 466 de `u/` decía lo contrario, con la regla de Luna; decidir no hace nada en la pantalla).
+
+## La especificación
+
+En el contrato del grafo:
+
+| # | Promesa |
+|---|---|
+| 810 | el oído de prueba deja probar lo HABLADO sin micrófono: con las órdenes de prueba encendidas existe u_decir, que le da a la sesión un audio como si la persona hablara —la voz oye, decide y delega—, sin abrir el micrófono y sin sonar; sin ellas no existe |
+| 811 | lo mismo leído varias veces es uno: dos accionables con el mismo nombre, tipo y caja no son «varios con ese nombre»; los que están en otro sitio sí, y siguen parando el plan |
+| 812 | una clase es una sola habilidad: al guardar una habilidad cuando en la misma sesión ya se guardaron otras, el resultado las nombra y pide dejar una sola con todos los pasos; con la primera no dice nada |
+| 813 | quien actúa sabe aprender una clase y usarla: una habilidad por clase que se reescribe con cada parte, hacer lo que le piden mientras aprende, guardar lo que funcionó con sus reglas, y al usarla terminar con los datos que le dieron sin parar a pedir los que faltan; un número dictado por grupos se escribe pegado, y una lista desplegable son dos pasos |
+| 814 | un plan que llega pegado con comas también se parte: «pulsa: A, escribe: B, pulsa: C» son tres pasos; una coma dentro de lo que se escribe no parte nada |
+| 815 | lo que se le ofrece a las manos cabe en su pregunta: lo leído varias veces va una vez, nunca van más de 255 opciones, y cada una conserva su número |
+
+En el contrato de `u/`, cambiada: **466** — una decisión que salió y agotó su plazo se pide una vez más, y no más.
+
+## Lo que NO entra
+
+- **Elegir en una lista desplegable sin abrirla.** Abrirla y leerla cuesta de 4 a 7 s por lista (el árbol de la
+  lista abierta es lento en Chromium). La sonda midió que `ValuePattern.SetValue` sobre el campo no cambia la
+  opción; teclear el nombre con el foco en el campo no se midió. Es lo siguiente que más tiempo quita.
+- **SAP.** Esta clase se midió en un sistema web. En SAP GUI la mano es otra (Scripting) y no se probó.
+- **El micrófono de verdad.** El oído de prueba mete audio sintetizado por donde entra el micrófono: prueba que la
+  voz delega y que todo lo demás funciona, no la acústica de la sala ni el eco.
+
+## Hallazgos
+
+- Señalar funciona como se esperaba: con el cursor sobre «Nivel de triage», la voz delegó, quien actúa llamó a
+  `map_pointing_at`, guardó qué es (`map_esto_es`) y lo usó en el paso siguiente.
+- La voz delega cada frase que pide algo; la de presentación («te voy a enseñar…») la contesta ella sola («Dale, te
+  sigo»), que es lo correcto.
+- En modo hablado quien actúa cuenta lo que hizo en la frase siguiente: llega a destiempo (lo dice cuando la persona
+  ya está hablando otra vez). No estorbó, pero se nota.
+
+## Cierre
+
+- [x] Todas las promesas verdes
+- [x] Medido sobre la Ü real con la clase hablada: 9 de 9 (corrida 3), en un sistema web (1 pantalla de 4 vistas)
+- [ ] Sabotaje comprobado, promesa por promesa
+- [ ] La clase, tres corridas seguidas en 9 de 9

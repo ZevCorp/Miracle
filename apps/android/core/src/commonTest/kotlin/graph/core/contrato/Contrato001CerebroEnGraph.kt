@@ -5,6 +5,7 @@ import graph.core.domain.AgentAction
 import graph.core.domain.Gestures
 import graph.core.domain.GraphLog
 import graph.core.domain.Mcp
+import graph.core.domain.PerfilDeUso
 import graph.core.domain.Phone
 import graph.core.domain.ScreenState
 import graph.core.domain.SystemApi
@@ -56,7 +57,8 @@ class Contrato001CerebroEnGraph {
             4 to "Cada acción de Graph se traduce a la acción local equivalente (tap, type, scroll, swipe, key, wait, mcp); una acción desconocida no rompe la corrida: su resultado es \"acción desconocida: <kind>\".",
             5 to "`done`, `question`, `text`, `narration`, `speech` e `intents` de Graph llegan al motor tal cual.",
             6 to "Un HTTP transitorio (0, 408, 429, 502, 503, 504) se reintenta hasta 3 veces con espera creciente; 401 o 403 no se reintenta y dice que la key de Graph no vale; un `error` en el cuerpo termina el turno con ese texto.",
-            7 to "El cliente no manda modelo, prompt ni catálogo de herramientas: el request solo tiene session, goal, userId, state, results e inform.",
+            // Enmendada el 2026-10-01 (spec 010): `profile` entra como campo opcional y solo del primer turno.
+            7 to "El cliente no manda modelo, prompt ni catálogo de herramientas: el request solo tiene session, goal, userId, state, results e inform, y en el primer turno, si se eligió, profile con kind, specialty y specialtyName.",
             8 to "Cada request lleva `X-API-Key`, `X-Miracle-App: android_app` y `X-Miracle-Feature: conscious_bridge`; el email y el id de dispositivo viajan solo si existen.",
             9 to "La key de Graph se resuelve prefs sobre compilada; sin key, el proveedor GRAPH no llama a nadie y dice en una línea qué falta.",
             10 to "La superficie se deriva del paquete y la pantalla: origin `android://<paquete>`, pathname `/<pantalla>`, id = origin + pathname.",
@@ -106,6 +108,7 @@ class Contrato001CerebroEnGraph {
         reloj: TestTimeSource = TestTimeSource(),
         lineas: MutableList<String> = mutableListOf(),
         alConsultarApps: () -> Unit = {},
+        perfil: PerfilDeUso = PerfilDeUso.SIN_ELEGIR,
     ) = GraphBrain(
         transport = transporte,
         credentials = { key },
@@ -114,6 +117,7 @@ class Contrato001CerebroEnGraph {
         email = { email },
         deviceId = { deviceId },
         listApps = { alConsultarApps(); listOf("Calculadora", "Ajustes") },
+        perfil = { perfil },
         log = GraphLog { tag, m -> lineas += "[$tag] $m" },
         sleep = { esperas += it; reloj += it.milliseconds },
         timeSource = reloj,
@@ -344,22 +348,30 @@ class Contrato001CerebroEnGraph {
 
     @Test
     fun promesa07() = corre {
-        val t = TransporteGuionado(ok("""{"session":"s1","question":"¿?"}"""), fin)
-        val b = cerebro(t); b.begin("x")
-        b.next(pantallaConFoto, emptyList())
-        b.inform("sí")
-        b.next(pantalla, listOf("ok"))
         val permitidas = setOf("session", "goal", "userId", "state", "results", "inform")
         // Las nueve de `ScreenState` en `Protocol.cs` de Windows: un prompt escondido dentro del estado también es prompt.
         val permitidasEnEstado = setOf(
             "screen", "uiContext", "width", "height", "screenshot", "apps", "surfaceId", "surfaceOrigin", "surfacePathname",
         )
-        for (req in t.requests) {
-            assertTrue(req.json.keys.all { it in permitidas }, promesa(7) + " · claves: ${req.json.keys}")
-            val estado = req.json["state"]!!.jsonObject.keys
-            assertTrue(estado.all { it in permitidasEnEstado }, promesa(7) + " · claves de state: ${estado - permitidasEnEstado}")
+        // La enmienda del 2026-10-01 (spec 010): con perfil elegido, `profile` puede ir en el PRIMER turno y solo con sus
+        // tres claves; sin elegir, el conjunto es el de siempre. Que viaje de verdad lo juzga la 1005.
+        val permitidasEnPerfil = setOf("kind", "specialty", "specialtyName")
+        for (perfil in listOf(PerfilDeUso.SIN_ELEGIR, PerfilDeUso.medico("cardiologia"))) {
+            val t = TransporteGuionado(ok("""{"session":"s1","question":"¿?"}"""), fin)
+            val b = cerebro(t, perfil = perfil); b.begin("x")
+            b.next(pantallaConFoto, emptyList())
+            b.inform("sí")
+            b.next(pantalla, listOf("ok"))
+            for ((i, req) in t.requests.withIndex()) {
+                val aqui = if (i == 0 && perfil.elegido) permitidas + "profile" else permitidas
+                assertTrue(req.json.keys.all { it in aqui }, promesa(7) + " · claves del request ${i + 1}: ${req.json.keys}")
+                val estado = req.json["state"]!!.jsonObject.keys
+                assertTrue(estado.all { it in permitidasEnEstado }, promesa(7) + " · claves de state: ${estado - permitidasEnEstado}")
+                val enPerfil = req.json["profile"]?.jsonObject?.keys.orEmpty()
+                assertTrue(enPerfil.all { it in permitidasEnPerfil }, promesa(7) + " · claves de profile: ${enPerfil - permitidasEnPerfil}")
+            }
+            assertEquals(setOf("session", "userId", "state", "results", "inform"), t.requests[1].json.keys, promesa(7))
         }
-        assertEquals(setOf("session", "userId", "state", "results", "inform"), t.requests[1].json.keys, promesa(7))
     }
 
     @Test

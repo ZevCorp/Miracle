@@ -31,6 +31,11 @@ final class AppModel: ObservableObject {
     private var voiceID = UUID()
     @Published var graphURL = UserDefaults.standard.string(forKey: "graphURL") ?? GraphClient.defaultURL
     @Published var assistantContext = UserDefaults.standard.string(forKey: "assistantContext") ?? ""
+    /// Con quién habla Ü en este Mac (spec 001, 2026-10-01), guardado en UserDefaults. Sin elegir, todo es lo de
+    /// antes: nada viaja a Graph y la voz abre sin «QUIÉN TE HABLA».
+    @Published private(set) var perfil = PerfilDeUso.guardado(en: .standard)
+    /// La bienvenida que pregunta «¿Para qué me vas a usar?» ocupa la ventana mientras esto es verdad.
+    @Published var eligiendoPerfil = false
     @Published var credential = ""
     @Published var openAICredential = ""
     @Published var hasCredential = false
@@ -41,7 +46,9 @@ final class AppModel: ObservableObject {
     @Published var voiceCheckMessage = ""
     @Published var checkingCredential = false
     @Published var permissionSnapshot = PermissionCenter.readSnapshot()
-    @Published var selectedTab = 0
+    /// Ir a una pestaña —Configuración, un aviso de permisos, Memoria— gana a la bienvenida pendiente: se
+    /// muestra lo que se pidió, y si nunca se eligió el perfil, la pregunta vuelve al abrir la app (spec 001).
+    @Published var selectedTab = 0 { didSet { if eligiendoPerfil { eligiendoPerfil = false } } }
     @Published private(set) var notchExpanded = false
     var onNotchExpansion: ((Bool) -> Void)?
     func setNotchExpanded(_ expanded: Bool) { notchExpanded = expanded; onNotchExpansion?(expanded) }
@@ -224,6 +231,22 @@ final class AppModel: ObservableObject {
         UserDefaults.standard.set(assistantContext, forKey: "assistantContext")
         configurationMessage = assistantContext.isEmpty ? "El contexto personal se eliminó de este Mac." : "El contexto personal se guardó y se aplicará a la próxima conversación."
     }
+    /// Guarda lo que se eligió en la bienvenida o en «Cómo me usas». En el Mac no hay un id de conversación que
+    /// olvidar: la sesión de Graph vive lo que dura una tarea (`AgentEngine.run`), así que la siguiente nace
+    /// sin sesión y con este perfil. La voz en vivo ya abierta conserva el suyo hasta que se cierre: su sesión
+    /// no se rehace a mitad (lo dice el mensaje).
+    func elegirPerfil(tipo: String, especialidad: String) {
+        let nuevo = PerfilDeUso(tipo: tipo, especialidad: especialidad)
+        guard nuevo.elegido else { return }
+        let cambio = nuevo != perfil
+        nuevo.guardar(en: .standard)
+        perfil = nuevo
+        eligiendoPerfil = false
+        guard cambio else { return }
+        configurationMessage = liveConnected
+            ? "Cómo me usas: \(nuevo.paraElMenu). La voz que está abierta sigue como empezó; lo aplico desde la próxima conversación."
+            : "Cómo me usas: \(nuevo.paraElMenu). Lo aplico desde la próxima tarea."
+    }
     func checkConnection() {
         Task {
             await saveConfiguration()
@@ -309,7 +332,7 @@ final class AppModel: ObservableObject {
                 self.jev = jevKey.flatMap { $0.isEmpty ? nil : JevClient(key: $0) }
                 self.jevStatus = self.jev == nil ? "Jev sin credencial · decide Luna" : "Jev · listo"
                 guard self.voiceID == id, !Task.isCancelled else { return }
-                try await self.liveVoice.start(key: key, userContext: AssistantContext(text: self.assistantContext))
+                try await self.liveVoice.start(key: key, userContext: AssistantContext(text: self.assistantContext, perfil: self.perfil))
                 if hasLocalVoiceKey {
                     Task { [weak self] in
                         guard let self, let delayedKeys = try? await self.makeClient().providerKeys(),
@@ -438,6 +461,7 @@ final class AppModel: ObservableObject {
                     ask: { try await self.ask($0) })
                 engine.userID = self.userID
                 engine.userContext = AssistantContext(text: self.assistantContext).graphContext
+                engine.perfil = self.perfil.paraElCable
                 engine.onStatus = { [weak self] text in self?.status = text; self?.mode = .working }
                 engine.onSpeech = { [weak self] text in self?.append(text); if self?.microphone == true { self?.speech.say(text) } }
                 let result = try await engine.run(goal: goal)

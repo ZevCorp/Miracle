@@ -243,9 +243,63 @@ public sealed class ConversacionEnVivo : IDisposable
     private static bool SinCaminoDeEco =>
         ModoDeCaptura.SinEcoDeclarado(Environment.GetEnvironmentVariable("U_SIN_ECO"));
 
-    private static bool CompuertaForzada =>
+    private bool CompuertaForzada => NoSeDejaInterrumpir ||
         (Environment.GetEnvironmentVariable("U_COMPUERTA_ECO") ?? "").Trim().ToLowerInvariant()
             is "1" or "true" or "si" or "sí";
+
+    /// <summary>
+    /// MIENTRAS Ü HABLA, NO OYE: lo que capte el micrófono viaja como silencio hasta que termine su
+    /// frase. Es la compuerta de eco de siempre, encendida a propósito.
+    /// </summary>
+    /// <remarks>
+    /// LO PIDE EL PRIMER ENCUENTRO (spec 080). El dueño, tras probarlo hablando el 2026-10-01: «se podía
+    /// interrumpir demasiado fácil; quiero que sea más impositivo, que me guíe». En su log, un «Holis»
+    /// dicho encima cortó el saludo a la mitad y la conversación ya no se enderezó. En una charla normal
+    /// poder cortar a Ü es lo que se quiere; en cuatro pasos guiados, cada frase suya es la pregunta del
+    /// paso, y si no se oye entera no hay paso. De regalo, con parlantes Ü no se interrumpe con su eco.
+    /// </remarks>
+    public bool NoSeDejaInterrumpir { get; set; }
+
+    /// <summary>
+    /// Esta sesión la abre la app por su cuenta —el primer encuentro—, no un gesto de la persona. Lo
+    /// captado antes de que el servidor confirme no es una frase que guardar (promesa 661): es ruido.
+    /// </summary>
+    public bool LaAbrioLaApp { get; set; }
+
+    /// <summary>
+    /// Cuántas veces le ha pasado la voz el trabajo al delegado en esta vida de la app. Solo cuenta con
+    /// GPT-Live, que es quien separa a la voz del delegado; sirve para saber si lo que la persona acaba
+    /// de decir llegó a quien puede anotarlo (promesa 766).
+    /// </summary>
+    public int Delegaciones => Volatile.Read(ref _delegaciones);
+    private int _delegaciones;
+
+    /// <summary>
+    /// Lo que se lee de Ü mientras habla, UNA sola vez y sin marcas (promesa 768). Llega acumulado, como
+    /// <see cref="Transcribe"/>; el turno cerrado lo vacía.
+    /// </summary>
+    public event Action<string>? LeeU;
+    private readonly LoQueSeLee _loQueSeLee = new();
+
+    /// <summary>
+    /// La persona con la que tiene que abrir la voz AHORA; vacío o null, la de siempre. La pone quien
+    /// sabe en qué está la persona — hoy, solo el primer encuentro (promesa 765).
+    /// </summary>
+    public static Func<string>? PersonaDeLaVozDeAhora { get; set; }
+
+    /// <summary>
+    /// Le pone al protocolo la persona de la voz que toca, justo antes de abrir. Los DOS sitios que abren
+    /// una sesión —el encendido y la reconexión— pasan por aquí: una sesión que se cae a mitad del
+    /// encuentro y vuelve con la persona de siempre deja de delegar otra vez.
+    /// </summary>
+    public static void PonerLaPersonaDeLaVoz(IProtocolo protocolo)
+    {
+        if (protocolo is not ProtocoloGptLive live) return;
+        string? persona = null;
+        try { persona = PersonaDeLaVozDeAhora?.Invoke(); }
+        catch (Exception e) { LogBus.Log("voz-viva", $"no pude saber con qué persona abre la voz: {e.GetType().Name}: {e.Message}"); }
+        live.PersonaDeLaVoz = string.IsNullOrWhiteSpace(persona) ? null : persona;
+    }
 
     /// <summary>Está en curso una sesión de voz viva.</summary>
     public bool Viva { get; private set; }
@@ -660,8 +714,15 @@ public sealed class ConversacionEnVivo : IDisposable
         await ArrancarCon(Clave(), conMicrofono, gesto);
     }
 
+    /// <summary>
+    /// Esta sesión se abrió sin micrófono: es la de las órdenes escritas, y nada de lo que diga suena.
+    /// Lo que se lee de Ü sale entonces de lo que escribe el delegado (promesa 768).
+    /// </summary>
+    private bool _sesionSinMicrofono;
+
     private Task ArrancarCon(string clave, bool conMicrofono, long gesto)
     {
+        _sesionSinMicrofono = !conMicrofono;
         if (clave.Length == 0)
         {
             // A UNA PERSONA EN UN HOSPITAL NO SE LE DICE «setx OPENAI_API_KEY»: no puede, y no es su
@@ -795,6 +856,7 @@ public sealed class ConversacionEnVivo : IDisposable
 
                 var (instrucciones, historial) = await preparado.ConfigureAwait(false);
                 if (!EsLaSesion(cts)) return;   // quien la apagó ya soltó el socket
+                PonerLaPersonaDeLaVoz(_protocolo);
                 foreach (string msg in _protocolo.Apertura(instrucciones, Herramientas(), "", historial, false))
                     await EnviarAsync(msg, cts.Token).ConfigureAwait(false);
                 if (!EsLaSesion(cts)) return;
@@ -1319,7 +1381,42 @@ public sealed class ConversacionEnVivo : IDisposable
     // mapa despacha) para que una pregunta se responda en un solo sitio — dos catálogos del mismo
     // terreno se desincronizan en silencio. La unificación completa (que la voz y el MCP compartan
     // también map_batch) es la F4 del plan de batch.
-    internal static IReadOnlyList<Utensilio> Herramientas() => ConElDecisor(Catalogo(conCoreografia: false));
+    internal static IReadOnlyList<Utensilio> Herramientas()
+    {
+        var deSiempre = ConElDecisor(Catalogo(conCoreografia: false));
+        var deLaPersona = HerramientasDeLaPersona;
+        // SIN NADA DE LA PERSONA, EL CATÁLOGO ES EL DE SIEMPRE, la misma lista y no una copia (promesa 759).
+        return deLaPersona.Count == 0 ? deSiempre : deSiempre.Concat(deLaPersona).ToList();
+    }
+
+    /// <summary>
+    /// LAS HERRAMIENTAS QUE SON DE QUIEN USA Ü, y no de todos (spec 080): las de conocerse durante el primer
+    /// encuentro, las de sus clases si es estudiante. Van DETRÁS del catálogo de siempre, que no se toca ni
+    /// se reordena. Las pone la ventana según <see cref="Persona.HerramientasDelRol"/>; vacío = nadie las tiene.
+    /// </summary>
+    internal static IReadOnlyList<Utensilio> HerramientasDeLaPersona { get; set; } = Array.Empty<Utensilio>();
+
+    /// <summary>
+    /// Quien atiende las herramientas de la persona. Recibe el nombre y los argumentos; lo conecta la
+    /// ventana, igual que <see cref="Autocontrol"/>, porque el perfil y el cuaderno son suyos y no del mapa.
+    /// </summary>
+    public Func<string, IReadOnlyDictionary<string, string>, string>? DeLaPersona { get; set; }
+
+    /// <summary>
+    /// EL ALMA Y LO SUYO (promesas 754 y 709): lo que la voz sabe de la persona antes de la primera palabra
+    /// —quién es, para qué usa Ü, sus clases—. Se pregunta al abrir cada sesión, no una vez: el perfil cambia
+    /// cuando termina el primer encuentro y el cuaderno crece con cada clase.
+    /// </summary>
+    public static Func<string>? ContextoDeLaPersona { get; set; }
+
+    /// <summary>Las instrucciones, con el contexto de la persona detrás si lo hay.</summary>
+    internal static string ConLaPersona(string instrucciones)
+    {
+        string suyo;
+        try { suyo = ContextoDeLaPersona?.Invoke() ?? ""; }
+        catch (Exception e) { LogBus.Log("persona", $"no pude leer el contexto de la persona: {e.GetType().Name}: {e.Message}"); suyo = ""; }
+        return string.IsNullOrWhiteSpace(suyo) ? instrucciones : instrucciones + "\n\n" + suyo.Trim();
+    }
 
     /// <summary>
     /// EL CATÁLOGO DEL PILOTO (promesa 500): el de la voz, más «decir» y «recuerdo» en map_take y map_type, que la mano
@@ -1702,6 +1799,9 @@ public sealed class ConversacionEnVivo : IDisposable
             "self_hide" => "ocultándome…",
             "self_close" => "cerrándome…",
             "scan_computer" => "mirando qué tienes instalado…",
+            Persona.PrimerEncuentro.HerramientaGuardar => "anotando lo que me cuentas…",
+            Persona.PrimerEncuentro.HerramientaTerminar => "guardando quién eres…",
+            Clases.ClasesParaLaVoz.HerramientaLeer => "leyendo tu clase…",
             _ => tool,
         };
     }
@@ -2242,6 +2342,45 @@ public sealed class ConversacionEnVivo : IDisposable
     public Task EnviarTextoSoloTextoAsync(string texto)
         => EnviarTextoInternoAsync(texto, soloTexto: true);
 
+    /// <summary>
+    /// Que Ü hable ELLA primero (spec 080). El modelo no arranca solo: necesita un turno, y este es el mínimo.
+    /// </summary>
+    /// <remarks>
+    /// NO PASA POR <see cref="EnviarTextoAsync"/> A PROPÓSITO: aquello guarda la frase en el hilo que sobrevive
+    /// a la sesión y la pinta como dicha por la persona. Esto no lo dijo nadie. Devuelve si llegó a salir, para
+    /// que quien lo pide sepa si hay voz o tiene que ofrecer la otra vía.
+    /// </remarks>
+    public async Task<bool> EmpezarTuAsync(string pie, bool soloTexto = false)
+    {
+        if (Viva && !_confirmada) await EsperarAbiertaAsync(TimeSpan.FromSeconds(10));
+        if (!SalidaAbierta || string.IsNullOrWhiteSpace(pie)) return false;
+        if (soloTexto) _respuestaDeTexto = true;
+        EmpiezaUnTurnoDelUsuario("texto");
+        var ct = _cts?.Token ?? CancellationToken.None;
+        foreach (string msg in MensajesDeTexto(_protocolo, pie)) await EnviarAsync(msg, ct);
+        return true;
+    }
+
+    /// <summary>
+    /// Hace que la voz diga UNA frase tal cual, ya, sin pasar por el delegado. Devuelve si se pudo pedir.
+    /// </summary>
+    /// <remarks>
+    /// PARA LA PRIMERA FRASE DEL PRIMER ENCUENTRO (spec 080). Pedírsela al delegado tardaba: abrir, pensar y
+    /// contestar eran de cinco a siete segundos con la carita ya en el centro y callada. Dictada, la primera
+    /// voz sale a los 0,9–1,0 s y dice la frase letra por letra (medido con la sonda el 2026-10-01, dos de
+    /// dos). Es el <c>session.commentary.append</c> de GPT-Live, que ya estaba medido para esto
+    /// (<see cref="ProtocoloGptLive.PedirRespuesta"/>).
+    ///
+    /// No se guarda en el hilo ni abre un turno de la persona: nadie pidió nada.
+    /// </remarks>
+    public async Task<bool> DecirTalCualAsync(string frase)
+    {
+        if (Viva && !_confirmada) await EsperarAbiertaAsync(TimeSpan.FromSeconds(10));
+        if (!SalidaAbierta || string.IsNullOrWhiteSpace(frase)) return false;
+        await EnviarAsync(_protocolo.PedirRespuesta("Di exactamente esto, sin añadir nada: " + frase), _cts?.Token ?? CancellationToken.None);
+        return true;
+    }
+
     private async Task EnviarTextoInternoAsync(string texto, bool soloTexto)
     {
         // ENCENDIDA Y TODAVÍA ABRIENDO (spec 075): la voz consta encendida desde el gesto, así que lo escrito
@@ -2537,6 +2676,7 @@ public sealed class ConversacionEnVivo : IDisposable
 
             string instrucciones = await InstruccionesConMemoriaAsync(cts.Token);
             var historial = Conversacion?.Historial() ?? Array.Empty<(string Role, string Text)>();
+            PonerLaPersonaDeLaVoz(_protocolo);
             foreach (string msg in _protocolo.Apertura(instrucciones, Herramientas(), _pase, historial, false))
                 await EnviarAsync(msg, cts.Token);
             if (!EsLaSesion(cts)) return;
@@ -2639,6 +2779,16 @@ public sealed class ConversacionEnVivo : IDisposable
         else if (perdidos > 0)
             LogBus.Log("voz-viva", $"la espera tiró {perdidos} ms de lo captado: no cabían en el tope");
 
+        // SI LA ABRIÓ LA APP, NADIE DIJO NADA «DESDE EL GESTO»: no hubo gesto. Lo captado mientras confirmaba
+        // es la habitación, y mandarlo es pedirle a la voz que conteste a un ruido — en el primer encuentro
+        // del dueño contestó «Mhm.» delante del saludo (2026-10-01, 1.600 ms guardados).
+        if (LaAbrioLaApp)
+        {
+            int ruido = _preEscucha.Tirar();
+            if (ruido > 0) LogBus.Log("voz-viva", $"la sesión la abrió la app, no un gesto: {ruido} ms captados antes de confirmar no se mandan");
+            return;
+        }
+
         try
         {
             while (_preEscucha.Siguiente() is { } trozo)
@@ -2691,7 +2841,22 @@ public sealed class ConversacionEnVivo : IDisposable
             LogBus.Log("voz-viva", "← " + (plano.Length > 400 ? plano[..400] + "…" : plano));
         }
 
-        foreach (var hecho in hechos) Reaccionar(hecho, ct);
+        // DE QUIÉN ES CADA COSA, que el hecho ya no lo dice: lo del delegado llega envuelto en
+        // response.event, y que la voz le pase el trabajo llega como session.delegation.created. Se mira
+        // aquí, sobre el mensaje, porque es el único sitio donde todavía se sabe (promesas 766 y 718).
+        string tipo = Tipo(doc.RootElement);
+        if (tipo == "session.delegation.created") Interlocked.Increment(ref _delegaciones);
+        bool delDelegado = tipo == "response.event";
+
+        foreach (var hecho in hechos)
+        {
+            // «No suena» es de la sesión además de la respuesta: _respuestaDeTexto se apaga al cerrar cada turno, y
+            // la segunda respuesta de una sesión escrita —la que sigue a una herramienta— llegaba sin él. La
+            // frase bajo la carita se quedaba en el saludo (visto en la captura del 2026-10-01).
+            if (hecho is Hecho.DiceU dice)
+                LeeU?.Invoke(_loQueSeLee.Recibir(dice.Trozo, delDelegado, _respuestaDeTexto || _sesionSinMicrofono));
+            Reaccionar(hecho, ct);
+        }
         MarcarLosTurnosQueElServidorNoMarca(hechos, ct);
     }
 
@@ -2770,6 +2935,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 break;
 
             case Hecho.CierraElTurno:
+                _loQueSeLee.Cerrar();   // lo siguiente que se lea es otra frase (promesa 768)
                 TurnoCerrado?.Invoke();
                 // LA VOZ NO LLEGÓ A DECIRLO: lo que devolvió el delegado es lo que Ü contestó, y no se pierde.
                 if (_fraseU.Length == 0 && _devueltoPorElDelegado.Length > 0)
@@ -3563,10 +3729,11 @@ public sealed class ConversacionEnVivo : IDisposable
     {
         var memoria = Memoria;
         var conversacion = Conversacion;
-        // LAS DE SIEMPRE DE ESTA CONVERSACIÓN —con su perfil y, si está encendido, el decisor (722, 725)— y, DETRÁS, lo
-        // que le toca a quien actúa: las habilidades, lo que es solo del delegado cuando otro habla por él, y la fecha
-        // de hoy. Detrás y no dentro: las de siempre tienen su presupuesto (724) y sin perfil no cambian ni un byte (722).
-        string deBase = InstruccionesDeSiempre + LoQueSeAnade(_protocolo.ActuaUnDelegado) + "\n\n" + FechaParaQuienActua(DateTimeOffset.Now);
+        // LAS DE SIEMPRE DE ESTA CONVERSACIÓN —con su perfil y, si está encendido, el decisor (722, 725)—, DETRÁS lo que
+        // se sabe de la persona (spec 080: va detrás de quién es Ü y antes de lo que se recuerda) y, DETRÁS, lo que le
+        // toca a quien actúa: las habilidades, lo que es solo del delegado cuando otro habla por él, y la fecha de hoy.
+        // Detrás y no dentro: las de siempre tienen su presupuesto (724) y sin perfil no cambian ni un byte (722).
+        string deBase = ConLaPersona(InstruccionesDeSiempre) + LoQueSeAnade(_protocolo.ActuaUnDelegado) + "\n\n" + FechaParaQuienActua(DateTimeOffset.Now);
         if (memoria == null && conversacion == null && Aprendido == null) return deBase;
         // LO APRENDIDO SE LEE APARTE de la memoria personal: si ella falla, las habilidades viajan igual.
         string aprendido = "";
@@ -3641,6 +3808,9 @@ public sealed class ConversacionEnVivo : IDisposable
     /// cede después, y las de operar y lo aprendido no ceden nunca: sin ellas Ü no sabe trabajar, o no sabe
     /// trabajar a la manera de esta persona.
     /// </remarks>
+    /// <summary>Las instrucciones con la memoria y el hilo detrás (el nombre con que la spec 080 las juzga): las de apertura, sin lo aprendido.</summary>
+    internal static string ArmarInstrucciones(string deSiempre, string memoria, string hilo) => InstruccionesDeApertura(deSiempre, memoria, hilo, "");
+
     internal static string InstruccionesDeApertura(string deBase, string memoria, string hilo, string aprendido, int tope = TopeDeInstrucciones)
     {
         const string tituloDeLoAprendido = "\n\nLO QUE ESTA PERSONA TE HA ENSEÑADO (es su manera de hacer las cosas: manda sobre tu criterio, y no hace falta que te lo repita):\n";
@@ -3825,6 +3995,23 @@ public sealed class ConversacionEnVivo : IDisposable
                 Accion?.Invoke(Terminado(f.Nombre, f.Args, resultado, relojHabilidad.ElapsedMilliseconds), true);
                 Apuntar(f.Nombre, f.Args, resultado, relojHabilidad.ElapsedMilliseconds);
                 ContarALaVoz(AvanceDe(f.Nombre, resultado, guardo));
+            }
+            else if (Persona.HerramientasDelRol.Es(f.Nombre))
+            {
+                // LAS DE LA PERSONA (spec 080): conocerse y sus clases. Las atiende la ventana, que es quien tiene el
+                // perfil y el cuaderno. Lo que la persona cuenta no va al log: solo qué herramienta y cuánto tardó.
+                Accion?.Invoke(EnCurso(f.Nombre, f.Args), false);
+                var relojPersona = System.Diagnostics.Stopwatch.StartNew();
+                try { resultado = DeLaPersona?.Invoke(f.Nombre, f.Args) ?? "no puedo: nadie conectó esta herramienta todavía"; }
+                catch (Exception e) { resultado = $"la herramienta falló: {e.Message}"; }
+                relojPersona.Stop();
+                // Lo que estas dos contestan es un encargo para el modelo, no algo que leer en pantalla.
+                string aLaVista = f.Nombre == Persona.PrimerEncuentro.HerramientaGuardar ? "anotado"
+                    : f.Nombre == Persona.PrimerEncuentro.HerramientaTerminar
+                        ? (resultado.StartsWith("Quedó", StringComparison.Ordinal) ? "ya nos conocemos" : "todavía me falta algo")
+                    : resultado;
+                Accion?.Invoke(Terminado(f.Nombre, f.Args, aLaVista, relojPersona.ElapsedMilliseconds), true);
+                LogBus.Log("voz-tiempo", $"{relojPersona.ElapsedMilliseconds,6} ms · {f.Nombre} → {resultado.Length} caracteres");
             }
             else if (HerramientasDeAutocontrol.Contains(f.Nombre))
             {

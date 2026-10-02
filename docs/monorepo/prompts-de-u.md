@@ -10,17 +10,18 @@ clínica). Antes de esta fecha cada camino tenía su propia idea de quién era �
 permiso» y Graph «pregunta siempre antes»; una Ü era «viva y divertida» con emojis y la otra «sin
 relleno». La misma persona oía a dos asistentes según por dónde hablara.
 
-Ahora hay **una constitución**, en tres copias idénticas porque la leen tres programas que no comparten
-código:
+Ahora hay **una constitución**, en cuatro copias idénticas porque la leen cuatro programas que no
+comparten código:
 
 | Copia | La usa |
 |---|---|
 | `apps/windows/windows-client/src/Voice/ConstitucionDeU.cs` | la voz de Ü en Windows (delegado de GPT-Live o Realtime) |
 | `services/graph/src/application/prompts/ConstitucionDeU.js` | el cerebro consciente de Graph (Windows, Mac y Android) |
-| `apps/android/core/src/commonMain/kotlin/graph/core/domain/ConstitucionDeU.kt` | el cerebro local de Android (OpenAI o Gemini desde el teléfono, el proveedor por defecto de la app) |
+| `apps/android/core/src/commonMain/kotlin/graph/core/domain/ConstitucionDeU.kt` | el cerebro local de Android (OpenAI o Gemini desde el teléfono, el proveedor por defecto de la app) y los prompts de la app que hablan por Ü |
+| `apps/mac/Sources/UCore/ConstitucionDeU.swift` | la voz en vivo del Mac (GPT-Live 1) y Luna, que hablan directo con el proveedor (spec 001 del Mac) |
 
-`bash tools/monorepo/constitucion.sh` compara las de Windows y Android con la de Graph, y el CI de la raíz
-falla si difieren. Se editan las tres a la vez.
+`bash tools/monorepo/constitucion.sh` compara las de Windows, Android y el Mac con la de Graph, y el CI de
+la raíz falla si difieren. Se editan las cuatro a la vez.
 
 La constitución tiene cuatro textos (versión `constitucion-de-u@2026-10-01.2`):
 
@@ -77,9 +78,19 @@ queda: habilidades, preferencias, datos. El código solo aplica lo que trae una 
 
 ## Médico o persona: dónde se decide
 
-Ü pregunta al inicio, en la ventana de bienvenida de Windows, si se usa para el trabajo en salud o para
-el día a día (con la especialidad, si es salud). Quien entra con una cuenta Miracle es médico, con la
-especialidad de su cuenta, sin preguntar. Las instalaciones que ya existían lo preguntan una vez.
+Ü pregunta al inicio si se usa para el trabajo en salud o para el día a día (con la especialidad, si es
+salud), en los tres clientes:
+
+- **Windows:** en la ventana de bienvenida. Quien entra con una cuenta Miracle es médico, con la
+  especialidad de su cuenta, sin preguntar. Las instalaciones que ya existían lo preguntan una vez
+  (spec 078).
+- **Android:** después de preguntar el nombre; se cambia en «Cómo me usas», en los ajustes de Voz.
+  Cambiarlo olvida el hilo de la conversación (spec 010 de Android).
+- **Mac:** en la ventana, al primer arranque; se cambia en «Cómo me usas…», en el menú de la barra y en
+  Configuración (spec 001 del Mac).
+
+La especialidad sale siempre del catálogo de Graph (`services/graph/src/domain/clinical/specialtyNames.js`,
+copiado a cada cliente y comparado por sus contratos): un texto libre nunca llega a un prompt.
 
 El perfil viaja a Graph como `profile: { kind, specialty, specialtyName }` en `/api/v1/agent/turn`,
 `/api/v1/teach/process-video` y `/api/v1/teach/interpret-steps`. Sin perfil, todo funciona como antes:
@@ -138,10 +149,13 @@ no hace. Ahora cada una dice lo que hace en su plataforma:
 
 - **Graph:** `npm test` en `services/graph` (los builders se prueban sin red) y `python -m pytest` en
   `services/graph/bounded/miracle-ai`.
-- **Android:** el contrato de `apps/android` (`scripts/contrato.sh`, promesas 901-911) juzga la constitución del
+- **Android:** el contrato de `apps/android` (`scripts/contrato.sh`, promesas 901-911 y 1001-1010) juzga la constitución del
   núcleo, el orden y las prohibiciones del prompt local, que cada turno lleve `<pantalla>`, que cada llamada reciba el
   resultado de su acción, el formato de la memoria y lo que el motor narra o informa. Los bloques de Android
   del prompt local se copian de `prompt.js` a mano: si Graph los cambia, se vuelven a copiar.
+- **Mac:** el contrato de `apps/mac` (`./contrato.sh`, solo en macOS; en el CI, `mac-build.yml`), promesas
+  101-108: el perfil, el catálogo, el `profile` del primer turno, la constitución en su forma y que la voz
+  y Luna empiecen por ella.
 - **Windows:** el contrato (`windows-contrato.yml`) fija las frases que la voz no puede perder y los
   topes de tamaño que mide el servidor: la persona de la voz más el prefijo de vuelta no pasa de 1.700
   caracteres (el servidor rechaza un *append* de más de 500 fichas).

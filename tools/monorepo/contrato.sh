@@ -539,6 +539,18 @@ i9() {
   return 0
 }
 
+# ── lo que publica el CI ───────────────────────────────────────────────────────────────────────────
+k1() {
+  # El 2026-10-01 el dueño pidió quitar del APK las claves de Gemini y de Deepgram. android-apk.yml las
+  # horneaba desde los secretos del repo en cada APK, y el repo y sus artefactos son públicos: quien
+  # bajara el APK tenía las claves. Se juzga sobre los workflows de ESTE árbol, no sobre el juguete.
+  local wf="$raiz/.github/workflows"
+  [ -f "$wf/android-apk.yml" ] || falla "no existe .github/workflows/android-apk.yml"
+  if grep -n 'secrets\.\(GEMINI_KEY\|DEEPGRAM_KEY\)' "$wf"/*.yml; then falla "un workflow todavía lee GEMINI_KEY o DEEPGRAM_KEY de los secretos"; fi
+  if grep -nE '^[[:space:]]*echo[[:space:]]+"(apiKey|deepgramKey)=' "$wf/android-apk.yml"; then falla "android-apk.yml todavía escribe apiKey o deepgramKey en apikey.properties"; fi
+  return 0
+}
+
 promesa 31 "sin graphify instalado, los ganchos del mapa no hacen nada y no frenan a git" g1
 promesa 32 "tras commit, cambio de rama y merge se rehace el mapa de cada proyecto que lo tiene, y de ninguno más" g2
 promesa 33 "un árbol enlazado nuevo construye el mapa de los proyectos que el clon principal tiene mapeados" g3
@@ -553,6 +565,7 @@ promesa 41 "impacto deja fuera los archivos nuevos, y lo dice: nadie de fuera us
 promesa 42 "cuando dos definiciones comparten nombre completo, impacto cuenta los usos de las dos y nombra a la otra" i7
 promesa 43 "ni un archivo sin código ni un espacio de nombres cuentan: no disparan el aviso de mapa viejo ni salen como símbolo cambiado" i8
 promesa 44 "si la rama no cambia código en un proyecto, impacto lo dice en una línea y no cuenta símbolos" i9
+promesa 45 "el APK que compila el CI no lleva horneadas las claves de Gemini ni de Deepgram: ningún workflow las lee de los secretos" k1
 
 echo
 if [ "$SOLO" != "  " ]; then

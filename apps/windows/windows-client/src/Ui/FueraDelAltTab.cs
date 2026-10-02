@@ -36,7 +36,7 @@ public static class FueraDelAltTab
     [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr h, int i);
     [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr h, int i, int v);
 
-    private const int GWL_EXSTYLE = -20, WS_EX_TOOLWINDOW = 0x80, WS_EX_APPWINDOW = 0x40000;
+    private const int GWL_EXSTYLE = -20, WS_EX_TOOLWINDOW = 0x80, WS_EX_APPWINDOW = 0x40000, WS_EX_NOACTIVATE = 0x08000000;
 
     private static readonly HashSet<Type> Flotantes = new()
     {
@@ -57,7 +57,8 @@ public static class FueraDelAltTab
         typeof(EstudiosWindow),
         typeof(MemoriaWindow),       // se lee con calma y se vuelve a ella: como los estudios (spec 071)
         typeof(LoginWindow),
-        typeof(OnboardingWindow),
+        typeof(OnboardingWindow),    // el menú «cambiar perfil» (spec 078) lo sigue usando, solo con las tarjetas
+        typeof(EscenaDeBienvenida),  // el primer encuentro: si se va a otra ventana, se vuelve a él (spec 080)
         typeof(LogWindow),
         typeof(VideoLibraryWindow),
         typeof(WorkflowLibraryWindow),
@@ -95,7 +96,16 @@ public static class FueraDelAltTab
     }
 
     /// <summary>Le pone el estilo a la ventana viva y dice lo que quedó, releyéndolo de ella.</summary>
-    private static void Sacar(Window ventana)
+    /// <remarks>
+    /// Internal desde la spec 080: el telón del primer encuentro es un <c>new Window</c> suelto —no una
+    /// subclase, así que la lista de arriba no lo alcanza— y tampoco es un sitio al que se vuelva.
+    /// </remarks>
+    /// <param name="sinActivar">
+    /// Además, que un clic sobre ella no la active ni la suba (<c>WS_EX_NOACTIVATE</c>). Es para el telón:
+    /// un clic en lo oscuro lo ponía por encima de la tarjeta que tenía que quedar delante (visto el
+    /// 2026-10-01, con la tarjeta apagada bajo su propio telón).
+    /// </param>
+    internal static void Sacar(Window ventana, bool sinActivar = false)
     {
         IntPtr h = new WindowInteropHelper(ventana).Handle;
         if (h == IntPtr.Zero)
@@ -104,7 +114,7 @@ public static class FueraDelAltTab
             return;
         }
         int antes = GetWindowLong(h, GWL_EXSTYLE);
-        int quiere = Estilo(antes);
+        int quiere = Estilo(antes) | (sinActivar ? WS_EX_NOACTIVATE : 0);
         if (quiere != antes) SetWindowLong(h, GWL_EXSTYLE, quiere);
         int quedo = GetWindowLong(h, GWL_EXSTYLE);
         if (quedo != Estilo(quedo))

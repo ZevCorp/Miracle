@@ -277,7 +277,93 @@ public sealed class MemoriaWindow : Window
             // párrafo y las tarjetas compartan filo izquierdo.
             Margin = new Thickness(Estudio.HolguraDe(Estudio.Sombra1).Left, 0, Estudio.HolguraDe(Estudio.Sombra1).Right, 4),
         });
-        foreach (var apartado in apartados) _cuerpo.Children.Add(TarjetaDe(apartado));
+        // UNA SOLA TARJETA DICE QUIÉN ERES. El apartado «quien» lee el nombre de config.json, que es
+        // donde lo dejaba la ventana de correo y contraseña; quien se presentó hablando no tiene nada
+        // ahí, y la Memoria enseñaba «Jose · Estudiante» y, justo debajo, «Todavía no sé cómo te
+        // llamas» (visto en pantalla el 2026-10-01). La del perfil se queda con lo que ese apartado
+        // trae —el correo, si lo hay— y él no se pinta aparte. Si NO SE PUDO LEER sí se pinta: eso
+        // es un fallo, y un fallo no se tapa con una tarjeta bonita.
+        var quien = apartados.FirstOrDefault(a => a.Clave == "quien");
+        _cuerpo.Children.Add(TarjetaDeQuienEres(quien));
+        foreach (var apartado in apartados)
+            if (apartado.Clave != "quien" || apartado.Estado == EstadoDelApartado.NoSePudoLeer)
+                _cuerpo.Children.Add(TarjetaDe(apartado));
+    }
+
+    /// <summary>La persona pidió repetir el primer encuentro. Lo atiende la carita, que es quien lo lleva.</summary>
+    public static event Action? PidioVolverAPresentarse;
+
+    /// <summary>
+    /// QUIÉN ERES PARA Ü: lo que contó al presentarse —nombre, para qué la usa, cómo quiere que le hablen,
+    /// qué le gusta—, y la forma de corregirlo (spec 080).
+    /// </summary>
+    /// <remarks>
+    /// VA AQUÍ PORQUE AQUÍ ES DONDE SE MIRA QUÉ SABE Ü DE UNO. Sin esto, lo que se dijo en el primer
+    /// encuentro no se veía en ningún sitio, y quien se hubiera equivocado de rol —o a quien Ü le
+    /// entendió mal el nombre— no tenía cómo arreglarlo salvo borrando un archivo. Se lee del perfil;
+    /// abrir la Memoria sigue sin escribir nada.
+    /// </remarks>
+    private FrameworkElement TarjetaDeQuienEres(Apartado? deLaCuenta)
+    {
+        var perfil = new Persona.PerfilDeLaPersona().Leer();
+        var tarjeta = Estudio.Tarjeta(18);
+        tarjeta.Padding = new Thickness(16, 14, 16, 12);
+        tarjeta.Margin = new Thickness(0, 6, 0, 0);
+        System.Windows.Automation.AutomationProperties.SetName(tarjeta, "Quién eres");
+
+        // Lo que trae el apartado de la cuenta (config.json): el nombre con que entró y su correo. El
+        // correo es lo que tiene un médico con cuenta; un estudiante no tiene ninguno.
+        var cuenta = deLaCuenta is { Estado: EstadoDelApartado.ConDatos } ? deLaCuenta.Entradas : Array.Empty<Entrada>();
+        string nombreDeLaCuenta = cuenta.FirstOrDefault(e => !e.Texto.Contains('@'))?.Texto ?? "";
+        string correo = cuenta.FirstOrDefault(e => e.Texto.Contains('@'))?.Texto ?? "";
+        string nombre = perfil.Conocido && !string.IsNullOrWhiteSpace(perfil.Nombre) ? perfil.Nombre : nombreDeLaCuenta;
+
+        var pila = new StackPanel();
+        pila.Children.Add(new TextBlock
+        {
+            Text = "Quién eres", Foreground = Estudio.Tinta, FontSize = 14, FontWeight = FontWeights.SemiBold,
+        });
+        pila.Children.Add(new TextBlock
+        {
+            Text = nombre.Length > 0 ? nombre : "Todavía no nos hemos presentado.",
+            Foreground = nombre.Length > 0 ? Estudio.Tinta : Estudio.TintaTenue,
+            FontSize = nombre.Length > 0 ? 15 : 12.5,
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 0),
+        });
+
+        var lineas = new List<string>();
+        if (perfil.Conocido)
+        {
+            if (perfil.Rol != Persona.Rol.SinElegir) lineas.Add(perfil.Rol == Persona.Rol.Estudiante ? "Estudiante" : "Médico");
+            if (perfil.Trato.Length > 0) lineas.Add("Te hablo: " + perfil.Trato);
+            if (perfil.Gustos.Count > 0) lineas.Add("Te gusta: " + string.Join(", ", perfil.Gustos));
+        }
+        if (correo.Length > 0) lineas.Add("Tu correo: " + correo);
+        if (lineas.Count > 0)
+            pila.Children.Add(new TextBlock
+            {
+                Text = string.Join("\n", lineas), Foreground = Estudio.TintaMedia, FontSize = 12.5, LineHeight = 19,
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0),
+            });
+
+        var otraVez = new Button
+        {
+            Content = new TextBlock { Text = perfil.Conocido ? "Volver a presentarnos" : "Presentarnos", Margin = new Thickness(12, 6, 12, 7) },
+            FontSize = 12.5,
+            Foreground = Estudio.Acento,
+            Background = Estudio.AcentoSuave,
+            BorderThickness = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 10, 0, 0),
+            Cursor = Cursors.Hand,
+            Template = Estudio.Pastilla(14),
+        };
+        System.Windows.Automation.AutomationProperties.SetName(otraVez, perfil.Conocido ? "Volver a presentarnos" : "Presentarnos");
+        otraVez.Click += (_, _) => PidioVolverAPresentarse?.Invoke();
+        pila.Children.Add(otraVez);
+
+        tarjeta.Child = pila;
+        return Estudio.Elevar(tarjeta, Estudio.Sombra1);
     }
 
     private FrameworkElement TarjetaDe(Apartado apartado)

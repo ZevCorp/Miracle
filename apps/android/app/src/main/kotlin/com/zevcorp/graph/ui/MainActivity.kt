@@ -33,7 +33,9 @@ import com.zevcorp.graph.platform.Release
 import com.zevcorp.graph.platform.Updater
 import com.zevcorp.graph.platform.UsageU
 import com.zevcorp.graph.voice.live.VozEnVivoDev
+import graph.core.domain.Especialidades
 import graph.core.domain.LearnedTool
+import graph.core.domain.PerfilDeUso
 import graph.core.domain.UserChannel
 import graph.core.domain.Workflow
 import kotlin.coroutines.resume
@@ -164,8 +166,78 @@ class MainActivity : Activity(), UserChannel {
             app.prefs.edit().putString("userName", name).apply()
             com.zevcorp.graph.platform.Telemetry.ensureUser(name)
             dialog.dismiss()
+            // Después del nombre, cómo me vas a usar (spec 010).
+            preguntaElPerfil(primeraVez = true)
         }
         dialog.show()
+    }
+
+    /**
+     * CÓMO ME USAS (spec 010): «Trabajo en salud» o «Uso personal», y si es salud, la especialidad de la lista del
+     * catálogo. Sale en la bienvenida, después del nombre, y desde los ajustes de Voz. No bloquea: cerrarla sin elegir
+     * deja todo como estaba (sin elegir es la Ü de antes) y en la bienvenida se vuelve a preguntar al abrir la app. Lo
+     * que se elige lo guarda `GraphApp.cambiaElPerfil`, que además olvida el hilo para que el perfil nuevo llegue.
+     */
+    private fun preguntaElPerfil(primeraVez: Boolean) {
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = rounded(Palette.bg, dp(24).toFloat(), Palette.cardBorder)
+            setPadding(dp(22), dp(20), dp(22), dp(18))
+        }
+        body.addView(title(if (primeraVez) "¿Para qué me vas a usar?" else "Cómo me usas", 18f))
+        body.gap(dp(4))
+        body.addView(caption(
+            if (primeraVez) "Así sé cómo hablarte. Lo puedes cambiar cuando quieras en Voz, en «Cómo me usas»."
+            else "Ahora: ${app.perfil().paraElMenu()}."
+        ))
+        body.gap(dp(16))
+        lateinit var dialog: AlertDialog
+        body.addView(button("Trabajo en salud", primary = app.perfil().esMedico) {
+            dialog.dismiss()
+            preguntaLaEspecialidad(primeraVez)
+        })
+        body.gap(dp(4))
+        body.addView(caption("Soy médico u otro profesional de la salud: consultas, historias clínicas."))
+        body.gap(dp(12))
+        body.addView(button("Uso personal", primary = app.perfil().esPersona) {
+            dialog.dismiss()
+            eligeElPerfil(PerfilDeUso.persona())
+        })
+        body.gap(dp(4))
+        body.addView(caption("Para mi día a día: archivos, internet, correos, documentos y trámites."))
+        dialog = AlertDialog.Builder(this).setView(body).setCancelable(true).create()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        // En la bienvenida, un toque fuera no la cierra por accidente; el botón Atrás sí, y no bloquea nada.
+        if (primeraVez) dialog.setCanceledOnTouchOutside(false)
+        dialog.show()
+    }
+
+    /**
+     * La especialidad sale de la lista del catálogo, nunca de texto libre: su nombre va al prompt (spec 010). La que ya
+     * estaba elegida sale marcada («Sin especialidad» si es médico sin ella), y «Atrás» vuelve a la pregunta anterior.
+     */
+    private fun preguntaLaEspecialidad(primeraVez: Boolean) {
+        val opciones = listOf("Sin especialidad") + Especialidades.TODAS.map { it.nombre }
+        val ahora = app.perfil()
+        val suya = ahora.especialidad // local: una propiedad de otro módulo no admite smart cast
+        val actual = when {
+            !ahora.esMedico -> -1
+            suya == null -> 0
+            else -> Especialidades.TODAS.indexOf(suya) + 1
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Tu especialidad")
+            .setSingleChoiceItems(opciones.toTypedArray(), actual) { elegida, i ->
+                elegida.dismiss()
+                eligeElPerfil(if (i == 0) PerfilDeUso.medico() else PerfilDeUso.medico(Especialidades.TODAS[i - 1].codigo))
+            }
+            .setNegativeButton("Atrás") { _, _ -> preguntaElPerfil(primeraVez) }
+            .show()
+    }
+
+    private fun eligeElPerfil(perfil: PerfilDeUso) {
+        app.cambiaElPerfil(perfil)
+        Toast.makeText(this, "Cómo me usas: ${perfil.paraElMenu()}", Toast.LENGTH_SHORT).show()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -174,7 +246,13 @@ class MainActivity : Activity(), UserChannel {
         mode = app.prefs.getString(KEY_UI_MODE, MODE_CLOUD) ?: MODE_CLOUD
         // Presentación obligatoria: sin nombre no se usa la app (su tarjeta en el panel Android
         // del Provider Studio nace de aquí). También lo pide la burbuja si ejecutan antes de abrir.
-        if (com.zevcorp.graph.platform.Telemetry.userName.isBlank()) askUserName()
+        // Después del nombre, cómo la usa; a quien ya tenía nombre y nunca lo dijo, solo eso (spec 010).
+        when (PerfilDeUso.queBienvenida(com.zevcorp.graph.platform.Telemetry.userName, app.perfil().tipo)) {
+            PerfilDeUso.Bienvenida.ENTERA -> askUserName()
+            // Solo al abrir: girar el teléfono, el tema o el modo recrean la Activity, y eso no es abrir la app otra vez.
+            PerfilDeUso.Bienvenida.SOLO_PERFIL -> if (savedInstanceState == null) preguntaElPerfil(primeraVez = true)
+            PerfilDeUso.Bienvenida.NADA -> Unit
+        }
 
         // Vista principal: la textura de nubes viva (cielo animado + barra de nube). Pantalla propia,
         // a pantalla completa detrás de las barras del sistema para que el cielo llegue a los bordes.
@@ -1417,6 +1495,9 @@ class MainActivity : Activity(), UserChannel {
         body.addView(caption("Elige cómo suena Miracle."))
         body.gap(dp(16))
         lateinit var dialog: AlertDialog
+        // Con quién habla Ü (spec 010): aquí se cambia lo que se eligió en la bienvenida.
+        body.addView(button("Cómo me usas: ${app.perfil().paraElMenu()}") { dialog.dismiss(); preguntaElPerfil(primeraVez = false) })
+        body.gap(dp(16))
         fun preview() { bubble()?.reapplyVoice(); bubble()?.speak("Hola, soy Miracle. Así sueno.") }
         fun chooseOpenAi(v: String) {
             app.prefs.edit().putString("voiceEngine", "openai").putString("openaiVoice", v).apply()

@@ -12,6 +12,10 @@ public final class AgentEngine {
     public var onSpeech: ((String) -> Void)?
     public var userID: String?
     public var userContext: String?
+    /// Con quién habla Ü (spec 001, 2026-10-01). Viaja solo en el primer turno de cada tarea, como el objetivo:
+    /// Graph lo congela en la sesión firmada que devuelve, y esa sesión vive lo que dura `run`. Una tarea nueva
+    /// nace sin sesión y con el perfil de ese momento. nil (sin elegir) no viaja.
+    public var perfil: PerfilEnElCable?
     public init(turn: @escaping Turn, observe: @escaping (Bool) async throws -> ScreenState,
                 execute: @escaping (AgentAction) async throws -> String,
                 ask: @escaping (String) async throws -> String, maxTurns: Int = 40) {
@@ -27,7 +31,7 @@ public final class AgentEngine {
             try Task.checkCancellation()
             onStatus?("Mirando la pantalla · \(index + 1)")
             let state = try await observe(screenshot)
-            let response = try await turn(TurnRequest(session: session, goal: index == 0 ? goal : nil, userId: userID, state: state, results: results, inform: inform, userContext: userContext))
+            let response = try await turn(TurnRequest(session: session, goal: index == 0 ? goal : nil, userId: userID, state: state, results: results, inform: inform, userContext: userContext, profile: index == 0 ? perfil : nil))
             try Task.checkCancellation()
             if response.done {
                 guard response.actions.isEmpty, response.question == nil else { throw AgentError.invalid("Graph terminó el turno con acciones pendientes.") }

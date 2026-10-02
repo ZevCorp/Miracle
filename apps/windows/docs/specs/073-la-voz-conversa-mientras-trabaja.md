@@ -123,12 +123,12 @@ En el contrato del grafo (`tests/ContratoDelGrafo/Contrato.cs`):
 | # | Promesa |
 |---|---|
 | 680 | el historial con que abre la voz cabe siempre en lo que el servidor admite: a lo sumo 128 mensajes y un presupuesto de caracteres, quedándose con lo más reciente, y un turno más largo que el presupuesto se recorta en vez de dejar la apertura sin historia |
-| 751 | con GPT-Live quien actúa no es quien habla: el delegado recibe sus propias instrucciones —encadena sin anunciar y devuelve hechos, estado y siguiente paso— sin las reglas de callar de la voz única, y las de la voz única no cambian |
-| 752 | lo que se le cuenta a la voz sale del resultado y no de la intención: una herramienta que actuó es un avance con su primera línea, una que no actuó es un avance de fallo, y un paso de plan fallido también |
-| 753 | la línea del turno dice si la voz habló mientras se trabajaba: cuántas frases dijo durante el trabajo y el silencio más largo |
-| 754 | señalar manda su foto: tras map_pointing_at la foto del momento viaja al delegado, como promete su descripción |
-| 755 | sin micrófono no se le cuenta nada a la voz: una sesión abierta para lo escrito no recibe avances, que el servidor no llegaría a entregar; y una voz que también actúa tampoco |
-| 756 | el delegado, su prisa y cuánto piensa se cambian sin recompilar: U_DELEGADO elige el modelo, U_DELEGADO_PRISA la quita con 0 y la pide con 1, y U_DELEGADO_ESFUERZO dice el esfuerzo; en blanco, ausentes o con otro valor queda lo de por defecto |
+| 851 | con GPT-Live quien actúa no es quien habla: el delegado recibe sus propias instrucciones —encadena sin anunciar y devuelve hechos, estado y siguiente paso— sin las reglas de callar de la voz única, y las de la voz única no cambian |
+| 852 | lo que se le cuenta a la voz sale del resultado y no de la intención: una herramienta que actuó es un avance con su primera línea, una que no actuó es un avance de fallo, y un paso de plan fallido también |
+| 853 | la línea del turno dice si la voz habló mientras se trabajaba: cuántas frases dijo durante el trabajo y el silencio más largo |
+| 854 | señalar manda su foto: tras map_pointing_at la foto del momento viaja al delegado, como promete su descripción |
+| 855 | sin micrófono no se le cuenta nada a la voz: una sesión abierta para lo escrito no recibe avances, que el servidor no llegaría a entregar; y una voz que también actúa tampoco |
+| 856 | el delegado, su prisa y cuánto piensa se cambian sin recompilar: U_DELEGADO elige el modelo, U_DELEGADO_PRISA la quita con 0 y la pide con 1, y U_DELEGADO_ESFUERZO dice el esfuerzo; en blanco, ausentes o con otro valor queda lo de por defecto |
 
 ### Promesas que se retiran (los números no se reciclan)
 
@@ -147,9 +147,9 @@ variable. La 161 del grafo se queda como está: juzga las instrucciones de la vo
 - **60–63, 66, 67**: el JSON que saca `ProtocoloGptLive`, sin socket.
 - **64–65**: `AvancesParaLaVoz` con un reloj inyectado, sin esperar.
 - **680**: `ConversacionPersonal.Historial()` sobre un archivo temporal de la prueba.
-- **751–752, 754–756**: funciones puras de `ConversacionEnVivo`, pedidas por nombre con reflexión, y el
+- **851–852, 854–856**: funciones puras de `ConversacionEnVivo`, pedidas por nombre con reflexión, y el
   cableado leído de la fuente.
-- **753**: `CuentaDelTurno` con un reloj inyectado.
+- **853**: `CuentaDelTurno` con un reloj inyectado.
 
 Lo que el contrato no puede juzgar es lo que **hace el servidor** con todo esto. Eso lo mide la sonda,
 y por eso la sonda entra al repo con esta spec.
@@ -167,9 +167,9 @@ que no tocaba el sabotaje siguieron verdes:
 | voz C | lo guardado se tira · la vuelta de modo con 25.000 caracteres | 64, 66 |
 | voz D | esfuerzo por defecto en low · priority siempre | 60, 67 |
 | voz E | sin prisa por defecto · el esfuerzo pedido no viaja | 60, 67 |
-| grafo A | historial sin presupuesto · GPT-Live con las de la voz única · ningún avance es fallo · se cuentan todas las frases · señalar sin foto | 680, 751, 752, 753, 754 |
-| grafo B | el plan no le llega a la voz · mirar se cuenta · sin tope de 128 · el delegado con «habla poco» | 680, 751, 752 |
-| grafo C y D | avances sin micrófono · `U_DELEGADO` ignorada · el micrófono no se anota · la prisa no se quita | 755, 756 |
+| grafo A | historial sin presupuesto · GPT-Live con las de la voz única · ningún avance es fallo · se cuentan todas las frases · señalar sin foto | 680, 851, 852, 853, 854 |
+| grafo B | el plan no le llega a la voz · mirar se cuenta · sin tope de 128 · el delegado con «habla poco» | 680, 851, 852 |
+| grafo C y D | avances sin micrófono · `U_DELEGADO` ignorada · el micrófono no se anota · la prisa no se quita | 855, 856 |
 
 ## El nivel 4: sobre el servidor real y sobre la Ü real
 
@@ -192,7 +192,7 @@ Configuración y la carpeta Descargas. 48 pedidos en nueve pasadas. Con la rama,
 ```
 
 **Lo que el nivel 4 NO probó:** la voz hablando durante el trabajo **en la Ü real**. Las órdenes de
-prueba entran escritas y sin micrófono, y por ese camino no hay voz a la que contarle nada (promesa 755).
+prueba entran escritas y sin micrófono, y por ese camino no hay voz a la que contarle nada (promesa 855).
 Que la voz acompaña está medido contra el servidor con la sonda, con la persona, el mensaje y la regla
 de la app; falta oírlo con el micrófono abierto, y eso lo hace una persona.
 
@@ -239,7 +239,7 @@ batería de la Ü real abre la Calculadora y Configuración y las cierra si las 
   quedado hecho. No era la voz inventando. La pantalla de mentira es ahora la de lo que sí se hizo.
 - **2026-10-01 · El delegado terminó con una promesa.** Escribió «resultado de la calculadora» donde iba el
   número, devolvió «lo corrijo ahora» y terminó sin corregirlo. Sus instrucciones llevan ahora «no termines
-  con una promesa» (751).
+  con una promesa» (851).
 - **2026-10-01 · La voz leyó la etiqueta.** Con avances del estilo «Hecho: abrí la calculadora» dijo «Hecho:
   ya abrí la calculadora» en 3 de 14 corridas. Los avances van sin etiqueta: lo que llega ya está en pasado.
 - **2026-10-01 · Un número mal dicho, 1 de 22.** El delegado devolvió 69.104 y la transcripción de la voz
@@ -251,7 +251,7 @@ batería de la Ü real abre la Calculadora y Configuración y las cierra si las 
   las instrucciones de fábrica. Ahora vuelven con las de la apertura (`VolverAlModoNormalAsync`), y unas
   instrucciones de operar que no caben en un append ya no se le mandan a la voz (66).
 - **2026-10-01 · La apertura perdía el párrafo del decisor.** Salía de la constante y no de
-  `InstruccionesNormales`. Arreglado de paso: las dos aperturas salen de `InstruccionesPara` (751).
+  `InstruccionesNormales`. Arreglado de paso: las dos aperturas salen de `InstruccionesPara` (851).
 - **2026-10-01 · El texto del delegado entra dos veces en «Ü dijo».** `response.output_text.done` se
   traduce como algo que Ü dice, y la voz lo vuelve a decir con sus palabras: en el log, «Abrí tu correo
   en Gmail. Abrí tu correo en Gmail.». Se guarda así en el hilo. Sin arreglar: va con la spec 074, que
@@ -263,7 +263,7 @@ batería de la Ü real abre la Calculadora y Configuración y las cierra si las 
 instrucciones de la voz y del delegado, y la spec 075 (la voz al primer clic). Lo que cambió aquí:
 
 - **Los números.** Las promesas nacieron como 680–686; `main` ya tenía esos números (spec 076). Son ahora la
-  **751 a la 756**, en el mismo orden. **La 680 se fue**: el presupuesto de la historia al abrir ya lo promete
+  **851 a la 856**, en el mismo orden. **La 680 se fue**: el presupuesto de la historia al abrir ya lo promete
   la 667 de `main`, con su propio tope (20.000 caracteres), y la rama se quedó con el código de `main`.
 - **La 46 de la voz vuelve.** Esta spec la había retirado porque con ella la persona acababa ordenando
   «mientras se hace el trabajo, calla». `main` la sigue exigiendo (58), y al juntar los dos textos se vio que lo
@@ -275,7 +275,7 @@ instrucciones de la voz y del delegado, y la spec 075 (la voz al primer clic). L
   dejó un solo texto para las dos voces (constitución + operación, con presupuesto y con el perfil en medio).
   Lo que es solo del delegado va ahora **detrás** de las de siempre (`ConversacionEnVivo.LoQueSeAnade`): que
   otra voz habla por él, que encadena sin anunciar, que devuelve hechos, estado y siguiente paso, y que donde
-  la operación diga «habla» lo devuelve en su resultado. La 751 dice eso; antes decía «sin las reglas de callar
+  la operación diga «habla» lo devuelve en su resultado. La 851 dice eso; antes decía «sin las reglas de callar
   de la voz única», que con el texto de `main` ya no es cierto: le llegan, y se le dice cómo leerlas.
 - **Volver de un modo** es el `VolverAlModoNormalAsync` de `main` (promesas 727 y 728), que compone de nuevo. El
   de la rama, que reenviaba las instrucciones guardadas de la apertura, se fue.

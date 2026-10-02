@@ -58,10 +58,13 @@ public sealed class Config
     public string UserId { get; set; } = "anon";
 
     /// <summary>
-    /// Identidad del usuario capturada al instalar (popup de nombre+correo, ver
-    /// <see cref="Ui.OnboardingWindow"/>). El CORREO es la clave canónica en el backend
-    /// ("Windows Live"): mismo correo = mismo usuario. <see cref="UserId"/> se fija al correo
-    /// para que el scoping de workflows y la telemetría hablen de la misma persona.
+    /// La identidad de MÁQUINA. El CORREO es la clave canónica en el backend ("Windows Live"): mismo
+    /// correo = mismo usuario, y <see cref="UserId"/> se fija a él para que el scoping de workflows y
+    /// la telemetría hablen de la misma persona.
+    ///
+    /// YA NO SE PIDE AL INSTALAR (spec 080). Lo pedía un popup de nombre y correo; ahora Ü pregunta el
+    /// nombre hablando y lo guarda en el perfil (<see cref="Persona.PerfilDeLaPersona"/>). El correo
+    /// llega solo cuando un médico inicia sesión, y sin él no hay telemetría: un estudiante no tiene cuenta.
     /// </summary>
     public string DisplayName { get; set; } = "";
     public string Email { get; set; } = "";
@@ -93,12 +96,6 @@ public sealed class Config
     /// <summary>¿Ya se capturó nombre+correo? Evita re-preguntar en cada arranque.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool Onboarded => !string.IsNullOrWhiteSpace(Email);
-
-    /// <summary>
-    /// Si Ü ya se presentó en voz alta en este equipo. Se marca ANTES de hablar, no después: ver
-    /// <c>FaceWindow.OfrecerElPrimerEncuentro</c>.
-    /// </summary>
-    public bool PresentacionHecha { get; set; }
 
     /// <summary>
     /// Asistente mudo (botón 🔇 de la carita). Se persiste a propósito: quien lo silencia suele estar
