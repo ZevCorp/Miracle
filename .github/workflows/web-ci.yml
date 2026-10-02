@@ -51,6 +51,7 @@ jobs:
     with:
       proyecto: web
       carpeta: apps/web
-      humo: https://miracle-notes.vercel.app/
+      humo: https://www.itsmiracleai.com.co/
+      dominio: www.itsmiracleai.com.co
     secrets:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
