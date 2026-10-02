@@ -1,3 +1,4 @@
+import UMac
 import AppKit
 import ApplicationServices
 import UCore
@@ -409,7 +410,7 @@ final class WindowProbe {
             let source = event.getIntegerValueField(.eventSourceUnixProcessID)
             if source != Int64(getpid()) {
                 let who = source == 0 ? "hardware (una persona)" : (NSRunningApplication(processIdentifier: pid_t(source))?.localizedName ?? "pid \(source)")
-                MainActor.assumeIsolated { probe.foreignSources[who, default: 0] += 1 }
+                MainThread.run { probe.foreignSources[who, default: 0] += 1 }
             }
             return Unmanaged.passUnretained(event)
         }
@@ -422,7 +423,7 @@ final class WindowProbe {
     func watchForPeople() {
         tapForeignEvents()
         watch = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
+            MainThread.run {
                 // The probe's own events take a moment to land: only a lasting difference, well after
                 // the probe's last move, is someone else's hand.
                 guard let self else { return }

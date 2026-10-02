@@ -3,6 +3,9 @@ import UCore
 
 /// A harmless Live 1 → Luna tool roundtrip. Does not capture or play audio.
 enum VoiceProbe {
+    /// What the provider counted for each Luna turn of the last check (nil: the turn came without a
+    /// count). It is how the daily budget's reading of the event is checked against the real service.
+    static var lunaTurns: [Int?] = []
     static func check(key: String, audio: Data? = nil) async throws -> Bool {
         let session = URLSession(configuration: .ephemeral)
         var request = URLRequest(url: URL(string: "wss://api.openai.com/v1/live/sessions")!)
@@ -23,6 +26,7 @@ enum VoiceProbe {
         do {
         try await send(start)
         var batch = ToolBatch(), returned = false, completed = false, audible = false
+        lunaTurns = []
         while true {
             let message = try await socket.receive()
             let data: Data
@@ -62,6 +66,7 @@ enum VoiceProbe {
                     _ = batch.finish(call.id); returned = true
                 }
                 if nested["type"] as? String == "response.completed" {
+                    lunaTurns.append(LunaBudget.tokens(in: nested))
                     if batch.responseDone() { try await send(["type": "response.create"]) }
                     else if returned {
                         completed = true

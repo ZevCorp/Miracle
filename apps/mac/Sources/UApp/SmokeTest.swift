@@ -167,6 +167,7 @@ struct SmokeTest {
             }
             evidence["stage"] = "live_one_luna"; save()
             evidence["passed"] = try await VoiceProbe.check(key: key)
+            evidence["lunaTokensPerTurn"] = VoiceProbe.lunaTurns.map { $0 ?? -1 }
             evidence["stage"] = "complete"
         } catch { evidence["error"] = error.localizedDescription; evidence["stage"] = "failed" }
     }

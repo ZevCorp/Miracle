@@ -1,3 +1,4 @@
+import UMac
 import AppKit
 import OSLog
 import SwiftUI
@@ -163,11 +164,11 @@ final class FaceMover {
             guard let info else { return Unmanaged.passUnretained(event) }
             let mover = Unmanaged<FaceMover>.fromOpaque(info).takeUnretainedValue()
             if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-                MainActor.assumeIsolated { if let tap = mover.scrollTap { CGEvent.tapEnable(tap: tap, enable: true) } }
+                MainThread.run { if let tap = mover.scrollTap { CGEvent.tapEnable(tap: tap, enable: true) } }
                 return Unmanaged.passUnretained(event)
             }
             guard type == .scrollWheel, let ns = NSEvent(cgEvent: event) else { return Unmanaged.passUnretained(event) }
-            let consumed = MainActor.assumeIsolated { () -> Bool in
+            let consumed = MainThread.run { () -> Bool in
                 if mover.scrolling { mover.scrollWheel(ns); return true }
                 return !ns.momentumPhase.isEmpty && ProcessInfo.processInfo.systemUptime < mover.momentumUntil
             }
@@ -248,9 +249,9 @@ final class FaceHostingView: NSHostingView<Face> {
     override func mouseDown(with event: NSEvent) {
         Logger(subsystem: "com.zevcorp.u.mac", category: "Face").info("mouseDown on face view")
         if event.modifierFlags.contains(.control) { super.mouseDown(with: event); return }
-        MainActor.assumeIsolated { mover?.mouseDown() }
+        MainThread.run { mover?.mouseDown() }
     }
-    override func mouseDragged(with event: NSEvent) { MainActor.assumeIsolated { mover?.mouseDragged() } }
-    override func mouseUp(with event: NSEvent) { MainActor.assumeIsolated { mover?.mouseUp() } }
-    override func scrollWheel(with event: NSEvent) { MainActor.assumeIsolated { mover?.scrollWheel(event) } }
+    override func mouseDragged(with event: NSEvent) { MainThread.run { mover?.mouseDragged() } }
+    override func mouseUp(with event: NSEvent) { MainThread.run { mover?.mouseUp() } }
+    override func scrollWheel(with event: NSEvent) { MainThread.run { mover?.scrollWheel(event) } }
 }

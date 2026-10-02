@@ -42,3 +42,32 @@ extension AgentTests {
         XCTAssertNil(LoginAgent.plist(executable: "/Applications/Otra/U.app/Contents/MacOS/U", home: home, existing: nil))
     }
 }
+
+extension AgentTests {
+    func testLunaStopsAtTenMillionTokensADayAndStartsOverTheNextDay() {
+        XCTAssertEqual(LunaBudget.dailyTokens, 10_000_000)
+        var budget = LunaBudget()
+        XCTAssertEqual(budget.exhausted(on: "2026-10-02"), false)
+        budget.add(9_999_999, on: "2026-10-02")
+        XCTAssertEqual(budget.exhausted(on: "2026-10-02"), false)
+        XCTAssertEqual(budget.remaining(on: "2026-10-02"), 1)
+        // A turn without a count, or with a nonsense one, neither adds nor forgives.
+        budget.add(nil, on: "2026-10-02"); budget.add(-5, on: "2026-10-02")
+        XCTAssertEqual(budget.used, 9_999_999)
+        budget.add(1, on: "2026-10-02")
+        XCTAssertEqual(budget.exhausted(on: "2026-10-02"), true)
+        XCTAssertEqual(budget.remaining(on: "2026-10-02"), 0)
+        // What was saved yesterday does not close today.
+        XCTAssertEqual(budget.exhausted(on: "2026-10-03"), false)
+        XCTAssertEqual(budget.remaining(on: "2026-10-03"), LunaBudget.dailyTokens)
+        budget.add(10, on: "2026-10-03")
+        XCTAssertEqual(budget, LunaBudget(day: "2026-10-03", used: 10))
+        // The provider's own count is the one used; only a finished Luna turn carries it.
+        XCTAssertEqual(LunaBudget.tokens(in: ["type": "response.completed", "response": ["usage": ["input_tokens": 900, "output_tokens": 100, "total_tokens": 1000]]]), 1000)
+        XCTAssertEqual(LunaBudget.tokens(in: ["type": "response.completed", "response": ["usage": ["input_tokens": 900, "output_tokens": 100]]]), 1000)
+        XCTAssertNil(LunaBudget.tokens(in: ["type": "response.completed", "response": ["id": "r"]]))
+        XCTAssertNil(LunaBudget.tokens(in: ["type": "response.created", "response": ["usage": ["total_tokens": 7]]]))
+        var utc = Calendar(identifier: .gregorian); utc.timeZone = TimeZone(identifier: "UTC")!
+        XCTAssertEqual(LunaBudget.day(Date(timeIntervalSince1970: 1_790_985_600), calendar: utc), "2026-10-03")
+    }
+}

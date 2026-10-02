@@ -14,6 +14,8 @@ public final class LiveVoice {
     /// another credential may work where this one did not.
     public private(set) var credentialRefused = false
     public var onTool: ((String, [String: String]) async throws -> String)?
+    /// Tokens of each finished Luna turn, as the provider counted them.
+    public var onLunaTokens: ((Int) -> Void)?
     public private(set) var connected = false
     /// While Live weighs an internal question it must not be heard: a stray "hum" breaks the
     /// promise of silence. The person speaking lifts it (they may be answering Ü).
@@ -225,6 +227,10 @@ public final class LiveVoice {
                 }
             }
             if nested["type"] as? String == "response.completed" {
+                if let tokens = LunaBudget.tokens(in: nested) {
+                    logger.info("luna tokens=\(tokens)")
+                    onLunaTokens?(tokens)
+                } else { logger.info("luna turn without usage") }
                 activeResponses.remove(response)
                 if var batch = batches[response] {
                     if batch.responseDone() {

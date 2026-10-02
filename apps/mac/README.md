@@ -196,8 +196,11 @@ pruebas. `./empaquetar.sh --sin-clave` arma el disco sin ella. Para comprobar qu
 open -n /Applications/U.app --args --voice-keys-test /tmp/claves.json
 ```
 
-(fila `pruebas`). Con esa credencial funcionan la voz y lo que Ü hace en pantalla; el chat escrito y
-Aprender necesitan además la credencial de Graph en Configuración.
+(filas `pruebas` y `pruebasJev`). Con la clave de OpenAI viaja la de Jev, que `empaquetar.sh` pide al
+Graph de este Mac. Con las dos funcionan la voz, Luna y Jev; el chat escrito sin voz, Aprender y la
+escucha pasiva necesitan además la credencial de Graph en Configuración (sin ella, tras un rato sin
+hablarle Ü descansa en silencio). En la versión de pruebas Luna tiene un tope de 10 millones de tokens
+al día por Mac; la voz en vivo y Jev no tienen tope.
 
 ## Permisos
 

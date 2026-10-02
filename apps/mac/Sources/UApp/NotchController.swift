@@ -1,3 +1,4 @@
+import UMac
 import AppKit
 import OSLog
 import SwiftUI
@@ -80,7 +81,7 @@ final class NotchController {
         // after a change of Space it is put in place and in front again, so calling Ü from any of them
         // brings the bar there.
         spaceObservation = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
+            MainThread.run {
                 guard let self, self.presence.onScreen else { return }
                 self.place()
                 self.panel.orderFrontRegardless()
@@ -97,7 +98,7 @@ final class NotchController {
     private var now: Double { ProcessInfo.processInfo.systemUptime }
 
     private func repeating(_ seconds: Double, _ work: @escaping @MainActor () -> Void) -> Timer {
-        let timer = Timer(timeInterval: seconds, repeats: true) { _ in MainActor.assumeIsolated { work() } }
+        let timer = Timer(timeInterval: seconds, repeats: true) { _ in MainThread.run { work() } }
         RunLoop.main.add(timer, forMode: .common)
         return timer
     }
@@ -191,7 +192,7 @@ final class NotchController {
         motion?.invalidate()
         motionKind = kind; motionBegan = now
         frameTick()
-        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { _ in MainActor.assumeIsolated { [weak self] in self?.frameTick() } }
+        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { _ in MainThread.run { [weak self] in self?.frameTick() } }
         RunLoop.main.add(timer, forMode: .common)
         motion = timer
     }

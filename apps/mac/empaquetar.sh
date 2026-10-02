@@ -55,16 +55,21 @@ if [[ -z "$clave" && -f "$archivo_clave" ]]; then clave="$(<"$archivo_clave")"; 
 if [[ "$con_clave" == 1 && -n "$clave" ]]; then
   sellada="$(printf '%s' "$clave" | .artifacts/U.app/Contents/MacOS/U --seal-credential)"
   hasta="$(/bin/date -u -v+"$dias"d +%Y-%m-%dT%H:%M:%SZ)"
+  # La clave de Jev solo la entrega Graph, y quien prueba no tiene credencial de Graph: viaja igual.
+  jev="$(.artifacts/U.app/Contents/MacOS/U --seal-jev 2>/dev/null || true)"
+  jev_fila=""
+  if [[ -n "$jev" ]]; then jev_fila="<key>TYPESAFE_API_KEY</key><string>$jev</string>"; fi
   cat > "$app/Contents/Resources/pruebas.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>OPENAI_API_KEY</key><string>$sellada</string>
+$jev_fila
 <key>hasta</key><date>$hasta</date>
 </dict></plist>
 PLIST
   /usr/bin/plutil -lint "$app/Contents/Resources/pruebas.plist"
-  credencial="credencial de voz de pruebas dentro, válida hasta $hasta"
+  credencial="voz y Luna$([[ -n "$jev" ]] && echo ', y Jev' || echo ' (SIN Jev: Graph no la entregó)') dentro, válidas hasta $hasta"
 else
   credencial="sin credencial dentro"
 fi
@@ -131,7 +136,7 @@ cp "$staging_dir/U.dmg" "$dmg"
 echo "Disco listo: $dmg ($(/usr/bin/du -h "$dmg" | cut -f1 | tr -d ' '))"
 echo "Arquitecturas: $(/usr/bin/lipo -archs "$app/Contents/MacOS/U")"
 echo "Firma: $signing_mode ($signing_identity)"
-echo "Credencial: $credencial"
+echo "Credenciales: $credencial"
 if [[ "$signing_mode" != "developer-id" ]]; then
   echo "Sin sello de Apple: cada persona aprueba la app una vez (está en el LÉEME del disco)."
 fi

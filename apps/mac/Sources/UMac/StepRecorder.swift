@@ -35,11 +35,11 @@ public final class StepRecorder {
         if let m = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown, handler: { [weak self] event in
             let p = NSEvent.mouseLocation
             let top = NSScreen.screens.first?.frame.maxY ?? 0
-            MainActor.assumeIsolated { self?.click(at: CGPoint(x: p.x, y: top - p.y)) }
+            MainThread.run { self?.click(at: CGPoint(x: p.x, y: top - p.y)) }
         }) { monitors.append(m) }
         if let m = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
             let code = event.keyCode, chars = event.characters ?? "", flags = event.modifierFlags
-            MainActor.assumeIsolated { self?.key(code: code, characters: chars, flags: flags) }
+            MainThread.run { self?.key(code: code, characters: chars, flags: flags) }
         }) { monitors.append(m) }
     }
 

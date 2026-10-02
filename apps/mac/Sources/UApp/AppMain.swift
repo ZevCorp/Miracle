@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var takeOutMonitor: Any?
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Diagnostics run in a separate process and must never close the user's UI.
-        let diagnosticFlags = ["--passive-flow-test", "--voice-keys-test", "--listen-probe", "--listen-test", "--cycle-test", "--notch-test", "--learn-test", "--social-voice-test", "--wake-mic-test", "--chat-scroll-test", "--wake-test", "--spoken-voice-test", "--configure-voice-key", "--configure-graph-key", "--launch-test", "--face-drag-test", "--voice-test", "--audio-test", "--execution-test", "--smoke-test", "--diagnose"]
+        let diagnosticFlags = ["--passive-flow-test", "--voice-keys-test", "--listen-probe", "--listen-test", "--cycle-test", "--notch-test", "--learn-test", "--social-voice-test", "--wake-mic-test", "--chat-scroll-test", "--wake-test", "--spoken-voice-test", "--configure-voice-key", "--configure-graph-key", "--launch-test", "--face-drag-test", "--voice-test", "--audio-test", "--execution-test", "--smoke-test", "--diagnose", "--seal-jev"]
         diagnosticMode = CommandLine.arguments.contains(where: diagnosticFlags.contains)
         if !diagnosticMode { terminateOlderCopies() }
         if let index = CommandLine.arguments.firstIndex(of: "--listen-probe"), CommandLine.arguments.count > index + 1 {
@@ -111,6 +111,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         if let index = CommandLine.arguments.firstIndex(of: "--smoke-test"), CommandLine.arguments.count > index + 1 {
             Task { await SmokeTest.run(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
+            return
+        }
+        // `empaquetar.sh` asks this Mac's Graph for Jev's key and gets it already sealed: the plain key
+        // is never printed nor written to a file.
+        if CommandLine.arguments.contains("--seal-jev") {
+            Task {
+                let key = try? await model.makeClient().providerKeys().typesafe
+                if let key, !key.isEmpty { print(BundledCredential.seal(key)); exit(0) }
+                exit(1)
+            }
             return
         }
         if CommandLine.arguments.contains("--diagnose") {

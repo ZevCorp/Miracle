@@ -52,6 +52,7 @@ final class AppModel: ObservableObject {
     @Published var credential = ""
     @Published var openAICredential = ""
     @Published var hasCredential = false
+    private var lunaBudget = LunaBudget(day: UserDefaults.standard.string(forKey: "lunaBudgetDay") ?? "", used: UserDefaults.standard.integer(forKey: "lunaBudgetUsed"))
     private var credentialRefresh: Task<Void, Never>?
     private var cachedGraphCredential: String?
     @Published var configurationMessage = ""
@@ -215,6 +216,12 @@ final class AppModel: ObservableObject {
             guard let self else { return }
             if self.liveVoice.credentialRefused, self.microphone, !self.voiceKey.isEmpty { self.voiceRefused(text) }
             else { self.voiceFailed(text, summary: nil) }
+        }
+        liveVoice.onLunaTokens = { [weak self] tokens in
+            guard let self else { return }
+            self.lunaBudget.add(tokens, on: LunaBudget.day(Date()))
+            UserDefaults.standard.set(self.lunaBudget.day, forKey: "lunaBudgetDay")
+            UserDefaults.standard.set(self.lunaBudget.used, forKey: "lunaBudgetUsed")
         }
         liveVoice.onTool = { [weak self] name, args in
             guard let self else { throw CancellationError() }
@@ -447,7 +454,8 @@ final class AppModel: ObservableObject {
                 let hasLocalVoiceKey = local?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 let keys = hasLocalVoiceKey ? nil : try? await self.makeClient().providerKeys()
                 let key = try self.voiceCredential(local: local, graph: keys?.openai)
-                let jevKey = keys?.typesafe
+                // A build for testers carries Jev's key: without Graph it would never arrive.
+                let jevKey = keys?.typesafe ?? Credentials.bundled("TYPESAFE_API_KEY")
                 guard self.voiceID == id, !Task.isCancelled else { return }
                 self.voiceKey = key; self.typesafeKey = jevKey ?? ""
                 self.jev = jevKey.flatMap { $0.isEmpty ? nil : JevClient(key: $0) }
@@ -477,6 +485,12 @@ final class AppModel: ObservableObject {
         onNotch?(.closeTurn)
         // The apprentice does not touch the screen while it is being taught (promesa 138).
         if teaching && ApprenticeMode.refuses(name) { return ApprenticeMode.refusal }
+        // Luna's day is spent: it is told so instead of working on, and the person sees why.
+        // Only a build for testers has the cap: they share one provider key.
+        if name != "stop_task", Credentials.bundled("OPENAI_API_KEY") != nil, lunaBudget.exhausted(on: LunaBudget.day(Date())) {
+            onNotch?(.end("Luna llegó a su tope de hoy", ok: false))
+            return LunaBudget.refusal
+        }
         if name == "stop_task" { stopExecution(); onNotch?(.stopped("detenido")); return "Tarea detenida. Puedes seguir conversando." }
         if name == "escucha_pasiva" {
             // Hang up on the next turn of the run loop: this call's own output is not needed.
@@ -709,6 +723,16 @@ final class AppModel: ObservableObject {
         let id = voiceID
         voiceConnection = Task { [weak self] in
             guard let self else { return }
+            // Passive listening is served by Graph (Soniox). A Mac without that credential — a tester
+            // with only the voice one — has nothing to listen with: Ü rests instead of failing.
+            guard (try? await Credentials.readChecked("GRAPH_API_KEY"))?.isEmpty == false else {
+                guard self.voiceID == id, self.passive else { return }
+                self.trace("passive.unavailable", show: "Sin Graph no hay escucha pasiva · Ü descansa")
+                self.passive = false; self.microphone = false; self.mode = .ready
+                self.status = "En reposo. Toca la carita para volver a hablar."
+                self.onNotch?(.clear); self.pendingWakeGreeting = nil; self.startWakeListening()
+                return
+            }
             do {
                 let graph = try await self.makeClient()
                 if self.typesafeKey.isEmpty { self.typesafeKey = try await graph.providerKeys().typesafe ?? "" }

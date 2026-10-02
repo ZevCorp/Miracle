@@ -1,3 +1,4 @@
+import UMac
 import AppKit
 import OSLog
 import SwiftUI
@@ -68,7 +69,7 @@ final class DockController {
         place()
         panel.orderFrontRegardless()
         // The cursor is sampled often: entering has to feel like MouseEnter, not like a poll.
-        poll = Timer(timeInterval: 0.05, repeats: true) { _ in MainActor.assumeIsolated { [weak self] in self?.checkCursor() } }
+        poll = Timer(timeInterval: 0.05, repeats: true) { _ in MainThread.run { [weak self] in self?.checkCursor() } }
         RunLoop.main.add(poll!, forMode: .common)
     }
 
@@ -129,7 +130,7 @@ final class DockController {
 
     private func startGrace() {
         guard grace == nil else { return }
-        let timer = Timer(timeInterval: DockRule.grace, repeats: true) { _ in MainActor.assumeIsolated { [weak self] in self?.reconsider() } }
+        let timer = Timer(timeInterval: DockRule.grace, repeats: true) { _ in MainThread.run { [weak self] in self?.reconsider() } }
         RunLoop.main.add(timer, forMode: .common)
         grace = timer
     }
@@ -158,7 +159,7 @@ final class DockController {
         motionFrom = DockRule.Frame(dx: surface.dx, opacity: surface.opacity)
         motionBegan = ProcessInfo.processInfo.systemUptime
         motion?.invalidate()
-        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { _ in MainActor.assumeIsolated { [weak self] in self?.motionTick() } }
+        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { _ in MainThread.run { [weak self] in self?.motionTick() } }
         RunLoop.main.add(timer, forMode: .common)
         motion = timer
         motionTick()
@@ -424,12 +425,12 @@ private struct SeatGrip: NSViewRepresentable {
         override func mouseDragged(with event: NSEvent) {
             let p = NSEvent.mouseLocation
             // Once pulled, the face takes the gesture over (AppDelegate follows it to the release).
-            MainActor.assumeIsolated {
+            MainThread.run {
                 if !pulled, FaceFling.isDrag(dx: p.x - down.x, dy: p.y - down.y) { pulled = true; dock?.onTakeOut?() }
             }
         }
         override func mouseUp(with event: NSEvent) {
-            MainActor.assumeIsolated { if !pulled { dock?.onSeatTap?() } }
+            MainThread.run { if !pulled { dock?.onSeatTap?() } }
         }
     }
 }

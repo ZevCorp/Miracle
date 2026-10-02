@@ -98,6 +98,7 @@ struct ContractRunner {
         // Spec 005 — Ü se entrega a quien la prueba (2026-10-02).
         tests.testBundledCredentialOpensOnlyWholeAndOnlyUntilItsDate()
         tests.testOnlyACopyInApplicationsKeepsItselfOnAndWritesItsAgentOnce()
-        print("PASS: 78 contracts, \(checks) assertions. No network, microphone or desktop access.")
+        tests.testLunaStopsAtTenMillionTokensADayAndStartsOverTheNextDay()
+        print("PASS: 79 contracts, \(checks) assertions. No network, microphone or desktop access.")
     }
 }
