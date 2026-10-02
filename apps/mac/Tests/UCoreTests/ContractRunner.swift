@@ -58,6 +58,15 @@ struct ContractRunner {
         try tests.testLaVozYLunaEmpiezanPorLaConstitucion()
         try tests.testLosCriteriosDelMacNoContradicenALaConstitucion()
         try tests.testElPerfilElegidoSeGuardaYLoNuncaElegidoSePregunta()
-        print("PASS: 39 contracts, \(checks) assertions. No network, microphone or desktop access.")
+        // Spec 002 — ventana clínica y ciclo de consulta (2026-10-02).
+        try await tests.testClinicalTemplateIsAutomaticAndNamed()
+        try await tests.testClinicalCannotStartWithoutAuthenticatedDoctor()
+        try await tests.testClinicalDoesNotBecomeRecordingWhenDictationFails()
+        try await tests.testClinicalStartAndStopProduceOrganizedNote()
+        try await tests.testClinicalEmptyTranscriptFailsBeforeBackendTranscriptCall()
+        try await tests.testClinicalPortalMirrorFailureDoesNotDiscardNote()
+        try await tests.testClinicalNoteGenerationCanRetrySameEncounter()
+        try await tests.testClinicalStateChangeNeverLogsClinicalText()
+        print("PASS: 47 contracts, \(checks) assertions. No network, microphone or desktop access.")
     }
 }

@@ -39,7 +39,7 @@ public enum Credentials {
         await reader.invalidate(name)
     }
     private static func runStore(_ name: String, operation: String, interactive: Bool, input: Data = Data()) throws -> [String: Any] {
-        guard ["OPENAI_API_KEY", "GRAPH_API_KEY"].contains(name),
+        guard ["OPENAI_API_KEY", "GRAPH_API_KEY", "MIRACLE_REFRESH_TOKEN", "MIRACLE_EMAIL"].contains(name),
               let executable = Bundle.main.executableURL else { throw AgentError.invalid("Credencial no compatible.") }
         let process = Process(), output = Pipe(), stdin = Pipe()
         process.executableURL = executable.deletingLastPathComponent().appendingPathComponent("UCredentialStore")

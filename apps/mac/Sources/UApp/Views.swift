@@ -56,6 +56,12 @@ struct Face: View {
 struct MainView: View {
     @ObservedObject var model: AppModel
     var body: some View {
+        Group {
+            if model.perfil.esMedico { ClinicalView(model: model) }
+            else { assistantBody }
+        }
+    }
+    private var assistantBody: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 Text("Ü").font(.system(size: 30, weight: .semibold, design: .rounded)).foregroundStyle(.purple)
