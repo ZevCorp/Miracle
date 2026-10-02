@@ -1269,6 +1269,7 @@ internal static class Contrato
         Prueba("814. un plan que llega pegado con comas también se parte: «pulsa: A, escribe: B, pulsa: C» son tres pasos; una coma dentro de lo que se escribe no parte nada", UnPlanPegadoConComasSeParte);
         Prueba("815. lo que se le ofrece a las manos cabe en su pregunta: lo leído varias veces va una vez, nunca van más de 255 opciones, y cada una conserva su número", LoQueSeOfreceALasManosCabe);
         Prueba("816. una lista desplegable se elige sin abrirla: «elige: campo = opción» pone el foco en el campo, teclea la opción y da el paso por hecho solo si la lista dice que quedó elegida; si no, falla diciendo en qué quedó y cómo hacerlo con dos pasos", UnaListaSeEligeSinAbrirla);
+        Prueba("817. en un navegador las manos no pulsan Atrás ni Avanzar por su cuenta: no se les ofrecen los botones de navegar del navegador salvo que el objetivo los nombre; en una app sí, que por ahí se vuelve", EnUnNavegadorLasManosNoNavegan);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -21288,7 +21289,8 @@ internal static class Contrato
             string texto = t.GetProperty(cual, f)?.GetValue(null) as string ?? "";
             if (!texto.Contains("UNA CLASE ES UNA SOLA HABILIDAD", StringComparison.Ordinal)) { Pendiente($"la clase en {cual}", "813", "083"); return; }
             Debe(texto.Contains("reescribe la MISMA habilidad", StringComparison.Ordinal) && texto.Contains("No crees una por cada frase", StringComparison.Ordinal), $"{cual}: cada parte nueva reescribe la misma habilidad");
-            Debe(texto.Contains("HAZLO en la pantalla tal como te lo dicen", StringComparison.Ordinal) && texto.Contains("sin devolver una pregunta", StringComparison.Ordinal) && texto.Contains("y además guárdalo", StringComparison.Ordinal),
+            Debe(texto.Contains("HAZLO en la pantalla tal como te lo dicen", StringComparison.Ordinal) && texto.Contains("sin devolver una pregunta", StringComparison.Ordinal) && texto.Contains("y además guárdalo", StringComparison.Ordinal)
+                 && texto.Contains("se dice DESPUÉS de hacerlo", StringComparison.Ordinal),
                 $"{cual}: si mientras le enseñan le piden hacerlo, lo hace tal como se lo dicen —sin devolver una pregunta— y lo guarda");
             Debe(texto.Contains("GUARDA LO QUE DE VERDAD FUNCIONÓ", StringComparison.Ordinal) && texto.Contains("las reglas que te dijeron", StringComparison.Ordinal), $"{cual}: guarda lo que funcionó, con sus reglas");
             Debe(texto.Contains("HAZLA CON LOS DATOS QUE TE DIERON", StringComparison.Ordinal) && texto.Contains("no pares a pedirlo", StringComparison.Ordinal) && texto.Contains("al final di qué quedó sin llenar", StringComparison.Ordinal),
@@ -21340,7 +21342,7 @@ internal static class Contrato
         Debe(O(muchas).Count == max && O(muchas)[0].Numero == 1 && O(muchas)[^1].Numero == max, "si aun así no caben, van las primeras 255, en orden de lectura");
         Debe(O(Array.Empty<U.Ciclo.Accionable>()).Count == 0, "y sin nada no se ofrece nada");
         if (FuenteDe("u", "Nucleo", "Jev.cs") is not { } jev) return;
-        Debe(jev.Contains("var ofrecidas = Ofrecibles(c.Accionables);", StringComparison.Ordinal), "[cableado] decidir no recorta lo que ofrece: la pregunta puede salir con más de 255 opciones");
+        Debe(jev.Contains("var ofrecidas = Ofrecibles(", StringComparison.Ordinal), "[cableado] decidir no recorta lo que ofrece: la pregunta puede salir con más de 255 opciones");
     }
 
     /// <remarks>
@@ -21399,6 +21401,16 @@ internal static class Contrato
         Debe(Q("Nueva EPS", "nueva eps") && Q("Triage 4 - Urgencia menor", "Triage 4"), "quedó elegida si la lista tiene la opción pedida, o una que empieza por ella: teclear «Triage 4» elige «Triage 4 - Urgencia menor»");
         Debe(!Q("Seleccione…", "Sura") && !Q("Sura", "") && !Q("Nueva EPS", "EPS"), "y si tiene otra, no");
 
+        // SI TECLEANDO NO QUEDA, POR LAS FLECHAS: la opción que CONTIENE lo pedido, como palabra entera.
+        var contiene = typeof(U.Ciclo.Ejecutor).GetMethod("LaContiene");
+        if (contiene == null) { Pendiente("Ejecutor.LaContiene", "816", "083"); return; }
+        bool Ct(string opcionDeLaLista, string pedida) => (bool)contiene.Invoke(null, new object[] { opcionDeLaLista, pedida })!;
+        Debe(Ct("Triage 4 - Urgencia menor", "4") && Ct("Triage 4 - Urgencia menor", "urgencia menor") && Ct("Nueva EPS", "nueva eps"), "al recorrer la lista, vale la opción que contiene lo pedido: «4» es «Triage 4 - Urgencia menor»");
+        Debe(!Ct("Triage 14 - Otra", "4") && !Ct("Seleccione…", "4") && !Ct("Triage 4", "") && !Ct("", "4"), "como palabra entera: «4» no es «Triage 14», ni el marcador de «Seleccione…»");
+        if (FuenteDe("windows-client", "src", "Navigation", "ManosDelPlan.cs") is { } lasManos)
+            Debe(lasManos.Contains("Ejecutor.LaContiene(quedo, opcion)", StringComparison.Ordinal) && lasManos.Contains("if (quedo == anterior) break;", StringComparison.Ordinal),
+                "[cableado] si tecleando no queda elegida no se recorre la lista con las flechas, o se recorre sin saber cuándo se acabó");
+
         // Y DICHO CON SUS PALABRAS, TAMBIÉN: «seleccionar «Sura» en «EPS»» iba a las manos como un objetivo, que abrían la lista.
         string Nz(string paso) => U.Ciclo.Ejecutor.Normalizar(paso);
         Debe(Nz("seleccionar «Sura» en «EPS»") == "elige: EPS = Sura" && Nz("Selecciona Triage 4 en Nivel de triage") == "elige: Nivel de triage = Triage 4" && Nz("elige Nueva EPS en la lista EPS") == "elige: EPS = Nueva EPS",
@@ -21419,6 +21431,34 @@ internal static class Contrato
             "[cableado] y da el paso por hecho sin leer qué quedó elegido: devolver «hecho» no es haberlo hecho (nº19)");
         if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.xaml.cs") is not { } cara) return;
         Debe(cara.Contains("Elegir = manosDelPlan.Elegir", StringComparison.Ordinal), "[cableado] el plan de la cara no tiene manos que elijan en una lista");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE, medido el 2026-10-02 en un formulario web: buscando la opción «4» de una lista, las
+    /// manos pulsaron «Triage 4 - Urgencia menor» y después «Atrás», «Avanzar», «Avanzar», «Atrás»… del navegador, hasta
+    /// que el freno de bucles las paró a los 27 s. El objetivo de «llegar hasta el nombre» dice «o Atrás», que en una
+    /// app es por donde se vuelve; en un navegador, se sale del formulario y se pierde lo escrito.
+    /// </remarks>
+    private static void EnUnNavegadorLasManosNoNavegan()
+    {
+        var m = typeof(U.Ciclo.ClienteJev).GetMethod("SinLosDeNavegar");
+        if (m == null) { Pendiente("ClienteJev.SinLosDeNavegar", "817", "083"); return; }
+        var caja = new U.Ciclo.Caja(10, 10, 30, 30);
+        var todos = new List<U.Ciclo.Accionable>
+        {
+            new(1, "Atrás", "Button", caja), new(2, "Avanzar", "Button", caja), new(3, "Actualizar", "Button", caja),
+            new(4, "Guardar paciente", "Button", caja), new(5, "Atrás", "Hyperlink", caja), new(6, "Triage 4 - Urgencia menor", "ListItem", caja),
+        };
+        List<string> Q(string pantalla, string objetivo) => ((IReadOnlyList<U.Ciclo.Accionable>)m.Invoke(null, new object[] { pantalla, objetivo, todos })!).Select(a => a.Id).ToList();
+        const string llegar = "llegar a «4» y pulsarlo: si no está en esta pantalla, ve primero a donde esté (la sección que lo contiene, o Atrás)";
+        var enEdge = Q("msedge · HIS Clínica Demo · Triage - Personal: Microsoft Edge", llegar);
+        Debe(enEdge.SequenceEqual(new[] { "4) Guardar paciente (Button)", "5) Atrás (Hyperlink)", "6) Triage 4 - Urgencia menor (ListItem)" }),
+            $"en un navegador no se ofrecen Atrás, Avanzar ni Actualizar; un enlace «Atrás» de la página sí, que es de la página: {string.Join(", ", enEdge)}");
+        Debe(Q("chrome · Gmail", "pulsar Guardar").Count == 3, "en Chrome, igual");
+        Debe(Q("msedge · HIS", "vuelve a la página anterior: pulsa Atrás").Any(x => x.StartsWith("1) Atrás", StringComparison.Ordinal)), "si el objetivo los nombra, sí se ofrecen: pedirlo es pedirlo");
+        Debe(Q("SystemSettings · Configuración", llegar).Count == 6 && Q("ApplicationFrameHost · Configuración", llegar).Count == 6, "y en una app se ofrecen todos: por «Atrás» es por donde se vuelve (525)");
+        if (FuenteDe("u", "Nucleo", "Jev.cs") is not { } jev) return;
+        Debe(jev.Contains("Ofrecibles(SinLosDeNavegar(c.Pantalla, c.Objetivo, c.Accionables))", StringComparison.Ordinal), "[cableado] decidir ofrece los botones de navegar del navegador");
     }
 
     // ── LA VOZ AL PRIMER CLIC (spec 075) ────────────────────────────────────────────────────────────────

@@ -261,9 +261,29 @@ public sealed class ClienteJev : IDisposable
         return unicos.Count <= TopeDeOpciones ? unicos : unicos.Take(TopeDeOpciones).ToList();
     }
 
+    private static readonly string[] Navegadores = { "chrome", "msedge", "firefox", "brave", "opera" };
+    private static readonly string[] DeNavegar = { "atrás", "avanzar", "adelante", "actualizar", "volver", "back", "forward", "refresh", "reload" };
+
+    /// <summary>
+    /// EN UN NAVEGADOR, LAS MANOS NO PULSAN «ATRÁS» NI «AVANZAR» POR SU CUENTA (spec 083, promesa 817). Medido el
+    /// 2026-10-02: buscando una opción de una lista en un formulario web, las manos pulsaron «Atrás», «Avanzar»,
+    /// «Atrás»… del propio navegador hasta que el freno de bucles las paró a los 27 s. En una app, «Atrás» es por donde
+    /// se vuelve; en un navegador, se sale del formulario que se está llenando y se pierde lo escrito. Solo se ofrecen
+    /// si el objetivo los nombra.
+    /// </summary>
+    public static IReadOnlyList<Accionable> SinLosDeNavegar(string pantalla, string objetivo, IReadOnlyList<Accionable> todos)
+    {
+        string proceso = (pantalla ?? "").Split('·')[0].Trim().ToLowerInvariant();
+        if (!Navegadores.Contains(proceso)) return todos;
+        // «llegar a «X»… (la sección que lo contiene, o Atrás)» es la frase de siempre del plan, no una petición: no cuenta.
+        string o = (objetivo ?? "").ToLowerInvariant().Replace("o atrás)", ")");
+        return todos.Where(a => !(string.Equals(a.Tipo, "Button", StringComparison.OrdinalIgnoreCase)
+                                  && DeNavegar.Contains(a.Nombre.Trim().ToLowerInvariant()) && !o.Contains(a.Nombre.Trim().ToLowerInvariant()))).ToList();
+    }
+
     public Eleccion Decidir(Contexto c)
     {
-        var ofrecidas = Ofrecibles(c.Accionables);
+        var ofrecidas = Ofrecibles(SinLosDeNavegar(c.Pantalla, c.Objetivo, c.Accionables));
         if (ofrecidas.Count == 0) return new Eleccion(false, 0, 0, 0, "no hay ningún accionable en esta pantalla");
         if (ofrecidas.Count != c.Accionables.Count) c = new Contexto(c.Pantalla, c.Objetivo, ofrecidas, c.Textos, c.Hecho) { Foco = c.Foco };
         try { return Jev.Interpretar(Preguntar(Jev.Cuerpo(c, Modelo)), ofrecidas, Umbral); }

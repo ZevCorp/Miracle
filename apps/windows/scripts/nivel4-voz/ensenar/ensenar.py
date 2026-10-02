@@ -237,10 +237,11 @@ def decir(paso, tope=150):
         # NO SE CUELGA A MEDIAS. La voz delega 3–4 s después de que la persona calla, y un plan de trece pasos pasa más
         # de diez segundos sin escribir una línea: la primera versión de esta espera colgó con el plan corriendo y dio
         # por no hecho lo que sí se hizo. Termina cuando Ü ya contestó algo, no queda ninguna llamada a medias, y lleva
-        # diez segundos quieta; o a los 35 s de haber hablado sin que nadie conteste.
+        # diez segundos quieta; o a los 75 s de haber hablado sin que nadie conteste (el 2026-10-02 el servidor tardó más de
+        # 35 s en dar por terminada una frase, y la prueba siguió con la siguiente encima).
         a_medias = sum(1 for l in lineas if "mapa-mcp: →" in l) - sum(1 for l in lineas if "mapa-mcp: ←" in l)
         contesto = any("session.delegation.created" in l or "Ü dijo:" in l for l in lineas)
-        if dicho and a_medias <= 0 and ((contesto and time.time() - max(ultimo, dicho) > 10) or (not contesto and time.time() - dicho > 35)): break
+        if dicho and a_medias <= 0 and ((contesto and time.time() - max(ultimo, dicho) > 10) or (not contesto and time.time() - dicho > 75)): break
     lineas = leer(marca)
     llamadas = [l.split("llamada recibida:")[1].strip() for l in lineas if "llamada recibida:" in l]
     r = dict(nombre=paso["nombre"], segundos=round(time.time() - t0 - 10), delegaciones=sum(1 for l in lineas if "session.delegation.created" in l),

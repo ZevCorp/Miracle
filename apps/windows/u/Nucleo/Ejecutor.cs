@@ -158,6 +158,18 @@ public sealed class Ejecutor
         return p.Length > 0 && t.StartsWith(p, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// ¿ESTA OPCIÓN ES LA PEDIDA? Al recorrer la lista con las flechas: lo es si la CONTIENE como palabra entera
+    /// —«4» está en «Triage 4 - Urgencia menor» y no en «Triage 14»—, sin mayúsculas.
+    /// </summary>
+    public static bool LaContiene(string opcionDeLaLista, string pedida)
+    {
+        string t = (opcionDeLaLista ?? "").Trim(), p = (pedida ?? "").Trim();
+        if (p.Length == 0 || t.Length == 0) return false;
+        return System.Text.RegularExpressions.Regex.IsMatch(t, @"(?<![\p{L}\p{N}])" + System.Text.RegularExpressions.Regex.Escape(p) + @"(?![\p{L}\p{N}])",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    }
+
     /// <summary>La rueda del ratón, en muescas: negativas hacia abajo (promesa 462). Sin ella, «desplaza:» falla y lo dice.</summary>
     public Func<int, bool>? Desplazar { get; set; }
 

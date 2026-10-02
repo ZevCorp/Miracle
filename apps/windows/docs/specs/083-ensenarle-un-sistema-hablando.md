@@ -56,6 +56,7 @@ sigue en la tabla de abajo). Con «elige:», usar la habilidad bajó a 29–40 s
 | «Jev no contestó: Too many choices. Must have at most 255» | con una lista abierta la lectura pasaba de 255 accionables | repetidos fuera y tope de 255 (815) |
 | Cada lista desplegable costaba de 4 a 7 s, y tres listas eran 20 de los 33 s de un plan | abrirla y leerla abierta es lento en Chromium; fijarle el valor por UIA no la cambia (sonda) | con el foco en el campo, teclear la opción la elige en menos de 1 s: «elige: campo = opción» (816) |
 | En la clase no hizo lo que se le pidió («selecciónalo y confirma»): devolvió una pregunta | dudó de si un «dolor de cabeza» es «leve» | mientras le enseñan, lo que le piden hacer lo hace tal como se lo dicen (813) |
+| «elige: Nivel de triage = 4» no eligió nada, y las manos acabaron pulsando «Atrás» y «Avanzar» del navegador 27 s | teclear solo acierta si la opción empieza por lo tecleado; y el objetivo de «llegar» dice «o Atrás» | si tecleando no queda, se recorre la lista con las flechas hasta la opción que contiene lo pedido (816); en un navegador no se les ofrecen los botones de navegar (817) |
 | Probar por escrito no probaba nada de esto | con GPT-Live lo escrito va directo al delegado; lo hablado lo recibe la voz | el oído de prueba, `u_decir` (810) |
 
 Y una decisión del dueño que entra aquí: **una decisión de las manos que agota su plazo se pide una vez más** (la
@@ -74,6 +75,8 @@ En el contrato del grafo:
 | 814 | un plan que llega pegado con comas también se parte: «pulsa: A, escribe: B, pulsa: C» son tres pasos; una coma dentro de lo que se escribe no parte nada |
 | 815 | lo que se le ofrece a las manos cabe en su pregunta: lo leído varias veces va una vez, nunca van más de 255 opciones, y cada una conserva su número |
 | 816 | una lista desplegable se elige sin abrirla: «elige: campo = opción» pone el foco en el campo, teclea la opción y da el paso por hecho solo si la lista dice que quedó elegida; si no, falla diciendo en qué quedó y cómo hacerlo con dos pasos |
+
+| 817 | en un navegador las manos no pulsan Atrás ni Avanzar por su cuenta: no se les ofrecen los botones de navegar del navegador salvo que el objetivo los nombre; en una app sí, que por ahí se vuelve |
 
 En el contrato de `u/`, cambiada: **466** — una decisión que salió y agotó su plazo se pide una vez más, y no más.
 
