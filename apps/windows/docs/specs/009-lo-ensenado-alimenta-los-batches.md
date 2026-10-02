@@ -406,5 +406,4 @@ partir del ancho del texto ni del rectángulo del shell.
 - [ ] `.\scripts\verificar.ps1` con evidencia en `out\evidencia.md`
 - [ ] Corrida real: enseñar → comprobar → ✓ sobre el triage de QAS, con log y horas
 - [ ] LA MÉTRICA: viajes al modelo por sección, antes y después
-- [ ] Aviso en `#miracle-updates` con `/avisa`
 - [ ] Estado: **implementado** (AAAA-MM-DD)

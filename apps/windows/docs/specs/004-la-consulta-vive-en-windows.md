@@ -375,5 +375,4 @@ para el puente con el portal clínico.
       verla en el portal). Teclear la contraseña es del usuario; el flujo queda listo en el icono
       del escritorio. Es UNA pantalla arrancada, no dos — el aprendizaje nº9 aplica y por eso este
       cajón queda abierto
-- [x] Aviso en `#miracle-updates` con `/avisa` (al push del PR)
 - [x] Estado de este documento: **implementado** (2026-09-01)
