@@ -26,6 +26,18 @@
      arranque, solo adelantar el DNS. -->
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="dns-prefetch" href="https://dl.polyhaven.org">
+<!-- El mapa debe existir antes de cualquier carga de módulos. Chrome puede
+     iniciar modulepreload mientras aún procesa el documento; si el mapa queda
+     en el body, los imports bare de la escena ("three") fallan de forma
+     intermitente según la caché y la velocidad de red. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js" crossorigin>
 <meta property="og:type" content="website">
 <meta property="og:title" content="Ü · el agente que trabaja en su consultorio">
@@ -2061,14 +2073,6 @@
 <div id="hud"><span id="pct">00</span><div id="bar"><i></i></div><span>recorrido</span></div>
 <div id="loading"><span>cargando consultorio</span></div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
-  }
-}
-</script>
 <script>
 /* La navegación de secciones: llevar y, sobre todo, DECIR dónde estás.
    En una página de seis pantallas donde el escritorio se clava y la película
