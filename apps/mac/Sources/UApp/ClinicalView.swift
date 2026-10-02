@@ -17,6 +17,7 @@ final class ClinicalViewModel: ObservableObject {
     private let account = MiracleSession()
     private let dictation = Speech()
     private var api: ClinicalAPI?
+    private var portal: PortalClient?
     private var template: ClinicalTemplate?
     private var session: ConsultationSession?
     private var buffer = ""
@@ -41,11 +42,12 @@ final class ClinicalViewModel: ObservableObject {
             do {
                 let token = try await account.login(email: email, password: password)
                 let client = try ClinicalHTTPClient(baseURL: URL(string: graphURL)!, bearerToken: token.accessToken)
+                let portal = PortalClient(accessToken: token.accessToken)
                 let all = try await client.templates(specialty: nil)
                 let open: ClinicalTemplate
                 if let existing = OpenClinicalTemplate.find(in: all) { open = existing }
                 else { open = try await client.createTemplate(name: OpenClinicalTemplate.name, specialty: OpenClinicalTemplate.specialty) }
-                self.api = client; self.template = open; self.signedIn = true; self.password = ""; self.status = "Listo."; self.session = self.makeSession(api: client, template: open)
+                self.api = client; self.portal = portal; self.template = open; self.signedIn = true; self.password = ""; self.status = "Listo."; self.consultations = await portal.recent(); self.session = self.makeSession(api: client, template: open, portal: portal)
             } catch { self.status = error.localizedDescription }
             self.signingIn = false
         }
@@ -60,12 +62,12 @@ final class ClinicalViewModel: ObservableObject {
 
     func reset() { session?.reset(); consultationState = .idle; transcript = ""; note = nil; status = "Listo." }
 
-    private func makeSession(api: ClinicalAPI, template: ClinicalTemplate) -> ConsultationSession {
+    private func makeSession(api: ClinicalAPI, template: ClinicalTemplate, portal: PortalClient) -> ConsultationSession {
         let result = ConsultationSession(api: api, authenticated: { [weak self] in self?.signedIn == true }, beginDictation: { [weak self] in
             guard let self else { return false }; await self.dictation.start(); return true
         }, stopDictation: { [weak self] in
             guard let self else { return "" }; self.dictation.stop(); return self.buffer
-        })
+        }, mirror: { encounterID, note, transcript in await portal.mirror(encounterID: encounterID, note: note, transcript: transcript, template: template.name, specialty: template.specialty) })
         result.onChange = { [weak self] state in
             Task { @MainActor in
                 self?.consultationState = state
@@ -75,7 +77,7 @@ final class ClinicalViewModel: ObservableObject {
                 case .savingTranscript: self?.status = "Guardando y organizando la nota…"
                 case .generatingNote: self?.status = "Organizando la nota…"
                 case .noteReady:
-                    self?.note = result.note; self?.status = result.portalVisible ? "Nota lista. Ya se ve en el portal." : "Nota lista. No se pudo espejar al portal."
+                    self?.note = result.note; self?.status = result.portalVisible ? "Nota lista. Ya se ve en el portal." : "Nota lista. No se pudo espejar al portal."; if result.portalVisible { self?.consultations = await portal.recent() }
                 case .failed(let message): self?.status = message
                 }
             }
@@ -119,5 +121,10 @@ struct ClinicalView: View {
             if let note = clinical.note { Text("RESUMEN").font(.caption).foregroundStyle(.secondary); Text(note.summary).font(.system(size: 15, weight: .medium)); ForEach(note.sections) { section in VStack(alignment: .leading, spacing: 6) { Text(section.title.uppercased()).font(.caption).foregroundStyle(.secondary); Text(section.text).font(.system(size: 13.5)) }.padding(16).background(.blue.opacity(0.04), in: RoundedRectangle(cornerRadius: 18)) }; ForEach(note.warnings, id: \.self) { Text($0).font(.caption).foregroundStyle(.orange) } }
         }.padding(.horizontal, 24) }
     }
-    private var history: some View { VStack(alignment: .leading, spacing: 10) { Text("Todavía no hay consultas.").font(.headline); Text("La primera que grabes aparece aquí y en el portal.").foregroundStyle(.secondary) }.frame(maxWidth: .infinity, alignment: .leading).padding(24) }
+    private var history: some View {
+        ScrollView { VStack(alignment: .leading, spacing: 10) {
+            if clinical.consultations.isEmpty { Text("Todavía no hay consultas.").font(.headline); Text("La primera que grabes aparece aquí y en el portal.").foregroundStyle(.secondary) }
+            else { ForEach(clinical.consultations, id: \.id) { item in HStack { VStack(alignment: .leading, spacing: 4) { Text(item.note?.summary.isEmpty == false ? item.note!.summary : "Consulta").font(.system(size: 14)); Text(item.status.capitalized).font(.caption).foregroundStyle(.secondary) }; Spacer(); Text("✓").foregroundStyle(.blue) }.padding(14).background(.blue.opacity(0.04), in: RoundedRectangle(cornerRadius: 18)) } }
+        }.padding(24) }
+    }
 }
