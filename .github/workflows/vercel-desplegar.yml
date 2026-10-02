@@ -37,6 +37,10 @@ on:
         description: "URL de producción que tiene que responder tras desplegar"
         required: true
         type: string
+      dominio:
+        description: "Dominio público que debe apuntar a la versión recién desplegada"
+        required: false
+        type: string
     secrets:
       VERCEL_TOKEN:
         required: false
@@ -69,7 +73,7 @@ jobs:
           if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
             echo "::notice::Falta VERCEL_TOKEN o las variables del proyecto: no se despliega ${{ inputs.proyecto }}."
             echo "listo=no" >> "$GITHUB_OUTPUT"
-          else
+            else
             echo "listo=si" >> "$GITHUB_OUTPUT"
           fi
 
@@ -87,6 +91,18 @@ jobs:
         if: steps.config.outputs.listo == 'si'
         run: npx --yes vercel@61 deploy --prod --yes --token "$VERCEL_TOKEN"
 
+      - name: Vincular el dominio público a la versión nueva
+        if: steps.config.outputs.listo == 'si' && inputs.dominio != ''
+        env:
+          DOMINIO: ${{ inputs.dominio }}
+        run: |
+          url=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&target=production&state=READY&limit=1" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin).get('deployments',[]); print('https://' + d[0]['url'] if d else '')")
+          test -n "$url" || { echo "::error::No se encontró la versión recién desplegada."; exit 1; }
+          echo "asignando $DOMINIO a $url"
+          npx --yes vercel@61 alias set "$url" "$DOMINIO" --token "$VERCEL_TOKEN"
+
       - name: Prueba de humo, y rollback si falla
         if: steps.config.outputs.listo == 'si'
         env:
@@ -99,8 +115,9 @@ jobs:
               # /api/health responde 503 si una dependencia (Neo4j) no está: eso no es un despliegue
               # roto. Roto es que el servidor no conteste, o que la autenticación esté apagada.
               curl -sS --max-time 20 "$HUMO" | python3 -c "import sys,json; s=json.load(sys.stdin)['services']; sys.exit(0 if s['server']['status']=='ok' and s['auth']['status']=='enabled' else 1)"
-            else
-              curl -fsS --max-time 20 -o /dev/null "$HUMO"
+          else
+              html=$(curl -fsS --max-time 20 "$HUMO")
+              printf '%s' "$html" | python3 -c 'import sys,re; s=sys.stdin.read(); p=s.find("<script type=\"importmap\">"); m=s.find("<link rel=\"modulepreload\""); sys.exit(0 if p >= 0 and m > p else 1)'
             fi
           }
           for intento in 1 2 3 4 5 6; do
