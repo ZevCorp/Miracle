@@ -219,7 +219,17 @@ public sealed class ClienteJev : IDisposable
             return req;
         }
         var envio = LunaPorTexto.Enviar(() => _http.Send(Peticion()), Thread.Sleep);
-        if (envio.Respuesta == null) throw new HttpRequestException($"{envio.Falla} (tras {envio.Intentos} intento(s))");
+        int intentos = envio.Intentos;
+        // UN PLAZO AGOTADO SE PIDE UNA VEZ MÁS (promesa 466, cambiada el 2026-10-02 por decisión del dueño). Luna no
+        // lo reintenta porque pudo llegar y hacer algo; una decisión de las manos no hace nada en la pantalla: repetirla
+        // no pide nada dos veces. El 2026-10-01 un plazo de 3 s tumbó un objetivo de siete clics en el segundo, y quien
+        // planea tuvo que rehacer el plan entero. Una sola vez: dos plazos seguidos son 6 s, y ahí sí se dice.
+        if (envio.Respuesta == null && FueUnPlazo(envio.Falla))
+        {
+            envio = LunaPorTexto.Enviar(() => _http.Send(Peticion()), Thread.Sleep);
+            intentos += envio.Intentos;
+        }
+        if (envio.Respuesta == null) throw new HttpRequestException($"{envio.Falla} (tras {intentos} intento(s))");
         using var res = envio.Respuesta;
         string texto = new StreamReader(res.Content.ReadAsStream()).ReadToEnd();
         if (!res.IsSuccessStatusCode)
@@ -228,13 +238,34 @@ public sealed class ClienteJev : IDisposable
         return texto;
     }
 
+    /// <summary>¿La petición salió y no volvió a tiempo? Por los tipos de la cadena que escribe <see cref="LunaPorTexto.Enviar"/>: no dependen del idioma.</summary>
+    public static bool FueUnPlazo(string falla) =>
+        (falla ?? "").Contains(nameof(TaskCanceledException), StringComparison.Ordinal) || (falla ?? "").Contains(nameof(TimeoutException), StringComparison.Ordinal);
+
     public Eleccion Decidir(string pantalla, string objetivo, IReadOnlyList<Accionable> ofrecidas) =>
         Decidir(new Contexto(pantalla, objetivo, ofrecidas, Array.Empty<string>(), Array.Empty<string>()));
 
+    /// <summary>Cuántas opciones admite TypeSafe en una pregunta: con más contesta HTTP 400 («Too many choices. Must have at most 255»).</summary>
+    public const int TopeDeOpciones = 255;
+
+    /// <summary>
+    /// LO QUE SE LE OFRECE A LAS MANOS CABE EN SU PREGUNTA (spec 083, promesa 815). Medido el 2026-10-02 con una lista
+    /// desplegable abierta en Edge: la lectura traía la misma opción decenas de veces, pasaba de 255 accionables y
+    /// TypeSafe contestaba 400 — «Jev no contestó», y el paso fallaba. Lo mismo leído varias veces (mismo nombre, tipo
+    /// y caja) es uno; y si aun así no cabe, van los primeros en orden de lectura. Cada uno conserva su número.
+    /// </summary>
+    public static IReadOnlyList<Accionable> Ofrecibles(IReadOnlyList<Accionable> todos)
+    {
+        if (todos == null || todos.Count <= 1) return todos ?? Array.Empty<Accionable>();
+        var unicos = todos.GroupBy(a => (a.Nombre, a.Tipo, a.Caja)).Select(g => g.First()).ToList();
+        return unicos.Count <= TopeDeOpciones ? unicos : unicos.Take(TopeDeOpciones).ToList();
+    }
+
     public Eleccion Decidir(Contexto c)
     {
-        var ofrecidas = c.Accionables;
+        var ofrecidas = Ofrecibles(c.Accionables);
         if (ofrecidas.Count == 0) return new Eleccion(false, 0, 0, 0, "no hay ningún accionable en esta pantalla");
+        if (ofrecidas.Count != c.Accionables.Count) c = new Contexto(c.Pantalla, c.Objetivo, ofrecidas, c.Textos, c.Hecho) { Foco = c.Foco };
         try { return Jev.Interpretar(Preguntar(Jev.Cuerpo(c, Modelo)), ofrecidas, Umbral); }
         catch (Exception e)
         {

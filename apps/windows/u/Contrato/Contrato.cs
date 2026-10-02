@@ -60,7 +60,7 @@ internal static class Contrato
         Promesa(463, "Luna no tiene tope de turnos ni se da por atascada: sigue hasta contestar, y solo para con Escape o a los 60 minutos; al parar, un último turno sin herramientas le pide contar lo que logró, y eso es lo que se entrega, empezando por «Paré:» y el motivo.", P463);
         Promesa(464, "Un objetivo no se corta por contar pasos: lo paran cumplirse, que Jev no se atreva, Escape, o que Jev elija lo mismo por tercera vez en la misma pantalla —aunque entre medias haya pasado por otras: un bucle—; la red de seguridad es de 50 pasos.", P464);
         Promesa(465, "Tras pulsar un enlace se espera a que la pantalla cambie hasta 1,5 s, saliendo en cuanto cambia: una página que tarda en cargar no es un clic que no agarró. Tras cualquier otro clic se sigue esperando como mucho 150 ms.", P465);
-        Promesa(466, "Jev reintenta la conexión igual que Luna: si no llega a abrirse lo intenta hasta 3 veces, y si no se abre falla diciendo la causa y cuántas veces lo intentó; lo que ya salió hacia Jev no se reintenta.", P466);
+        Promesa(466, "Jev reintenta la conexión igual que Luna: si no llega a abrirse lo intenta hasta 3 veces, y si no se abre falla diciendo la causa y cuántas veces lo intentó; una decisión que salió y agotó su plazo se pide una vez más, y no más: decidir no hace nada en la pantalla.", P466);
         Promesa(467, "Lo que no es un clic no se le pide a Jev: un paso con una dirección web se abre como «abre:», un «objetivo:» delante sobra, «esperar…» espera a que la pantalla se quede quieta sin pulsar, y «escribir…» sin texto exacto falla al instante pidiendo «escribe:»; y Luna lo sabe.", P467);
         Promesa(468, "Luna sabe cuánto lleva: cada resultado que recibe dice el tiempo que va del pedido, y sabe que si la persona pide una duración tiene que seguir hasta cumplirla.", P468);
         Promesa(469, "Abrir llega también cuando la ventana de delante es la misma pero cambia su título: una dirección abierta con el navegador delante abre una pestaña en esa misma ventana. Si no cambia ni la ventana ni el título, no llegó.", P469);
@@ -938,8 +938,13 @@ internal static class Contrato
         Exige(nunca.Peticiones == 3 && falla.Contains("Host desconocido") && falla.Contains("3"), $"sin red: {nunca.Peticiones} peticiones · «{falla}»");
 
         var plazo = new JevDeMentira(_ => new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout"));
-        try { Preguntar(plazo); } catch (Exception) { }
-        Exige(plazo.Peticiones == 1, $"un plazo agotado se reintentó ({plazo.Peticiones} peticiones)");
+        string fallaDelPlazo = "";
+        try { Preguntar(plazo); } catch (Exception e) { fallaDelPlazo = e.Message; }
+        // CAMBIADA EL 2026-10-02, por decisión del dueño: decía «un plazo agotado no se reintenta», que es la regla de
+        // Luna (pudo llegar y hacer algo). Una decisión de las manos no hace nada: se pide UNA vez más, y no más.
+        Exige(plazo.Peticiones == 2 && fallaDelPlazo.Contains("2 intento"), $"un plazo agotado no se pidió exactamente una vez más ({plazo.Peticiones} peticiones · «{fallaDelPlazo}»)");
+        var unPlazo = new JevDeMentira(n => n == 1 ? new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout") : null);
+        Exige(Preguntar(unPlazo) == "{\"ok\":1}" && unPlazo.Peticiones == 2, $"tras un plazo agotado, la segunda no contestó ({unPlazo.Peticiones} peticiones)");
     }
 
     private static void P465()

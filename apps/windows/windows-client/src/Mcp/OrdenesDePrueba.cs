@@ -15,8 +15,9 @@ public static class OrdenesDePrueba
 {
     public const string Orden = "u_orden";
     public const string Colgar = "u_colgar";
+    public const string Decir = "u_decir";
 
-    public static bool Es(string herramienta) => herramienta is Orden or Colgar;
+    public static bool Es(string herramienta) => herramienta is Orden or Colgar or Decir;
 
     /// <summary>El catálogo del MCP, y detrás las dos órdenes de prueba solo si la variable dice «1».</summary>
     public static IReadOnlyList<Utensilio> ConElMcp(IReadOnlyList<Utensilio> catalogo, string? variable)
@@ -29,6 +30,9 @@ public static class OrdenesDePrueba
                 new[] { new Argumento("texto", "La orden, en las palabras de la persona.") }))
             .Append(new Utensilio(Colgar, "PRUEBA: cierra la voz de Ü. Deja en el log la medida del último pedido.",
                 Array.Empty<Argumento>()))
+            .Append(new Utensilio(Decir, "PRUEBA: dile a Ü este audio como si la persona lo HABLARA: la voz lo oye, decide y "
+                + "delega, que es el camino que u_orden se salta. PCM de 16 bits mono al ritmo de entrada de la voz. No suena.",
+                new[] { new Argumento("archivo", "La ruta del archivo .pcm con lo que se dice.") }))
             .ToList();
     }
 }

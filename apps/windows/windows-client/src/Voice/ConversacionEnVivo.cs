@@ -563,6 +563,45 @@ public sealed class ConversacionEnVivo : IDisposable
         finally { _apertura.Release(); }
     }
 
+    /// <summary>
+    /// EL OÍDO DE PRUEBA (spec 083): la sesión abre como con micrófono —la voz oye, decide y delega, que es el camino
+    /// que una orden escrita se salta—, pero lo que oye es un audio que se le da y no el micrófono, y no suena.
+    /// </summary>
+    /// <remarks>
+    /// POR QUÉ EXISTE. Con GPT-Live lo escrito va directo al delegado y lo hablado lo recibe la voz, que delega si
+    /// quiere: el 2026-10-01 un flujo probado toda la noche por escrito falló a la primera frase hablada (0 de 5
+    /// delegadas). Probar la enseñanza de una habilidad por escrito no prueba la demo. Solo se llega aquí por
+    /// u_decir, que existe con U_ORDENES_DE_PRUEBA=1.
+    /// </remarks>
+    private bool _oidoDePrueba;
+
+    public async Task<string> DecirDePruebaAsync(byte[] pcm, CancellationToken ct = default)
+    {
+        if (pcm == null || pcm.Length == 0) return "no hay audio que decir.";
+        if (!Viva) { _oidoDePrueba = true; await ArrancarAsync(conMicrofono: true); }
+        if (!Viva) return "la voz no abrió.";
+        if (!_confirmada && _aperturaConfirmada != null)
+        {
+            try { await _aperturaConfirmada.Task.WaitAsync(TimeSpan.FromSeconds(20), ct); }
+            catch (TimeoutException) { return "la sesión no confirmó en 20 s."; }
+        }
+        // AL RITMO DE UN MICRÓFONO: trozos de 100 ms, uno cada 100 ms. De golpe, el servidor no lo oye como habla.
+        int trozo = Math.Max(2, _protocolo.RitmoDeEntrada * 2 / 10);
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        long enviados = 0;
+        for (int i = 0; i < pcm.Length && Viva; i += trozo)
+        {
+            int n = Math.Min(trozo, pcm.Length - i);
+            await EnviarAsync(_protocolo.Audio(pcm.AsSpan(i, n).ToArray()), ct);
+            _ultimoAudioMs = Environment.TickCount64;
+            enviados += n;
+            long espera = enviados * 1000 / (_protocolo.RitmoDeEntrada * 2) - reloj.ElapsedMilliseconds;
+            if (espera > 0) await Task.Delay((int)espera, ct);
+        }
+        LogBus.Log("prueba", $"audio de prueba dicho: {enviados * 1000 / (_protocolo.RitmoDeEntrada * 2)} ms");
+        return "dicho.";
+    }
+
     public async Task ArrancarSoloTextoAsync()
     {
         _respuestaDeTexto = true;
@@ -666,6 +705,7 @@ public sealed class ConversacionEnVivo : IDisposable
             _sesionId = Guid.NewGuid().ToString("n");
             _inicioSesion = DateTime.UtcNow;
             EmpiezaElDiario();
+            lock (_habilidadesDeLaSesion) _habilidadesDeLaSesion.Clear();
             RepasarLoPendiente();   // lo que la sesión anterior no llegó a repasar (promesa 771)
             ReintentarLasCopiasPendientes();   // y las fotos que no se pudieron borrar de OpenAI (promesa 785)
 
@@ -681,7 +721,7 @@ public sealed class ConversacionEnVivo : IDisposable
             // EL MICRÓFONO SE PIDE DENTRO, con el cambio de estado: pedirlo no espera al dispositivo, y así un
             // apagado que llegue por otro hilo no puede quedar a medias entre «consta encendida» y «tiene oído».
             _conMicrofono = conMicrofono;
-            if (conMicrofono)
+            if (conMicrofono && !_oidoDePrueba)
             {
                 _audio.Capturado -= MandarTrozo;
                 _audio.Capturado += MandarTrozo;
@@ -692,7 +732,7 @@ public sealed class ConversacionEnVivo : IDisposable
         // FUERA DEL CANDADO: quien oye este aviso pinta, y pintar es cosa del hilo de la interfaz.
         Cambio?.Invoke(true);
 
-        if (conMicrofono)
+        if (conMicrofono && !_oidoDePrueba)
         {
             ObedecerAlMicrofonoDeLaApp();
             if (_oyendoElCambioDeMicrofono == null)
@@ -900,6 +940,7 @@ public sealed class ConversacionEnVivo : IDisposable
     private async Task ApagarAsync(long gesto)
     {
         var reloj = RelojDelClic.DeVerdad("apagar", RelojDelClic.AlApagar, gesto);
+        _oidoDePrueba = false;   // la sesión siguiente vuelve a oír por el micrófono
         MiradaSubida? mirada;
         ClientWebSocket? ws;
         CancellationTokenSource? cts;
@@ -2011,6 +2052,8 @@ public sealed class ConversacionEnVivo : IDisposable
           · NOMBRES QUE YA LEÍSTE en la última respuesta → «pulsa:», todos seguidos en el mismo plan.
           · PANTALLA QUE NO HAS LEÍDO → no inventes nombres: di la intención entera como UN objetivo («calcular 123 por 45 con los botones», «abrir el primer resultado que hable de X») y tus manos hacen todos los clics que haga falta sin volver a ti.
           · EN UNA PÁGINA WEB, ir a una dirección o buscar es UN paso: «abre: https://…» (con el navegador delante carga en la misma pestaña; buscar es «abre: https://www.google.com/search?q=…»), nunca «tecla: Ctrl+L» y «escribe:». Bajar es «desplaza:» dentro del plan, y map_hacer ya te devuelve lo que la página dice: no gastes otra llamada en mirar ni en desplazar.
+          · UN NÚMERO DICTADO POR GRUPOS —«diez, veinte, treinta», «setenta y uno, veintidós»— es la cifra con los grupos pegados (102030, 7122): escríbelo así y dilo al terminar para que te lo confirmen. No dejes el campo vacío ni pares a preguntar.
+          · UNA LISTA DESPLEGABLE se elige con dos pasos seguidos: «pulsa: <el campo>» y «pulsa: <la opción>».
           · UNA LLAMADA POR GESTO es lo más lento que puedes hacer: cada vuelta tuya cuesta lo que varios clics de tus manos. Junta en un plan todo lo que ya sabes que sigue.
         """;
 
@@ -2035,9 +2078,11 @@ public sealed class ConversacionEnVivo : IDisposable
     private const string Habilidades = """
         LAS HABILIDADES: CÓMO SE HACE ALGO, A LA MANERA DE ESTA PERSONA. Un recuerdo (map_esto_es) dice qué ES algo en una pantalla; una habilidad dice CÓMO SE HACE una tarea, paso a paso, y vale en cualquier parte.
           · SI TE ENSEÑAN CÓMO SE HACE ALGO —«te voy a enseñar a…», «se hace así», «cuando te pida X, haz Y», «apréndete esto»— guárdalo EN ESE MOMENTO con habilidad_escribir: un nombre corto como lo diría la persona, cuándo usarla, y los pasos en orden, uno por línea, con el nombre exacto de cada botón o campo. No esperes a que se repita ni a que termine la sesión: con una vez basta.
+          · UNA CLASE ES UNA SOLA HABILIDAD. Si te enseñan un sistema por partes —«primero…», «ahora…», «y después…»—, todo es UNA tarea: guárdala con su nombre la primera vez y, con cada parte nueva, reescribe la MISMA habilidad (mismo nombre, todos los pasos hasta ahí). No crees una por cada frase; y si al final te piden guardarlo todo como una habilidad, deja SOLO esa, completa, y olvida las parciales de la clase. Si mientras te enseñan te piden hacerlo —«hazlo tú», «llénalo»—, HAZLO en la pantalla y además guárdalo: aprender es las dos cosas.
+          · GUARDA LO QUE DE VERDAD FUNCIONÓ: los pasos con el nombre exacto de cada botón y campo que pulsaste, cada campo que se llena con qué dato de los que te den, las reglas que te dijeron («si es dolor leve, triage 4») como un paso más, y lo que te señalaron, con lo que es.
           · SI TE LO MUESTRAN EN VEZ DE DECIRLO —«mira cómo lo hago», «fíjate», y la persona lo hace con su ratón— llama a habilidad_lo_que_hice: te devuelve lo que acaba de pulsar, en orden y con el nombre con que map_take lo encuentra. Con eso y con lo que te dijo, escribe los pasos.
           · SI TE CORRIGEN una habilidad —«no, primero…», «te faltó…», «ese paso ya no»— RECONSTRÚYELA ENTERA: llama otra vez a habilidad_escribir con el MISMO nombre y TODOS los pasos, los que siguen valiendo y los corregidos. Lo que mandes sustituye a lo que había: no existe «cambiar el paso 3».
-          · SI TE PIDEN ALGO QUE UNA HABILIDAD DESCRIBE, SIGUE SUS PASOS, en su orden, en vez de improvisar: es la manera de esta persona, y por eso te la enseñó. Las que tienes vienen al final de estas instrucciones; si solo viene su nombre, lee sus pasos con habilidad_leer antes de empezar. Si un paso ya no funciona, resuélvelo como sepas, termina, y cuenta qué cambió.
+          · SI TE PIDEN ALGO QUE UNA HABILIDAD DESCRIBE, SIGUE SUS PASOS, en su orden, en vez de improvisar: es la manera de esta persona, y por eso te la enseñó. Las que tienes vienen al final de estas instrucciones; si solo viene su nombre, lee sus pasos con habilidad_leer antes de empezar. Si un paso ya no funciona, resuélvelo como sepas, termina, y cuenta qué cambió. HAZLA CON LOS DATOS QUE TE DIERON: un campo del que no te dieron el dato se queda vacío, salvo que el sistema lo exija para guardar; no pares a pedirlo. Termina la tarea entera —guardar, confirmar— y al final di qué quedó sin llenar.
           · «Olvida cómo se hace X», «ya no lo hagas así» → habilidad_olvidar.
           · DI QUE LA GUARDASTE solo cuando la herramienta lo confirme, y con su nombre.
         """;
@@ -2682,7 +2727,7 @@ public sealed class ConversacionEnVivo : IDisposable
         switch (hecho)
         {
             case Hecho.Suena s:
-                if (_respuestaDeTexto) break;
+                if (_respuestaDeTexto || _oidoDePrueba) break;
                 // Tras una interrupción manual, el resto de la frase que ya venía en vuelo
                 // no debe resucitar la voz: se tira hasta que pase la ventana o hables tú.
                 if (Environment.TickCount64 < _silencioHastaMs) break;
@@ -2971,6 +3016,26 @@ public sealed class ConversacionEnVivo : IDisposable
         // del texto.
         if (por != "texto") MandarLaPantallaAlPedir();
         if (por != "texto") MandarLaMetaAlPedir();   // y la meta en curso, si la hay (promesa 799)
+    }
+
+    // ── Una clase, una habilidad (spec 083) ──────────────────────────────────
+
+    /// <summary>Las habilidades escritas en ESTA sesión, por su nombre.</summary>
+    private readonly List<string> _habilidadesDeLaSesion = new();
+
+    /// <summary>
+    /// LO QUE SE LE AÑADE AL RESULTADO DE GUARDAR UNA HABILIDAD cuando en la misma sesión ya se guardaron otras
+    /// (promesa 812). Medido el 2026-10-02 enseñando un sistema de pacientes por la voz, dos corridas: de UNA clase
+    /// quedaron tres habilidades —«abrir registro de paciente nuevo», «clasificar triage» y «registrar un paciente
+    /// en el HIS»—, una por cada frase de la persona. Las instrucciones ya decían «reescribe la misma»; decírselo
+    /// con los nombres delante, en el momento, es lo que no se puede pasar por alto.
+    /// </summary>
+    internal static string AvisoDeHabilidadesPartidas(string nueva, IReadOnlyList<string> otrasDeLaSesion)
+    {
+        if (otrasDeLaSesion == null || otrasDeLaSesion.Count == 0) return "";
+        return "\nOJO: en esta misma sesión ya guardaste " + string.Join(", ", otrasDeLaSesion.Select(n => $"«{n}»"))
+             + $". Si son partes de la MISMA tarea que te están enseñando, deja UNA sola: reescribe «{nueva}» con TODOS los pasos, "
+             + "los de las otras también, y llama a habilidad_olvidar para cada una de las otras. Si son tareas distintas, déjalas así.";
     }
 
     // ── La meta de una tarea larga (spec 082) ────────────────────────────────
@@ -3703,7 +3768,19 @@ public sealed class ConversacionEnVivo : IDisposable
                     var escrita = Aprendido.EscribirHabilidad(Arg("nombre"), Arg("cuando"), Arg("pasos"));
                     resultado = escrita.Mensaje;
                     guardo = escrita.Ok;
-                    if (escrita.Ok) LaLeccionSeGuardo();
+                    if (escrita.Ok)
+                    {
+                        LaLeccionSeGuardo();
+                        // UNA CLASE, UNA HABILIDAD (promesa 812): si en esta sesión ya guardó otras, se le dice cuáles.
+                        string nombre = Arg("nombre").Trim();
+                        List<string> otras;
+                        lock (_habilidadesDeLaSesion)
+                        {
+                            otras = _habilidadesDeLaSesion.Where(n => !string.Equals(n, nombre, StringComparison.OrdinalIgnoreCase)).ToList();
+                            if (!_habilidadesDeLaSesion.Contains(nombre, StringComparer.OrdinalIgnoreCase)) _habilidadesDeLaSesion.Add(nombre);
+                        }
+                        resultado += AvisoDeHabilidadesPartidas(nombre, otras);
+                    }
                 }
                 else if (f.Nombre == "preferencia_guardar")
                 {
@@ -3724,6 +3801,7 @@ public sealed class ConversacionEnVivo : IDisposable
                     var olvidada = Aprendido.OlvidarHabilidad(Arg("nombre"));
                     resultado = olvidada.Mensaje;
                     guardo = olvidada.Ok;
+                    if (olvidada.Ok) lock (_habilidadesDeLaSesion) _habilidadesDeLaSesion.RemoveAll(n => string.Equals(n, Arg("nombre").Trim(), StringComparison.OrdinalIgnoreCase));
                 }
                 else
                 {

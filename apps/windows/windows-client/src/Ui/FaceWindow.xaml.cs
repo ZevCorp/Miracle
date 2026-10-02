@@ -2022,6 +2022,24 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             Dispatcher.BeginInvoke(() => { _dichoParaLaPrueba.Clear(); _fraseDeUParaLaPrueba = ""; _ = EnviarTextoDesdeElNotchAsync(texto); });
             return $"orden enviada: «{texto}»";
         }
+        if (tool == "u_decir")
+        {
+            string archivo = args.TryGetValue("archivo", out var a) ? a.Trim() : "";
+            if (archivo.Length == 0 || !System.IO.File.Exists(archivo)) return $"no encuentro el audio «{archivo}».";
+            if (_vivo == null) return "no hay voz a la que decirle nada.";
+            byte[] pcm = System.IO.File.ReadAllBytes(archivo);
+            LogBus.Log("prueba", $"audio de prueba: «{System.IO.Path.GetFileName(archivo)}» ({pcm.Length} bytes)");
+            Dispatcher.BeginInvoke(() =>
+            {
+                _dichoParaLaPrueba.Clear(); _fraseDeUParaLaPrueba = "";
+                _ = Task.Run(async () =>
+                {
+                    try { LogBus.Log("prueba", "u_decir: " + await _vivo.DecirDePruebaAsync(pcm)); }
+                    catch (Exception e) { LogBus.Log("prueba", $"u_decir falló: {e.GetType().Name}: {e.Message}"); }
+                });
+            });
+            return $"audio enviado: {pcm.Length} bytes";
+        }
         if (_vivo == null) return "no hay voz que cerrar.";
         bool cerro = Dispatcher.Invoke(() => _vivo.TerminarAsync()).Wait(TimeSpan.FromSeconds(10));
         LogBus.Log("prueba", cerro ? "voz cerrada por la prueba" : "la voz no terminó de cerrarse en 10 s");

@@ -65,7 +65,7 @@ public sealed class Ejecutor
     }
 
     private static readonly System.Text.RegularExpressions.Regex EntreGestos =
-        new(@"\s*(?:;|→|\n)\s*(?=(?:pulsa|escribe|tecla|abre|desplaza)\s*:)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        new(@"\s*(?:;|,|→|\n)\s*(?=(?:pulsa|escribe|tecla|abre|desplaza)\s*:)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     /// <summary>
     /// VARIOS GESTOS PEGADOS EN UN PASO SON VARIOS PASOS (spec 081, promesa 802). Medido el 2026-10-01: quien planea

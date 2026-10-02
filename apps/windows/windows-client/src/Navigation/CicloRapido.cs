@@ -220,10 +220,20 @@ public sealed class CicloRapido
     {
         var exactos = l.Accionables.Where(a => string.Equals(a.Nombre.Trim(), nombre, StringComparison.Ordinal)
                                             && (tipo.Length == 0 || string.Equals(a.Tipo, tipo, StringComparison.Ordinal))).ToList();
-        return exactos.Count > 0 ? exactos
+        return SinRepetidos(exactos.Count > 0 ? exactos
             : l.Accionables.Where(a => string.Equals(a.Nombre.Trim(), nombre, StringComparison.OrdinalIgnoreCase)
-                                     && (tipo.Length == 0 || string.Equals(a.Tipo, tipo, StringComparison.OrdinalIgnoreCase))).ToList();
+                                     && (tipo.Length == 0 || string.Equals(a.Tipo, tipo, StringComparison.OrdinalIgnoreCase))).ToList());
     }
+
+    /// <summary>
+    /// LO MISMO, LEÍDO VARIAS VECES, ES UNO (spec 083, promesa 811). Medido el 2026-10-02 en Edge: la lista
+    /// desplegable de un formulario («Tipo de documento») dio 121 «Cédula de ciudadanía» —la misma opción, en el mismo
+    /// sitio, repetida por el árbol de UIA—, el plan paró por «varios con ese nombre» y hubo que pulsarla con which=1.
+    /// Dos accionables con el mismo nombre, el mismo tipo y la MISMA caja son el mismo: se pulsan en el mismo punto.
+    /// Los que están en otro sitio siguen siendo varios, y siguen parando el plan (741).
+    /// </summary>
+    public static List<Accionable> SinRepetidos(List<Accionable> iguales) =>
+        iguales.Count <= 1 ? iguales : iguales.GroupBy(a => (a.Tipo, a.Caja)).Select(g => g.First()).ToList();
 
     private static string Numerar(string nombre, List<Accionable> iguales) =>
         $"hay {iguales.Count} «{nombre}» a la vista: "
