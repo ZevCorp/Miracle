@@ -2497,6 +2497,9 @@ public sealed partial class ConsultaWindow : Window
         {
             Content = new TextBlock { Text = "Ahora no", Foreground = Estudio.TintaMedia, FontSize = 13, VerticalAlignment = VerticalAlignment.Center },
             Height = 32,
+            // LA PASTILLA NO RESPETA EL RELLENO (su plantilla centra el contenido sin margen): sin ancho mínimo el texto
+            // tocaba el borde y se salía. Visto dibujando la ventana el 2026-10-02.
+            MinWidth = 96,
             Padding = new Thickness(14, 0, 14, 0),
             Margin = new Thickness(8, 0, 0, 0),
             Background = Estudio.Superficie,
