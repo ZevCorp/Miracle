@@ -93,6 +93,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 510, height: 630), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Ü para Mac"; window.isReleasedWhenClosed = false; window.delegate = self
         window.contentView = NSHostingView(rootView: MainView(model: model)); window.center()
+        model.onProfileChange = { [weak self] profile in self?.configureWindow(for: profile) }
+        configureWindow(for: model.perfil)
         face = FloatingPanel(contentRect: NSRect(x: 0, y: 0, width: VoiceHalo.panelSize, height: VoiceHalo.panelSize), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         face.isOpaque = false; face.backgroundColor = .clear; face.hasShadow = false
         face.level = .floating; face.hidesOnDeactivate = false; face.isMovableByWindowBackground = true
@@ -172,6 +174,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func toggleVoice() { model.toggleMicrophone() }
     @objc func stop() { model.stop() }
     @objc func quit() { NSApp.terminate(nil) }
+    private func configureWindow(for profile: PerfilDeUso) {
+        guard let window else { return }
+        if profile.esMedico {
+            window.styleMask = [.borderless, .resizable]
+            window.isMovableByWindowBackground = true
+            window.backgroundColor = .clear; window.isOpaque = false
+            window.minSize = NSSize(width: 400, height: 540)
+            window.setContentSize(NSSize(width: 988, height: 656)); window.center()
+        } else {
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            window.title = "Ü para Mac"; window.backgroundColor = .windowBackgroundColor; window.isOpaque = true
+            window.isMovableByWindowBackground = false; window.minSize = NSSize(width: 480, height: 550)
+        }
+    }
     func applicationWillTerminate(_ notification: Notification) {
         guard !diagnosticMode else { return }
         model.flushHistory()

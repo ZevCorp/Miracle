@@ -34,6 +34,7 @@ final class AppModel: ObservableObject {
     /// Con quién habla Ü en este Mac (spec 001, 2026-10-01), guardado en UserDefaults. Sin elegir, todo es lo de
     /// antes: nada viaja a Graph y la voz abre sin «QUIÉN TE HABLA».
     @Published private(set) var perfil = PerfilDeUso.guardado(en: .standard)
+    var onProfileChange: ((PerfilDeUso) -> Void)?
     /// La bienvenida que pregunta «¿Para qué me vas a usar?» ocupa la ventana mientras esto es verdad.
     @Published var eligiendoPerfil = false
     @Published var credential = ""
@@ -241,6 +242,7 @@ final class AppModel: ObservableObject {
         let cambio = nuevo != perfil
         nuevo.guardar(en: .standard)
         perfil = nuevo
+        onProfileChange?(nuevo)
         eligiendoPerfil = false
         guard cambio else { return }
         configurationMessage = liveConnected
