@@ -1,4 +1,6 @@
 import AVFoundation
+import CoreAudio
+import OSLog
 import UCore
 
 public enum AudioStartup {
@@ -29,20 +31,121 @@ public final class DuplexAudio {
     private var pendingFrames: Int = 0
     private var pendingAudibleFrames: Int = 0
     private var tapInstalled = false
+    private var configurationObserver: NSObjectProtocol?
+    private var watchdog: Task<Void, Never>?
+    private var session: UUID?
+    private var voiceProcessingWorks = true
+    private var restarts: [Date] = []
+    private var lastFailure: String?
+    private static let rejectedKey = "voiceProcessingRejectedAt"
+    private let logger = Logger(subsystem: "com.zevcorp.u.mac", category: "Audio")
     public private(set) var voiceProcessingEnabled = false
+    public private(set) var restartCount = 0
+    private var lastAudibleEnd = Date.distantPast
+    /// Ü's own voice would come back through the microphone right now (see EchoGuard).
+    public var echoRisk: Bool {
+        EchoGuard.silences(voiceProcessing: voiceProcessingEnabled, openSpeaker: Self.outputIsOpenSpeaker(),
+                           playing: pendingAudibleFrames > 0, sinceLastPlayback: Date().timeIntervalSince(lastAudibleEnd))
+    }
+    /// The default output is the Mac's own speakers (not headphones, AirPods or an external device).
+    /// Unknown counts as open: answering itself is worse than losing the voice interruption.
+    static func outputIsOpenSpeaker() -> Bool {
+        var device = AudioDeviceID(0), size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device) == noErr else { return true }
+        var transport = UInt32(0); size = UInt32(MemoryLayout<UInt32>.size)
+        address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyTransportType, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &transport) == noErr else { return true }
+        guard transport == kAudioDeviceTransportTypeBuiltIn else { return false }
+        var source = UInt32(0); size = UInt32(MemoryLayout<UInt32>.size)
+        address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyDataSource, mScope: kAudioObjectPropertyScopeOutput, mElement: kAudioObjectPropertyElementMain)
+        if AudioObjectGetPropertyData(device, &address, 0, nil, &size, &source) == noErr, source == 0x6864_706E { return false }   // 'hdpn'
+        return true
+    }
     public var onLevel: ((Double) -> Void)?
     public var onSpeaking: ((Bool) -> Void)?
     public init() {}
     public func start(onPCM: @escaping @Sendable (Data) -> Void, onError: @escaping @Sendable (String) -> Void) throws {
         stop()
+        restarts = []; restartCount = 0; lastFailure = nil
+        // A Mac that rejected voice processing keeps rejecting it: each attempt costs ~2 s of silence
+        // before the conversation starts (measured 2026-10-01). It is tried again after 12 hours, in
+        // case the route changed (other microphone, a system update).
+        let rejected = UserDefaults.standard.double(forKey: Self.rejectedKey)
+        voiceProcessingWorks = Date().timeIntervalSince1970 - rejected > 12 * 3600
+        // A first start that fails is not the end: right after voice processing is rejected macOS is
+        // still tearing its aggregate device down, and a plain engine started in that instant fails
+        // with -10875 (measured 2026-10-01: 5 ms after the rejection, every time). The watchdog below
+        // starts it again once the device has settled, and only reports if it never does.
+        do { try startWithFallback(onPCM: onPCM, onError: onError) }
+        catch {
+            lastFailure = error.localizedDescription
+            logger.error("audio did not start at once: \(error.localizedDescription, privacy: .public); retrying")
+        }
+        let id = UUID(); session = id
+        watchdog = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard let self, self.session == id else { return }
+                if self.engine?.isRunning != true { self.recover(reason: "engine not running", onPCM: onPCM, onError: onError) }
+            }
+        }
+    }
+
+    /// Voice processing is only tried until it fails once in a session: on routes that reject it,
+    /// every failed attempt tears down an aggregate device and reconfigures the microphone again.
+    private func startWithFallback(onPCM: @escaping @Sendable (Data) -> Void, onError: @escaping @Sendable (String) -> Void) throws {
         do {
-            try startEngine(enableVoiceProcessing: true, onPCM: onPCM, onError: onError)
+            try startEngine(enableVoiceProcessing: voiceProcessingWorks, onPCM: onPCM, onError: onError)
         } catch {
             let shouldRetry = AudioStartup.shouldRetryWithoutVoiceProcessing(wasEnabled: voiceProcessingEnabled)
-            stop()
+            teardown()
             guard shouldRetry else { throw error }
+            voiceProcessingWorks = false
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.rejectedKey)
+            logger.info("voice processing rejected by this route; continuing without it")
             do { try startEngine(enableVoiceProcessing: false, onPCM: onPCM, onError: onError) }
-            catch { stop(); throw error }
+            catch { teardown(); throw error }
+        }
+        observeConfiguration(onPCM: onPCM, onError: onError)
+    }
+
+    /// macOS stops an AVAudioEngine by itself when the device configuration changes (another engine
+    /// releasing the microphone, a failed voice-processing unit tearing down its aggregate device, a
+    /// route change). Without restarting it the conversation stays open but deaf: measured
+    /// 2026-09-30, the engine died 0.2-0.8 s after starting in every attempt. The notification is
+    /// the fast path; the watchdog in start() covers a stop that arrives without one.
+    private func observeConfiguration(onPCM: @escaping @Sendable (Data) -> Void, onError: @escaping @Sendable (String) -> Void) {
+        guard let engine else { return }
+        let id = epoch
+        configurationObserver = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.epoch == id else { return }
+                self.recover(reason: "configuration changed", onPCM: onPCM, onError: onError)
+            }
+        }
+    }
+
+    private func recover(reason: String, onPCM: @escaping @Sendable (Data) -> Void, onError: @escaping @Sendable (String) -> Void) {
+        guard session != nil || engine != nil else { return }
+        let now = Date()
+        restarts = restarts.filter { now.timeIntervalSince($0) < 10 } + [now]
+        guard restarts.count <= 8 else {
+            logger.error("audio keeps stopping; giving up after \(self.restarts.count) restarts in 10 s")
+            let reason = lastFailure
+            stop()
+            onError(reason.map { "No pude iniciar el audio del Mac tras varios intentos. \($0)" }
+                    ?? "El micrófono del Mac se detiene sin parar. Revisa el dispositivo de entrada seleccionado.")
+            return
+        }
+        restartCount += 1
+        logger.info("audio \(reason, privacy: .public); restarting the engine (restart \(self.restartCount))")
+        teardown()
+        do { try startWithFallback(onPCM: onPCM, onError: onError); lastFailure = nil }
+        catch {
+            // The watchdog tries again in half a second; the device may still be settling.
+            lastFailure = error.localizedDescription
+            logger.error("audio restart failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -108,12 +211,18 @@ public final class DuplexAudio {
                 self.pendingFrames = max(0, self.pendingFrames - frames)
                 if chunk.audible {
                     self.pendingAudibleFrames = max(0, self.pendingAudibleFrames - frames)
-                    if self.pendingAudibleFrames == 0 { self.onSpeaking?(false); self.onLevel?(0) }
+                    if self.pendingAudibleFrames == 0 { self.lastAudibleEnd = Date(); self.onSpeaking?(false); self.onLevel?(0) }
                 }
             }
         }
     }
     public func stop() {
+        session = nil; watchdog?.cancel(); watchdog = nil
+        teardown()
+    }
+    private func teardown() {
+        if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
+        configurationObserver = nil
         epoch = UUID(); pendingFrames = 0; pendingAudibleFrames = 0
         player?.stop()
         if let engine {

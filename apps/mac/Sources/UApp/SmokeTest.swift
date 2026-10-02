@@ -51,6 +51,56 @@ struct SmokeTest {
             evidence["stage"] = "complete"
         } catch { evidence["error"] = error.localizedDescription }
     }
+    /// Same contract as configureVoice for the Graph key: stdin only, validated before it is saved.
+    /// The Keychain item must be created by the app's own store, or its silent reads are refused.
+    static func configureGraph(output: URL) async {
+        var evidence: [String: Any] = ["passed": false, "stage": "validate_graph"]
+        defer {
+            if let data = try? JSONSerialization.data(withJSONObject: evidence, options: [.prettyPrinted, .sortedKeys]) {
+                try? data.write(to: output, options: .atomic)
+            }
+            NSApp.terminate(nil)
+        }
+        do {
+            guard let key = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else { throw AgentError.invalid("Falta la credencial en la entrada del instalador.") }
+            let graph = try GraphClient(baseURL: UserDefaults.standard.string(forKey: "graphURL") ?? GraphClient.defaultURL, apiKey: key)
+            let keys = try await graph.providerKeys()
+            evidence["graphVoiceKey"] = keys.openai?.isEmpty == false
+            evidence["graphJevKey"] = keys.typesafe?.isEmpty == false
+            evidence["stage"] = "save_keychain"
+            try await Credentials.save("GRAPH_API_KEY", value: key)
+            evidence["passed"] = try await Credentials.readChecked("GRAPH_API_KEY") == key
+            evidence["stage"] = "complete"
+        } catch { evidence["error"] = error.localizedDescription }
+    }
+    /// An app that is already running must come to the front when asked, also when it sits behind
+    /// another app or is hidden (reported by voice on 2026-09-30).
+    static func launch(output: URL) async {
+        var evidence: [String: Any] = ["date": ISO8601DateFormatter().string(from: Date()), "passed": false]
+        let desktop = Desktop(); desktop.begin()
+        defer {
+            desktop.stop()
+            if let data = try? JSONSerialization.data(withJSONObject: evidence, options: [.prettyPrinted, .sortedKeys]) { try? data.write(to: output, options: .atomic) }
+            NSApp.terminate(nil)
+        }
+        func front(_ bundleID: String) -> Bool { NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleID }
+        func attempt(_ name: String, _ prepare: () async throws -> Void) async -> Bool {
+            do {
+                try await prepare()
+                try await Task.sleep(for: .milliseconds(700))
+                try await desktop.launch("Calculadora")
+                return front("com.apple.calculator")
+            } catch { evidence["\(name)Error"] = error.localizedDescription; return false }
+        }
+        let opened = await attempt("notRunningYet") {}
+        let behind = await attempt("behindAnotherApp") { try await desktop.launch("Finder") }
+        let hidden = await attempt("hidden") {
+            try await desktop.launch("Finder")
+            NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.calculator").first?.hide()
+        }
+        evidence["opened"] = opened; evidence["behindAnotherApp"] = behind; evidence["hidden"] = hidden
+        evidence["passed"] = opened && behind && hidden
+    }
     /// Opens the installed app's real microphone and output route without contacting any service.
     static func audio(output: URL) async {
         var evidence: [String: Any] = ["date": ISO8601DateFormatter().string(from: Date()), "passed": false]
@@ -64,13 +114,26 @@ struct SmokeTest {
             NSApp.terminate(nil)
         }
         do {
+            // The app releases the wake-word engine right before Live opens its own, and that
+            // reconfigures the device: the order that left the conversation deaf (2026-09-30).
+            let wake = Speech()
+            await wake.start(localOnly: true)
+            try await Task.sleep(for: .milliseconds(1500))
+            wake.stop()
+            // In the app, Live and Graph connect in between: ~2 s from releasing the wake engine to
+            // starting this one, and the device reconfiguration lands inside that window.
+            try await Task.sleep(for: .seconds(2))
             try audio.start(onPCM: { data in state.add(data.count) }, onError: { message in state.fail(message) })
+            try await Task.sleep(for: .seconds(3))
+            let (settledBytes, _) = state.read()
             try await Task.sleep(for: .seconds(2))
             let (receivedBytes, streamError) = state.read()
             evidence["capturedBytes"] = receivedBytes
+            evidence["capturedInLastTwoSeconds"] = receivedBytes - settledBytes
+            evidence["engineRestarts"] = audio.restartCount
             if let streamError { evidence["streamError"] = streamError }
             evidence["voiceProcessing"] = audio.voiceProcessingEnabled
-            evidence["passed"] = receivedBytes > 0
+            evidence["passed"] = receivedBytes - settledBytes > 0 && streamError == nil
         } catch { evidence["error"] = error.localizedDescription }
     }
 
@@ -122,7 +185,16 @@ struct SmokeTest {
             let keys = try await graph.providerKeys()
             evidence["graphVoiceKey"] = keys.openai?.isEmpty == false
             evidence["graphJevKey"] = keys.typesafe?.isEmpty == false
-            if let key = keys.openai { evidence["liveOneLunaToolRoundtrip"] = try await VoiceProbe.check(key: key) }
+            // Voice and Jev are independent paths: a rejected voice key must not hide whether Jev can
+            // still drive the desktop. `passed` keeps requiring both.
+            // Same precedence as the app (AppModel): a local Live key wins over the one Graph serves.
+            let local = try await Credentials.readChecked("OPENAI_API_KEY")
+            let voiceKey = local?.isEmpty == false ? local : keys.openai
+            evidence["voiceCredentialSource"] = local?.isEmpty == false ? "local" : "graph"
+            if let key = voiceKey {
+                do { evidence["liveOneLunaToolRoundtrip"] = try await VoiceProbe.check(key: key) }
+                catch { evidence["liveOneLunaToolRoundtrip"] = false; evidence["liveOneLunaError"] = error.localizedDescription }
+            }
             guard let key = keys.typesafe, !key.isEmpty else { throw AgentError.unavailable("Graph no entrega typesafe.") }
             guard let fixture = NSRunningApplication.runningApplications(withBundleIdentifier: "com.zevcorp.u.mac.fixture").first else { throw AgentError.unavailable("Abre UFixture.app antes de la prueba.") }
             fixture.activate(options: [])

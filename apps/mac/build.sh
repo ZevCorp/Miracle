@@ -26,9 +26,14 @@ swift build -c "$configuration" --product UCredentialStore
 binary_dir="$(swift build -c "$configuration" --show-bin-path)"
 output_dir="$PWD/.artifacts"
 mkdir -p "$output_dir"
+# Bundles are assembled and signed outside the repo: with the repo in iCloud Drive (Documents or
+# Desktop sync), iCloud re-adds com.apple.FinderInfo to a bundle within a second, and codesign
+# refuses to sign "resource fork, Finder information, or similar detritus". Measured 2026-09-30.
+staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/u-mac-build.XXXXXX")"
+trap 'restore_keychain_search_list; rm -rf "$staging_dir"' EXIT
 make_bundle() {
   local executable="$1" identifier="$2" display_name="$3"
-  local bundle="$output_dir/$executable.app"
+  local bundle="$staging_dir/$executable.app"
   mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
   cp "$binary_dir/$executable" "$bundle/Contents/MacOS/$executable"
   if [[ "$executable" == U ]]; then
@@ -36,7 +41,22 @@ make_bundle() {
     if [[ "$signing_mode" == "developer-id" ]]; then
       /usr/bin/codesign --force --options runtime --timestamp --identifier com.zevcorp.u.mac.credential-store --sign "$CODE_SIGN_IDENTITY" "$bundle/Contents/MacOS/UCredentialStore"
     else
-      /usr/bin/codesign --force --keychain "$signing_keychain" --identifier com.zevcorp.u.mac.credential-store --sign "$signing_identity" "$bundle/Contents/MacOS/UCredentialStore"
+      # The Keychain hands a credential only to the exact helper binary the user allowed: with a
+      # local signer (no Team ID) the item remembers the helper's cdhash. Every rebuild, debug or
+      # release, from any session, produced a new cdhash and voice failed with -25293 until the user
+      # allowed it again (measured 2026-09-30). The signed helper is built once per source and
+      # reused, so one "Permitir siempre" lasts until the helper's own code changes.
+      local helper_cache="$HOME/Library/Application Support/U Mac/helper-cache"
+      local helper_key
+      helper_key="$(cat Sources/UCredentialStore/main.swift | shasum -a 256 | cut -c1-16)-$(printf '%s' "$signing_identity" | shasum -a 256 | cut -c1-8)"
+      local cached="$helper_cache/UCredentialStore-$helper_key"
+      if [[ -x "$cached" ]] && /usr/bin/codesign --verify "$cached" 2>/dev/null; then
+        cp "$cached" "$bundle/Contents/MacOS/UCredentialStore"
+      else
+        /usr/bin/codesign --force --keychain "$signing_keychain" --identifier com.zevcorp.u.mac.credential-store --sign "$signing_identity" "$bundle/Contents/MacOS/UCredentialStore"
+        mkdir -p "$helper_cache"
+        cp "$bundle/Contents/MacOS/UCredentialStore" "$cached"
+      fi
     fi
   fi
   cat > "$bundle/Contents/Info.plist" <<PLIST
@@ -61,16 +81,20 @@ make_bundle() {
 </dict></plist>
 PLIST
   /usr/bin/plutil -lint "$bundle/Contents/Info.plist"
+  # The copied binaries still come from .build inside the repo and can carry its attributes.
+  /usr/bin/xattr -cr "$bundle"
   if [[ "$signing_mode" == "developer-id" ]]; then
     /usr/bin/codesign --force --options runtime --timestamp --entitlements entitlements.plist --sign "$CODE_SIGN_IDENTITY" "$bundle"
   else
     /usr/bin/codesign --force --keychain "$signing_keychain" --entitlements entitlements.plist --sign "$signing_identity" "$bundle"
   fi
   /usr/bin/codesign --verify --deep --strict "$bundle"
+  rm -rf "$output_dir/$executable.app"
+  /usr/bin/ditto "$bundle" "$output_dir/$executable.app"
 }
 make_bundle U "$APP_IDENTIFIER" 'Ü para Mac'
 make_bundle UFixture com.zevcorp.u.mac.fixture 'Ü Prueba local'
-/usr/bin/ditto -c -k --keepParent "$output_dir/U.app" "$output_dir/U-Mac.zip"
+/usr/bin/ditto -c -k --keepParent "$staging_dir/U.app" "$output_dir/U-Mac.zip"
 echo "App lista: $output_dir/U.app"
 echo "Firma: $signing_mode ($signing_identity)"
 echo "Abre con: open \"$output_dir/U.app\""

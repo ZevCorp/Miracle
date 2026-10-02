@@ -43,7 +43,108 @@ sin abrir el micrófono, y pide a Jev cinco clics en la ventana de prueba. El JS
 el contador en cinco. No extrapoles esta ventana pequeña a navegadores o aplicaciones con árboles AX grandes.
 La conversación e interrupción de voz se comprueban manualmente con el micrófono de la app.
 
+### Si Live 1 no responde
+
+Lo primero es saber cuál credencial de voz falla. Este diagnóstico prueba por separado la clave del
+Llavero de este Mac y la que entrega Graph (una sesión corta cada una, sin micrófono) y no imprime
+ninguna clave:
+
+```bash
+open -n "$HOME/Applications/U.app" --args --voice-keys-test /tmp/u-voz-claves.json
+```
+
+`responde: false` con `credit_balance_exhausted` es una cuenta de OpenAI sin saldo; con `HTTP 401`,
+una clave rechazada. Ninguna de las dos se arregla en el Mac: hace falta recargar esa cuenta o
+guardar otra clave (Configuración → «Clave de OpenAI para Live 1», o la de Graph en el servidor).
+Si la clave responde pero la conversación no arranca, mira el audio: `--audio-test` mide el motor.
+En este Mac macOS rechaza la cancelación de eco, y el motor simple arrancado en ese mismo instante
+fallaba con -10875 (2026-10-01): ahora se reintenta cada medio segundo hasta que el dispositivo se
+asienta, y sin cancelación de eco Ü no envía el micrófono mientras ella habla por los altavoces
+(`EchoGuard`), para no contestarse a sí misma. Con audífonos esa guarda no se aplica.
+
+Ü ya prueba sola la otra credencial cuando la primera es rechazada, y si ninguna sirve lo dice en el
+notch («Voz sin servicio…») en vez de quedarse callada. Jev y el control del Mac no dependen de esa
+clave: `--execution-test` los mide aparte.
+
+## El notch y el muelle, como en Windows
+
+Los dos se portaron de `PanelDeAcciones` y `Muelle` de Windows (2026-09-30). Las reglas viven puras en
+`UCore` (`NotchLayout`, `NotchSpeech`, `NotchPresence`, `DockRule`) y las juzga el contrato; `UApp`
+solo las convierte en ventanas (`NotchController`, `DockController`).
+
+- **El notch** nace oculto. Sale cuando hay algo que decir (lo que Ü dice, un paso y su
+  desenlace) cayendo desde la barra de menú con un rebote pequeño, y se va solo a los 90 s sin nada
+  nuevo, salvo si hay un paso en curso. Tocar el borde de arriba lo asoma aunque no tenga nada que
+  decir; si solo salió por eso, alejarse lo retira. Mide siempre 290 × 62, lo mismo que la barra de volumen de macOS; el chat lo abre a 420 × 360
+  desde el mismo borde y lo sostiene mientras está abierto. Esc cierra el chat. Colgar lo retira.
+- **El muelle** es la pestaña contra el borde derecho. El cursor despliega el panel hacia la izquierda
+  sin mover la pestaña; al salir espera 350 ms antes de plegarse, y no se pliega mientras el chat del
+  notch esté abierto. Soltar la carita encima la guarda (la pestaña se vuelve blanca); arrastrarla
+  desde el panel la saca bajo el cursor y se queda donde la sueltes.
+
+Dos cosas son más firmes que en Windows, y las dos son el notch «trabado» que se veía en Mac: lo que
+llega mientras se está yendo lo trae de vuelta en vez de perderse, y la caducidad nunca lo quita de
+debajo del cursor.
+
+### Medirlo en la app instalada
+
+La sonda mueve el cursor de verdad durante ~1 minuto y mide ventanas, tiempos y trayectorias. Abre Ü
+con los ganchos de sonda y después la sonda:
+
+```bash
+open -n "$HOME/Applications/U.app" --args --probe-hooks
+open -n "$HOME/Applications/U.app" --args --notch-test /tmp/u-notch-test.json
+```
+
+El JSON trae `score` (26 comprobaciones: 17 del notch, 9 del muelle), el número de cada una y
+`valida`: si alguien mueve el ratón durante la prueba, la corrida se anula y se repite, no se cuenta
+como fallo. El criterio de éxito del port fue 3 corridas válidas seguidas al 100 %.
+
+## Aprender, como en Windows
+
+El primer botón del muelle, **Aprender**, es el Learn de Windows (`OnToggleTeach` + `WorkflowTeachSession`):
+le enseñas a Ü una tarea haciéndola una vez y contándole lo que haces. Las reglas viven puras en
+`UCore` (`AuraRule`, `DemoStart`, `LessonBuilder`, `ApprenticeMode`, `LearningClient`) y las juzga el
+contrato; `UApp/LearnController` y `UMac/StepRecorder` las ponen en marcha.
+
+- **No hay cuenta atrás** (promesa 137): al pulsar Aprender, Ü espera a que pongas delante la app que
+  vas a enseñar, con el aura tenue y sin decir «grabando». Si en un minuto no ve ninguna, lo deja.
+- **Mientras graba**, los bordes de la pantalla respiran en azul (96 pt, el centro queda libre; los
+  clics lo atraviesan y no sale en las capturas) y la píldora cuenta los pasos. Cada clic es un paso;
+  lo que escribes en un campo es un solo paso, y el de un campo protegido nunca lleva su valor. Lo
+  que dices por voz queda pegado al paso en que lo dijiste. Los clics sobre Ü no cuentan.
+- **Ü es aprendiz** (promesa 138): si la voz está abierta, escucha y asiente, y rechaza cualquier
+  herramienta que toque la pantalla hasta que termines. El micrófono se abre solo al enseñar y se
+  cierra al terminar si lo abrió Aprender.
+- **Terminar** apaga el aura al instante, guarda la lección en
+  `~/Library/Application Support/U Mac/lecciones/leccion_<fecha>/leccion.json` y le pide a Graph
+  (`/api/v1/learning/sessions/…`, las mismas cuatro llamadas que Windows) que estructure y nombre el
+  workflow. Si Graph tarda de más, los pasos ya están guardados y el cierre se completa al reabrir Ü.
+
+Lo que Windows tiene y Mac todavía no: el video de la demostración (Windows lo manda a Gemini por el
+backend, no a Graph), los cuadros antes y después de cada clic, y «Comprobar» la tarea aprendida.
+
+### Medirlo en la app instalada
+
+```bash
+open -n "$HOME/Applications/U.app" --args --probe-hooks
+open -n "$HOME/Applications/U.app" --args --learn-test /tmp/u-learn-test.json "apps/mac/.artifacts/UFixture.app"
+```
+
+La sonda pulsa Aprender en el muelle, hace una demostración real en UFixture (clic, escribir, Enter),
+pulsa Terminar y lee la lección guardada. Corre en modo de prueba: nada llega a Graph.
+
 ## Abrir la app
+
+**Ü queda siempre encendida.** `instalar.sh` registra el agente `~/Library/LaunchAgents/com.zevcorp.u.mac.plist`:
+Ü se abre sola al iniciar sesión y launchd la vuelve a abrir si se cierra por un fallo. Si la cierras
+tú con «Salir de Ü», respeta tu decisión hasta el próximo inicio de sesión. Abrir Ü desde Spotlight o
+el Finder con Ü ya encendida muestra su ventana. Para quitar el arranque automático:
+
+```bash
+launchctl bootout gui/$(id -u)/com.zevcorp.u.mac && rm ~/Library/LaunchAgents/com.zevcorp.u.mac.plist
+```
+
 
 Desde la raíz del repositorio:
 

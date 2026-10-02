@@ -68,9 +68,11 @@ extension AgentTests {
     func testNotchExpansionHasFixedSizesAndFitsSmallDisplays() throws {
         let compact = NotchLayout(expanded: false, availableWidth: 1440, availableHeight: 900)
         let chat = NotchLayout(expanded: true, availableWidth: 1440, availableHeight: 900)
-        XCTAssertEqual(compact.height, 66)
-        XCTAssertEqual(chat.width, compact.width)
-        XCTAssertEqual(chat.height, 390)
+        // Windows MedidaDelNotch: the same size whatever it says, and the chat grows from the same top.
+        XCTAssertEqual(compact.width, 290)
+        XCTAssertEqual(compact.height, 62)
+        XCTAssertEqual(chat.width, 420)
+        XCTAssertEqual(chat.height, 360)
         let tiny = NotchLayout(expanded: true, availableWidth: 320, availableHeight: 240)
         XCTAssertEqual(tiny.width <= 320 && tiny.height <= 240, true)
     }

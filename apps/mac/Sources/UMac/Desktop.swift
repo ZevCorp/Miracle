@@ -270,8 +270,15 @@ public final class Desktop {
         let id = alias[normalized.lowercased()] ?? normalized
         let running = NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == id || $0.localizedName?.caseInsensitiveCompare(normalized) == .orderedSame }
         let app: NSRunningApplication
-        if let running { app = running }
-        else {
+        if let running {
+            // Reopen through LaunchServices, as a Dock click does: it unhides the app and asks it for
+            // a window when it has none. activate() alone left running apps behind (2026-09-30).
+            if let url = running.bundleURL {
+                let config = NSWorkspace.OpenConfiguration(); config.activates = true
+                app = (try? await NSWorkspace.shared.openApplication(at: url, configuration: config)) ?? running
+            } else { app = running }
+            app.unhide()
+        } else {
             let matches = Self.applications().filter { $0.id == id || $0.name.caseInsensitiveCompare(normalized) == .orderedSame }
             guard matches.count == 1, let match = matches.first else { throw AgentError.unavailable("No encontré una aplicación única llamada «\(query)».") }
             let config = NSWorkspace.OpenConfiguration(); config.activates = true

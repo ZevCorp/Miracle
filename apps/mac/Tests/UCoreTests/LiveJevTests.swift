@@ -41,6 +41,12 @@ extension AgentTests {
         let responses = delegation["responses"] as! [String: Any]
         XCTAssertEqual(responses["model"] as? String, "gpt-5.6-luna")
         XCTAssertEqual(responses["parallel_tool_calls"] as? Bool, false)
+        // Opening an app is launch_app's job: Jev only clicks inside the frontmost app, and asking
+        // it to "open Safari" reported a clicked control while Claude stayed in front (2026-09-30).
+        let planner = responses["instructions"] as? String ?? ""
+        XCTAssertEqual(planner.contains("traer al frente una app, usa siempre launch_app"), true)
+        let launch = LiveTools.definitions.first { $0["name"] as? String == "launch_app" }?["description"] as? String ?? ""
+        XCTAssertEqual(launch.contains("aunque ya esté abierta"), true)
         let item: [String: Any] = ["type": "function_call", "call_id": "c1", "name": "map_tramo", "arguments": "{}"]
         XCTAssertNil(LiveProtocol.call(in: ["type": "response.output_item.added", "item": item]))
         XCTAssertNil(LiveProtocol.call(in: ["type": "response.function_call_arguments.done", "item": item]))
