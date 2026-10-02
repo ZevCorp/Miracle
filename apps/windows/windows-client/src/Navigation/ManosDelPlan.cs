@@ -100,7 +100,11 @@ public sealed class ManosDelPlan
     {
         var reloj = Stopwatch.StartNew();
         var aqui = Donde.Leer();
-        if (!_lector.EnfocarLista(aqui.Ventana, campo)) return _lector.PorQueNoLaLista;
+        // LA PANTALLA PUEDE ESTAR LLEGANDO: tras «Guardar paciente» la lista del triage tardó en aparecer y el paso falló
+        // a la primera (2026-10-02). Se la busca hasta 1,5 s antes de decir que no está.
+        bool enfocada = _lector.EnfocarLista(aqui.Ventana, campo);
+        for (int i = 0; i < 5 && !enfocada; i++) { Thread.Sleep(300); enfocada = _lector.EnfocarLista(aqui.Ventana, campo); }
+        if (!enfocada) return _lector.PorQueNoLaLista;
         Thread.Sleep(80);
         Raton.Escribir(opcion);
         string quedo = "";
