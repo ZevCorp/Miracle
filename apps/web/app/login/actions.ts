@@ -96,8 +96,12 @@ export async function requestPasswordReset(formData: FormData) {
   }
 
   const supabase = await createClient();
+  // Mientras el dominio institucional termina de transferirse a Vercel, los
+  // enlaces de recuperación deben volver al despliegue público que sí está
+  // sirviendo la versión actual. Así no caen en la instalación antigua.
+  const recoveryOrigin = "https://miracle-notes.vercel.app";
   await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${await appUrl()}/auth/callback?next=/auth/reset`,
+    redirectTo: `${recoveryOrigin}/auth/callback?next=/auth/reset`,
   });
 
   // Confirmación genérica siempre: no se revela si el correo existe o no.
