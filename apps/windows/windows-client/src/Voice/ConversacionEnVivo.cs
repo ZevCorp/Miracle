@@ -1178,8 +1178,27 @@ public sealed class ConversacionEnVivo : IDisposable
             return;
         }
         string cuando = $"al cerrar la sesión {diario.Sesion}";
-        _ = Task.Run(() => RepasarLaCarpetaAsync(carpeta, cuando));
+        _ = Task.Run(() => RepasarLaCarpetaAsync(carpeta, cuando, seVe: true));
     }
+
+    /// <summary>
+    /// EL REPASO DEL CIERRE SE VE (spec 084, promesa 824): empieza y termina con aviso, para que quien enseñó sepa
+    /// que Ü está repasando y cuándo quedó. El repaso de lo pendiente al abrir no avisa: nadie lo está esperando.
+    /// </summary>
+    public event Action? RepasoEmpieza;
+    public event Action? RepasoTermina;
+
+    /// <summary>
+    /// QUIEN ACTÚA TERMINÓ SU TURNO Y DEVOLVIÓ ESTO (spec 084): lo espera quien mandó una acción aprobada con ✓, que
+    /// necesita saber cuándo quedó hecha y qué contar. Con el micrófono abierto la voz lo dice después, a su manera.
+    /// </summary>
+    public event Action<string>? DevolvioQuienActua;
+
+    /// <summary>Hay una meta abierta: quien actúa va a seguir aunque haya devuelto un turno (spec 082).</summary>
+    public bool MetaActiva => _meta.Activa;
+
+    /// <summary>Con GPT-Live quien actúa es un delegado; con los demás, la misma sesión que habla.</summary>
+    public bool ActuaUnDelegado => _protocolo.ActuaUnDelegado;
 
     /// <summary>
     /// AL ABRIR —la voz, y la app—: lo que quedó sin repasar de antes —se cerró la app, no había red— se repasa
@@ -1228,8 +1247,9 @@ public sealed class ConversacionEnVivo : IDisposable
         });
     }
 
-    private async Task RepasarLaCarpetaAsync(string carpeta, string cuando)
+    private async Task RepasarLaCarpetaAsync(string carpeta, string cuando, bool seVe = false)
     {
+        if (seVe) RepasoEmpieza?.Invoke();
         try
         {
             var repaso = Repaso;
@@ -1248,6 +1268,8 @@ public sealed class ConversacionEnVivo : IDisposable
             for (var x = e; x != null; x = x.InnerException)
                 LogBus.Log("repaso", $"el repaso {cuando} reventó: {x.GetType().Name}: {x.Message}");
         }
+        // TERMINA SIEMPRE, también si reventó: un cargando que no acaba es peor que no tenerlo (aprendizaje nº4).
+        finally { if (seVe) RepasoTermina?.Invoke(); }
     }
 
     private static async Task RetirarAsync(MiradaSubida? mirada)
@@ -1381,9 +1403,20 @@ public sealed class ConversacionEnVivo : IDisposable
     // mapa despacha) para que una pregunta se responda en un solo sitio — dos catálogos del mismo
     // terreno se desincronizan en silencio. La unificación completa (que la voz y el MCP compartan
     // también map_batch) es la F4 del plan de batch.
+    /// <summary>
+    /// PARA MEDIR EL REPASO SOLO (spec 084, promesa 820): con las órdenes de prueba encendidas Y U_PRUEBA_SOLO_REPASO=1,
+    /// quien actúa no tiene con qué guardar durante la sesión —ni habilidad_escribir ni preferencia_guardar—, y lo que
+    /// quede aprendido lo habrá dejado el repaso del cierre. Es el caso que el dueño pidió medir: «si el modelo no llama
+    /// a guardar durante la clase, todo depende del repaso». Sin las dos variables, es la misma lista y no una copia.
+    /// </summary>
+    internal static IReadOnlyList<Utensilio> SinGuardarSiSeMideElRepaso(IReadOnlyList<Utensilio> todas, string? ordenesDePrueba, string? soloRepaso) =>
+        (ordenesDePrueba ?? "").Trim() == "1" && (soloRepaso ?? "").Trim() == "1"
+            ? todas.Where(u => u.Nombre is not ("habilidad_escribir" or "preferencia_guardar")).ToList() : todas;
+
     internal static IReadOnlyList<Utensilio> Herramientas()
     {
-        var deSiempre = ConElDecisor(Catalogo(conCoreografia: false));
+        var deSiempre = SinGuardarSiSeMideElRepaso(ConElDecisor(Catalogo(conCoreografia: false)),
+            Environment.GetEnvironmentVariable("U_ORDENES_DE_PRUEBA"), Environment.GetEnvironmentVariable("U_PRUEBA_SOLO_REPASO"));
         var deLaPersona = HerramientasDeLaPersona;
         // SIN NADA DE LA PERSONA, EL CATÁLOGO ES EL DE SIEMPRE, la misma lista y no una copia (promesa 759).
         return deLaPersona.Count == 0 ? deSiempre : deSiempre.Concat(deLaPersona).ToList();
@@ -2915,6 +2948,7 @@ public sealed class ConversacionEnVivo : IDisposable
                 // también dejaba «Abrí tu correo en Gmail. Abrí tu correo en Gmail.» en el hilo y en el diario. Se
                 // guarda aparte por si la voz no llega a decirlo —la persona habló encima—: entonces es lo que queda.
                 if (d.DelDelegado) ContinuarLaMetaSiSigue();   // terminó su turno; si la meta sigue activa, vuelve a él (promesa 798)
+                if (d.DelDelegado) DevolvioQuienActua?.Invoke(d.Trozo);
                 if (!SeCuentaComoDichoPorU(d.DelDelegado, _conMicrofono))
                 {
                     LogBus.Log("voz-viva", $"el delegado devolvió: {d.Trozo}");

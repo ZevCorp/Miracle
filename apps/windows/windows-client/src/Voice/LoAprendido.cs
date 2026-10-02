@@ -84,6 +84,12 @@ public sealed class LoAprendido
 
     public sealed record Resultado(bool Ok, string Mensaje);
 
+    /// <summary>
+    /// ALGO QUEDÓ GUARDADO (spec 084): una habilidad nueva o reconstruida, o una preferencia nueva, dicha en una línea
+    /// para la persona. Lo oye el indicador de «esto aprendí»; lo que ya se tenía igual no avisa.
+    /// </summary>
+    public event Action<string>? Aprendio;
+
     private sealed class Documento
     {
         [JsonPropertyName("habilidades")] public List<Habilidad> Habilidades { get; set; } = new();
@@ -117,6 +123,7 @@ public sealed class LoAprendido
             doc.Observaciones.RemoveAll(o => Clave(o.Nombre) == clave);
             Guardar(doc);
             LogBus.Log("aprendido", $"habilidad {(habia ? "reconstruida" : "nueva")}: «{limpio}» con {lista.Count} paso(s)");
+            Aprendio?.Invoke($"Sé hacer «{limpio}»: {lista.Count} paso{(lista.Count == 1 ? "" : "s")}");
             return new Resultado(true, habia
                 ? $"Reconstruí «{limpio}»: ahora tiene {lista.Count} paso(s)."
                 : $"Guardé «{limpio}» con {lista.Count} paso(s). Ya la puedo usar.");
@@ -178,6 +185,7 @@ public sealed class LoAprendido
             }
             Guardar(doc);
             LogBus.Log("aprendido", $"preferencia nueva: «{limpio}»");
+            Aprendio?.Invoke($"Te gusta así: «{limpio}»");
             return new Resultado(true, $"Guardé la preferencia: «{limpio}».");
         }
     }

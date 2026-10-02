@@ -1412,6 +1412,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 // puede haber cambiado desde que se creó la voz (entró un médico con su cuenta).
                 ConUnMedico = () => _perfil.EsMedico,
             };
+            ConectarLoAprendido(aprendido);   // el indicador de «esto aprendí» y el ✓ como gatillo (spec 084)
             _vivo.RepasarLoPendiente();   // la última sesión antes de cerrar Ü: su repaso quedó a medias
             _recordatorios = new RecordatoriosEnVivo(memoriaPersonal, AvisarRecordatorio);
         }
@@ -2021,6 +2022,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     /// </summary>
     private string AtenderOrdenDePrueba(string tool, IReadOnlyDictionary<string, string> args)
     {
+        if (tool is Mcp.OrdenesDePrueba.Nota or Mcp.OrdenesDePrueba.Aprobar) return AtenderElCheckDePrueba(tool, args);
         if (tool == "u_orden")
         {
             string texto = args.TryGetValue("texto", out var t) ? t.Trim() : "";

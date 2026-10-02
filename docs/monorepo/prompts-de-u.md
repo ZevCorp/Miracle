@@ -102,6 +102,7 @@ la constitución sin el bloque «QUIÉN TE HABLA».
 |---|---|---|
 | Ü opera el computador por voz (Windows) | persona de la voz (la que habla) + instrucciones del delegado | `voz/Realtime/ProtocoloGptLive.cs` · `windows-client/src/Voice/ConversacionEnVivo.cs` |
 | Ü aprende de cada sesión (Windows) | el repaso: qué es habilidad, qué preferencia, qué dato; con un médico, sin datos | `windows-client/src/Voice/ElRepaso.cs` |
+| El ✓ de una sección de la nota (Windows) | «¿qué acción quiere que yo ejecute con esta información?», contrastada con las habilidades aprendidas; propone una y espera a que se apruebe | `windows-client/src/Voice/LaAccionDeLaNota.cs` (spec 084) |
 | Ü opera el computador por texto, puente o comprobar (Windows, Mac, Android) | cerebro consciente, un builder con texto por plataforma | `services/graph/src/infrastructure/conscious-brain/prompt.js` |
 | Ü opera el teléfono sin pasar por Graph (Android, proveedor OpenAI o Gemini) | el mismo texto de Android que Graph, copiado; más las herramientas aprendidas, que solo existen en local, y el toque largo de Gemini (`long_press`), que solo tiene el entorno `mobile` | `apps/android/core/src/commonMain/kotlin/graph/core/domain/PromptDelCerebroLocal.kt` (spec 009 de Android) |
 | Manos rápidas (Jev) | una pregunta de peligro, la misma en Windows y Graph | `u/Nucleo/Jev.cs` · `Decision/PeticionASystemOne.cs` · `services/graph/src/domain/decisor/peticionSystemOne.js` |

@@ -1270,6 +1270,12 @@ internal static class Contrato
         Prueba("815. lo que se le ofrece a las manos cabe en su pregunta: lo leído varias veces va una vez, nunca van más de 255 opciones, y cada una conserva su número", LoQueSeOfreceALasManosCabe);
         Prueba("816. una lista desplegable se elige sin abrirla: «elige: campo = opción» pone el foco en el campo, teclea la opción y da el paso por hecho solo si la lista dice que quedó elegida; si no, falla diciendo en qué quedó y cómo hacerlo con dos pasos", UnaListaSeEligeSinAbrirla);
         Prueba("817. en un navegador las manos no pulsan Atrás ni Avanzar por su cuenta: no se les ofrecen los botones de navegar del navegador salvo que el objetivo los nombre; en una app sí, que por ahí se vuelve", EnUnNavegadorLasManosNoNavegan);
+        Prueba("820. el repaso solo se puede medir: con las órdenes de prueba y U_PRUEBA_SOLO_REPASO=1 quien actúa no tiene con qué guardar durante la sesión —ni habilidad_escribir ni preferencia_guardar— y lo aprendido lo deja el repaso del cierre; sin las dos variables es la misma lista", ElRepasoSoloSePuedeMedir);
+        Prueba("821. sin ninguna habilidad aprendida, el ✓ de una sección contesta que todavía no le han enseñado nada, sin llamar al modelo", SinNadaAprendidoElCheckNoLlamaAlModelo);
+        Prueba("822. la propuesta del ✓ se comprueba: una acción cuya habilidad no existe no llega al botón de aprobar y dice cuál nombró; la que existe pasa con su nombre tal como está guardado; una respuesta ilegible no es «no hay acción»", LaPropuestaDelCheckSeComprueba);
+        Prueba("823. el ✓ de una sección es un gatillo sobre lo aprendido: la carita va junto a la sección y se pregunta qué acción quiere la persona con esa información contrastándola con sus habilidades, propone UNA acción, y solo al aprobarla la ejecuta quien tiene las manos; «Ejecutar todo» es lo mismo con toda la información y una acción en común; el ✓ ya no lleva nada a SAP y el botón de grabar dice «Escuchar»", ElCheckEsUnGatilloSobreLoAprendido);
+        Prueba("824. lo que Ü aprende se ve: al cerrar la voz el indicador carga mientras repasa y al terminar despliega todo lo aprendido en la sesión, cada cosa una vez; si no hubo nada lo dice; y lo guardado durante la clase se enseña en el acto", LoQueAprendeSeVe);
+        Prueba("825. el ✓ y el botón de aprobar se prueban sin ventana por el mismo puente —u_nota y u_aprobar—, y solo existen con U_ORDENES_DE_PRUEBA=1", ElCheckSePruebaPorElMcp);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
             ? "CONTRATO INTACTO: el grafo se comporta como el día que se congeló."
@@ -15721,6 +15727,209 @@ internal static class Contrato
     // real la atraviesa; un gancho ve la firma de dwExtraInfo antes que WPF; y tirar un clic firmado NO evita que la
     // ventana se active. Por eso son cuatro guardas y no una.
 
+    // ── spec 084: el ✓ ejecuta lo aprendido, y lo aprendido se ve ─────────────
+
+    private static List<U.WindowsClient.Voice.LoAprendido.Habilidad> HabilidadesDeLa084() => new()
+    {
+        new() { Nombre = "registrar un paciente en el HIS", Cuando = "Cuando pida registrar un paciente.", Pasos = new() { "Pulsa «Pacientes».", "Pulsa «Nuevo paciente».", "Llena los datos.", "Pulsa «Guardar paciente»." } },
+        new() { Nombre = "mandar el informe semanal", Cuando = "Los viernes.", Pasos = new() { "Abre el correo.", "Adjunta el informe." } },
+    };
+
+    private static string RespuestaDeLa084(bool hay, string accion, string habilidad, string porque)
+    {
+        string dentro = System.Text.Json.JsonSerializer.Serialize(new { hay, accion, habilidad, porque });
+        return System.Text.Json.JsonSerializer.Serialize(new { output = new object[] { new { type = "message", content = new object[] { new { type = "output_text", text = dentro } } } } });
+    }
+
+    /// <remarks>
+    /// LO QUE EL DUEÑO PIDIÓ MEDIR (2026-10-02): «si el modelo no llama a guardar durante la clase, todo depende del
+    /// repaso. Ese camino solo no lo medí con una clase larga». Para medirlo hay que poder quitarle a quien actúa las
+    /// dos herramientas de guardar; medido así, el repaso dejó la habilidad entera (12 pasos) y la clase dio 9 de 9.
+    /// </remarks>
+    private static void ElRepasoSoloSePuedeMedir()
+    {
+        const BindingFlags f = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        var m = Cap004("U.WindowsClient.Voice.ConversacionEnVivo")!.GetMethod("SinGuardarSiSeMideElRepaso", f);
+        if (m == null) { Pendiente("ConversacionEnVivo.SinGuardarSiSeMideElRepaso", "820", "084"); return; }
+        var todas = (IReadOnlyList<Voz.Realtime.Utensilio>)new List<Voz.Realtime.Utensilio>
+        {
+            new("map_hacer", "hace", Array.Empty<Voz.Realtime.Argumento>()),
+            new("habilidad_escribir", "guarda", Array.Empty<Voz.Realtime.Argumento>()),
+            new("habilidad_leer", "lee", Array.Empty<Voz.Realtime.Argumento>()),
+            new("preferencia_guardar", "guarda", Array.Empty<Voz.Realtime.Argumento>()),
+        };
+        IReadOnlyList<Voz.Realtime.Utensilio> Con(string? pruebas, string? solo) => (IReadOnlyList<Voz.Realtime.Utensilio>)m.Invoke(null, new object?[] { todas, pruebas, solo })!;
+        Debe(Con("1", "1").Select(u => u.Nombre).SequenceEqual(new[] { "map_hacer", "habilidad_leer" }),
+            "con las órdenes de prueba y U_PRUEBA_SOLO_REPASO=1, quien actúa se queda sin habilidad_escribir y sin preferencia_guardar, y con todo lo demás");
+        foreach (var (pruebas, solo) in new[] { ((string?)null, (string?)null), ("1", null), ("1", "0"), (null, "1"), ("0", "1"), ("", "1") })
+            Debe(ReferenceEquals(Con(pruebas, solo), todas), $"con U_ORDENES_DE_PRUEBA=«{pruebas}» y U_PRUEBA_SOLO_REPASO=«{solo}» es la MISMA lista: a una persona nunca se le quita con qué guardar");
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(v, @"SinGuardarSiSeMideElRepaso\(ConElDecisor\(Catalogo\(conCoreografia: false\)\),\s*Environment\.GetEnvironmentVariable\(""U_ORDENES_DE_PRUEBA""\), Environment\.GetEnvironmentVariable\(""U_PRUEBA_SOLO_REPASO""\)\)"),
+            "[cableado] el catálogo de quien actúa no pasa por SinGuardarSiSeMideElRepaso con las dos variables");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: preguntarle a un modelo qué hacer con la información de una nota cuando no hay nada
+    /// con qué contrastarla. Sin habilidades, cualquier acción que propusiera sería inventada, y la información —que
+    /// puede ser de un paciente— habría salido del PC para nada.
+    /// </remarks>
+    private static void SinNadaAprendidoElCheckNoLlamaAlModelo()
+    {
+        var sin = U.WindowsClient.Voice.LaAccionDeLaNota.SinNadaAprendido(new List<U.WindowsClient.Voice.LoAprendido.Habilidad>());
+        Debe(sin != null && !sin.Hay && sin.Accion.Length == 0 && sin.Porque.Contains("no me has enseñado", StringComparison.Ordinal),
+            "sin ninguna habilidad, la propuesta es «no hay», sin acción, y dice que todavía no le han enseñado ninguna tarea");
+        Debe(U.WindowsClient.Voice.LaAccionDeLaNota.SinNadaAprendido(HabilidadesDeLa084()) == null, "con alguna habilidad no se contesta de antemano: hay con qué contrastar");
+
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.Acciones.cs") is not { } cara) return;
+        int antes = cara.IndexOf("LaAccionDeLaNota.SinNadaAprendido(habilidades)", StringComparison.Ordinal);
+        int llama = cara.IndexOf("EnviarAOpenAIAsync(LaAccionDeLaNota.Peticion(", StringComparison.Ordinal);
+        Debe(antes > 0 && llama > antes, "[cableado] la carita no mira si hay habilidades ANTES de llamar al modelo");
+    }
+
+    /// <remarks>
+    /// EL FALLO QUE ESTO IMPIDE: un modelo que nombra una habilidad que no existe. Aprobada, la orden le diría a quien
+    /// actúa «hazlo con la habilidad X», X no estaría, y lo improvisaría sobre el sistema de la persona. La compuerta
+    /// es de código, como la cita del repaso (768): el modelo propone, el código comprueba, la persona aprueba.
+    /// </remarks>
+    private static void LaPropuestaDelCheckSeComprueba()
+    {
+        var hs = HabilidadesDeLa084();
+        var buena = U.WindowsClient.Voice.LaAccionDeLaNota.Leer(RespuestaDeLa084(true, "Registrar a la paciente en el HIS que me enseñaste", "Registrar un paciente en el HIS.", ""), hs);
+        Debe(buena.Hay && buena.Habilidad == "registrar un paciente en el HIS" && buena.Accion == "Registrar a la paciente en el HIS que me enseñaste",
+            $"una propuesta con una habilidad que existe pasa, con el nombre TAL COMO ESTÁ GUARDADO aunque el modelo lo escriba con otra mayúscula o un punto («{buena.Habilidad}»)");
+        var inventada = U.WindowsClient.Voice.LaAccionDeLaNota.Leer(RespuestaDeLa084(true, "Formular el medicamento", "formular medicamentos", ""), hs);
+        Debe(!inventada.Hay && inventada.Accion.Length == 0 && inventada.Porque.Contains("formular medicamentos", StringComparison.Ordinal),
+            "una propuesta con una habilidad que NO existe no llega al botón de aprobar, y dice cuál nombró");
+        var sinNombre = U.WindowsClient.Voice.LaAccionDeLaNota.Leer(RespuestaDeLa084(true, "Hacer algo", "", ""), hs);
+        Debe(!sinNombre.Hay, "una acción sin habilidad tampoco pasa");
+        var no = U.WindowsClient.Voice.LaAccionDeLaNota.Leer(RespuestaDeLa084(false, "", "", "No me has enseñado qué hacer con una lista de compras."), hs);
+        Debe(!no.Hay && no.Porque == "No me has enseñado qué hacer con una lista de compras.", "cuando el modelo dice que no hay, se devuelve su porqué para la persona");
+        bool lanzo = false;
+        try { U.WindowsClient.Voice.LaAccionDeLaNota.Leer("{\"output\":[]}", hs); } catch (InvalidDataException) { lanzo = true; }
+        Debe(lanzo, "una respuesta sin texto LANZA: «no propuso nada» y «no pude leer lo que propuso» no son lo mismo (patrón nº2)");
+    }
+
+    /// <remarks>
+    /// LO QUE EL DUEÑO PIDIÓ (2026-10-02): «al hacer clic en el check de una sección transcrita, que el asistente se
+    /// acerque a esa sección, empiece a pensar lo que tiene que hacer contrastándolo con sus skills […] sale un mensaje
+    /// de acción […] y el usuario aprueba con un botón». Y de lo viejo: «todo ese funcionamiento actual de los checks es
+    /// viejo y no funcionó». El ✓ deja de llamar al puente a SAP.
+    /// </remarks>
+    private static void ElCheckEsUnGatilloSobreLoAprendido()
+    {
+        var hs = HabilidadesDeLa084();
+        const string info = "DATOS DEL PACIENTE\nLaura Martínez, cédula 52334455, Sanitas.";
+        using var una = System.Text.Json.JsonDocument.Parse(U.WindowsClient.Voice.LaAccionDeLaNota.Peticion(hs, info, deVarias: false));
+        string instrucciones = una.RootElement.GetProperty("instructions").GetString()!, entrada = una.RootElement.GetProperty("input").GetString()!;
+        Debe(instrucciones.Contains("¿QUÉ ACCIÓN QUIERE QUE YO EJECUTE CON ESTA INFORMACIÓN?", StringComparison.Ordinal), "la petición hace la pregunta del ✓: ¿qué acción quiere que yo ejecute con esta información?");
+        Debe(entrada.Contains("«registrar un paciente en el HIS»", StringComparison.Ordinal) && entrada.Contains("2. Pulsa «Nuevo paciente».", StringComparison.Ordinal) && entrada.Contains("«mandar el informe semanal»", StringComparison.Ordinal),
+            "y lleva TODAS las habilidades con sus pasos, que es con lo que se contrasta");
+        Debe(entrada.Contains(info, StringComparison.Ordinal), "y la información de la sección, tal cual");
+        Debe(una.RootElement.GetProperty("text").GetProperty("format").GetProperty("strict").GetBoolean(), "con un esquema estricto: lo que vuelve se lee, no se interpreta");
+        Debe(!instrucciones.Contains("UNA acción en común", StringComparison.Ordinal), "un ✓ de una sección no pide una acción «en común»");
+        using var varias = System.Text.Json.JsonDocument.Parse(U.WindowsClient.Voice.LaAccionDeLaNota.Peticion(hs, info, deVarias: true));
+        Debe(varias.RootElement.GetProperty("instructions").GetString()!.Contains("UNA acción en\ncomún", StringComparison.Ordinal)
+             || varias.RootElement.GetProperty("instructions").GetString()!.Replace("\r", "").Replace("\n", " ").Contains("UNA acción en común", StringComparison.Ordinal),
+            "«Ejecutar todo» es el mismo proceso, pidiendo UNA acción en común para toda la información");
+
+        var propuesta = new U.WindowsClient.Voice.LaAccionDeLaNota.Propuesta(true, "Registrar a la paciente en el HIS", "registrar un paciente en el HIS", "");
+        string orden = U.WindowsClient.Voice.LaAccionDeLaNota.Orden(propuesta, info);
+        Debe(orden.Contains("«Registrar a la paciente en el HIS»", StringComparison.Ordinal) && orden.Contains("«registrar un paciente en el HIS»", StringComparison.Ordinal) && orden.Contains(info, StringComparison.Ordinal),
+            "la orden aprobada nombra la acción, la habilidad y trae la información tal cual");
+        Debe(orden.Contains("sin preguntarme nada", StringComparison.Ordinal) && orden.Contains("deja ese campo", StringComparison.Ordinal),
+            "y dice que ya está aprobada —no se vuelve a preguntar— y que un dato que falta no se inventa");
+
+        if (FuenteDe("windows-client", "src", "Ui", "ConsultaWindow.cs") is not { } nota) return;
+        Debe(!nota.Contains("PuenteASap.Enviar", StringComparison.Ordinal) && !nota.Contains("Todo a SAP", StringComparison.Ordinal),
+            "[cableado] la nota sigue llamando al puente a SAP o diciendo «Todo a SAP»: ese camino se retiró");
+        Debe(nota.Contains("EtiquetaDeEjecutarTodo = \"Ejecutar todo\"", StringComparison.Ordinal) && nota.Contains("EtiquetaDeEscuchar = \"Escuchar\"", StringComparison.Ordinal) && !nota.Contains("\"Grabar\"", StringComparison.Ordinal),
+            "[cableado] el botón no dice «Ejecutar todo», o el de grabar no dice «Escuchar»");
+        var pensar = System.Text.RegularExpressions.Regex.Match(nota, @"private async Task PensarLaAccionAsync\([\s\S]*?\n    }");
+        Debe(pensar.Success && pensar.Value.Contains("PuenteDeAcciones.Proponer!(", StringComparison.Ordinal) && pensar.Value.Contains("CajaEnPantalla(ancla)", StringComparison.Ordinal) && !pensar.Value.Contains("PuenteDeAcciones.Ejecutar", StringComparison.Ordinal),
+            "[cableado] el ✓ no PROPONE con la caja de la sección —para que la carita vaya junto a ella—, o ejecuta sin esperar a que se apruebe");
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(nota, @"aprobar\.Click \+= async \(_, __\) => await EjecutarLaAccionAsync\("),
+            "[cableado] ejecutar no cuelga del botón de aprobar");
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.Acciones.cs") is not { } cara) return;
+        Debe(System.Text.RegularExpressions.Regex.IsMatch(cara, @"SacandoLaCaritaDelAnfitrion\(\);\s*\n\s*Visitar\(caja\);"), "[cableado] al pensar, la carita no sale de la nota y va junto a la sección");
+        Debe(cara.Contains("await EnviarTextoDesdeElNotchAsync(LaAccionDeLaNota.Orden(propuesta, informacion));", StringComparison.Ordinal),
+            "[cableado] la orden aprobada no entra por el mismo camino que lo escrito en el chat: no la haría quien tiene las manos y las habilidades");
+        Debe(cara.Contains("!vivo.MetaActiva", StringComparison.Ordinal), "[cableado] se da por terminada con una meta todavía abierta");
+    }
+
+    /// <remarks>
+    /// EL HUECO, dicho por el dueño (2026-10-02): al apagar la voz un modelo repasa la sesión y «no ves nada en pantalla
+    /// que te diga "esto ya quedó"». Pidió «un icono de cargando que al terminar de cargar despliegue la lista de las
+    /// cosas que aprendió». Un cargando que no termina nunca sería peor que no tenerlo (aprendizaje nº4).
+    /// </remarks>
+    private static void LoQueAprendeSeVe()
+    {
+        var indicador = new U.WindowsClient.Voice.LoQueAprendi();
+        var vistas = new List<U.WindowsClient.Voice.LoQueAprendi.Vista>();
+        indicador.Cambio += vistas.Add;
+
+        indicador.Anotar("Sé hacer «registrar un paciente»: 5 pasos");
+        Debe(vistas.Count == 1 && !vistas[0].Cargando && vistas[0].Lineas.SequenceEqual(new[] { "Sé hacer «registrar un paciente»: 5 pasos" }),
+            "lo que se guarda DURANTE la clase se enseña en el acto, sin esperar al cierre");
+        indicador.Empieza();
+        Debe(vistas.Count == 2 && vistas[1].Cargando && vistas[1].Lineas.Count == 0, "al empezar el repaso se carga");
+        indicador.Anotar("Sé hacer «registrar un paciente»: 12 pasos");
+        indicador.Anotar("Te gusta así: «háblame corto»");
+        Debe(vistas.Count == 2, "lo que deja el repaso no interrumpe el cargando: sale todo junto al terminar");
+        indicador.Termina();
+        Debe(vistas.Count == 3 && !vistas[2].Cargando && vistas[2].Titulo == U.WindowsClient.Voice.LoQueAprendi.TituloDeLaLista
+             && vistas[2].Lineas.SequenceEqual(new[] { "Sé hacer «registrar un paciente»: 12 pasos", "Te gusta así: «háblame corto»" }),
+            $"al terminar se despliega TODO lo aprendido en la sesión, y la habilidad reconstruida sale UNA vez, con su última forma ({string.Join(" | ", vistas.Last().Lineas)})");
+
+        indicador.Empieza();
+        indicador.Termina();
+        Debe(vistas.Count == 5 && !vistas[4].Cargando && vistas[4].Lineas.Count == 0 && vistas[4].Titulo == U.WindowsClient.Voice.LoQueAprendi.TituloDeNada,
+            "un repaso que no deja nada TAMBIÉN termina, diciendo que no hubo nada nuevo: lo anterior ya se enseñó y no se repite");
+
+        indicador.Empieza(); indicador.Empieza();
+        indicador.Termina();
+        Debe(vistas.Count == 7 && vistas[6].Cargando, "con dos repasos en marcha, terminar uno no apaga el cargando");
+        indicador.Termina();
+        Debe(vistas.Count == 8 && !vistas[7].Cargando, "y al terminar el último, sí");
+
+        if (FuenteDe("windows-client", "src", "Voice", "ConversacionEnVivo.cs") is not { } v) return;
+        var repasar = System.Text.RegularExpressions.Regex.Match(v, @"private async Task RepasarLaCarpetaAsync\([\s\S]*?\n    }");
+        Debe(repasar.Success && repasar.Value.Contains("if (seVe) RepasoEmpieza?.Invoke();", StringComparison.Ordinal)
+             && System.Text.RegularExpressions.Regex.IsMatch(repasar.Value, @"finally \{ if \(seVe\) RepasoTermina\?\.Invoke\(\); \}"),
+            "[cableado] el repaso del cierre no avisa al empezar, o no avisa al terminar EN UN finally: si reventara, cargaría para siempre");
+        Debe(v.Contains("RepasarLaCarpetaAsync(carpeta, cuando, seVe: true)", StringComparison.Ordinal), "[cableado] el repaso del cierre no se ve");
+        if (FuenteDe("windows-client", "src", "Voice", "LoAprendido.cs") is not { } a) return;
+        Debe(System.Text.RegularExpressions.Regex.Matches(a, @"Aprendio\?\.Invoke\(").Count == 2, "[cableado] guardar una habilidad o una preferencia nueva no avisa al indicador");
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.Acciones.cs") is not { } cara) return;
+        Debe(cara.Contains("aprendido.Aprendio += _loQueAprendi.Anotar;", StringComparison.Ordinal) && cara.Contains("_vivo.RepasoEmpieza += _loQueAprendi.Empieza;", StringComparison.Ordinal)
+             && cara.Contains("_vivo.RepasoTermina += _loQueAprendi.Termina;", StringComparison.Ordinal) && cara.Contains("_aprendiendo.Mostrar(vista);", StringComparison.Ordinal),
+            "[cableado] la carita no conecta lo aprendido y el repaso con la tarjeta que lo pinta");
+    }
+
+    /// <remarks>
+    /// PROBAR COMO EL DUEÑO: el ✓ y el botón de aprobar se prueban por el mismo puente que usa la ventana, sin ventana
+    /// —u_nota y u_aprobar—, y solo existen con las órdenes de prueba: cualquier proceso del PC podría, si no, hacer que
+    /// Ü ejecutara una habilidad sobre el sistema de la persona.
+    /// </remarks>
+    private static void ElCheckSePruebaPorElMcp()
+    {
+        var t = Cap004("U.WindowsClient.Mcp.OrdenesDePrueba");
+        var con = t?.GetMethod("ConElMcp");
+        if (t == null || con == null || t.GetField("Nota") == null) { Pendiente("OrdenesDePrueba.Nota (u_nota y u_aprobar)", "825", "084"); return; }
+        var vacio = (IReadOnlyList<Voz.Realtime.Utensilio>)Array.Empty<Voz.Realtime.Utensilio>();
+        var encendidas = (IReadOnlyList<Voz.Realtime.Utensilio>)con.Invoke(null, new object?[] { vacio, "1" })!;
+        var nota = encendidas.FirstOrDefault(u => u.Nombre == "u_nota");
+        Debe(nota != null && nota.Args.Select(a => a.Nombre).SequenceEqual(new[] { "texto", "todo" }) && nota.Descripcion.Contains("No ejecuta nada", StringComparison.Ordinal),
+            "con las órdenes de prueba existe u_nota, que pide el texto y si es «todo», y dice que no ejecuta nada");
+        Debe(encendidas.Any(u => u.Nombre == "u_aprobar"), "y u_aprobar, que es el botón");
+        foreach (string apagada in new[] { "", "0" })
+            Debe(((IReadOnlyList<Voz.Realtime.Utensilio>)con.Invoke(null, new object?[] { vacio, apagada })!).Count == 0, $"con la variable en «{apagada}» no existen");
+        Debe((bool)t.GetMethod("Es")!.Invoke(null, new object[] { "u_nota" })! && (bool)t.GetMethod("Es")!.Invoke(null, new object[] { "u_aprobar" })!, "y el MCP las reconoce como órdenes de prueba");
+        if (FuenteDe("windows-client", "src", "Ui", "FaceWindow.Acciones.cs") is not { } cara) return;
+        Debe(cara.Contains("ProponerAccionAsync(texto, todo, null, CancellationToken.None)", StringComparison.Ordinal) && cara.Contains("EjecutarAccionAsync(propuesta, informacion,", StringComparison.Ordinal),
+            "[cableado] las órdenes de prueba no pasan por las MISMAS dos funciones que cuelgan del puente de la nota");
+    }
+
     private static string? FuenteDe(params string[] ruta)
     {
         string repo = Environment.GetEnvironmentVariable("U_REPO") ?? "";
@@ -16130,8 +16339,8 @@ internal static class Contrato
             "sin U_ORDENES_DE_PRUEBA=1 el MCP ofrece órdenes de prueba: cualquier proceso del PC podría gastar la voz de pago");
         var si = Con("1");
         var orden = si.FirstOrDefault(u => u.Nombre == "u_orden");
-        Debe(si.Count == 4 && si[0].Nombre == "map_take" && orden != null && orden.Args.Any(a => a.Nombre == "texto") && si.Any(u => u.Nombre == "u_colgar") && si.Any(u => u.Nombre == "u_decir"),
-            "con U_ORDENES_DE_PRUEBA=1 el MCP no ofrece u_orden (con «texto»), u_colgar y u_decir (810) detrás de lo de siempre");
+        Debe(si.Count == 6 && si[0].Nombre == "map_take" && orden != null && orden.Args.Any(a => a.Nombre == "texto") && si.Any(u => u.Nombre == "u_colgar") && si.Any(u => u.Nombre == "u_decir"),
+            "con U_ORDENES_DE_PRUEBA=1 el MCP no ofrece u_orden (con «texto»), u_colgar, u_decir (810), u_nota y u_aprobar (825) detrás de lo de siempre");
 
         foreach (string metodo in new[] { "Herramientas", "HerramientasDelPiloto" })
         {

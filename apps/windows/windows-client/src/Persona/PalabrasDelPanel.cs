@@ -31,7 +31,7 @@ public sealed record PalabrasDelPanel(
     private static readonly PalabrasDelPanel DeConsulta = new(
         PestanaDeLaLista: "Consultas",
         PestanaDeLoGrabado: "Nota",
-        VacioTitulo: "Pulsa grabar y habla con normalidad.",
+        VacioTitulo: "Pulsa Escuchar y habla con normalidad.",
         VacioCuerpo: "Verás aquí lo que se va oyendo. Al parar, la nota queda organizada y guardada "
                    + "en tu cuenta — la misma que ves en el portal.",
         ListaVaciaTitulo: "Todavía no hay consultas.",
@@ -46,7 +46,7 @@ public sealed record PalabrasDelPanel(
     private static readonly PalabrasDelPanel DeClase = new(
         PestanaDeLaLista: "Clases",
         PestanaDeLoGrabado: "Apuntes",
-        VacioTitulo: "Pulsa grabar cuando empiece la clase.",
+        VacioTitulo: "Pulsa Escuchar cuando empiece la clase.",
         VacioCuerpo: "Verás aquí lo que se va oyendo. Al parar, los apuntes quedan organizados y guardados "
                    + "en tu equipo, y Ü los tiene a mano para ayudarte con tus trabajos.",
         ListaVaciaTitulo: "Todavía no hay clases.",
