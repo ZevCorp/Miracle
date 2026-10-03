@@ -43,7 +43,7 @@ promesa que la juzga.
 
 | Cuando… | la carita… | Promesa |
 |---|---|---|
-| Ü ejecuta una herramienta (y hasta 1,2 s después, para no parpadear entre dos seguidas) | trabaja: ceja torcida y balanceo, aunque haya conversación | 693 |
+| Ü ejecuta una herramienta (y hasta 3 s después, para no parpadear entre dos seguidas de una misma tarea) | trabaja: ceja torcida y balanceo, aunque haya conversación | 693 |
 | Ü te preguntó algo y espera | espera: ceja arriba y cabeza ladeada, hasta que contestas o pasan 20 s | 693 |
 | le prendes la voz | escucha —cejas arriba, respira— durante 25 s como mucho; después se calma y sonríe | 693 |
 | Ü habla | no cambia de cara: el halo ya dice que habla | 693 |

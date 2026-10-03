@@ -50,7 +50,10 @@ public static class ReglaDelAnimo
     public const int EscuchaAlEncenderSeg = 25;
 
     /// <summary>Tras la última herramienta sigue «trabajando» este rato: entre dos seguidas no va y viene.</summary>
-    public const int TrabajoSeSostieneMs = 1200;
+    /// <remarks>Nació en 1,2 s y en el PC real no alcanzaba: entre dos actos de una misma tarea pasan 2 s de mediana
+    /// (48 huecos medidos en los logs, 2026-10-03; el 85 % cabe en 3 s), así que dejaba de trabajar y se alegraba a
+    /// mitad de la tarea. Lo que pasa de 3 s suele ser Ü hablando o pensando, y ahí sí vuelve a su cara.</remarks>
+    public const int TrabajoSeSostieneMs = 3000;
 
     /// <summary>Lo que espera una respuesta antes de volver a su cara.</summary>
     public const int EsperaLaRespuestaSeg = 20;

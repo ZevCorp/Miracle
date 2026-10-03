@@ -24513,7 +24513,9 @@ internal static class Contrato
 
         bool E(int enCurso, long ms) => (bool)ejecutando.Invoke(null, new object[] { enCurso, ms })!;
         Debe(E(1, 99999) && E(2, 0), "con una herramienta en curso, ejecuta");
-        Debe(E(0, 500) && !E(0, 1200) && !E(0, 60000), "y lo sostiene 1,2 s tras la última, para no ir y venir entre dos seguidas; después, ya no");
+        // 3 s y no 1,2: entre dos actos seguidos de una misma tarea pasan 2 s de mediana (48 huecos medidos en los logs,
+        // 2026-10-03), y con 1,2 s dejaba de trabajar —y se alegraba— a mitad de más de la mitad de las tareas.
+        Debe(E(0, 500) && E(0, 2500) && !E(0, 3000) && !E(0, 60000), "y lo sostiene 3 s tras la última, para no ir y venir entre dos seguidas de una misma tarea; después, ya no");
 
         bool Q(string frase, double seg, bool despues) => (bool)espera.Invoke(null, new object[] { frase, seg, despues })!;
         Debe(Q("¿Lo guardo en Descargas?", 3, false) && Q("Listo. ¿Sigo? ", 1, false), "si lo último que dijo Ü acaba en pregunta, espera tu respuesta");
