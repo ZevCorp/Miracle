@@ -1890,7 +1890,10 @@ public sealed class SurfaceMapTools
     /// <summary>La carita teclea lo que se acaba de escribir (spec 085, promesa 698): después de escribirlo y sin esperarla.</summary>
     private static string Escrito(string texto, string relato)
     {
-        if (Ui.LoQueUHace.AvisarDeQueEscribe(texto.Length) is { } no) LogBus.Log("mapa-mcp", "el aviso de que escribí reventó: " + no);
+        // Solo si la mano dice que se logró: con «no encontré ningún campo» la carita tecleaba igual junto al buscador, y
+        // parecía que había escrito (2026-10-03, nivel 4).
+        if (_ultimaMano is { Logro: true } && Ui.LoQueUHace.AvisarDeQueEscribe(texto.Length) is { } no)
+            LogBus.Log("mapa-mcp", "el aviso de que escribí reventó: " + no);
         return relato;
     }
 

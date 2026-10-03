@@ -1289,8 +1289,8 @@ internal static class Contrato
         Prueba("694. los gestos entran y salen: atender, entender, alegrarse y sorprenderse duran menos de dos segundos, se ven mientras duran y la carita vuelve sola a la cara de su estado", LosGestosEntranYSalen);
         Prueba("695. mientras le hablas la carita te sigue: al empezar pone un momento la cara de atender, y si sigues hablando alterna la de entender y la de atender cada 3,5 a 5,5 segundos; como mucho medio minuto, y en cuanto Ü contesta o ejecuta deja de hacerlo", MientrasLeHablasLaCaritaTeSigue);
         Prueba("696. lo que Ü pulsa lo pulsa con expresión: de un pulso al siguiente la carita alterna la cara de atender y la de entender", LoQueUPulsaLoPulsaConExpresion);
-        Prueba("697. cuando Ü desplaza la pantalla la carita la desliza: se pone dentro de la ventana, junto a su borde, apoya la mano y se mueve con el contenido —sube si el contenido sube, baja si baja— sin salirse de la pantalla, y la mano aguanta apoyada mientras se mueve", CuandoUDesplazaLaCaritaDesliza);
-        Prueba("698. cuando Ü escribe la carita teclea: saca las dos manos y las mueve alternándolas mientras dura lo escrito —más cuanto más largo, entre uno y tres segundos—, y no vuelve a casa hasta que termina", CuandoUEscribeLaCaritaTeclea);
+        Prueba("697. cuando Ü desplaza la pantalla la carita la desliza: se pone dentro de la ventana, junto a su borde, apoya la mano y se mueve con el contenido —sube si el contenido sube, baja si baja— sin salirse de la pantalla, y la mano aguanta apoyada mientras se mueve; si la pantalla no se movió, no desliza", CuandoUDesplazaLaCaritaDesliza);
+        Prueba("698. cuando Ü escribe la carita teclea: saca las dos manos y las mueve alternándolas mientras dura lo escrito —más cuanto más largo, entre uno y tres segundos—, y no vuelve a casa hasta que termina; si no llegó a escribir, no teclea", CuandoUEscribeLaCaritaTeclea);
         Prueba("699. la carita reacciona a lo que le pasa: al terminar bien un trabajo se alegra, al agarrarla se sorprende y al soltarla rebota, y al colgar una conversación de más de veinte segundos se despide con la mano", LaCaritaReaccionaALoQueLePasa);
         Console.WriteLine();
         Console.WriteLine(_fallos == 0
@@ -24704,6 +24704,12 @@ internal static class Contrato
                                             (new[] { "windows-client", "src", "Actions", "InputExecutor.cs" }, "la rueda suelta") })
             if (FuenteDe(ruta) is { } fuente)
                 Debe(fuente.Contains("LoQueUHace.AvisarDeQueDesplaza("), $"[cableado] {que} avisa de que desplazó ({ruta[^1]})");
+        // map_scroll SÍ sabe si la pantalla se movió —lee el porcentaje antes y después—, y al final de la lista contesta «ya
+        // estabas al final»: deslizar ahí es mover la mano sobre algo quieto. Las ruedas y las teclas no pueden saberlo, como
+        // una persona, y deslizan siempre (2026-10-03, el mismo nivel 4 que la vio teclear sin haber escrito).
+        if (FuenteDe("windows-client", "src", "Uia", "Desplazamiento.cs") is { } desp)
+            Debe(CuerpoDe(desp, "public static string Mover(").Contains("Quieta"),
+                "[cableado] map_scroll no desliza si leyó que la pantalla no se movió");
         if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } w)
             Debe(w.Contains("LoQueUHace.Desplaza +=") && w.Contains("ReglaDeLaVisita.Desliz(") && w.Contains(".Deslizar("),
                 "[cableado] y la ventana lo atiende: pregunta el camino y desliza");
@@ -24755,6 +24761,11 @@ internal static class Contrato
                                             (new[] { "windows-client", "src", "Mcp", "SurfaceMapTools.cs" }, "map_type") })
             if (FuenteDe(ruta) is { } fuente)
                 Debe(fuente.Contains("LoQueUHace.AvisarDeQueEscribe("), $"[cableado] {que} avisa de que escribió ({ruta[^1]})");
+        // El nivel 4 la vio teclear junto al buscador del Explorador cuando map_type había contestado «no encontré ningún
+        // campo de texto»: no se escribió nada y la carita hizo como que sí (2026-10-03). Lo que decide es la mano.
+        if (FuenteDe("windows-client", "src", "Mcp", "SurfaceMapTools.cs") is { } mcp)
+            Debe(CuerpoDe(mcp, "private static string Escrito(").Contains("Logro"),
+                "[cableado] map_type solo teclea si lo escrito salió: un «no encontré el campo» no mueve las manos");
         if (FuenteDeLaInterfaz("FaceWindow.xaml.cs") is { } w)
             Debe(w.Contains("LoQueUHace.Escribe +=") && w.Contains(".Teclear(") && w.Contains("_visita.Quedarse("),
                 "[cableado] y la ventana lo atiende: teclea, y se queda donde está mientras dura");

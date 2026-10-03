@@ -64,8 +64,8 @@ promesa que la juzga.
 | 694 | los gestos entran y salen: atender, entender, alegrarse y sorprenderse duran menos de dos segundos, se ven mientras duran y la carita vuelve sola a la cara de su estado | 2 |
 | 695 | mientras le hablas la carita te sigue: al empezar pone un momento la cara de atender, y si sigues hablando alterna la de entender y la de atender cada 3,5 a 5,5 segundos; como mucho medio minuto, y en cuanto Ü contesta o ejecuta deja de hacerlo | 3 |
 | 696 | lo que Ü pulsa lo pulsa con expresión: de un pulso al siguiente la carita alterna la cara de atender y la de entender | 4 |
-| 697 | cuando Ü desplaza la pantalla la carita la desliza: se pone dentro de la ventana, junto a su borde, apoya la mano y se mueve con el contenido —sube si el contenido sube, baja si baja— sin salirse de la pantalla, y la mano aguanta apoyada mientras se mueve | 5 |
-| 698 | cuando Ü escribe la carita teclea: saca las dos manos y las mueve alternándolas mientras dura lo escrito —más cuanto más largo, entre uno y tres segundos—, y no vuelve a casa hasta que termina | 6 |
+| 697 | cuando Ü desplaza la pantalla la carita la desliza: se pone dentro de la ventana, junto a su borde, apoya la mano y se mueve con el contenido —sube si el contenido sube, baja si baja— sin salirse de la pantalla, y la mano aguanta apoyada mientras se mueve; si la pantalla no se movió, no desliza | 5 |
+| 698 | cuando Ü escribe la carita teclea: saca las dos manos y las mueve alternándolas mientras dura lo escrito —más cuanto más largo, entre uno y tres segundos—, y no vuelve a casa hasta que termina; si no llegó a escribir, no teclea | 6 |
 | 699 | la carita reacciona a lo que le pasa: al terminar bien un trabajo se alegra, al agarrarla se sorprende y al soltarla rebota, y al colgar una conversación de más de veinte segundos se despide con la mano | 7 |
 
 Y dos promesas de `main` cambian, a petición del dueño. Los números no se reciclan:
