@@ -5532,6 +5532,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     {
         long ahora = Environment.TickCount64;
         bool viva = _vivo?.Viva == true;
+        // La cara ya no cambia cuando Ü habla (promesa 693), pero el encuentro de la spec 080 sigue
+        // necesitando saber cuándo sonó por última vez para no cortarla a media frase.
+        if (viva && _vivo!.NivelVoz > 0.004) _ultimoSonido = DateTime.UtcNow;
         var voz = _voice.Activity;
         return ReglaDelAnimo.Cual(new LoQuePasa
         {
@@ -5761,6 +5764,10 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
     private System.Windows.Threading.DispatcherTimer? _pulsoDeLaVoz;
     private int _pasoDeLaVoz;
+
+    /// <summary>La última vez que se oyó algo por el altavoz. Lo lee el encuentro para esperar a que Ü
+    /// calle antes de seguir.</summary>
+    private DateTime _ultimoSonido = DateTime.MinValue;
 
     /// <summary>
     /// Mientras hay voz, vuelve a mirar cada 60 ms qué cara toca y cómo late el halo.
