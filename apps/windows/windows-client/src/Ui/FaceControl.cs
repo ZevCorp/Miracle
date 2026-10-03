@@ -128,6 +128,21 @@ public sealed class FaceControl : FrameworkElement
         new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
     /// <summary>
+    /// LA Ü QUE SE VUELVE LA CARITA (spec 086, promesa 880): con 1 pinta la letra, blanca y sin cuerpo; con 0, la
+    /// carita por el camino de siempre, línea por línea; en medio, los rasgos van de una a otra
+    /// (<see cref="LaUDeLaCarita"/>). Solo la usa la intro.
+    /// </summary>
+    public double LaU
+    {
+        get => (double)GetValue(LaUProperty);
+        set => SetValue(LaUProperty, value);
+    }
+
+    public static readonly DependencyProperty LaUProperty = DependencyProperty.Register(
+        nameof(LaU), typeof(double), typeof(FaceControl),
+        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>
     /// Cuánto están fuera las manos en reposo, de 0 (escondidas) a 1 (fuera del todo). El saludo no
     /// pasa por aquí: lo lleva <see cref="SaludoProperty"/>, que recorre su línea de tiempo entera.
     /// </summary>
@@ -724,6 +739,14 @@ public sealed class FaceControl : FrameworkElement
         bool dark = Theme == FaceTheme.Dark;
         var paleta = PaletaDeLaCarita.Para(Theme);
 
+        // LA INTRO (spec 086): mientras quede algo de la Ü se pinta por su camino; con 0, por el de siempre, sin
+        // que nada de aquí abajo sepa que existe.
+        if (LaU > 0)
+        {
+            PintarLaU(dc, paleta, cx, cy, r, s);
+            return;
+        }
+
         // AL GIRAR, EL CUERPO ACOMPAÑA UN POCO: dos unidades y media hacia donde mira. Solo los rasgos
         // no bastan — si el contorno se queda clavado, parece una pegatina que se desliza por la cara.
         double dx = giro * 2.5 * s;
@@ -820,6 +843,71 @@ public sealed class FaceControl : FrameworkElement
         boca.Freeze();
         dc.DrawGeometry(null, stroke, boca);
 
+        dc.Pop();
+    }
+
+    /// <summary>
+    /// La carita a mitad de ser letra (spec 086, promesa 880): los cinco trazos de <see cref="LaUDeLaCarita"/> y el
+    /// cuerpo creciendo desde el centro. Donde el cuerpo ya cubre, el trazo es de tinta; fuera, sigue la letra
+    /// blanca sobre el negro de la ventana. Sin manos y sin giro: la intro no gira hasta que es la carita.
+    /// </summary>
+    private void PintarLaU(DrawingContext dc, PaletaDeLaCarita paleta, double cx, double cy, double r, double s)
+    {
+        double laU = Math.Min(LaU, 1);
+        var p = CurrentPose;
+        var cara = LaUDeLaCarita.Cara(p.BrowL, p.BrowR, p.CurveL, p.CurveR, p.EyeOpen, p.Squint,
+                                      p.MouthCurve, p.MouthWidth, p.CornerL, p.CornerR, BlinkClosed);
+
+        Point Px(Point u) => new(cx + u.X * s, cy + u.Y * s);
+        var rasgos = new StreamGeometry();
+        using (var g = rasgos.Open())
+            foreach (var t in LaUDeLaCarita.Entre(laU, cara))
+            {
+                g.BeginFigure(Px(t.A), false, false);
+                g.BezierTo(Px(t.B), Px(t.C), Px(t.D), true, false);
+            }
+        rasgos.Transform = new RotateTransform(LaUDeLaCarita.Lienzo(laU), cx, cy);
+        rasgos.Freeze();
+
+        double grosor = LaUDeLaCarita.Grosor(laU) * s;
+        // Casi blanca, como el cuerpo: el blanco puro «lastima los ojos» (2026-10-01).
+        var blanca = new SolidColorBrush(Color.FromRgb(245, 245, 245));
+        blanca.Freeze();
+        var tinta = new SolidColorBrush(paleta.Tinta);
+        tinta.Freeze();
+
+        double crece = LaUDeLaCarita.Cuerpo(laU);
+        if (crece <= 0)
+        {
+            dc.DrawGeometry(null, Pluma(blanca, grosor), rasgos);
+            return;
+        }
+
+        // El cuerpo, como en OnRender pero a su tamaño de ahora: los pinceles son relativos a la silueta.
+        var cuerpo = OuterSquircle(cx, cy, r * crece);
+        dc.DrawGeometry(paleta.Cuerpo, null, cuerpo);
+        dc.DrawGeometry(paleta.Vineta, null, cuerpo);
+        dc.DrawGeometry(paleta.Reflejo, null, cuerpo);
+        if (Theme == FaceTheme.Dark)
+        {
+            double hairline = 0.35 * s;
+            var pen = new Pen(new SolidColorBrush(paleta.Filete), hairline);
+            pen.Freeze();
+            dc.DrawGeometry(null, pen, InnerSquircle(cx, cy, r * crece - hairline * 1.5));
+        }
+        else
+        {
+            var pen = new Pen(new SolidColorBrush(paleta.Filete), 1.5 * s);
+            pen.Freeze();
+            dc.DrawGeometry(null, pen, cuerpo);
+        }
+
+        var todo = new RectangleGeometry(new Rect(cx - 400 * s, cy - 400 * s, 800 * s, 800 * s));
+        dc.PushClip(new CombinedGeometry(GeometryCombineMode.Exclude, todo, cuerpo));
+        dc.DrawGeometry(null, Pluma(blanca, grosor), rasgos);
+        dc.Pop();
+        dc.PushClip(cuerpo);
+        dc.DrawGeometry(null, Pluma(tinta, grosor), rasgos);
         dc.Pop();
     }
 

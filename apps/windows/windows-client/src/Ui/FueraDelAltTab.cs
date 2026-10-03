@@ -60,6 +60,7 @@ public static class FueraDelAltTab
         typeof(LoginWindow),
         typeof(OnboardingWindow),    // el menú «cambiar perfil» (spec 078) lo sigue usando, solo con las tarjetas
         typeof(EscenaDeBienvenida),  // el primer encuentro: si se va a otra ventana, se vuelve a él (spec 080)
+        typeof(IntroWindow),         // la intro (spec 086): se presenta, y desde las diapositivas se vuelve a ella con Alt+Tab
         typeof(LogWindow),
         typeof(VideoLibraryWindow),
         typeof(WorkflowLibraryWindow),
