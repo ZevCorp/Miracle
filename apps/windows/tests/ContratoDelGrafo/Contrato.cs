@@ -1100,7 +1100,7 @@ internal static class Contrato
         Prueba("445. la carita blanca es casi blanca sin ser blanca: su cuerpo no llega al blanco puro en ningún punto ni se apaga —el centro no baja de 240 de 255, y arriba, abajo y a los lados no baja de 225—, y conserva el volumen", LaCaritaBlancaEsCasiBlanca);
         Prueba("446. cuando Ü pulsa algo, la carita lo presiona con la mano: saca solo la mano de ese lado, la empuja hacia fuera y la esconde sola en menos de un segundo, por detrás de la cara; la mano no se sale del aire que la ventana de la carita le deja, tampoco al saludar; y solo presiona cuando el pulso es de Ü: señalar no saca la mano", LaCaritaPresionaLoQueUPulsa);
         Prueba("447. los gestos responden a lo que pasa: tocar la carita la hace rebotar, y al ir junto a lo que Ü toca gira la cabeza hacia ello y la sigue teniendo girada aunque cambie de estado", LosGestosRespondenALoQuePasa);
-        // La 448 cambió el 2026-10-01 (spec 078): decía «hablar se ve en la sonrisa, que se ensancha poco a poco al empezar
+        // La 448 cambió el 2026-10-01 (spec 085): decía «hablar se ve en la sonrisa, que se ensancha poco a poco al empezar
         // una frase y se relaja al callar». El dueño, al verlo: «no me gusta cómo sonríe cuando habla».
         Prueba("448. al hablar la boca no se abre ni la cara cambia: es una línea en todos los estados, sin relleno ni lengua, y hablando es la misma cara que en reposo; de una expresión a otra se llega poco a poco", AlHablarLaBocaNoSeAbre);
 
@@ -1162,7 +1162,7 @@ internal static class Contrato
         // quién saludar.
         Console.WriteLine();
         Prueba("690. la carita saluda cuando vuelves: al abrir Ü, al desbloquear el computador, al volver a tocarlo tras cinco minutos sin hacerlo y al acercarle el ratón tras diez minutos sin tratarla; y sola, cada 20 a 40 minutos; nunca dos veces en menos de minuto y medio, ni en mitad de una conversación o de un trabajo", LaCaritaSaludaCuandoVuelves);
-        // La 691 cambió el mismo día que nació (spec 078): decía que mientras te escucha pone la cara de grabar. El dueño:
+        // La 691 cambió el mismo día que nació (spec 085): decía que mientras te escucha pone la cara de grabar. El dueño:
         // «me gusta, pero que entre y salga, que no se quede pegado».
         Prueba("691. mientras conversas con ella la carita sonríe como en reposo: la cara de atender —quieta y de boca pequeña, la de cuando graba— es un gesto que entra y sale, no una cara que se queda", MientrasConversaLaCaritaAtiende);
         Prueba("692. hay un solo reloj del saludo y vive en la ventana: el dibujo de la carita, solo, únicamente parpadea", HayUnSoloRelojDelSaludo);
@@ -1281,7 +1281,7 @@ internal static class Contrato
         Prueba("824. lo que Ü aprende se ve: al cerrar la voz el indicador carga mientras repasa y al terminar despliega todo lo aprendido en la sesión, cada cosa una vez; si no hubo nada lo dice; y lo guardado durante la clase se enseña en el acto", LoQueAprendeSeVe);
         Prueba("825. el ✓ y el botón de aprobar se prueban sin ventana por el mismo puente —u_nota y u_aprobar—, y solo existen con U_ORDENES_DE_PRUEBA=1", ElCheckSePruebaPorElMcp);
 
-        // ── Spec 078: la carita expresa lo que Ü hace, y lo que le pasa ──────────────────────────
+        // ── Spec 085: la carita expresa lo que Ü hace, y lo que le pasa ──────────────────────────
         // «Trabajando» y «esperando» llevaban meses dibujadas y sin verse: con la voz viva, la cara se decidía
         // antes de mirar si Ü ejecutaba. Aquí cada fila de «cuando pasa X, la carita hace Y» tiene su promesa.
         Console.WriteLine();
@@ -24406,7 +24406,7 @@ internal static class Contrato
         // puso fija toda la conversación; por la tarde, de gesto: un momento, y de vuelta a sonreír.
         if (Cara?.GetProperty("Gesto") == null || Cara.GetProperty("Expresion") == null)
         {
-            Pendiente("FaceControl.Gesto y FaceControl.Expresion", "691", "078");
+            Pendiente("FaceControl.Gesto y FaceControl.Expresion", "691", "085");
             return;
         }
         byte[] Pinta(Action<object> ajustar) => Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); ajustar(c); }));
@@ -24444,7 +24444,7 @@ internal static class Contrato
         }
     }
 
-    // ── La carita expresa lo que Ü hace (spec 078) ─────────────────────────────────────────
+    // ── La carita expresa lo que Ü hace (spec 085) ─────────────────────────────────────────
 
     private static double CampoDeTupla(object tupla, string campo) => Convert.ToDouble(tupla.GetType().GetField(campo)!.GetValue(tupla));
 
@@ -24485,7 +24485,7 @@ internal static class Contrato
         var espera = regla?.GetMethod("EsperaTuRespuesta");
         if (tipo == null || cual == null || ejecutando == null || espera == null)
         {
-            Pendiente("Ui.ReglaDelAnimo (Cual, EjecutandoAhora, EsperaTuRespuesta) y Ui.LoQuePasa", "693", "078");
+            Pendiente("Ui.ReglaDelAnimo (Cual, EjecutandoAhora, EsperaTuRespuesta) y Ui.LoQuePasa", "693", "085");
             return;
         }
         string Animo(params (string Que, object Vale)[] pasa)
@@ -24540,7 +24540,7 @@ internal static class Contrato
         var dura = gestos?.GetMethod("DuracionMs");
         if (cuales == null || dura == null || Cara?.GetProperty("Gesto") == null || Cara.GetProperty("Expresion") == null || Cara.GetMethod("Expresar") == null)
         {
-            Pendiente("Ui.ExpresionesDeLaCarita (DuracionMs), Ui.ExpresionDeLaCarita y FaceControl.Gesto/Expresion/Expresar", "694", "078");
+            Pendiente("Ui.ExpresionesDeLaCarita (DuracionMs), Ui.ExpresionDeLaCarita y FaceControl.Gesto/Expresion/Expresar", "694", "085");
             return;
         }
         byte[] Pinta(Action<object> ajustar) => Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); ajustar(c); }));
@@ -24574,7 +24574,7 @@ internal static class Contrato
         var proximo = oir?.GetMethod("ProximoMs");
         var cual = oir?.GetMethod("Cual");
         var sigue = oir?.GetMethod("Sigue");
-        if (proximo == null || cual == null || sigue == null) { Pendiente("Ui.GestosAlOir (ProximoMs, Cual, Sigue)", "695", "078"); return; }
+        if (proximo == null || cual == null || sigue == null) { Pendiente("Ui.GestosAlOir (ProximoMs, Cual, Sigue)", "695", "085"); return; }
         double P(double d) => Convert.ToDouble(proximo.Invoke(null, new object[] { d }));
         string C(int n) => cual.Invoke(null, new object[] { n })!.ToString()!;
         bool S(double seg, bool uActua) => (bool)sigue.Invoke(null, new object[] { seg, uActua })!;
@@ -24600,7 +24600,7 @@ internal static class Contrato
         // RECTO» (el dueño, 2026-10-01, probando botones en la vitrina).
         var gestos = Capacidad("U.WindowsClient.Ui.ExpresionesDeLaCarita");
         var alPulsar = gestos?.GetMethod("AlPulsar");
-        if (alPulsar == null) { Pendiente("Ui.ExpresionesDeLaCarita.AlPulsar", "696", "078"); return; }
+        if (alPulsar == null) { Pendiente("Ui.ExpresionesDeLaCarita.AlPulsar", "696", "085"); return; }
         string A(int n) => alPulsar.Invoke(null, new object[] { n })!.ToString()!;
         var dos = new[] { "Atenta", "Entiende" };
         Debe(dos.Contains(A(0)) && dos.Contains(A(1)), $"al pulsar pone la cara de atender o la de entender ({A(0)}, {A(1)})");
@@ -24622,7 +24622,7 @@ internal static class Contrato
         if (visita == null || desliz == null || estancia?.GetMethod("IrA") == null || estancia.GetMethod("Quedarse") == null
             || avisos?.GetMethod("AvisarDeQueDesplaza") == null || Cara?.GetProperty("Desliz") == null || Cara.GetMethod("Deslizar") == null)
         {
-            Pendiente("ReglaDeLaVisita.Desliz, ManosDeLaCarita.Desliz, EstanciaDeLaCarita.IrA/Quedarse, LoQueUHace y FaceControl.Desliz/Deslizar", "697", "078");
+            Pendiente("ReglaDeLaVisita.Desliz, ManosDeLaCarita.Desliz, EstanciaDeLaCarita.IrA/Quedarse, LoQueUHace y FaceControl.Desliz/Deslizar", "697", "085");
             return;
         }
 
@@ -24717,7 +24717,7 @@ internal static class Contrato
         var avisos = Capacidad("U.WindowsClient.Ui.LoQueUHace");
         if (tecleo == null || cuanto == null || avisos?.GetMethod("AvisarDeQueEscribe") == null || Cara?.GetProperty("Tecleo") == null || Cara.GetMethod("Teclear") == null)
         {
-            Pendiente("ManosDeLaCarita.Tecleo/CuantoTeclea, LoQueUHace.AvisarDeQueEscribe y FaceControl.Tecleo/Teclear", "698", "078");
+            Pendiente("ManosDeLaCarita.Tecleo/CuantoTeclea, LoQueUHace.AvisarDeQueEscribe y FaceControl.Tecleo/Teclear", "698", "085");
             return;
         }
         double Q(int caracteres) => Convert.ToDouble(cuanto.Invoke(null, new object[] { caracteres }));
@@ -24768,7 +24768,7 @@ internal static class Contrato
         var estados = Cara?.GetProperty("Mood")?.PropertyType;
         if (seAlegra == null || seDespide == null || motivos == null || estados == null || !Enum.GetNames(motivos).Contains("Despedida"))
         {
-            Pendiente("ReglaDelAnimo.SeAlegra, ReglaDelSaludo.SeDespide y MotivoDelSaludo.Despedida", "699", "078");
+            Pendiente("ReglaDelAnimo.SeAlegra, ReglaDelSaludo.SeDespide y MotivoDelSaludo.Despedida", "699", "085");
             return;
         }
         bool A(string antes, string ahora) => (bool)seAlegra.Invoke(null, new[] { Enum.Parse(estados, antes), Enum.Parse(estados, ahora) })!;

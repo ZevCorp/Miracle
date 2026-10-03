@@ -27,7 +27,7 @@ public sealed class FaceGestures
     public Action? DoubleTap { get; set; }
     /// <summary>Mantener oprimido en un lugar estático (sin arrastrar).</summary>
     public Action? LongPress { get; set; }
-    /// <summary>La agarraron: el toque pasó a ser arrastre. Una vez por arrastre (spec 078, promesa 699).</summary>
+    /// <summary>La agarraron: el toque pasó a ser arrastre. Una vez por arrastre (spec 085, promesa 699).</summary>
     public Action? Agarrada { get; set; }
 
     /// <summary>

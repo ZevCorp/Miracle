@@ -55,7 +55,7 @@ public sealed class EstanciaDeLaCarita
     }
 
     /// <summary>
-    /// Va a un PUNTO, de visita: transparente y DESPUÉS vuela (spec 078). Para lo que no se hace junto a un elemento sino
+    /// Va a un PUNTO, de visita: transparente y DESPUÉS vuela (spec 085). Para lo que no se hace junto a un elemento sino
     /// dentro de una ventana —deslizar— o dentro de un campo grande —teclear—. Devuelve lo que tarda en llegar; cero, y
     /// nada se toca, si no hay casa a la que volver.
     /// </summary>

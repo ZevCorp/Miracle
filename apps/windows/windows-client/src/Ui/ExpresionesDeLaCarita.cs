@@ -17,7 +17,7 @@ public enum ExpresionDeLaCarita
 }
 
 /// <summary>
-/// CUÁNTO DURA CADA GESTO Y CUÁL TOCA (spec 078, promesas 694 y 696). Pura.
+/// CUÁNTO DURA CADA GESTO Y CUÁL TOCA (spec 085, promesas 694 y 696). Pura.
 /// </summary>
 /// <remarks>
 /// Un gesto no es un estado. El dueño lo dijo dos veces el mismo día (2026-10-01): de la cara de atender,

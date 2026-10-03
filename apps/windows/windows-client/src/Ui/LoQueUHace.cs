@@ -4,7 +4,7 @@ using U.WindowsClient.Diagnostics;
 namespace U.WindowsClient.Ui;
 
 /// <summary>
-/// LO QUE Ü ACABA DE HACER, para quien quiera gesticularlo (spec 078, promesas 697 y 698).
+/// LO QUE Ü ACABA DE HACER, para quien quiera gesticularlo (spec 085, promesas 697 y 698).
 /// </summary>
 /// <remarks>
 /// El pulso ya avisaba (<c>UiaSurface.Pulso</c>, promesa 504); desplazar y escribir no avisaban a nadie.

@@ -15,7 +15,7 @@ public enum MotivoDelSaludo
     Acercarse,
     /// <summary>Sola, pasado el rato.</summary>
     Rato,
-    /// <summary>Se colgó una conversación de verdad: se despide (spec 078, promesa 699).</summary>
+    /// <summary>Se colgó una conversación de verdad: se despide (spec 085, promesa 699).</summary>
     Despedida,
 }
 

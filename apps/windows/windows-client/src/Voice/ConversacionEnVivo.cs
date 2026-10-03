@@ -412,7 +412,7 @@ public sealed class ConversacionEnVivo : IDisposable
 
     /// <summary>
     /// La persona EMPEZÓ a hablar (el <c>speech_started</c> del servidor). La carita lo escucha para poner la cara de
-    /// atender (spec 078, promesa 695). Que ACABÓ no lo avisa nadie: quien lo use tiene que ponerse su propio tope.
+    /// atender (spec 085, promesa 695). Que ACABÓ no lo avisa nadie: quien lo use tiene que ponerse su propio tope.
     /// </summary>
     public event Action? LaPersonaEmpezoAHablar;
 

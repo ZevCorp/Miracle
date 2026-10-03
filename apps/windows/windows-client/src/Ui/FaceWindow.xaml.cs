@@ -2418,7 +2418,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool GetLastInputInfo(ref LASTINPUTINFO info);
 
-    /// <summary>La caja de una ventana, en píxeles físicos: la de delante, para deslizarla (spec 078).</summary>
+    /// <summary>La caja de una ventana, en píxeles físicos: la de delante, para deslizarla (spec 085).</summary>
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     private struct CajaDeVentana { public int Left, Top, Right, Bottom; }
 
@@ -3177,7 +3177,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // y espejar la carita al lado que toque. Llega con el DESTINO, así que el espejo se
             // aplica al empezar el vuelo y no al terminarlo — viaja ya con su forma final en vez de
             // darse la vuelta al aterrizar.
-            // LE PASA ALGO, Y REACCIONA (spec 078, promesa 699): al agarrarla se sorprende, y al soltarla rebota.
+            // LE PASA ALGO, Y REACCIONA (spec 085, promesa 699): al agarrarla se sorprende, y al soltarla rebota.
             Agarrada = () => Expresar(ExpresionDeLaCarita.Sorprendida),
             Moved = (izquierda, arriba) => { OnWindowMoved(izquierda, arriba); CollapsedFace.Pulse(); },
         };
@@ -5509,7 +5509,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private bool _failed;    // la última corrida terminó mal
     private FaceMood _mood = FaceMood.Reposo;
 
-    // ── Lo que pasa, para la cara (spec 078) ──────────────────────────────────────────────────
+    // ── Lo que pasa, para la cara (spec 085) ──────────────────────────────────────────────────
 
     private int _accionesEnCurso;
     private long _acaboLaUltimaAccion = long.MinValue / 2;

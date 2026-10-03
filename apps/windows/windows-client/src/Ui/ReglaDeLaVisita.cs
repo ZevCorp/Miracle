@@ -48,7 +48,7 @@ public static class ReglaDeLaVisita
     public const double DentroDelBorde = 24;
 
     /// <summary>
-    /// POR DÓNDE DESLIZA la carita cuando Ü desplaza una ventana (spec 078, promesa 697): dentro de la ventana, junto a su
+    /// POR DÓNDE DESLIZA la carita cuando Ü desplaza una ventana (spec 085, promesa 697): dentro de la ventana, junto a su
     /// borde derecho, y a media altura; de ahí se mueve CON el contenido. Rueda abajo (muescas &lt; 0): el contenido sube
     /// y la carita sube; rueda arriba, baja. Todo en DIP. null si no hay desplazamiento o no hay sitio.
     /// </summary>

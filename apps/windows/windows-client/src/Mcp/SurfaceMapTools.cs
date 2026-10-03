@@ -1887,7 +1887,7 @@ public sealed class SurfaceMapTools
         // una llegada para que la app la juzgue, y guardar la skill de lo verificado.
         or "voz_decir" or "voz_preguntar" or "leccion_llegue" or "leccion_guardar_skill" or "leccion_plan";
 
-    /// <summary>La carita teclea lo que se acaba de escribir (spec 078, promesa 698): después de escribirlo y sin esperarla.</summary>
+    /// <summary>La carita teclea lo que se acaba de escribir (spec 085, promesa 698): después de escribirlo y sin esperarla.</summary>
     private static string Escrito(string texto, string relato)
     {
         if (Ui.LoQueUHace.AvisarDeQueEscribe(texto.Length) is { } no) LogBus.Log("mapa-mcp", "el aviso de que escribí reventó: " + no);
@@ -1896,7 +1896,7 @@ public sealed class SurfaceMapTools
 
     public string Call(string tool, IReadOnlyDictionary<string, string> args)
     {
-        // MIENTRAS DURA UN ACTO, LA CARITA TRABAJA (spec 078, promesa 693). Aquí, porque aquí pasan todos: la voz, el
+        // MIENTRAS DURA UN ACTO, LA CARITA TRABAJA (spec 085, promesa 693). Aquí, porque aquí pasan todos: la voz, el
         // servidor MCP y el bucle del agente. Con using: una herramienta que lance no la deja trabajando para siempre.
         using var acto = Ui.LoQueUHace.Mientras(tool);
         string A(string k) => args.TryGetValue(k, out var v) ? v.Trim() : "";

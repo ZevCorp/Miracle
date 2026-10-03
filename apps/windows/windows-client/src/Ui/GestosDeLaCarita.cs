@@ -38,7 +38,7 @@ public static class GestosDeLaCarita
     //
     // La carita no salta de una expresión a otra: llega. Hasta el 2026-10-01 hablar era el caso que mandaba —la sonrisa
     // se ensanchaba en 260 ms y se relajaba en 900—, y el dueño lo vio y no le gustó («no me gusta cómo sonríe cuando
-    // habla»). Al hablar ya no cambia de cara (spec 078), y a todas las demás se llega en el mismo tiempo.
+    // habla»). Al hablar ya no cambia de cara (spec 085), y a todas las demás se llega en el mismo tiempo.
 
     public const int CambiarMs = 320;
 

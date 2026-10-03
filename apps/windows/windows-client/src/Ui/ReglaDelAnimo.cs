@@ -26,7 +26,7 @@ public sealed class LoQuePasa
 }
 
 /// <summary>
-/// QUÉ CARA PONE LA CARITA, según lo que pasa (spec 078, promesa 693). Pura.
+/// QUÉ CARA PONE LA CARITA, según lo que pasa (spec 085, promesa 693). Pura.
 /// </summary>
 /// <remarks>
 /// POR QUÉ EXISTE. Hasta el 2026-10-01 esto era una escalera dentro de la ventana, y su primer peldaño

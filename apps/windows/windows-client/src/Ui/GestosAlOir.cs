@@ -3,7 +3,7 @@ using System;
 namespace U.WindowsClient.Ui;
 
 /// <summary>
-/// LO QUE HACE LA CARITA MIENTRAS LE HABLAS (spec 078, promesa 695). Pura.
+/// LO QUE HACE LA CARITA MIENTRAS LE HABLAS (spec 085, promesa 695). Pura.
 /// </summary>
 /// <remarks>
 /// «Que mientras le estoy hablando a veces ponga la cara de esperando, que se sienta que me está

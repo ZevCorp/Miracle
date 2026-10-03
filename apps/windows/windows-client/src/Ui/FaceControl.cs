@@ -67,7 +67,7 @@ public sealed class FaceControl : FrameworkElement
     /// <summary>
     /// La respiración de «escuchando». Aparte del pulso (<see cref="_scale"/>) a propósito: tocarla la hace rebotar y
     /// prenderle la voz la pone a respirar, las dos cosas a la vez, y en la misma transform el rebote, al acabar, se
-    /// llevaba la respiración (spec 078).
+    /// llevaba la respiración (spec 085).
     /// </summary>
     private readonly ScaleTransform _respiro = new(1, 1);
     /// <summary>El ladeo de un gesto pasajero. Aparte del balanceo de «trabajando», para que entender no lo pare.</summary>
@@ -168,7 +168,7 @@ public sealed class FaceControl : FrameworkElement
         new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
     /// <summary>
-    /// El instante del desliz en curso, en segundos y con el signo del lado, como <see cref="Presion"/> (spec 078,
+    /// El instante del desliz en curso, en segundos y con el signo del lado, como <see cref="Presion"/> (spec 085,
     /// promesa 697). Lo anima <see cref="Deslizar"/>; la mano la pone <see cref="ManosDeLaCarita.Desliz"/>.
     /// </summary>
     public double Desliz
@@ -185,7 +185,7 @@ public sealed class FaceControl : FrameworkElement
     private double _cuantoDesliza = 0.42;
 
     /// <summary>
-    /// El instante del tecleo en curso, en segundos; 0 = no teclea (spec 078, promesa 698). Lo anima
+    /// El instante del tecleo en curso, en segundos; 0 = no teclea (spec 085, promesa 698). Lo anima
     /// <see cref="Teclear"/>; las dos manos las pone <see cref="ManosDeLaCarita.Tecleo"/>.
     /// </summary>
     public double Tecleo
@@ -201,7 +201,7 @@ public sealed class FaceControl : FrameworkElement
     /// <summary>Lo que dura el tecleo en curso, en segundos.</summary>
     private double _duraElTecleo = 1.5;
 
-    /// <summary>El gesto pasajero que lleva puesto (spec 078, promesa 694). Cuánto, lo dice <see cref="Expresion"/>.</summary>
+    /// <summary>El gesto pasajero que lleva puesto (spec 085, promesa 694). Cuánto, lo dice <see cref="Expresion"/>.</summary>
     public ExpresionDeLaCarita Gesto
     {
         get => (ExpresionDeLaCarita)GetValue(GestoProperty);
@@ -318,13 +318,13 @@ public sealed class FaceControl : FrameworkElement
         [FaceMood.Escuchando] = new(6, 6, 0.35, 0.35, 1.00, 0.05, 0.6, 34 * 1.05, 0.35, 0.35),
         // CONVERSANDO SONRÍE, como en reposo. Por la mañana del 2026-10-01 se puso aquí la cara de atender, fija (spec
         // 077), y por la tarde el dueño: «me gusta, pero que entre y salga, que no se quede pegado». Atender es ahora
-        // un gesto (ExpresionDeLaCarita.Atenta): un momento, y de vuelta a la sonrisa (spec 078, promesa 691).
+        // un gesto (ExpresionDeLaCarita.Atenta): un momento, y de vuelta a la sonrisa (spec 085, promesa 691).
         [FaceMood.Conversando] = Sonrie,
         [FaceMood.Grabando] = Atenta,
         // Asimetría interrogativa: una ceja sube, la otra baja. Y además ladea la cabeza (OnMoodChanged).
         [FaceMood.Esperando] = new(6, -1, 0.45, 0.15, 0.9, 0.10, 0.2, 34 * 0.95, 0.4, 0.1),
         // AL HABLAR, LA MISMA CARA. Aquí estaba la sonrisa ancha a la que se llegaba en 260 ms; el dueño la vio y no le
-        // gustó: «por ahora que no haga nada cuando hable» (spec 078, promesa 448). El halo ya dice que habla.
+        // gustó: «por ahora que no haga nada cuando hable» (spec 085, promesa 448). El halo ya dice que habla.
         [FaceMood.Hablando] = Sonrie,
         // Boca recta y ojos entornados: ni contenta ni enfadada, parada.
         [FaceMood.Detenido] = new(0, 0, 0.2, 0.2, 0.6, 0.25, 0.0, 34 * 0.9, 0.0, 0.0),
@@ -347,7 +347,7 @@ public sealed class FaceControl : FrameworkElement
     private FacePose _poseDesde = Poses[FaceMood.Reposo];
 
     /// <summary>
-    /// Las caras de los gestos (spec 078, promesa 694). Atender es la de grabar y entender la de esperar, tal cual: son
+    /// Las caras de los gestos (spec 085, promesa 694). Atender es la de grabar y entender la de esperar, tal cual: son
     /// las dos que el dueño señaló en la ventana de prueba. Alegrarse es la sonrisa grande con los ojos entornados, y
     /// sorprenderse, las cejas arriba del todo con la boca encogida.
     /// </summary>
@@ -602,7 +602,7 @@ public sealed class FaceControl : FrameworkElement
 
     /// <summary>
     /// Apoya la mano de un lado y la AGUANTA <paramref name="cuanto"/> mientras la ventana de la carita se mueve con lo
-    /// que Ü desplaza (spec 078, promesa 697). <paramref name="tras"/>: lo que tarda en llegar al sitio.
+    /// que Ü desplaza (spec 085, promesa 697). <paramref name="tras"/>: lo que tarda en llegar al sitio.
     /// </summary>
     public void Deslizar(bool izquierda, TimeSpan tras, TimeSpan cuanto)
     {
@@ -615,7 +615,7 @@ public sealed class FaceControl : FrameworkElement
     }
 
     /// <summary>
-    /// Saca las dos manos y TECLEA durante <paramref name="cuanto"/> (spec 078, promesa 698): «como moviendo las dos
+    /// Saca las dos manos y TECLEA durante <paramref name="cuanto"/> (spec 085, promesa 698): «como moviendo las dos
     /// manitos, taca taca taca». <paramref name="tras"/>: lo que tarda en llegar junto al campo.
     /// </summary>
     public void Teclear(TimeSpan cuanto, TimeSpan tras)
@@ -628,7 +628,7 @@ public sealed class FaceControl : FrameworkElement
     }
 
     /// <summary>
-    /// Pone un GESTO: entra, se sostiene un momento y sale solo, de vuelta a la cara de su estado (spec 078, promesa
+    /// Pone un GESTO: entra, se sostiene un momento y sale solo, de vuelta a la cara de su estado (spec 085, promesa
     /// 694). Los tiempos y el ladeo de cada uno los dice <see cref="ExpresionesDeLaCarita.Tiempos"/>.
     /// </summary>
     public void Expresar(ExpresionDeLaCarita cual)

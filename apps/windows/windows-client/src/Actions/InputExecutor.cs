@@ -92,7 +92,7 @@ public static class InputExecutor
             U = new InputUnion { mi = new MOUSEINPUT { mouseData = unchecked((uint)(down ? -120 : 120)), dwFlags = MOUSEEVENTF_WHEEL, dwExtraInfo = U.Ciclo.Raton.Firma } },
         };
         SendInput(1, new[] { inp }, Marshal.SizeOf<INPUT>());
-        // La carita lo desliza (spec 078, promesa 697): después de la rueda y sin esperarla. Si el aviso revienta, la rueda ya giró.
+        // La carita lo desliza (spec 085, promesa 697): después de la rueda y sin esperarla. Si el aviso revienta, la rueda ya giró.
         if (Ui.LoQueUHace.AvisarDeQueDesplaza(down ? -1 : 1) is { } no) Diagnostics.LogBus.Log("scroll", "el aviso de que desplacé reventó: " + no);
         return true;
     }
