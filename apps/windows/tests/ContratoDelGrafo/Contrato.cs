@@ -1171,10 +1171,13 @@ internal static class Contrato
         // con una Ü gigante blanca […] los puntos de la diéresis pasan a ser las cejas, los laterales de la U los ojos y la
         // parte de abajo la boca, terminando en nuestro diseño exacto».
         Console.WriteLine();
-        Prueba("880. la Ü se vuelve la carita: con la intro entera la carita pinta una Ü blanca —dos puntos y una U— sin cuerpo; al deshacerse los puntos van a las cejas, los lados de la U a los ojos y su fondo a la boca, y el cuerpo crece desde el centro; y al terminar pinta exactamente la carita de siempre", LaUSeVuelveLaCarita);
-        Prueba("881. la intro solo arranca si mantienes la U tres segundos: soltarla antes no hace nada, y mantenerla otra vez la repite desde la Ü", LaIntroArrancaConLaU);
+        // La 880 y la 881 cambiaron el mismo día que nacieron, al verlas el dueño: primero «por fases duras» y luego «tipo Apple, no
+        // necesariamente como te las pedí»; y «la estática inicial no es la carita, sino la letra Ü». La 884 nació ahí.
+        Prueba("880. la Ü se vuelve la carita como lo haría Apple: entera es una Ü blanca sin cuerpo; los puntos se vuelven las cejas, luego los lados de la U los ojos y luego su fondo la boca, escalonados y solapados, cada pieza con un resorte suave que se pasa un pelo y se asienta; después aparece el cuerpo, y al terminar pinta exactamente la carita de siempre", LaUSeVuelveLaCarita);
+        Prueba("881. la intro abre quieta en la Ü y solo arranca si mantienes la U tres segundos: soltarla antes no hace nada, y mantenerla otra vez la repite desde la Ü", LaIntroArrancaConLaU);
         Prueba("882. la intro cuenta su historia en orden: se transforma, mira a un lado, vuelve al centro, pone la cara de cuando Ü te pregunta y se despide con la mano como al colgar", LaIntroCuentaSuHistoria);
         Prueba("883. la ventana de la intro es negra, del tamaño y la forma de la ventana de la consulta, y abrirla con --intro no arranca nada más: ni la carita de siempre, ni la actualización, ni el candado de instancia", LaVentanaDeLaIntro);
+        Prueba("884. un botón gris en la esquina de la intro alterna la pantalla completa: la ventana llena la pantalla sin esquinas redondas y la Ü crece con ella, y otro toque la devuelve a su tamaño y su forma", LaIntroAlternaLaPantallaCompleta);
         // ── Spec 073: la voz conversa mientras el delegado trabaja (2026-10-01) ──
         // 751-756. Nacieron como 680-686 en la rama; al mezclar con main (2026-10-01) esos números ya eran de la spec
         // 076, y la primera —el presupuesto de la historia al abrir— ya la prometía la 667. «Siento que la voz no
@@ -24855,9 +24858,11 @@ internal static class Contrato
         var grosor = t?.GetMethod("Grosor");
         var cuerpo = t?.GetMethod("Cuerpo");
         var tamano = t?.GetMethod("TamanoDelCuerpo");
-        if (letraT == null || cara == null || entre == null || grosor == null || cuerpo == null || tamano == null || Cara?.GetProperty("LaU") == null)
+        var avance = t?.GetMethod("Avance");
+        if (letraT == null || cara == null || entre == null || grosor == null || cuerpo == null || tamano == null || avance == null
+            || grosor.GetParameters().Length != 2 || Cara?.GetProperty("LaU") == null)
         {
-            Pendiente("Ui.LaUDeLaCarita (LaU, Cara, Entre, Grosor, Cuerpo, TamanoDelCuerpo) y FaceControl.LaU", "880", "086");
+            Pendiente("Ui.LaUDeLaCarita (LaU, Cara, Entre, Avance y Grosor por pieza, Cuerpo, TamanoDelCuerpo) y FaceControl.LaU", "880", "086");
             return;
         }
 
@@ -24874,10 +24879,11 @@ internal static class Contrato
         Debe((letra[2][3] - letra[4][0]).Length < 1e-6 && (letra[3][3] - letra[4][3]).Length < 1e-6,
             "la U es de una pieza: los lados acaban justo donde empieza y termina su fondo");
         Debe(EnLaCurva(letra[4], 0.5).Y - letra[4][0].Y > 30, "y su fondo es una curva honda, no una raya");
-        double g1 = Convert.ToDouble(grosor.Invoke(null, new object[] { 1.0 })), g0 = Convert.ToDouble(grosor.Invoke(null, new object[] { 0.0 }));
+        double G(double u, int i) => Convert.ToDouble(grosor.Invoke(null, new object[] { u, i }));
+        double g1 = Enumerable.Range(0, 5).Min(i => G(1, i));
         double alto = letra.SelectMany(p => new[] { p[0].Y, p[3].Y, EnLaCurva(p, 0.5).Y }).Max() - letra.SelectMany(p => new[] { p[0].Y, p[3].Y }).Min() + g1;
         Debe(alto > 200, $"gigante: la Ü mide más que la carita entera, que son 150 ({alto:0})");
-        Debe(g1 >= 20 && g0 == 4, $"con trazo de letra al empezar y el de la carita al acabar ({g1:0.#} → {g0:0.#})");
+        Debe(g1 >= 20 && Enumerable.Range(0, 5).All(i => G(0, i) == 4), $"con trazo de letra al empezar y el de la carita al acabar, en las cinco piezas ({g1:0.#} → {G(0, 0):0.#})");
 
         // LA CARA de la sonrisa de siempre, y a qué pieza va cada rasgo.
         object rasgos = cara.Invoke(null, new object[] { 2.0, 2.5, 0.3, 0.4, 0.85, 0.15, 0.7, 34 * 1.1, 0.3, 0.5, 0.0 })!;
@@ -24890,15 +24896,39 @@ internal static class Contrato
         var alEmpezar = En(1); var alAcabar = En(0);
         Debe(alEmpezar.Zip(letra).All(z => Lejos(z.First, z.Second) < 1e-9), "con la intro entera es la Ü, punto por punto");
         Debe(alAcabar.Zip(meta).All(z => Lejos(z.First, z.Second) < 1e-9), "y al acabar es la carita, punto por punto: termina en su diseño exacto");
-        string[] nombres = { "el punto izquierdo → la ceja izquierda", "el punto derecho → la derecha", "el lado izquierdo → el ojo izquierdo", "el lado derecho → el derecho", "el fondo → la boca" };
-        for (int i = 0; i < 5; i++)
+        // COMO LO HARÍA APPLE. El dueño pidió primero «fases duras» y al verlas lo corrigió: «que las transiciones sean tipo
+        // Apple, no necesariamente como te las pedí». Apple no corta: mueve con resortes —cada pieza llega suave, se pasa
+        // un pelo y se asienta— y escalona las fases solapándolas, de modo que cuando una va a medias la siguiente ya
+        // arranca. Se mantiene el orden que pidió: cejas, ojos, boca y, al final, el cuerpo.
+        double Av(double u, int i) => Convert.ToDouble(avance.Invoke(null, new object[] { u, i }));
+        const int N = 400;
+        (double Desde, double Hasta, double Max, double Salto) Ventana(int i)
         {
-            var d = Enumerable.Range(0, 11).Select(k => Lejos(En(1 - k / 10.0)[i], meta[i])).ToArray();
-            Debe(d[0] > 1 && d.Zip(d.Skip(1)).All(z => z.Second <= z.First + 1e-9), $"{nombres[i]}: se acerca sin volver atrás ({d[0]:0} → {d[5]:0} → {d[10]:0})");
-            Debe(d[5] < d[0] * 0.3, $"{nombres[i]}: a mitad de la intro ya casi llegó, antes de que crezca el cuerpo ({d[5]:0} de {d[0]:0})");
+            double desde = -1, hasta = 0, max = 0, salto = 0, antes = 0;
+            for (int k = 0; k <= N; k++)
+            {
+                double prog = k / (double)N, a = Av(1 - prog, i);
+                if (a != 0 && desde < 0) desde = prog;
+                if (a != 1) hasta = prog + 1.0 / N;
+                max = Math.Max(max, a);
+                salto = Math.Max(salto, Math.Abs(a - antes));
+                antes = a;
+            }
+            return (desde, hasta, max, salto);
         }
+        var v = Enumerable.Range(0, 5).Select(Ventana).ToArray();
+        string ventanas = string.Join(", ", v.Select(x => $"{x.Desde:0.00}-{x.Hasta:0.00}"));
+        Debe(v[0].Desde == v[1].Desde && v[0].Hasta == v[1].Hasta && v[2].Desde == v[3].Desde && v[2].Hasta == v[3].Hasta,
+            $"las dos cejas se mueven juntas, y los dos ojos juntos ({ventanas})");
+        Debe(v.All(x => x.Desde >= 0) && v[0].Desde < v[2].Desde && v[2].Desde < v[4].Desde && v[0].Hasta < v[2].Hasta && v[2].Hasta < v[4].Hasta,
+            $"en orden —cejas, ojos, boca— y cada una acaba antes que la siguiente ({ventanas})");
+        Debe(v[2].Desde < v[0].Hasta && v[4].Desde < v[2].Hasta,
+            $"escalonadas y solapadas, como Apple: la siguiente arranca antes de que la anterior se asiente ({ventanas})");
+        Debe(v.All(x => x.Hasta - x.Desde >= 0.25), $"cada una se toma su tiempo, sin cortes: al menos un cuarto de la transformación ({ventanas})");
+        Debe(v.All(x => x.Salto < 0.04), $"y se mueve sin saltos: ni un fotograma de la animación cambia más de un 4 % ({v.Max(x => x.Salto):0.000})");
+        Debe(v.All(x => x.Max > 1.01 && x.Max < 1.08), $"con un resorte suave: se pasa un poco de su sitio, entre el 1 y el 8 %, y se asienta ({string.Join(", ", v.Select(x => x.Max.ToString("0.000")))})");
 
-        // EL CUERPO aparece en la segunda mitad, por detrás de los rasgos ya colocados, y crece desde el centro. No nace
+        // EL CUERPO, al final, cuando ya está la boca: asoma por detrás de los rasgos y crece desde el centro. No nace
         // como un punto: en el PC real (2026-10-03) el cuerpo creciendo desde cero era un cuadradito blanco en mitad de
         // la cara —una nariz— durante varios fotogramas.
         double C(double u) => Convert.ToDouble(cuerpo.Invoke(null, new object[] { u }));
@@ -24906,7 +24936,9 @@ internal static class Contrato
         var cs = Enumerable.Range(0, 21).Select(k => C(1 - k / 20.0)).ToArray();
         Debe(C(1) == 0 && C(0.5) == 0 && C(0) == 1 && cs.Zip(cs.Skip(1)).All(z => z.Second >= z.First - 1e-9),
             $"el cuerpo no está con la letra, sigue sin estar a mitad, y aparece sin volver atrás hasta entero ({C(1):0.##}, {C(0.5):0.##}, {C(0.25):0.##}, {C(0):0.##})");
-        var ts = Enumerable.Range(0, 50).Select(k => T(k / 100.0)).ToArray();
+        double primerCuerpo = Enumerable.Range(0, N + 1).Select(k => k / (double)N).First(prog => C(1 - prog) > 0);
+        Debe(primerCuerpo > v[4].Desde && Av(1 - primerCuerpo, 4) > 0.7, $"y no asoma hasta que la boca va casi puesta (asoma a {primerCuerpo:0.00}, con la boca al {Av(1 - primerCuerpo, 4):0.00})");
+        var ts = Enumerable.Range(0, 100).Select(k => k / 100.0).Where(u => C(u) > 0).Select(T).ToArray();
         Debe(T(0) == 1 && ts.All(x => x >= 0.4 && x <= 1.06),
             $"y crece hasta su tamaño exacto sin empezar siendo un punto ni hincharse más de un 6 % ({ts.Min():0.##} a {ts.Max():0.##})");
 
@@ -24946,6 +24978,21 @@ internal static class Contrato
         Debe(Convert.ToInt32(mantener.GetValue(null)) == 3000, $"hay que mantener la U tres segundos ({mantener.GetValue(null)} ms)");
         Debe(!A(0) && !A(1500) && !A(2999), "soltarla antes de los tres segundos no hace nada");
         Debe(A(3000) && A(9000), "a los tres segundos arranca, y seguir apretando no la estropea");
+
+        // ABRE QUIETA EN LA Ü. El dueño la encontró ya vuelta carita —la había dejado así una prueba— y lo dijo: «la
+        // estática inicial no es la carita, sino la letra Ü» (2026-10-03).
+        if (Capacidad("U.WindowsClient.Ui.IntroWindow") is { } vt)
+        {
+            var v = (System.Windows.Window)Activator.CreateInstance(vt)!;
+            try
+            {
+                var cara = DentroDe<System.Windows.FrameworkElement>(v, Cara!);
+                double laU = cara == null ? -1 : Convert.ToDouble(Cara!.GetProperty("LaU")!.GetValue(cara));
+                Debe(cara != null && laU == 1 && !((System.Windows.UIElement)cara).HasAnimatedProperties,
+                    $"al abrirse enseña la Ü entera y quieta, sin animar nada (LaU {laU})");
+            }
+            finally { v.Close(); }
+        }
         if (FuenteDeLaInterfaz("IntroWindow.cs") is { } w)
         {
             Debe(w.Contains("Key.U") && w.Contains("KeyUp") && w.Contains("GuionDeLaIntro.Arranca("),
@@ -25009,6 +25056,48 @@ internal static class Contrato
             Debe(intro >= 0 && despues.All(i => i > intro) && main.Contains("new IntroWindow()"),
                 "[cableado] --intro abre la ventana de la intro antes de la actualización, del candado de instancia y de la carita de siempre, y no sigue");
         }
+    }
+
+    /// <summary>El primer descendiente lógico de <paramref name="raiz"/> que sea del tipo dado.</summary>
+    private static T? DentroDe<T>(object raiz, Type tipo) where T : class
+    {
+        foreach (var hijo in System.Windows.LogicalTreeHelper.GetChildren((System.Windows.DependencyObject)raiz))
+        {
+            if (tipo.IsInstanceOfType(hijo)) return hijo as T;
+            if (hijo is System.Windows.DependencyObject d && DentroDe<T>(d, tipo) is { } x) return x;
+        }
+        return null;
+    }
+
+    private static void LaIntroAlternaLaPantallaCompleta()
+    {
+        var vt = Capacidad("U.WindowsClient.Ui.IntroWindow");
+        var alternar = vt?.GetMethod("AlternarPantallaCompleta");
+        if (vt == null || alternar == null) { Pendiente("IntroWindow.AlternarPantallaCompleta y su botón", "884", "086"); return; }
+        var v = (System.Windows.Window)Activator.CreateInstance(vt)!;
+        try
+        {
+            var boton = DentroDe<System.Windows.Controls.Button>(v, typeof(System.Windows.Controls.Button));
+            var fondo = (boton?.Background as System.Windows.Media.SolidColorBrush)?.Color;
+            bool gris = fondo is { } f && f.R == f.G && f.G == f.B && f.R > 30 && f.R < 200;
+            Debe(boton != null && gris && boton.HorizontalAlignment == System.Windows.HorizontalAlignment.Right
+                 && boton.VerticalAlignment == System.Windows.VerticalAlignment.Top,
+                $"en la esquina de arriba a la derecha hay un botón gris ({fondo})");
+            Debe(boton != null && !boton.Focusable, "y no se queda el teclado: la U sigue llegando a la ventana después de pulsarlo");
+
+            var tarjeta = (System.Windows.Controls.Border)v.Content;
+            var cara = DentroDe<System.Windows.FrameworkElement>(v, Cara!)!;
+            double antes = cara.Width;
+            alternar.Invoke(v, null);
+            Debe(v.WindowState == System.Windows.WindowState.Maximized && tarjeta.CornerRadius.TopLeft == 0 && cara.Width > antes,
+                $"un toque llena la pantalla, sin esquinas redondas, y la Ü crece con ella ({antes:0} → {cara.Width:0})");
+            alternar.Invoke(v, null);
+            Debe(v.WindowState == System.Windows.WindowState.Normal && tarjeta.CornerRadius.TopLeft == 46 && cara.Width == antes,
+                "y otro la devuelve a su tamaño y a su forma");
+        }
+        finally { v.Close(); }
+        if (FuenteDeLaInterfaz("IntroWindow.cs") is { } w)
+            Debe(w.Contains(".Click += (_, _) => AlternarPantallaCompleta()"), "[cableado] el botón es lo que alterna");
     }
 
     private static void Debe(bool condicion, string promesa)

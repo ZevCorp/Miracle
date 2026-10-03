@@ -859,17 +859,22 @@ public sealed class FaceControl : FrameworkElement
                                       p.MouthCurve, p.MouthWidth, p.CornerL, p.CornerR, BlinkClosed);
 
         Point Px(Point u) => new(cx + u.X * s, cy + u.Y * s);
-        var rasgos = new StreamGeometry();
-        using (var g = rasgos.Open())
-            foreach (var t in LaUDeLaCarita.Entre(laU, cara))
+        // Cada pieza es su geometría con su grosor: cada una engorda o adelgaza al paso de la suya.
+        var piezas = new List<(StreamGeometry Forma, double Grosor)>();
+        int pieza = 0;
+        foreach (var t in LaUDeLaCarita.Entre(laU, cara))
+        {
+            var forma = new StreamGeometry();
+            using (var g = forma.Open())
             {
                 g.BeginFigure(Px(t.A), false, false);
                 g.BezierTo(Px(t.B), Px(t.C), Px(t.D), true, false);
             }
-        rasgos.Transform = new RotateTransform(LaUDeLaCarita.Lienzo(laU), cx, cy);
-        rasgos.Freeze();
-
-        double grosor = LaUDeLaCarita.Grosor(laU) * s;
+            forma.Transform = new RotateTransform(LaUDeLaCarita.Lienzo(laU), cx, cy);
+            forma.Freeze();
+            piezas.Add((forma, LaUDeLaCarita.Grosor(laU, pieza++) * s));
+        }
+        void Trazar(Brush pincel) { foreach (var (forma, grosor) in piezas) dc.DrawGeometry(null, Pluma(pincel, grosor), forma); }
         // Casi blanca, como el cuerpo: el blanco puro «lastima los ojos» (2026-10-01).
         var blanca = new SolidColorBrush(Color.FromRgb(245, 245, 245));
         blanca.Freeze();
@@ -877,7 +882,7 @@ public sealed class FaceControl : FrameworkElement
         double seVe = LaUDeLaCarita.Cuerpo(laU);
         if (seVe <= 0)
         {
-            dc.DrawGeometry(null, Pluma(blanca, grosor), rasgos);
+            Trazar(blanca);
             return;
         }
 
@@ -911,10 +916,10 @@ public sealed class FaceControl : FrameworkElement
 
         var todo = new RectangleGeometry(new Rect(cx - 400 * s, cy - 400 * s, 800 * s, 800 * s));
         dc.PushClip(new CombinedGeometry(GeometryCombineMode.Exclude, todo, cuerpo));
-        dc.DrawGeometry(null, Pluma(blanca, grosor), rasgos);
+        Trazar(blanca);
         dc.Pop();
         dc.PushClip(cuerpo);
-        dc.DrawGeometry(null, Pluma(encima, grosor), rasgos);
+        Trazar(encima);
         dc.Pop();
     }
 

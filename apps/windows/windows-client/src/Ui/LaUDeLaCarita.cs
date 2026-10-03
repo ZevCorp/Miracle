@@ -73,18 +73,41 @@ public static class LaUDeLaCarita
     /// </summary>
     public static IReadOnlyList<Trazo> Entre(double laU, IReadOnlyList<Trazo> cara)
     {
-        double f = Forma(laU);
-        if (f <= 0) return LaU;
-        if (f >= 1) return cara;
-        Point L(Point a, Point b) => new(a.X + (b.X - a.X) * f, a.Y + (b.Y - a.Y) * f);
-        return LaU.Zip(cara, (u, c) => new Trazo(L(u.A, c.A), L(u.B, c.B), L(u.C, c.C), L(u.D, c.D))).ToArray();
+        var salida = new Trazo[5];
+        for (int i = 0; i < 5; i++)
+        {
+            double f = Avance(laU, i);
+            Point L(Point a, Point b) => new(a.X + (b.X - a.X) * f, a.Y + (b.Y - a.Y) * f);
+            Trazo u = LaU[i], c = cara[i];
+            salida[i] = new Trazo(L(u.A, c.A), L(u.B, c.B), L(u.C, c.C), L(u.D, c.D));
+        }
+        return salida;
     }
 
+    // COMO LO HARÍA APPLE (promesa 880). Pidió primero «fases duras» y al verlas: «que las transiciones sean tipo
+    // Apple, no necesariamente como te las pedí». Apple no corta: cada pieza viaja con un resorte —llega suave, se
+    // pasa un pelo y se asienta— y las fases se escalonan solapándose, así que cuando una va a medias la siguiente ya
+    // arranca. El orden es el que pidió: cejas, ojos, boca. Cada fase es una ventana de la transformación (0 a 1).
+    private static readonly (double Desde, double Hasta)[] Fases =
+    {
+        (0.04, 0.36),   // los puntos → las cejas
+        (0.20, 0.52),   // los lados de la U → los ojos
+        (0.36, 0.68),   // el fondo de la U → la boca
+    };
+
+    /// <summary>De qué fase es cada pieza: cejas, cejas, ojos, ojos, boca.</summary>
+    private static int FaseDe(int pieza) => pieza switch { 0 or 1 => 0, 2 or 3 => 1, _ => 2 };
+
     /// <summary>
-    /// Cuánto se deshizo la letra, de 0 a 1. Llega al 70 % de la intro: los rasgos se colocan primero y el cuerpo
-    /// crece después por detrás, porque si crecieran a la vez el cuerpo taparía una letra a medio deshacer.
+    /// Cuánto llegó la pieza a su rasgo, de 0 (es de la letra) a 1 (es de la cara): un resorte dentro de su ventana,
+    /// y quieta fuera de ella.
     /// </summary>
-    public static double Forma(double laU) => Suave(Math.Clamp((1 - laU) / 0.7, 0, 1));
+    public static double Avance(double laU, int pieza)
+    {
+        var (desde, hasta) = Fases[FaseDe(pieza)];
+        double x = ((1 - laU) - desde) / (hasta - desde);
+        return x <= 0 ? 0 : x >= 1 ? 1 : Resorte(x);
+    }
 
     /// <summary>
     /// Cuánto se ve el cuerpo, de 0 (no está) a 1 (del todo): aparece en la segunda mitad de la intro, cuando los
@@ -101,24 +124,30 @@ public static class LaUDeLaCarita
     public static double TamanoDelCuerpo(double laU)
     {
         double b = Crecido(laU);
-        return b <= 0 ? 0 : 0.55 + 0.45 * ConRebote(b);
+        return b <= 0 ? 0 : 0.55 + 0.45 * Resorte(b);
     }
 
-    /// <summary>Lo que va de la segunda mitad de la intro, de 0 a 1.</summary>
-    private static double Crecido(double laU) => Math.Clamp((0.5 - laU) / 0.5, 0, 1);
+    /// <summary>Lo que va del último 40 % de la intro, de 0 a 1: el cuerpo asoma cuando la boca ya va casi puesta.</summary>
+    private static double Crecido(double laU) => Math.Clamp(((1 - laU) - 0.60) / 0.40, 0, 1);
 
-    /// <summary>Llega pasándose un poco y vuelve: el «ease out back» de siempre, que acaba exactamente en 1.</summary>
-    private static double ConRebote(double x)
+    /// <summary>
+    /// El resorte de siempre en Apple: amortiguado al 70 %, que se pasa un 4,6 % y se asienta. Para x de 0 a 1 va de 0
+    /// a 1; en 1 queda a un 0,4 % de distancia y se da por llegado, sin salto que se pueda ver.
+    /// </summary>
+    private static double Resorte(double x)
     {
-        const double c1 = 1.70158, c3 = c1 + 1;
-        return 1 + c3 * Math.Pow(x - 1, 3) + c1 * Math.Pow(x - 1, 2);
+        if (x >= 1) return 1;
+        const double zeta = 0.7, decae = 5.5;
+        double wn = decae / zeta, wd = wn * Math.Sqrt(1 - zeta * zeta);
+        return 1 - Math.Exp(-decae * x) * (Math.Cos(wd * x) + decae / wd * Math.Sin(wd * x));
     }
 
-    /// <summary>El grosor del trazo, del de la letra al de la carita, al paso de los rasgos.</summary>
-    public static double Grosor(double laU) => GrosorDeLaLetra + (GrosorDeLaCara - GrosorDeLaLetra) * Forma(laU);
+    /// <summary>El grosor de cada pieza, del de la letra al de la carita, al paso de la suya.</summary>
+    public static double Grosor(double laU, int pieza) =>
+        GrosorDeLaLetra + (GrosorDeLaCara - GrosorDeLaLetra) * Math.Min(1, Avance(laU, pieza));
 
-    /// <summary>El giro del lienzo: la letra va derecha y la carita lleva sus −2° de siempre.</summary>
-    public static double Lienzo(double laU) => -2 * Forma(laU);
+    /// <summary>El giro del lienzo: la letra va derecha y la carita lleva sus −2° de siempre, que toma con la boca.</summary>
+    public static double Lienzo(double laU) => -2 * Math.Min(1, Avance(laU, 4));
 
     private static double Suave(double x) => x * x * (3 - 2 * x);
 

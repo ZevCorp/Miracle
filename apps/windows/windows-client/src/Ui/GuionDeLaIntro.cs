@@ -21,8 +21,8 @@ public static class GuionDeLaIntro
     /// </summary>
     public const int MantenerLaUMs = 3000;
 
-    /// <summary>Lo que tarda la Ü en ser la carita.</summary>
-    public const int TransformarseMs = 2400;
+    /// <summary>Lo que tarda la Ü en ser la carita: tres resortes escalonados y el cuerpo (<see cref="LaUDeLaCarita"/>).</summary>
+    public const int TransformarseMs = 3000;
 
     public static bool Arranca(long msApretada) => msApretada >= MantenerLaUMs;
 
