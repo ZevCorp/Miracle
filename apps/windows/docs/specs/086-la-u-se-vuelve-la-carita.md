@@ -1,6 +1,6 @@
 # Plan de implementación: la Ü se vuelve la carita
 
-Estado: **propuesto** · Lo pidió el dueño el 2026-10-03, con la carita de la spec 085 recién en `main` · Rama: `jose/la-u-se-vuelve-carita` · Promesas **880-883** (reservadas 880-889)
+Estado: **implementado y visto en el PC real** · Lo pidió el dueño el 2026-10-03, con la carita de la spec 085 recién en `main` · Rama: `jose/la-u-se-vuelve-carita` · Promesas **880-883** (reservadas 880-889)
 
 > Felipe, el 2026-10-03, con la ventana de la consulta y la carita ampliada delante: «Quiero agregar una
 > animación de introducción, donde está una ventana negra, con el mismo tamaño que la ventana de la
@@ -29,7 +29,7 @@ se le parezca: es la carita, y lo que hace después —mirar, preguntar, despedi
 | punto izquierdo, punto derecho | cejas | un trazo casi sin largo —un punto— se estira hasta la ceja |
 | lado izquierdo, lado derecho | ojos | dos rectas verticales que se acortan y bajan hasta la línea del ojo |
 | el fondo de la U | la boca | la curva honda se aplana hasta la sonrisa de la pose |
-| — | el cuerpo | crece desde el centro cuando los rasgos ya casi llegaron; donde los cubre, el trazo pasa de blanco a tinta |
+| — | el cuerpo | cuando los rasgos ya casi llegaron asoma por detrás a medio tamaño, fundiéndose, y crece desde el centro con un rebote del 4 %; donde los cubre, el trazo pasa de blanco a tinta al mismo paso |
 
 El grosor va de el de la letra al de la carita, y el lienzo gira los −2° de la carita al llegar.
 
@@ -60,8 +60,29 @@ El grosor va de el de la letra al de la carita, y el lienzo gira los −2° de l
 
 ## Hallazgos
 
+- **2026-10-03, el rojo antes del código.** CONTRATO ROTO con las cuatro, las cuatro `PENDIENTE`, y 540 ✔:
+  ninguna otra se movió.
+- **Al ponerse verdes, la 531 se puso roja**: toda ventana de Ü tiene que estar declarada flotante o de
+  trabajo, y la intro no lo estaba. Es de trabajo: quien presenta va a sus diapositivas y vuelve a ella con
+  Alt+Tab.
+- **El sabotaje, comprobado por el veredicto.** Cuatro roturas a la vez —el cuerpo desde el principio,
+  arrancar al segundo y medio, preguntar antes de mirar, la ventana en gris casi negro—: 540 ✔ y 4 ✘,
+  justo 880-883.
+- **El cuerpo nacía como una nariz.** En las fotos del PC real, el cuerpo creciendo desde cero era un
+  cuadradito blanco en mitad de la cara durante varios fotogramas. Ahora asoma a medio tamaño fundiéndose, y
+  los trazos que cubre van de blanco a tinta al mismo paso; de golpe, sobre un cuerpo aún transparente, la
+  tinta habría desaparecido contra el negro. La 880 se amplió («no nace como un punto»), roja antes del código.
+- **Las juntas de la U se ven al separarse**: durante unos fotogramas, donde cada lado se despega del fondo
+  queda una muesca de las dos puntas redondas. Es el momento en que la letra se rompe en piezas, y se deja.
+
 ## Cierre
 
-- [ ] Promesas 880-883 verdes (`.\scripts\contrato-del-grafo.ps1`)
-- [ ] `.\scripts\verificar.ps1` pasa
-- [ ] Nivel 4: `U.exe --intro` sobre el PC real, con la U mantenida de verdad
+- [x] Promesas 880-883 verdes (`.\scripts\contrato-del-grafo.ps1` → CONTRATO INTACTO, 544 ✔ · 0 ✘)
+- [x] `.\scripts\verificar.ps1` pasa, con la tabla en el PR
+- [x] Nivel 4: `U.exe --intro` sobre el PC real (`C:\U-versiones\intro86`, 2026-10-03 10:42 y 10:48), con
+  la U mantenida 3,4 s de verdad sobre su ventana y fotos `PrintWindow` en ráfaga. El log, en orden y a su
+  hora: `intro: la U se mantuvo tres segundos: empieza` → `Transformarse` → `MirarAUnLado` (+3,1 s) →
+  `VolverAlCentro` → `Preguntar` → `Colgar`. En las fotos, los puntos se estiran en cejas, los lados se
+  encogen en ojos, el fondo se aplana en la sonrisa, el cuerpo se enciende por detrás, y la carita mira a la
+  izquierda, ladea la cabeza con la ceja arriba y saluda con la mano.
+- [ ] **Falta el ojo del dueño**: es una pieza de presentación y la juzga quien presenta.
