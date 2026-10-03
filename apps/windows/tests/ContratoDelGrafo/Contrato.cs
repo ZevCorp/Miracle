@@ -1175,7 +1175,7 @@ internal static class Contrato
         // necesariamente como te las pedí»; y «la estática inicial no es la carita, sino la letra Ü». La 884 nació ahí.
         Prueba("880. la Ü se vuelve la carita como lo haría Apple: entera es una Ü blanca sin cuerpo; los puntos se vuelven las cejas, luego los lados de la U los ojos y luego su fondo la boca, escalonados y solapados, cada pieza con un resorte suave que se pasa un pelo y se asienta; después aparece el cuerpo, y al terminar pinta exactamente la carita de siempre", LaUSeVuelveLaCarita);
         Prueba("881. la intro abre quieta en la Ü y solo arranca si mantienes la U tres segundos: soltarla antes no hace nada, y mantenerla otra vez la repite desde la Ü", LaIntroArrancaConLaU);
-        Prueba("882. la intro cuenta su historia en orden: se transforma, mira a un lado, vuelve al centro, pone la cara de cuando Ü te pregunta y se despide con la mano como al colgar", LaIntroCuentaSuHistoria);
+        Prueba("882. la intro cuenta su historia en orden y sin pausas: se transforma —en menos de dos segundos y siempre con algo moviéndose—, mira a un lado, vuelve al centro, pone la cara de cuando Ü te pregunta y se despide con la mano como al colgar, todo en menos de cinco segundos", LaIntroCuentaSuHistoria);
         Prueba("883. la ventana de la intro es negra, del tamaño y la forma de la ventana de la consulta, y abrirla con --intro no arranca nada más: ni la carita de siempre, ni la actualización, ni el candado de instancia", LaVentanaDeLaIntro);
         Prueba("884. un botón gris en la esquina de la intro alterna la pantalla completa: la ventana llena la pantalla sin esquinas redondas y la Ü crece con ella, y otro toque la devuelve a su tamaño y su forma", LaIntroAlternaLaPantallaCompleta);
         // ── Spec 073: la voz conversa mientras el delegado trabaja (2026-10-01) ──
@@ -24938,6 +24938,12 @@ internal static class Contrato
             $"el cuerpo no está con la letra, sigue sin estar a mitad, y aparece sin volver atrás hasta entero ({C(1):0.##}, {C(0.5):0.##}, {C(0.25):0.##}, {C(0):0.##})");
         double primerCuerpo = Enumerable.Range(0, N + 1).Select(k => k / (double)N).First(prog => C(1 - prog) > 0);
         Debe(primerCuerpo > v[4].Desde && Av(1 - primerCuerpo, 4) > 0.7, $"y no asoma hasta que la boca va casi puesta (asoma a {primerCuerpo:0.00}, con la boca al {Av(1 - primerCuerpo, 4):0.00})");
+        // SIN PAUSAS. «Que sea completamente rápido y fluido, mucho más rápido, y 100 % fluido sin pausas entre ellas»
+        // (2026-10-03): en cada instante de la transformación hay algo moviéndose, y desde el primero.
+        var quietos = Enumerable.Range(1, N - 1).Select(k => k / (double)N)
+            .Where(prog => !(Enumerable.Range(0, 5).Any(i => Av(1 - prog, i) != 0 && Av(1 - prog, i) != 1) || (C(1 - prog) > 0 && T(1 - prog) != 1))).ToArray();
+        Debe(quietos.Length == 0 && v[0].Desde <= 0.01,
+            $"sin una pausa: en cada instante algo se mueve, desde el primero (quieta en {quietos.Length} de {N} instantes{(quietos.Length > 0 ? $", como {quietos[0]:0.00}" : "")}; las cejas arrancan a {v[0].Desde:0.00})");
         var ts = Enumerable.Range(0, 100).Select(k => k / 100.0).Where(u => C(u) > 0).Select(T).ToArray();
         Debe(T(0) == 1 && ts.All(x => x >= 0.4 && x <= 1.06),
             $"y crece hasta su tamaño exacto sin empezar siendo un punto ni hincharse más de un 6 % ({ts.Min():0.##} a {ts.Max():0.##})");
@@ -25017,7 +25023,10 @@ internal static class Contrato
         if (lista.Count < 2) return;
         Debe(lista[0].Ms == 0 && lista.Zip(lista.Skip(1)).All(z => z.Second.Ms > z.First.Ms), "empieza por transformarse y cada paso va después del anterior");
         Debe(lista[1].Ms >= Convert.ToInt32(transformarse.GetValue(null)), "mira a un lado cuando ya es la carita, no a mitad de la transformación");
-        Debe(lista[^1].Ms < 12_000, $"y la historia entera cabe en menos de doce segundos (cuelga a los {lista[^1].Ms} ms)");
+        Debe(lista[^1].Ms < 5_000, $"rápida: la historia entera cabe en cinco segundos (cuelga a los {lista[^1].Ms} ms)");
+        Debe(Convert.ToInt32(transformarse.GetValue(null)) <= 1600, $"y la transformación dura como mucho 1,6 s ({transformarse.GetValue(null)} ms)");
+        Debe(lista.Zip(lista.Skip(1)).All(z => z.Second.Ms - z.First.Ms <= 1400), "sin pausas largas: entre un gesto y el siguiente pasa como mucho un segundo y cuarto");
+        Debe(lista[1].Ms - Convert.ToInt32(transformarse.GetValue(null)) <= 200, "y mira a un lado en cuanto acaba de transformarse");
         if (FuenteDeLaInterfaz("IntroWindow.cs") is { } w)
         {
             Debe(w.Contains(".MirarHacia(") && w.Contains(".DejarDeMirar("), "[cableado] mirar a un lado y volver son los gestos de la carita");

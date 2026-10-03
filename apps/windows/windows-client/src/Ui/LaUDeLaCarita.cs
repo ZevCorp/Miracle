@@ -90,9 +90,9 @@ public static class LaUDeLaCarita
     // arranca. El orden es el que pidió: cejas, ojos, boca. Cada fase es una ventana de la transformación (0 a 1).
     private static readonly (double Desde, double Hasta)[] Fases =
     {
-        (0.04, 0.36),   // los puntos → las cejas
-        (0.20, 0.52),   // los lados de la U → los ojos
-        (0.36, 0.68),   // el fondo de la U → la boca
+        (0.00, 0.40),   // los puntos → las cejas
+        (0.16, 0.56),   // los lados de la U → los ojos
+        (0.32, 0.72),   // el fondo de la U → la boca
     };
 
     /// <summary>De qué fase es cada pieza: cejas, cejas, ojos, ojos, boca.</summary>
@@ -127,8 +127,8 @@ public static class LaUDeLaCarita
         return b <= 0 ? 0 : 0.55 + 0.45 * Resorte(b);
     }
 
-    /// <summary>Lo que va del último 40 % de la intro, de 0 a 1: el cuerpo asoma cuando la boca ya va casi puesta.</summary>
-    private static double Crecido(double laU) => Math.Clamp(((1 - laU) - 0.60) / 0.40, 0, 1);
+    /// <summary>Lo que va del último 48 % de la intro, de 0 a 1: el cuerpo asoma cuando la boca ya va casi puesta.</summary>
+    private static double Crecido(double laU) => Math.Clamp(((1 - laU) - 0.52) / 0.48, 0, 1);
 
     /// <summary>
     /// El resorte de siempre en Apple: amortiguado al 70 %, que se pasa un 4,6 % y se asienta. Para x de 0 a 1 va de 0
