@@ -128,6 +128,21 @@ public sealed class FaceControl : FrameworkElement
         new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
     /// <summary>
+    /// LA Ü QUE SE VUELVE LA CARITA (spec 086, promesa 880): con 1 pinta la letra, blanca y sin cuerpo; con 0, la
+    /// carita por el camino de siempre, línea por línea; en medio, los rasgos van de una a otra
+    /// (<see cref="LaUDeLaCarita"/>). Solo la usa la intro.
+    /// </summary>
+    public double LaU
+    {
+        get => (double)GetValue(LaUProperty);
+        set => SetValue(LaUProperty, value);
+    }
+
+    public static readonly DependencyProperty LaUProperty = DependencyProperty.Register(
+        nameof(LaU), typeof(double), typeof(FaceControl),
+        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>
     /// Cuánto están fuera las manos en reposo, de 0 (escondidas) a 1 (fuera del todo). El saludo no
     /// pasa por aquí: lo lleva <see cref="SaludoProperty"/>, que recorre su línea de tiempo entera.
     /// </summary>
@@ -724,6 +739,14 @@ public sealed class FaceControl : FrameworkElement
         bool dark = Theme == FaceTheme.Dark;
         var paleta = PaletaDeLaCarita.Para(Theme);
 
+        // LA INTRO (spec 086): mientras quede algo de la Ü se pinta por su camino; con 0, por el de siempre, sin
+        // que nada de aquí abajo sepa que existe.
+        if (LaU > 0)
+        {
+            PintarLaU(dc, paleta, cx, cy, r, s);
+            return;
+        }
+
         // AL GIRAR, EL CUERPO ACOMPAÑA UN POCO: dos unidades y media hacia donde mira. Solo los rasgos
         // no bastan — si el contorno se queda clavado, parece una pegatina que se desliza por la cara.
         double dx = giro * 2.5 * s;
@@ -820,6 +843,83 @@ public sealed class FaceControl : FrameworkElement
         boca.Freeze();
         dc.DrawGeometry(null, stroke, boca);
 
+        dc.Pop();
+    }
+
+    /// <summary>
+    /// La carita a mitad de ser letra (spec 086, promesa 880): los cinco trazos de <see cref="LaUDeLaCarita"/> y el
+    /// cuerpo creciendo desde el centro. Donde el cuerpo ya cubre, el trazo es de tinta; fuera, sigue la letra
+    /// blanca sobre el negro de la ventana. Sin manos y sin giro: la intro no gira hasta que es la carita.
+    /// </summary>
+    private void PintarLaU(DrawingContext dc, PaletaDeLaCarita paleta, double cx, double cy, double r, double s)
+    {
+        double laU = Math.Min(LaU, 1);
+        var p = CurrentPose;
+        var cara = LaUDeLaCarita.Cara(p.BrowL, p.BrowR, p.CurveL, p.CurveR, p.EyeOpen, p.Squint,
+                                      p.MouthCurve, p.MouthWidth, p.CornerL, p.CornerR, BlinkClosed);
+
+        Point Px(Point u) => new(cx + u.X * s, cy + u.Y * s);
+        // Cada pieza es su geometría con su grosor: cada una engorda o adelgaza al paso de la suya.
+        var piezas = new List<(StreamGeometry Forma, double Grosor)>();
+        int pieza = 0;
+        foreach (var t in LaUDeLaCarita.Entre(laU, cara))
+        {
+            var forma = new StreamGeometry();
+            using (var g = forma.Open())
+            {
+                g.BeginFigure(Px(t.A), false, false);
+                g.BezierTo(Px(t.B), Px(t.C), Px(t.D), true, false);
+            }
+            forma.Transform = new RotateTransform(LaUDeLaCarita.Lienzo(laU), cx, cy);
+            forma.Freeze();
+            piezas.Add((forma, LaUDeLaCarita.Grosor(laU, pieza++) * s));
+        }
+        void Trazar(Brush pincel) { foreach (var (forma, grosor) in piezas) dc.DrawGeometry(null, Pluma(pincel, grosor), forma); }
+        // Casi blanca, como el cuerpo: el blanco puro «lastima los ojos» (2026-10-01).
+        var blanca = new SolidColorBrush(Color.FromRgb(245, 245, 245));
+        blanca.Freeze();
+
+        double seVe = LaUDeLaCarita.Cuerpo(laU);
+        if (seVe <= 0)
+        {
+            Trazar(blanca);
+            return;
+        }
+
+        // El cuerpo, como en OnRender pero a su tamaño de ahora y a medio ver: los pinceles son relativos a la silueta.
+        var cuerpo = OuterSquircle(cx, cy, r * LaUDeLaCarita.TamanoDelCuerpo(laU));
+        dc.PushOpacity(seVe);
+        dc.DrawGeometry(paleta.Cuerpo, null, cuerpo);
+        dc.DrawGeometry(paleta.Vineta, null, cuerpo);
+        dc.DrawGeometry(paleta.Reflejo, null, cuerpo);
+        if (Theme == FaceTheme.Dark)
+        {
+            double hairline = 0.35 * s;
+            var pen = new Pen(new SolidColorBrush(paleta.Filete), hairline);
+            pen.Freeze();
+            dc.DrawGeometry(null, pen, InnerSquircle(cx, cy, r * LaUDeLaCarita.TamanoDelCuerpo(laU) - hairline * 1.5));
+        }
+        else
+        {
+            var pen = new Pen(new SolidColorBrush(paleta.Filete), 1.5 * s);
+            pen.Freeze();
+            dc.DrawGeometry(null, pen, cuerpo);
+        }
+        dc.Pop();
+
+        // Donde el cuerpo cubre, el trazo va de blanco a tinta al paso con que el cuerpo se deja ver: si se volviera
+        // tinta de golpe, sobre un cuerpo aún transparente desaparecería contra el negro.
+        Color b = Color.FromRgb(245, 245, 245), k = paleta.Tinta;
+        var encima = new SolidColorBrush(Color.FromRgb(
+            (byte)Math.Round(b.R + (k.R - b.R) * seVe), (byte)Math.Round(b.G + (k.G - b.G) * seVe), (byte)Math.Round(b.B + (k.B - b.B) * seVe)));
+        encima.Freeze();
+
+        var todo = new RectangleGeometry(new Rect(cx - 400 * s, cy - 400 * s, 800 * s, 800 * s));
+        dc.PushClip(new CombinedGeometry(GeometryCombineMode.Exclude, todo, cuerpo));
+        Trazar(blanca);
+        dc.Pop();
+        dc.PushClip(cuerpo);
+        Trazar(encima);
         dc.Pop();
     }
 

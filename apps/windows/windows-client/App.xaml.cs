@@ -55,6 +55,15 @@ public partial class App : Application
                 .OnFirstRun(_ => AccesoDirectoSegunElRol(RolDeLaInstalacion()))
                 .Run();
 
+            // LA INTRO ES UNA PIEZA PARA PRESENTAR (spec 086, promesa 883): abre su ventana negra y nada más. Va antes
+            // de la actualización, que podría cambiar la carpeta debajo, y del candado de instancia, para poder abrirla
+            // con otra Ü viva al lado.
+            if (args.Any(a => string.Equals(a, "--intro", StringComparison.OrdinalIgnoreCase)))
+            {
+                new Application { ShutdownMode = ShutdownMode.OnMainWindowClose }.Run(new IntroWindow());
+                return;
+            }
+
             // Antes de lanzar nada: lo que Ü abra desde aquí hereda la carpeta de trabajo, y si es la de
             // instalación Update.exe no puede renombrarla mientras ese programa siga abierto.
             Update.CarpetaDeTrabajo.Soltar(AppContext.BaseDirectory);

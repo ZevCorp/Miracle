@@ -1166,6 +1166,18 @@ internal static class Contrato
         // «me gusta, pero que entre y salga, que no se quede pegado».
         Prueba("691. mientras conversas con ella la carita sonríe como en reposo: la cara de atender —quieta y de boca pequeña, la de cuando graba— es un gesto que entra y sale, no una cara que se queda", MientrasConversaLaCaritaAtiende);
         Prueba("692. hay un solo reloj del saludo y vive en la ventana: el dibujo de la carita, solo, únicamente parpadea", HayUnSoloRelojDelSaludo);
+        // ── Spec 086: la Ü se vuelve la carita ────────────────────────────────────────────────────
+        // 880-889 reservadas el 2026-10-03: main iba por la 878 y ninguna rama ni árbol usaba más arriba. «Una ventana negra
+        // con una Ü gigante blanca […] los puntos de la diéresis pasan a ser las cejas, los laterales de la U los ojos y la
+        // parte de abajo la boca, terminando en nuestro diseño exacto».
+        Console.WriteLine();
+        // La 880 y la 881 cambiaron el mismo día que nacieron, al verlas el dueño: primero «por fases duras» y luego «tipo Apple, no
+        // necesariamente como te las pedí»; y «la estática inicial no es la carita, sino la letra Ü». La 884 nació ahí.
+        Prueba("880. la Ü se vuelve la carita como lo haría Apple: entera es una Ü blanca sin cuerpo; los puntos se vuelven las cejas, luego los lados de la U los ojos y luego su fondo la boca, escalonados y solapados, cada pieza con un resorte suave que se pasa un pelo y se asienta; después aparece el cuerpo, y al terminar pinta exactamente la carita de siempre", LaUSeVuelveLaCarita);
+        Prueba("881. la intro abre quieta en la Ü y solo arranca si mantienes la U tres segundos: soltarla antes no hace nada, y mantenerla otra vez la repite desde la Ü", LaIntroArrancaConLaU);
+        Prueba("882. la intro cuenta su historia en orden y sin pausas: se transforma —en menos de dos segundos y siempre con algo moviéndose—, mira a un lado, vuelve al centro, pone la cara de cuando Ü te pregunta y se despide con la mano como al colgar, todo en menos de cinco segundos", LaIntroCuentaSuHistoria);
+        Prueba("883. la ventana de la intro es negra, del tamaño y la forma de la ventana de la consulta, y abrirla con --intro no arranca nada más: ni la carita de siempre, ni la actualización, ni el candado de instancia", LaVentanaDeLaIntro);
+        Prueba("884. un botón gris en la esquina de la intro alterna la pantalla completa: la ventana llena la pantalla sin esquinas redondas y la Ü crece con ella, y otro toque la devuelve a su tamaño y su forma", LaIntroAlternaLaPantallaCompleta);
         // ── Spec 073: la voz conversa mientras el delegado trabaja (2026-10-01) ──
         // 751-756. Nacieron como 680-686 en la rama; al mezclar con main (2026-10-01) esos números ya eran de la spec
         // 076, y la primera —el presupuesto de la historia al abrir— ya la prometía la 667. «Siento que la voz no
@@ -24808,6 +24820,293 @@ internal static class Contrato
             Debe(w.Contains("ReglaDelAnimo.SeAlegra(") && w.Contains("Expresar(ExpresionDeLaCarita.Contenta)"), "[cableado] al terminar bien, se alegra");
             Debe(w.Contains("ReglaDelSaludo.SeDespide(") && w.Contains("MotivoDelSaludo.Despedida"), "[cableado] y al colgar, se despide por la regla del saludo");
         }
+    }
+
+    // ── La Ü se vuelve la carita (spec 086) ─────────────────────────────────
+
+    private static Type? LaUDeLaCaritaT => Capacidad("U.WindowsClient.Ui.LaUDeLaCarita");
+    private static Type? GuionDeLaIntroT => Capacidad("U.WindowsClient.Ui.GuionDeLaIntro");
+
+    /// <summary>Los cuatro puntos de un trazo cúbico de <c>LaUDeLaCarita</c>, leídos por nombre.</summary>
+    private static System.Windows.Point[] PuntosDe(object trazo) =>
+        new[] { "A", "B", "C", "D" }.Select(n => (System.Windows.Point)trazo.GetType().GetProperty(n)!.GetValue(trazo)!).ToArray();
+
+    private static System.Windows.Point EnLaCurva(System.Windows.Point[] p, double t)
+    {
+        double u = 1 - t;
+        return new System.Windows.Point(
+            u * u * u * p[0].X + 3 * u * u * t * p[1].X + 3 * u * t * t * p[2].X + t * t * t * p[3].X,
+            u * u * u * p[0].Y + 3 * u * u * t * p[1].Y + 3 * u * t * t * p[2].Y + t * t * t * p[3].Y);
+    }
+
+    private static double Lejos(System.Windows.Point[] a, System.Windows.Point[] b) =>
+        a.Zip(b).Sum(z => (z.First - z.Second).Length);
+
+    /// <summary>Alfa del píxel en (x, y) unidades del viewBox (0 = centro).</summary>
+    private static int Alfa(byte[] px, double ux, double uy)
+    {
+        int x = AireCara + LadoCara / 2 + (int)Math.Round(ux), y = AireCara + LadoCara / 2 + (int)Math.Round(uy);
+        return px[(y * LadoPintado + x) * 4 + 3];
+    }
+
+    private static void LaUSeVuelveLaCarita()
+    {
+        var t = LaUDeLaCaritaT;
+        var letraT = t?.GetProperty("LaU")?.GetValue(null) as System.Collections.IEnumerable;
+        var cara = t?.GetMethod("Cara");
+        var entre = t?.GetMethod("Entre");
+        var grosor = t?.GetMethod("Grosor");
+        var cuerpo = t?.GetMethod("Cuerpo");
+        var tamano = t?.GetMethod("TamanoDelCuerpo");
+        var avance = t?.GetMethod("Avance");
+        if (letraT == null || cara == null || entre == null || grosor == null || cuerpo == null || tamano == null || avance == null
+            || grosor.GetParameters().Length != 2 || Cara?.GetProperty("LaU") == null)
+        {
+            Pendiente("Ui.LaUDeLaCarita (LaU, Cara, Entre, Avance y Grosor por pieza, Cuerpo, TamanoDelCuerpo) y FaceControl.LaU", "880", "086");
+            return;
+        }
+
+        // LA LETRA: dos puntos y una U de una pieza, más alta que la carita entera.
+        var letra = letraT.Cast<object>().Select(PuntosDe).ToArray();
+        Debe(letra.Length == 5, $"la Ü son cinco trazos: dos puntos, dos lados y el fondo ({letra.Length})");
+        if (letra.Length != 5) return;
+        Debe((letra[0][0] - letra[0][3]).Length < 1 && (letra[1][0] - letra[1][3]).Length < 1 && letra[0][0].X < 0 && letra[1][0].X > 0,
+            "los dos primeros son puntos —un trazo sin largo—, uno a cada lado");
+        Debe(Math.Abs(letra[2][0].X - letra[2][3].X) < 1e-6 && Math.Abs(letra[3][0].X - letra[3][3].X) < 1e-6
+             && letra[2][0].X < 0 && letra[3][0].X > 0 && letra[2][0].Y < letra[2][3].Y,
+            "los lados de la U son rectas verticales que bajan, uno a cada lado");
+        Debe(letra[0][0].Y < letra[2][0].Y - 10 && letra[1][0].Y < letra[3][0].Y - 10, "y los puntos van por encima de la U, separados");
+        Debe((letra[2][3] - letra[4][0]).Length < 1e-6 && (letra[3][3] - letra[4][3]).Length < 1e-6,
+            "la U es de una pieza: los lados acaban justo donde empieza y termina su fondo");
+        Debe(EnLaCurva(letra[4], 0.5).Y - letra[4][0].Y > 30, "y su fondo es una curva honda, no una raya");
+        double G(double u, int i) => Convert.ToDouble(grosor.Invoke(null, new object[] { u, i }));
+        double g1 = Enumerable.Range(0, 5).Min(i => G(1, i));
+        double alto = letra.SelectMany(p => new[] { p[0].Y, p[3].Y, EnLaCurva(p, 0.5).Y }).Max() - letra.SelectMany(p => new[] { p[0].Y, p[3].Y }).Min() + g1;
+        Debe(alto > 200, $"gigante: la Ü mide más que la carita entera, que son 150 ({alto:0})");
+        Debe(g1 >= 20 && Enumerable.Range(0, 5).All(i => G(0, i) == 4), $"con trazo de letra al empezar y el de la carita al acabar, en las cinco piezas ({g1:0.#} → {G(0, 0):0.#})");
+
+        // LA CARA de la sonrisa de siempre, y a qué pieza va cada rasgo.
+        object rasgos = cara.Invoke(null, new object[] { 2.0, 2.5, 0.3, 0.4, 0.85, 0.15, 0.7, 34 * 1.1, 0.3, 0.5, 0.0 })!;
+        var meta = ((System.Collections.IEnumerable)rasgos).Cast<object>().Select(PuntosDe).ToArray();
+        System.Windows.Point[][] En(double u) => ((System.Collections.IEnumerable)entre.Invoke(null, new object[] { u, rasgos })!).Cast<object>().Select(PuntosDe).ToArray();
+        Debe(meta.Length == 5 && meta[0][0].Y < meta[2][0].Y && meta[1][0].Y < meta[3][0].Y
+             && Math.Abs(meta[2][0].X - meta[2][3].X) < 1e-6 && meta[4][0].Y > meta[2][3].Y,
+            "la cara son las dos cejas, los dos ojos —rectas verticales— y la boca debajo, en ese orden");
+        if (meta.Length != 5) return;
+        var alEmpezar = En(1); var alAcabar = En(0);
+        Debe(alEmpezar.Zip(letra).All(z => Lejos(z.First, z.Second) < 1e-9), "con la intro entera es la Ü, punto por punto");
+        Debe(alAcabar.Zip(meta).All(z => Lejos(z.First, z.Second) < 1e-9), "y al acabar es la carita, punto por punto: termina en su diseño exacto");
+        // COMO LO HARÍA APPLE. El dueño pidió primero «fases duras» y al verlas lo corrigió: «que las transiciones sean tipo
+        // Apple, no necesariamente como te las pedí». Apple no corta: mueve con resortes —cada pieza llega suave, se pasa
+        // un pelo y se asienta— y escalona las fases solapándolas, de modo que cuando una va a medias la siguiente ya
+        // arranca. Se mantiene el orden que pidió: cejas, ojos, boca y, al final, el cuerpo.
+        double Av(double u, int i) => Convert.ToDouble(avance.Invoke(null, new object[] { u, i }));
+        const int N = 400;
+        (double Desde, double Hasta, double Max, double Salto) Ventana(int i)
+        {
+            double desde = -1, hasta = 0, max = 0, salto = 0, antes = 0;
+            for (int k = 0; k <= N; k++)
+            {
+                double prog = k / (double)N, a = Av(1 - prog, i);
+                if (a != 0 && desde < 0) desde = prog;
+                if (a != 1) hasta = prog + 1.0 / N;
+                max = Math.Max(max, a);
+                salto = Math.Max(salto, Math.Abs(a - antes));
+                antes = a;
+            }
+            return (desde, hasta, max, salto);
+        }
+        var v = Enumerable.Range(0, 5).Select(Ventana).ToArray();
+        string ventanas = string.Join(", ", v.Select(x => $"{x.Desde:0.00}-{x.Hasta:0.00}"));
+        Debe(v[0].Desde == v[1].Desde && v[0].Hasta == v[1].Hasta && v[2].Desde == v[3].Desde && v[2].Hasta == v[3].Hasta,
+            $"las dos cejas se mueven juntas, y los dos ojos juntos ({ventanas})");
+        Debe(v.All(x => x.Desde >= 0) && v[0].Desde < v[2].Desde && v[2].Desde < v[4].Desde && v[0].Hasta < v[2].Hasta && v[2].Hasta < v[4].Hasta,
+            $"en orden —cejas, ojos, boca— y cada una acaba antes que la siguiente ({ventanas})");
+        Debe(v[2].Desde < v[0].Hasta && v[4].Desde < v[2].Hasta,
+            $"escalonadas y solapadas, como Apple: la siguiente arranca antes de que la anterior se asiente ({ventanas})");
+        Debe(v.All(x => x.Hasta - x.Desde >= 0.25), $"cada una se toma su tiempo, sin cortes: al menos un cuarto de la transformación ({ventanas})");
+        Debe(v.All(x => x.Salto < 0.04), $"y se mueve sin saltos: ni un fotograma de la animación cambia más de un 4 % ({v.Max(x => x.Salto):0.000})");
+        Debe(v.All(x => x.Max > 1.01 && x.Max < 1.08), $"con un resorte suave: se pasa un poco de su sitio, entre el 1 y el 8 %, y se asienta ({string.Join(", ", v.Select(x => x.Max.ToString("0.000")))})");
+
+        // EL CUERPO, al final, cuando ya está la boca: asoma por detrás de los rasgos y crece desde el centro. No nace
+        // como un punto: en el PC real (2026-10-03) el cuerpo creciendo desde cero era un cuadradito blanco en mitad de
+        // la cara —una nariz— durante varios fotogramas.
+        double C(double u) => Convert.ToDouble(cuerpo.Invoke(null, new object[] { u }));
+        double T(double u) => Convert.ToDouble(tamano.Invoke(null, new object[] { u }));
+        var cs = Enumerable.Range(0, 21).Select(k => C(1 - k / 20.0)).ToArray();
+        Debe(C(1) == 0 && C(0.5) == 0 && C(0) == 1 && cs.Zip(cs.Skip(1)).All(z => z.Second >= z.First - 1e-9),
+            $"el cuerpo no está con la letra, sigue sin estar a mitad, y aparece sin volver atrás hasta entero ({C(1):0.##}, {C(0.5):0.##}, {C(0.25):0.##}, {C(0):0.##})");
+        double primerCuerpo = Enumerable.Range(0, N + 1).Select(k => k / (double)N).First(prog => C(1 - prog) > 0);
+        Debe(primerCuerpo > v[4].Desde && Av(1 - primerCuerpo, 4) > 0.7, $"y no asoma hasta que la boca va casi puesta (asoma a {primerCuerpo:0.00}, con la boca al {Av(1 - primerCuerpo, 4):0.00})");
+        // SIN PAUSAS. «Que sea completamente rápido y fluido, mucho más rápido, y 100 % fluido sin pausas entre ellas»
+        // (2026-10-03): en cada instante de la transformación hay algo moviéndose, y desde el primero.
+        var quietos = Enumerable.Range(1, N - 1).Select(k => k / (double)N)
+            .Where(prog => !(Enumerable.Range(0, 5).Any(i => Av(1 - prog, i) != 0 && Av(1 - prog, i) != 1) || (C(1 - prog) > 0 && T(1 - prog) != 1))).ToArray();
+        Debe(quietos.Length == 0 && v[0].Desde <= 0.01,
+            $"sin una pausa: en cada instante algo se mueve, desde el primero (quieta en {quietos.Length} de {N} instantes{(quietos.Length > 0 ? $", como {quietos[0]:0.00}" : "")}; las cejas arrancan a {v[0].Desde:0.00})");
+        var ts = Enumerable.Range(0, 100).Select(k => k / 100.0).Where(u => C(u) > 0).Select(T).ToArray();
+        Debe(T(0) == 1 && ts.All(x => x >= 0.4 && x <= 1.06),
+            $"y crece hasta su tamaño exacto sin empezar siendo un punto ni hincharse más de un 6 % ({ts.Min():0.##} a {ts.Max():0.##})");
+
+        // LO PINTADO.
+        var px1 = Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); Poner(c, "LaU", 1.0); }));
+        int tinta = 0;
+        for (int i = 0; i < px1.Length; i += 4)
+            if (px1[i + 3] > 200 && 0.114 * px1[i] + 0.587 * px1[i + 1] + 0.299 * px1[i + 2] < 120) tinta++;
+        Debe(Luz(px1, letra[2][0].X, 0) > 200 && Alfa(px1, letra[2][0].X, 0) == 255 && Alfa(px1, 0, 0) == 0 && tinta == 0,
+            $"pintada, la Ü es blanca y sin cuerpo: su lado brilla ({Luz(px1, letra[2][0].X, 0):0}), el centro está vacío (alfa {Alfa(px1, 0, 0)}) y no hay tinta ({tinta} px)");
+
+        double medio = Enumerable.Range(1, 99).Select(k => k / 100.0).FirstOrDefault(u => C(u) >= 0.4 && C(u) <= 0.6);
+        if (medio > 0)
+        {
+            var pxm = Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); Poner(c, "LaU", medio); }));
+            Debe(Alfa(pxm, 0, 0) > 40 && Alfa(pxm, 0, 0) < 230 && Alfa(pxm, 0, 70) == 0 && T(medio) < 0.95,
+                $"a medio aparecer, el cuerpo se ve a medias en el centro y aún no llega a su borde (LaU {medio}: alfa {Alfa(pxm, 0, 0)} en el centro y {Alfa(pxm, 0, 70)} abajo, tamaño {T(medio):0.##})");
+            Debe(Luz(pxm, -30, -14) < 215, $"y donde ya cubre, el trazo se va hacia la tinta: el ojo izquierdo ya no es blanco ({Luz(pxm, -30, -14):0})");
+        }
+        else Debe(false, "no hay ningún momento en que el cuerpo vaya entre el 40 y el 60 %: no aparece, salta");
+
+        var casi = Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); Poner(c, "LaU", 0.0001); }));
+        var nada = Pintar(NuevaCara(c => Poner(c, "Theme", "Light")));
+        int distintos = 0;
+        for (int i = 0; i < casi.Length; i += 4)
+            if (Enumerable.Range(0, 4).Any(k => Math.Abs(casi[i + k] - nada[i + k]) > 48)) distintos++;
+        Debe(distintos <= 40, $"y un instante antes de acabar ya pinta la carita de siempre: {distintos} píxeles distintos de {casi.Length / 4}");
+    }
+
+    private static void LaIntroArrancaConLaU()
+    {
+        var g = GuionDeLaIntroT;
+        var arranca = g?.GetMethod("Arranca");
+        var mantener = g?.GetField("MantenerLaUMs");
+        if (arranca == null || mantener == null) { Pendiente("Ui.GuionDeLaIntro (MantenerLaUMs, Arranca)", "881", "086"); return; }
+        bool A(long ms) => (bool)arranca.Invoke(null, new object[] { ms })!;
+        Debe(Convert.ToInt32(mantener.GetValue(null)) == 3000, $"hay que mantener la U tres segundos ({mantener.GetValue(null)} ms)");
+        Debe(!A(0) && !A(1500) && !A(2999), "soltarla antes de los tres segundos no hace nada");
+        Debe(A(3000) && A(9000), "a los tres segundos arranca, y seguir apretando no la estropea");
+
+        // ABRE QUIETA EN LA Ü. El dueño la encontró ya vuelta carita —la había dejado así una prueba— y lo dijo: «la
+        // estática inicial no es la carita, sino la letra Ü» (2026-10-03).
+        if (Capacidad("U.WindowsClient.Ui.IntroWindow") is { } vt)
+        {
+            var v = (System.Windows.Window)Activator.CreateInstance(vt)!;
+            try
+            {
+                var cara = DentroDe<System.Windows.FrameworkElement>(v, Cara!);
+                double laU = cara == null ? -1 : Convert.ToDouble(Cara!.GetProperty("LaU")!.GetValue(cara));
+                Debe(cara != null && laU == 1 && !((System.Windows.UIElement)cara).HasAnimatedProperties,
+                    $"al abrirse enseña la Ü entera y quieta, sin animar nada (LaU {laU})");
+            }
+            finally { v.Close(); }
+        }
+        if (FuenteDeLaInterfaz("IntroWindow.cs") is { } w)
+        {
+            Debe(w.Contains("Key.U") && w.Contains("KeyUp") && w.Contains("GuionDeLaIntro.Arranca("),
+                "[cableado] la ventana mide cuánto llevas la U apretada, la suelta al levantarla, y le pregunta a la regla");
+            Debe(CuerpoDe(w, "private void Empezar(").Contains("LaUProperty, 1.0"),
+                "[cableado] y cada vez empieza desde la Ü: mantenerla otra vez la repite");
+        }
+    }
+
+    private static void LaIntroCuentaSuHistoria()
+    {
+        var g = GuionDeLaIntroT;
+        var pasos = g?.GetProperty("Pasos")?.GetValue(null) as System.Collections.IEnumerable;
+        var transformarse = g?.GetField("TransformarseMs");
+        if (pasos == null || transformarse == null) { Pendiente("Ui.GuionDeLaIntro (Pasos, TransformarseMs)", "882", "086"); return; }
+        var lista = pasos.Cast<object>()
+            .Select(p => (Ms: Convert.ToInt32(p.GetType().GetProperty("EnMs")!.GetValue(p)), Paso: p.GetType().GetProperty("Paso")!.GetValue(p)!.ToString()!))
+            .ToList();
+        string orden = string.Join(" → ", lista.Select(x => $"{x.Paso} ({x.Ms})"));
+        Debe(lista.Select(x => x.Paso).SequenceEqual(new[] { "Transformarse", "MirarAUnLado", "VolverAlCentro", "Preguntar", "Colgar" }),
+            $"en orden: se transforma, mira a un lado, vuelve al centro, pregunta y cuelga ({orden})");
+        if (lista.Count < 2) return;
+        Debe(lista[0].Ms == 0 && lista.Zip(lista.Skip(1)).All(z => z.Second.Ms > z.First.Ms), "empieza por transformarse y cada paso va después del anterior");
+        Debe(lista[1].Ms >= Convert.ToInt32(transformarse.GetValue(null)), "mira a un lado cuando ya es la carita, no a mitad de la transformación");
+        Debe(lista[^1].Ms < 5_000, $"rápida: la historia entera cabe en cinco segundos (cuelga a los {lista[^1].Ms} ms)");
+        Debe(Convert.ToInt32(transformarse.GetValue(null)) <= 1600, $"y la transformación dura como mucho 1,6 s ({transformarse.GetValue(null)} ms)");
+        Debe(lista.Zip(lista.Skip(1)).All(z => z.Second.Ms - z.First.Ms <= 1400), "sin pausas largas: entre un gesto y el siguiente pasa como mucho un segundo y cuarto");
+        Debe(lista[1].Ms - Convert.ToInt32(transformarse.GetValue(null)) <= 200, "y mira a un lado en cuanto acaba de transformarse");
+        if (FuenteDeLaInterfaz("IntroWindow.cs") is { } w)
+        {
+            Debe(w.Contains(".MirarHacia(") && w.Contains(".DejarDeMirar("), "[cableado] mirar a un lado y volver son los gestos de la carita");
+            Debe(w.Contains("FaceMood.Esperando") && w.Contains(".Saludar()") && w.Contains("FaceMood.Reposo"),
+                "[cableado] preguntar es la cara de esperar, y colgar es volver a la de siempre saludando con la mano");
+        }
+    }
+
+    private static void LaVentanaDeLaIntro()
+    {
+        var vt = Capacidad("U.WindowsClient.Ui.IntroWindow");
+        if (vt == null) { Pendiente("Ui.IntroWindow", "883", "086"); return; }
+        var consulta = (System.Windows.Size)Capacidad("U.WindowsClient.Ui.ConsultaWindow")!.GetProperty("TamanoInicial")!.GetValue(null)!;
+        var v = (System.Windows.Window)Activator.CreateInstance(vt)!;
+        try
+        {
+            Debe(v.Width == consulta.Width && v.Height == consulta.Height,
+                $"del tamaño de la ventana de la consulta ({v.Width}×{v.Height}; la consulta, {consulta.Width}×{consulta.Height})");
+            var tarjeta = v.Content as System.Windows.Controls.Border;
+            bool negra = tarjeta?.Background is System.Windows.Media.SolidColorBrush b && b.Color == System.Windows.Media.Colors.Black;
+            // 46: el radio de la tarjeta de la consulta, el que la hace casi una pastilla.
+            Debe(tarjeta != null && negra && tarjeta.CornerRadius.TopLeft == 46 && tarjeta.BorderThickness.Left == 0,
+                "negra del todo y con la forma de la consulta: radio 46 y sin filete");
+            Debe(v.WindowStyle == System.Windows.WindowStyle.None && v.AllowsTransparency,
+                "sin el marco de Windows: lo que se ve es solo la tarjeta negra");
+        }
+        finally { v.Close(); }
+
+        if (FuenteDe("windows-client", "App.xaml.cs") is { } app)
+        {
+            string main = CuerpoDe(app, "private static void Main(");
+            int intro = main.IndexOf("\"--intro\"", StringComparison.Ordinal);
+            int[] despues = { main.IndexOf("ArranqueDeActualizacion.Correr(", StringComparison.Ordinal),
+                              main.IndexOf("GuardiaDeInstancia.IntentarIniciar(", StringComparison.Ordinal),
+                              main.IndexOf("new App()", StringComparison.Ordinal) };
+            Debe(intro >= 0 && despues.All(i => i > intro) && main.Contains("new IntroWindow()"),
+                "[cableado] --intro abre la ventana de la intro antes de la actualización, del candado de instancia y de la carita de siempre, y no sigue");
+        }
+    }
+
+    /// <summary>El primer descendiente lógico de <paramref name="raiz"/> que sea del tipo dado.</summary>
+    private static T? DentroDe<T>(object raiz, Type tipo) where T : class
+    {
+        foreach (var hijo in System.Windows.LogicalTreeHelper.GetChildren((System.Windows.DependencyObject)raiz))
+        {
+            if (tipo.IsInstanceOfType(hijo)) return hijo as T;
+            if (hijo is System.Windows.DependencyObject d && DentroDe<T>(d, tipo) is { } x) return x;
+        }
+        return null;
+    }
+
+    private static void LaIntroAlternaLaPantallaCompleta()
+    {
+        var vt = Capacidad("U.WindowsClient.Ui.IntroWindow");
+        var alternar = vt?.GetMethod("AlternarPantallaCompleta");
+        if (vt == null || alternar == null) { Pendiente("IntroWindow.AlternarPantallaCompleta y su botón", "884", "086"); return; }
+        var v = (System.Windows.Window)Activator.CreateInstance(vt)!;
+        try
+        {
+            var boton = DentroDe<System.Windows.Controls.Button>(v, typeof(System.Windows.Controls.Button));
+            var fondo = (boton?.Background as System.Windows.Media.SolidColorBrush)?.Color;
+            bool gris = fondo is { } f && f.R == f.G && f.G == f.B && f.R > 30 && f.R < 200;
+            Debe(boton != null && gris && boton.HorizontalAlignment == System.Windows.HorizontalAlignment.Right
+                 && boton.VerticalAlignment == System.Windows.VerticalAlignment.Top,
+                $"en la esquina de arriba a la derecha hay un botón gris ({fondo})");
+            Debe(boton != null && !boton.Focusable, "y no se queda el teclado: la U sigue llegando a la ventana después de pulsarlo");
+
+            var tarjeta = (System.Windows.Controls.Border)v.Content;
+            var cara = DentroDe<System.Windows.FrameworkElement>(v, Cara!)!;
+            double antes = cara.Width;
+            alternar.Invoke(v, null);
+            Debe(v.WindowState == System.Windows.WindowState.Maximized && tarjeta.CornerRadius.TopLeft == 0 && cara.Width > antes,
+                $"un toque llena la pantalla, sin esquinas redondas, y la Ü crece con ella ({antes:0} → {cara.Width:0})");
+            alternar.Invoke(v, null);
+            Debe(v.WindowState == System.Windows.WindowState.Normal && tarjeta.CornerRadius.TopLeft == 46 && cara.Width == antes,
+                "y otro la devuelve a su tamaño y a su forma");
+        }
+        finally { v.Close(); }
+        if (FuenteDeLaInterfaz("IntroWindow.cs") is { } w)
+            Debe(w.Contains(".Click += (_, _) => AlternarPantallaCompleta()"), "[cableado] el botón es lo que alterna");
     }
 
     private static void Debe(bool condicion, string promesa)
