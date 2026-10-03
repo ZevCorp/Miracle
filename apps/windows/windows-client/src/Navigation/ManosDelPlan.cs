@@ -87,6 +87,8 @@ public sealed class ManosDelPlan
     public void Escribir(string texto)
     {
         Raton.Escribir(texto);
+        // La carita teclea (spec 085, promesa 698). Después de mandar las teclas y sin esperarla.
+        if (Ui.LoQueUHace.AvisarDeQueEscribe(texto.Length) is { } noTeclea) LogBus.Log("plan", "   el aviso de que escribí reventó: " + noTeclea);
         var reloj = Stopwatch.StartNew();
         var q = Asentado.Quieta(() => _lector.Leer(Ventana()), Ejecutor.EsperaTrasEscribir(texto), () => reloj.ElapsedMilliseconds);
         LogBus.Log("plan", $"   escribir {texto.Length} caracteres: {(q.Cambio ? "quieta" : "todavía tecleando")} en {q.Ms} ms");
@@ -161,6 +163,8 @@ public sealed class ManosDelPlan
         string antes = _lector.Leer(v).Huella;
         var reloj = Stopwatch.StartNew();
         Raton.Desplazar((r.L + r.R) / 2, (r.T + r.B) / 2, muescas);
+        // La carita lo desliza (spec 085, promesa 697). Después de la rueda y sin esperarla, como el aviso del pulso.
+        if (Ui.LoQueUHace.AvisarDeQueDesplaza(muescas) is { } noDesliza) LogBus.Log("plan", "   el aviso de que desplacé reventó: " + noDesliza);
         var a = Asentado.Esperar(() => _lector.Leer(v).Huella, antes, Asentado.TechoMs, () => reloj.ElapsedMilliseconds);
         LogBus.Log("plan", $"   desplazar {muescas}: {(a.Cambio ? "la pantalla cambió" : "la pantalla no cambió")} en {a.Ms} ms");
         return true;

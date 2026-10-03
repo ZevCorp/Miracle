@@ -41,6 +41,49 @@ public static class ReglaDeLaVisita
 
     private static double Entre(double v, double min, double max) => max < min ? min : Math.Clamp(v, min, max);
 
+    /// <summary>Lo que recorre la carita por cada muesca de rueda, y entre qué topes, en DIP.</summary>
+    public const double DeslizPorMuesca = 34, DeslizMinimo = 48, DeslizMaximo = 132;
+
+    /// <summary>Lo que se mete dentro de la ventana o del campo, desde su borde.</summary>
+    public const double DentroDelBorde = 24;
+
+    /// <summary>
+    /// POR DÓNDE DESLIZA la carita cuando Ü desplaza una ventana (spec 085, promesa 697): dentro de la ventana, junto a su
+    /// borde derecho, y a media altura; de ahí se mueve CON el contenido. Rueda abajo (muescas &lt; 0): el contenido sube
+    /// y la carita sube; rueda arriba, baja. Todo en DIP. null si no hay desplazamiento o no hay sitio.
+    /// </summary>
+    /// <remarks>
+    /// Dentro y no al lado, al revés que al pulsar (promesa 506): lo que se desplaza es casi siempre la ventana entera y
+    /// al lado no hay nada. Fuera de casa la carita es fantasma (505), así que estar encima no le quita un clic a nadie.
+    /// </remarks>
+    public static (Point Desde, Point Hasta)? Desliz(Rect ventana, Size carita, Rect area, int muescas)
+    {
+        if (muescas == 0 || ventana.IsEmpty || area.IsEmpty || carita.IsEmpty) return null;
+        var visible = Rect.Intersect(ventana, area);
+        if (visible.IsEmpty) return null;
+        double tramo = Math.Clamp(Math.Abs(muescas) * DeslizPorMuesca, DeslizMinimo, DeslizMaximo) * Math.Sign(muescas);
+        double x = Entre(visible.Right - DentroDelBorde - carita.Width, area.Left, area.Right - carita.Width);
+        double medio = visible.Top + visible.Height / 2 - carita.Height / 2;
+        double desde = Entre(medio - tramo / 2, area.Top, area.Bottom - carita.Height);
+        double hasta = Entre(medio + tramo / 2, area.Top, area.Bottom - carita.Height);
+        if (Math.Abs(hasta - desde) < 1) return null;   // sin sitio para moverse no hay nada que deslizar
+        return (new Point(x, desde), new Point(x, hasta));
+    }
+
+    /// <summary>
+    /// DENTRO DE UN CAMPO GRANDE, en su esquina de arriba a la derecha: para cuando no cabe al lado porque el campo ES la
+    /// ventana —un documento, el cuerpo de un correo— (promesa 698). null si el campo es más pequeño que la carita.
+    /// </summary>
+    public static Point? Dentro(Rect elemento, Size carita, Rect area)
+    {
+        if (elemento.IsEmpty || area.IsEmpty || carita.IsEmpty) return null;
+        var visible = Rect.Intersect(elemento, area);
+        if (visible.IsEmpty || visible.Width < carita.Width || visible.Height < carita.Height) return null;
+        return new Point(
+            Entre(visible.Right - DentroDelBorde - carita.Width, area.Left, area.Right - carita.Width),
+            Entre(visible.Top + DentroDelBorde, area.Top, area.Bottom - carita.Height));
+    }
+
     /// <summary>
     /// ¿Está libre el punto donde Ü va a pulsar? null = sí. Si la persona tiene el ratón, no. Si el punto cae en la carita
     /// —tocable, o ya fantasma pero de vuelta a casa por encima—, se aparta y se vuelve a mirar; si es otra ventana de Ü,

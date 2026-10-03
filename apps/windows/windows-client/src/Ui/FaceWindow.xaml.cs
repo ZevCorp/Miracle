@@ -235,6 +235,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         // Y A LO QUE Ü PULSA (promesa 504): el ciclo rápido, la mano rápida y la escalera avisan por el mismo pulso, con la
         // caja del elemento y después del clic. Se atiende con BeginInvoke: quien pulsa no espera a la carita.
         U.Graph.Surfaces.UiaSurface.Pulso += (x, y, w, h) => Dispatcher.BeginInvoke(() => Visitar(new Rect(x, y, w, h), pulsa: true));
+        EscucharLoQueUHace();
         // Y NINGUNA MANO PULSA SOBRE Ü (promesa 510): la escalera, la mano rápida y los toques de computer-use miran con la
         // misma regla que el ciclo rápido antes de cada clic físico.
         U.Graph.Surfaces.UiaSurface.LibrarElPunto = LibrarElPuntoDeUnClic;
@@ -1219,6 +1220,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             _vivo.Transcribe += (texto, esDeU) => Dispatcher.BeginInvoke(() =>
             {
                 if (esDeU) _fraseDeUParaLaPrueba = texto;
+                // LO ÚLTIMO QUE DIJO Ü, para saber si acabó preguntando (promesa 693). Y si lo que llega es de la persona,
+                // ya contestó: deja de esperar.
+                if (esDeU) _loQueDiceU = texto; else _alguienHizoAlgoTrasLaPregunta = true;
                 if (_vivo?.Viva != true) return;
                 // Durante el primer encuentro la conversación se lee en la escena, no en el notch (spec 080).
                 if (LaEscenaOye(texto, esDeU)) return;
@@ -1230,12 +1234,24 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             _vivo.TurnoCerrado += () => Dispatcher.BeginInvoke(() =>
             {
                 GuardarLoDichoParaLaPrueba();
+                // Ü calló. Si lo último que dijo acaba en pregunta, desde ahora espera la respuesta.
+                if (_loQueDiceU.Length > 0)
+                {
+                    _loUltimoQueDijoU = _loQueDiceU;
+                    _loQueDiceU = "";
+                    _uCalloEn = Environment.TickCount64;
+                    _alguienHizoAlgoTrasLaPregunta = false;
+                    RefreshMood();
+                }
                 if (_vivo?.Viva != true) return;
                 if (AlCerrarUnTurnoEnLaEscena()) return;
                 _acciones?.CierraTurno();
             });
+            _vivo.LaPersonaEmpezoAHablar += () => Dispatcher.BeginInvoke(GesticularAlOir);
             _vivo.Accion += (texto, listo) => Dispatcher.BeginInvoke(() =>
             {
+                // Cómo salió la última, para no alegrarse de un fallo (promesa 699): la voz marca con ✋ lo que no salió.
+                if (listo) _laUltimaAccionSalioMal = texto.StartsWith("✋");
                 if (_vivo?.Viva != true) return;
                 if (_escena != null) return;   // «anotando lo que me cuentas…» ya se ve: son las piezas de la escena
                 _acciones ??= new PanelDeAcciones();
@@ -1244,6 +1260,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             });
             _vivo.Cambio += viva => Dispatcher.Invoke(() =>
             {
+                AlPrenderOApagarLaVoz(viva);
                 if (!viva) _acciones?.Limpiar();
                 SiLaVozSeFueDelEncuentro(viva);   // a mitad del primer encuentro, sigue escrito (promesa 753)
                 // HABLAR POR VOZ NO ABRE EL CHAT (petición del dueño, 2026-09-05: «se me abre un
@@ -2356,7 +2373,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         {
             // Libre: a la vista, en reposo y en casa. En una conversación o trabajando no interrumpe, y de visita
             // junto a lo que Ü pulsa tampoco.
-            bool libre = IsVisible && _mood == FaceMood.Reposo && _visita.Tocable;
+            // La despedida llega al colgar, cuando la cara todavía no ha vuelto al reposo: a ella no se le pide.
+            bool libre = IsVisible && _visita.Tocable && (motivo == MotivoDelSaludo.Despedida || _mood == FaceMood.Reposo);
             if (!_saludo.Toca(motivo, libre)) return;
             Face.Saludar();
             CollapsedFace.Saludar();
@@ -2373,6 +2391,7 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
         MotivoDelSaludo.Desbloqueo => "se desbloqueó el computador",
         MotivoDelSaludo.Vuelta => $"volviste a tocar el PC tras {ReglaDelSaludo.AusenciaSeg / 60} minutos o más",
         MotivoDelSaludo.Acercarse => $"le acercaste el ratón tras {ReglaDelSaludo.RatoSinTratarlaSeg / 60} minutos sin tratarla",
+        MotivoDelSaludo.Despedida => "colgaste una conversación de verdad: se despide",
         _ => "pasó el rato",
     };
 
@@ -2398,6 +2417,13 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool GetLastInputInfo(ref LASTINPUTINFO info);
+
+    /// <summary>La caja de una ventana, en píxeles físicos: la de delante, para deslizarla (spec 085).</summary>
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct CajaDeVentana { public int Left, Top, Right, Bottom; }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr ventana, out CajaDeVentana caja);
 
     private System.Windows.Threading.DispatcherTimer? _latidoDeVisita;
 
@@ -3151,7 +3177,9 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
             // y espejar la carita al lado que toque. Llega con el DESTINO, así que el espejo se
             // aplica al empezar el vuelo y no al terminarlo — viaja ya con su forma final en vez de
             // darse la vuelta al aterrizar.
-            Moved = OnWindowMoved,
+            // LE PASA ALGO, Y REACCIONA (spec 085, promesa 699): al agarrarla se sorprende, y al soltarla rebota.
+            Agarrada = () => Expresar(ExpresionDeLaCarita.Sorprendida),
+            Moved = (izquierda, arriba) => { OnWindowMoved(izquierda, arriba); CollapsedFace.Pulse(); },
         };
 
         // Y con dos dedos en el trackpad, sin tener que agarrarla. Solo con la carita suelta: con la
@@ -5192,6 +5220,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
                 {
                     var llega = EstanciaDeLaCarita.CuantoTarda(desde, posada);
                     CollapsedFace?.Presionar(izquierda, llega);
+                    // Y NO PULSA RECTO (promesa 696): cada pulso lleva un gesto, alternando atender y entender.
+                    CollapsedFace?.Expresar(ExpresionesDeLaCarita.AlPulsar(_pulsosConGesto++));
                     LogBus.Log("ui-anim", $"presiona a la {(izquierda ? "izquierda" : "derecha")}: la mano sale al posarse, en {llega.TotalMilliseconds:0} ms");
                 }
             }
@@ -5479,39 +5509,47 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private bool _failed;    // la última corrida terminó mal
     private FaceMood _mood = FaceMood.Reposo;
 
+    // ── Lo que pasa, para la cara (spec 085) ──────────────────────────────────────────────────
+
+    private int _accionesEnCurso;
+    private long _acaboLaUltimaAccion = long.MinValue / 2;
+    private bool _laUltimaAccionSalioMal;
+    private long _vozDesde;
+    private string _loQueDiceU = "", _loUltimoQueDijoU = "";
+    private long _uCalloEn;
+    private bool _alguienHizoAlgoTrasLaPregunta = true;
+    private int _pulsosConGesto;
+
     /// <summary>
-    /// El orden de las ramas ES la prioridad: primero lo que está pasando ahora mismo, después lo que
-    /// acaba de pasar. Escuchar gana a todo porque el micrófono está abierto y el usuario necesita
-    /// saberlo ya.
+    /// QUÉ CARA TOCA. La ventana junta lo que sabe y se lo pregunta a <see cref="ReglaDelAnimo"/> (promesa 693).
     /// </summary>
+    /// <remarks>
+    /// Hasta el 2026-10-01 esto era una escalera cuyo primer peldaño era «si hay conversación viva: hablando o
+    /// conversando», y volvía ahí: nunca llegaba a mirar si Ü ejecutaba o esperaba. Por eso «trabajando» y «esperando» no
+    /// se veían — casi todo lo que Ü ejecuta lo ejecuta en una conversación.
+    /// </remarks>
     private FaceMood ResolveMood()
     {
-        // LA CONVERSACIÓN EN VIVO ES OTRA VOZ, y esta función solo miraba a la de Windows. Mientras
-        // había una sesión abierta la carita se quedaba en reposo: ni hablando cuando hablaba, ni
-        // atenta con el micrófono abierto (2026-08-05).
-        //
-        // Y no vale preguntar «¿suena algo AHORA?»: entre dos palabras de una misma frase hay
-        // silencio, así que el estado iría y volvería varias veces por segundo. Cada ida y vuelta
-        // reinicia las animaciones de la cara —y de paso el parpadeo y la mirada—, o sea que la
-        // carita se quedaría sin parpadear justo mientras habla. Se sostiene medio segundo.
-        if (_vivo?.Viva == true)
-        {
-            if (_vivo.NivelVoz > 0.004) _ultimoSonido = DateTime.UtcNow;
-            return (DateTime.UtcNow - _ultimoSonido).TotalMilliseconds < 600
-                ? FaceMood.Hablando
-                : FaceMood.Conversando;
-        }
-
+        long ahora = Environment.TickCount64;
+        bool viva = _vivo?.Viva == true;
+        // La cara ya no cambia cuando Ü habla (promesa 693), pero el encuentro de la spec 080 sigue
+        // necesitando saber cuándo sonó por última vez para no cortarla a media frase.
+        if (viva && _vivo!.NivelVoz > 0.004) _ultimoSonido = DateTime.UtcNow;
         var voz = _voice.Activity;
-        if (voz.Escuchando) return FaceMood.Escuchando;
-        if (_teaching) return FaceMood.Grabando;
-        // Una pregunta sin responder: el agente está parado esperando al usuario, no trabajando.
-        if (_pendingAnswer is { Task.IsCompleted: false }) return FaceMood.Esperando;
-        if (voz.Hablando) return FaceMood.Hablando;
-        if (_working || _runningDirect) return FaceMood.Trabajando;
-        if (_failed) return FaceMood.Fallo;
-        if (_stopped) return FaceMood.Detenido;
-        return FaceMood.Reposo;
+        return ReglaDelAnimo.Cual(new LoQuePasa
+        {
+            VozViva = viva,
+            SegundosConLaVoz = viva ? (ahora - _vozDesde) / 1000.0 : 0,
+            UHabla = viva && _vivo!.NivelVoz > 0.004,
+            Ejecutando = ReglaDelAnimo.EjecutandoAhora(_accionesEnCurso, ahora - _acaboLaUltimaAccion) || _working || _runningDirect,
+            EsperaRespuesta = (viva && ReglaDelAnimo.EsperaTuRespuesta(_loUltimoQueDijoU, (ahora - _uCalloEn) / 1000.0, _alguienHizoAlgoTrasLaPregunta))
+                              || _pendingAnswer is { Task.IsCompleted: false },
+            Dictando = voz.Escuchando,
+            Ensenando = _teaching,
+            HablaPorWindows = voz.Hablando,
+            Fallo = _failed,
+            Detenido = _stopped,
+        });
     }
 
     /// <summary>Recalcula el estado y lo aplica a las DOS caritas y a la píldora, en un solo sitio.</summary>
@@ -5519,13 +5557,202 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     {
         var mood = ResolveMood();
         if (mood == _mood) return;
+        var antes = _mood;
         _mood = mood;
         Face.Mood = mood;
         CollapsedFace.Mood = mood;
         _escena?.Animo(mood);   // la carita de la escena es esta misma, en grande
         UpdateChip(mood);
         ActualizarElPulsoDeLaVoz();
+        LogBus.Log("ui-anim", $"cara: {antes} → {mood}");
+        // TERMINÓ BIEN: SE ALEGRA (promesa 699). Bien es que no acabó en fallo, ni parado, ni preguntando, y que lo
+        // último que hizo no salió marcado como que no salió.
+        if (ReglaDelAnimo.SeAlegra(antes, mood) && !_laUltimaAccionSalioMal) Expresar(ExpresionDeLaCarita.Contenta);
     });
+
+    /// <summary>Un gesto, a las dos caritas: es un solo dibujo en dos sitios y solo se ve la que está a la vista.</summary>
+    private void Expresar(ExpresionDeLaCarita cual)
+    {
+        try
+        {
+            Face.Expresar(cual);
+            CollapsedFace.Expresar(cual);
+            LogBus.Log("ui-anim", $"gesto: {cual}");
+        }
+        catch (Exception e) { LogBus.Log("ui-anim", $"el gesto {cual} reventó: {e.GetType().Name}: {e.Message}"); }
+    }
+
+    /// <summary>
+    /// LO QUE Ü HACE, CONTADO POR LA CARITA: empieza y termina un acto (promesa 693), desplaza (697) y escribe (698). Los
+    /// avisos son estáticos y llegan desde el hilo que está actuando: se pasan a este con BeginInvoke —quien actúa no
+    /// espera a la carita— y se sueltan al cerrar.
+    /// </summary>
+    private void EscucharLoQueUHace()
+    {
+        Action<string> empieza = _ => Dispatcher.BeginInvoke(() =>
+        {
+            _accionesEnCurso++;
+            _laUltimaAccionSalioMal = false;
+            _alguienHizoAlgoTrasLaPregunta = true;
+            RefreshMood();
+        });
+        Action<string> termina = _ => Dispatcher.BeginInvoke(() =>
+        {
+            if (_accionesEnCurso > 0) _accionesEnCurso--;
+            _acaboLaUltimaAccion = Environment.TickCount64;
+            RefreshMood();
+            // Sin conversación no hay reloj que vuelva a mirar: se vuelve a preguntar cuando deja de sostenerse.
+            DentroDe(ReglaDelAnimo.TrabajoSeSostieneMs + 60, RefreshMood);
+        });
+        Action<int> desplaza = muescas => Dispatcher.BeginInvoke(() => DeslizarConLaPantalla(muescas));
+        Action<int> escribe = caracteres => Dispatcher.BeginInvoke(() => TeclearJuntoAlCampo(caracteres));
+        LoQueUHace.Empieza += empieza;
+        LoQueUHace.Termina += termina;
+        LoQueUHace.Desplaza += desplaza;
+        LoQueUHace.Escribe += escribe;
+        Closed += (_, __) =>
+        {
+            LoQueUHace.Empieza -= empieza;
+            LoQueUHace.Termina -= termina;
+            LoQueUHace.Desplaza -= desplaza;
+            LoQueUHace.Escribe -= escribe;
+        };
+    }
+
+    /// <summary>
+    /// Ü DESPLAZA, Y LA CARITA DESLIZA (promesa 697): va dentro de la ventana de delante, apoya la mano y se mueve con el
+    /// contenido. «Como si él la estuviera deslizando» (el dueño, 2026-10-01).
+    /// </summary>
+    private void DeslizarConLaPantalla(int muescas)
+    {
+        try
+        {
+            if (!IsVisible) { LogBus.Log("ui-anim", "desliza: la carita está oculta, no desliza"); return; }
+            if (_silla.Ocupada) { LogBus.Log("ui-anim", $"desliza: sentada en «{_silla.Donde}», no desliza"); return; }
+            IntPtr delante = GetForegroundWindow();
+            if (delante == IntPtr.Zero || !GetWindowRect(delante, out var r)) { LogBus.Log("ui-anim", "desliza: no hay ventana delante que deslizar"); return; }
+            if (EnDips(new Rect(r.Left, r.Top, Math.Max(0, r.Right - r.Left), Math.Max(0, r.Bottom - r.Top))) is not { } d) return;
+            if (ReglaDeLaVisita.Desliz(d.Elemento, TamañoDeLaCarita, d.Area, muescas) is not { } camino)
+            {
+                LogBus.Log("ui-anim", "desliza: no hay sitio en la ventana de delante: no desliza");
+                return;
+            }
+            var llega = _visita.IrA(camino.Desde, new Point(Left, Top));
+            var cuanto = TimeSpan.FromMilliseconds(420);
+            // El contenido le queda a la izquierda: lo mira y apoya esa mano. Y cuando ya está apoyada, se mueve con él.
+            CollapsedFace.MirarHacia(izquierda: true);
+            CollapsedFace.Deslizar(izquierda: true, tras: llega, cuanto: cuanto);
+            int apoyada = (int)llega.TotalMilliseconds + (int)(ManosDeLaCarita.TardaEnApoyarse * 1000);
+            DentroDe(apoyada, () => VolarDeVisita(camino.Hasta, cuanto, null));
+            _visita.Quedarse(apoyada + (int)cuanto.TotalMilliseconds);
+            LogBus.Log("ui-anim", $"desliza {(muescas < 0 ? "hacia arriba" : "hacia abajo")}, con el contenido: "
+                + $"({camino.Desde.X:0},{camino.Desde.Y:0}) → ({camino.Hasta.X:0},{camino.Hasta.Y:0}); la mano se apoya en {apoyada} ms");
+        }
+        catch (Exception e) { LogBus.Log("ui-anim", $"deslizar reventó y la rueda siguió: {e.GetType().Name}: {e.Message}"); }
+    }
+
+    /// <summary>
+    /// Ü ESCRIBE, Y LA CARITA TECLEA (promesa 698): las dos manos, junto al campo si se sabe cuál es, y sin volver a casa
+    /// hasta terminar. «Ahí al lado del texto; que no se vaya a su zona, que se quede ahí escribiendo».
+    /// </summary>
+    /// <remarks>
+    /// DÓNDE ESTÁ EL CAMPO se le pregunta a UIA —el elemento con el foco— FUERA de este hilo: es una lectura que puede
+    /// tardar, y ni la interfaz ni quien escribe la esperan. Si no se sabe, teclea donde está: un gesto en el sitio
+    /// equivocado es peor que un gesto sin sitio.
+    /// </remarks>
+    private void TeclearJuntoAlCampo(int caracteres)
+    {
+        if (!IsVisible || _silla.Ocupada) return;
+        var cuanto = TimeSpan.FromSeconds(ManosDeLaCarita.CuantoTeclea(caracteres));
+        Task.Run(CajaDelCampoConElFoco).ContinueWith(t => Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                var llega = TimeSpan.Zero;
+                string donde = t.Result.PorQueNo.Length > 0 ? "donde está (" + t.Result.PorQueNo + ")" : "donde está";
+                if (t.Result.Caja is { } fisico && EnDips(fisico) is { } d
+                    && (ReglaDeLaVisita.Junto(d.Elemento, TamañoDeLaCarita, d.Area) ?? ReglaDeLaVisita.Dentro(d.Elemento, TamañoDeLaCarita, d.Area)) is { } sitio)
+                {
+                    llega = _visita.IrA(sitio, new Point(Left, Top));
+                    CollapsedFace.MirarHacia(d.Elemento.X + d.Elemento.Width / 2 < sitio.X + TamañoDeLaCarita.Width / 2);
+                    donde = $"junto al campo, en ({sitio.X:0},{sitio.Y:0})";
+                }
+                CollapsedFace.Teclear(cuanto, llega);
+                _visita.Quedarse((int)(llega + cuanto).TotalMilliseconds);
+                LogBus.Log("ui-anim", $"teclea {caracteres} caracteres durante {cuanto.TotalSeconds:0.0} s, {donde}");
+            }
+            catch (Exception e) { LogBus.Log("ui-anim", $"teclear reventó y lo escrito siguió: {e.GetType().Name}: {e.Message}"); }
+        }));
+    }
+
+    /// <summary>La caja, en píxeles físicos, del elemento que tiene el foco; o por qué no se sabe.</summary>
+    private static (Rect? Caja, string PorQueNo) CajaDelCampoConElFoco()
+    {
+        try
+        {
+            var el = System.Windows.Automation.AutomationElement.FocusedElement;
+            if (el == null) return (null, "nada tiene el foco");
+            if (el.Current.ProcessId == Environment.ProcessId) return (null, "el foco lo tiene Ü");
+            var caja = el.Current.BoundingRectangle;
+            if (caja.IsEmpty || double.IsInfinity(caja.Width) || caja.Width < 4 || caja.Height < 4) return (null, "lo que tiene el foco no tiene caja");
+            return (caja, "");
+        }
+        catch (Exception e) { return (null, $"no pude preguntar qué tiene el foco: {e.GetType().Name}"); }
+    }
+
+    private System.Windows.Threading.DispatcherTimer? _relojAlOir;
+    private long _oyendoDesde;
+    private int _gestosAlOir;
+
+    /// <summary>
+    /// LE HABLAS, Y TE SIGUE (promesa 695): al empezar pone la cara de atender, y mientras sigues hablando alterna
+    /// entender y atender cada pocos segundos. «Que se sienta que me está entendiendo» (el dueño, 2026-10-01).
+    /// </summary>
+    private void GesticularAlOir()
+    {
+        if (_vivo?.Viva != true) return;
+        _alguienHizoAlgoTrasLaPregunta = true;   // empezaste a contestar: deja de esperar
+        RefreshMood();
+        _oyendoDesde = Environment.TickCount64;
+        _gestosAlOir = 0;
+        Expresar(GestosAlOir.Cual(_gestosAlOir++));
+        if (_relojAlOir == null)
+        {
+            _relojAlOir = new System.Windows.Threading.DispatcherTimer();
+            _relojAlOir.Tick += (_, _) =>
+            {
+                // Que acabaste de hablar no lo avisa nadie: se deja de gesticular cuando Ü contesta o ejecuta, o al tope.
+                bool uContestaOEjecuta = _vivo?.Viva != true || _accionesEnCurso > 0 || _vivo.NivelVoz > 0.004;
+                if (!GestosAlOir.Sigue((Environment.TickCount64 - _oyendoDesde) / 1000.0, uContestaOEjecuta)) { _relojAlOir!.Stop(); return; }
+                Expresar(GestosAlOir.Cual(_gestosAlOir++));
+                _relojAlOir!.Interval = TimeSpan.FromMilliseconds(GestosAlOir.ProximoMs(_dadoDelSaludo.NextDouble()));
+            };
+        }
+        _relojAlOir.Stop();
+        _relojAlOir.Interval = TimeSpan.FromMilliseconds(GestosAlOir.ProximoMs(_dadoDelSaludo.NextDouble()));
+        _relojAlOir.Start();
+    }
+
+    /// <summary>
+    /// Al prender la voz empieza a contar el rato de escuchar (promesa 693); al apagarla, si fue una conversación de
+    /// verdad, se despide con la mano (699) — por la regla del saludo, que no deja dos en minuto y medio.
+    /// </summary>
+    private void AlPrenderOApagarLaVoz(bool viva)
+    {
+        long ahora = Environment.TickCount64;
+        if (viva)
+        {
+            _vozDesde = ahora;
+            _loQueDiceU = _loUltimoQueDijoU = "";
+            _alguienHizoAlgoTrasLaPregunta = true;
+            // A los 25 s escuchar pasa a conversar, y sin que nadie hable no hay quien lo vuelva a mirar.
+            DentroDe(ReglaDelAnimo.EscuchaAlEncenderSeg * 1000 + 100, RefreshMood);
+            return;
+        }
+        _relojAlOir?.Stop();
+        if (_vozDesde > 0 && ReglaDelSaludo.SeDespide((ahora - _vozDesde) / 1000.0)) Saludar(MotivoDelSaludo.Despedida);
+        _vozDesde = 0;
+    }
 
     /// <summary>
     /// ¿Hay que estar siguiendo la voz? Mientras haya una conversación viva o Ü esté hablando.
@@ -5538,8 +5765,8 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
     private System.Windows.Threading.DispatcherTimer? _pulsoDeLaVoz;
     private int _pasoDeLaVoz;
 
-    /// <summary>La última vez que se oyó algo por el altavoz. Sostiene el estado «hablando» durante
-    /// los silencios cortos de dentro de una frase.</summary>
+    /// <summary>La última vez que se oyó algo por el altavoz. Lo lee el encuentro para esperar a que Ü
+    /// calle antes de seguir.</summary>
     private DateTime _ultimoSonido = DateTime.MinValue;
 
     /// <summary>

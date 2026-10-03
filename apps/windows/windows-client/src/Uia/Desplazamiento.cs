@@ -55,6 +55,19 @@ public static class Desplazamiento
     /// <summary>Desplaza y cuenta qué pasó, en castellano y para quien preguntó.</summary>
     public static string Mover(Hacia hacia)
     {
+        var hecho = Desplazar(hacia);
+        // La carita lo desliza (spec 085, promesa 697). DESPUÉS de desplazar y sin esperarla. Arriba e Inicio suben como la
+        // rueda hacia arriba; lo demás baja. Por el teclado no se sabe si se movió y desliza, como haría quien pulsa
+        // AvPág; pero si el porcentaje dice que la pantalla se quedó QUIETA —«ya estabas al final»—, deslizar sería
+        // fingir un movimiento que no hubo.
+        if (!hecho.Quieta && Ui.LoQueUHace.AvisarDeQueDesplaza(hacia is Hacia.Arriba or Hacia.Inicio ? 3 : -3) is { } no)
+            LogBus.Log("scroll", "el aviso de que desplacé reventó: " + no);
+        return hecho.Relato;
+    }
+
+    /// <summary>Desplaza y cuenta qué pasó; <c>Quieta</c> solo cuando leyó el porcentaje y no cambió.</summary>
+    private static (string Relato, bool Quieta) Desplazar(Hacia hacia)
+    {
         var ventana = GetForegroundWindow();
         var hallado = BuscarScroll(ventana);
         Anotar(hallado?.Quien);
@@ -76,7 +89,7 @@ public static class Desplazamiento
             catch (Exception e)
             {
                 LogBus.Log("scroll", $"UIA no dejó desplazar: {e.Message}; se prueba con el teclado");
-                return PorTeclado(hacia, "el patrón de desplazamiento falló");
+                return (PorTeclado(hacia, "el patrón de desplazamiento falló"), false);
             }
 
             // Se mira en cuanto se mueve, no a los 350 ms (promesa 484): lo normal es que el porcentaje ya haya cambiado
@@ -89,16 +102,16 @@ public static class Desplazamiento
             // abajo del todo, pedir «abajo» no puede hacer nada, y decir «no pude» sería mentir
             // sobre el estado de la pantalla.
             if (Math.Abs(despues - antes) > 0.5)
-                return $"desplazado {Nombre(hacia)}: ibas por el {antes:N0}% y ahora estás en el {despues:N0}%.";
+                return ($"desplazado {Nombre(hacia)}: ibas por el {antes:N0}% y ahora estás en el {despues:N0}%.", false);
 
             bool alTope = (hacia is Hacia.Arriba or Hacia.Inicio && despues <= 0.5)
                        || (hacia is Hacia.Abajo or Hacia.Final && despues >= 99.5);
-            return alTope
+            return (alTope
                 ? $"ya estabas {(hacia is Hacia.Arriba or Hacia.Inicio ? "arriba del todo" : "al final")}: no hay más."
-                : $"no se movió (sigue en el {despues:N0}%). Puede que lo que hay que desplazar sea otro panel.";
+                : $"no se movió (sigue en el {despues:N0}%). Puede que lo que hay que desplazar sea otro panel.", true);
         }
 
-        return PorTeclado(hacia, "esta pantalla no expone desplazamiento a UIA");
+        return (PorTeclado(hacia, "esta pantalla no expone desplazamiento a UIA"), false);
     }
 
     /// <summary>El porcentaje en cuanto deja de ser el de antes; al agotar el techo, el que haya (promesa 484).</summary>

@@ -64,6 +64,14 @@ public sealed class FaceControl : FrameworkElement
     private readonly RotateTransform _tilt = new(0);
     /// <summary>El saltito de «te oí» al empezar a escuchar. Transform, como todo lo que mueve el cuerpo entero.</summary>
     private readonly TranslateTransform _salto = new(0, 0);
+    /// <summary>
+    /// La respiración de «escuchando». Aparte del pulso (<see cref="_scale"/>) a propósito: tocarla la hace rebotar y
+    /// prenderle la voz la pone a respirar, las dos cosas a la vez, y en la misma transform el rebote, al acabar, se
+    /// llevaba la respiración (spec 085).
+    /// </summary>
+    private readonly ScaleTransform _respiro = new(1, 1);
+    /// <summary>El ladeo de un gesto pasajero. Aparte del balanceo de «trabajando», para que entender no lo pare.</summary>
+    private readonly RotateTransform _ladeoDelGesto = new(0);
 
     public FaceControl()
     {
@@ -72,7 +80,9 @@ public sealed class FaceControl : FrameworkElement
         // traslada, y las tres tienen que poder convivir sin pisarse.
         var group = new TransformGroup();
         group.Children.Add(_scale);
+        group.Children.Add(_respiro);
         group.Children.Add(_tilt);
+        group.Children.Add(_ladeoDelGesto);
         group.Children.Add(_salto);
         RenderTransform = group;
     }
@@ -85,7 +95,8 @@ public sealed class FaceControl : FrameworkElement
     /// que un día se desincroniza.
     /// </summary>
     public bool Animando =>
-        HasAnimatedProperties || _scale.HasAnimatedProperties || _tilt.HasAnimatedProperties || _salto.HasAnimatedProperties;
+        HasAnimatedProperties || _scale.HasAnimatedProperties || _respiro.HasAnimatedProperties
+        || _tilt.HasAnimatedProperties || _ladeoDelGesto.HasAnimatedProperties || _salto.HasAnimatedProperties;
 
     /// <summary>Modo de color de la carita (claro/oscuro/transparente). Repinta al cambiar.</summary>
     public FaceTheme Theme
@@ -157,6 +168,66 @@ public sealed class FaceControl : FrameworkElement
         new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
     /// <summary>
+    /// El instante del desliz en curso, en segundos y con el signo del lado, como <see cref="Presion"/> (spec 085,
+    /// promesa 697). Lo anima <see cref="Deslizar"/>; la mano la pone <see cref="ManosDeLaCarita.Desliz"/>.
+    /// </summary>
+    public double Desliz
+    {
+        get => (double)GetValue(DeslizProperty);
+        set => SetValue(DeslizProperty, value);
+    }
+
+    public static readonly DependencyProperty DeslizProperty = DependencyProperty.Register(
+        nameof(Desliz), typeof(double), typeof(FaceControl),
+        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>Lo que aguanta apoyada la mano en el desliz en curso, en segundos.</summary>
+    private double _cuantoDesliza = 0.42;
+
+    /// <summary>
+    /// El instante del tecleo en curso, en segundos; 0 = no teclea (spec 085, promesa 698). Lo anima
+    /// <see cref="Teclear"/>; las dos manos las pone <see cref="ManosDeLaCarita.Tecleo"/>.
+    /// </summary>
+    public double Tecleo
+    {
+        get => (double)GetValue(TecleoProperty);
+        set => SetValue(TecleoProperty, value);
+    }
+
+    public static readonly DependencyProperty TecleoProperty = DependencyProperty.Register(
+        nameof(Tecleo), typeof(double), typeof(FaceControl),
+        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>Lo que dura el tecleo en curso, en segundos.</summary>
+    private double _duraElTecleo = 1.5;
+
+    /// <summary>El gesto pasajero que lleva puesto (spec 085, promesa 694). Cuánto, lo dice <see cref="Expresion"/>.</summary>
+    public ExpresionDeLaCarita Gesto
+    {
+        get => (ExpresionDeLaCarita)GetValue(GestoProperty);
+        set => SetValue(GestoProperty, value);
+    }
+
+    public static readonly DependencyProperty GestoProperty = DependencyProperty.Register(
+        nameof(Gesto), typeof(ExpresionDeLaCarita), typeof(FaceControl),
+        new FrameworkPropertyMetadata(ExpresionDeLaCarita.Ninguna, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>
+    /// Cuánto del <see cref="Gesto"/> se ve: 0, la cara de su estado; 1, el gesto entero. Lo anima
+    /// <see cref="Expresar"/>: entra, se sostiene y sale. Un gesto no es un estado — «que entre y salga, que no se quede
+    /// pegado» (el dueño, 2026-10-01).
+    /// </summary>
+    public double Expresion
+    {
+        get => (double)GetValue(ExpresionProperty);
+        set => SetValue(ExpresionProperty, value);
+    }
+
+    public static readonly DependencyProperty ExpresionProperty = DependencyProperty.Register(
+        nameof(Expresion), typeof(double), typeof(FaceControl),
+        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    /// <summary>
     /// Cuánto ha LLEGADO a la cara de su estado: 0, sigue con la que tenía; 1, ya es la nueva. La carita
     /// no salta de una expresión a otra (promesa 448): al cambiar de estado esto va de 0 a 1 en lo que
     /// diga <see cref="GestosDeLaCarita.CuantoTardaEnLlegar"/>, y lo pintado es la mezcla.
@@ -216,6 +287,9 @@ public sealed class FaceControl : FrameworkElement
         double EyeOpen, double Squint, double MouthCurve, double MouthWidth,
         double CornerL, double CornerR);
 
+    /// <summary>La sonrisa de siempre: la del reposo, la de conversar y la de hablar.</summary>
+    private static readonly FacePose Sonrie = new(2, 2.5, 0.3, 0.4, 0.85, 0.15, 0.7, 34 * 1.1, 0.3, 0.5);
+
     /// <summary>
     /// La cara de ATENDER: quieta y mirando de frente, «te estoy viendo» y «te estoy oyendo». La quietud
     /// es la señal, y sin el rojo que tuvo la boca se encoge para que se distinga del reposo de un
@@ -235,23 +309,23 @@ public sealed class FaceControl : FrameworkElement
     private static readonly Dictionary<FaceMood, FacePose> Poses = new()
     {
         //                              browL browR curvL curvR  eyeOpen squint mouthCurve  width   cornL cornR
-        [FaceMood.Reposo] = new(2, 2.5, 0.3, 0.4, 0.85, 0.15, 0.7, 34 * 1.1, 0.3, 0.5),
+        [FaceMood.Reposo] = Sonrie,
         // Escuchar y trabajar son los estados en los que más rato pasa la carita —con la conversación
         // en vivo, «escuchando» es casi toda la sesión—. Su gesto los distingue: cejas altas y ojos
         // abiertos para escuchar, ceja torcida para trabajar.
         [FaceMood.Trabajando] = new(-1, 4, 0.1, 0.5, 0.75, 0.20, 0.7, 34 * 0.95, 0.2, 0.1),
         // Cejas altas y ojos bien abiertos: la cara de estar prestando atención.
         [FaceMood.Escuchando] = new(6, 6, 0.35, 0.35, 1.00, 0.05, 0.6, 34 * 1.05, 0.35, 0.35),
-        // ATENDER (spec 077, promesa 691). Desde agosto conversar era «casi el reposo» a propósito: es lo
-        // que se ve durante toda una conversación y tenía que poder mirarse sin cansar, y la alternativa
-        // de entonces eran los ojos como platos y un jadeo continuo. El dueño, el 2026-10-01: «quiero que
-        // cuando estemos hablando tenga algún tipo de gesto […] el que dice grabando, justamente». La de
-        // grabar es quieta, así que cumple las dos cosas.
-        [FaceMood.Conversando] = Atenta,
+        // CONVERSANDO SONRÍE, como en reposo. Por la mañana del 2026-10-01 se puso aquí la cara de atender, fija (spec
+        // 077), y por la tarde el dueño: «me gusta, pero que entre y salga, que no se quede pegado». Atender es ahora
+        // un gesto (ExpresionDeLaCarita.Atenta): un momento, y de vuelta a la sonrisa (spec 085, promesa 691).
+        [FaceMood.Conversando] = Sonrie,
         [FaceMood.Grabando] = Atenta,
         // Asimetría interrogativa: una ceja sube, la otra baja. Y además ladea la cabeza (OnMoodChanged).
         [FaceMood.Esperando] = new(6, -1, 0.45, 0.15, 0.9, 0.10, 0.2, 34 * 0.95, 0.4, 0.1),
-        [FaceMood.Hablando] = new(2, 2.5, 0.3, 0.4, 0.85, 0.15, 0.9, 34 * 1.25, 0.4, 0.4),
+        // AL HABLAR, LA MISMA CARA. Aquí estaba la sonrisa ancha a la que se llegaba en 260 ms; el dueño la vio y no le
+        // gustó: «por ahora que no haga nada cuando hable» (spec 085, promesa 448). El halo ya dice que habla.
+        [FaceMood.Hablando] = Sonrie,
         // Boca recta y ojos entornados: ni contenta ni enfadada, parada.
         [FaceMood.Detenido] = new(0, 0, 0.2, 0.2, 0.6, 0.25, 0.0, 34 * 0.9, 0.0, 0.0),
         [FaceMood.Fallo] = new(-3, -3, 0.15, 0.15, 0.8, 0.15, -0.5, 34 * 0.9, 0.1, 0.1),
@@ -272,8 +346,28 @@ public sealed class FaceControl : FrameworkElement
     /// <summary>La cara de la que viene. No es la del estado anterior: es la que se VEÍA, que podía ir a medio camino.</summary>
     private FacePose _poseDesde = Poses[FaceMood.Reposo];
 
-    /// <summary>Lo que se pinta: de la cara que tenía a la de su estado, lo que haya llegado.</summary>
-    private FacePose CurrentPose => Mezclar(_poseDesde, PoseDe(Mood), Llegada);
+    /// <summary>
+    /// Las caras de los gestos (spec 085, promesa 694). Atender es la de grabar y entender la de esperar, tal cual: son
+    /// las dos que el dueño señaló en la ventana de prueba. Alegrarse es la sonrisa grande con los ojos entornados, y
+    /// sorprenderse, las cejas arriba del todo con la boca encogida.
+    /// </summary>
+    private static readonly Dictionary<ExpresionDeLaCarita, FacePose> Gestos = new()
+    {
+        [ExpresionDeLaCarita.Atenta] = Atenta,
+        [ExpresionDeLaCarita.Entiende] = new(6, -1, 0.45, 0.15, 0.9, 0.10, 0.2, 34 * 0.95, 0.4, 0.1),
+        [ExpresionDeLaCarita.Contenta] = new(5, 5.5, 0.45, 0.5, 0.7, 0.35, 1.0, 34 * 1.3, 0.5, 0.5),
+        [ExpresionDeLaCarita.Sorprendida] = new(9, 9, 0.5, 0.5, 1.0, 0.0, 0.15, 34 * 0.5, 0.1, 0.1),
+    };
+
+    /// <summary>Lo que se pinta: de la cara que tenía a la de su estado, lo que haya llegado; y encima, lo que se vea del gesto.</summary>
+    private FacePose CurrentPose
+    {
+        get
+        {
+            var delEstado = Mezclar(_poseDesde, PoseDe(Mood), Llegada);
+            return Expresion > 0 && Gestos.TryGetValue(Gesto, out var gesto) ? Mezclar(delEstado, gesto, Expresion) : delEstado;
+        }
+    }
 
     /// <summary>
     /// Coreografía del estado: llega a la cara nueva, para lo continuo del anterior y arranca lo suyo.
@@ -349,8 +443,8 @@ public sealed class FaceControl : FrameworkElement
         if (_respira)
         {
             _respira = false;
-            Volver(_scale, ScaleTransform.ScaleXProperty, _scale.ScaleX, 1);
-            Volver(_scale, ScaleTransform.ScaleYProperty, _scale.ScaleY, 1);
+            Volver(_respiro, ScaleTransform.ScaleXProperty, _respiro.ScaleX, 1);
+            Volver(_respiro, ScaleTransform.ScaleYProperty, _respiro.ScaleY, 1);
         }
         if (_inclinada)
         {
@@ -420,8 +514,8 @@ public sealed class FaceControl : FrameworkElement
             RepeatBehavior = RepeatBehavior.Forever,
             EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
         };
-        _scale.BeginAnimation(ScaleTransform.ScaleXProperty, a);
-        _scale.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+        _respiro.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+        _respiro.BeginAnimation(ScaleTransform.ScaleYProperty, a);
     }
 
     private void Sway(double degrees, int ms)
@@ -504,6 +598,52 @@ public sealed class FaceControl : FrameworkElement
         a.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
         a.KeyFrames.Add(new LinearDoubleKeyFrame(d, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(Math.Abs(d)))));
         Animar(this, PresionProperty, a, final: 0);
+    }
+
+    /// <summary>
+    /// Apoya la mano de un lado y la AGUANTA <paramref name="cuanto"/> mientras la ventana de la carita se mueve con lo
+    /// que Ü desplaza (spec 085, promesa 697). <paramref name="tras"/>: lo que tarda en llegar al sitio.
+    /// </summary>
+    public void Deslizar(bool izquierda, TimeSpan tras, TimeSpan cuanto)
+    {
+        _cuantoDesliza = Math.Max(0, cuanto.TotalSeconds);
+        double d = ManosDeLaCarita.DuracionDelDesliz(_cuantoDesliza);
+        var a = new DoubleAnimationUsingKeyFrames { BeginTime = tras > TimeSpan.Zero ? tras : TimeSpan.Zero };
+        a.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        a.KeyFrames.Add(new LinearDoubleKeyFrame(izquierda ? -d : d, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(d))));
+        Animar(this, DeslizProperty, a, final: 0);
+    }
+
+    /// <summary>
+    /// Saca las dos manos y TECLEA durante <paramref name="cuanto"/> (spec 085, promesa 698): «como moviendo las dos
+    /// manitos, taca taca taca». <paramref name="tras"/>: lo que tarda en llegar junto al campo.
+    /// </summary>
+    public void Teclear(TimeSpan cuanto, TimeSpan tras)
+    {
+        _duraElTecleo = Math.Max(0.3, cuanto.TotalSeconds);
+        var a = new DoubleAnimationUsingKeyFrames { BeginTime = tras > TimeSpan.Zero ? tras : TimeSpan.Zero };
+        a.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        a.KeyFrames.Add(new LinearDoubleKeyFrame(_duraElTecleo, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(_duraElTecleo))));
+        Animar(this, TecleoProperty, a, final: 0);
+    }
+
+    /// <summary>
+    /// Pone un GESTO: entra, se sostiene un momento y sale solo, de vuelta a la cara de su estado (spec 085, promesa
+    /// 694). Los tiempos y el ladeo de cada uno los dice <see cref="ExpresionesDeLaCarita.Tiempos"/>.
+    /// </summary>
+    public void Expresar(ExpresionDeLaCarita cual)
+    {
+        if (!Gestos.ContainsKey(cual)) return;
+        var t = ExpresionesDeLaCarita.Tiempos(cual);
+        // Si ya llevaba otro puesto, sigue desde lo que se veía: cambiar de gesto tampoco salta.
+        double desde = Gesto == cual ? Expresion : 0;
+        Gesto = cual;
+        Animar(this, ExpresionProperty, Claves(
+            (desde, 0, null), (1, t.EntraMs, Sale), (1, t.EntraMs + t.SostieneMs, null), (0, t.EntraMs + t.SostieneMs + t.SaleMs, Suave)));
+        if (t.Ladeo != 0 || _ladeoDelGesto.Angle != 0)
+            Animar(_ladeoDelGesto, RotateTransform.AngleProperty, Claves(
+                (_ladeoDelGesto.Angle, 0, null), (t.Ladeo, t.EntraMs + 60, Rebota), (t.Ladeo, t.EntraMs + t.SostieneMs, null), (0, t.EntraMs + t.SostieneMs + t.SaleMs, Suave)));
+        if (cual == ExpresionDeLaCarita.Contenta) Saltito();
     }
 
     /* ---------- Lo que hace sola: parpadear ---------- */
@@ -711,12 +851,31 @@ public sealed class FaceControl : FrameworkElement
             dc.Pop();
         }
 
-        // PRESIONAR MANDA, Y ES UNA SOLA MANO: la del lado de lo que Ü pulsó (promesa 446).
+        // DESLIZAR Y PRESIONAR MANDAN, Y SON UNA SOLA MANO: la del lado de lo que Ü desplaza o pulsa (promesas 697 y 446).
+        double d = Desliz;
+        if (d != 0 && Math.Abs(d) < ManosDeLaCarita.DuracionDelDesliz(_cuantoDesliza))
+        {
+            var (x, y, angulo, asomo) = ManosDeLaCarita.Desliz(Math.Abs(d), Math.Sign(d), _cuantoDesliza);
+            Pintar(x, y, angulo, asomo);
+            return;
+        }
         double p = Presion;
         if (p != 0 && Math.Abs(p) < ManosDeLaCarita.DuracionDePresionar)
         {
             var (x, y, angulo, asomo) = ManosDeLaCarita.Presion(Math.Abs(p), Math.Sign(p));
             Pintar(x, y, angulo, asomo);
+            return;
+        }
+
+        // TECLEAR: las dos, golpeando por turnos (promesa 698).
+        double tecla = Tecleo;
+        if (tecla > 0 && tecla < _duraElTecleo)
+        {
+            foreach (int lado in new[] { -1, 1 })
+            {
+                var (x, y, angulo, asomo) = ManosDeLaCarita.Tecleo(tecla, lado, _duraElTecleo);
+                Pintar(x, y, angulo, asomo);
+            }
             return;
         }
 

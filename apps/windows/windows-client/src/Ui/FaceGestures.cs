@@ -27,6 +27,8 @@ public sealed class FaceGestures
     public Action? DoubleTap { get; set; }
     /// <summary>Mantener oprimido en un lugar estático (sin arrastrar).</summary>
     public Action? LongPress { get; set; }
+    /// <summary>La agarraron: el toque pasó a ser arrastre. Una vez por arrastre (spec 085, promesa 699).</summary>
+    public Action? Agarrada { get; set; }
 
     /// <summary>
     /// La ventana quedó en un sitio nuevo porque el usuario la movió. Llega con el destino FINAL.
@@ -146,6 +148,7 @@ public sealed class FaceGestures
         if (!_moved && dx * dx + dy * dy > MoveThresholdSq)
         {
             _moved = true;
+            Agarrada?.Invoke();
             _longTimer.Stop(); // ya no es "mantener estático": es arrastre
             _tapTimer.Stop();  // y cancela cualquier toque simple pendiente (tocar y luego arrastrar)
             _tapCount = 0;
