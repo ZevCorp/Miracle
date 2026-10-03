@@ -1,6 +1,6 @@
 # Plan de implementación: la carita expresa lo que Ü hace, y lo que le pasa
 
-Estado: **propuesto** · Nace de lo que el dueño dijo el 2026-10-01 al ver las specs 052 y 077 · Rama: `jose/la-carita-expresa-lo-que-hace` · Promesas **693-699**
+Estado: **implementado; en la app se vieron trabajar, pulsar, deslizar, teclear y agarrarla — lo de conversar pide voz de pago** · Nace de lo que el dueño dijo el 2026-10-01 al ver las specs 052 y 077 · Rama: `jose/la-carita-expresa-lo-que-hace` · Promesas **693-699**
 
 > Felipe, en un audio del 2026-10-01, con la carita de las specs 052 y 077 delante: «cuando haga
 > scroll, que saque la mano, como que presione la pantalla y se mueva con la pantalla, como si él la
@@ -135,8 +135,53 @@ Y dos promesas de `main` cambian, a petición del dueño. Los números no se rec
 
 ## Hallazgos
 
+- **2026-10-01, el rojo antes del código, medido.** CONTRATO ROTO con nueve promesas —la 448 y la 691
+  reescritas y las siete nuevas, 693-699—, 415 ✔ y ninguna otra movida. La raíz de que nunca se viera
+  «trabajando» ni «esperando» estaba en `ResolveMood`: con la voz viva devolvía antes de mirar nada
+  más, así que en cuanto había conversación ejecutar no se veía. Ahora la cara la decide una regla
+  pura, `ReglaDelAnimo.Cual`, con el orden escrito.
+- **El sabotaje, comprobado por el veredicto.** Nueve roturas a la vez, una por promesa (la sonrisa
+  ancha al hablar, atender como cara fija, conversar por encima de ejecutar, el gesto que no se
+  pinta, siempre el mismo gesto al oír y al pulsar, deslizar al revés, teclear sin manos, no
+  alegrarse): 415 ✔ y 9 ✘, justo las nueve.
+- **Main tenía su propia spec 078** (Ü sabe con quién habla) cuando esta rama volvió a ella: esta pasó
+  a ser la 085, renumerando solo las 41 líneas de la rama. Y el encuentro de la spec 080, entrado
+  mientras tanto, usaba `_ultimoSonido`, que la rama había quitado con la cara de hablar: no
+  compilaba. Vuelve el campo y se anota en el mismo sitio.
+- **1,2 s de «sigue trabajando» no alcanzaban** (2026-10-03). En 48 huecos medidos en los logs entre
+  un acto y el siguiente de una misma tarea, la mediana es 2 s: el 43 % cabe en 1,2 s y el 85 % en
+  3 s. Con 1,2 s la carita dejaba de trabajar y daba el saltito de alegría a mitad de la tarea. Con
+  3 s, en el PC real, trabajó de seguido Siete → Cinco → Cerrar y se alegró una vez, al acabar.
+- **La carita tecleaba sin haber escrito** (2026-10-03, nivel 4). `map_type` contestó «no encontré
+  ningún campo de texto «Buscar» en la ventana «Calculadora»» y la carita tecleó igual 1,8 s junto a
+  un campo. Clase de error contada: **cinco sitios** avisan (dos de escribir, tres de desplazar). Se
+  arreglan los dos que saben si lo hicieron —`map_type` mira la mano y `map_scroll` el porcentaje—;
+  las teclas del plan y las dos ruedas no pueden saberlo, igual que una persona, y avisan siempre. La
+  697 y la 698 se ampliaron con «si no se movió / si no llegó a escribir», rojas antes del código.
+- **Fuera de esta spec, visto de paso:** tras cerrar la Calculadora y abrir un Explorador nuevo,
+  `map_open_app` contesta ««explorer» está delante. Estás en «…/calculadora»» —o en la ventana de
+  otra app—, y `map_type` busca el campo en esa ventana vieja. La lectura de dónde está va un paso
+  por detrás de la ventana que acaba de abrir.
+
 ## Cierre
 
-- [ ] Promesas 693-699 verdes (`.\scripts\contrato-del-grafo.ps1`)
-- [ ] `.\scripts\verificar.ps1` pasa
-- [ ] Nivel 4, sobre U.exe real
+- [x] Promesas 693-699 verdes, y la 448 y la 691 reescritas (`.\scripts\contrato-del-grafo.ps1` →
+  CONTRATO INTACTO, 540 ✔ · 0 ✘, ya sobre main al día)
+- [x] `.\scripts\verificar.ps1` pasa, con la tabla en el PR
+- [x] Nivel 4, sobre U.exe real (build de esta rama, `C:\U-versiones\carita85`, 2026-10-03 07:12 y
+  07:22), por el MCP de una Ü de pruebas sobre su propia Calculadora y su propio Explorador, con
+  fotos `PrintWindow` en ráfaga. **Dos pantallas**, Calculadora y Explorador:
+  - trabaja durante cada acto (`cara: Reposo → Trabajando`), de seguido durante la tarea, y al
+    acabar se alegra (`gesto: Contenta`);
+  - pulsa con la mano y con la boca pequeña de atender (`presiona a la izquierda`), tres pulsos;
+  - desliza con el contenido: `scroll: Final: 0% → 100%` → `desliza hacia arriba … (1412,409) →
+    (1412,307)`, y de vuelta al subir; con `Abajo: 100% → 100%` («ya estabas al final») **no**
+    desliza;
+  - teclea junto al buscador: `escribí «la carita teclea mientras escribe»` → `teclea 33 caracteres
+    durante 1,8 s, junto al campo`, las dos manos alternándose en las fotos;
+  - agarrada con el ratón se sorprende (`gesto: Sorprendida`, cejas arriba y boca pequeña) y al
+    soltarla rebota.
+- [ ] **No se vio en la app**, y lo sostienen la regla pura y el `[cableado]`: todo lo de conversar
+  —escuchar 25 s al prender la voz, los gestos mientras le hablas (695), esperar tras una pregunta,
+  despedirse al colgar— pide una sesión de voz de pago, y la Ü de pruebas lleva la clave inventada a
+  propósito.
