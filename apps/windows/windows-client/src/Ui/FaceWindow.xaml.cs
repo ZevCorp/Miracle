@@ -4576,9 +4576,14 @@ public partial class FaceWindow : Window, IVoice, IUserChannel
 
     // ── Conversación embebida en el notch ─────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Abre el globo si <see cref="ReglaDelGlobo"/> lo dice. La condición vivió copiada aquí desde el
+    /// 2026-09-22 (#113) y la promesa 155 seguía juzgando la regla, que ya nadie llamaba: verde sobre
+    /// código que no corría. Llamarla es lo que hace que la promesa juzgue lo que corre.
+    /// </summary>
     private void MostrarConversacion(MotivoDelGlobo motivo, bool focusInput = false)
     {
-        if (motivo is MotivoDelGlobo.LoPidioAlguien or MotivoDelGlobo.HayQueContestar)
+        if (ReglaDelGlobo.SeAbre(motivo))
             _acciones?.AbrirChat(focusInput);
     }
 

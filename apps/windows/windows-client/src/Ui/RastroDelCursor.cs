@@ -48,12 +48,6 @@ public static class RastroDelCursor
         lock (_llave) return _marcas.Where(m => m.Cuando >= desde).ToList();
     }
 
-    /// <summary>Se vacía cuando lo mostrado ya se usó, para que la siguiente pregunta empiece limpia.</summary>
-    public static void Olvidar()
-    {
-        lock (_llave) _marcas.Clear();
-    }
-
     private static void Mirar()
     {
         try
