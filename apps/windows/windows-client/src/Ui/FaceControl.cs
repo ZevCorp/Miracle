@@ -873,18 +873,17 @@ public sealed class FaceControl : FrameworkElement
         // Casi blanca, como el cuerpo: el blanco puro «lastima los ojos» (2026-10-01).
         var blanca = new SolidColorBrush(Color.FromRgb(245, 245, 245));
         blanca.Freeze();
-        var tinta = new SolidColorBrush(paleta.Tinta);
-        tinta.Freeze();
 
-        double crece = LaUDeLaCarita.Cuerpo(laU);
-        if (crece <= 0)
+        double seVe = LaUDeLaCarita.Cuerpo(laU);
+        if (seVe <= 0)
         {
             dc.DrawGeometry(null, Pluma(blanca, grosor), rasgos);
             return;
         }
 
-        // El cuerpo, como en OnRender pero a su tamaño de ahora: los pinceles son relativos a la silueta.
-        var cuerpo = OuterSquircle(cx, cy, r * crece);
+        // El cuerpo, como en OnRender pero a su tamaño de ahora y a medio ver: los pinceles son relativos a la silueta.
+        var cuerpo = OuterSquircle(cx, cy, r * LaUDeLaCarita.TamanoDelCuerpo(laU));
+        dc.PushOpacity(seVe);
         dc.DrawGeometry(paleta.Cuerpo, null, cuerpo);
         dc.DrawGeometry(paleta.Vineta, null, cuerpo);
         dc.DrawGeometry(paleta.Reflejo, null, cuerpo);
@@ -893,7 +892,7 @@ public sealed class FaceControl : FrameworkElement
             double hairline = 0.35 * s;
             var pen = new Pen(new SolidColorBrush(paleta.Filete), hairline);
             pen.Freeze();
-            dc.DrawGeometry(null, pen, InnerSquircle(cx, cy, r * crece - hairline * 1.5));
+            dc.DrawGeometry(null, pen, InnerSquircle(cx, cy, r * LaUDeLaCarita.TamanoDelCuerpo(laU) - hairline * 1.5));
         }
         else
         {
@@ -901,13 +900,21 @@ public sealed class FaceControl : FrameworkElement
             pen.Freeze();
             dc.DrawGeometry(null, pen, cuerpo);
         }
+        dc.Pop();
+
+        // Donde el cuerpo cubre, el trazo va de blanco a tinta al paso con que el cuerpo se deja ver: si se volviera
+        // tinta de golpe, sobre un cuerpo aún transparente desaparecería contra el negro.
+        Color b = Color.FromRgb(245, 245, 245), k = paleta.Tinta;
+        var encima = new SolidColorBrush(Color.FromRgb(
+            (byte)Math.Round(b.R + (k.R - b.R) * seVe), (byte)Math.Round(b.G + (k.G - b.G) * seVe), (byte)Math.Round(b.B + (k.B - b.B) * seVe)));
+        encima.Freeze();
 
         var todo = new RectangleGeometry(new Rect(cx - 400 * s, cy - 400 * s, 800 * s, 800 * s));
         dc.PushClip(new CombinedGeometry(GeometryCombineMode.Exclude, todo, cuerpo));
         dc.DrawGeometry(null, Pluma(blanca, grosor), rasgos);
         dc.Pop();
         dc.PushClip(cuerpo);
-        dc.DrawGeometry(null, Pluma(tinta, grosor), rasgos);
+        dc.DrawGeometry(null, Pluma(encima, grosor), rasgos);
         dc.Pop();
     }
 

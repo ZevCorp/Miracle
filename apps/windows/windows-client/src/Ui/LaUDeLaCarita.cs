@@ -87,10 +87,32 @@ public static class LaUDeLaCarita
     public static double Forma(double laU) => Suave(Math.Clamp((1 - laU) / 0.7, 0, 1));
 
     /// <summary>
-    /// El cuerpo, de 0 (no está) a 1 (entero), crece desde el centro en la segunda mitad de la intro. Donde ya
-    /// cubre, el trazo es de tinta; fuera sigue blanco sobre el negro.
+    /// Cuánto se ve el cuerpo, de 0 (no está) a 1 (del todo): aparece en la segunda mitad de la intro, cuando los
+    /// rasgos ya casi llegaron, y en su primer 40 % ya es opaco. Donde cubre, el trazo pasa de blanco a tinta a
+    /// la vez; fuera sigue blanco sobre el negro.
     /// </summary>
-    public static double Cuerpo(double laU) => Suave(Math.Clamp((0.5 - laU) / 0.5, 0, 1));
+    public static double Cuerpo(double laU) => Suave(Math.Clamp(Crecido(laU) / 0.4, 0, 1));
+
+    /// <summary>
+    /// El tamaño del cuerpo, de 0,55 a 1, mientras aparece: asoma ya por detrás de los rasgos y crece desde el
+    /// centro con un rebote de un 4 %. Nació creciendo desde cero, y en el PC real era un cuadradito blanco en
+    /// mitad de la cara —una nariz— durante varios fotogramas (2026-10-03).
+    /// </summary>
+    public static double TamanoDelCuerpo(double laU)
+    {
+        double b = Crecido(laU);
+        return b <= 0 ? 0 : 0.55 + 0.45 * ConRebote(b);
+    }
+
+    /// <summary>Lo que va de la segunda mitad de la intro, de 0 a 1.</summary>
+    private static double Crecido(double laU) => Math.Clamp((0.5 - laU) / 0.5, 0, 1);
+
+    /// <summary>Llega pasándose un poco y vuelve: el «ease out back» de siempre, que acaba exactamente en 1.</summary>
+    private static double ConRebote(double x)
+    {
+        const double c1 = 1.70158, c3 = c1 + 1;
+        return 1 + c3 * Math.Pow(x - 1, 3) + c1 * Math.Pow(x - 1, 2);
+    }
 
     /// <summary>El grosor del trazo, del de la letra al de la carita, al paso de los rasgos.</summary>
     public static double Grosor(double laU) => GrosorDeLaLetra + (GrosorDeLaCara - GrosorDeLaLetra) * Forma(laU);

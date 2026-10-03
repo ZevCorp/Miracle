@@ -24854,9 +24854,10 @@ internal static class Contrato
         var entre = t?.GetMethod("Entre");
         var grosor = t?.GetMethod("Grosor");
         var cuerpo = t?.GetMethod("Cuerpo");
-        if (letraT == null || cara == null || entre == null || grosor == null || cuerpo == null || Cara?.GetProperty("LaU") == null)
+        var tamano = t?.GetMethod("TamanoDelCuerpo");
+        if (letraT == null || cara == null || entre == null || grosor == null || cuerpo == null || tamano == null || Cara?.GetProperty("LaU") == null)
         {
-            Pendiente("Ui.LaUDeLaCarita (LaU, Cara, Entre, Grosor, Cuerpo) y FaceControl.LaU", "880", "086");
+            Pendiente("Ui.LaUDeLaCarita (LaU, Cara, Entre, Grosor, Cuerpo, TamanoDelCuerpo) y FaceControl.LaU", "880", "086");
             return;
         }
 
@@ -24897,11 +24898,17 @@ internal static class Contrato
             Debe(d[5] < d[0] * 0.3, $"{nombres[i]}: a mitad de la intro ya casi llegó, antes de que crezca el cuerpo ({d[5]:0} de {d[0]:0})");
         }
 
-        // EL CUERPO crece desde el centro en la segunda mitad.
+        // EL CUERPO aparece en la segunda mitad, por detrás de los rasgos ya colocados, y crece desde el centro. No nace
+        // como un punto: en el PC real (2026-10-03) el cuerpo creciendo desde cero era un cuadradito blanco en mitad de
+        // la cara —una nariz— durante varios fotogramas.
         double C(double u) => Convert.ToDouble(cuerpo.Invoke(null, new object[] { u }));
+        double T(double u) => Convert.ToDouble(tamano.Invoke(null, new object[] { u }));
         var cs = Enumerable.Range(0, 21).Select(k => C(1 - k / 20.0)).ToArray();
         Debe(C(1) == 0 && C(0.5) == 0 && C(0) == 1 && cs.Zip(cs.Skip(1)).All(z => z.Second >= z.First - 1e-9),
-            $"el cuerpo no está con la letra, sigue sin estar a mitad, y crece sin encogerse hasta entero ({C(1):0.##}, {C(0.5):0.##}, {C(0.25):0.##}, {C(0):0.##})");
+            $"el cuerpo no está con la letra, sigue sin estar a mitad, y aparece sin volver atrás hasta entero ({C(1):0.##}, {C(0.5):0.##}, {C(0.25):0.##}, {C(0):0.##})");
+        var ts = Enumerable.Range(0, 50).Select(k => T(k / 100.0)).ToArray();
+        Debe(T(0) == 1 && ts.All(x => x >= 0.4 && x <= 1.06),
+            $"y crece hasta su tamaño exacto sin empezar siendo un punto ni hincharse más de un 6 % ({ts.Min():0.##} a {ts.Max():0.##})");
 
         // LO PINTADO.
         var px1 = Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); Poner(c, "LaU", 1.0); }));
@@ -24911,15 +24918,15 @@ internal static class Contrato
         Debe(Luz(px1, letra[2][0].X, 0) > 200 && Alfa(px1, letra[2][0].X, 0) == 255 && Alfa(px1, 0, 0) == 0 && tinta == 0,
             $"pintada, la Ü es blanca y sin cuerpo: su lado brilla ({Luz(px1, letra[2][0].X, 0):0}), el centro está vacío (alfa {Alfa(px1, 0, 0)}) y no hay tinta ({tinta} px)");
 
-        double medio = Enumerable.Range(1, 99).Select(k => k / 100.0).FirstOrDefault(u => C(u) >= 0.45 && C(u) <= 0.65);
+        double medio = Enumerable.Range(1, 99).Select(k => k / 100.0).FirstOrDefault(u => C(u) >= 0.4 && C(u) <= 0.6);
         if (medio > 0)
         {
             var pxm = Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); Poner(c, "LaU", medio); }));
-            Debe(Alfa(pxm, 0, 0) == 255 && Luz(pxm, 0, 0) > 200 && Alfa(pxm, 0, 62) == 0,
-                $"a medio crecer, el cuerpo claro ocupa el centro y aún no llega al borde (LaU {medio}: alfa {Alfa(pxm, 0, 0)} en el centro, {Alfa(pxm, 0, 62)} abajo)");
-            Debe(Luz(pxm, -30, -14) < 120, $"y donde ya cubre, el trazo es de tinta: el ojo izquierdo se ve oscuro ({Luz(pxm, -30, -14):0})");
+            Debe(Alfa(pxm, 0, 0) > 40 && Alfa(pxm, 0, 0) < 230 && Alfa(pxm, 0, 70) == 0 && T(medio) < 0.95,
+                $"a medio aparecer, el cuerpo se ve a medias en el centro y aún no llega a su borde (LaU {medio}: alfa {Alfa(pxm, 0, 0)} en el centro y {Alfa(pxm, 0, 70)} abajo, tamaño {T(medio):0.##})");
+            Debe(Luz(pxm, -30, -14) < 215, $"y donde ya cubre, el trazo se va hacia la tinta: el ojo izquierdo ya no es blanco ({Luz(pxm, -30, -14):0})");
         }
-        else Debe(false, "no hay ningún momento en que el cuerpo vaya entre el 45 y el 65 %: no crece, aparece");
+        else Debe(false, "no hay ningún momento en que el cuerpo vaya entre el 40 y el 60 %: no aparece, salta");
 
         var casi = Pintar(NuevaCara(c => { Poner(c, "Theme", "Light"); Poner(c, "LaU", 0.0001); }));
         var nada = Pintar(NuevaCara(c => Poner(c, "Theme", "Light")));
